@@ -1,0 +1,34 @@
+{
+  "sha": "b84c89027b8f1e402f5a02f6634e168ebabb9eb6",
+  "run_id": "34736965617",
+  "url": "https://github.com/Gostn1ght/AnomalyMP/actions/runs/34736965617",
+  "checks": "success",
+  "engine": "failure",
+  "compiler_errors": [],
+  "gameplay_128_players": "not tested",
+  "jobs": [
+    {
+      "name": "checks",
+      "result": "success",
+      "steps": []
+    },
+    {
+      "name": "engine",
+      "result": "failure",
+      "steps": [
+        {
+          "name": "Checkout pinned NetAnomaly engine",
+          "result": "failure"
+        }
+      ]
+    },
+    {
+      "name": "report",
+      "result": null,
+      "steps": []
+    }
+  ],
+  "failed_job_logs": {
+    "engine": "run 34736965617 is still in progress; logs will be available when it is complete\n"
+  }
+}
