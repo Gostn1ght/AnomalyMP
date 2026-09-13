@@ -1,0 +1,9 @@
+{
+  "sha": "1e31ba7ebfbd0d32f70a38431dfc932192ce1006",
+  "run_id": "34736493054",
+  "url": "https://github.com/Gostn1ght/AnomalyMP/actions/runs/34736493054",
+  "checks": "success",
+  "engine": "failure",
+  "compiler_errors": [],
+  "gameplay_128_players": "not tested"
+}
