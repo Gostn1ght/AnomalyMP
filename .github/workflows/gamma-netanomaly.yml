@@ -89,6 +89,7 @@ jobs:
           if ((Get-FileHash regenerated.patch).Hash -ne (Get-FileHash gamma/netanomaly/engine/gamma.patch).Hash) { throw 'Patch and generator differ' }
           python gamma/netanomaly/tools/apply_engine.py engine
           if ($LASTEXITCODE -ne 0) { throw 'Patch application failed' }
+          New-Item -ItemType Directory -Path engine/sdk/libraries -Force | Out-Null
           Copy-Item -Path sdk-source/sdk/libraries/* -Destination engine/sdk/libraries -Recurse -Force
       - name: Checkout archived Optick dependency
         uses: actions/checkout@v4
