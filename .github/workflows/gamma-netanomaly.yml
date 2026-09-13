@@ -2,7 +2,7 @@ name: GAMMA on NetAnomaly
 
 on:
   push:
-    branches: ['codex/gamma-netanomaly', 'main']
+    branches: ['codex/gamma-netanomaly', 'codex/netanomaly-custom', 'main']
     paths: ['netanomaly/**', '.github/workflows/gamma-netanomaly.yml']
   pull_request:
     paths: ['netanomaly/**', '.github/workflows/gamma-netanomaly.yml']
@@ -140,6 +140,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -149,16 +150,19 @@ jobs:
           CHECKS_RESULT: ${{ needs.checks.result }}
           ENGINE_RESULT: ${{ needs.engine.result }}
           ENGINE_ERRORS: ${{ needs.engine.outputs.errors }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           python - <<'PY'
-          import os, json, base64
+          import os, json, base64, subprocess
           errors = os.environ.get('ENGINE_ERRORS', '')
           report = {'sha': os.environ['GITHUB_SHA'], 'run_id': os.environ['GITHUB_RUN_ID'],
                     'url': os.environ['GITHUB_SERVER_URL'] + '/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID'],
                     'checks': os.environ['CHECKS_RESULT'], 'engine': os.environ['ENGINE_RESULT'],
                     'compiler_errors': json.loads(base64.b64decode(errors)) if errors else [],
                     'gameplay_128_players': 'not tested'}
+          jobs = json.loads(subprocess.check_output(['gh', 'api', 'repos/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID'] + '/jobs?per_page=100']))
+          report['jobs'] = [{'name': j['name'], 'result': j['conclusion'], 'steps': [{'name': s['name'], 'result': s['conclusion']} for s in j['steps'] if s['conclusion'] == 'failure']} for j in jobs['jobs']]
           with open('/tmp/gamma-ci-report.json', 'w') as f: json.dump(report, f, indent=2)
           PY
           git config user.name 'github-actions[bot]'
