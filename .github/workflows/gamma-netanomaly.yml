@@ -47,7 +47,8 @@ jobs:
     outputs:
       errors: ${{ steps.diagnostics.outputs.errors }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout GAMMA adapter
+        uses: actions/checkout@v4
         with:
           path: gamma
       - name: Read source lock
@@ -59,13 +60,15 @@ jobs:
           "ref=$($lock.ref)" >> $env:GITHUB_OUTPUT
           "sdk_repository=$($lock.sdk_repository)" >> $env:GITHUB_OUTPUT
           "sdk_ref=$($lock.sdk_ref)" >> $env:GITHUB_OUTPUT
-      - uses: actions/checkout@v4
+      - name: Checkout pinned NetAnomaly engine
+        uses: actions/checkout@v4
         with:
           repository: ${{ steps.source.outputs.repository }}
           ref: ${{ steps.source.outputs.ref }}
           path: engine
           submodules: recursive
-      - uses: actions/checkout@v4
+      - name: Checkout matching Monolith SDK
+        uses: actions/checkout@v4
         with:
           repository: ${{ steps.source.outputs.sdk_repository }}
           ref: ${{ steps.source.outputs.sdk_ref }}
@@ -129,7 +132,8 @@ jobs:
           if (Test-Path engine-build.log) {
             $errors = @(Select-String -Path engine-build.log -Pattern ': (fatal )?error ' | Select-Object -ExpandProperty Line -Unique | Select-Object -First 20)
           }
-          $data = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($errors | ConvertTo-Json -Compress)))
+          $json = ConvertTo-Json -InputObject @($errors) -Compress
+          $data = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($json))
           "errors=$data" >> $env:GITHUB_OUTPUT
 
   report:
@@ -163,6 +167,10 @@ jobs:
                     'gameplay_128_players': 'not tested'}
           jobs = json.loads(subprocess.check_output(['gh', 'api', 'repos/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID'] + '/jobs?per_page=100']))
           report['jobs'] = [{'name': j['name'], 'result': j['conclusion'], 'steps': [{'name': s['name'], 'result': s['conclusion']} for s in j['steps'] if s['conclusion'] == 'failure']} for j in jobs['jobs']]
+          for j in jobs['jobs']:
+              if j['conclusion'] == 'failure':
+                  log = subprocess.run(['gh', 'run', 'view', os.environ['GITHUB_RUN_ID'], '--repo', os.environ['GITHUB_REPOSITORY'], '--job', str(j['id']), '--log-failed'], capture_output=True, text=True)
+                  report.setdefault('failed_job_logs', {})[j['name']] = log.stdout[-18000:] or log.stderr[-1000:]
           with open('/tmp/gamma-ci-report.json', 'w') as f: json.dump(report, f, indent=2)
           PY
           git config user.name 'github-actions[bot]'
