@@ -164,6 +164,8 @@ def generate(source: Path) -> str:
             'if ((GameID() != eGameIDSingle || strstr(Core.Params, "-netcoop")) && OnClient())')
     actor = "src/xrGame/Actor_Network.cpp"
     replace(actor, '#include "pch_script.h"', '#include "pch_script.h"\n#include "../xrNetServer/GammaNetPolicy.h"')
+    replace(actor, 'H_Parent() || (GameID() == eGameIDSingle) || ((NumItems > 1) && OnClient())',
+            'H_Parent() || (GameID() == eGameIDSingle && !strstr(Core.Params, "-netcoop")) || (NumItems > 1)')
     replace(actor, '\tif (OnServer())\n\t{\n\t\tE->s_flags.set(M_SPAWN_OBJECT_LOCAL, TRUE);',
             '\tif (OnServer() && !strstr(Core.Params, "-netcoop"))\n\t{\n\t\tE->s_flags.set(M_SPAWN_OBJECT_LOCAL, TRUE);')
     replace(actor, 'N.dwTimeStamp < NET.back().dwTimeStamp',

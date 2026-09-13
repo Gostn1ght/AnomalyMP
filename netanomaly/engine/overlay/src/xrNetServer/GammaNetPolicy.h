@@ -17,17 +17,28 @@ inline bool newer(std::uint32_t a, std::uint32_t b)
     return delta != 0 && delta < 0x80000000u;
 }
 
-// CActor::net_Export in single/coop sends 61 bytes and no physics bones.
+// CActor::net_Export sends 61 base bytes, optionally followed by one 77-byte physics state.
 // Validate before the host imports floats into movement/physics state.
 inline bool valid_coop_actor(const unsigned char* data, std::size_t size)
 {
-    if (!data || size != 61 || data[59] != 0 || data[60] != 0) return false;
+    if (!data || size < 61 || data[60] != 0 || data[59] > 1) return false;
+    if (size != (data[59] ? 138u : 61u)) return false;
     const unsigned offsets[] = {0, 9, 13, 17, 21, 25, 29, 33, 44, 50, 54};
     for (auto offset : offsets)
     {
         float value;
         std::memcpy(&value, data + offset, sizeof(value));
         if (!std::isfinite(value) || std::fabs(value) > 100000.0f) return false;
+    }
+    if (data[59])
+    {
+        if (data[61] > 1) return false;
+        for (unsigned offset = 62; offset < 138; offset += 4)
+        {
+            float value;
+            std::memcpy(&value, data + offset, sizeof(value));
+            if (!std::isfinite(value) || std::fabs(value) > 1000000.0f) return false;
+        }
     }
     return true;
 }

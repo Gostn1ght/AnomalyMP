@@ -28,6 +28,12 @@ int main()
     std::memset(actor, 0, sizeof(actor));
     actor[59] = 1;
     assert(!valid_coop_actor(actor, sizeof(actor)));
+    unsigned char physics_actor[138] = {};
+    physics_actor[59] = 1;
+    assert(valid_coop_actor(physics_actor, sizeof(physics_actor)));
+    assert(!valid_coop_actor(physics_actor, sizeof(physics_actor) - 1));
+    std::memcpy(physics_actor + 62, &nan, sizeof(nan));
+    assert(!valid_coop_actor(physics_actor, sizeof(physics_actor)));
     unsigned char frame[] = {2, 0, 1, 0, 2, 0, 2, 0};
     assert(valid_frame(frame, sizeof(frame), true, 16384));
     for (auto size : {0u, 1u, 2u, 3u, 5u, 6u, 7u})

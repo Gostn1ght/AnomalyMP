@@ -24,6 +24,15 @@
  #include "actor.h"
  #include "hudmanager.h"
  #include "Actor_Flags.h"
+@@ -122,7 +123,7 @@
+ 	/////////////////////////////////////////////////
+ 	u16 NumItems = PHGetSyncItemsNumber();
+ 
+-	if (H_Parent() || (GameID() == eGameIDSingle) || ((NumItems > 1) && OnClient()))
++	if (H_Parent() || (GameID() == eGameIDSingle && !strstr(Core.Params, "-netcoop")) || (NumItems > 1))
+ 		NumItems = 0;
+ 
+ 	if (!g_Alive()) NumItems = 0;
 @@ -386,7 +387,7 @@
  	//----------- for E3 -----------------------------
  	if (Local() && OnClient()) return;

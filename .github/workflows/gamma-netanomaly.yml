@@ -60,13 +60,14 @@ jobs:
           "ref=$($lock.ref)" >> $env:GITHUB_OUTPUT
           "sdk_repository=$($lock.sdk_repository)" >> $env:GITHUB_OUTPUT
           "sdk_ref=$($lock.sdk_ref)" >> $env:GITHUB_OUTPUT
+          "optick_ref=$($lock.optick_ref)" >> $env:GITHUB_OUTPUT
       - name: Checkout pinned NetAnomaly engine
         uses: actions/checkout@v4
         with:
           repository: ${{ steps.source.outputs.repository }}
           ref: ${{ steps.source.outputs.ref }}
           path: engine
-          submodules: recursive
+          submodules: false
       - name: Checkout matching Monolith SDK
         uses: actions/checkout@v4
         with:
@@ -89,6 +90,12 @@ jobs:
           python gamma/netanomaly/tools/apply_engine.py engine
           if ($LASTEXITCODE -ne 0) { throw 'Patch application failed' }
           Copy-Item -Path sdk-source/sdk/libraries/* -Destination engine/sdk/libraries -Recurse -Force
+      - name: Checkout archived Optick dependency
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.source.outputs.repository }}
+          ref: ${{ steps.source.outputs.optick_ref }}
+          path: engine/src/3rd party/optick-git
       - name: Build DX11 x64 on GitHub only
         shell: pwsh
         run: |
@@ -139,7 +146,7 @@ jobs:
   report:
     # Store results as Git notes so an SSH-only checkout can read CI results too.
     if: always()
-    needs: [checks, engine]
+    needs: [checks, engine, publish-runtime]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -158,7 +165,7 @@ jobs:
         shell: bash
         run: |
           python - <<'PY'
-          import os, json, base64, subprocess
+          import os, json, base64, subprocess, re
           errors = os.environ.get('ENGINE_ERRORS', '')
           report = {'sha': os.environ['GITHUB_SHA'], 'run_id': os.environ['GITHUB_RUN_ID'],
                     'url': os.environ['GITHUB_SERVER_URL'] + '/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID'],
@@ -169,8 +176,8 @@ jobs:
           report['jobs'] = [{'name': j['name'], 'result': j['conclusion'], 'steps': [{'name': s['name'], 'result': s['conclusion']} for s in j['steps'] if s['conclusion'] == 'failure']} for j in jobs['jobs']]
           for j in jobs['jobs']:
               if j['conclusion'] == 'failure':
-                  log = subprocess.run(['gh', 'api', 'repos/' + os.environ['GITHUB_REPOSITORY'] + '/actions/jobs/' + str(j['id']) + '/logs'], capture_output=True, text=True)
-                  report.setdefault('failed_job_logs', {})[j['name']] = log.stdout[-18000:] or log.stderr[-1000:]
+                  log = subprocess.run(['gh', 'api', '--allow-escape-sequences', 'repos/' + os.environ['GITHUB_REPOSITORY'] + '/actions/jobs/' + str(j['id']) + '/logs'], capture_output=True, text=True)
+                  report.setdefault('failed_job_logs', {})[j['name']] = re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', log.stdout[-18000:] or log.stderr[-1000:])
           with open('/tmp/gamma-ci-report.json', 'w') as f: json.dump(report, f, indent=2)
           PY
           git config user.name 'github-actions[bot]'
@@ -178,3 +185,36 @@ jobs:
           git fetch origin refs/notes/gamma-ci:refs/notes/gamma-ci || true
           git notes --ref=gamma-ci add -f -F /tmp/gamma-ci-report.json "$GITHUB_SHA"
           git push origin refs/notes/gamma-ci
+
+  publish-runtime:
+    if: github.ref == 'refs/heads/codex/netanomaly-custom'
+    needs: engine
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: GAMMA-NetAnomaly-DX11-experimental
+          path: runtime-artifact
+      - name: Make the tested binary downloadable through the existing SSH access
+        shell: bash
+        run: |
+          mkdir -p runtime
+          cp runtime-artifact/bin/AnomalyGammaNetDX11.exe runtime/AnomalyNetDX11.exe
+          cp runtime-artifact/source.json runtime/source.json
+          cp runtime-artifact/Engine-License.txt runtime/Engine-License.txt
+          printf '%s\n' "$GITHUB_SHA" > runtime/built-from.txt
+          sha256sum runtime/AnomalyNetDX11.exe > runtime/sha256.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          parent=()
+          if git fetch origin refs/heads/codex/netanomaly-runtime; then parent=(-p "$(git rev-parse FETCH_HEAD)"); fi
+          export GIT_INDEX_FILE="$RUNNER_TEMP/netanomaly-runtime.index"
+          git read-tree --empty
+          git add --force runtime
+          tree=$(git write-tree)
+          commit=$(git commit-tree "$tree" "${parent[@]}" -m "NetAnomaly Custom build from $GITHUB_SHA")
+          git push origin "$commit:refs/heads/codex/netanomaly-runtime"
