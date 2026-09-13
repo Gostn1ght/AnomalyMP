@@ -1,0 +1,34 @@
+{
+  "sha": "6a05db99362408528d2f314f607ae715d65203b7",
+  "run_id": "34757552906",
+  "url": "https://github.com/Gostn1ght/AnomalyMP/actions/runs/34757552906",
+  "checks": "success",
+  "engine": "failure",
+  "compiler_errors": [],
+  "gameplay_128_players": "not tested",
+  "jobs": [
+    {
+      "name": "checks",
+      "result": "success",
+      "steps": []
+    },
+    {
+      "name": "engine",
+      "result": "failure",
+      "steps": [
+        {
+          "name": "Checkout pinned NetAnomaly engine",
+          "result": "failure"
+        }
+      ]
+    },
+    {
+      "name": "report",
+      "result": null,
+      "steps": []
+    }
+  ],
+  "failed_job_logs": {
+    "engine": "the response contains terminal escape sequences; pass --allow-escape-sequences to output it anyway\n"
+  }
+}
