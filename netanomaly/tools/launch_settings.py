@@ -17,7 +17,7 @@ def settings(role, address='127.0.0.1', port=1237, client_port=1240, nickname='S
         raise ValueError('Use an IPv4 address or DNS hostname without URL/command delimiters')
     address = 'localhost' if address == '127.0.0.1' else address
     # Isolated appdata is configured in a copied fsgame.ltx per process (see README).
-    args = f'-netcoop -noprefetch -logname gamma_{role}_{nickname} -ltx gamma_{role}.ltx '
+    args = f'-netcoop -noprefetch -logname gamma_{role}_{nickname} '
     if role == 'server':
         args += f'-netport {port} -start server(all/single/alife/new/portsv={port}/maxplayers={players}) '
         args += f'client(localhost/name={nickname}/port={port}/portcl={client_port})'
