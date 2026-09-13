@@ -169,7 +169,7 @@ jobs:
           report['jobs'] = [{'name': j['name'], 'result': j['conclusion'], 'steps': [{'name': s['name'], 'result': s['conclusion']} for s in j['steps'] if s['conclusion'] == 'failure']} for j in jobs['jobs']]
           for j in jobs['jobs']:
               if j['conclusion'] == 'failure':
-                  log = subprocess.run(['gh', 'run', 'view', os.environ['GITHUB_RUN_ID'], '--repo', os.environ['GITHUB_REPOSITORY'], '--job', str(j['id']), '--log-failed'], capture_output=True, text=True)
+                  log = subprocess.run(['gh', 'api', 'repos/' + os.environ['GITHUB_REPOSITORY'] + '/actions/jobs/' + str(j['id']) + '/logs'], capture_output=True, text=True)
                   report.setdefault('failed_job_logs', {})[j['name']] = log.stdout[-18000:] or log.stderr[-1000:]
           with open('/tmp/gamma-ci-report.json', 'w') as f: json.dump(report, f, indent=2)
           PY
