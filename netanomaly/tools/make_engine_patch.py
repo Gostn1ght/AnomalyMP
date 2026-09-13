@@ -163,7 +163,22 @@ def generate(source: Path) -> str:
     replace(level, 'if (GameID() != eGameIDSingle && OnClient())',
             'if ((GameID() != eGameIDSingle || strstr(Core.Params, "-netcoop")) && OnClient())')
     actor = "src/xrGame/Actor_Network.cpp"
+    replace('src/xrGame/Actor.h', '\tu32 NET_Time; // server time of last update',
+            '\tu32 gamma_net_trace_time;\n\tu32 NET_Time; // server time of last update')
     replace(actor, '#include "pch_script.h"', '#include "pch_script.h"\n#include "../xrNetServer/GammaNetPolicy.h"')
+    replace(actor, 'BOOL CActor::net_Spawn(CSE_Abstract* DC)\n{',
+            'BOOL CActor::net_Spawn(CSE_Abstract* DC)\n{\n\tgamma_net_trace_time = 0;')
+    replace(actor, 'void CActor::net_Import_Base_proceed()\n{', '''void CActor::net_Import_Base_proceed()
+{
+    if (strstr(Core.Params, "-net_trace") &&
+        Device.dwTimeGlobal - gamma_net_trace_time >= 1000)
+    {
+        gamma_net_trace_time = Device.dwTimeGlobal;
+        const Fvector& sample = NET.empty() ? Position() : NET.back().p_pos;
+        Msg("[NetTrace] actor=%u name=%s local=%d server=%d visible=%d visual=%d pos=%.3f,%.3f,%.3f sample=%.3f,%.3f,%.3f samples=%u",
+            ID(), *cName(), int(Local()), int(OnServer()), int(getVisible()), int(Visual() != NULL),
+            Position().x, Position().y, Position().z, sample.x, sample.y, sample.z, u32(NET.size()));
+    }''')
     replace(actor, 'H_Parent() || (GameID() == eGameIDSingle) || ((NumItems > 1) && OnClient())',
             'H_Parent() || (GameID() == eGameIDSingle && !strstr(Core.Params, "-netcoop")) || (NumItems > 1)')
     replace(actor, '\tif (OnServer())\n\t{\n\t\tE->s_flags.set(M_SPAWN_OBJECT_LOCAL, TRUE);',
