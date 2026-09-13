@@ -1,0 +1,18 @@
+{
+  "disabled_mods": {
+    "203- YACS Better Campfire Saves (forces campfire saves but they are better) - Ishmaeel": "Single-player campfire save tokens conflict with server-owned saves.",
+    "329- Fair Fast Travel 2.7+ - Catspaw": "Solo travel cannot move one peer independently of the server level.",
+    "G.A.M.M.A. Books Pass Time": "Reading must not advance the shared world clock for everyone.",
+    "111- Immersive Sleep - tkcrits": "Solo sleep changes the shared clock; multiplayer sleep voting is not implemented.",
+    "G.A.M.M.A. Sleep Balance": "Depends on single-player sleep behavior.",
+    "G.A.M.M.A. Agroprom Underground Transition Randomizer": "Independent transition choices can separate clients from the server map.",
+    "Momopate's Loot Stabilizer": "Save-scoped loot snapshots have not been adapted to shared ownership."
+  },
+  "unsupported": [
+    "Full remote actor Lua binders and GAMMA gameplay callbacks",
+    "Server transactions for crafting, repair, trading, looting and body-part healing",
+    "Independent maps per player and persistent per-player progression",
+    "Authenticated remote administration and mod-content handshake",
+    "128 real clients, bandwidth/CPU load and long-running gameplay acceptance"
+  ]
+}

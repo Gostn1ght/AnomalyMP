@@ -1,0 +1,32 @@
+-- GAMMA compatibility bootstrap for the pinned NetAnomaly protocol v2 build.
+-- This module deliberately has no on_game_start: axr_main calls install once.
+local installed = false
+local role = nil
+
+function get_role()
+    if role then return role end
+    local ini = ini_file("gamma_net_role.ltx")
+    role = ini:r_string("network", "role")
+    assert(role == "server" or role == "client", "Invalid GAMMA NetAnomaly role")
+    return role
+end
+
+function is_server()
+    return get_role() == "server"
+end
+
+function before_save(flags)
+    if not is_server() then flags.ret = true end
+end
+
+function unavailable()
+    printf("[GAMMA NetAnomaly] Save/load/new world is controlled by the server.")
+end
+
+function install()
+    if installed then return end
+    get_role() -- Fail explicitly if the wrong addon/profile was mounted.
+    installed = true
+    RegisterScriptCallback("on_before_save_input", before_save)
+    printf("[GAMMA NetAnomaly] role=%s protocol=2; experimental compatibility profile", role)
+end

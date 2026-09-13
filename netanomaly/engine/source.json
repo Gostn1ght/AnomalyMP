@@ -1,0 +1,11 @@
+{
+  "repository": "Gostn1ght/AnomalyMP",
+  "ref": "0e08ee7090323aa33c1704e784d9f4a4eb6515a2",
+  "original_ref": "6171911378fe24abfee4ccc97823cfb3e2edccf6",
+  "sdk_repository": "themrdemonized/xray-monolith",
+  "sdk_ref": "62cb33722793166f3454a5ba08e03c67279f4ef8",
+  "archive_branch": "codex/netanomaly-engine-base",
+  "original_remote": "https://github.com/polinchek228/nova-runtime.git",
+  "gamma_ref": "ab0f743af42a3b3b0b0ee853b3676f5189f7f0d0",
+  "status": "experimental; gameplay and 128-player load acceptance pending"
+}
