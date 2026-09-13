@@ -74,7 +74,9 @@ jobs:
           repository: ${{ steps.source.outputs.sdk_repository }}
           ref: ${{ steps.source.outputs.sdk_ref }}
           path: sdk-source
-          sparse-checkout: sdk/libraries
+          sparse-checkout: |
+            sdk/libraries
+            src/3rd party/stackwalker/lib
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -91,6 +93,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Patch application failed' }
           New-Item -ItemType Directory -Path engine/sdk/libraries -Force | Out-Null
           Copy-Item -Path sdk-source/sdk/libraries/* -Destination engine/sdk/libraries -Recurse -Force
+          New-Item -ItemType Directory -Path 'engine/src/3rd party/stackwalker/lib' -Force | Out-Null
+          Copy-Item -LiteralPath 'sdk-source/src/3rd party/stackwalker/lib/StackWalker.lib' -Destination 'engine/src/3rd party/stackwalker/lib/StackWalker.lib'
       - name: Checkout archived Optick dependency
         uses: actions/checkout@v4
         with:
