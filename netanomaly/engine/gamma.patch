@@ -60,6 +60,15 @@
  	{
  		setEnabled(TRUE);
  	}
+@@ -807,7 +808,7 @@
+ {
+ 	if (OnServer())
+ 	{
+-		return getSVU() | getLocal();
++		return (strstr(Core.Params, "-netcoop") != NULL) || getSVU() || getLocal();
+ 	}
+ 	else
+ 	{
 --- a/src/xrGame/DemoInfo.cpp
 +++ b/src/xrGame/DemoInfo.cpp
 @@ -116,7 +116,7 @@
@@ -318,7 +327,7 @@
  
  				OnMessage(tmpP, sender);
  			};
-@@ -534,14 +569,16 @@
+@@ -534,14 +569,18 @@
  			if (!CL) break;
  			CL->net_Ready = TRUE;
  
@@ -328,6 +337,8 @@
 +            u16 object_id;
 +            CopyMemory(&object_id, P.B.data + 2, sizeof(object_id));
 +            if (object_id != CL->owner->ID) break; // A client may update only its own actor.
++            if (IsGameTypeSingle() && strstr(Core.Params, "-netcoop") &&
++                !gamma_net::valid_coop_actor(P.B.data + 8, P.B.count - 8)) break;
  			//-------------------------------------------------------------------
  			u32 ClientPing = CL->stats.getPing();
  			P.w_seek(P.r_tell() + 2, &ClientPing, 4);
@@ -338,7 +349,7 @@
  #ifdef DEBUG
  			VERIFY(verify_entities());
  #endif
-@@ -557,7 +594,11 @@
+@@ -557,7 +596,11 @@
  		break;
  		//-------------------------------------------------------------------
  	case M_CL_INPUT:
@@ -351,7 +362,7 @@
  			xrClientData* CL = ID_to_client(sender);
  			if (CL) CL->net_Ready = TRUE;
  			if (SV_Client) SendTo(SV_Client->ID, P, net_flags(TRUE, TRUE));
-@@ -648,6 +689,8 @@
+@@ -648,6 +691,8 @@
  		break;
  	case M_NETANOMALY_CMD:
  		{
@@ -360,7 +371,7 @@
  			//netanomaly: text command channel client -> server, handled in lua
  			string4096 na_text;
  			na_text[0] = 0;
-@@ -657,7 +700,7 @@
+@@ -657,7 +702,7 @@
  			int na_eid = (na_cl && na_cl->owner) ? int(na_cl->owner->ID) : int(65535);
  			string64 na_cid;
  			xr_sprintf(na_cid, "%08x", sender.value());
@@ -369,7 +380,7 @@
  			string4096 na_reply;
  			na_reply[0] = 0;
  			::luabind::functor<LPCSTR> na_f;
-@@ -962,7 +1005,7 @@
+@@ -962,7 +1007,7 @@
  		return;
  	};
  

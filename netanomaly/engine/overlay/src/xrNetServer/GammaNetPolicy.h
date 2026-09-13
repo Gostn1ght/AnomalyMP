@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <cmath>
 
 // 128 human players; the headless ALife host needs one internal client state.
 namespace gamma_net
@@ -14,6 +15,21 @@ inline bool newer(std::uint32_t a, std::uint32_t b)
 {
     const auto delta = a - b;
     return delta != 0 && delta < 0x80000000u;
+}
+
+// CActor::net_Export in single/coop sends 61 bytes and no physics bones.
+// Validate before the host imports floats into movement/physics state.
+inline bool valid_coop_actor(const unsigned char* data, std::size_t size)
+{
+    if (!data || size != 61 || data[59] != 0 || data[60] != 0) return false;
+    const unsigned offsets[] = {0, 9, 13, 17, 21, 25, 29, 33, 44, 50, 54};
+    for (auto offset : offsets)
+    {
+        float value;
+        std::memcpy(&value, data + offset, sizeof(value));
+        if (!std::isfinite(value) || std::fabs(value) > 100000.0f) return false;
+    }
+    return true;
 }
 
 // Parse one complete slash-delimited option, without atoi overflow or substring matches.

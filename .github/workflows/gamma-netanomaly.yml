@@ -44,6 +44,8 @@ jobs:
     needs: checks
     runs-on: windows-2022
     timeout-minutes: 90
+    outputs:
+      errors: ${{ steps.diagnostics.outputs.errors }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -88,7 +90,7 @@ jobs:
         shell: pwsh
         run: |
           if ($env:GITHUB_ACTIONS -ne 'true') { throw 'Build must run on GitHub Actions' }
-          msbuild engine/src/engine-vs2022.sln /m:2 /p:Configuration=DX11 /p:Platform=x64 /p:MultiProcessorCompilation=false /bl:engine-build.binlog /v:minimal
+          msbuild engine/src/engine-vs2022.sln /m:2 /p:Configuration=DX11 /p:Platform=x64 /p:MultiProcessorCompilation=false /bl:engine-build.binlog /fl /flp:logfile=engine-build.log /v:minimal
           if ($LASTEXITCODE -ne 0) { throw "MSBuild failed: $LASTEXITCODE" }
       - name: Package experimental runtime
         shell: pwsh
@@ -114,5 +116,53 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: GAMMA-NetAnomaly-build-log
-          path: engine-build.binlog
+          path: |
+            engine-build.binlog
+            engine-build.log
           if-no-files-found: warn
+      - name: Extract compiler diagnostics
+        id: diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          $errors = @()
+          if (Test-Path engine-build.log) {
+            $errors = @(Select-String -Path engine-build.log -Pattern ': (fatal )?error ' | Select-Object -ExpandProperty Line -Unique | Select-Object -First 20)
+          }
+          $data = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($errors | ConvertTo-Json -Compress)))
+          "errors=$data" >> $env:GITHUB_OUTPUT
+
+  report:
+    # Store results as Git notes so an SSH-only checkout can read CI results too.
+    if: always()
+    needs: [checks, engine]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Record results on the tested commit
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          ENGINE_RESULT: ${{ needs.engine.result }}
+          ENGINE_ERRORS: ${{ needs.engine.outputs.errors }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, json, base64
+          errors = os.environ.get('ENGINE_ERRORS', '')
+          report = {'sha': os.environ['GITHUB_SHA'], 'run_id': os.environ['GITHUB_RUN_ID'],
+                    'url': os.environ['GITHUB_SERVER_URL'] + '/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID'],
+                    'checks': os.environ['CHECKS_RESULT'], 'engine': os.environ['ENGINE_RESULT'],
+                    'compiler_errors': json.loads(base64.b64decode(errors)) if errors else [],
+                    'gameplay_128_players': 'not tested'}
+          with open('/tmp/gamma-ci-report.json', 'w') as f: json.dump(report, f, indent=2)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin refs/notes/gamma-ci:refs/notes/gamma-ci || true
+          git notes --ref=gamma-ci add -f -F /tmp/gamma-ci-report.json "$GITHUB_SHA"
+          git push origin refs/notes/gamma-ci

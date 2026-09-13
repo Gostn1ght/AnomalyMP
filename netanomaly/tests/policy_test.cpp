@@ -3,6 +3,7 @@
 #include <iostream>
 #include <random>
 #include <vector>
+#include <limits>
 
 int main()
 {
@@ -18,6 +19,15 @@ int main()
     assert(!newer(0xffffffffu, 0));
     assert(!newer(42, 42));
     assert(!newer(0x80000000u, 0));
+    unsigned char actor[61] = {};
+    assert(valid_coop_actor(actor, sizeof(actor)));
+    assert(!valid_coop_actor(actor, sizeof(actor) - 1));
+    float nan = std::numeric_limits<float>::quiet_NaN();
+    std::memcpy(actor + 9, &nan, sizeof(nan));
+    assert(!valid_coop_actor(actor, sizeof(actor)));
+    std::memset(actor, 0, sizeof(actor));
+    actor[59] = 1;
+    assert(!valid_coop_actor(actor, sizeof(actor)));
     unsigned char frame[] = {2, 0, 1, 0, 2, 0, 2, 0};
     assert(valid_frame(frame, sizeof(frame), true, 16384));
     for (auto size : {0u, 1u, 2u, 3u, 5u, 6u, 7u})

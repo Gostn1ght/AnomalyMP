@@ -138,7 +138,9 @@ def generate(source: Path) -> str:
     replace(game, '\t\t\tif (!CL->net_PassUpdates)\n\t\t\t\tbreak;', '''            if (!CL->net_PassUpdates || !CL->owner || P.B.count < 8) break;
             u16 object_id;
             CopyMemory(&object_id, P.B.data + 2, sizeof(object_id));
-            if (object_id != CL->owner->ID) break; // A client may update only its own actor.''')
+            if (object_id != CL->owner->ID) break; // A client may update only its own actor.
+            if (IsGameTypeSingle() && strstr(Core.Params, "-netcoop") &&
+                !gamma_net::valid_coop_actor(P.B.data + 8, P.B.count - 8)) break;''')
     # Do not accumulate obsolete movement packets behind reliable retransmissions.
     replace(game, '\t\t\tif (SV_Client)\n\t\t\t\tSendTo(SV_Client->ID, P, net_flags(TRUE, TRUE));',
             '\t\t\tif (SV_Client)\n\t\t\t\tSendTo(SV_Client->ID, P, net_flags(FALSE, TRUE));')
@@ -170,6 +172,8 @@ def generate(source: Path) -> str:
             'N_A.dwTimeStamp != NET_A.back().dwTimeStamp && !gamma_net::newer(N_A.dwTimeStamp, NET_A.back().dwTimeStamp)')
     replace(actor, '\tif (!IsGameTypeSingle())\n\t{\n\t\tsetEnabled(TRUE);',
             '\tif (!IsGameTypeSingle() || strstr(Core.Params, "-netcoop"))\n\t{\n\t\tsetEnabled(TRUE);')
+    replace(actor, '\t\treturn getSVU() | getLocal();',
+            '\t\treturn (strstr(Core.Params, "-netcoop") != NULL) || getSVU() || getLocal();')
     single = "src/xrGame/game_sv_single.cpp"
     replace(single, '\tif (CL->process_id == GetCurrentProcessId())', '\tif (CL->flags.bLocal)')
     replace(single, '\t\tMsg("! [NetAnomaly] section [actor] is not an actor entity");\n\t\treturn;',
