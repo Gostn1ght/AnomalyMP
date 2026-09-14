@@ -41,17 +41,21 @@ def install(root):
         data = re.sub(pattern, lambda _: replacement, data)
     patches.write_bytes(data)
 
-    # Both Custom and NetAnomaly install this INI adapter. The second installer
-    # patches the derived class where self.ini == self, causing infinite recursion.
-    # Call native base methods explicitly for either native or derived instances.
+    # Both mods replace the same native-derived INI class; reapplying the wrapper
+    # methods recurses through self.ini == self. Keep Anomaly's composition-based
+    # ini_file_ex instead. Explicit native base calls also fail with this luabind.
     for name in ('_g_patches.script', 'aaaa_script_fixes_mp.script'):
         file = scripts / name
         if file.is_file():
             data = file.read_bytes()
-            data = re.sub(rb'self\.ini:(line_exist|r_string|w_string|r_string_ex|r_bool_ex|r_float_ex)\(',
-                          rb'ini_file.\1(self.ini, ', data)
-            data = data.replace(b'empty_table(self.cache)',
-                                b'if self.cache then empty_table(self.cache) end') if b'if self.cache then empty_table(self.cache) end' not in data else data
+            start = b'-- Disable caching of ini values'
+            end = b'_G.ini_file_ex = new_ini_file_ex'
+            if start in data:
+                if data.count(start) != 1 or data.count(end) != 1:
+                    raise ValueError('Unexpected INI override block in ' + name)
+                begin = data.index(start)
+                finish = data.index(end, begin) + len(end)
+                data = data[:begin] + b'-- Custom multiplayer: retain the original Anomaly ini_file_ex.\n' + data[finish:]
             file.write_bytes(data)
 
     # The supplied radiation patch lost its sleep method declaration and outer if.
