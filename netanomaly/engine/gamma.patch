@@ -93,6 +93,20 @@
  	u32 NET_Time; // server time of last update
  
  	//---------------------------------------------
+--- a/src/xrGame/Actor_Events.cpp
++++ b/src/xrGame/Actor_Events.cpp
+@@ -165,6 +165,11 @@
+ 			P.r_u32(flags);
+ 			s32 ZoomRndSeed = P.r_s32();
+ 			s32 ShotRndSeed = P.r_s32();
++            if (strstr(Core.Params, "-netcoop") && strstr(Core.Params, "-dedicated"))
++            {
++                ZoomRndSeed = Random.randI(0x7fffffff);
++                ShotRndSeed = Random.randI(0x7fffffff);
++            } // Server chooses authoritative weapon randomness on the simulation thread.
+ 			if (!IsGameTypeSingle() && !g_Alive())
+ 			{
+ 				//				Msg("! WARNING: dead player tries to rize inventory action");
 --- a/src/xrGame/Actor_Network.cpp
 +++ b/src/xrGame/Actor_Network.cpp
 @@ -1,4 +1,5 @@
@@ -110,7 +124,33 @@
  		NumItems = 0;
  
  	if (!g_Alive()) NumItems = 0;
-@@ -386,7 +387,7 @@
+@@ -311,7 +312,7 @@
+ 	float health;
+ 	P.r_float(health);
+ 	//----------- for E3 -----------------------------
+-	if (OnClient())SetfHealth(health);
++	if (OnClient() && !(strstr(Core.Params, "-netcoop") && strstr(Core.Params, "-dedicated"))) SetfHealth(health);
+ 	//------------------------------------------------
+ 	P.r_u32(N.dwTimeStamp);
+ 	//---------------------------------------------
+@@ -328,9 +329,13 @@
+ 	if (N.o_torso.roll > PI)
+ 		N.o_torso.roll -= PI_MUL_2;
+ 
+-	id_Team = P.r_u8();
+-	id_Squad = P.r_u8();
+-	id_Group = P.r_u8();
++    const u8 team = P.r_u8(), squad = P.r_u8(), group = P.r_u8();
++    if (!(strstr(Core.Params, "-netcoop") && strstr(Core.Params, "-dedicated")))
++    {
++        id_Team = team;
++        id_Squad = squad;
++        id_Group = group;
++    } // The client's movement packet cannot change server-owned faction fields.
+ 
+ 
+ 	//----------- for E3 -----------------------------
+@@ -386,7 +391,7 @@
  	//----------- for E3 -----------------------------
  	if (Local() && OnClient()) return;
  	//-------------------------------------------------
@@ -119,7 +159,7 @@
  
  	if (!NET.empty() && N.dwTimeStamp == NET.back().dwTimeStamp)
  	{
-@@ -404,6 +405,15 @@
+@@ -404,6 +409,15 @@
  
  void CActor::net_Import_Base_proceed()
  {
@@ -135,7 +175,7 @@
  	if (g_Alive())
  	{
  		setVisible(TRUE);
-@@ -479,7 +489,7 @@
+@@ -479,7 +493,7 @@
  		//		if (g_Alive() && (Remote() || OnServer()))
  		{
  			//-----------------------------------------------
@@ -144,7 +184,7 @@
  			if (!NET_A.empty() && N_A.dwTimeStamp == NET_A.back().dwTimeStamp)
  			{
  				NET_A.back() = N_A;
-@@ -510,6 +520,7 @@
+@@ -510,6 +524,7 @@
  
  BOOL CActor::net_Spawn(CSE_Abstract* DC)
  {
@@ -152,7 +192,7 @@
  	m_holder_id = ALife::_OBJECT_ID(-1);
  	m_feel_touch_characters = 0;
  	m_snd_noise = 0.0f;
-@@ -523,7 +534,7 @@
+@@ -523,7 +538,7 @@
  	//force actor to be local on server client
  	CSE_Abstract* e = (CSE_Abstract*)(DC);
  	CSE_ALifeCreatureActor* E = smart_cast<CSE_ALifeCreatureActor*>(e);
@@ -161,7 +201,7 @@
  	{
  		E->s_flags.set(M_SPAWN_OBJECT_LOCAL, TRUE);
  	}
-@@ -606,7 +617,7 @@
+@@ -606,7 +621,7 @@
  
  	Engine.Sheduler.Register(this,TRUE);
  
@@ -170,7 +210,7 @@
  	{
  		setEnabled(TRUE);
  	}
-@@ -807,7 +818,7 @@
+@@ -807,7 +822,7 @@
  {
  	if (OnServer())
  	{
@@ -281,22 +321,24 @@
  			return;
 --- a/src/xrGame/console_registrator_script.cpp
 +++ b/src/xrGame/console_registrator_script.cpp
-@@ -1,5 +1,10 @@
+@@ -1,5 +1,13 @@
  #include "pch_script.h"
  #include "console_registrator.h"
 +#include <cstdlib>
 +#include <string>
 +#include "level.h"
 +#include "xrServer.h"
++#include "Actor.h"
++#include "xrserver_objects_alife_monsters.h"
++#include "xrserver_objects_alife_items.h"
 +#include "../xrNetServer/GammaPeerAuth.h"
  #include "../xrEngine/xr_ioconsole.h"
  #include "../xrEngine/xr_ioc_cmd.h"
  #include "ai_space.h"
-@@ -7,6 +12,43 @@
- #include "../xrSound/Sound.h"
+@@ -8,6 +16,83 @@
  
  using namespace luabind;
-+
+ 
 +bool gamma_admin_allowed()
 +{
 +    return strstr(Core.Params, "-netcoop") &&
@@ -312,6 +354,46 @@
 +    id.set(static_cast<u32>(std::strtoul(identity, nullptr, 16)));
 +    xrClientData* peer = Level().Server->ID_to_client(id);
 +    return peer && peer->GammaIsAdmin();
++}
++
++CScriptGameObject* gamma_admin_actor(LPCSTR identity)
++{
++    if (!gamma_admin_peer_allowed(identity) || !gamma_net::hex_identity(identity, 8)) return nullptr;
++    ClientID id;
++    id.set(static_cast<u32>(std::strtoul(identity, nullptr, 16)));
++    xrClientData* peer = Level().Server->ID_to_client(id);
++    if (!peer || !peer->owner) return nullptr;
++    CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(peer->owner->ID));
++    return actor ? actor->lua_game_object() : nullptr;
++}
++
++bool gamma_admin_spawn_item(LPCSTR identity, LPCSTR section, unsigned count)
++{
++    if (!gamma_admin_actor(identity) || !section || !*section || count < 1 || count > 50 ||
++        xr_strlen(section) > 63 || !pSettings->section_exist(section) || !pSettings->line_exist(section, "class")) return false;
++    ClientID id;
++    id.set(static_cast<u32>(std::strtoul(identity, nullptr, 16)));
++    xrServer* server = Level().Server;
++    xrClientData* peer = server->ID_to_client(id);
++    CSE_ALifeCreatureActor* parent = smart_cast<CSE_ALifeCreatureActor*>(peer->owner);
++    CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(peer->owner->ID));
++    xrClientData* authority = server->GetServerClient();
++    if (!parent || !actor || !authority || !server->game) return false;
++    for (unsigned n = 0; n < count; ++n)
++    {
++        CSE_Abstract* entity = server->game->spawn_begin(section);
++        if (!entity) return false;
++        CSE_ALifeInventoryItem* item = smart_cast<CSE_ALifeInventoryItem*>(entity);
++        CSE_ALifeDynamicObject* dynamic = smart_cast<CSE_ALifeDynamicObject*>(entity);
++        if (!item || !dynamic) { F_entity_Destroy(entity); return false; }
++        entity->ID_Parent = parent->ID;
++        entity->o_Position = actor->Position();
++        dynamic->m_tNodeID = parent->m_tNodeID;
++        dynamic->m_tGraphID = parent->m_tGraphID;
++        dynamic->m_bALifeControl = false;
++        if (!server->game->spawn_end(entity, authority->ID)) return false;
++    }
++    return true;
 +}
 +
 +bool gamma_send_admin_request(LPCSTR command)
@@ -333,10 +415,11 @@
 +        if (text.compare(0, strlen(prefix), prefix) == 0) return true;
 +    return text == "hide" || text == "main_menu off" || text == "main_menu on";
 +}
- 
++
  CConsole* console()
  {
-@@ -34,11 +76,21 @@
+ 	return Console;
+@@ -34,11 +119,21 @@
  
  void execute_console_command_deferred(CConsole* c, LPCSTR string_to_execute)
  {
@@ -358,7 +441,7 @@
  	string256 src = "";
  	lua_Debug ar;
  	for (int level = 1; level <= 8 && lua_getstack(L, level, &ar); ++level)
-@@ -64,6 +116,12 @@
+@@ -64,6 +159,12 @@
  
  	CConsole::ScriptCallerScope scope(src);
  	c->Execute(cmd);
@@ -371,12 +454,14 @@
  }
  
  ::luabind::object get_console_bounds(CConsole* c, LPCSTR cmd)
-@@ -117,10 +175,13 @@
+@@ -117,10 +218,15 @@
  	module(L)
  	[
  		def("get_console", &console),
 +        def("gamma_admin_allowed", &gamma_admin_allowed),
 +        def("gamma_admin_peer_allowed", &gamma_admin_peer_allowed),
++        def("gamma_admin_actor", &gamma_admin_actor),
++        def("gamma_admin_spawn_item", &gamma_admin_spawn_item),
 +        def("gamma_send_admin_request", &gamma_send_admin_request),
  
  		class_<CConsole>("CConsole")
@@ -480,6 +565,25 @@
  	else
  		inherited::SetEnvironmentGameTimeFactor(fTimeFactor);
  }
+--- a/src/xrGame/game_sv_base.cpp
++++ b/src/xrGame/game_sv_base.cpp
+@@ -818,7 +818,15 @@
+ 				          sender.value()
+ 			          ).c_str()
+ 			);
+-			CL->ps = createPlayerState(&tNetPacket);
++            if (strstr(Core.Params, "-netcoop"))
++            {
++                if (CL->ps) break; // Do not replace a connected player's state with a replayed handshake.
++                CL->ps = createPlayerState(nullptr);
++                CL->ps->resetFlag(GAME_PLAYER_FLAG_SKIP);
++                CL->ps->resetFlag(GAME_PLAYER_HAS_ADMIN_RIGHTS);
++                CL->ps->m_account.set_player_name(CL->name.c_str());
++            }
++            else CL->ps = createPlayerState(&tNetPacket); // Never import client balances, roles or stats in netcoop.
+ 			CL->ps->m_online_time = Level().timeServer();
+ 			CL->ps->DeathTime = Device.dwTimeGlobal;
+ 
 --- a/src/xrGame/game_sv_base.h
 +++ b/src/xrGame/game_sv_base.h
 @@ -9,7 +9,8 @@
@@ -597,7 +701,7 @@
  
  #pragma warning(push)
  #pragma warning(disable:4995)
-@@ -37,11 +39,25 @@
+@@ -37,11 +39,26 @@
  	Clear();
  }
  
@@ -619,11 +723,12 @@
 +	gamma_account = "";
 +	gamma_ticket = "";
 +	gamma_content = "";
++	gamma_movement = gamma_net::movement_limiter{};
 +	gamma_snapshot_ready = false;
  	net_PassUpdates = TRUE;
  	m_ping_warn.m_maxPingWarnings = 0;
  	m_ping_warn.m_dwLastMaxPingWarningTime = 0;
-@@ -213,6 +229,21 @@
+@@ -213,6 +230,21 @@
  
  void xrServer::Update()
  {
@@ -645,7 +750,7 @@
  	if (Level().IsDemoPlayStarted() || Level().IsDemoPlayFinished())
  		return; //diabling server when demo is playing
  
-@@ -282,6 +313,7 @@
+@@ -282,6 +314,7 @@
  {
  	xrClientData* xr_client = static_cast<xrClientData*>(client);
  	VERIFY(xr_client);
@@ -653,7 +758,7 @@
  	if (!xr_client->net_Ready)
  	{
  		return;
-@@ -296,6 +328,7 @@
+@@ -296,6 +329,7 @@
  		return;
  	}
  
@@ -661,7 +766,7 @@
  	NET_Packet Packet;
  	u16 PacketType = M_UPDATE;
  	Packet.w_begin(PacketType);
-@@ -351,7 +384,19 @@
+@@ -351,7 +385,19 @@
  		if (to_send.B.count > 2)
  		{
  			m_last_updates_size += to_send.B.count;
@@ -682,7 +787,7 @@
  			if (Level().IsDemoSave())
  			{
  				Level().SavePacket(to_send);
-@@ -362,8 +407,9 @@
+@@ -362,8 +408,9 @@
  
  void xrServer::SendUpdatesToAll()
  {
@@ -693,7 +798,7 @@
  
  	KickCheaters();
  
-@@ -371,10 +417,10 @@
+@@ -371,10 +418,10 @@
  	//sending game_update 
  	fastdelegate::FastDelegate1<IClient*, void> sendtofd;
  	sendtofd.bind(this, &xrServer::SendGameUpdateTo);
@@ -708,7 +813,7 @@
  		MakeUpdatePackets();
  		SendUpdatePacketsToAll();
  
-@@ -403,6 +449,7 @@
+@@ -403,6 +450,7 @@
  
  u32 xrServer::OnDelayedMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadcasting with "flags" as returned
  {
@@ -716,7 +821,7 @@
  	u16 type;
  	P.r_begin(type);
  
-@@ -415,6 +462,49 @@
+@@ -415,6 +463,49 @@
  
  	switch (type)
  	{
@@ -766,7 +871,7 @@
  	case M_CLIENT_REQUEST_CONNECTION_DATA:
  		{
  			IClient* tmp_client = net_players.GetFoundClient(
-@@ -426,8 +516,9 @@
+@@ -426,8 +517,9 @@
  		break;
  	case M_REMOTE_CONTROL_CMD:
  		{
@@ -778,7 +883,7 @@
  				string1024 buff;
  				P.r_stringZ(buff);
  				Msg("* Radmin [%s] is running command: %s", CL->ps->getName(), buff);
-@@ -459,7 +550,7 @@
+@@ -459,7 +551,7 @@
  		break;
  	case M_FILE_TRANSFER:
  		{
@@ -787,7 +892,7 @@
  		}
  		break;
  	}
-@@ -482,12 +573,54 @@
+@@ -482,12 +574,68 @@
  
  u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadcasting with "flags" as returned
  {
@@ -801,6 +906,20 @@
 +    if (!CL) return 0;
 +    if (strstr(Core.Params, "-netcoop") && !CL->flags.bLocal)
 +    {
++        switch (type)
++        {
++        case M_CL_UPDATE: case M_EVENT: case M_EVENT_PACK: case M_CHAT_MESSAGE:
++        case M_CLIENTREADY: case M_CLIENT_REQUEST_CONNECTION_DATA:
++        case M_CL_AUTH: case M_CREATE_PLAYER_STATE:
++        case M_SECURE_KEY_SYNC: case M_SECURE_MESSAGE:
++        case M_SV_MAP_NAME: case M_SV_DIGEST:
++        case M_GAMESPY_CDKEY_VALIDATION_CHALLENGE_RESPOND: case M_CL_PING_CHALLENGE_RESPOND:
++        case M_REMOTE_CONTROL_AUTH: case M_REMOTE_CONTROL_CMD: case M_NETANOMALY_CMD: case M_FILE_TRANSFER:
++            break;
++        default: return 0; // Server snapshots, game messages and unsupported request paths are never client input.
++        }
++        if (type == M_CL_AUTH && P.B.count != 10) return 0;
++        if (type == M_SECURE_KEY_SYNC && P.B.count != 6) return 0;
 +        if (type == M_REMOTE_CONTROL_AUTH || type == M_REMOTE_CONTROL_CMD || type == M_NETANOMALY_CMD || type == M_FILE_TRANSFER)
 +            if (!CL->GammaIsAdmin()) return 0; // Client flags and legacy passwords confer no authority.
 +        if (!CL->gamma_authenticated)
@@ -842,7 +961,7 @@
  
  	switch (type)
  	{
-@@ -521,8 +654,12 @@
+@@ -521,8 +669,12 @@
  			NET_Packet tmpP;
  			while (!P.r_eof())
  			{
@@ -857,7 +976,7 @@
  
  				OnMessage(tmpP, sender);
  			};
-@@ -534,14 +671,18 @@
+@@ -534,14 +686,26 @@
  			if (!CL) break;
  			CL->net_Ready = TRUE;
  
@@ -869,6 +988,14 @@
 +            if (object_id != CL->owner->ID) break; // A client may update only its own actor.
 +            if (IsGameTypeSingle() && strstr(Core.Params, "-netcoop") &&
 +                !gamma_net::valid_coop_actor(P.B.data + 8, P.B.count - 8)) break;
++            if (strstr(Core.Params, "-netcoop") && !CL->flags.bLocal)
++            {
++                float candidate[3];
++                CopyMemory(candidate, P.B.data + 17, sizeof(candidate));
++                if (!CL->gamma_movement.initialized)
++                    CL->gamma_movement.reset(&CL->owner->o_Position.x, Device.dwTimeGlobal);
++                if (!CL->gamma_movement.accept(candidate, Device.dwTimeGlobal)) break;
++            }
  			//-------------------------------------------------------------------
  			u32 ClientPing = CL->stats.getPing();
  			P.w_seek(P.r_tell() + 2, &ClientPing, 4);
@@ -879,7 +1006,7 @@
  #ifdef DEBUG
  			VERIFY(verify_entities());
  #endif
-@@ -557,7 +698,11 @@
+@@ -557,7 +721,11 @@
  		break;
  		//-------------------------------------------------------------------
  	case M_CL_INPUT:
@@ -892,7 +1019,29 @@
  			xrClientData* CL = ID_to_client(sender);
  			if (CL) CL->net_Ready = TRUE;
  			if (SV_Client) SendTo(SV_Client->ID, P, net_flags(TRUE, TRUE));
-@@ -647,46 +792,9 @@
+@@ -641,52 +809,30 @@
+ 		}
+ 		break;
+ 	case M_CHAT_MESSAGE:
+-		{
++        {
++            if (strstr(Core.Params, "-netcoop"))
++            {
++                std::string body;
++                if (!CL->ps || !gamma_net::read_chat_body(P.B.data + 2, P.B.count - 2, body)) break;
++                NET_Packet canonical;
++                canonical.w_begin(M_CHAT_MESSAGE);
++                canonical.w_s16(-1);
++                canonical.w_stringZ(CL->name.c_str()); // Never display a sender name supplied by the packet.
++                canonical.w_stringZ(body.c_str());
++                canonical.w_s16(0);
++                u16 ignored;
++                canonical.r_begin(ignored);
++                OnChatMessage(&canonical, CL);
++                break;
++            }
+ 			xrClientData* l_pC = ID_to_client(sender);
+ 			OnChatMessage(&P, l_pC);
  		}
  		break;
  	case M_NETANOMALY_CMD:
@@ -942,7 +1091,7 @@
  	case M_SV_MAP_NAME:
  		{
  			xrClientData* l_pC = ID_to_client(sender);
-@@ -752,7 +860,15 @@
+@@ -752,7 +898,15 @@
  		}
  		break;
  	case M_REMOTE_CONTROL_AUTH:
@@ -959,7 +1108,7 @@
  			string512 reason;
  			shared_str user;
  			shared_str pass;
-@@ -962,7 +1078,7 @@
+@@ -962,7 +1116,7 @@
  		return;
  	};
  
@@ -978,7 +1127,7 @@
  
  #ifdef DEBUG
  //. #define SLOW_VERIFY_ENTITIES
-@@ -32,8 +33,15 @@
+@@ -32,8 +33,16 @@
  public:
  	CSE_Abstract* owner;
  	BOOL net_Ready;
@@ -991,6 +1140,7 @@
 +	shared_str gamma_ticket;
 +	shared_str gamma_content;
 +
++	gamma_net::movement_limiter gamma_movement;
 +	bool gamma_snapshot_ready;
  	BOOL net_PassUpdates;
  	u32 net_LastMoveUpdateTime;
@@ -1008,6 +1158,83 @@
  
  	NET_Packet P;
  	P.B.count = 0;
+--- a/src/xrGame/xrServer_process_event.cpp
++++ b/src/xrGame/xrServer_process_event.cpp
+@@ -1,5 +1,7 @@
+ #include "stdafx.h"
+ #include "xrServer.h"
++#include "xr_level_controller.h"
++#include "../xrNetServer/GammaNetPolicy.h"
+ #include "game_sv_single.h"
+ #include "alife_simulator.h"
+ #include "xrserver_objects.h"
+@@ -12,6 +14,8 @@
+ 
+ void xrServer::Process_event(NET_Packet& P, ClientID sender)
+ {
++    if (P.r_tell() > P.B.count || P.B.count - P.r_tell() < 8) return;
++
+ #	ifdef SLOW_VERIFY_ENTITIES
+ 			VERIFY					(verify_entities());
+ #	endif
+@@ -28,6 +32,23 @@
+ 	P.r_u16(type);
+ 	P.r_u16(destination);
+ 
++    if (strstr(Core.Params, "-netcoop"))
++    {
++        xrClientData* peer = ID_to_client(sender);
++        if (!peer) return;
++        if (!peer->flags.bLocal)
++        {
++            if (!peer->gamma_authenticated || !peer->owner || destination != peer->owner->ID) return;
++            // Clients submit bounded input; money, hits, healing, spawning, ownership,
++            // upgrades, visual changes, teleportation and destruction are server events.
++            if (type != GE_INV_ACTION || P.B.count - P.r_tell() != 14 || !SV_Client) return;
++            static_assert(kWPN_1 == 22 && kWPN_6 == 27 && kWPN_NEXT == 29 &&
++                kWPN_FIRE == 30 && kWPN_FIREMODE_NEXT == 37, "Update the GAMMA input protocol for changed key IDs");
++            if (!gamma_net::valid_inventory_input(P.B.data + P.r_tell(), P.B.count - P.r_tell())) return;
++            SendTo(SV_Client->ID, P, net_flags(TRUE, TRUE));
++            return; // No receiver->OnEvent or global mutation from an untrusted request.
++        }
++    }
+ 	CSE_Abstract* receiver = game->get_entity_from_eid(destination);
+ 	if (receiver)
+ 	{
+--- a/src/xrGame/xrServer_secure_messaging.cpp
++++ b/src/xrGame/xrServer_secure_messaging.cpp
+@@ -19,7 +19,7 @@
+ 	VERIFY(xrCL);
+ 	s32 new_seed;
+ 	P.r_s32(new_seed); //only for DEBUG
+-	VERIFY2(new_seed == xrCL->m_last_key_sync_request_seed, "cracker detected !");
++	if (new_seed != xrCL->m_last_key_sync_request_seed) return;
+ 	secure_messaging::generate_key(xrCL->m_last_key_sync_request_seed, xrCL->m_secret_key);
+ }
+ 
+@@ -41,6 +41,7 @@
+ 
+ void xrServer::OnSecureMessage(NET_Packet& P, xrClientData* xrClSender)
+ {
++    if (!xrClSender || P.B.count < 8) return;
+ #ifdef DEBUG
+ 	char dbg_tmp_buff[33];
+ 	ZeroMemory	(dbg_tmp_buff, sizeof(dbg_tmp_buff));
+@@ -55,9 +56,12 @@
+ 	u32 checksum = secure_messaging::decrypt(dec_packet.B.data, dec_packet.B.count, xrClSender->m_secret_key);
+ 	u32 real_checksum = 0;
+ 	P.r_u32(real_checksum);
+-	VERIFY2(checksum == real_checksum, "caught cheater");
++	if (!strstr(Core.Params, "-netcoop")) VERIFY2(checksum == real_checksum, "caught cheater");
+ 	if (checksum != real_checksum)
+ 		return; // WARNING!: do not add any log messages - security treat!
+ 
+-	OnMessage(dec_packet, xrClSender->ID);
++    u16 nested_type;
++    CopyMemory(&nested_type, dec_packet.B.data, sizeof(nested_type));
++    if (nested_type == M_SECURE_MESSAGE || nested_type == M_EVENT_PACK) return; // No recursive encrypted wrappers.
++	OnMessage(dec_packet, xrClSender->ID); // Re-enter the same account/packet/event gates.
+ }
 --- a/src/xrNetServer/NET_Client.cpp
 +++ b/src/xrNetServer/NET_Client.cpp
 @@ -4,6 +4,7 @@

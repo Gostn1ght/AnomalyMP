@@ -129,7 +129,9 @@ void xrClientData::Clear()''')
     gamma_client->gamma_ticket = cl_data->gamma_ticket;
     gamma_client->gamma_content = cl_data->gamma_content;''')
     replace('src/xrGame/xrServer.h', '\tBOOL net_PassUpdates;', '\tbool gamma_snapshot_ready;\n\tBOOL net_PassUpdates;')
+    replace('src/xrGame/xrServer.h', '\tbool gamma_snapshot_ready;', '\tgamma_net::movement_limiter gamma_movement;\n\tbool gamma_snapshot_ready;')
     replace(game, '\tnet_PassUpdates = TRUE;', '\tgamma_snapshot_ready = false;\n\tnet_PassUpdates = TRUE;')
+    replace(game, '\tgamma_snapshot_ready = false;', '\tgamma_movement = gamma_net::movement_limiter{};\n\tgamma_snapshot_ready = false;')
     replace(game, '\tVERIFY(xr_client);\n\tif (!xr_client->net_Ready)', '\tVERIFY(xr_client);\n\txr_client->gamma_snapshot_ready = false;\n\tif (!xr_client->net_Ready)')
     replace(game, '\tNET_Packet Packet;\n\tu16 PacketType = M_UPDATE;', '\txr_client->gamma_snapshot_ready = true;\n\tNET_Packet Packet;\n\tu16 PacketType = M_UPDATE;')
     replace(game, '\tif (IsGameTypeSingle())\n\t\treturn;\n\n\tKickCheaters();',
@@ -163,6 +165,20 @@ void xrClientData::Clear()''')
     if (!CL) return 0;
     if (strstr(Core.Params, "-netcoop") && !CL->flags.bLocal)
     {
+        switch (type)
+        {
+        case M_CL_UPDATE: case M_EVENT: case M_EVENT_PACK: case M_CHAT_MESSAGE:
+        case M_CLIENTREADY: case M_CLIENT_REQUEST_CONNECTION_DATA:
+        case M_CL_AUTH: case M_CREATE_PLAYER_STATE:
+        case M_SECURE_KEY_SYNC: case M_SECURE_MESSAGE:
+        case M_SV_MAP_NAME: case M_SV_DIGEST:
+        case M_GAMESPY_CDKEY_VALIDATION_CHALLENGE_RESPOND: case M_CL_PING_CHALLENGE_RESPOND:
+        case M_REMOTE_CONTROL_AUTH: case M_REMOTE_CONTROL_CMD: case M_NETANOMALY_CMD: case M_FILE_TRANSFER:
+            break;
+        default: return 0; // Server snapshots, game messages and unsupported request paths are never client input.
+        }
+        if (type == M_CL_AUTH && P.B.count != 10) return 0;
+        if (type == M_SECURE_KEY_SYNC && P.B.count != 6) return 0;
         if (type == M_REMOTE_CONTROL_AUTH || type == M_REMOTE_CONTROL_CMD || type == M_NETANOMALY_CMD || type == M_FILE_TRANSFER)
             if (!CL->GammaIsAdmin()) return 0; // Client flags and legacy passwords confer no authority.
         if (!CL->gamma_authenticated)
@@ -214,7 +230,15 @@ void xrClientData::Clear()''')
             CopyMemory(&object_id, P.B.data + 2, sizeof(object_id));
             if (object_id != CL->owner->ID) break; // A client may update only its own actor.
             if (IsGameTypeSingle() && strstr(Core.Params, "-netcoop") &&
-                !gamma_net::valid_coop_actor(P.B.data + 8, P.B.count - 8)) break;''')
+                !gamma_net::valid_coop_actor(P.B.data + 8, P.B.count - 8)) break;
+            if (strstr(Core.Params, "-netcoop") && !CL->flags.bLocal)
+            {
+                float candidate[3];
+                CopyMemory(candidate, P.B.data + 17, sizeof(candidate));
+                if (!CL->gamma_movement.initialized)
+                    CL->gamma_movement.reset(&CL->owner->o_Position.x, Device.dwTimeGlobal);
+                if (!CL->gamma_movement.accept(candidate, Device.dwTimeGlobal)) break;
+            }''')
     # Do not accumulate obsolete movement packets behind reliable retransmissions.
     replace(game, '\t\t\tif (SV_Client)\n\t\t\t\tSendTo(SV_Client->ID, P, net_flags(TRUE, TRUE));',
             '\t\t\tif (SV_Client)\n\t\t\t\tSendTo(SV_Client->ID, P, net_flags(FALSE, TRUE));')
@@ -224,6 +248,23 @@ void xrClientData::Clear()''')
             u16 object_id;
             CopyMemory(&object_id, P.B.data + 2, sizeof(object_id));
             if (object_id != CL->owner->ID) break;''')
+    replace(game, '\tcase M_CHAT_MESSAGE:\n\t\t{', '''\tcase M_CHAT_MESSAGE:
+        {
+            if (strstr(Core.Params, "-netcoop"))
+            {
+                std::string body;
+                if (!CL->ps || !gamma_net::read_chat_body(P.B.data + 2, P.B.count - 2, body)) break;
+                NET_Packet canonical;
+                canonical.w_begin(M_CHAT_MESSAGE);
+                canonical.w_s16(-1);
+                canonical.w_stringZ(CL->name.c_str()); // Never display a sender name supplied by the packet.
+                canonical.w_stringZ(body.c_str());
+                canonical.w_s16(0);
+                u16 ignored;
+                canonical.r_begin(ignored);
+                OnChatMessage(&canonical, CL);
+                break;
+            }''')
     # Keep the command channel, but execute Lua only from the delayed main-thread handler.
     text = read(game)
     begin = text.index('\tcase M_NETANOMALY_CMD:\n\t\t{')
@@ -323,6 +364,15 @@ void CConsole::ExecuteCommand(LPCSTR cmd_str, bool record_cmd)
             'N.dwTimeStamp != NET.back().dwTimeStamp && !gamma_net::newer(N.dwTimeStamp, NET.back().dwTimeStamp)')
     replace(actor, 'N_A.dwTimeStamp < NET_A.back().dwTimeStamp',
             'N_A.dwTimeStamp != NET_A.back().dwTimeStamp && !gamma_net::newer(N_A.dwTimeStamp, NET_A.back().dwTimeStamp)')
+    replace(actor, '\tif (OnClient())SetfHealth(health);',
+            '\tif (OnClient() && !(strstr(Core.Params, "-netcoop") && strstr(Core.Params, "-dedicated"))) SetfHealth(health);')
+    replace(actor, '\tid_Team = P.r_u8();\n\tid_Squad = P.r_u8();\n\tid_Group = P.r_u8();', '''    const u8 team = P.r_u8(), squad = P.r_u8(), group = P.r_u8();
+    if (!(strstr(Core.Params, "-netcoop") && strstr(Core.Params, "-dedicated")))
+    {
+        id_Team = team;
+        id_Squad = squad;
+        id_Group = group;
+    } // The client's movement packet cannot change server-owned faction fields.''')
     replace(actor, '\tif (!IsGameTypeSingle())\n\t{\n\t\tsetEnabled(TRUE);',
             '\tif (!IsGameTypeSingle() || strstr(Core.Params, "-netcoop"))\n\t{\n\t\tsetEnabled(TRUE);')
     replace(actor, '\t\treturn getSVU() | getLocal();',
@@ -430,6 +480,100 @@ static bool gamma_presentation_command(LPCSTR command)
 
 CConsole* console()
 {''')
+    replace(bindings, '#include "xrServer.h"', '#include "xrServer.h"\n#include "Actor.h"\n#include "xrserver_objects_alife_monsters.h"\n#include "xrserver_objects_alife_items.h"')
+    replace(bindings, 'bool gamma_send_admin_request(LPCSTR command)', '''CScriptGameObject* gamma_admin_actor(LPCSTR identity)
+{
+    if (!gamma_admin_peer_allowed(identity) || !gamma_net::hex_identity(identity, 8)) return nullptr;
+    ClientID id;
+    id.set(static_cast<u32>(std::strtoul(identity, nullptr, 16)));
+    xrClientData* peer = Level().Server->ID_to_client(id);
+    if (!peer || !peer->owner) return nullptr;
+    CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(peer->owner->ID));
+    return actor ? actor->lua_game_object() : nullptr;
+}
+
+bool gamma_admin_spawn_item(LPCSTR identity, LPCSTR section, unsigned count)
+{
+    if (!gamma_admin_actor(identity) || !section || !*section || count < 1 || count > 50 ||
+        xr_strlen(section) > 63 || !pSettings->section_exist(section) || !pSettings->line_exist(section, "class")) return false;
+    ClientID id;
+    id.set(static_cast<u32>(std::strtoul(identity, nullptr, 16)));
+    xrServer* server = Level().Server;
+    xrClientData* peer = server->ID_to_client(id);
+    CSE_ALifeCreatureActor* parent = smart_cast<CSE_ALifeCreatureActor*>(peer->owner);
+    CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(peer->owner->ID));
+    xrClientData* authority = server->GetServerClient();
+    if (!parent || !actor || !authority || !server->game) return false;
+    for (unsigned n = 0; n < count; ++n)
+    {
+        CSE_Abstract* entity = server->game->spawn_begin(section);
+        if (!entity) return false;
+        CSE_ALifeInventoryItem* item = smart_cast<CSE_ALifeInventoryItem*>(entity);
+        CSE_ALifeDynamicObject* dynamic = smart_cast<CSE_ALifeDynamicObject*>(entity);
+        if (!item || !dynamic) { F_entity_Destroy(entity); return false; }
+        entity->ID_Parent = parent->ID;
+        entity->o_Position = actor->Position();
+        dynamic->m_tNodeID = parent->m_tNodeID;
+        dynamic->m_tGraphID = parent->m_tGraphID;
+        dynamic->m_bALifeControl = false;
+        if (!server->game->spawn_end(entity, authority->ID)) return false;
+    }
+    return true;
+}
+
+bool gamma_send_admin_request(LPCSTR command)''')
+
+    events = 'src/xrGame/xrServer_process_event.cpp'
+    replace(events, '#include "xrServer.h"', '#include "xrServer.h"\n#include "xr_level_controller.h"\n#include "../xrNetServer/GammaNetPolicy.h"')
+    replace(events, 'void xrServer::Process_event(NET_Packet& P, ClientID sender)\n{', '''void xrServer::Process_event(NET_Packet& P, ClientID sender)
+{
+    if (P.r_tell() > P.B.count || P.B.count - P.r_tell() < 8) return;
+''')
+    replace(events, '\tCSE_Abstract* receiver = game->get_entity_from_eid(destination);', '''    if (strstr(Core.Params, "-netcoop"))
+    {
+        xrClientData* peer = ID_to_client(sender);
+        if (!peer) return;
+        if (!peer->flags.bLocal)
+        {
+            if (!peer->gamma_authenticated || !peer->owner || destination != peer->owner->ID) return;
+            // Clients submit bounded input; money, hits, healing, spawning, ownership,
+            // upgrades, visual changes, teleportation and destruction are server events.
+            if (type != GE_INV_ACTION || P.B.count - P.r_tell() != 14 || !SV_Client) return;
+            static_assert(kWPN_1 == 22 && kWPN_6 == 27 && kWPN_NEXT == 29 &&
+                kWPN_FIRE == 30 && kWPN_FIREMODE_NEXT == 37, "Update the GAMMA input protocol for changed key IDs");
+            if (!gamma_net::valid_inventory_input(P.B.data + P.r_tell(), P.B.count - P.r_tell())) return;
+            SendTo(SV_Client->ID, P, net_flags(TRUE, TRUE));
+            return; // No receiver->OnEvent or global mutation from an untrusted request.
+        }
+    }
+\tCSE_Abstract* receiver = game->get_entity_from_eid(destination);''')
+    replace('src/xrGame/Actor_Events.cpp', '\t\t\ts32 ShotRndSeed = P.r_s32();', '''\t\t\ts32 ShotRndSeed = P.r_s32();
+            if (strstr(Core.Params, "-netcoop") && strstr(Core.Params, "-dedicated"))
+            {
+                ZoomRndSeed = Random.randI(0x7fffffff);
+                ShotRndSeed = Random.randI(0x7fffffff);
+            } // Server chooses authoritative weapon randomness on the simulation thread.''')
+    replace('src/xrGame/game_sv_base.cpp', '\t\t\tCL->ps = createPlayerState(&tNetPacket);', '''            if (strstr(Core.Params, "-netcoop"))
+            {
+                if (CL->ps) break; // Do not replace a connected player's state with a replayed handshake.
+                CL->ps = createPlayerState(nullptr);
+                CL->ps->resetFlag(GAME_PLAYER_FLAG_SKIP);
+                CL->ps->resetFlag(GAME_PLAYER_HAS_ADMIN_RIGHTS);
+                CL->ps->m_account.set_player_name(CL->name.c_str());
+            }
+            else CL->ps = createPlayerState(&tNetPacket); // Never import client balances, roles or stats in netcoop.''')
+    secure = 'src/xrGame/xrServer_secure_messaging.cpp'
+    replace(secure, 'void xrServer::OnSecureMessage(NET_Packet& P, xrClientData* xrClSender)\n{', '''void xrServer::OnSecureMessage(NET_Packet& P, xrClientData* xrClSender)
+{
+    if (!xrClSender || P.B.count < 8) return;''')
+    replace(secure, '\tVERIFY2(checksum == real_checksum, "caught cheater");',
+            '\tif (!strstr(Core.Params, "-netcoop")) VERIFY2(checksum == real_checksum, "caught cheater");')
+    replace(secure, '\tOnMessage(dec_packet, xrClSender->ID);', '''    u16 nested_type;
+    CopyMemory(&nested_type, dec_packet.B.data, sizeof(nested_type));
+    if (nested_type == M_SECURE_MESSAGE || nested_type == M_EVENT_PACK) return; // No recursive encrypted wrappers.
+\tOnMessage(dec_packet, xrClSender->ID); // Re-enter the same account/packet/event gates.''')
+    replace(secure, '\tVERIFY2(new_seed == xrCL->m_last_key_sync_request_seed, "cracker detected !");',
+            '\tif (new_seed != xrCL->m_last_key_sync_request_seed) return;')
     replace(bindings, '\tEngine.Event.Defer("KERNEL:console", size_t(xr_strdup(string_to_execute)));', '''    if (strstr(Core.Params, "-netcoop") && !strstr(Core.Params, "-dedicated") && !gamma_presentation_command(string_to_execute))
     {
         if (gamma_admin_allowed()) gamma_send_admin_request((std::string("cmd ") + string_to_execute).c_str());
@@ -451,6 +595,8 @@ CConsole* console()
 
 ::luabind::object get_console_bounds(CConsole* c, LPCSTR cmd)''')
     replace(bindings, 'def("get_console", &console),', 'def("get_console", &console),\n        def("gamma_admin_allowed", &gamma_admin_allowed),\n        def("gamma_admin_peer_allowed", &gamma_admin_peer_allowed),\n        def("gamma_send_admin_request", &gamma_send_admin_request),')
+    replace(bindings, 'def("gamma_admin_peer_allowed", &gamma_admin_peer_allowed),',
+            'def("gamma_admin_peer_allowed", &gamma_admin_peer_allowed),\n        def("gamma_admin_actor", &gamma_admin_actor),\n        def("gamma_admin_spawn_item", &gamma_admin_spawn_item),')
     replace(bindings, '.def("execute_script", &CConsole::ExecuteScript)', '.def("execute_script", &gamma_execute_script)')
     replace(game, '"netanomaly_server.on_client_command"', '"gamma_admin.on_client_command"')
     replace('src/xrGame/console_commands.cpp', '"netanomaly_server.on_client_command"', '"gamma_admin.on_client_command"')

@@ -1,4 +1,15 @@
 -- Native code authorizes the peer again here; never trust a role supplied by Lua/client.
+local function actor_command(cid, action)
+    local actor = gamma_admin_actor(cid)
+    if not actor then return "! Account actor is not connected; no host fallback" end
+    local previous = db.actor
+    db.actor = actor
+    local ok, result = pcall(action, actor)
+    db.actor = previous -- Restore the server host even if the debug command raises an error.
+    if not ok then return "! Server debug action failed" end
+    return tostring(result or "* Server debug action executed")
+end
+
 function on_client_command(cid, name, entity_id, text)
     if not gamma_net_compat.is_server() or not gamma_admin_peer_allowed(cid) then
         return "! Administrator account required"
@@ -17,9 +28,28 @@ function on_client_command(cid, name, entity_id, text)
         local command, parameters = args:match("^(%S+)%s*(.*)$")
         if not command then return "! Debug command required" end
         command = command:lower()
+        if command == "money" then
+            local amount = tonumber(parameters)
+            if not amount or amount ~= math.floor(amount) or amount < -2147483647 or amount > 2147483647 then
+                return "! Invalid money amount"
+            end
+            return actor_command(cid, function(actor)
+                local balance = actor:money() + amount
+                if balance < 0 or balance > 4294967295 then return "! Balance out of range" end
+                actor:give_money(amount)
+                return "* Account actor balance changed on server"
+            end)
+        elseif command == "spawn" then
+            local section, count = parameters:match("^([%w_.%-]+)%s*(%d*)$")
+            count = tonumber(count) or 1
+            if not section or count < 1 or count > 50 then return "! Invalid item spawn request" end
+            return gamma_admin_spawn_item(cid, section, count) and "* Item spawned for account actor on server" or
+                "! Item spawn rejected; no host fallback"
+        end
         if not debug_cmd_list.command_exists(command) then return "! Unknown debug command" end
-        local result = debug_cmd_list.command_give(command, parameters, nil, {})
-        return tostring(result or "* Server debug command executed")
+        return actor_command(cid, function()
+            return debug_cmd_list.command_give(command, parameters, nil, {})
+        end)
     elseif kind == "debug_named" then
         if not args:match("^[%a_][%w_]*$") then return "! Invalid debug function" end
         if not next(ui_debug_launcher.content) then ui_debug_launcher.prepare() end
@@ -28,8 +58,7 @@ function on_client_command(cid, name, entity_id, text)
         for _, entries in pairs(ui_debug_launcher.content) do
             for _, entry in ipairs(entries) do
                 if entry.functor and entry.functor[1] == requested and #entry.functor == 1 then
-                    requested()
-                    return "* Server debug function executed"
+                    return actor_command(cid, requested)
                 end
             end
         end
@@ -48,7 +77,7 @@ function on_client_command(cid, name, entity_id, text)
         elseif entry.cmd then
             return on_client_command(cid, name, entity_id, "debug " .. entry.cmd)
         elseif entry.functor then
-            exec(unpack(entry.functor))
+            return actor_command(cid, function() exec(unpack(entry.functor)) end)
         else
             return "! Invalid server debug action"
         end
