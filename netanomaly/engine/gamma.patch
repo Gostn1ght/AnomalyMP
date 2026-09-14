@@ -16,6 +16,26 @@
  
  	return out_size;
  }
+--- a/src/xrGame/Actor.cpp
++++ b/src/xrGame/Actor.cpp
+@@ -2234,7 +2234,7 @@
+ 
+ bool canRenderLegs(CActor* actor, CHolderCustom* m_holder) noexcept
+ {
+-    return g_legs_enabled
++    return g_legs_enabled && actor == Level().CurrentViewEntity()
+         && (legs_in_low_crouch || !(actor->MovingState() & mcCrouch && actor->MovingState() & mcAccel))
+         && g_player_hud
+         && !m_holder
+@@ -2250,7 +2250,7 @@
+     // leg shadows are disabled for DX8 and DX9
+     bool validRendererForShadow = (::Render->get_generation() == ::Render->GENERATION_R2) && (::Render->get_dx_level() != 0x00090000);
+ 
+-	if (cam_active == eacFirstEye)
++	if (cam_active == eacFirstEye && this == Level().CurrentViewEntity())
+ 	{
+ 		if (::Render->active_phase() == 0) // can render first person body here
+ 		{
 --- a/src/xrGame/Actor.h
 +++ b/src/xrGame/Actor.h
 @@ -589,6 +589,7 @@
@@ -231,6 +251,21 @@
  		return; // local client of the very same process
  
  	if (CL->owner)
+--- a/src/xrGame/player_hud_legs.cpp
++++ b/src/xrGame/player_hud_legs.cpp
+@@ -208,9 +208,9 @@
+ extern xr_unordered_set<CDemoRecord*> pDemoRecords;
+ void player_legs_controller::update(CActor* actor, bool isShadowPass)
+ {
+-    actor->XFORMShadow.set(actor->XFORM());
+-
+-    if (!g_legs_enabled || showActorBody != 0 || !actor)
++    if (actor) actor->XFORMShadow.set(actor->XFORM());
++
++    if (!actor || actor != Level().CurrentViewEntity() || !g_legs_enabled || showActorBody != 0)
+     {
+         destroy();
+         return;
 --- a/src/xrGame/xrServer.cpp
 +++ b/src/xrGame/xrServer.cpp
 @@ -22,6 +22,7 @@

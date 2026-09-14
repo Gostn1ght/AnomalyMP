@@ -41,6 +41,32 @@ def install(root):
         data = re.sub(pattern, lambda _: replacement, data)
     patches.write_bytes(data)
 
+    # Both Custom and NetAnomaly install this INI adapter. The second installer
+    # patches the derived class where self.ini == self, causing infinite recursion.
+    # Call native base methods explicitly for either native or derived instances.
+    for name in ('_g_patches.script', 'aaaa_script_fixes_mp.script'):
+        file = scripts / name
+        if file.is_file():
+            data = file.read_bytes()
+            data = re.sub(rb'self\.ini:(line_exist|r_string|w_string|r_string_ex|r_bool_ex|r_float_ex)\(',
+                          rb'ini_file.\1(self.ini, ', data)
+            data = data.replace(b'empty_table(self.cache)',
+                                b'if self.cache then empty_table(self.cache) end') if b'if self.cache then empty_table(self.cache) end' not in data else data
+            file.write_bytes(data)
+
+    # The supplied radiation patch lost its sleep method declaration and outer if.
+    file = scripts / 'aaarszi_radiation_monkeypatches.script'
+    if file.is_file():
+        data = file.read_bytes()
+        anchor = b'\t\tlocal bleeding = db.actor.bleeding > 0'
+        if b'function ui_sleep_dialog.UISleep:TestAndShow(force)' not in data and data.count(anchor) == 1:
+            data = data.replace(anchor, b'function ui_sleep_dialog.UISleep:TestAndShow(force)\n\tif force ~= true then\n' + anchor)
+            end = b'\tself:Initialize()'
+            if data.count(end) != 1:
+                raise ValueError('Unexpected radiation sleep patch')
+            data = data.replace(end, b'\tend\n' + end)
+            file.write_bytes(data)
+
     # These disabled XML patches contain [[...]] strings inside --[[...]] comments.
     # A higher-level long comment preserves their disabled state and parses correctly.
     for name in ('modxml_al_mapspots', 'modxml_al_questarrow'):

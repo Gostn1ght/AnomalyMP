@@ -191,6 +191,16 @@ def generate(source: Path) -> str:
             '\tif (!IsGameTypeSingle() || strstr(Core.Params, "-netcoop"))\n\t{\n\t\tsetEnabled(TRUE);')
     replace(actor, '\t\treturn getSVU() | getLocal();',
             '\t\treturn (strstr(Core.Params, "-netcoop") != NULL) || getSVU() || getLocal();')
+    # All actors start with cam_active=eacFirstEye, including remote players.
+    # Only the viewed actor may use the first-person body/legs rendering path.
+    render = 'src/xrGame/Actor.cpp'
+    replace(render, '\tif (cam_active == eacFirstEye)\n\t{\n\t\tif (::Render->active_phase() == 0)',
+            '\tif (cam_active == eacFirstEye && this == Level().CurrentViewEntity())\n\t{\n\t\tif (::Render->active_phase() == 0)')
+    replace(render, '    return g_legs_enabled\n',
+            '    return g_legs_enabled && actor == Level().CurrentViewEntity()\n')
+    replace('src/xrGame/player_hud_legs.cpp',
+            '    actor->XFORMShadow.set(actor->XFORM());\n\n    if (!g_legs_enabled || showActorBody != 0 || !actor)',
+            '    if (actor) actor->XFORMShadow.set(actor->XFORM());\n\n    if (!actor || actor != Level().CurrentViewEntity() || !g_legs_enabled || showActorBody != 0)')
     single = "src/xrGame/game_sv_single.cpp"
     replace(single, '\tif (CL->process_id == GetCurrentProcessId())', '\tif (CL->flags.bLocal)')
     replace(single, '\t\tMsg("! [NetAnomaly] section [actor] is not an actor entity");\n\t\treturn;',
