@@ -9,6 +9,12 @@
 int main()
 {
     using namespace gamma_net;
+    const float npc[] = {1001, 0, 0};
+    const float humans[] = {0,0,0, 1000,0,0};
+    assert(distance_to_players(npc, humans, 2) == 1); // A distant second player keeps its nearby NPC online.
+    assert(distance_to_players(npc, humans, 1) == 1001); // Disconnecting that player removes its active area.
+    assert(std::isinf(distance_to_players(npc, humans, 0))); // No human: do not use the internal host's position.
+    assert(std::isinf(distance_to_players(npc, humans, 129)));
     std::string chat_body;
     const unsigned char chat[] = {255,255,'f','a','k','e',0,'h','i',0,0,0};
     assert(read_chat_body(chat, sizeof(chat), chat_body) && chat_body == "hi");

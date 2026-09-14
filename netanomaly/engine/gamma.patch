@@ -95,7 +95,7 @@
  	//---------------------------------------------
 --- a/src/xrGame/Actor_Events.cpp
 +++ b/src/xrGame/Actor_Events.cpp
-@@ -165,6 +165,11 @@
+@@ -165,6 +165,13 @@
  			P.r_u32(flags);
  			s32 ZoomRndSeed = P.r_s32();
  			s32 ShotRndSeed = P.r_s32();
@@ -103,6 +103,8 @@
 +            {
 +                ZoomRndSeed = Random.randI(0x7fffffff);
 +                ShotRndSeed = Random.randI(0x7fffffff);
++                if (g_Alive()) inventory().Action(cmd, flags);
++                break; // A remote actor's IR handler rejects Remote(); execute bounded weapon input directly on server.
 +            } // Server chooses authoritative weapon randomness on the simulation thread.
  			if (!IsGameTypeSingle() && !g_Alive())
  			{
@@ -269,6 +271,81 @@
  		PossiblePlayers[PPCount++] = A;
  	};
  	if (!search_next)
+--- a/src/xrGame/alife_dynamic_object.cpp
++++ b/src/xrGame/alife_dynamic_object.cpp
+@@ -7,6 +7,7 @@
+ ////////////////////////////////////////////////////////////////////////////
+ 
+ #include "stdafx.h"
++#include "GammaALife.h"
+ #include "xrServer_Objects_ALife.h"
+ #include "alife_simulator.h"
+ #include "alife_schedule_registry.h"
+@@ -157,7 +158,7 @@
+ 		return;
+ 	}
+ 
+-	if (alife().graph().actor()->o_Position.distance_to(o_Position) > alife().online_distance())
++	if (gamma_alife_distance(o_Position, alife().graph().actor()->o_Position) > alife().online_distance())
+ 	{
+ 		on_failed_switch_online();
+ 		return;
+@@ -177,7 +178,7 @@
+ 		return;
+ 	}
+ 
+-	if (alife().graph().actor()->o_Position.distance_to(o_Position) <= alife().offline_distance())
++	if (gamma_alife_distance(o_Position, alife().graph().actor()->o_Position) <= alife().offline_distance())
+ 		return;
+ 
+ 	alife().switch_offline(this);
+--- a/src/xrGame/alife_group_abstract.cpp
++++ b/src/xrGame/alife_group_abstract.cpp
+@@ -7,6 +7,7 @@
+ ////////////////////////////////////////////////////////////////////////////
+ 
+ #include "stdafx.h"
++#include "GammaALife.h"
+ #include "xrServer_Objects_ALife.h"
+ #include "ai_space.h"
+ #include "alife_simulator.h"
+@@ -161,7 +162,7 @@
+ 				// to switch offline
+ 				break;
+ 
+-			if (I->alife().graph().actor()->o_Position.distance_to(tpGroupMember->o_Position) <= I
++			if (gamma_alife_distance(tpGroupMember->o_Position, I->alife().graph().actor()->o_Position) <= I
+ 			                                                                                     ->alife().
+ 			                                                                                     offline_distance())
+ 				// so, it is not ready, breaking a cycle, because we can't 
+--- a/src/xrGame/alife_online_offline_group.cpp
++++ b/src/xrGame/alife_online_offline_group.cpp
+@@ -7,6 +7,7 @@
+ ////////////////////////////////////////////////////////////////////////////
+ 
+ #include "stdafx.h"
++#include "GammaALife.h"
+ #include "xrServer_Objects_ALife_Monsters.h"
+ #include "ai_space.h"
+ #include "alife_simulator.h"
+@@ -223,7 +224,7 @@
+ 		VERIFY3((*I).second->can_switch_offline(),
+ 		        "Incorrect situation : some of the OnlineOffline group members cannot be switched online due to their personal properties",
+ 		        (*I).second->name_replace());
+-		if (alife().graph().actor()->o_Position.distance_to((*I).second->o_Position) > alife().online_distance())
++		if (gamma_alife_distance((*I).second->o_Position, alife().graph().actor()->o_Position) > alife().online_distance())
+ 		{
+ 			continue;
+ 		}
+@@ -260,7 +261,7 @@
+ 		        "Incorrect situation : some of the OnlineOffline group members cannot be switched online due to their personal properties",
+ 		        (*I).second->name_replace());
+ 
+-		if (alife().graph().actor()->o_Position.distance_to((*I).second->o_Position) <= alife().offline_distance())
++		if (gamma_alife_distance((*I).second->o_Position, alife().graph().actor()->o_Position) <= alife().offline_distance())
+ 			return;
+ 	}
+ 
 --- a/src/xrGame/console_commands.cpp
 +++ b/src/xrGame/console_commands.cpp
 @@ -1007,6 +1007,12 @@
@@ -377,7 +454,7 @@
 +    xrClientData* peer = server->ID_to_client(id);
 +    CSE_ALifeCreatureActor* parent = smart_cast<CSE_ALifeCreatureActor*>(peer->owner);
 +    CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(peer->owner->ID));
-+    xrClientData* authority = server->GetServerClient();
++    IClient* authority = server->GetServerClient();
 +    if (!parent || !actor || !authority || !server->game) return false;
 +    for (unsigned n = 0; n < count; ++n)
 +    {

@@ -502,7 +502,7 @@ bool gamma_admin_spawn_item(LPCSTR identity, LPCSTR section, unsigned count)
     xrClientData* peer = server->ID_to_client(id);
     CSE_ALifeCreatureActor* parent = smart_cast<CSE_ALifeCreatureActor*>(peer->owner);
     CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(peer->owner->ID));
-    xrClientData* authority = server->GetServerClient();
+    IClient* authority = server->GetServerClient();
     if (!parent || !actor || !authority || !server->game) return false;
     for (unsigned n = 0; n < count; ++n)
     {
@@ -552,6 +552,8 @@ bool gamma_send_admin_request(LPCSTR command)''')
             {
                 ZoomRndSeed = Random.randI(0x7fffffff);
                 ShotRndSeed = Random.randI(0x7fffffff);
+                if (g_Alive()) inventory().Action(cmd, flags);
+                break; // A remote actor's IR handler rejects Remote(); execute bounded weapon input directly on server.
             } // Server chooses authoritative weapon randomness on the simulation thread.''')
     replace('src/xrGame/game_sv_base.cpp', '\t\t\tCL->ps = createPlayerState(&tNetPacket);', '''            if (strstr(Core.Params, "-netcoop"))
             {
@@ -574,6 +576,15 @@ bool gamma_send_admin_request(LPCSTR command)''')
 \tOnMessage(dec_packet, xrClSender->ID); // Re-enter the same account/packet/event gates.''')
     replace(secure, '\tVERIFY2(new_seed == xrCL->m_last_key_sync_request_seed, "cracker detected !");',
             '\tif (new_seed != xrCL->m_last_key_sync_request_seed) return;')
+
+    for name, position, story_actor, count in (
+        ('src/xrGame/alife_dynamic_object.cpp', 'o_Position', 'alife().graph().actor()->o_Position', 2),
+        ('src/xrGame/alife_online_offline_group.cpp', '(*I).second->o_Position', 'alife().graph().actor()->o_Position', 2),
+        ('src/xrGame/alife_group_abstract.cpp', 'tpGroupMember->o_Position', 'I->alife().graph().actor()->o_Position', 1),
+    ):
+        replace(name, '#include "stdafx.h"', '#include "stdafx.h"\n#include "GammaALife.h"')
+        replace(name, story_actor + '.distance_to(' + position + ')',
+                'gamma_alife_distance(' + position + ', ' + story_actor + ')', count=count)
     replace(bindings, '\tEngine.Event.Defer("KERNEL:console", size_t(xr_strdup(string_to_execute)));', '''    if (strstr(Core.Params, "-netcoop") && !strstr(Core.Params, "-dedicated") && !gamma_presentation_command(string_to_execute))
     {
         if (gamma_admin_allowed()) gamma_send_admin_request((std::string("cmd ") + string_to_execute).c_str());

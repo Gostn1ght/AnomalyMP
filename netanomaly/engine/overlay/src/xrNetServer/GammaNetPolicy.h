@@ -4,6 +4,7 @@
 #include <cstring>
 #include <cmath>
 #include <string>
+#include <limits>
 
 // 128 human players; the headless ALife host needs one internal client state.
 namespace gamma_net
@@ -11,6 +12,23 @@ namespace gamma_net
 constexpr unsigned max_players = 128;
 constexpr unsigned max_client_states = max_players + 1;
 constexpr unsigned protocol_version = 3; // Corrected CRC plus account ticket/content metadata.
+
+inline float distance_to_players(const float* point, const float* positions, std::size_t count)
+{
+    if (!point || !positions || count > max_players) return std::numeric_limits<float>::infinity();
+    double nearest = std::numeric_limits<double>::infinity();
+    for (std::size_t player = 0; player < count; ++player)
+    {
+        double distance_squared = 0;
+        for (unsigned axis = 0; axis < 3; ++axis)
+        {
+            const double delta = double(point[axis]) - positions[player * 3 + axis];
+            distance_squared += delta * delta;
+        }
+        if (std::isfinite(distance_squared) && distance_squared < nearest) nearest = distance_squared;
+    }
+    return static_cast<float>(std::sqrt(nearest));
+}
 
 inline bool read_chat_body(const unsigned char* data, std::size_t size, std::string& body)
 {
