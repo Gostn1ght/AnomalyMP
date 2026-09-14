@@ -9,7 +9,7 @@ namespace gamma_net
 {
 constexpr unsigned max_players = 128;
 constexpr unsigned max_client_states = max_players + 1;
-constexpr unsigned protocol_version = 2; // Corrected compressed-packet CRC range.
+constexpr unsigned protocol_version = 3; // Corrected CRC plus account ticket/content metadata.
 
 inline bool newer(std::uint32_t a, std::uint32_t b)
 {

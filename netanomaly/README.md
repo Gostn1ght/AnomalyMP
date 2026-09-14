@@ -25,15 +25,15 @@ successful compilation or the 128-player setting as multiplayer acceptance.
 - Fix disconnect tutorial null dereference, remote actor becoming the global host
   actor, spawn logging after the temporary descriptor may have been destroyed,
   remote world-clock null dereferences, and timestamp rollover ordering.
-- Preserve GAMMA/MCM menu content while blocking client-side SP world operations.
+- Preserve GAMMA/MCM menu content while blocking SP save/load/new-game menu operations for both roles.
   Add the missing `imgui_on_render` callback without replacing global `table.sort`.
 - Generate profiles disabling the specifically listed single-player save, sleep,
   time-skip, travel and loot snapshot mods; report each change in JSON.
 
 ## Build — GitHub Actions only
 
-Push this change to `codex/gamma-netanomaly`, or use the `GAMMA on NetAnomaly`
-workflow. It runs Python regression checks and C++ packet-policy tests under
+Push checks run on GAMMA branches; use an explicit `GAMMA on NetAnomaly`
+workflow dispatch to build, after the GAMMA migration is complete. It runs Python regression checks and C++ packet-policy tests under
 ASan/UBSan on Linux, then builds DX11 x64 on `windows-2022`. No local engine build
 is needed. Build logs, profile bundles and runtime are separate artifacts.
 

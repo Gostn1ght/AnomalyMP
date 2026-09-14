@@ -1,4 +1,5 @@
 #include "../engine/overlay/src/xrNetServer/GammaNetPolicy.h"
+#include "../engine/overlay/src/xrNetServer/GammaPeerAuth.h"
 #include <cassert>
 #include <iostream>
 #include <random>
@@ -8,6 +9,30 @@
 int main()
 {
     using namespace gamma_net;
+    const auto auth_test = std::filesystem::temp_directory_path() /
+        ("gamma-auth-test-" + std::to_string(std::random_device{}()));
+    std::filesystem::create_directory(auth_test);
+    const std::string account(32, 'a'), content(64, 'b'), token(64, 'c');
+    const auto role_file = auth_test / (account + ".role");
+    assert(!account_is_admin(auth_test, account));
+    { std::ofstream(role_file) << "GAMMA_ROLE_V3\n" << account << "\nadmin\n"; }
+    assert(account_is_admin(auth_test, account));
+    assert(!account_is_admin(auth_test, "../" + account));
+    { std::ofstream(role_file) << "GAMMA_ROLE_V3\n" << account << "\nplayer\n"; }
+    assert(!account_is_admin(auth_test, account)); // Revocation takes effect at the next command.
+    { std::ofstream(role_file) << "GAMMA_ROLE_V3\n" << account << "\nadmin\nextra\n"; }
+    assert(!account_is_admin(auth_test, account));
+    { std::ofstream(auth_test / (token + ".ticket")) << "GAMMA_AUTH_V3\n" << account << '\n' << content << "\n1300\n"; }
+    peer_ticket proof;
+    assert(!inspect_ticket(auth_test, token, std::string(64, 'd'), content, 1000, proof));
+    assert(!inspect_ticket(auth_test, token, content, content, 1300, proof));
+    assert(inspect_ticket(auth_test, token, content, content, 1000, proof));
+    assert(consume_ticket(proof));
+    assert(!consume_ticket(proof));
+    assert(!inspect_ticket(auth_test, token, content, content, 1000, proof));
+    std::filesystem::remove(role_file);
+    std::filesystem::remove(proof.consumed);
+    std::filesystem::remove(auth_test);
     static_assert(max_players == 128 && max_client_states == 129, "capacity includes internal ALife host");
     assert(player_limit(nullptr) == 128);
     for (unsigned i = 1; i <= 128; ++i)

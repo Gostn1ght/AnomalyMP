@@ -5,6 +5,7 @@ param(
     [ValidateRange(1,128)][int]$MaxPlayers = 128
 )
 $ErrorActionPreference = 'Stop'
+throw 'Custom runtime is retired. Use the isolated GAMMA runtime after the server migration and GitHub Actions build are complete.'
 $root = (Resolve-Path -LiteralPath $GameRoot).Path
 if (!(Test-Path -LiteralPath (Join-Path $root 'custom-test-manifest.json'))) { throw 'Expected an isolated Custom test directory' }
 if ([IO.Path]::GetFileName($Executable) -ne $Executable) { throw 'Executable must be a filename in the test bin directory' }

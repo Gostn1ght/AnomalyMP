@@ -1,9 +1,11 @@
 import importlib.util
 import tempfile
 import unittest
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'tools'))
 
 
 def module(name):
@@ -15,6 +17,8 @@ def module(name):
 
 profile = module('prepare_profile')
 launch = module('launch_settings')
+engine_patch = module('make_engine_patch')
+gamma_content = module('materialize_gamma')
 
 
 class ToolsTest(unittest.TestCase):
@@ -57,6 +61,80 @@ class ToolsTest(unittest.TestCase):
         self.assertIn('/portsv=1237/', args)
         self.assertIn('client(localhost/', args)
         self.assertNotIn('server(', launch.settings('client')['arguments'])
+
+    def test_both_roles_block_single_player_menu(self):
+        menu = (profile.REPO / 'G.A.M.M.A/modpack_addons/109- MCM Mod Configuration Menu - RavenAscendant/gamedata/scripts/ui_main_menu.script').read_bytes()
+        result = profile.patch_menu(menu)
+        for name in ('OnButton_save_clicked', 'OnButton_load_clicked', 'OnButton_last_save', 'OnButton_new_game'):
+            entry = result.index(('function main_menu:' + name + '(').encode())
+            first_statement = result[entry:].splitlines()[1].strip()
+            self.assertEqual(first_statement, b'do return gamma_net_compat.unavailable() end')
+
+    def test_save_callback_blocks_server_and_client(self):
+        # Exercise the actual Lua module, including role lookup and callback registration.
+        sys.path.insert(0, str(profile.REPO / '.work/python-lua'))
+        try:
+            from lupa import LuaRuntime
+        except ImportError:
+            self.skipTest('Lua runtime unavailable')
+        script = (ROOT / 'runtime/gamedata/scripts/gamma_net_compat.script').read_text()
+        for role in ('server', 'client'):
+            lua = LuaRuntime()
+            lua.globals().test_role = role
+            lua.execute('''
+                function ini_file(path) return {r_string=function() return test_role end} end
+                function printf(...) end
+                function RegisterScriptCallback(name, fn) callback = fn end
+            ''')
+            lua.execute(script)
+            lua.globals().install()
+            flags = lua.table_from({'ret': False})
+            lua.globals().callback(flags)
+            self.assertTrue(flags.ret, role)
+
+    def test_gamma_content_priorities_and_role_isolation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            game, engine, output = root / 'GAMMA', root / 'engine/gamedata', root / 'runtime'
+            mods = game / 'GAMMA RC3.7/mods'
+            source_profile = game / 'GAMMA RC3.7/profiles/G.A.M.M.A'
+            source_profile.mkdir(parents=True)
+            (source_profile / 'modlist.txt').write_text('+High\n+Low\n', encoding='utf-8')
+            for mod, value in [('High', 'gamma-unique-npc'), ('Low', 'lower-priority-npc')]:
+                folder = mods / mod / 'gamedata/meshes'
+                folder.mkdir(parents=True)
+                (folder / 'npc.ogf').write_text(value)
+            scripts = game / 'gamedata/scripts'
+            scripts.mkdir(parents=True)
+            (scripts / 'axr_main.script').write_bytes(b'local intercepts = {\n}\nfunction on_game_start()\nend\n')
+            menu = b''
+            for name in ('OnButton_save_clicked', 'OnButton_load_clicked', 'OnButton_last_save', 'OnButton_new_game'):
+                menu += ('function main_menu:' + name + '()\nend\n').encode()
+            (scripts / 'ui_main_menu.script').write_bytes(menu)
+            (game / 'gamedata/configs').mkdir()
+            (game / 'gamedata/configs/system.ltx').write_text('[gamma]\n')
+            engine.mkdir(parents=True)
+            (engine / 'engine-only.txt').write_text('engine content')
+            (game / 'fsgame.ltx').write_text('\n'.join([
+                '$app_data_root$ = true | false | $fs_root$ | appdata\\',
+                '$game_data$ = true | true | $fs_root$ | gamedata\\',
+                '$arch_dir$ = false | false | $fs_root$ | db\\',
+                '$game_scripts$ = true | false | $game_data$ | scripts\\',
+                '$game_config$ = true | false | $game_data$ | configs\\',
+            ]))
+            result = gamma_content.materialize(game, engine, output, copy=True)
+            self.assertTrue(result['content_prepared'])
+            self.assertFalse(result['multiplayer_ready'])
+            self.assertEqual((output / 'gamedata/meshes/npc.ogf').read_text(), 'gamma-unique-npc')
+            self.assertEqual((output / 'gamedata/engine-only.txt').read_text(), 'engine content')
+            self.assertEqual((scripts / 'ui_main_menu.script').read_bytes(), menu)
+            for process_role, expected_role in [('server', 'server'), ('p1', 'client'), ('p2', 'client')]:
+                fs = (output / ('fsgame_' + process_role + '.ltx')).read_text()
+                self.assertIn(str(output / 'appdata' / process_role), fs)
+                self.assertIn(str(output / expected_role / 'scripts'), fs)
+                self.assertIn(str(output / 'gamedata'), fs)
+                self.assertIn(str(game), fs)
+                self.assertIn('role = ' + expected_role, (output / expected_role / 'configs/gamma_net_role.ltx').read_text())
 
 
 if __name__ == '__main__':

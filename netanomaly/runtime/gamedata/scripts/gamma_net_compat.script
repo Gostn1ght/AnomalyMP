@@ -1,4 +1,4 @@
--- GAMMA compatibility bootstrap for the pinned NetAnomaly protocol v2 build.
+-- GAMMA compatibility bootstrap for the pinned NetAnomaly protocol v3 build.
 -- This module deliberately has no on_game_start: axr_main calls install once.
 local installed = false
 local role = nil
@@ -15,12 +15,22 @@ function is_server()
     return get_role() == "server"
 end
 
+function admin_allowed()
+    return type(gamma_admin_allowed) == "function" and gamma_admin_allowed() or false
+end
+
+function request_admin(command)
+    if not admin_allowed() or is_server() then return false end
+    return gamma_send_admin_request(command)
+end
+
 function before_save(flags)
-    if not is_server() then flags.ret = true end
+    flags.ret = true
+    unavailable()
 end
 
 function unavailable()
-    printf("[GAMMA NetAnomaly] Save/load/new world is controlled by the server.")
+    printf("[GAMMA NetAnomaly] Single-player save/load/new game is disabled in multiplayer.")
 end
 
 function install()
@@ -28,5 +38,5 @@ function install()
     get_role() -- Fail explicitly if the wrong addon/profile was mounted.
     installed = true
     RegisterScriptCallback("on_before_save_input", before_save)
-    printf("[GAMMA NetAnomaly] role=%s protocol=2; experimental compatibility profile", role)
+    printf("[GAMMA NetAnomaly] role=%s protocol=3; experimental compatibility profile", role)
 end

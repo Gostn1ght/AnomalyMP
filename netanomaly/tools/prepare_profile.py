@@ -50,7 +50,7 @@ def patch_axr(data):
 def patch_menu(data):
     for name in ('OnButton_save_clicked', 'OnButton_load_clicked', 'OnButton_last_save', 'OnButton_new_game'):
         pattern = rb'(function main_menu:' + name.encode('ascii') + rb'\([^\r\n]*\))'
-        data, count = re.subn(pattern, rb'\1\n\tif not gamma_net_compat.is_server() then return gamma_net_compat.unavailable() end', data)
+        data, count = re.subn(pattern, rb'\1\n\tdo return gamma_net_compat.unavailable() end', data)
         if count != 1:
             raise ValueError('Expected one GAMMA menu handler: ' + name)
     return data
@@ -73,7 +73,7 @@ def prepare(modlist, output, role, axr, user_ltx=None, menu=None):
     (scripts / 'ui_main_menu.script').write_bytes(patched_menu)
     configs = addon / 'gamedata' / 'configs'
     configs.mkdir(parents=True, exist_ok=True)
-    (configs / 'gamma_net_role.ltx').write_text('[network]\nrole = ' + role + '\nprotocol = 2\n', encoding='ascii')
+    (configs / 'gamma_net_role.ltx').write_text('[network]\nrole = ' + role + '\nprotocol = 3\n', encoding='ascii')
     (profile / 'modlist.txt').write_text(transformed, encoding='utf-8')
     if user_ltx:
         text = user_ltx.read_text(encoding='utf-8-sig')
