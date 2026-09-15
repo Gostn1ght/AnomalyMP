@@ -123,6 +123,29 @@ void xrClientData::Clear()''')
             '\tBOOL net_Accepted;\n\tu32 gamma_role_checked_at;\n\tstd::atomic<bool> gamma_authenticated;\n\tshared_str gamma_account;\n\tshared_str gamma_ticket;\n\tshared_str gamma_content;')
     replace(game, '\tnet_Accepted = FALSE;',
             '\tnet_Accepted = FALSE;\n\tgamma_role_checked_at = 0;\n\tgamma_authenticated = false;\n\tgamma_account = "";\n\tgamma_ticket = "";\n\tgamma_content = "";')
+    replace(game, '''\t\tif (pOwner)
+\t\t{
+\t\t\tgame->CleanDelayedEventFor(pOwner->ID);
+\t\t}''', '''        if (pOwner)
+        {
+            game->CleanDelayedEventFor(pOwner->ID);
+            // Stock single-player only removes spectators on disconnect. A remote
+            // netcoop actor would otherwise remain as a ghost with its inventory.
+            // Destroy its ownership tree while this client is still registered,
+            // preserving the server's ownership checks and canonical broadcast.
+            if (strstr(Core.Params, "-netcoop") && !alife_client->flags.bLocal && !pS)
+            {
+                NET_Packet destroy;
+                destroy.w_begin(M_EVENT);
+                destroy.w_u32(Level().timeServer());
+                destroy.w_u16(GE_DESTROY);
+                destroy.w_u16(pOwner->ID);
+                u16 ignored;
+                destroy.r_begin(ignored);
+                Process_event_destroy(destroy, alife_client->ID, Level().timeServer(), pOwner->ID, NULL);
+                pOwner = NULL;
+            }
+        }''')
     replace('src/xrGame/xrServer_Connect.cpp', '\tCL->pass._set(cl_data->pass);', '''\tCL->pass._set(cl_data->pass);
     cl_data->gamma_ticket[64] = cl_data->gamma_content[64] = 0;
     xrClientData* gamma_client = static_cast<xrClientData*>(CL);

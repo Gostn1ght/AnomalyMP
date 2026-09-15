@@ -805,7 +805,38 @@
  	net_PassUpdates = TRUE;
  	m_ping_warn.m_maxPingWarnings = 0;
  	m_ping_warn.m_dwLastMaxPingWarningTime = 0;
-@@ -213,6 +230,21 @@
+@@ -177,10 +194,26 @@
+ 		}
+ 		while (true);
+ 
+-		if (pOwner)
+-		{
+-			game->CleanDelayedEventFor(pOwner->ID);
+-		}
++        if (pOwner)
++        {
++            game->CleanDelayedEventFor(pOwner->ID);
++            // Stock single-player only removes spectators on disconnect. A remote
++            // netcoop actor would otherwise remain as a ghost with its inventory.
++            // Destroy its ownership tree while this client is still registered,
++            // preserving the server's ownership checks and canonical broadcast.
++            if (strstr(Core.Params, "-netcoop") && !alife_client->flags.bLocal && !pS)
++            {
++                NET_Packet destroy;
++                destroy.w_begin(M_EVENT);
++                destroy.w_u32(Level().timeServer());
++                destroy.w_u16(GE_DESTROY);
++                destroy.w_u16(pOwner->ID);
++                u16 ignored;
++                destroy.r_begin(ignored);
++                Process_event_destroy(destroy, alife_client->ID, Level().timeServer(), pOwner->ID, NULL);
++                pOwner = NULL;
++            }
++        }
+ 
+ 		//.		if (!alife_client->flags.bVerified)
+ 		xrClientData* xr_client = static_cast<xrClientData*>(alife_client);
+@@ -213,6 +246,21 @@
  
  void xrServer::Update()
  {
@@ -827,7 +858,7 @@
  	if (Level().IsDemoPlayStarted() || Level().IsDemoPlayFinished())
  		return; //diabling server when demo is playing
  
-@@ -282,6 +314,7 @@
+@@ -282,6 +330,7 @@
  {
  	xrClientData* xr_client = static_cast<xrClientData*>(client);
  	VERIFY(xr_client);
@@ -835,7 +866,7 @@
  	if (!xr_client->net_Ready)
  	{
  		return;
-@@ -296,6 +329,7 @@
+@@ -296,6 +345,7 @@
  		return;
  	}
  
@@ -843,7 +874,7 @@
  	NET_Packet Packet;
  	u16 PacketType = M_UPDATE;
  	Packet.w_begin(PacketType);
-@@ -351,7 +385,19 @@
+@@ -351,7 +401,19 @@
  		if (to_send.B.count > 2)
  		{
  			m_last_updates_size += to_send.B.count;
@@ -864,7 +895,7 @@
  			if (Level().IsDemoSave())
  			{
  				Level().SavePacket(to_send);
-@@ -362,8 +408,9 @@
+@@ -362,8 +424,9 @@
  
  void xrServer::SendUpdatesToAll()
  {
@@ -875,7 +906,7 @@
  
  	KickCheaters();
  
-@@ -371,10 +418,10 @@
+@@ -371,10 +434,10 @@
  	//sending game_update 
  	fastdelegate::FastDelegate1<IClient*, void> sendtofd;
  	sendtofd.bind(this, &xrServer::SendGameUpdateTo);
@@ -890,7 +921,7 @@
  		MakeUpdatePackets();
  		SendUpdatePacketsToAll();
  
-@@ -403,6 +450,7 @@
+@@ -403,6 +466,7 @@
  
  u32 xrServer::OnDelayedMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadcasting with "flags" as returned
  {
@@ -898,7 +929,7 @@
  	u16 type;
  	P.r_begin(type);
  
-@@ -415,6 +463,49 @@
+@@ -415,6 +479,49 @@
  
  	switch (type)
  	{
@@ -948,7 +979,7 @@
  	case M_CLIENT_REQUEST_CONNECTION_DATA:
  		{
  			IClient* tmp_client = net_players.GetFoundClient(
-@@ -426,8 +517,9 @@
+@@ -426,8 +533,9 @@
  		break;
  	case M_REMOTE_CONTROL_CMD:
  		{
@@ -960,7 +991,7 @@
  				string1024 buff;
  				P.r_stringZ(buff);
  				Msg("* Radmin [%s] is running command: %s", CL->ps->getName(), buff);
-@@ -459,7 +551,7 @@
+@@ -459,7 +567,7 @@
  		break;
  	case M_FILE_TRANSFER:
  		{
@@ -969,7 +1000,7 @@
  		}
  		break;
  	}
-@@ -482,12 +574,68 @@
+@@ -482,12 +590,68 @@
  
  u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadcasting with "flags" as returned
  {
@@ -1038,7 +1069,7 @@
  
  	switch (type)
  	{
-@@ -521,8 +669,12 @@
+@@ -521,8 +685,12 @@
  			NET_Packet tmpP;
  			while (!P.r_eof())
  			{
@@ -1053,7 +1084,7 @@
  
  				OnMessage(tmpP, sender);
  			};
-@@ -534,14 +686,26 @@
+@@ -534,14 +702,26 @@
  			if (!CL) break;
  			CL->net_Ready = TRUE;
  
@@ -1083,7 +1114,7 @@
  #ifdef DEBUG
  			VERIFY(verify_entities());
  #endif
-@@ -557,7 +721,11 @@
+@@ -557,7 +737,11 @@
  		break;
  		//-------------------------------------------------------------------
  	case M_CL_INPUT:
@@ -1096,7 +1127,7 @@
  			xrClientData* CL = ID_to_client(sender);
  			if (CL) CL->net_Ready = TRUE;
  			if (SV_Client) SendTo(SV_Client->ID, P, net_flags(TRUE, TRUE));
-@@ -641,52 +809,30 @@
+@@ -641,52 +825,30 @@
  		}
  		break;
  	case M_CHAT_MESSAGE:
@@ -1168,7 +1199,7 @@
  	case M_SV_MAP_NAME:
  		{
  			xrClientData* l_pC = ID_to_client(sender);
-@@ -752,7 +898,15 @@
+@@ -752,7 +914,15 @@
  		}
  		break;
  	case M_REMOTE_CONTROL_AUTH:
@@ -1185,7 +1216,7 @@
  			string512 reason;
  			shared_str user;
  			shared_str pass;
-@@ -962,7 +1116,7 @@
+@@ -962,7 +1132,7 @@
  		return;
  	};
  
