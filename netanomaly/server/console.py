@@ -1,4 +1,4 @@
-"""Local account console for the server storage component (engine not connected yet)."""
+"""Local account and role console for the dedicated GAMMA server."""
 import argparse
 import getpass
 import json
@@ -16,7 +16,7 @@ def run(runtime):
         raise ValueError('Expected a prepared isolated GAMMA runtime')
     db = AccountStore(runtime / 'appdata/server/accounts.sqlite3')
     local = LocalConsoleAccounts(db)
-    print('GAMMA local account console. Engine integration is not connected.')
+    print('GAMMA dedicated server account console.')
     print('Commands: register LOGIN, accounts, admin LOGIN, unadmin LOGIN, ticket LOGIN p1|p2, quit')
     try:
         while True:
