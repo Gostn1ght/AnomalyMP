@@ -54,3 +54,15 @@ its child process; native graceful shutdown/persistence acceptance is still pend
 GAMMA script fixes in the role adapter defer ledge setup until the actor's first
 update and finish UBGL cosmetic menu callbacks when there is no actor/item.
 Both failures were observed before actor creation in the rendered-host experiments.
+
+## Dedicated GAMMA Lua/UI boundary
+
+Run 34991767392 successfully built `635983a6f8fe855383778712056851a21cb44cca`.
+Installed EXE SHA256:
+`abea30bf73933412f81480241de4e92ca524a6bc0db4887e9bbdb1d450d99d84`.
+The dedicated process advanced through GAMMA Lua initialization, then crashed at
+`0x140B46AC5`. Matching symbols resolve this to `GetFontSmall`,
+`src/xrGame/ui/UIWindow_script.cpp:54`. `dotmarks_main.script` caches font handles
+at module scope, but dedicated mode intentionally has no UI font manager. The next
+patch makes every Lua font getter return nil in dedicated mode instead of touching
+the absent manager. No external clients were started before the server failed.

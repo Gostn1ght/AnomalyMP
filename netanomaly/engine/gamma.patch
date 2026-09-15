@@ -1047,6 +1047,81 @@
  #ifdef DEBUG_MEMORY_MANAGER
  	size_t									start = 0;
  	if (g_bMEMO)
+--- a/src/xrGame/ui/UIWindow_script.cpp
++++ b/src/xrGame/ui/UIWindow_script.cpp
+@@ -43,6 +43,8 @@
+ #include "UITabControl.h"
+ #include "UITrackBar.h"
+ 
++extern ENGINE_API bool g_dedicated_server;
++
+ CFontManager& mngr()
+ {
+ 	return UI().Font();
+@@ -51,53 +53,53 @@
+ // hud font
+ CGameFont* GetFontSmall()
+ {
+-	return mngr().pFontStat;
++	return g_dedicated_server ? nullptr : mngr().pFontStat;
+ }
+ 
+ CGameFont* GetFontMedium()
+ {
+-	return mngr().pFontMedium;
++	return g_dedicated_server ? nullptr : mngr().pFontMedium;
+ }
+ 
+ CGameFont* GetFontDI()
+ {
+-	return mngr().pFontDI;
++	return g_dedicated_server ? nullptr : mngr().pFontDI;
+ }
+ 
+ //шрифты для интерфейса
+ CGameFont* GetFontGraffiti19Russian()
+ {
+-	return mngr().pFontGraffiti19Russian;
++	return g_dedicated_server ? nullptr : mngr().pFontGraffiti19Russian;
+ }
+ 
+ CGameFont* GetFontGraffiti22Russian()
+ {
+-	return mngr().pFontGraffiti22Russian;
++	return g_dedicated_server ? nullptr : mngr().pFontGraffiti22Russian;
+ }
+ 
+ CGameFont* GetFontLetterica16Russian()
+ {
+-	return mngr().pFontLetterica16Russian;
++	return g_dedicated_server ? nullptr : mngr().pFontLetterica16Russian;
+ }
+ 
+ CGameFont* GetFontLetterica18Russian()
+ {
+-	return mngr().pFontLetterica18Russian;
++	return g_dedicated_server ? nullptr : mngr().pFontLetterica18Russian;
+ }
+ 
+ CGameFont* GetFontGraffiti32Russian()
+ {
+-	return mngr().pFontGraffiti32Russian;
++	return g_dedicated_server ? nullptr : mngr().pFontGraffiti32Russian;
+ }
+ 
+ CGameFont* GetFontGraffiti50Russian()
+ {
+-	return mngr().pFontGraffiti50Russian;
++	return g_dedicated_server ? nullptr : mngr().pFontGraffiti50Russian;
+ }
+ 
+ CGameFont* GetFontLetterica25()
+ {
+-	return mngr().pFontLetterica25;
++	return g_dedicated_server ? nullptr : mngr().pFontLetterica25;
+ }
+ 
+ 
 --- a/src/xrGame/xrServer.cpp
 +++ b/src/xrGame/xrServer.cpp
 @@ -22,6 +22,8 @@

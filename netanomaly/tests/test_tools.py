@@ -23,6 +23,11 @@ callbacks = module('callback_scripts')
 
 
 class ToolsTest(unittest.TestCase):
+    def test_dedicated_font_getters_do_not_require_ui_manager(self):
+        patch = (ROOT / 'engine/gamma.patch').read_text(encoding='utf-8')
+        self.assertIn('extern ENGINE_API bool g_dedicated_server;', patch)
+        self.assertEqual(patch.count('return g_dedicated_server ? nullptr : mngr().pFont'), 10)
+
     def test_ubgl_menu_close_without_actor_completes_callback(self):
         sys.path.insert(0, str(profile.REPO / '.work/python-lua'))
         from lupa.luajit21 import LuaRuntime

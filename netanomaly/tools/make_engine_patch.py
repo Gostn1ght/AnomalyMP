@@ -60,6 +60,20 @@ def generate(source: Path) -> str:
             'void CRenderDevice::PreCache(u32 amount, bool b_draw_loadscreen, bool b_wait_user_input)\n{\n\tif (g_dedicated_server) amount = 0;')
     replace(device, '\tif (b_is_Active && Begin())', '\tif (!g_dedicated_server && b_is_Active && Begin())')
 
+    # GAMMA scripts cache font handles while Lua modules are loading. Dedicated
+    # mode has no UI/font manager, so expose nil instead of dereferencing it.
+    ui_window = 'src/xrGame/ui/UIWindow_script.cpp'
+    replace(ui_window, '#include "UITrackBar.h"',
+            '#include "UITrackBar.h"\n\nextern ENGINE_API bool g_dedicated_server;')
+    for font in (
+        'pFontStat', 'pFontMedium', 'pFontDI', 'pFontGraffiti19Russian',
+        'pFontGraffiti22Russian', 'pFontLetterica16Russian',
+        'pFontLetterica18Russian', 'pFontGraffiti32Russian',
+        'pFontGraffiti50Russian', 'pFontLetterica25',
+    ):
+        replace(ui_window, f'\treturn mngr().{font};',
+                f'\treturn g_dedicated_server ? nullptr : mngr().{font};')
+
     # ALife dedicated servers still need logical managers and script scheduling.
     level_source = 'src/xrGame/Level.cpp'
     for anchor in (
