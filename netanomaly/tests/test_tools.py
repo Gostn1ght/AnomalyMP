@@ -19,9 +19,44 @@ profile = module('prepare_profile')
 launch = module('launch_settings')
 engine_patch = module('make_engine_patch')
 gamma_content = module('materialize_gamma')
+callbacks = module('callback_scripts')
 
 
 class ToolsTest(unittest.TestCase):
+    def test_ubgl_menu_close_without_actor_completes_callback(self):
+        sys.path.insert(0, str(profile.REPO / '.work/python-lua'))
+        from lupa.luajit21 import LuaRuntime
+        source = b'local obj = db.actor:active_item()\nif not obj then return end\nreturn obj'
+        source = b'function first()\n' + source + b'\nend\nfunction second()\n' + source + b'\nend'
+        patched = callbacks.patch_ubgl(source)
+        self.assertEqual(callbacks.patch_ubgl(patched), patched)
+        lua = LuaRuntime()
+        lua.execute('db = {}')
+        lua.execute(patched.decode())
+        self.assertTrue(lua.globals().first())
+        lua.execute('db.actor = {active_item = function() return nil end}')
+        self.assertTrue(lua.globals().second())
+        lua.execute('db.actor = {active_item = function() return 42 end}')
+        self.assertEqual(lua.globals().first(), 42)
+
+    def test_ledge_waits_for_actor_not_loading_prompt(self):
+        sys.path.insert(0, str(profile.REPO / '.work/python-lua'))
+        from lupa.luajit21 import LuaRuntime
+        lua = LuaRuntime()
+        lua.execute('''
+            callbacks = {}
+            db = {}
+            function RegisterScriptCallback(name, fn) callbacks[name] = fn end
+            function actor_on_first_update() initialized = db.actor:position() end
+        ''')
+        source = b'RegisterScriptCallback("on_loading_screen_key_prompt", actor_on_first_update)'
+        patched = callbacks.patch_ledge(source)
+        self.assertEqual(callbacks.patch_ledge(patched), patched)
+        lua.execute(patched.decode())
+        self.assertIsNone(lua.globals().callbacks.on_loading_screen_key_prompt)
+        lua.execute('db.actor = { position = function() return 42 end }; callbacks.actor_on_first_update()')
+        self.assertEqual(lua.globals().initialized, 42)
+
     def test_profile_priorities_and_duplicates(self):
         text = '+A\n+A\n+G.A.M.M.A. Books Pass Time\n-B\n+GAMMA NetAnomaly - server\n'
         result, disabled = profile.transform_modlist(text, 'client')

@@ -32,3 +32,25 @@ server inventory transactions and persistence, per-player quests, role enforceme
 in gameplay, and load testing with actual clients. The standalone SQLite bridge
 is not yet connected to native engine state. A 128-slot setting is not load-test
 evidence. Server/client filenames currently contain the same EXE.
+
+## Follow-up build and console startup
+
+Run 34981063850 successfully built `7a66c23ce6d4234a93d3c7b8d9749b850ba34177`.
+Installed EXE SHA256:
+`048fd2711282716639ca462612df27c2f721018f37dd387f8b612c7872f0ec67`.
+Dedicated startup passed the old Lua crash, then failed at RVA `0xd275be`.
+Matching PDB symbols identify `dxUIRender::SetShader`, dxUIRender.cpp:30.
+The runtime dedicated switch selected graphical `CConsole` despite skipping
+shader creation. The next patch selects native `CTextConsole` and skips graphical
+Begin/End/Clear, precaching, and scene rendering in dedicated mode.
+
+The user explicitly requires server console startup and verified readiness
+**before** launching either client. All rendered-host experiments are stopped.
+`server/console.py --start-server --runtime PATH` owns only the dedicated process,
+prints its logs, and provides account role management. Native engine commands
+remain in its dedicated text window. `quit` in the account supervisor terminates
+its child process; native graceful shutdown/persistence acceptance is still pending.
+
+GAMMA script fixes in the role adapter defer ledge setup until the actor's first
+update and finish UBGL cosmetic menu callbacks when there is no actor/item.
+Both failures were observed before actor creation in the rendered-host experiments.

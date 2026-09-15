@@ -7,21 +7,27 @@ import shlex
 
 from store import AccountStore, LocalConsoleAccounts
 from tickets import issue_ticket
+from dedicated import DedicatedProcess
 
 
-def run(runtime):
+def run(runtime, start_server=False, port=1237, players=128):
     runtime = runtime.resolve(strict=True)
     manifest = json.loads((runtime / 'gamma-runtime.json').read_text(encoding='utf-8'))
     if manifest.get('content') != 'GAMMA' or not manifest.get('content_prepared'):
         raise ValueError('Expected a prepared isolated GAMMA runtime')
     db = AccountStore(runtime / 'appdata/server/accounts.sqlite3')
     local = LocalConsoleAccounts(db)
-    print('GAMMA dedicated server account console.')
-    print('Commands: register LOGIN, accounts, admin LOGIN, unadmin LOGIN, ticket LOGIN p1|p2, quit')
+    server = DedicatedProcess(runtime, port, players) if start_server else None
+    print('GAMMA DEDICATED SERVER' if server else 'GAMMA account maintenance console')
+    print('Commands: status, register LOGIN, accounts, admin LOGIN, unadmin LOGIN, ticket LOGIN p1|p2, quit')
+    if server:
+        print('Only the dedicated server starts here. Start clients after verifying the server world.')
     try:
+        if server:
+            server.start()
         while True:
             try:
-                command = shlex.split(input('accounts> '))
+                command = shlex.split(input('server> ' if server else 'accounts> '))
             except (EOFError, KeyboardInterrupt):
                 break
             except ValueError as error:
@@ -32,7 +38,9 @@ def run(runtime):
             try:
                 if command == ['quit']:
                     break
-                if command == ['accounts']:
+                if command == ['status']:
+                    print(server.status() if server else 'Account maintenance only; no engine process')
+                elif command == ['accounts']:
                     for login, role in db.db.execute('SELECT login,role FROM accounts ORDER BY login'):
                         print(f'{login}: {role}')
                 elif len(command) == 2 and command[0] == 'register':
@@ -61,11 +69,16 @@ def run(runtime):
             except Exception as error:
                 print(str(error))
     finally:
+        if server:
+            server.close()
         db.close()
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(__doc__)
     parser.add_argument('--runtime', type=Path, required=True)
+    parser.add_argument('--start-server', action='store_true')
+    parser.add_argument('--port', type=int, default=1237)
+    parser.add_argument('--players', type=int, default=128)
     args = parser.parse_args()
-    run(args.runtime)
+    run(args.runtime, args.start_server, args.port, args.players)

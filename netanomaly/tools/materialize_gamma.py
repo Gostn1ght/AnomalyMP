@@ -15,6 +15,7 @@ import time
 from prepare_gamma import DEFAULT_GAME
 from prepare_profile import POLICY, ROOT, patch_axr, patch_menu
 from admin_scripts import DEBUG_SCRIPTS, patch_debug
+from callback_scripts import patch_ledge, patch_ubgl
 
 
 def finalize(destination):
@@ -63,6 +64,10 @@ def finalize(destination):
                      role_root / 'scripts/gamma_admin.script')
         for name, patch in (('axr_main.script', patch_axr), ('ui_main_menu.script', patch_menu)):
             (role_root / 'scripts' / name).write_bytes(patch((destination / 'gamedata/scripts' / name).read_bytes()))
+        for name, patch in (('demonized_ledge_grabbing.script', patch_ledge), ('ubgl_no_3db.script', patch_ubgl)):
+            source = destination / 'gamedata/scripts' / name
+            if source.is_file():
+                (role_root / 'scripts' / name).write_bytes(patch(source.read_bytes()))
         for name in DEBUG_SCRIPTS:
             original = destination / 'gamedata/scripts' / name
             if original.is_file():

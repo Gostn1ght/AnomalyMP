@@ -33,6 +33,32 @@ def generate(source: Path) -> str:
             '\tif (g_ai_space && g_ai_space->get_script_engine()) g_ai_space->get_script_engine()->print_stack();', count=4)
     replace('src/xrServerEntities/script_storage.cpp', '\tlua_State* L = lua();\n\tlua_Debug l_tDebugInfo;',
             '\tlua_State* L = lua();\n\tif (!L) return;\n\tlua_Debug l_tDebugInfo;')
+    startup = 'src/xrEngine/x_ray.cpp'
+    replace(startup, '''#ifdef DEDICATED_SERVER
+    {
+        Console = xr_new<CTextConsole>();
+    }
+#else
+\t// else
+\t{
+\t\tConsole = xr_new<CConsole>();
+\t}
+#endif''', '''    // Runtime -dedicated uses the same native GDI console as the dedicated build.
+    // CConsole's DX shader resources do not exist in dedicated mode.
+    if (g_dedicated_server)
+        Console = xr_new<CTextConsole>();
+    else
+        Console = xr_new<CConsole>();''')
+    device = 'src/xrEngine/device.cpp'
+    replace(device, 'BOOL CRenderDevice::Begin()\n{',
+            'BOOL CRenderDevice::Begin()\n{\n\tif (g_dedicated_server) return TRUE;')
+    replace(device, 'void CRenderDevice::End(void)\n{',
+            'void CRenderDevice::End(void)\n{\n\tif (g_dedicated_server) return;')
+    replace(device, 'void CRenderDevice::Clear()\n{',
+            'void CRenderDevice::Clear()\n{\n\tif (g_dedicated_server) return;')
+    replace(device, 'void CRenderDevice::PreCache(u32 amount, bool b_draw_loadscreen, bool b_wait_user_input)\n{',
+            'void CRenderDevice::PreCache(u32 amount, bool b_draw_loadscreen, bool b_wait_user_input)\n{\n\tif (g_dedicated_server) amount = 0;')
+    replace(device, '\tif (b_is_Active && Begin())', '\tif (!g_dedicated_server && b_is_Active && Begin())')
 
     server = "src/xrNetServer/NET_Server.cpp"
     replace(server, '#include "NET_Log.h"', '#include "NET_Log.h"\n#include "GammaNetPolicy.h"')
