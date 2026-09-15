@@ -299,6 +299,115 @@
  
  	delete_data(m_players);
  
+--- a/src/xrGame/GameObject.cpp
++++ b/src/xrGame/GameObject.cpp
+@@ -57,7 +57,7 @@
+ 	m_bCrPr_Activated = false;
+ 	m_dwCrPr_ActivationStep = 0;
+ 	m_spawn_time = 0;
+-	m_ai_location = !g_dedicated_server ? xr_new<CAI_ObjectLocation>() : 0;
++	m_ai_location = (!g_dedicated_server || strstr(Core.Params, "-netcoop")) ? xr_new<CAI_ObjectLocation>() : 0;
+ 	m_server_flags.one();
+ 
+ 	m_callbacks = xr_new<CALLBACK_MAP>();
+@@ -99,7 +99,7 @@
+ void CGameObject::reinit()
+ {
+ 	m_visual_callback.clear();
+-	if (!g_dedicated_server)
++	if (!g_dedicated_server || strstr(Core.Params, "-netcoop"))
+ 		ai_location().reinit();
+ 
+ 	// clear callbacks	
+@@ -385,11 +385,11 @@
+ 	}
+ 
+ 	reload(*cNameSect());
+-	if (!g_dedicated_server)
++	if (!g_dedicated_server || strstr(Core.Params, "-netcoop"))
+ 		CScriptBinder::reload(*cNameSect());
+ 
+ 	reinit();
+-	if (!g_dedicated_server)
++	if (!g_dedicated_server || strstr(Core.Params, "-netcoop"))
+ 		CScriptBinder::reinit();
+ #ifdef DEBUG
+ 	if(ph_dbg_draw_mask1.test(ph_m1_DbgTrackObject)&&stricmp(PH_DBG_ObjectTrackName(),*cName())==0)
+@@ -1088,7 +1088,7 @@
+ 	// Msg							("-SUB-:[%x][%s] CGameObject::shedule_Update",smart_cast<void*>(this),*cName());
+ 	inherited::shedule_Update(dt);
+ 
+-	if (!g_dedicated_server)
++	if (!g_dedicated_server || strstr(Core.Params, "-netcoop"))
+ 		CScriptBinder::shedule_Update(dt);
+ }
+ 
+--- a/src/xrGame/Level.cpp
++++ b/src/xrGame/Level.cpp
+@@ -242,14 +242,14 @@
+     eEnvironment = Engine.Event.Handler_Attach("LEVEL:Environment", this);
+     eEntitySpawn = Engine.Event.Handler_Attach("LEVEL:spawn", this);
+     m_pBulletManager = xr_new<CBulletManager>();
+-    if (!g_dedicated_server)
++    if (!g_dedicated_server || strstr(Core.Params, "-netcoop"))
+     {
+         m_map_manager = xr_new<CMapManager>();
+         m_game_task_manager = xr_new<CGameTaskManager>();
+     }
+     m_dwDeltaUpdate = u32(fixed_step * 1000);
+     m_seniority_hierarchy_holder = xr_new<CSeniorityHierarchyHolder>();
+-    if (!g_dedicated_server)
++    if (!g_dedicated_server || strstr(Core.Params, "-netcoop"))
+     {
+         m_level_sound_manager = xr_new<CLevelSoundManager>();
+         m_space_restriction_manager = xr_new<CSpaceRestrictionManager>();
+@@ -323,7 +323,7 @@
+ 	xr_delete(m_autosave_manager);
+     xr_delete(m_debug_renderer);
+     delete_data(m_debug_render_queue);
+-    if (!g_dedicated_server)
++    if (!g_dedicated_server || strstr(Core.Params, "-netcoop"))
+         ai().script_engine().remove_script_process(ScriptEngine::eScriptProcessorLevel);
+     xr_delete(game);
+     xr_delete(game_events);
+@@ -1031,7 +1031,7 @@
+ 
+ 	if (m_bNeed_CrPr)
+ 		make_NetCorrectionPrediction();
+-	if (!g_dedicated_server)
++	if (!g_dedicated_server || strstr(Core.Params, "-netcoop"))
+ 	{
+ 		if (g_mt_config.test(mtMap))
+ 			Device.seqParallel.push_back(fastdelegate::FastDelegate0<>(m_map_manager, &CMapManager::Update));
+@@ -1138,7 +1138,7 @@
+ #endif
+ 	g_pGamePersistent->Environment().SetGameTime(GetEnvironmentGameDayTimeSec(),
+ 	                                             game->GetEnvironmentGameTimeFactor());
+-	if (!g_dedicated_server)
++	if (!g_dedicated_server || strstr(Core.Params, "-netcoop"))
+ 		ai().script_engine().script_process(ScriptEngine::eScriptProcessorLevel)->update();
+ 	m_ph_commander->update();
+ 	m_ph_commander_scripts->update();
+@@ -1158,7 +1158,7 @@
+ 	}
+ 
+ 	// defer LUA-GC-STEP
+-	if (!g_dedicated_server)
++	if (!g_dedicated_server || strstr(Core.Params, "-netcoop"))
+ 	{
+ 		if (g_mt_config.test(mtLUA_GC))
+ 			Device.seqParallel.push_back(fastdelegate::FastDelegate0<>(this, &CLevel::script_gc));
+--- a/src/xrGame/Level_load.cpp
++++ b/src/xrGame/Level_load.cpp
+@@ -171,7 +171,7 @@
+ 		}
+ 	}
+ 
+-	if (!g_dedicated_server)
++	if (!g_dedicated_server || strstr(Core.Params, "-netcoop"))
+ 	{
+ 		// loading scripts
+ 		ai().script_engine().remove_script_process(ScriptEngine::eScriptProcessorLevel);
 --- a/src/xrGame/Level_network.cpp
 +++ b/src/xrGame/Level_network.cpp
 @@ -131,7 +131,7 @@
@@ -319,6 +428,26 @@
  	{
  		if (!net_HasBandwidth()) return;
  	};
+--- a/src/xrGame/Level_network_spawn.cpp
++++ b/src/xrGame/Level_network_spawn.cpp
+@@ -118,7 +118,7 @@
+ 	if (0 == O || (!O->net_Spawn(E)))
+ 	{
+ 		O->net_Destroy();
+-		if (!g_dedicated_server)
++		if (!g_dedicated_server || strstr(Core.Params, "-netcoop"))
+ 			client_spawn_manager().clear(O->ID());
+ 		Objects.Destroy(O);
+ 		Msg("! Failed to spawn entity '%s'", *E->s_name);
+@@ -131,7 +131,7 @@
+ #ifdef DEBUG_MEMORY_MANAGER
+ 		mem_alloc_gather_stats	(!!psAI_Flags.test(aiDebugOnFrameAllocs));
+ #endif // DEBUG_MEMORY_MANAGER
+-		if (!g_dedicated_server)
++		if (!g_dedicated_server || strstr(Core.Params, "-netcoop"))
+ 			client_spawn_manager().callback(O);
+ 		//Msg			("--spawn--SPAWN: %f ms",1000.f*T.GetAsync());
+ 
 --- a/src/xrGame/Spectator.cpp
 +++ b/src/xrGame/Spectator.cpp
 @@ -557,7 +557,7 @@
@@ -893,6 +1022,31 @@
      {
          destroy();
          return;
+--- a/src/xrGame/script_binder.cpp
++++ b/src/xrGame/script_binder.cpp
+@@ -14,6 +14,7 @@
+ #include "script_binder_object.h"
+ #include "script_game_object.h"
+ #include "gameobject.h"
++#include "Actor.h"
+ #include "level.h"
+ 
+ // comment next string when commiting
+@@ -80,6 +81,14 @@
+ 
+ void CScriptBinder::reload(LPCSTR section)
+ {
++    if (strstr(Core.Params, "-netcoop"))
++    {
++        // Reject before invoking the Lua constructor: actor_binder constructors
++        // themselves modify singleton db.actor_binder, even if set_object rejects them.
++        if (!strstr(Core.Params, "server(")) return;
++        CActor* actor = smart_cast<CActor*>(this);
++        if (actor && !actor->Local()) return;
++    }
+ #ifdef DEBUG_MEMORY_MANAGER
+ 	size_t									start = 0;
+ 	if (g_bMEMO)
 --- a/src/xrGame/xrServer.cpp
 +++ b/src/xrGame/xrServer.cpp
 @@ -22,6 +22,8 @@

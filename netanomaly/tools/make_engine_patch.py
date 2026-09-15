@@ -60,6 +60,41 @@ def generate(source: Path) -> str:
             'void CRenderDevice::PreCache(u32 amount, bool b_draw_loadscreen, bool b_wait_user_input)\n{\n\tif (g_dedicated_server) amount = 0;')
     replace(device, '\tif (b_is_Active && Begin())', '\tif (!g_dedicated_server && b_is_Active && Begin())')
 
+    # ALife dedicated servers still need logical managers and script scheduling.
+    level_source = 'src/xrGame/Level.cpp'
+    for anchor in (
+        '    if (!g_dedicated_server)\n    {\n        m_map_manager',
+        '    if (!g_dedicated_server)\n    {\n        m_level_sound_manager',
+        '    if (!g_dedicated_server)\n        ai().script_engine().remove_script_process',
+        '\tif (!g_dedicated_server)\n\t{\n\t\tif (g_mt_config.test(mtMap))',
+        '\tif (!g_dedicated_server)\n\t\tai().script_engine().script_process',
+        '\tif (!g_dedicated_server)\n\t{\n\t\tif (g_mt_config.test(mtLUA_GC))',
+    ):
+        replace(level_source, anchor, anchor.replace('!g_dedicated_server', '!g_dedicated_server || strstr(Core.Params, "-netcoop")'))
+    replace('src/xrGame/Level_load.cpp', '\tif (!g_dedicated_server)\n\t{\n\t\t// loading scripts',
+            '\tif (!g_dedicated_server || strstr(Core.Params, "-netcoop"))\n\t{\n\t\t// loading scripts')
+    replace('src/xrGame/Level_network_spawn.cpp', '\t\tif (!g_dedicated_server)\n\t\t\tclient_spawn_manager()',
+            '\t\tif (!g_dedicated_server || strstr(Core.Params, "-netcoop"))\n\t\t\tclient_spawn_manager()', count=2)
+    game_object = 'src/xrGame/GameObject.cpp'
+    replace(game_object, 'm_ai_location = !g_dedicated_server ? xr_new<CAI_ObjectLocation>() : 0;',
+            'm_ai_location = (!g_dedicated_server || strstr(Core.Params, "-netcoop")) ? xr_new<CAI_ObjectLocation>() : 0;')
+    for call in ('ai_location().reinit();', 'CScriptBinder::reload(*cNameSect());',
+                 'CScriptBinder::reinit();', 'CScriptBinder::shedule_Update(dt);'):
+        replace(game_object, '\tif (!g_dedicated_server)\n\t\t' + call,
+                '\tif (!g_dedicated_server || strstr(Core.Params, "-netcoop"))\n\t\t' + call)
+    binder = 'src/xrGame/script_binder.cpp'
+    replace(binder, '#include "gameobject.h"', '#include "gameobject.h"\n#include "Actor.h"')
+    replace(binder, 'void CScriptBinder::reload(LPCSTR section)\n{', '''void CScriptBinder::reload(LPCSTR section)
+{
+    if (strstr(Core.Params, "-netcoop"))
+    {
+        // Reject before invoking the Lua constructor: actor_binder constructors
+        // themselves modify singleton db.actor_binder, even if set_object rejects them.
+        if (!strstr(Core.Params, "server(")) return;
+        CActor* actor = smart_cast<CActor*>(this);
+        if (actor && !actor->Local()) return;
+    }''')
+
     server = "src/xrNetServer/NET_Server.cpp"
     replace(server, '#include "NET_Log.h"', '#include "NET_Log.h"\n#include "GammaNetPolicy.h"')
     replace(server, "if (data_size >= NET_PacketSizeLimit)", "if (!data || data_size < sizeof(u16) || data_size >= NET_PacketSizeLimit)")
