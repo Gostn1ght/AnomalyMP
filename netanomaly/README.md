@@ -32,10 +32,23 @@ successful compilation or the 128-player setting as multiplayer acceptance.
 
 ## Build — GitHub Actions only
 
-Push checks run on GAMMA branches; use an explicit `GAMMA on NetAnomaly`
-workflow dispatch to build, after the GAMMA migration is complete. It runs Python regression checks and C++ packet-policy tests under
+Push checks run on GAMMA branches. An explicit `GAMMA on NetAnomaly`
+workflow dispatch, or an authorized push whose head commit message contains
+`[gamma-engine]`, also builds the engine. Ordinary pushes do not cancel a build
+unless they target the same branch while it is running. It runs Python regression checks and C++ packet-policy tests under
 ASan/UBSan on Linux, then builds DX11 x64 on `windows-2022`. No local engine build
 is needed. Build logs, profile bundles and runtime are separate artifacts.
+Matching PDB symbols are included in the runtime artifact and published compressed
+beside the EXE on `codex/gamma-runtime` for debugging through SSH-only Git access.
+
+For an isolated runtime without MO2, extract the original GAMMA
+`db/configs/configs.db0` and `db/scripts.db0` using an X-Ray archive converter,
+then pass their extracted roots to `materialize_gamma.py --base-data PATH`
+(repeat for separate roots). These files have lower priority than GAMMA's loose
+files and enabled mods. Separate role config/script aliases need these base
+files on disk. The generated filesystem config explicitly defines `$fs_root$`
+before archives are indexed, using the same native path separators as the
+runtime's data aliases. `--finalize-only` reapplies mounts and role adapters.
 
 `engine/source.json` pins the archived NetAnomaly tree and the matching Monolith
 SDK. The original NetAnomaly checkout is shallow and its public remote is

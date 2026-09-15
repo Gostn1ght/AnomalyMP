@@ -34,6 +34,8 @@ def transform_modlist(text, role):
 
 def patch_axr(data):
     # Preserve original encoding and all GAMMA callbacks; add only a bootstrap.
+    if b'gamma_net_compat.install()' in data:
+        return data
     start = b'function on_game_start()'
     if data.count(start) != 1:
         raise ValueError('axr_main differs from the expected GAMMA callback manager')
@@ -48,6 +50,8 @@ def patch_axr(data):
 
 
 def patch_menu(data):
+    if data.count(b'do return gamma_net_compat.unavailable() end') == 4:
+        return data
     for name in ('OnButton_save_clicked', 'OnButton_load_clicked', 'OnButton_last_save', 'OnButton_new_game'):
         pattern = rb'(function main_menu:' + name.encode('ascii') + rb'\([^\r\n]*\))'
         data, count = re.subn(pattern, rb'\1\n\tdo return gamma_net_compat.unavailable() end', data)

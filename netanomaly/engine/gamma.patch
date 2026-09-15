@@ -271,6 +271,54 @@
  		PossiblePlayers[PPCount++] = A;
  	};
  	if (!search_next)
+--- a/src/xrGame/ai_space.cpp
++++ b/src/xrGame/ai_space.cpp
+@@ -43,7 +43,7 @@
+ 
+ void CAI_Space::init()
+ {
+-	if (g_dedicated_server)
++	if (g_dedicated_server && !strstr(Core.Params, "-netcoop"))
+ 		return;
+ 
+ #ifndef NO_SINGLE
+@@ -144,7 +144,7 @@
+ 
+ void CAI_Space::unload(bool reload)
+ {
+-	if (g_dedicated_server)
++	if (g_dedicated_server && !strstr(Core.Params, "-netcoop"))
+ 		return;
+ 
+ 	script_engine().unload();
+@@ -191,7 +191,7 @@
+ 
+ void CAI_Space::patrol_path_storage_raw(IReader& stream)
+ {
+-	if (g_dedicated_server)
++	if (g_dedicated_server && !strstr(Core.Params, "-netcoop"))
+ 		return;
+ 
+ 	xr_delete(m_patrol_path_storage);
+@@ -202,7 +202,7 @@
+ 
+ void CAI_Space::patrol_path_storage(IReader& stream)
+ {
+-	if (g_dedicated_server)
++	if (g_dedicated_server && !strstr(Core.Params, "-netcoop"))
+ 		return;
+ 
+ 	xr_delete(m_patrol_path_storage);
+--- a/src/xrGame/ai_space.h
++++ b/src/xrGame/ai_space.h
+@@ -70,6 +70,7 @@
+ 	IC const CALifeSimulator* get_alife() const;
+ 	IC const CCoverManager& cover_manager() const;
+ 	IC CScriptEngine& script_engine() const;
++	CScriptEngine* get_script_engine() const { return m_script_engine; }
+ 	IC moving_objects& moving_objects() const;
+ 	IC doors::manager& doors() const;
+ 
 --- a/src/xrGame/alife_dynamic_object.cpp
 +++ b/src/xrGame/alife_dynamic_object.cpp
 @@ -7,6 +7,7 @@
@@ -348,7 +396,18 @@
  
 --- a/src/xrGame/console_commands.cpp
 +++ b/src/xrGame/console_commands.cpp
-@@ -1007,6 +1007,12 @@
+@@ -391,7 +391,9 @@
+ 	CInifile::GetCacheStats(DLTX_files_cached, DLTX_total_bytes, DLTX_section_count);
+ 	Msg("* [x-ray]: DLTX Cache: Files Cached: %zu, Sections Total %zu, Usage: %.2f MB", DLTX_files_cached, DLTX_section_count, (double)DLTX_total_bytes / 1024 / 1024);
+ 	
+-	size_t lua_mem = lua_gc(ai().script_engine().lua(), LUA_GCCOUNT, 0);
++    // Diagnostics can run before AI startup or during teardown.
++    auto* scripts = g_ai_space ? g_ai_space->get_script_engine() : nullptr;
++    size_t lua_mem = scripts && scripts->lua() ? lua_gc(scripts->lua(), LUA_GCCOUNT, 0) : 0;
+ 	Msg("* [Lua]: Memory usage: %u K", lua_mem);
+ 
+ #ifdef FS_DEBUG
+@@ -1007,6 +1009,12 @@
  
  	virtual void Execute(LPCSTR args)
  	{
@@ -361,7 +420,7 @@
  #if 0
  		if (!Level().autosave_manager().ready_for_autosave()) {
  			Msg("! Cannot save the game right now!");
-@@ -1094,6 +1100,12 @@
+@@ -1094,6 +1102,12 @@
  
  	virtual void Execute(LPCSTR args)
  	{
@@ -374,7 +433,7 @@
  		string_path saved_game;
  		strncpy_s(saved_game, sizeof(saved_game), args, _MAX_PATH - 1);
  
-@@ -1173,6 +1185,12 @@
+@@ -1173,6 +1187,12 @@
  
  	virtual void Execute(LPCSTR args)
  	{
@@ -387,7 +446,7 @@
  		string_path saved_game = "";
  		if (args)
  		{
-@@ -2507,7 +2525,7 @@
+@@ -2507,7 +2527,7 @@
  			return;
  		}
  		::luabind::functor<LPCSTR> na_f;
@@ -818,8 +877,8 @@
 +            game->CleanDelayedEventFor(pOwner->ID);
 +            // Stock single-player only removes spectators on disconnect. A remote
 +            // netcoop actor would otherwise remain as a ghost with its inventory.
-+            // Destroy its ownership tree while this client is still registered,
-+            // preserving the server's ownership checks and canonical broadcast.
++            // The transport has already removed this peer. Use the explicit
++            // server cleanup path; packet-driven destruction still checks ownership.
 +            if (strstr(Core.Params, "-netcoop") && !alife_client->flags.bLocal && !pS)
 +            {
 +                NET_Packet destroy;
@@ -829,7 +888,7 @@
 +                destroy.w_u16(pOwner->ID);
 +                u16 ignored;
 +                destroy.r_begin(ignored);
-+                Process_event_destroy(destroy, alife_client->ID, Level().timeServer(), pOwner->ID, NULL);
++                Process_event_destroy(destroy, alife_client->ID, Level().timeServer(), pOwner->ID, NULL, true);
 +                pOwner = NULL;
 +            }
 +        }
@@ -1253,6 +1312,15 @@
  	BOOL net_PassUpdates;
  	u32 net_LastMoveUpdateTime;
  
+@@ -197,7 +206,7 @@
+ 	void Process_event_ownership(NET_Packet& P, ClientID sender, u32 time, u16 ID, BOOL bForced = FALSE);
+ 	bool Process_event_reject(NET_Packet& P, const ClientID sender, const u32 time, const u16 id_parent,
+ 	                          const u16 id_entity, bool send_message = true);
+-	void Process_event_destroy(NET_Packet& P, ClientID sender, u32 time, u16 ID, NET_Packet* pEPack);
++	void Process_event_destroy(NET_Packet& P, ClientID sender, u32 time, u16 ID, NET_Packet* pEPack, bool disconnected_cleanup = false);
+ 	void Process_event_activate(NET_Packet& P, const ClientID sender, const u32 time, const u16 id_parent,
+ 	                            const u16 id_entity, bool send_message = true);
+ 
 --- a/src/xrGame/xrServer_Connect.cpp
 +++ b/src/xrGame/xrServer_Connect.cpp
 @@ -110,6 +110,10 @@
@@ -1309,6 +1377,35 @@
  	CSE_Abstract* receiver = game->get_entity_from_eid(destination);
  	if (receiver)
  	{
+--- a/src/xrGame/xrServer_process_event_destroy.cpp
++++ b/src/xrGame/xrServer_process_event_destroy.cpp
+@@ -20,7 +20,7 @@
+ 	return buff;
+ }
+ 
+-void xrServer::Process_event_destroy(NET_Packet& P, ClientID sender, u32 time, u16 ID, NET_Packet* pEPack)
++void xrServer::Process_event_destroy(NET_Packet& P, ClientID sender, u32 time, u16 ID, NET_Packet* pEPack, bool disconnected_cleanup)
+ {
+ 	u32 MODE = net_flags(TRUE,TRUE);
+ 	// Parse message
+@@ -43,7 +43,7 @@
+ 	xrClientData* c_dest = e_dest->owner; // клиент, чей юнит
+ 	R_ASSERT(c_dest);
+ 	xrClientData* c_from = ID_to_client(sender); // клиент, кто прислал
+-	R_ASSERT(c_dest == c_from); // assure client ownership of event
++	R_ASSERT(disconnected_cleanup || c_dest == c_from); // Cleanup originates only in client_Destroy, never a packet.
+ 	u16 parent_id = e_dest->ID_Parent;
+ 
+ #ifdef MP_LOGGING
+@@ -61,7 +61,7 @@
+ 		if (!pEventPack) pEventPack = &P2;
+ 
+ 		while (!e_dest->children.empty())
+-			Process_event_destroy(P, sender, time, *e_dest->children.begin(), pEventPack);
++			Process_event_destroy(P, sender, time, *e_dest->children.begin(), pEventPack, disconnected_cleanup);
+ 	};
+ 
+ 	if (0xffff == parent_id && NULL == pEventPack)
 --- a/src/xrGame/xrServer_secure_messaging.cpp
 +++ b/src/xrGame/xrServer_secure_messaging.cpp
 @@ -19,7 +19,7 @@
@@ -1586,3 +1683,48 @@
  	}
  };
  
+--- a/src/xrServerEntities/script_engine.cpp
++++ b/src/xrServerEntities/script_engine.cpp
+@@ -178,7 +178,7 @@
+ 
+ int CScriptEngine::lua_panic(lua_State* L)
+ {
+-	ai().script_engine().print_stack();
++	if (g_ai_space && g_ai_space->get_script_engine()) g_ai_space->get_script_engine()->print_stack();
+ 	print_output(L, "PANIC", LUA_ERRRUN);
+ 	return (0);
+ }
+@@ -210,7 +210,7 @@
+ 
+ void CScriptEngine::lua_error(lua_State* L)
+ {
+-	ai().script_engine().print_stack();
++	if (g_ai_space && g_ai_space->get_script_engine()) g_ai_space->get_script_engine()->print_stack();
+ 	print_output(L, "", LUA_ERRRUN);
+ 	ai().script_engine().on_error(L);
+ 
+@@ -260,12 +260,12 @@
+ 
+ void printLuaStack()
+ {
+-	ai().script_engine().print_stack();
++	if (g_ai_space && g_ai_space->get_script_engine()) g_ai_space->get_script_engine()->print_stack();
+ }
+ 
+ int CScriptEngine::lua_pcall_failed(lua_State* L)
+ {
+-	ai().script_engine().print_stack();
++	if (g_ai_space && g_ai_space->get_script_engine()) g_ai_space->get_script_engine()->print_stack();
+ 	print_output(L, "", LUA_ERRRUN);
+ 	ai().script_engine().on_error(L);
+ 
+--- a/src/xrServerEntities/script_storage.cpp
++++ b/src/xrServerEntities/script_storage.cpp
+@@ -605,6 +605,7 @@
+ #endif //-DEBUG
+ 
+ 	lua_State* L = lua();
++	if (!L) return;
+ 	lua_Debug l_tDebugInfo;
+ 	for (int i = 0; lua_getstack(L, i, &l_tDebugInfo); ++i)
+ 	{

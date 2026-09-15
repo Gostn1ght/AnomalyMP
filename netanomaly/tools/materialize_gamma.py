@@ -1,6 +1,6 @@
 """Copy installed GAMMA content to an isolated runtime without any Custom files.
 
-Does not build or launch an engine. Original archives are mounted read-only;
+Does not build or launch an engine. Original archives are mounted for reading;
 winning loose files are copied independently, never hardlinked.
 """
 import argparse
@@ -30,12 +30,30 @@ def finalize(destination):
         entries = [line for line in lines if line.split('=')[0].strip() == '$game_data$']
         if len(entries) != 1:
             raise ValueError('Missing or ambiguous GAMMA data mount')
-        replacement = '$game_data$ = true | true | ' + str(destination / 'gamedata') + '\\'
-        fs.write_text('\n'.join(replacement if line == entries[0] else line for line in lines) + '\n', encoding='utf-8')
+        role_root = destination / ('server' if role == 'server' else 'client')
+        lines = [line for line in lines if line.split('=')[0].strip() != '$fs_root$']
+        lines.insert(0, '$fs_root$ = false | false | ' + str(destination) + '\\')
+        replacements = {
+            '$arch_dir$': '$arch_dir$ = false | false | ' + str(Path(report['game']) / 'db') + '\\',
+            '$game_data$': '$game_data$ = true | true | ' + str(destination / 'gamedata') + '\\',
+            '$game_config$': '$game_config$ = true | false | ' + str(role_root / 'configs') + '\\',
+            '$game_scripts$': '$game_scripts$ = true | false | ' + str(role_root / 'scripts') + '\\',
+        }
+        fs.write_text('\n'.join(replacements.get(line.split('=')[0].strip(), line)
+                                for line in lines) + '\n', encoding='utf-8')
     shutil.copytree(ROOT / 'server', destination / 'server/services', dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns('__pycache__', '*.sqlite3', '*.sqlite3-*'))
     for role in ('server', 'client'):
         role_root = destination / role
+        # Role aliases cannot see archived configs/scripts under $fs_root$/gamedata.
+        # The base preparation step supplies those files in the merged loose tree.
+        for directory in ('configs', 'scripts'):
+            for source in (destination / 'gamedata' / directory).rglob('*'):
+                if source.is_file():
+                    target = role_root / directory / source.relative_to(destination / 'gamedata' / directory)
+                    if not target.exists():
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(source, target)
         (role_root / 'configs/gamma_net_role.ltx').write_text(
             '[network]\nrole = ' + role + '\nprotocol = 3\ncontent_sha256 = ' + report['inventory_sha256'] + '\n',
             encoding='ascii')
@@ -43,6 +61,8 @@ def finalize(destination):
                      role_root / 'scripts/gamma_net_compat.script')
         shutil.copy2(ROOT / 'runtime/gamedata/scripts/gamma_admin.script',
                      role_root / 'scripts/gamma_admin.script')
+        for name, patch in (('axr_main.script', patch_axr), ('ui_main_menu.script', patch_menu)):
+            (role_root / 'scripts' / name).write_bytes(patch((destination / 'gamedata/scripts' / name).read_bytes()))
         for name in DEBUG_SCRIPTS:
             original = destination / 'gamedata/scripts' / name
             if original.is_file():
@@ -54,7 +74,7 @@ def finalize(destination):
     return report
 
 
-def inventory(game, engine_data, profile):
+def inventory(game, engine_data, profile, base_data=()):
     mo2 = game / 'GAMMA RC3.7'
     modlist = mo2 / 'profiles' / profile / 'modlist.txt'
     data = modlist.read_bytes()
@@ -65,7 +85,10 @@ def inventory(game, engine_data, profile):
     missing = [name for name in names if not (mo2 / 'mods' / name).is_dir()]
     if missing:
         raise ValueError('Missing enabled GAMMA mods: ' + ', '.join(missing))
-    layers = [('GAMMA base', game / 'gamedata'), ('NetAnomaly engine data', engine_data)]
+    # Extracted configs/scripts are the lowest priority layer. Their role aliases
+    # cannot resolve entries indexed under the common gamedata archive root.
+    layers = [('GAMMA extracted base', folder) for folder in base_data]
+    layers += [('GAMMA base', game / 'gamedata'), ('NetAnomaly engine data', engine_data)]
     layers += [(name, mo2 / 'mods' / name / 'gamedata') for name in reversed(names)]
     layers.append(('GAMMA overwrite', mo2 / 'overwrite/gamedata'))
     winners = {}
@@ -80,7 +103,7 @@ def inventory(game, engine_data, profile):
     return winners, disabled, hashlib.sha256(data).hexdigest()
 
 
-def materialize(game, engine_data, destination, profile='G.A.M.M.A', copy=False):
+def materialize(game, engine_data, destination, profile='G.A.M.M.A', copy=False, base_data=()):
     game = game.resolve(strict=True)
     engine_data = engine_data.resolve(strict=True)
     destination = destination.resolve()
@@ -88,10 +111,11 @@ def materialize(game, engine_data, destination, profile='G.A.M.M.A', copy=False)
         raise ValueError('Engine input must be its gamedata directory, not a Custom test installation')
     if Path(profile).name != profile or profile in ('.', '..'):
         raise ValueError('Invalid profile name')
-    for original in (game, engine_data):
+    base_data = [folder.resolve(strict=True) for folder in base_data]
+    for original in (game, engine_data, *base_data):
         if destination == original or original in destination.parents or destination in original.parents:
             raise ValueError('Destination overlaps original content')
-    winners, disabled, profile_hash = inventory(game, engine_data, profile)
+    winners, disabled, profile_hash = inventory(game, engine_data, profile, base_data)
     size = sum(source.stat().st_size for source, _, _ in winners.values())
     fingerprint = hashlib.sha256()
     for source, relative, layer in sorted(winners.values(), key=lambda item: str(item[1]).casefold()):
@@ -103,6 +127,7 @@ def materialize(game, engine_data, destination, profile='G.A.M.M.A', copy=False)
         parent = parent.parent
     free = shutil.disk_usage(parent).free
     report = {'content': 'GAMMA', 'game': str(game), 'engine_data': str(engine_data),
+              'base_data': [str(folder) for folder in base_data],
               'profile': profile, 'profile_sha256': profile_hash,
               'inventory_sha256': fingerprint, 'files': len(winners), 'bytes': size,
               'free_bytes': free, 'destination': str(destination), 'disabled_mods': disabled,
@@ -152,7 +177,7 @@ def materialize(game, engine_data, destination, profile='G.A.M.M.A', copy=False)
         (role_root / 'scripts/axr_main.script').write_bytes(patched_axr)
         (role_root / 'scripts/ui_main_menu.script').write_bytes(patched_menu)
         shutil.copy2(ROOT / 'runtime/gamedata/scripts/gamma_net_compat.script', role_root / 'scripts')
-        (role_root / 'configs/gamma_net_role.ltx').write_text('[network]\nrole = ' + role + '\nprotocol = 2\n', encoding='ascii')
+        (role_root / 'configs/gamma_net_role.ltx').write_text('[network]\nrole = ' + role + '\nprotocol = 3\n', encoding='ascii')
         for name in ('discord_game_sdk.dll', 'icudt65.dll', 'icuuc65.dll', 'soft_oal.dll', 'tbb.dll'):
             source = game / 'bin' / name
             if source.is_file():
@@ -169,8 +194,8 @@ def materialize(game, engine_data, destination, profile='G.A.M.M.A', copy=False)
             '$game_data$': '$game_data$ = true | true | ' + str(destination / 'gamedata') + '\\',
             '$app_data_root$': '$app_data_root$ = true | false | ' + str(appdata) + '\\',
             '$arch_dir$': '$arch_dir$ = false | false | ' + str(game) + '\\ | db\\',
-            '$game_scripts$': '$game_scripts$ = true | false | ' + str(destination / role / 'scripts') + '\\',
-            '$game_config$': '$game_config$ = true | false | ' + str(destination / role / 'configs') + '\\',
+            '$game_scripts$': '$game_scripts$ = true | false | $game_data$ | scripts\\',
+            '$game_config$': '$game_config$ = true | false | $game_data$ | configs\\',
         }
         lines = [mounts.get(line.split('=')[0].strip(), line) for line in fs_base.splitlines()]
         (destination / f'fsgame_{process_role}.ltx').write_text('\n'.join(lines) + '\n', encoding='utf-8')
@@ -187,6 +212,8 @@ if __name__ == '__main__':
     parser.add_argument('--engine-data', type=Path)
     parser.add_argument('--destination', type=Path, required=True)
     parser.add_argument('--profile', default='G.A.M.M.A')
+    parser.add_argument('--base-data', type=Path, action='append', default=[],
+                        help='Extracted original GAMMA archive tree (configs/scripts); may be repeated')
     parser.add_argument('--copy', action='store_true')
     parser.add_argument('--finalize-only', action='store_true')
     args = parser.parse_args()
@@ -195,4 +222,4 @@ if __name__ == '__main__':
     else:
         if args.engine_data is None:
             parser.error('--engine-data is required when preparing content')
-        materialize(args.game, args.engine_data, args.destination, args.profile, args.copy)
+        materialize(args.game, args.engine_data, args.destination, args.profile, args.copy, args.base_data)

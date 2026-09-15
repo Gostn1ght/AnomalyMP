@@ -19,6 +19,21 @@ def generate(source: Path) -> str:
             raise ValueError(f"Source mismatch in {name}: expected {count} anchors, got {text.count(old)}")
         changed[name] = text.replace(old, new)
 
+    # Legacy PvP dedicated servers skip Lua/AI entirely. Coop ALife needs both.
+    replace('src/xrGame/ai_space.cpp', '\tif (g_dedicated_server)\n\t\treturn;',
+            '\tif (g_dedicated_server && !strstr(Core.Params, "-netcoop"))\n\t\treturn;', count=4)
+    replace('src/xrGame/ai_space.h', '\tIC CScriptEngine& script_engine() const;',
+            '\tIC CScriptEngine& script_engine() const;\n\tCScriptEngine* get_script_engine() const { return m_script_engine; }')
+    replace('src/xrGame/console_commands.cpp',
+            '\tsize_t lua_mem = lua_gc(ai().script_engine().lua(), LUA_GCCOUNT, 0);',
+            '''    // Diagnostics can run before AI startup or during teardown.
+    auto* scripts = g_ai_space ? g_ai_space->get_script_engine() : nullptr;
+    size_t lua_mem = scripts && scripts->lua() ? lua_gc(scripts->lua(), LUA_GCCOUNT, 0) : 0;''')
+    replace('src/xrServerEntities/script_engine.cpp', '\tai().script_engine().print_stack();',
+            '\tif (g_ai_space && g_ai_space->get_script_engine()) g_ai_space->get_script_engine()->print_stack();', count=4)
+    replace('src/xrServerEntities/script_storage.cpp', '\tlua_State* L = lua();\n\tlua_Debug l_tDebugInfo;',
+            '\tlua_State* L = lua();\n\tif (!L) return;\n\tlua_Debug l_tDebugInfo;')
+
     server = "src/xrNetServer/NET_Server.cpp"
     replace(server, '#include "NET_Log.h"', '#include "NET_Log.h"\n#include "GammaNetPolicy.h"')
     replace(server, "if (data_size >= NET_PacketSizeLimit)", "if (!data || data_size < sizeof(u16) || data_size >= NET_PacketSizeLimit)")
@@ -131,8 +146,8 @@ void xrClientData::Clear()''')
             game->CleanDelayedEventFor(pOwner->ID);
             // Stock single-player only removes spectators on disconnect. A remote
             // netcoop actor would otherwise remain as a ghost with its inventory.
-            // Destroy its ownership tree while this client is still registered,
-            // preserving the server's ownership checks and canonical broadcast.
+            // The transport has already removed this peer. Use the explicit
+            // server cleanup path; packet-driven destruction still checks ownership.
             if (strstr(Core.Params, "-netcoop") && !alife_client->flags.bLocal && !pS)
             {
                 NET_Packet destroy;
@@ -142,10 +157,18 @@ void xrClientData::Clear()''')
                 destroy.w_u16(pOwner->ID);
                 u16 ignored;
                 destroy.r_begin(ignored);
-                Process_event_destroy(destroy, alife_client->ID, Level().timeServer(), pOwner->ID, NULL);
+                Process_event_destroy(destroy, alife_client->ID, Level().timeServer(), pOwner->ID, NULL, true);
                 pOwner = NULL;
             }
         }''')
+    replace('src/xrGame/xrServer.h', 'void Process_event_destroy(NET_Packet& P, ClientID sender, u32 time, u16 ID, NET_Packet* pEPack);',
+            'void Process_event_destroy(NET_Packet& P, ClientID sender, u32 time, u16 ID, NET_Packet* pEPack, bool disconnected_cleanup = false);')
+    destroy_source = 'src/xrGame/xrServer_process_event_destroy.cpp'
+    replace(destroy_source, 'NET_Packet* pEPack)\n{', 'NET_Packet* pEPack, bool disconnected_cleanup)\n{')
+    replace(destroy_source, '\tR_ASSERT(c_dest == c_from); // assure client ownership of event',
+            '\tR_ASSERT(disconnected_cleanup || c_dest == c_from); // Cleanup originates only in client_Destroy, never a packet.')
+    replace(destroy_source, 'Process_event_destroy(P, sender, time, *e_dest->children.begin(), pEventPack);',
+            'Process_event_destroy(P, sender, time, *e_dest->children.begin(), pEventPack, disconnected_cleanup);')
     replace('src/xrGame/xrServer_Connect.cpp', '\tCL->pass._set(cl_data->pass);', '''\tCL->pass._set(cl_data->pass);
     cl_data->gamma_ticket[64] = cl_data->gamma_content[64] = 0;
     xrClientData* gamma_client = static_cast<xrClientData*>(CL);

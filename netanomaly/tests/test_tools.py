@@ -42,9 +42,11 @@ class ToolsTest(unittest.TestCase):
                 profile.prepare(modlist, output, 'server', axr)
             patched = next(output.rglob('axr_main.script')).read_bytes()
             self.assertEqual(patched.count(b'gamma_net_compat.install()'), 1)
+            self.assertEqual(profile.patch_axr(patched), patched)
             self.assertIn(b'imgui_on_render = {}', patched)
             menu = next(output.rglob('ui_main_menu.script')).read_bytes()
             self.assertEqual(menu.count(b'gamma_net_compat.unavailable()'), 4)
+            self.assertEqual(profile.patch_menu(menu), menu)
         self.assertEqual(before, (modlist.read_bytes(), axr.read_bytes()))
 
     def test_launcher_injection_and_capacity(self):
@@ -115,6 +117,11 @@ class ToolsTest(unittest.TestCase):
             (game / 'gamedata/configs/system.ltx').write_text('[gamma]\n')
             engine.mkdir(parents=True)
             (engine / 'engine-only.txt').write_text('engine content')
+            base = root / 'extracted-base'
+            (base / 'scripts').mkdir(parents=True)
+            (base / 'scripts/base-only.script').write_text('base callback')
+            (base / 'configs').mkdir()
+            (base / 'configs/system.ltx').write_text('[base]\n')
             (game / 'fsgame.ltx').write_text('\n'.join([
                 '$app_data_root$ = true | false | $fs_root$ | appdata\\',
                 '$game_data$ = true | true | $fs_root$ | gamedata\\',
@@ -122,7 +129,7 @@ class ToolsTest(unittest.TestCase):
                 '$game_scripts$ = true | false | $game_data$ | scripts\\',
                 '$game_config$ = true | false | $game_data$ | configs\\',
             ]))
-            result = gamma_content.materialize(game, engine, output, copy=True)
+            result = gamma_content.materialize(game, engine, output, copy=True, base_data=[base])
             self.assertTrue(result['content_prepared'])
             self.assertFalse(result['multiplayer_ready'])
             self.assertEqual((output / 'gamedata/meshes/npc.ogf').read_text(), 'gamma-unique-npc')
@@ -134,7 +141,13 @@ class ToolsTest(unittest.TestCase):
                 self.assertIn(str(output / expected_role / 'scripts'), fs)
                 self.assertIn(str(output / 'gamedata'), fs)
                 self.assertIn(str(game), fs)
+                self.assertEqual(fs.splitlines()[0], '$fs_root$ = false | false | ' + str(output) + '\\')
+                self.assertEqual(fs.count('$fs_root$ ='), 1)
                 self.assertIn('role = ' + expected_role, (output / expected_role / 'configs/gamma_net_role.ltx').read_text())
+                self.assertEqual((output / expected_role / 'configs/system.ltx').read_text(), '[gamma]\n')
+                self.assertEqual((output / expected_role / 'scripts/base-only.script').read_text(), 'base callback')
+            gamma_content.finalize(output)
+            self.assertEqual((output / 'fsgame_p2.ltx').read_text(), fs)
 
 
 if __name__ == '__main__':
