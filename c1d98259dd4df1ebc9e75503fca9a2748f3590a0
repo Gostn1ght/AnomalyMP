@@ -1,0 +1,33 @@
+{
+  "sha": "c1d98259dd4df1ebc9e75503fca9a2748f3590a0",
+  "run_id": "34928386960",
+  "url": "https://github.com/Gostn1ght/AnomalyMP/actions/runs/34928386960",
+  "checks": "success",
+  "engine": "cancelled",
+  "compiler_errors": [
+    "    41>LINK : fatal error LNK1257: code generation failed [D:\\a\\AnomalyMP\\AnomalyMP\\engine\\src\\xrEngine\\xrEngine.vcxproj]"
+  ],
+  "gameplay_128_players": "not tested",
+  "jobs": [
+    {
+      "name": "checks",
+      "result": "success",
+      "steps": []
+    },
+    {
+      "name": "engine",
+      "result": "cancelled",
+      "steps": []
+    },
+    {
+      "name": "report",
+      "result": null,
+      "steps": []
+    },
+    {
+      "name": "publish-runtime",
+      "result": "cancelled",
+      "steps": []
+    }
+  ]
+}
