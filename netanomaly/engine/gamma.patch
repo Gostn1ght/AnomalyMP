@@ -16,6 +16,60 @@
  
  	return out_size;
  }
+--- a/src/xrEngine/Text_Console.cpp
++++ b/src/xrEngine/Text_Console.cpp
+@@ -161,6 +161,12 @@
+ 	inherited::Initialize();
+ 
+ 	m_pMainWnd = &Device.m_hWnd;
++    SetWindowText(*m_pMainWnd, "GAMMA Dedicated Server Console [DEBUG]");
++    SetWindowLongPtr(*m_pMainWnd, GWL_STYLE, WS_OVERLAPPEDWINDOW | WS_VISIBLE);
++    SetWindowPos(*m_pMainWnd, NULL, 0, 0, 1000, 700,
++        SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
++    ClipCursor(NULL);
++    while (ShowCursor(TRUE) < 0) {}
+ 	m_dwLastUpdateTime = Device.dwTimeGlobal;
+ 	m_last_time = Device.dwTimeGlobal;
+ 
+@@ -338,6 +344,13 @@
+ inherited::IR_OnKeyboardPress( dik );
+ }
+ */
++void CTextConsole::ScrollLog(short delta)
++{
++    const int lines = delta / WHEEL_DELTA;
++    scroll_delta = _max(0, scroll_delta + lines * 3);
++    InvalidateRect(m_hLogWnd, NULL, FALSE);
++}
++
+ void CTextConsole::OnFrame()
+ {
+ 	inherited::OnFrame();
+--- a/src/xrEngine/Text_Console.h
++++ b/src/xrEngine/Text_Console.h
+@@ -49,6 +49,7 @@
+ 
+ 	void AddString(LPCSTR string);
+ 	void OnPaint();
++	void ScrollLog(short delta);
+ }; // class TextConsole
+ 
+ //extern ENGINE_API CTextConsole* TextConsole;
+--- a/src/xrEngine/Text_Console_WndProc.cpp
++++ b/src/xrEngine/Text_Console_WndProc.cpp
+@@ -41,6 +41,12 @@
+ 	case WM_ERASEBKGND:
+ 		return (LRESULT)1; // Say we handled it.
+ 
++    case WM_MOUSEWHEEL:
++        {
++            CTextConsole* pTextConsole = (CTextConsole*)Console;
++            pTextConsole->ScrollLog(GET_WHEEL_DELTA_WPARAM(wParam));
++            return (LRESULT)0;
++        }
+ 	case WM_PAINT:
+ 		{
+ 			CTextConsole* pTextConsole = (CTextConsole*)Console;
 --- a/src/xrEngine/XR_IOConsole.cpp
 +++ b/src/xrEngine/XR_IOConsole.cpp
 @@ -586,8 +586,11 @@
@@ -971,7 +1025,26 @@
  
  game_sv_Single::game_sv_Single()
  {
-@@ -417,6 +418,7 @@
+@@ -30,7 +31,17 @@
+ 
+ #ifndef NO_SINGLE
+ 	if (strstr(*options, "/alife"))
+-		m_alife_simulator = xr_new<CALifeSimulator>(&server(), &options);
++    {
++        m_alife_simulator = xr_new<CALifeSimulator>(&server(), &options);
++        if (strstr(Core.Params, "-netcoop") && g_dedicated_server)
++        {
++            Fvector gamma_start;
++            gamma_start.set(-140.56f, 1.50f, -317.99f);
++            CSE_ALifeDynamicObject* actor = alife().graph().actor();
++            alife().teleport_object(actor->ID, GameGraph::_GRAPH_ID(136), 75660, gamma_start);
++            Msg("[NetAnomaly] dedicated authority positioned at k00_marsh/hidden_base");
++        }
++    }
+ #endif //#ifndef NO_SINGLE
+ 
+ 	switch_Phase(GAME_PHASE_INPROGRESS);
+@@ -417,6 +428,7 @@
  	if (!A)
  	{
  		Msg("! [NetAnomaly] section [actor] is not an actor entity");
@@ -979,7 +1052,7 @@
  		return;
  	}
  
-@@ -455,13 +457,50 @@
+@@ -455,13 +467,50 @@
  
  	Msg("[NetAnomaly] co-op actor '%s' spawned for client 0x%08x eid %u at (%3.2f, %3.2f, %3.2f)",
  		nick, id_who.value(), CL->owner ? CL->owner->ID : u16(0xffff),
@@ -1031,7 +1104,7 @@
  	inherited::OnPlayerConnectFinished(id_who);
  
  	if (!netcoop_mode())
-@@ -478,7 +517,7 @@
+@@ -478,7 +527,7 @@
  	if (SV && SV->ID == id_who)
  		return; // the host already owns the story actor
  

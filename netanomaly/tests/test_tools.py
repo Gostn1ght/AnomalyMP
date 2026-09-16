@@ -36,6 +36,10 @@ class ToolsTest(unittest.TestCase):
         self.assertIn('-\t\tMsg("[NetAnomaly] map sync forced OK', patch)
         self.assertNotIn('+\t\tMsg("[NetAnomaly] map sync forced OK', patch)
         self.assertIn('!strstr(Core.Params, "-netcoop") && !Level().IsChecksumsEqual', patch)
+        self.assertIn('dedicated authority positioned at k00_marsh/hidden_base', patch)
+        self.assertIn('GameGraph::_GRAPH_ID(136), 75660, gamma_start', patch)
+        self.assertIn('GAMMA Dedicated Server Console [DEBUG]', patch)
+        self.assertIn('WM_MOUSEWHEEL', patch)
 
     def test_ubgl_menu_close_without_actor_completes_callback(self):
         sys.path.insert(0, str(profile.REPO / '.work/python-lua'))
@@ -143,12 +147,6 @@ class ToolsTest(unittest.TestCase):
             flags = lua.table_from({'ret': False})
             lua.globals().callbacks['on_before_save_input'](flags)
             self.assertTrue(flags.ret, role)
-
-    def test_dedicated_authority_moves_to_gamma_swamps(self):
-        compat = (ROOT / 'runtime/gamedata/scripts/gamma_net_compat.script').read_text(encoding='utf-8')
-        self.assertIn('RegisterScriptCallback("actor_on_first_update", server_actor_first_update)', compat)
-        self.assertIn('local section = "hidden_base"', compat)
-        self.assertIn('state.gamma_net_start_location_applied = true', compat)
 
     def test_gamma_content_priorities_and_role_isolation(self):
         with tempfile.TemporaryDirectory() as tmp:

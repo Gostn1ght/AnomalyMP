@@ -99,3 +99,11 @@ selected `l12_stancia_2`: GAMMA's UI-owned character creation module does not
 register its start-position callback in dedicated mode. The server bootstrap now
 registers an authority-only first-update callback which applies GAMMA's own
 `hidden_base` coordinates and changes the active level to `k00_marsh` once.
+
+That callback was registered but dedicated mode did not dispatch the actor's
+first-update callback; a second session again became ready on `l12_stancia_2`.
+The replacement engine patch teleports the ALife authority object immediately
+after simulator creation and before the server publishes its level. It also makes
+the native debug console a standard movable Windows window with a visible cursor
+and mouse-wheel log scrolling. The Python account console no longer mirrors the
+engine log.

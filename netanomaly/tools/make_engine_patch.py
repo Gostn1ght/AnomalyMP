@@ -555,6 +555,49 @@ void CConsole::ExecuteCommand(LPCSTR cmd_str, bool record_cmd)
     single = "src/xrGame/game_sv_single.cpp"
     replace(single, '#include "../xrEngine/no_single.h"',
             '#include "../xrEngine/no_single.h"\n#include "../xrNetServer/GammaPeerAuth.h"')
+    replace(single, '''\tif (strstr(*options, "/alife"))
+\t\tm_alife_simulator = xr_new<CALifeSimulator>(&server(), &options);''', '''\tif (strstr(*options, "/alife"))
+    {
+        m_alife_simulator = xr_new<CALifeSimulator>(&server(), &options);
+        if (strstr(Core.Params, "-netcoop") && g_dedicated_server)
+        {
+            Fvector gamma_start;
+            gamma_start.set(-140.56f, 1.50f, -317.99f);
+            CSE_ALifeDynamicObject* actor = alife().graph().actor();
+            alife().teleport_object(actor->ID, GameGraph::_GRAPH_ID(136), 75660, gamma_start);
+            Msg("[NetAnomaly] dedicated authority positioned at k00_marsh/hidden_base");
+        }
+    }''')
+    replace('src/xrEngine/Text_Console.h', '\tvoid OnPaint();', '\tvoid OnPaint();\n\tvoid ScrollLog(short delta);')
+    replace('src/xrEngine/Text_Console.cpp', '\tm_pMainWnd = &Device.m_hWnd;', '''\tm_pMainWnd = &Device.m_hWnd;
+    SetWindowText(*m_pMainWnd, "GAMMA Dedicated Server Console [DEBUG]");
+    SetWindowLongPtr(*m_pMainWnd, GWL_STYLE, WS_OVERLAPPEDWINDOW | WS_VISIBLE);
+    SetWindowPos(*m_pMainWnd, NULL, 0, 0, 1000, 700,
+        SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+    ClipCursor(NULL);
+    while (ShowCursor(TRUE) < 0) {}''')
+    replace('src/xrEngine/Text_Console.cpp', 'void CTextConsole::OnFrame()\n{', '''void CTextConsole::ScrollLog(short delta)
+{
+    const int lines = delta / WHEEL_DELTA;
+    scroll_delta = _max(0, scroll_delta + lines * 3);
+    InvalidateRect(m_hLogWnd, NULL, FALSE);
+}
+
+void CTextConsole::OnFrame()
+{''')
+    replace('src/xrEngine/Text_Console_WndProc.cpp', '''\tcase WM_ERASEBKGND:
+\t\treturn (LRESULT)1; // Say we handled it.
+
+\tcase WM_PAINT:''', '''\tcase WM_ERASEBKGND:
+\t\treturn (LRESULT)1; // Say we handled it.
+
+    case WM_MOUSEWHEEL:
+        {
+            CTextConsole* pTextConsole = (CTextConsole*)Console;
+            pTextConsole->ScrollLog(GET_WHEEL_DELTA_WPARAM(wParam));
+            return (LRESULT)0;
+        }
+\tcase WM_PAINT:''')
     replace(single, 'void game_sv_Single::OnPlayerConnectFinished(ClientID id_who)\n{', '''void game_sv_Single::OnPlayerConnectFinished(ClientID id_who)
 {
     if (netcoop_mode() && m_server)

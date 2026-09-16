@@ -35,7 +35,7 @@ class DedicatedProcess:
         exe = self.runtime / 'server/bin/AnomalyGammaNetServerDX11.exe'
         if not exe.is_file() or not (self.runtime / 'fsgame_server.ltx').is_file():
             raise ValueError('Dedicated executable or server filesystem profile missing')
-        args = [str(exe), '-dedicated', '-netcoop', '-noprefetch', '-multi_instance',
+        args = [str(exe), '-dedicated', '-netcoop', '-dbg', '-net_trace', '-noprefetch', '-multi_instance',
                 '-logname', self.logname, '-fsltx', 'fsgame_server.ltx',
                 '-netport', str(self.port),
                 '-start', f'server(all/single/alife/new/portsv={self.port}/maxplayers={self.players})',
@@ -71,8 +71,8 @@ class DedicatedProcess:
                 if len(fresh) > 40:
                     print(f'[engine] {len(fresh)} new log lines; showing last 40 ({paths[0]}).', flush=True)
                     fresh = fresh[-40:]
-                for line in fresh:
-                    print('[engine] ' + line, flush=True)
+                # The native movable debug console owns the engine log. Keep this
+                # process limited to account/role administration and lifecycle.
                 previous = lines
             code = self.process.poll()
             if code is not None:

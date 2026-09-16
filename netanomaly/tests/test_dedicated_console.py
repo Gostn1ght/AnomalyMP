@@ -26,6 +26,8 @@ class DedicatedConsoleTest(unittest.TestCase):
                 server.start()
                 args = spawn.call_args.args[0]
                 self.assertIn('-dedicated', args)
+                self.assertIn('-dbg', args)
+                self.assertIn('-net_trace', args)
                 self.assertIn('server(all/single/alife/new/portsv=1237/maxplayers=128)', args)
                 self.assertEqual(sum(arg.startswith('client(') for arg in args), 1)
                 self.assertIn('client(localhost/name=ServerAuthority/port=1237/portcl=1238)', args)
