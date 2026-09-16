@@ -87,3 +87,8 @@ names Anomaly's all-level spawn database rather than a playable map.
 Because dedicated startup has no character-creation screen, the generated server
 profile now supplies GAMMA's `csky` / `hidden_base` choices. `hidden_base` resolves
 to `k00_marsh` in GAMMA's own `new_game_start_locations.ltx`.
+
+Run 35097570010 rejected `ddc815ffd` during compilation because `level_version`
+was called through `game_sv_GameState`; it is an `xrServer` member. No runtime was
+published from that failed build. The follow-up patch calls the server member
+directly.

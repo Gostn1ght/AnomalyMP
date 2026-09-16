@@ -265,7 +265,7 @@ void xrClientData::Clear()''')
     if (strstr(Core.Params, "-netcoop"))
     {
         const shared_str actual_level = game->level_name(Level().m_caServerOptions);
-        const shared_str actual_version = game->level_version(Level().m_caServerOptions);
+        const shared_str actual_version = level_version(Level().m_caServerOptions);
         P.w_stringZ(actual_level);
         P.w_stringZ(actual_version);
     }''')
