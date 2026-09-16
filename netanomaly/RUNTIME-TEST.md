@@ -66,3 +66,24 @@ The dedicated process advanced through GAMMA Lua initialization, then crashed at
 at module scope, but dedicated mode intentionally has no UI font manager. The next
 patch makes every Lua font getter return nil in dedicated mode instead of touching
 the absent manager. No external clients were started before the server failed.
+
+Run 34997548335 successfully built `da82e3a4e3d0c6cebdaf285dc948c8e2e4408ff7`.
+Dedicated startup reached a new `l06_rostok` ALife world with 18,677 spawn points;
+the authority client reached `OnCL_Connected`. The first external client exposed a
+missing `$game_arch_mp$` filesystem alias, which is now generated for every role.
+After that runtime-only fix the client connected and synchronized, but loaded the
+technical `fake_start` map while the server ran `l06_rostok`. The server's inherited
+netcoop workaround had forced map synchronization success without comparing names.
+The next engine patch sends the actual ALife level in the connection result and
+restores map/version validation. It also guards a null token table found when the
+native server console executed `help`; that crash disconnected the first client
+before `M_CLIENTREADY`, account authentication, and co-op actor spawn. A second
+external client was not started.
+
+Netcoop now compares the server and client map name/version, while skipping only
+the geometry checksum because single-player ALife startup does not prepare the
+multiplayer checksum on the server. The `all` session token remains unchanged: it
+names Anomaly's all-level spawn database rather than a playable map.
+Because dedicated startup has no character-creation screen, the generated server
+profile now supplies GAMMA's `csky` / `hidden_base` choices. `hidden_base` resolves
+to `k00_marsh` in GAMMA's own `new_game_start_locations.ltx`.

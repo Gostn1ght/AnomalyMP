@@ -28,6 +28,15 @@ class ToolsTest(unittest.TestCase):
         self.assertIn('extern ENGINE_API bool g_dedicated_server;', patch)
         self.assertEqual(patch.count('return g_dedicated_server ? nullptr : mngr().pFont'), 10)
 
+    def test_netcoop_level_and_console_help_guards_are_in_engine_patch(self):
+        patch = (ROOT / 'engine/gamma.patch').read_text(encoding='utf-8')
+        self.assertIn('if (!tok)', patch)
+        self.assertIn('[NetAnomaly] server level %s version %s', patch)
+        self.assertIn('game->level_name(Level().m_caServerOptions)', patch)
+        self.assertIn('-\t\tMsg("[NetAnomaly] map sync forced OK', patch)
+        self.assertNotIn('+\t\tMsg("[NetAnomaly] map sync forced OK', patch)
+        self.assertIn('!strstr(Core.Params, "-netcoop") && !Level().IsChecksumsEqual', patch)
+
     def test_ubgl_menu_close_without_actor_completes_callback(self):
         sys.path.insert(0, str(profile.REPO / '.work/python-lua'))
         from lupa.luajit21 import LuaRuntime
@@ -155,6 +164,8 @@ class ToolsTest(unittest.TestCase):
             (scripts / 'ui_main_menu.script').write_bytes(menu)
             (game / 'gamedata/configs').mkdir()
             (game / 'gamedata/configs/system.ltx').write_text('[gamma]\n')
+            (game / 'gamedata/configs/axr_options.ltx').write_text(
+                '[character_creation]\nnew_game_faction =\nnew_game_map =\n[other]\nvalue = kept\n')
             engine.mkdir(parents=True)
             (engine / 'engine-only.txt').write_text('engine content')
             base = root / 'extracted-base'
@@ -183,11 +194,18 @@ class ToolsTest(unittest.TestCase):
                 self.assertIn(str(game), fs)
                 self.assertEqual(fs.splitlines()[0], '$fs_root$ = false | false | ' + str(output) + '\\')
                 self.assertEqual(fs.count('$fs_root$ ='), 1)
+                self.assertIn('$game_arch_mp$ = false | false | ' + str(output / 'mp') + '\\', fs)
                 self.assertIn('role = ' + expected_role, (output / expected_role / 'configs/gamma_net_role.ltx').read_text())
                 self.assertEqual((output / expected_role / 'configs/system.ltx').read_text(), '[gamma]\n')
                 self.assertEqual((output / expected_role / 'scripts/base-only.script').read_text(), 'base callback')
             gamma_content.finalize(output)
             self.assertEqual((output / 'fsgame_p2.ltx').read_text(), fs)
+            server_options = (output / 'server/configs/axr_options.ltx').read_text()
+            client_options = (output / 'client/configs/axr_options.ltx').read_text()
+            self.assertIn('new_game_faction = csky', server_options)
+            self.assertIn('new_game_map = hidden_base', server_options)
+            self.assertIn('value = kept', server_options)
+            self.assertIn('new_game_faction =\n', client_options)
 
 
 if __name__ == '__main__':

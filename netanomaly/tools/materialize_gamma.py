@@ -18,12 +18,44 @@ from admin_scripts import DEBUG_SCRIPTS, patch_debug
 from callback_scripts import patch_ledge, patch_ubgl
 
 
+def set_ini_values(path, section, values):
+    lines = path.read_text(encoding='utf-8-sig').splitlines()
+    current = None
+    found = set()
+    output = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('[') and stripped.endswith(']'):
+            if current == section:
+                for key, value in values.items():
+                    if key not in found:
+                        output.append(f'{key} = {value}')
+                        found.add(key)
+            current = stripped[1:-1].strip()
+        if current == section and '=' in line and not stripped.startswith(';'):
+            key = line.split('=', 1)[0].strip()
+            if key in values:
+                line = f'{key} = {values[key]}'
+                found.add(key)
+        output.append(line)
+    if current == section:
+        for key, value in values.items():
+            if key not in found:
+                output.append(f'{key} = {value}')
+                found.add(key)
+    elif not found:
+        output.extend([f'[{section}]', *(f'{key} = {value}' for key, value in values.items())])
+    path.write_text('\n'.join(output) + '\n', encoding='utf-8')
+
+
 def finalize(destination):
     destination = destination.resolve(strict=True)
     marker = destination / 'gamma-runtime.json'
     report = json.loads(marker.read_text(encoding='utf-8'))
     if report.get('content') != 'GAMMA' or not report.get('content_prepared'):
         raise ValueError('GAMMA content copy has not completed')
+    mp_archives = destination / 'mp'
+    mp_archives.mkdir(exist_ok=True)
     # Explicit data mount also supports executables in separate role/bin folders.
     for role in ('server', 'p1', 'p2'):
         fs = destination / f'fsgame_{role}.ltx'
@@ -34,8 +66,11 @@ def finalize(destination):
         role_root = destination / ('server' if role == 'server' else 'client')
         lines = [line for line in lines if line.split('=')[0].strip() != '$fs_root$']
         lines.insert(0, '$fs_root$ = false | false | ' + str(destination) + '\\')
+        if not any(line.split('=')[0].strip() == '$game_arch_mp$' for line in lines):
+            lines.insert(1, '$game_arch_mp$ = false | false | ' + str(mp_archives) + '\\')
         replacements = {
             '$arch_dir$': '$arch_dir$ = false | false | ' + str(Path(report['game']) / 'db') + '\\',
+            '$game_arch_mp$': '$game_arch_mp$ = false | false | ' + str(mp_archives) + '\\',
             '$game_data$': '$game_data$ = true | true | ' + str(destination / 'gamedata') + '\\',
             '$game_config$': '$game_config$ = true | false | ' + str(role_root / 'configs') + '\\',
             '$game_scripts$': '$game_scripts$ = true | false | ' + str(role_root / 'scripts') + '\\',
@@ -72,6 +107,15 @@ def finalize(destination):
             original = destination / 'gamedata/scripts' / name
             if original.is_file():
                 (role_root / 'scripts' / name).write_bytes(patch_debug(original.read_bytes(), name))
+    # A dedicated process has no character-creation UI. Supply the GAMMA values
+    # which that UI normally writes so ALife creates its authority actor on the
+    # Great Swamps instead of falling back to an arbitrary/default location.
+    server_options = destination / 'server/configs/axr_options.ltx'
+    if server_options.is_file():
+        set_ini_values(server_options, 'character_creation', {
+            'new_game_faction': 'csky',
+            'new_game_map': 'hidden_base',
+        })
     report['server_storage_component_prepared'] = True
     report['server_storage_engine_integration'] = False
     report['player_storage'] = 'appdata/server/accounts.sqlite3'

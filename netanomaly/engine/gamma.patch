@@ -130,6 +130,20 @@
  		protect_Name_strlwr(op_client);
  
  		if (!op_client[0] && strstr(op_server, "single"))
+--- a/src/xrEngine/xr_ioc_cmd.h
++++ b/src/xrEngine/xr_ioc_cmd.h
+@@ -220,6 +220,11 @@
+ 	{
+ 		I[0] = 0;
+ 		xr_token* tok = tokens;
++            if (!tok)
++            {
++                xr_strcpy(I, "unavailable");
++                return;
++            }
+ 		for (int Iter = 0;; Iter++)
+ 		{
+ 			if (tok[Iter].name == nullptr)
 --- a/src/xrGame/Actor.cpp
 +++ b/src/xrGame/Actor.cpp
 @@ -2234,7 +2234,7 @@
@@ -428,6 +442,25 @@
  	{
  		if (!net_HasBandwidth()) return;
  	};
+@@ -461,6 +461,18 @@
+ 	ClientID tmp_client_id;
+ 	P->r_clientID(tmp_client_id);
+ 	SetClientID(tmp_client_id);
++    if (result && strstr(Core.Params, "-netcoop"))
++    {
++        P->r_u8(); // server-client flag
++        shared_str server_options, actual_level, actual_version;
++        P->r_stringZ(server_options);
++        P->r_stringZ(actual_level);
++        P->r_stringZ(actual_version);
++        m_caServerOptions = server_options;
++        xr_strcpy(m_game_description.map_name, actual_level.c_str());
++        xr_strcpy(m_game_description.map_version, actual_version.c_str());
++        Msg("[NetAnomaly] server level %s version %s", actual_level.c_str(), actual_version.c_str());
++    }
+ 	if (!result)
+ 	{
+ 		m_bConnectResult = false;
 --- a/src/xrGame/Level_network_spawn.cpp
 +++ b/src/xrGame/Level_network_spawn.cpp
 @@ -118,7 +118,7 @@
@@ -1616,6 +1649,48 @@
 +	void Process_event_destroy(NET_Packet& P, ClientID sender, u32 time, u16 ID, NET_Packet* pEPack, bool disconnected_cleanup = false);
  	void Process_event_activate(NET_Packet& P, const ClientID sender, const u32 time, const u16 id_parent,
  	                            const u16 id_entity, bool send_message = true);
+ 
+--- a/src/xrGame/xrServerMapSync.cpp
++++ b/src/xrGame/xrServerMapSync.cpp
+@@ -22,14 +22,6 @@
+ 
+ 	responseP.w_begin(M_SV_MAP_NAME);
+ 
+-	if (strstr(Core.Params, "-netcoop")) //netcoop: host runs a single-player level, skip map/crc validation
+-	{
+-		responseP.w_u8(static_cast<u8>(SuccessSync));
+-		Msg("[NetAnomaly] map sync forced OK for client 0x%08x", clientID);
+-		SendTo(clientID, responseP, net_flags(TRUE, TRUE));
+-		return;
+-	}
+-
+ 	if ((xr_strcmp(server_map_name, client_map_name)) ||
+ 		(xr_strcmp(server_map_version, client_map_version)))
+ 	{
+@@ -40,7 +32,7 @@
+ #endif // #ifdef DEBUG
+ 		//here we can make hard disconnect of this client...
+ 	}
+-	else if (!Level().IsChecksumsEqual(client_geom_crc32))
++	else if (!strstr(Core.Params, "-netcoop") && !Level().IsChecksumsEqual(client_geom_crc32))
+ 	{
+ 		responseP.w_u8(static_cast<u8>(InvalidChecksum));
+ 	}
+--- a/src/xrGame/xrServer_CL_connect.cpp
++++ b/src/xrGame/xrServer_CL_connect.cpp
+@@ -138,6 +138,13 @@
+ 	else
+ 		P.w_u8(0);
+ 	P.w_stringZ(Level().m_caServerOptions);
++    if (strstr(Core.Params, "-netcoop"))
++    {
++        const shared_str actual_level = game->level_name(Level().m_caServerOptions);
++        const shared_str actual_version = game->level_version(Level().m_caServerOptions);
++        P.w_stringZ(actual_level);
++        P.w_stringZ(actual_version);
++    }
+ 
+ 	SendTo(CL->ID, P);
  
 --- a/src/xrGame/xrServer_Connect.cpp
 +++ b/src/xrGame/xrServer_Connect.cpp

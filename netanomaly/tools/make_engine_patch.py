@@ -59,6 +59,16 @@ def generate(source: Path) -> str:
     replace(device, 'void CRenderDevice::PreCache(u32 amount, bool b_draw_loadscreen, bool b_wait_user_input)\n{',
             'void CRenderDevice::PreCache(u32 amount, bool b_draw_loadscreen, bool b_wait_user_input)\n{\n\tif (g_dedicated_server) amount = 0;')
     replace(device, '\tif (b_is_Active && Begin())', '\tif (!g_dedicated_server && b_is_Active && Begin())')
+    replace('src/xrEngine/xr_ioc_cmd.h', '''\t\tI[0] = 0;
+\t\txr_token* tok = tokens;
+\t\tfor (int Iter = 0;; Iter++)''', '''\t\tI[0] = 0;
+\t\txr_token* tok = tokens;
+            if (!tok)
+            {
+                xr_strcpy(I, "unavailable");
+                return;
+            }
+\t\tfor (int Iter = 0;; Iter++)''')
 
     # GAMMA scripts cache font handles while Lua modules are loading. Dedicated
     # mode has no UI/font manager, so expose nil instead of dereferencing it.
@@ -250,6 +260,40 @@ void xrClientData::Clear()''')
     gamma_client->gamma_ticket = cl_data->gamma_ticket;
     gamma_client->gamma_content = cl_data->gamma_content;''')
     replace('src/xrGame/xrServer.h', '\tBOOL net_PassUpdates;', '\tbool gamma_snapshot_ready;\n\tBOOL net_PassUpdates;')
+    replace('src/xrGame/xrServer_CL_connect.cpp',
+            '\tP.w_stringZ(Level().m_caServerOptions);', '''\tP.w_stringZ(Level().m_caServerOptions);
+    if (strstr(Core.Params, "-netcoop"))
+    {
+        const shared_str actual_level = game->level_name(Level().m_caServerOptions);
+        const shared_str actual_version = game->level_version(Level().m_caServerOptions);
+        P.w_stringZ(actual_level);
+        P.w_stringZ(actual_version);
+    }''')
+    replace('src/xrGame/Level_network.cpp', '\tSetClientID(tmp_client_id);', '''\tSetClientID(tmp_client_id);
+    if (result && strstr(Core.Params, "-netcoop"))
+    {
+        P->r_u8(); // server-client flag
+        shared_str server_options, actual_level, actual_version;
+        P->r_stringZ(server_options);
+        P->r_stringZ(actual_level);
+        P->r_stringZ(actual_version);
+        m_caServerOptions = server_options;
+        xr_strcpy(m_game_description.map_name, actual_level.c_str());
+        xr_strcpy(m_game_description.map_version, actual_version.c_str());
+        Msg("[NetAnomaly] server level %s version %s", actual_level.c_str(), actual_version.c_str());
+    }''')
+    replace('src/xrGame/xrServerMapSync.cpp', '''\tif (strstr(Core.Params, "-netcoop")) //netcoop: host runs a single-player level, skip map/crc validation
+\t{
+\t\tresponseP.w_u8(static_cast<u8>(SuccessSync));
+\t\tMsg("[NetAnomaly] map sync forced OK for client 0x%08x", clientID);
+\t\tSendTo(clientID, responseP, net_flags(TRUE, TRUE));
+\t\treturn;
+\t}
+
+''', '')
+    replace('src/xrGame/xrServerMapSync.cpp',
+            '\telse if (!Level().IsChecksumsEqual(client_geom_crc32))',
+            '\telse if (!strstr(Core.Params, "-netcoop") && !Level().IsChecksumsEqual(client_geom_crc32))')
     replace('src/xrGame/xrServer.h', '\tbool gamma_snapshot_ready;', '\tgamma_net::movement_limiter gamma_movement;\n\tbool gamma_snapshot_ready;')
     replace(game, '\tnet_PassUpdates = TRUE;', '\tgamma_snapshot_ready = false;\n\tnet_PassUpdates = TRUE;')
     replace(game, '\tgamma_snapshot_ready = false;', '\tgamma_movement = gamma_net::movement_limiter{};\n\tgamma_snapshot_ready = false;')
