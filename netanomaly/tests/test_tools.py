@@ -135,13 +135,20 @@ class ToolsTest(unittest.TestCase):
             lua.execute('''
                 function ini_file(path) return {r_string=function() return test_role end} end
                 function printf(...) end
-                function RegisterScriptCallback(name, fn) callback = fn end
+                callbacks = {}
+                function RegisterScriptCallback(name, fn) callbacks[name] = fn end
             ''')
             lua.execute(script)
             lua.globals().install()
             flags = lua.table_from({'ret': False})
-            lua.globals().callback(flags)
+            lua.globals().callbacks['on_before_save_input'](flags)
             self.assertTrue(flags.ret, role)
+
+    def test_dedicated_authority_moves_to_gamma_swamps(self):
+        compat = (ROOT / 'runtime/gamedata/scripts/gamma_net_compat.script').read_text(encoding='utf-8')
+        self.assertIn('RegisterScriptCallback("actor_on_first_update", server_actor_first_update)', compat)
+        self.assertIn('local section = "hidden_base"', compat)
+        self.assertIn('state.gamma_net_start_location_applied = true', compat)
 
     def test_gamma_content_priorities_and_role_isolation(self):
         with tempfile.TemporaryDirectory() as tmp:

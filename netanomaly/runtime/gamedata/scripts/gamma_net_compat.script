@@ -2,6 +2,7 @@
 -- This module deliberately has no on_game_start: axr_main calls install once.
 local installed = false
 local role = nil
+local server_start_pending = true
 
 function get_role()
     if role then return role end
@@ -33,10 +34,26 @@ function unavailable()
     printf("[GAMMA NetAnomaly] Single-player save/load/new game is disabled in multiplayer.")
 end
 
+function server_actor_first_update(binder, delta)
+    if not is_server() or not server_start_pending then return end
+    server_start_pending = false
+    local state = alife_storage_manager.get_state()
+    if state.gamma_net_start_location_applied then return end
+    state.gamma_net_start_location_applied = true
+    local starts = ini_file("plugins\\new_game_start_locations.ltx")
+    local section = "hidden_base"
+    local position = vector():set(starts:r_float_ex(section, "x"), starts:r_float_ex(section, "y"), starts:r_float_ex(section, "z"))
+    printf("[GAMMA NetAnomaly] moving server authority to k00_marsh/%s", section)
+    ChangeLevel(position, starts:r_float_ex(section, "lvid"), starts:r_float_ex(section, "gvid"), VEC_ZERO)
+end
+
 function install()
     if installed then return end
     get_role() -- Fail explicitly if the wrong addon/profile was mounted.
     installed = true
     RegisterScriptCallback("on_before_save_input", before_save)
+    if is_server() then
+        RegisterScriptCallback("actor_on_first_update", server_actor_first_update)
+    end
     printf("[GAMMA NetAnomaly] role=%s protocol=3; experimental compatibility profile", role)
 end

@@ -92,3 +92,10 @@ Run 35097570010 rejected `ddc815ffd` during compilation because `level_version`
 was called through `game_sv_GameState`; it is an `xrServer` member. No runtime was
 published from that failed build. The follow-up patch calls the server member
 directly.
+
+Run 35099597993 successfully built `fd2c3856f`. The first dedicated session loaded
+18,677 spawn points, opened port 1237, and connected its authority actor, but ALife
+selected `l12_stancia_2`: GAMMA's UI-owned character creation module does not
+register its start-position callback in dedicated mode. The server bootstrap now
+registers an authority-only first-update callback which applies GAMMA's own
+`hidden_base` coordinates and changes the active level to `k00_marsh` once.
