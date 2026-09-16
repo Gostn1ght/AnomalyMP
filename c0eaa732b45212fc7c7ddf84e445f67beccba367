@@ -1,0 +1,31 @@
+{
+  "sha": "c0eaa732b45212fc7c7ddf84e445f67beccba367",
+  "run_id": "35104446187",
+  "url": "https://github.com/Gostn1ght/AnomalyMP/actions/runs/35104446187",
+  "checks": "success",
+  "engine": "skipped",
+  "compiler_errors": [],
+  "gameplay_128_players": "not tested",
+  "jobs": [
+    {
+      "name": "checks",
+      "result": "success",
+      "steps": []
+    },
+    {
+      "name": "report",
+      "result": null,
+      "steps": []
+    },
+    {
+      "name": "engine",
+      "result": "skipped",
+      "steps": []
+    },
+    {
+      "name": "publish-runtime",
+      "result": "skipped",
+      "steps": []
+    }
+  ]
+}
