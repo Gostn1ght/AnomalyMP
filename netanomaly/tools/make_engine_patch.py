@@ -555,19 +555,19 @@ void CConsole::ExecuteCommand(LPCSTR cmd_str, bool record_cmd)
     single = "src/xrGame/game_sv_single.cpp"
     replace(single, '#include "../xrEngine/no_single.h"',
             '#include "../xrEngine/no_single.h"\n#include "../xrNetServer/GammaPeerAuth.h"')
-    replace(single, '''\tif (strstr(*options, "/alife"))
-\t\tm_alife_simulator = xr_new<CALifeSimulator>(&server(), &options);''', '''\tif (strstr(*options, "/alife"))
+    replace('src/xrGame/alife_graph_registry.cpp', '''void CALifeGraphRegistry::setup_current_level()
+{
+\tm_level = xr_new<CALifeLevelRegistry>(ai().game_graph().vertex(actor()->m_tGraphID)->level_id());''', '''void CALifeGraphRegistry::setup_current_level()
+{
+    if (strstr(Core.Params, "-netcoop") && g_dedicated_server)
     {
-        m_alife_simulator = xr_new<CALifeSimulator>(&server(), &options);
-        if (strstr(Core.Params, "-netcoop") && g_dedicated_server)
-        {
-            Fvector gamma_start;
-            gamma_start.set(-140.56f, 1.50f, -317.99f);
-            CSE_ALifeDynamicObject* actor = alife().graph().actor();
-            alife().teleport_object(actor->ID, GameGraph::_GRAPH_ID(136), 75660, gamma_start);
-            Msg("[NetAnomaly] dedicated authority positioned at k00_marsh/hidden_base");
-        }
-    }''')
+        actor()->m_tGraphID = GameGraph::_GRAPH_ID(136);
+        actor()->m_tNodeID = 75660;
+        actor()->o_Position.set(-140.56f, 1.50f, -317.99f);
+        actor()->o_Angle.set(0.f, 0.f, 0.f);
+        Msg("[NetAnomaly] dedicated authority initial level forced to k00_marsh/hidden_base");
+    }
+\tm_level = xr_new<CALifeLevelRegistry>(ai().game_graph().vertex(actor()->m_tGraphID)->level_id());''')
     replace('src/xrEngine/Text_Console.h', '\tvoid OnPaint();', '\tvoid OnPaint();\n\tvoid ScrollLog(short delta);')
     replace('src/xrEngine/Text_Console.cpp', '\tm_pMainWnd = &Device.m_hWnd;', '''\tm_pMainWnd = &Device.m_hWnd;
     SetWindowText(*m_pMainWnd, "GAMMA Dedicated Server Console [DEBUG]");

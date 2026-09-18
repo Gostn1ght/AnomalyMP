@@ -107,3 +107,11 @@ after simulator creation and before the server publishes its level. It also make
 the native debug console a standard movable Windows window with a visible cursor
 and mouse-wheel log scrolling. The Python account console no longer mirrors the
 engine log.
+
+Run 35105355666 successfully built `20dee4669`. The native console opened with its
+movable debug window, the authority connected, and port 1237 opened. The log showed
+the object teleport after ALife had already selected `y04_pole`; the current level
+registry therefore remained unchanged and the connection result still advertised
+`fake_start`. The next patch applies the same GAMMA `hidden_base` graph, level
+vertex, and position inside `CALifeGraphRegistry::setup_current_level`, before the
+registry and level are created.

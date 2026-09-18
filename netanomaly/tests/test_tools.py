@@ -36,8 +36,9 @@ class ToolsTest(unittest.TestCase):
         self.assertIn('-\t\tMsg("[NetAnomaly] map sync forced OK', patch)
         self.assertNotIn('+\t\tMsg("[NetAnomaly] map sync forced OK', patch)
         self.assertIn('!strstr(Core.Params, "-netcoop") && !Level().IsChecksumsEqual', patch)
-        self.assertIn('dedicated authority positioned at k00_marsh/hidden_base', patch)
-        self.assertIn('GameGraph::_GRAPH_ID(136), 75660, gamma_start', patch)
+        self.assertIn('dedicated authority initial level forced to k00_marsh/hidden_base', patch)
+        self.assertIn('actor()->m_tGraphID = GameGraph::_GRAPH_ID(136)', patch)
+        self.assertIn('actor()->m_tNodeID = 75660', patch)
         self.assertIn('GAMMA Dedicated Server Console [DEBUG]', patch)
         self.assertIn('WM_MOUSEWHEEL', patch)
 
