@@ -555,7 +555,10 @@ void CConsole::ExecuteCommand(LPCSTR cmd_str, bool record_cmd)
     single = "src/xrGame/game_sv_single.cpp"
     replace(single, '#include "../xrEngine/no_single.h"',
             '#include "../xrEngine/no_single.h"\n#include "../xrNetServer/GammaPeerAuth.h"')
-    replace('src/xrGame/alife_graph_registry.cpp', '''void CALifeGraphRegistry::setup_current_level()
+    alife_graph_registry = 'src/xrGame/alife_graph_registry.cpp'
+    replace(alife_graph_registry, 'using namespace ALife;',
+            'using namespace ALife;\n\nextern ENGINE_API bool g_dedicated_server;')
+    replace(alife_graph_registry, '''void CALifeGraphRegistry::setup_current_level()
 {
 \tm_level = xr_new<CALifeLevelRegistry>(ai().game_graph().vertex(actor()->m_tGraphID)->level_id());''', '''void CALifeGraphRegistry::setup_current_level()
 {

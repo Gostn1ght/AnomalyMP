@@ -632,7 +632,16 @@
  	alife().switch_offline(this);
 --- a/src/xrGame/alife_graph_registry.cpp
 +++ b/src/xrGame/alife_graph_registry.cpp
-@@ -67,6 +67,14 @@
+@@ -12,6 +12,8 @@
+ 
+ using namespace ALife;
+ 
++extern ENGINE_API bool g_dedicated_server;
++
+ CALifeGraphRegistry::CALifeGraphRegistry()
+ {
+ 	m_level = 0;
+@@ -67,6 +69,14 @@
  
  void CALifeGraphRegistry::setup_current_level()
  {
