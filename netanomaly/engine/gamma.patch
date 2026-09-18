@@ -356,6 +356,34 @@
  	}
  	else
  	{
+--- a/src/xrGame/CustomZone.cpp
++++ b/src/xrGame/CustomZone.cpp
+@@ -555,9 +555,10 @@
+ 	default: NODEFAULT;
+ 	}
+ 
+-	if (Level().CurrentEntity())
+-	{
+-		Fvector P = Level().CurrentControlEntity()->Position();
++	CObject* control_entity = Level().CurrentControlEntity();
++	if (control_entity)
++	{
++		Fvector P = control_entity->Position();
+ 		P.y -= 0.9f;
+ 		float radius = 1.0f;
+ 		CalcDistanceTo(P, m_fDistanceToCurEntity, radius);
+@@ -644,7 +645,10 @@
+ 		inherited::shedule_Update(dt);
+ 
+ 		// check "fast-mode" border
+-		float act_distance = Level().CurrentControlEntity()->Position().distance_to(P) - s.R;
++        CObject* zone_reference = Level().CurrentControlEntity();
++        if (!zone_reference)
++            zone_reference = Level().CurrentEntity();
++        const float act_distance = zone_reference ? zone_reference->Position().distance_to(P) - s.R : 0.f;
+ 		if (act_distance > FASTMODE_DISTANCE && !m_zone_flags.test(eAlwaysFastmode))
+ 			o_switch_2_slow();
+ 		else
 --- a/src/xrGame/DemoInfo.cpp
 +++ b/src/xrGame/DemoInfo.cpp
 @@ -116,7 +116,7 @@

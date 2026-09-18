@@ -39,6 +39,8 @@ class ToolsTest(unittest.TestCase):
         self.assertIn('dedicated authority initial level forced to k00_marsh/hidden_base', patch)
         self.assertIn('actor()->m_tGraphID = GameGraph::_GRAPH_ID(136)', patch)
         self.assertIn('actor()->m_tNodeID = 75660', patch)
+        self.assertIn('CObject* control_entity = Level().CurrentControlEntity()', patch)
+        self.assertIn('const float act_distance = zone_reference ?', patch)
         self.assertIn('GAMMA Dedicated Server Console [DEBUG]', patch)
         self.assertIn('WM_MOUSEWHEEL', patch)
 

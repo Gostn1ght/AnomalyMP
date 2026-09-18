@@ -571,6 +571,19 @@ void CConsole::ExecuteCommand(LPCSTR cmd_str, bool record_cmd)
         Msg("[NetAnomaly] dedicated authority initial level forced to k00_marsh/hidden_base");
     }
 \tm_level = xr_new<CALifeLevelRegistry>(ai().game_graph().vertex(actor()->m_tGraphID)->level_id());''')
+    custom_zone = 'src/xrGame/CustomZone.cpp'
+    replace(custom_zone, '''\tif (Level().CurrentEntity())
+\t{
+\t\tFvector P = Level().CurrentControlEntity()->Position();''', '''\tCObject* control_entity = Level().CurrentControlEntity();
+\tif (control_entity)
+\t{
+\t\tFvector P = control_entity->Position();''')
+    replace(custom_zone,
+            '\t\tfloat act_distance = Level().CurrentControlEntity()->Position().distance_to(P) - s.R;',
+            '''        CObject* zone_reference = Level().CurrentControlEntity();
+        if (!zone_reference)
+            zone_reference = Level().CurrentEntity();
+        const float act_distance = zone_reference ? zone_reference->Position().distance_to(P) - s.R : 0.f;''')
     replace('src/xrEngine/Text_Console.h', '\tvoid OnPaint();', '\tvoid OnPaint();\n\tvoid ScrollLog(short delta);')
     replace('src/xrEngine/Text_Console.cpp', '\tm_pMainWnd = &Device.m_hWnd;', '''\tm_pMainWnd = &Device.m_hWnd;
     SetWindowText(*m_pMainWnd, "GAMMA Dedicated Server Console [DEBUG]");

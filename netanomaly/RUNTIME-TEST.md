@@ -115,3 +115,13 @@ registry therefore remained unchanged and the connection result still advertised
 `fake_start`. The next patch applies the same GAMMA `hidden_base` graph, level
 vertex, and position inside `CALifeGraphRegistry::setup_current_level`, before the
 registry and level are created.
+
+Run 35346488863 successfully built `91c35c089`. The server loaded 18,677 spawn
+points, opened UDP 1237, accepted its authority connection, advertised
+`k00_marsh 1.0`, and loaded `gamedata/levels/k00_marsh`. This confirms that map
+selection now happens before ALife creates the active level registry. The first
+scheduled anomaly update then crashed in `CCustomZone::shedule_Update`, line 647:
+dedicated mode has no `CurrentControlEntity`, but the client fast-mode calculation
+dereferenced it without a null check. No external client was started. The next
+patch uses the current server entity as a fallback for anomaly scheduling and
+guards the client-only distance/effect calculation.
