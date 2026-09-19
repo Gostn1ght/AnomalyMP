@@ -21,3 +21,74 @@ def patch_ubgl(data):
     # A menu can close without starting a game. Finish this deferred cosmetic
     # callback if no actor/item exists; weapon animation callbacks refresh it later.
     return data.replace(old, new).replace(b'if not obj then return end', b'if not obj then return true end')
+
+
+def patch_dynamic_anomalies(data):
+    old = (b'if anomalies_near_actor_functions[section] or '
+           b'(additional_articles_to_category.encyclopedia_anomalies[section] and not '
+           b'opened_articles.encyclopedia_anomalies[additional_articles_to_category.encyclopedia_anomalies[section]]) then')
+    new = b'if db.actor and (' + old[3:-5] + b') then'
+    if old not in data and data.count(new) == 1:
+        return data
+    if data.count(old) != 1:
+        raise ValueError('Unexpected dynamic anomaly actor proximity callback')
+    # Keep the base binder and the following NPC branch running without a local
+    # actor. Only the actor proximity effects and encyclopedia need db.actor.
+    return data.replace(old, new)
+
+
+def patch_combat_schemes(data):
+    marker = b'-- GAMMA net: combat conditions also run before an enemy exists.'
+    if marker in data:
+        return data
+    for name in (b'scheme_camper', b'scheme_cover'):
+        anchor = b'function ' + name + b'(enemy,npc,actor)'
+        if data.count(anchor) != 1:
+            raise ValueError('Unexpected GAMMA combat scheme signature')
+        data = data.replace(anchor, anchor + b'\n\tif not enemy or not npc or not db.storage[npc:id()] then return false end')
+    # Classify the actual opponent, not the single-player db.actor singleton.
+    replacements = (
+        (b'(enemy_id == db.actor:id())', b'IsActor(enemy)', 2),
+        (b'(enemy_id ~= nil and enemy_id == db.actor:id())', b'(enemy_id ~= nil and is_actor)', 2),
+        (b'npc:see(db.actor)', b'npc:see(enemy)', 1),
+        (b'if who:id() == AC_ID then', b'if who and IsActor(who) then', 1),
+    )
+    for old, new, count in replacements:
+        if data.count(old) != count:
+            raise ValueError('Unexpected GAMMA combat scheme body: ' + old.decode())
+        data = data.replace(old, new)
+    start = data.index(b'function pure_enemy_distance(npc, enemy)')
+    end = data.index(b'function scheme_camper', start)
+    helper = data[start:end].replace(b'local pos1 = npc:position()', b'if not enemy then return false end\n\t\tlocal pos1 = npc:position()')
+    return marker + b'\n' + data[:start] + helper + data[end:]
+
+
+def patch_meet(data):
+    marker = b'-- GAMMA net: defer actor-dependent meet setup until an actor exists.'
+    if marker in data:
+        return data
+    edits = (
+        (b'function init_meet(npc, ini, section, st, scheme)', b'''function init_meet(npc, ini, section, st, scheme)
+    if not db.actor then
+        st.gamma_pending_meet = {ini = ini, section = section, scheme = scheme}
+        st.meet_set = false
+        return
+    end
+    if st.gamma_pending_meet then
+        st.gamma_pending_meet = nil
+        st.meet_section = nil
+    end'''),
+        (b'function evaluator_contact:evaluate()', b'''function evaluator_contact:evaluate()
+    if not db.actor then return false end
+    local pending = self.a.gamma_pending_meet
+    if pending then
+        init_meet(self.object, pending.ini, pending.section, self.a, pending.scheme)
+    end'''),
+        (b'function Cmeet_manager:update()', b'''function Cmeet_manager:update()
+    if not db.actor or self.a.gamma_pending_meet then return end'''),
+    )
+    for old, new in edits:
+        if data.count(old) != 1:
+            raise ValueError('Unexpected GAMMA meet callback: ' + old.decode())
+        data = data.replace(old, new)
+    return marker + b'\n' + data

@@ -1,4 +1,4 @@
-"""Own a dedicated engine process and display its log in the local server console."""
+"""Own the dedicated engine process; its native window displays engine logs."""
 import json
 import os
 from pathlib import Path
@@ -55,25 +55,8 @@ class DedicatedProcess:
         self.watcher.start()
 
     def _watch(self):
-        logdir = self.runtime / 'appdata/server/logs'
-        previous = []
+        # Engine logs belong to the native dedicated console.
         while not self.stopped.wait(1):
-            paths = list(logdir.glob('xray_' + self.logname + '_*.log'))
-            if paths:
-                # The engine rewrites its log on flush, so track lines, not offsets.
-                lines = paths[0].read_text(encoding='utf8', errors='replace').splitlines()
-                common = 0
-                for a, b in zip(previous, lines):
-                    if a != b:
-                        break
-                    common += 1
-                fresh = lines[common:]
-                if len(fresh) > 40:
-                    print(f'[engine] {len(fresh)} new log lines; showing last 40 ({paths[0]}).', flush=True)
-                    fresh = fresh[-40:]
-                # The native movable debug console owns the engine log. Keep this
-                # process limited to account/role administration and lifecycle.
-                previous = lines
             code = self.process.poll()
             if code is not None:
                 self.state.update(state='exited', exit_code=code)

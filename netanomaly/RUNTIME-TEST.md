@@ -125,3 +125,22 @@ dedicated mode has no `CurrentControlEntity`, but the client fast-mode calculati
 dereferenced it without a null check. No external client was started. The next
 patch uses the current server entity as a fallback for anomaly scheduling and
 guards the client-only distance/effect calculation.
+
+Run 35351645554 successfully built `3de7e2915`. Installed EXE SHA256:
+`aa50abe20115e0baf50f758346b980ea9075c7dc7138e64b5b71de117e3f25b5`.
+The anomaly null guard passed. The server again loaded 18,677 spawn points,
+selected and advertised `k00_marsh`, opened UDP 1237, and connected its internal
+authority peer. GAMMA then exposed three actor-ordering assumptions while ALife
+was scheduling NPCs before the first actor existed: `drx_da_main.script:2823`,
+`schemes_ai_gamma.script:151`, and `xr_meet.script:594`. The runtime adapter now
+limits actor-dependent anomaly effects, combat checks, and meet setup until an
+actor exists while preserving base anomaly, NPC, and AI updates. Lua fixtures
+verify that each deferred path resumes after actor creation.
+
+After those script fixes the next blocker is an access violation at
+`CAI_Stalker::shedule_Update`, `ai_stalker.cpp:1162`. The optional NPC look-at
+callback directly dereferenced `Actor()` before a player spawned. The pending
+engine patch guards only that callback and continues the stalker's vision,
+agent-manager, and planner updates. The first external client was launched during
+diagnosis but did not reach actor spawn before the server crash; the second client
+has not been started. Two-client gameplay and persistence acceptance remain open.

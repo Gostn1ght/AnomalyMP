@@ -23,6 +23,98 @@ callbacks = module('callback_scripts')
 
 
 class ToolsTest(unittest.TestCase):
+    def test_meet_setup_resumes_after_actor_becomes_available(self):
+        sys.path.insert(0, str(profile.REPO / '.work/python-lua'))
+        from lupa.luajit21 import LuaRuntime
+        source = (ROOT / 'tests/fixtures/meet_setup.lua').read_bytes()
+        patched = callbacks.patch_meet(source)
+        self.assertEqual(callbacks.patch_meet(patched), patched)
+        lua = LuaRuntime()
+        lua.execute('''
+            db={}; evaluator_contact={}; Cmeet_manager={}; starts=0
+            function character_community(o) return o.community end
+            game_relations={is_factions_enemies=function() return false end,
+                            get_npcs_relation=function() return 0 end}
+            game_object={enemy=2}
+            xr_logic={parse_condlist=function(n,s,k,v) return v end}
+            ini={r_string_ex=function() return 'true' end}
+            npc={community='csky',alive=function() return false end}
+            st={meet_manager={set_start_distance=function() starts=starts+1 end}}
+            evaluator={a=st,object=npc}
+        ''')
+        lua.execute(patched.decode())
+        lua.execute("init_meet(npc,ini,'no_meet',st,'walker')")
+        self.assertFalse(lua.globals().st.meet_set)
+        self.assertEqual(lua.globals().starts, 0)
+        lua.execute('Cmeet_manager.update({a=st})')
+        self.assertFalse(lua.globals().evaluator_contact.evaluate(lua.globals().evaluator))
+        lua.execute("db.actor={community='actor_csky'}; evaluator_contact.evaluate(evaluator)")
+        self.assertTrue(lua.globals().st.meet_set)
+        self.assertIsNone(lua.globals().st.gamma_pending_meet)
+        self.assertEqual(lua.globals().starts, 1)
+        self.assertEqual(lua.globals().st.use, 'false')
+
+    def test_combat_conditions_tolerate_spawn_and_disappearing_enemy(self):
+        sys.path.insert(0, str(profile.REPO / '.work/python-lua'))
+        from lupa.luajit21 import LuaRuntime
+        original = (ROOT / 'tests/fixtures/combat_schemes.lua').read_bytes()
+        patched = callbacks.patch_combat_schemes(original)
+        self.assertEqual(callbacks.patch_combat_schemes(patched), patched)
+        lua = LuaRuntime()
+        lua.execute('''
+            db={storage={}}
+            function IsActor(o) return o and o.is_actor or false end
+            function IsStalker() return true end
+            function time_global() return 100 end
+            local p={distance_to_sqr=function() return 400 end}
+            npc={id=function() return 1 end,position=function() return p end,
+                 memory_time=function() return 0 end,active_item=function() return nil end,health=1}
+            enemy={id=function() return 2 end,position=function() return p end,health=1}
+            level={object_by_id=function() return nil end}
+        ''')
+        lua.execute(patched.decode())
+        state = lua.globals()
+        for condition in (state.scheme_camper, state.scheme_cover):
+            self.assertFalse(condition(None, state.npc, None))
+            self.assertFalse(condition(state.enemy, state.npc, None))
+        lua.execute('db.storage[1]={enemy_id=2}')
+        self.assertFalse(state.scheme_camper(state.enemy, state.npc, None))
+        self.assertFalse(state.scheme_cover(state.enemy, state.npc, None))
+        self.assertFalse(state.pure_enemy_distance(state.npc, state.enemy))
+        lua.execute('level.object_by_id=function() return enemy end')
+        self.assertTrue(state.pure_enemy_distance(state.npc, state.enemy))
+
+    def test_dynamic_anomaly_without_actor_preserves_npc_and_base_updates(self):
+        sys.path.insert(0, str(profile.REPO / '.work/python-lua'))
+        from lupa.luajit21 import LuaRuntime
+        original = (ROOT / 'tests/fixtures/dynamic_anomaly_update.lua').read_bytes()
+        patched = callbacks.patch_dynamic_anomalies(original)
+        self.assertEqual(callbacks.patch_dynamic_anomalies(patched), patched)
+        lua = LuaRuntime()
+        lua.execute('''
+            base_calls=0; npc_calls=0; actor_calls=0; db={}; AC_ID=0
+            bind_anomaly_field={anomaly_field_binder={update=function() base_calls=base_calls+1 end}}
+            anomalies_near_actor_functions={test=function() actor_calls=actor_calls+1 end}
+            additional_articles_to_category={encyclopedia_anomalies={}}
+            opened_articles={encyclopedia_anomalies={}}
+            npc_on_near_anomalies_functions={test=function() npc_calls=npc_calls+1 end}
+            anomaly_detector_ignore={test=true}
+            function open_anomaly_article() end
+            function IsStalker() return true end
+            function IsMonster() return false end
+            local pos={distance_to_sqr=function() return 0 end}
+            local npc={alive=function() return true end,id=function() return 5 end,position=function() return pos end}
+            level={iterate_nearest=function(p,r,fn) fn(npc) end}
+            zone={section='test',radius=4,radius_sqr=16,object={position=function() return pos end}}
+            player={position=function() return pos end}
+        ''')
+        lua.execute(patched.decode())
+        lua.execute('bind_anomaly_field.anomaly_field_binder.update(zone,100)')
+        state = lua.globals()
+        self.assertEqual((state.base_calls, state.npc_calls, state.actor_calls), (1, 1, 0))
+        lua.execute('db.actor=player; bind_anomaly_field.anomaly_field_binder.update(zone,100)')
+        self.assertEqual((state.base_calls, state.npc_calls, state.actor_calls), (2, 2, 1))
+
     def test_dedicated_font_getters_do_not_require_ui_manager(self):
         patch = (ROOT / 'engine/gamma.patch').read_text(encoding='utf-8')
         self.assertIn('extern ENGINE_API bool g_dedicated_server;', patch)
@@ -41,6 +133,9 @@ class ToolsTest(unittest.TestCase):
         self.assertIn('actor()->m_tNodeID = 75660', patch)
         self.assertIn('CObject* control_entity = Level().CurrentControlEntity()', patch)
         self.assertIn('const float act_distance = zone_reference ?', patch)
+        self.assertIn('CActor* actor = Actor()', patch)
+        self.assertIn('if (actor && luaObject)', patch)
+        self.assertNotIn('+\t\t\t\tfloat distance = Actor()->Position().distance_to(Position());', patch)
         self.assertIn('GAMMA Dedicated Server Console [DEBUG]', patch)
         self.assertIn('WM_MOUSEWHEEL', patch)
 

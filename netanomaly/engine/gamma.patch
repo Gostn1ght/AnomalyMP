@@ -582,6 +582,35 @@
  		PossiblePlayers[PPCount++] = A;
  	};
  	if (!search_next)
+--- a/src/xrGame/ai/stalker/ai_stalker.cpp
++++ b/src/xrGame/ai/stalker/ai_stalker.cpp
+@@ -1158,13 +1158,19 @@
+ 			{
+ 				animation().play_delayed_callbacks();
+ 
+-				::luabind::functor<bool> funct;
+-				float distance = Actor()->Position().distance_to(Position());
+-				auto luaObject = lua_game_object();
+-				if (luaObject && distance < NPCsLookAtActorMinDistance && ai().script_engine().functor("_G.CNPCBeforeLookAtActor", funct))
+-				{
+-					LookAtActorLuaResult = funct(luaObject, distance);
+-				}
++                // ALife schedules stalkers before the authority actor has spawned.
++                // Only the optional look-at callback needs an actor; NPC AI below
++                // must continue updating while the server waits for a player.
++                CActor* actor = Actor();
++                auto luaObject = lua_game_object();
++                if (actor && luaObject)
++                {
++                    const float distance = actor->Position().distance_to(Position());
++                    ::luabind::functor<bool> funct;
++                    if (distance < NPCsLookAtActorMinDistance &&
++                        ai().script_engine().functor("_G.CNPCBeforeLookAtActor", funct))
++                        LookAtActorLuaResult = funct(luaObject, distance);
++                }
+ 
+ #ifndef USE_SCHEDULER_IN_AGENT_MANAGER
+ 				agent_manager().update();
 --- a/src/xrGame/ai_space.cpp
 +++ b/src/xrGame/ai_space.cpp
 @@ -43,7 +43,7 @@

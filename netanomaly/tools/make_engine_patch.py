@@ -584,6 +584,26 @@ void CConsole::ExecuteCommand(LPCSTR cmd_str, bool record_cmd)
         if (!zone_reference)
             zone_reference = Level().CurrentEntity();
         const float act_distance = zone_reference ? zone_reference->Position().distance_to(P) - s.R : 0.f;''')
+    stalker = 'src/xrGame/ai/stalker/ai_stalker.cpp'
+    replace(stalker, '''\t\t\t\t::luabind::functor<bool> funct;
+\t\t\t\tfloat distance = Actor()->Position().distance_to(Position());
+\t\t\t\tauto luaObject = lua_game_object();
+\t\t\t\tif (luaObject && distance < NPCsLookAtActorMinDistance && ai().script_engine().functor("_G.CNPCBeforeLookAtActor", funct))
+\t\t\t\t{
+\t\t\t\t\tLookAtActorLuaResult = funct(luaObject, distance);
+\t\t\t\t}''', '''                // ALife schedules stalkers before the authority actor has spawned.
+                // Only the optional look-at callback needs an actor; NPC AI below
+                // must continue updating while the server waits for a player.
+                CActor* actor = Actor();
+                auto luaObject = lua_game_object();
+                if (actor && luaObject)
+                {
+                    const float distance = actor->Position().distance_to(Position());
+                    ::luabind::functor<bool> funct;
+                    if (distance < NPCsLookAtActorMinDistance &&
+                        ai().script_engine().functor("_G.CNPCBeforeLookAtActor", funct))
+                        LookAtActorLuaResult = funct(luaObject, distance);
+                }''')
     replace('src/xrEngine/Text_Console.h', '\tvoid OnPaint();', '\tvoid OnPaint();\n\tvoid ScrollLog(short delta);')
     replace('src/xrEngine/Text_Console.cpp', '\tm_pMainWnd = &Device.m_hWnd;', '''\tm_pMainWnd = &Device.m_hWnd;
     SetWindowText(*m_pMainWnd, "GAMMA Dedicated Server Console [DEBUG]");
