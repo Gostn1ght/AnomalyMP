@@ -187,6 +187,8 @@ class ToolsTest(unittest.TestCase):
         self.assertIn('!net_Hosts.empty() || strstr(Core.Params, "-netcoop")', patch)
         self.assertIn('CL->ps = game->createPlayerState(nullptr);', patch)
         self.assertIn('if (CL->ps) break; // Do not replace a connected player', patch)
+        self.assertIn('Authenticate before exporting any world entities', patch)
+        self.assertIn('DisconnectClient(CL, "GAMMA account ticket rejected', patch)
         self.assertIn('dedicated authority initial level forced to k00_marsh/hidden_base', patch)
         self.assertIn('actor()->m_tGraphID = GameGraph::_GRAPH_ID(136)', patch)
         self.assertIn('actor()->m_tNodeID = 75660', patch)

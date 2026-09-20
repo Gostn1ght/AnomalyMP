@@ -172,3 +172,8 @@ one authoritative record. Startup log review also found three orphan compatibili
 scripts whose required mods are absent and one script containing invalid C-style
 Lua comments. Materialization now prunes the orphans and rewrites the invalid
 comment for both roles.
+
+Ticket validation was also moved into `xrServer::OnCL_Connected`, before game
+metadata and entity snapshots are exported. Invalid, expired, consumed, or
+duplicate-account tickets are now disconnected before receiving the world; the
+later `M_CREATE_PLAYER_STATE` packet cannot replace the authenticated state.

@@ -1278,15 +1278,7 @@
  {
 --- a/src/xrGame/game_sv_single.cpp
 +++ b/src/xrGame/game_sv_single.cpp
-@@ -12,6 +12,7 @@
- #include "../xrEngine/x_ray.h"
- #include "../xrEngine/dedicated_server_only.h"
- #include "../xrEngine/no_single.h"
-+#include "../xrNetServer/GammaPeerAuth.h"
- 
- game_sv_Single::game_sv_Single()
- {
-@@ -417,6 +418,7 @@
+@@ -417,6 +417,7 @@
  	if (!A)
  	{
  		Msg("! [NetAnomaly] section [actor] is not an actor entity");
@@ -1294,7 +1286,7 @@
  		return;
  	}
  
-@@ -455,13 +457,50 @@
+@@ -455,7 +456,7 @@
  
  	Msg("[NetAnomaly] co-op actor '%s' spawned for client 0x%08x eid %u at (%3.2f, %3.2f, %3.2f)",
  		nick, id_who.value(), CL->owner ? CL->owner->ID : u16(0xffff),
@@ -1303,50 +1295,7 @@
  
  	signal_Syncronize();
  }
- 
- void game_sv_Single::OnPlayerConnectFinished(ClientID id_who)
- {
-+    if (netcoop_mode() && m_server)
-+    {
-+        xrClientData* peer = static_cast<xrClientData*>(m_server->ID_to_client(id_who));
-+        if (!peer) return;
-+        if (!peer->flags.bLocal && !peer->gamma_authenticated)
-+        {
-+            string_path config_path, tickets_path;
-+            FS.update_path(config_path, "$game_config$", "gamma_net_role.ltx");
-+            FS.update_path(tickets_path, "$app_data_root$", "auth_tickets\\");
-+            if (!FS.exist(config_path)) { m_server->DisconnectClient(peer, "GAMMA server configuration missing"); return; }
-+            CInifile config(config_path);
-+            gamma_net::peer_ticket ticket;
-+            const std::string content = config.line_exist("network", "content_sha256") ?
-+                config.r_string("network", "content_sha256") : "";
-+            bool accepted = gamma_net::inspect_ticket(tickets_path, *peer->gamma_ticket,
-+                *peer->gamma_content, content, std::time(nullptr), ticket);
-+            bool duplicate = false;
-+            if (accepted)
-+            {
-+                auto check_duplicate = [&](IClient* client)
-+                {
-+                    xrClientData* other = static_cast<xrClientData*>(client);
-+                    if (other != peer && other->flags.bConnected && other->gamma_authenticated &&
-+                        ticket.account == *other->gamma_account) duplicate = true;
-+                };
-+                m_server->ForEachClientDo(check_duplicate);
-+            }
-+            if (!accepted || duplicate || !gamma_net::consume_ticket(ticket))
-+            {
-+                m_server->DisconnectClient(peer, "GAMMA account ticket rejected or account already connected");
-+                return;
-+            }
-+            peer->gamma_account = ticket.account.c_str();
-+            peer->gamma_authenticated = true;
-+            peer->gamma_ticket = ""; // No bearer token remains in the active player record.
-+        }
-+    }
- 	inherited::OnPlayerConnectFinished(id_who);
- 
- 	if (!netcoop_mode())
-@@ -478,7 +517,7 @@
+@@ -478,7 +479,7 @@
  	if (SV && SV->ID == id_who)
  		return; // the host already owns the story actor
  
@@ -2039,7 +1988,15 @@
  	}
 --- a/src/xrGame/xrServer_CL_connect.cpp
 +++ b/src/xrGame/xrServer_CL_connect.cpp
-@@ -98,6 +98,18 @@
+@@ -4,6 +4,7 @@
+ #include "xrserver_objects.h"
+ #include "xrServer_Objects_Alife_Monsters.h"
+ #include "Level.h"
++#include "../xrNetServer/GammaPeerAuth.h"
+ 
+ 
+ void xrServer::Perform_connect_spawn(CSE_Abstract* E, xrClientData* CL, NET_Packet& P)
+@@ -98,6 +99,51 @@
  {
  	xrClientData* CL = (xrClientData*)_CL;
  	CL->net_Accepted = TRUE;
@@ -2055,10 +2012,43 @@
 +        CL->ps->m_online_time = Level().timeServer();
 +        CL->ps->DeathTime = Device.dwTimeGlobal;
 +    }
++    if (strstr(Core.Params, "-netcoop") && !CL->flags.bLocal && !CL->gamma_authenticated)
++    {
++        // Authenticate before exporting any world entities to this peer.
++        string_path config_path, tickets_path;
++        FS.update_path(config_path, "$game_config$", "gamma_net_role.ltx");
++        FS.update_path(tickets_path, "$app_data_root$", "auth_tickets\");
++        if (!FS.exist(config_path)) { DisconnectClient(CL, "GAMMA server configuration missing"); return; }
++        CInifile config(config_path);
++        gamma_net::peer_ticket ticket;
++        const std::string content = config.line_exist("network", "content_sha256") ?
++            config.r_string("network", "content_sha256") : "";
++        bool accepted = gamma_net::inspect_ticket(tickets_path, *CL->gamma_ticket,
++            *CL->gamma_content, content, std::time(nullptr), ticket);
++        bool duplicate = false;
++        if (accepted)
++        {
++            auto check_duplicate = [&](IClient* client)
++            {
++                xrClientData* other = static_cast<xrClientData*>(client);
++                if (other != CL && other->flags.bConnected && other->gamma_authenticated &&
++                    ticket.account == *other->gamma_account) duplicate = true;
++            };
++            ForEachClientDo(check_duplicate);
++        }
++        if (!accepted || duplicate || !gamma_net::consume_ticket(ticket))
++        {
++            DisconnectClient(CL, "GAMMA account ticket rejected or account already connected");
++            return;
++        }
++        CL->gamma_account = ticket.account.c_str();
++        CL->gamma_authenticated = true;
++        CL->gamma_ticket = "";
++    }
  	if (strstr(Core.Params, "-netcoop"))
  	{
  		Msg("[NetAnomaly] OnCL_Connected 0x%08x pid %u ps=%s", CL->ID.value(), CL->process_id, CL->ps ? "yes" : "no");
-@@ -138,6 +150,13 @@
+@@ -138,6 +184,13 @@
  	else
  		P.w_u8(0);
  	P.w_stringZ(Level().m_caServerOptions);
