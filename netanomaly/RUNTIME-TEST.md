@@ -144,3 +144,21 @@ engine patch guards only that callback and continues the stalker's vision,
 agent-manager, and planner updates. The first external client was launched during
 diagnosis but did not reach actor spawn before the server crash; the second client
 has not been started. Two-client gameplay and persistence acceptance remain open.
+
+Run 35463287937 successfully built `ce7235811`. Installed EXE SHA256:
+`ed65ea9f906ef38931cdc1641454e97bfaea1346be9a3f70444740bc7d820e35`.
+The server stayed ready on `k00_marsh`, with 18,677 spawn points, its internal
+authority connection, and UDP 1237 active. Two more early actor assumptions were
+found in `aaaa_script_fixes_mp.script`; the role adapter now suppresses those item
+callbacks until `db.actor` exists.
+
+The first external client connected, accepted `k00_marsh 1.0`, and began receiving
+server NPCs. It then crashed in `CQuadTree<moving_object>::insert`, called by
+`CAI_Stalker::net_Spawn`. The joining netcoop client had skipped `CAI_Space::load`
+because the legacy condition only recognized an enumerated listen-server host;
+therefore its moving-object quadtree had never been initialized. The pending patch
+loads level AI for every netcoop peer before network spawns. It also gates GAMMA's
+central actor callback dispatcher and guards background crow, monster, trader,
+task, dialogue, inventory, and map paths that can run before a local actor exists.
+The second external client remains untested until the replacement build passes the
+first-client spawn boundary.

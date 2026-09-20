@@ -23,6 +23,44 @@ callbacks = module('callback_scripts')
 
 
 class ToolsTest(unittest.TestCase):
+    def test_axr_actor_callbacks_wait_for_local_actor(self):
+        sys.path.insert(0, str(profile.REPO / '.work/python-lua'))
+        from lupa.luajit21 import LuaRuntime
+        source = (ROOT / 'tests/fixtures/axr_callbacks.lua').read_bytes()
+        patched = profile.patch_axr(source)
+        self.assertEqual(profile.patch_axr(patched), patched)
+        lua = LuaRuntime()
+        lua.execute(patched.decode())
+        lua.execute('make_callback("actor_on_update"); make_callback("npc_on_update")')
+        self.assertEqual((lua.globals().actor_calls, lua.globals().npc_calls), (0, 1))
+        lua.execute('db.actor={}; make_callback("actor_on_update")')
+        self.assertEqual(lua.globals().actor_calls, 1)
+
+    def test_actor_item_callbacks_wait_for_actor(self):
+        sys.path.insert(0, str(profile.REPO / '.work/python-lua'))
+        from lupa.luajit21 import LuaRuntime
+        source = (ROOT / 'tests/fixtures/actor_item_callbacks.lua').read_bytes()
+        patched = callbacks.patch_script_fixes_mp(source)
+        self.assertEqual(callbacks.patch_script_fixes_mp(patched), patched)
+        lua = LuaRuntime()
+        lua.execute('''
+            db={}; device_calls=0; item_calls=0
+            item_device={on_anomaly_touch=function() device_calls=device_calls+1 end}
+            itms_manager={actor_on_item_before_use=function() item_calls=item_calls+1 end}
+        ''')
+        lua.execute(patched.decode())
+        lua.execute('''
+            item_device.on_anomaly_touch({}, {ret_value=true})
+            itms_manager.actor_on_item_before_use({}, {ret_value=true})
+        ''')
+        self.assertEqual((lua.globals().device_calls, lua.globals().item_calls), (0, 0))
+        lua.execute('''
+            db.actor={}
+            item_device.on_anomaly_touch({}, {ret_value=true})
+            itms_manager.actor_on_item_before_use({}, {ret_value=true})
+        ''')
+        self.assertEqual((lua.globals().device_calls, lua.globals().item_calls), (1, 1))
+
     def test_meet_setup_resumes_after_actor_becomes_available(self):
         sys.path.insert(0, str(profile.REPO / '.work/python-lua'))
         from lupa.luajit21 import LuaRuntime
@@ -128,6 +166,7 @@ class ToolsTest(unittest.TestCase):
         self.assertIn('-\t\tMsg("[NetAnomaly] map sync forced OK', patch)
         self.assertNotIn('+\t\tMsg("[NetAnomaly] map sync forced OK', patch)
         self.assertIn('!strstr(Core.Params, "-netcoop") && !Level().IsChecksumsEqual', patch)
+        self.assertIn('!net_Hosts.empty() || strstr(Core.Params, "-netcoop")', patch)
         self.assertIn('dedicated authority initial level forced to k00_marsh/hidden_base', patch)
         self.assertIn('actor()->m_tGraphID = GameGraph::_GRAPH_ID(136)', patch)
         self.assertIn('actor()->m_tNodeID = 75660', patch)
@@ -136,6 +175,12 @@ class ToolsTest(unittest.TestCase):
         self.assertIn('CActor* actor = Actor()', patch)
         self.assertIn('if (actor && luaObject)', patch)
         self.assertNotIn('+\t\t\t\tfloat distance = Actor()->Position().distance_to(Position());', patch)
+        self.assertIn('if (Actor() && Actor()->Position().distance_to(Position())', patch)
+        self.assertIn('nearbyObjects.clear();', patch)
+        self.assertIn('dest_dir.sub(vP, Position());', patch)
+        self.assertIn('if (!v.empty() && !Actor()) return false;', patch)
+        self.assertIn('if (Actor() && Actor()->m_inventory == this)', patch)
+        self.assertIn('if (!Level().CurrentEntity()) return;', patch)
         self.assertIn('GAMMA Dedicated Server Console [DEBUG]', patch)
         self.assertIn('WM_MOUSEWHEEL', patch)
 
@@ -260,7 +305,8 @@ class ToolsTest(unittest.TestCase):
                 (folder / 'npc.ogf').write_text(value)
             scripts = game / 'gamedata/scripts'
             scripts.mkdir(parents=True)
-            (scripts / 'axr_main.script').write_bytes(b'local intercepts = {\n}\nfunction on_game_start()\nend\n')
+            (scripts / 'axr_main.script').write_bytes(
+                b'local intercepts = {\n}\nfunction make_callback(name,...)\nend\nfunction on_game_start()\nend\n')
             menu = b''
             for name in ('OnButton_save_clicked', 'OnButton_load_clicked', 'OnButton_last_save', 'OnButton_new_game'):
                 menu += ('function main_menu:' + name + '()\nend\n').encode()

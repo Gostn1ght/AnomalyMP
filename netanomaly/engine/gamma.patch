@@ -395,6 +395,17 @@
  
  	delete_data(m_players);
  
+--- a/src/xrGame/Entity.cpp
++++ b/src/xrGame/Entity.cpp
+@@ -266,7 +266,7 @@
+ 	//IMPORTANT: if you wish to kill actor you need to call db.actor:kill(level:object_by_id(whoID), true) in actor_before_death callback, to ensure all objects are properly destroyed
+ 	// this will bypass below if block and go to normal KillEntity routine.
+ #ifdef ACTOR_BEFORE_DEATH_CALLBACK
+-	if (IsGameTypeSingle() && (this->ID() == Actor()->ID()) && (bypass_actor_check != TRUE))
++	if (IsGameTypeSingle() && Actor() && (this->ID() == Actor()->ID()) && (bypass_actor_check != TRUE))
+ 	{
+ 		Actor()->use_HolderEx(NULL, false);
+ 		Actor()->callback(GameObject::eActorBeforeDeath)(whoID);
 --- a/src/xrGame/GameObject.cpp
 +++ b/src/xrGame/GameObject.cpp
 @@ -57,7 +57,7 @@
@@ -438,6 +449,87 @@
  		CScriptBinder::shedule_Update(dt);
  }
  
+--- a/src/xrGame/GameTask.cpp
++++ b/src/xrGame/GameTask.cpp
+@@ -136,7 +136,7 @@
+ 
+ void CGameTask::ChangeStateCallback()
+ {
+-	Actor()->callback(GameObject::eTaskStateChange)(this, GetTaskState());
++	if (Actor()) Actor()->callback(GameObject::eTaskStateChange)(this, GetTaskState());
+ }
+ 
+ ETaskState CGameTask::UpdateState()
+@@ -171,6 +171,7 @@
+ 
+ bool CGameTask::CheckInfo(const xr_vector<shared_str>& v) const
+ {
++	if (!v.empty() && !Actor()) return false;
+ 	bool res = false;
+ 	xr_vector<shared_str>::const_iterator it = v.begin();
+ 	for (; it != v.end(); ++it)
+@@ -204,6 +205,7 @@
+ 
+ void CGameTask::SendInfo(const xr_vector<shared_str>& v)
+ {
++	if (!Actor()) return;
+ 	xr_vector<shared_str>::const_iterator it = v.begin();
+ 	for (; it != v.end(); ++it)
+ 		Actor()->TransferInfo((*it), true);
+--- a/src/xrGame/Inventory.cpp
++++ b/src/xrGame/Inventory.cpp
+@@ -327,10 +327,13 @@
+ 	};
+ 	if (smart_cast<CWeapon*>(pObj))
+ 	{
+-		Fvector dir = Actor()->Direction();
+-		dir.y = sin(-45.f * PI / 180.f);
+-		dir.normalize();
+-		smart_cast<CWeapon*>(pObj)->SetActivationSpeedOverride(dir.mul(7));
++		if (Actor())
++		{
++			Fvector dir = Actor()->Direction();
++			dir.y = sin(-45.f * PI / 180.f);
++			dir.normalize();
++			smart_cast<CWeapon*>(pObj)->SetActivationSpeedOverride(dir.mul(7));
++		}
+ 		pObj->H_SetParent(nullptr, dont_create_shell);
+ 	}
+ 	else
+@@ -1131,15 +1134,17 @@
+ 				return false;
+ 		}
+ 	*/
+-	if (Actor()->m_inventory == this)
++	if (Actor() && Actor()->m_inventory == this)
+ 	{
+ 		if (IsGameTypeSingle())
+ 			Actor()->callback(GameObject::eUseObject)((smart_cast<CGameObject*>(pIItem))->lua_game_object());
+ 
+-		if (pItemToEat->IsUsingCondition() && pItemToEat->GetRemainingUses() < 1 && pItemToEat->CanDelete())
+-			CurrentGameUI()->GetActorMenu().RefreshCurrentItemCell();
+-
+-		CurrentGameUI()->GetActorMenu().SetCurrentItem(NULL);
++		if (CurrentGameUI())
++		{
++			if (pItemToEat->IsUsingCondition() && pItemToEat->GetRemainingUses() < 1 && pItemToEat->CanDelete())
++				CurrentGameUI()->GetActorMenu().RefreshCurrentItemCell();
++			CurrentGameUI()->GetActorMenu().SetCurrentItem(NULL);
++		}
+ 	}
+ 
+ 	if (pItemToEat->Empty())
+--- a/src/xrGame/InventoryBox.cpp
++++ b/src/xrGame/InventoryBox.cpp
+@@ -69,7 +69,7 @@
+ 
+ 			itm->H_SetParent(NULL, dont_create_shell);
+ 
+-			if (m_in_use)
++			if (m_in_use && Actor())
+ 			{
+ 				CGameObject* GO = smart_cast<CGameObject*>(itm);
+ 				Actor()->callback(GameObject::eInvBoxItemTake)(this->lua_game_object(), GO->lua_game_object());
 --- a/src/xrGame/Level.cpp
 +++ b/src/xrGame/Level.cpp
 @@ -242,14 +242,14 @@
@@ -495,6 +587,15 @@
  			Device.seqParallel.push_back(fastdelegate::FastDelegate0<>(this, &CLevel::script_gc));
 --- a/src/xrGame/Level_load.cpp
 +++ b/src/xrGame/Level_load.cpp
+@@ -29,7 +29,7 @@
+ 	string_path fn_game;
+ 
+ 	if (GamePersistent().GameType() == eGameIDSingle && !ai().get_alife() && FS.exist(fn_game, "$level$", "level.ai") &&
+-		!net_Hosts.empty())
++		(!net_Hosts.empty() || strstr(Core.Params, "-netcoop")))
+ 		ai().load(net_SessionName());
+ 
+ 	if (!g_dedicated_server && !ai().get_alife() && ai().get_game_graph() && FS.exist(fn_game, "$level$", "level.game"))
 @@ -171,7 +171,7 @@
  		}
  	}
@@ -563,6 +664,24 @@
  			client_spawn_manager().callback(O);
  		//Msg			("--spawn--SPAWN: %f ms",1000.f*T.GetAsync());
  
+--- a/src/xrGame/PhraseScript.cpp
++++ b/src/xrGame/PhraseScript.cpp
+@@ -40,6 +40,7 @@
+ bool CDialogScriptHelper::CheckInfo(const CInventoryOwner* pOwner) const
+ {
+ 	THROW(pOwner);
++	if ((!m_HasInfo.empty() || !m_DontHasInfo.empty()) && !Actor()) return false;
+ 
+ 	for (u32 i = 0; i < m_HasInfo.size(); ++i)
+ 	{
+@@ -71,6 +72,7 @@
+ void CDialogScriptHelper::TransferInfo(const CInventoryOwner* pOwner) const
+ {
+ 	THROW(pOwner);
++	if (!Actor()) return;
+ 
+ 	for (u32 i = 0; i < m_GiveInfo.size(); ++i)
+ 		Actor()->TransferInfo(m_GiveInfo[i], true);
 --- a/src/xrGame/Spectator.cpp
 +++ b/src/xrGame/Spectator.cpp
 @@ -557,7 +557,7 @@
@@ -582,6 +701,55 @@
  		PossiblePlayers[PPCount++] = A;
  	};
  	if (!search_next)
+--- a/src/xrGame/ai/crow/ai_crow.cpp
++++ b/src/xrGame/ai/crow/ai_crow.cpp
+@@ -400,6 +400,8 @@
+ 		{
+ 			fGoalChangeTime += fGoalChangeDelta + fGoalChangeDelta * Random.randF(-0.5f, 0.5f);
+ 
++			nearbyObjects.clear();
++			deadNPCs.clear();
+ 			Level().ObjectSpace.GetNearest(nearbyObjects, Position(), 300.0f, NULL);
+ 			for (CObject* obj : nearbyObjects) 
+ 			{
+@@ -416,18 +418,21 @@
+ 				vP = targetNPC->Position();
+ 				//Msg("Flying to dead NPC at [%f, %f, %f]", vP.x, vP.y, vP.z);
+ 			}
+-			else 
++			else if (Actor())
+ 			{
+ 				vP = Actor()->Position();
+ 				float distanceToActor = Position().distance_to(vP);
+-				if (distanceToActor > 500.0f) 
+-				{
++				if (distanceToActor > 500.0f)
+ 					fGoalChangeTime = 30.0f;
+-				}
+ 			}
++			else
++			{
++				// Keep server-side crows active without targeting a missing player.
++				vP.mad(Position(), Direction(), 50.0f);
++			}
+ 
+ 			Fvector dest_dir;
+-			dest_dir.sub(Actor()->Position(), Position());
++			dest_dir.sub(vP, Position());
+ 			float range = dest_dir.magnitude();
+ 			dest_dir.normalize();
+ 
+--- a/src/xrGame/ai/monsters/basemonster/base_monster.cpp
++++ b/src/xrGame/ai/monsters/basemonster/base_monster.cpp
+@@ -596,7 +596,7 @@
+ 			case MonsterSound::eMonsterSoundIdle:
+ 				// check distance to actor
+ 
+-				if (Actor()->Position().distance_to(Position()) > db().m_fDistantIdleSndRange)
++				if (Actor() && Actor()->Position().distance_to(Position()) > db().m_fDistantIdleSndRange)
+ 				{
+ 					delay = u32(float(db().m_dwDistantIdleSndDelay) * _sqrt(float(objects_count)));
+ 					type = MonsterSound::eMonsterSoundIdleDistant;
 --- a/src/xrGame/ai/stalker/ai_stalker.cpp
 +++ b/src/xrGame/ai/stalker/ai_stalker.cpp
 @@ -1158,13 +1158,19 @@
@@ -611,6 +779,16 @@
  
  #ifndef USE_SCHEDULER_IN_AGENT_MANAGER
  				agent_manager().update();
+--- a/src/xrGame/ai/trader/ai_trader.cpp
++++ b/src/xrGame/ai/trader/ai_trader.cpp
+@@ -95,6 +95,7 @@
+ 
+ void CAI_Trader::LookAtActor(CBoneInstance* B)
+ {
++	if (!Level().CurrentEntity()) return;
+ 	Fvector dir;
+ 	dir.sub(Level().CurrentEntity()->Position(), Position());
+ 
 --- a/src/xrGame/ai_space.cpp
 +++ b/src/xrGame/ai_space.cpp
 @@ -43,7 +43,7 @@
@@ -1177,6 +1355,52 @@
  		return; // local client of the very same process
  
  	if (CL->owner)
+--- a/src/xrGame/map_location.cpp
++++ b/src/xrGame/map_location.cpp
+@@ -437,6 +437,7 @@
+ 	}
+ 	else if (Level().name() == map->MapName() && GetSpotPointer(sp))
+ 	{
++		if (!Actor()) return;
+ 		GameGraph::_GRAPH_ID dest_graph_id;
+ 
+ 		dest_graph_id = m_owner_se_object->m_tGraphID;
+@@ -533,6 +534,7 @@
+ 
+ void CMapLocation::UpdateSpotPointer(CUICustomMap* map, CMapSpotPointer* sp)
+ {
++	if (!Level().CurrentEntity()) return;
+ 	if (sp->GetParent()) return; // already is child
+ 	float heading;
+ 	Fvector2 pointer_pos;
+@@ -813,16 +815,17 @@
+ 			{
+ 				const CGameObject* pObj = smart_cast<const CGameObject*>(_object_);
+ 				CActor* pAct = smart_cast<CActor*>(Level().Objects.net_Find(m_pInvOwnerActorID));
++				if (!pAct || !pObj) return false;
+ 				CHelmet* helm = smart_cast<CHelmet*>(pAct->inventory().ItemFromSlot(HELMET_SLOT));
+ 				if (helm && helm->m_fShowNearestEnemiesDistance)
+ 				{
+ 					if (pAct->Position().distance_to(pObj->Position()) < helm->m_fShowNearestEnemiesDistance)
+ 						vis_res = true;
+ 					else
+-						vis_res = Actor()->memory().visual().visible_now(pObj);
++						vis_res = pAct->memory().visual().visible_now(pObj);
+ 				}
+ 				else
+-					vis_res = Actor()->memory().visual().visible_now(pObj);
++					vis_res = pAct->memory().visual().visible_now(pObj);
+ 			}
+ 		}
+ 		else
+@@ -836,6 +839,7 @@
+ 		{
+ 			const CGameObject* pObj = smart_cast<const CGameObject*>(_object_);
+ 			CActor* pAct = smart_cast<CActor*>(Level().Objects.net_Find(m_pInvOwnerActorID));
++			if (!pAct || !pObj) return false;
+ 			if (/*pAct->Position().distance_to_sqr(pObj->Position()) < 100.0F && */abs(
+ 				pObj->Position().y - pAct->Position().y) < 3.0f)
+ 				vis_res = true;
 --- a/src/xrGame/player_hud_legs.cpp
 +++ b/src/xrGame/player_hud_legs.cpp
 @@ -208,9 +208,9 @@

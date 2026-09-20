@@ -15,7 +15,8 @@ import time
 from prepare_gamma import DEFAULT_GAME
 from prepare_profile import POLICY, ROOT, patch_axr, patch_menu
 from admin_scripts import DEBUG_SCRIPTS, patch_debug
-from callback_scripts import patch_ledge, patch_ubgl, patch_dynamic_anomalies, patch_combat_schemes, patch_meet
+from callback_scripts import (patch_ledge, patch_ubgl, patch_dynamic_anomalies,
+                              patch_combat_schemes, patch_meet, patch_script_fixes_mp)
 
 
 def set_ini_values(path, section, values):
@@ -101,7 +102,8 @@ def finalize(destination):
             (role_root / 'scripts' / name).write_bytes(patch((destination / 'gamedata/scripts' / name).read_bytes()))
         for name, patch in (('demonized_ledge_grabbing.script', patch_ledge), ('ubgl_no_3db.script', patch_ubgl),
                             ('drx_da_main.script', patch_dynamic_anomalies),
-                            ('schemes_ai_gamma.script', patch_combat_schemes), ('xr_meet.script', patch_meet)):
+                            ('schemes_ai_gamma.script', patch_combat_schemes), ('xr_meet.script', patch_meet),
+                            ('aaaa_script_fixes_mp.script', patch_script_fixes_mp)):
             source = destination / 'gamedata/scripts' / name
             if source.is_file():
                 (role_root / 'scripts' / name).write_bytes(patch(source.read_bytes()))

@@ -97,6 +97,114 @@ def generate(source: Path) -> str:
         replace(level_source, anchor, anchor.replace('!g_dedicated_server', '!g_dedicated_server || strstr(Core.Params, "-netcoop")'))
     replace('src/xrGame/Level_load.cpp', '\tif (!g_dedicated_server)\n\t{\n\t\t// loading scripts',
             '\tif (!g_dedicated_server || strstr(Core.Params, "-netcoop"))\n\t{\n\t\t// loading scripts')
+    replace('src/xrGame/Level_load.cpp', '''\tif (GamePersistent().GameType() == eGameIDSingle && !ai().get_alife() && FS.exist(fn_game, "$level$", "level.ai") &&
+\t\t!net_Hosts.empty())''', '''\tif (GamePersistent().GameType() == eGameIDSingle && !ai().get_alife() && FS.exist(fn_game, "$level$", "level.ai") &&
+\t\t(!net_Hosts.empty() || strstr(Core.Params, "-netcoop")))''')
+
+    # A dedicated authority and a joining peer both spend part of startup with
+    # no local actor. Stock single-player background code assumes Actor() and
+    # CurrentEntity() always exist; make those paths wait or use neutral data.
+    replace('src/xrGame/Entity.cpp',
+            '\tif (IsGameTypeSingle() && (this->ID() == Actor()->ID()) && (bypass_actor_check != TRUE))',
+            '\tif (IsGameTypeSingle() && Actor() && (this->ID() == Actor()->ID()) && (bypass_actor_check != TRUE))')
+    replace('src/xrGame/ai/monsters/basemonster/base_monster.cpp',
+            '\t\t\t\tif (Actor()->Position().distance_to(Position()) > db().m_fDistantIdleSndRange)',
+            '\t\t\t\tif (Actor() && Actor()->Position().distance_to(Position()) > db().m_fDistantIdleSndRange)')
+    replace('src/xrGame/ai/trader/ai_trader.cpp', 'void CAI_Trader::LookAtActor(CBoneInstance* B)\n{',
+            'void CAI_Trader::LookAtActor(CBoneInstance* B)\n{\n\tif (!Level().CurrentEntity()) return;')
+    crow = 'src/xrGame/ai/crow/ai_crow.cpp'
+    replace(crow, '\t\t\tLevel().ObjectSpace.GetNearest(nearbyObjects, Position(), 300.0f, NULL);',
+            '\t\t\tnearbyObjects.clear();\n\t\t\tdeadNPCs.clear();\n\t\t\tLevel().ObjectSpace.GetNearest(nearbyObjects, Position(), 300.0f, NULL);')
+    replace(crow, '\t\t\telse \n\t\t\t{\n\t\t\t\tvP = Actor()->Position();\n'
+            '\t\t\t\tfloat distanceToActor = Position().distance_to(vP);\n'
+            '\t\t\t\tif (distanceToActor > 500.0f) \n\t\t\t\t{\n'
+            '\t\t\t\t\tfGoalChangeTime = 30.0f;\n\t\t\t\t}\n\t\t\t}', '''\t\t\telse if (Actor())
+\t\t\t{
+\t\t\t\tvP = Actor()->Position();
+\t\t\t\tfloat distanceToActor = Position().distance_to(vP);
+\t\t\t\tif (distanceToActor > 500.0f)
+\t\t\t\t\tfGoalChangeTime = 30.0f;
+\t\t\t}
+\t\t\telse
+\t\t\t{
+\t\t\t\t// Keep server-side crows active without targeting a missing player.
+\t\t\t\tvP.mad(Position(), Direction(), 50.0f);
+\t\t\t}''')
+    replace(crow, '\t\t\tdest_dir.sub(Actor()->Position(), Position());',
+            '\t\t\tdest_dir.sub(vP, Position());')
+
+    task = 'src/xrGame/GameTask.cpp'
+    replace(task, '\tActor()->callback(GameObject::eTaskStateChange)(this, GetTaskState());',
+            '\tif (Actor()) Actor()->callback(GameObject::eTaskStateChange)(this, GetTaskState());')
+    replace(task, '''bool CGameTask::CheckInfo(const xr_vector<shared_str>& v) const
+{''', '''bool CGameTask::CheckInfo(const xr_vector<shared_str>& v) const
+{
+\tif (!v.empty() && !Actor()) return false;''')
+    replace(task, '''void CGameTask::SendInfo(const xr_vector<shared_str>& v)
+{''', '''void CGameTask::SendInfo(const xr_vector<shared_str>& v)
+{
+\tif (!Actor()) return;''')
+    phrase = 'src/xrGame/PhraseScript.cpp'
+    replace(phrase, '''bool CDialogScriptHelper::CheckInfo(const CInventoryOwner* pOwner) const
+{
+\tTHROW(pOwner);''', '''bool CDialogScriptHelper::CheckInfo(const CInventoryOwner* pOwner) const
+{
+\tTHROW(pOwner);
+\tif ((!m_HasInfo.empty() || !m_DontHasInfo.empty()) && !Actor()) return false;''')
+    replace(phrase, '''void CDialogScriptHelper::TransferInfo(const CInventoryOwner* pOwner) const
+{
+\tTHROW(pOwner);''', '''void CDialogScriptHelper::TransferInfo(const CInventoryOwner* pOwner) const
+{
+\tTHROW(pOwner);
+\tif (!Actor()) return;''')
+
+    inventory = 'src/xrGame/Inventory.cpp'
+    replace(inventory, '''\tif (smart_cast<CWeapon*>(pObj))
+\t{
+\t\tFvector dir = Actor()->Direction();
+\t\tdir.y = sin(-45.f * PI / 180.f);
+\t\tdir.normalize();
+\t\tsmart_cast<CWeapon*>(pObj)->SetActivationSpeedOverride(dir.mul(7));''', '''\tif (smart_cast<CWeapon*>(pObj))
+\t{
+\t\tif (Actor())
+\t\t{
+\t\t\tFvector dir = Actor()->Direction();
+\t\t\tdir.y = sin(-45.f * PI / 180.f);
+\t\t\tdir.normalize();
+\t\t\tsmart_cast<CWeapon*>(pObj)->SetActivationSpeedOverride(dir.mul(7));
+\t\t}''')
+    replace(inventory, '\tif (Actor()->m_inventory == this)', '\tif (Actor() && Actor()->m_inventory == this)')
+    replace(inventory, '''\t\tif (pItemToEat->IsUsingCondition() && pItemToEat->GetRemainingUses() < 1 && pItemToEat->CanDelete())
+\t\t\tCurrentGameUI()->GetActorMenu().RefreshCurrentItemCell();
+
+\t\tCurrentGameUI()->GetActorMenu().SetCurrentItem(NULL);''', '''\t\tif (CurrentGameUI())
+\t\t{
+\t\t\tif (pItemToEat->IsUsingCondition() && pItemToEat->GetRemainingUses() < 1 && pItemToEat->CanDelete())
+\t\t\t\tCurrentGameUI()->GetActorMenu().RefreshCurrentItemCell();
+\t\t\tCurrentGameUI()->GetActorMenu().SetCurrentItem(NULL);
+\t\t}''')
+    replace('src/xrGame/InventoryBox.cpp', '\t\t\tif (m_in_use)\n\t\t\t{',
+            '\t\t\tif (m_in_use && Actor())\n\t\t\t{')
+
+    map_location = 'src/xrGame/map_location.cpp'
+    replace(map_location, '''\telse if (Level().name() == map->MapName() && GetSpotPointer(sp))
+\t{''', '''\telse if (Level().name() == map->MapName() && GetSpotPointer(sp))
+\t{
+\t\tif (!Actor()) return;''')
+    replace(map_location, '''void CMapLocation::UpdateSpotPointer(CUICustomMap* map, CMapSpotPointer* sp)
+{''', '''void CMapLocation::UpdateSpotPointer(CUICustomMap* map, CMapSpotPointer* sp)
+{
+\tif (!Level().CurrentEntity()) return;''')
+    replace(map_location, '''\t\t\t\tCActor* pAct = smart_cast<CActor*>(Level().Objects.net_Find(m_pInvOwnerActorID));
+\t\t\t\tCHelmet* helm''', '''\t\t\t\tCActor* pAct = smart_cast<CActor*>(Level().Objects.net_Find(m_pInvOwnerActorID));
+\t\t\t\tif (!pAct || !pObj) return false;
+\t\t\t\tCHelmet* helm''')
+    replace(map_location, 'Actor()->memory().visual().visible_now(pObj)',
+            'pAct->memory().visual().visible_now(pObj)', count=2)
+    replace(map_location, '''\t\t\tCActor* pAct = smart_cast<CActor*>(Level().Objects.net_Find(m_pInvOwnerActorID));
+\t\t\tif (/*pAct->Position()''', '''\t\t\tCActor* pAct = smart_cast<CActor*>(Level().Objects.net_Find(m_pInvOwnerActorID));
+\t\t\tif (!pAct || !pObj) return false;
+\t\t\tif (/*pAct->Position()''')
     replace('src/xrGame/Level_network_spawn.cpp', '\t\tif (!g_dedicated_server)\n\t\t\tclient_spawn_manager()',
             '\t\tif (!g_dedicated_server || strstr(Core.Params, "-netcoop"))\n\t\t\tclient_spawn_manager()', count=2)
     game_object = 'src/xrGame/GameObject.cpp'

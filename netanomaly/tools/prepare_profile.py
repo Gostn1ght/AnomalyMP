@@ -33,14 +33,21 @@ def transform_modlist(text, role):
 
 
 def patch_axr(data):
-    # Preserve original encoding and all GAMMA callbacks; add only a bootstrap.
-    if b'gamma_net_compat.install()' in data:
-        return data
+    # Preserve original encoding and all GAMMA callbacks. Actor callbacks can be
+    # emitted while a netcoop peer is still receiving its local actor, so keep
+    # the callback manager from dispatching them against an empty db.actor.
+    newline = b'\r\n' if b'\r\n' in data else b'\n'
     start = b'function on_game_start()'
     if data.count(start) != 1:
         raise ValueError('axr_main differs from the expected GAMMA callback manager')
-    newline = b'\r\n' if b'\r\n' in data else b'\n'
-    data = data.replace(start, start + newline + b'\tgamma_net_compat.install()')
+    if b'gamma_net_compat.install()' not in data:
+        data = data.replace(start, start + newline + b'\tgamma_net_compat.install()')
+    callback = b'function make_callback(name,...)'
+    guard = b'\tif string.sub(name, 1, 6) == "actor_" and (not db or not db.actor) then return end'
+    if guard not in data:
+        if data.count(callback) != 1:
+            raise ValueError('Callback dispatcher missing in axr_main')
+        data = data.replace(callback, callback + newline + guard)
     if b'imgui_on_render\t' not in data and b'imgui_on_render ' not in data:
         anchor = b'local intercepts = {'
         if data.count(anchor) != 1:

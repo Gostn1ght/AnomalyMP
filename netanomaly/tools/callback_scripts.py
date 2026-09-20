@@ -92,3 +92,21 @@ def patch_meet(data):
             raise ValueError('Unexpected GAMMA meet callback: ' + old.decode())
         data = data.replace(old, new)
     return marker + b'\n' + data
+
+
+def patch_script_fixes_mp(data):
+    marker = b'-- GAMMA net: actor item callbacks require a spawned actor.'
+    if marker in data:
+        return data
+    condition = b'\tif flags.ret_value then'
+    replacement = b'\tif flags.ret_value and db.actor then'
+    for signature in (b'item_device.on_anomaly_touch = function(obj, flags)',
+                      b'itms_manager.actor_on_item_before_use = function(obj, flags)'):
+        if data.count(signature) != 1:
+            raise ValueError('Unexpected actor item callback wrapper')
+        start = data.index(signature)
+        position = data.find(condition, start, start + 256)
+        if position < 0:
+            raise ValueError('Unexpected actor item callback condition')
+        data = data[:position] + replacement + data[position + len(condition):]
+    return marker + b'\n' + data
