@@ -16,7 +16,8 @@ from prepare_gamma import DEFAULT_GAME
 from prepare_profile import POLICY, ROOT, patch_axr, patch_menu
 from admin_scripts import DEBUG_SCRIPTS, patch_debug
 from callback_scripts import (patch_ledge, patch_ubgl, patch_dynamic_anomalies,
-                              patch_combat_schemes, patch_meet, patch_script_fixes_mp)
+                              patch_combat_schemes, patch_meet, patch_script_fixes_mp,
+                              patch_zoomcalc, prune_orphan_scripts)
 
 
 def set_ini_values(path, section, values):
@@ -107,6 +108,10 @@ def finalize(destination):
             source = destination / 'gamedata/scripts' / name
             if source.is_file():
                 (role_root / 'scripts' / name).write_bytes(patch(source.read_bytes()))
+        zoomcalc = destination / 'gamedata/scripts/zzz_mspizza_godis_zoomcalc.script'
+        if zoomcalc.is_file():
+            (role_root / 'scripts/zzz_mspizza_godis_zoomcalc.script').write_bytes(patch_zoomcalc(zoomcalc.read_bytes()))
+        prune_orphan_scripts(role_root / 'scripts')
         for name in DEBUG_SCRIPTS:
             original = destination / 'gamedata/scripts' / name
             if original.is_file():

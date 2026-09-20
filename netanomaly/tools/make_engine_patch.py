@@ -377,6 +377,19 @@ void xrClientData::Clear()''')
         P.w_stringZ(actual_level);
         P.w_stringZ(actual_version);
     }''')
+    replace('src/xrGame/xrServer_CL_connect.cpp', '\tCL->net_Accepted = TRUE;', '''\tCL->net_Accepted = TRUE;
+    if (strstr(Core.Params, "-netcoop") && !CL->ps)
+    {
+        // A remote single-player client requests world data before sending the
+        // multiplayer CREATE_PLAYER_STATE event. Create an empty authoritative
+        // state now so export, account auth, and actor ownership have one record.
+        CL->ps = game->createPlayerState(nullptr);
+        CL->ps->resetFlag(GAME_PLAYER_FLAG_SKIP);
+        CL->ps->resetFlag(GAME_PLAYER_HAS_ADMIN_RIGHTS);
+        CL->ps->m_account.set_player_name(CL->name.c_str());
+        CL->ps->m_online_time = Level().timeServer();
+        CL->ps->DeathTime = Device.dwTimeGlobal;
+    }''')
     replace('src/xrGame/Level_network.cpp', '\tSetClientID(tmp_client_id);', '''\tSetClientID(tmp_client_id);
     if (result && strstr(Core.Params, "-netcoop"))
     {

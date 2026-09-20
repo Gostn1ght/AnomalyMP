@@ -2039,7 +2039,26 @@
  	}
 --- a/src/xrGame/xrServer_CL_connect.cpp
 +++ b/src/xrGame/xrServer_CL_connect.cpp
-@@ -138,6 +138,13 @@
+@@ -98,6 +98,18 @@
+ {
+ 	xrClientData* CL = (xrClientData*)_CL;
+ 	CL->net_Accepted = TRUE;
++    if (strstr(Core.Params, "-netcoop") && !CL->ps)
++    {
++        // A remote single-player client requests world data before sending the
++        // multiplayer CREATE_PLAYER_STATE event. Create an empty authoritative
++        // state now so export, account auth, and actor ownership have one record.
++        CL->ps = game->createPlayerState(nullptr);
++        CL->ps->resetFlag(GAME_PLAYER_FLAG_SKIP);
++        CL->ps->resetFlag(GAME_PLAYER_HAS_ADMIN_RIGHTS);
++        CL->ps->m_account.set_player_name(CL->name.c_str());
++        CL->ps->m_online_time = Level().timeServer();
++        CL->ps->DeathTime = Device.dwTimeGlobal;
++    }
+ 	if (strstr(Core.Params, "-netcoop"))
+ 	{
+ 		Msg("[NetAnomaly] OnCL_Connected 0x%08x pid %u ps=%s", CL->ID.value(), CL->process_id, CL->ps ? "yes" : "no");
+@@ -138,6 +150,13 @@
  	else
  		P.w_u8(0);
  	P.w_stringZ(Level().m_caServerOptions);

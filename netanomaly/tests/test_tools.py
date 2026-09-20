@@ -61,6 +61,24 @@ class ToolsTest(unittest.TestCase):
         ''')
         self.assertEqual((lua.globals().device_calls, lua.globals().item_calls), (1, 1))
 
+    def test_orphan_scripts_are_pruned_and_zoom_comment_is_valid_lua(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            scripts = Path(tmp)
+            for leaf in callbacks.ORPHAN_SCRIPT_DEPENDENCIES:
+                (scripts / leaf).write_text('orphan')
+            removed = callbacks.prune_orphan_scripts(scripts)
+            self.assertEqual(set(removed), set(callbacks.ORPHAN_SCRIPT_DEPENDENCIES))
+            source = b'before=true\n/*\ninvalid=true\n*/\nafter=true\n'
+            patched = callbacks.patch_zoomcalc(source)
+            self.assertEqual(callbacks.patch_zoomcalc(patched), patched)
+            sys.path.insert(0, str(profile.REPO / '.work/python-lua'))
+            from lupa.luajit21 import LuaRuntime
+            lua = LuaRuntime()
+            lua.execute(patched.decode())
+            self.assertTrue(lua.globals().before)
+            self.assertTrue(lua.globals().after)
+            self.assertIsNone(lua.globals().invalid)
+
     def test_meet_setup_resumes_after_actor_becomes_available(self):
         sys.path.insert(0, str(profile.REPO / '.work/python-lua'))
         from lupa.luajit21 import LuaRuntime
@@ -167,6 +185,8 @@ class ToolsTest(unittest.TestCase):
         self.assertNotIn('+\t\tMsg("[NetAnomaly] map sync forced OK', patch)
         self.assertIn('!strstr(Core.Params, "-netcoop") && !Level().IsChecksumsEqual', patch)
         self.assertIn('!net_Hosts.empty() || strstr(Core.Params, "-netcoop")', patch)
+        self.assertIn('CL->ps = game->createPlayerState(nullptr);', patch)
+        self.assertIn('if (CL->ps) break; // Do not replace a connected player', patch)
         self.assertIn('dedicated authority initial level forced to k00_marsh/hidden_base', patch)
         self.assertIn('actor()->m_tGraphID = GameGraph::_GRAPH_ID(136)', patch)
         self.assertIn('actor()->m_tNodeID = 75660', patch)
@@ -307,6 +327,9 @@ class ToolsTest(unittest.TestCase):
             scripts.mkdir(parents=True)
             (scripts / 'axr_main.script').write_bytes(
                 b'local intercepts = {\n}\nfunction make_callback(name,...)\nend\nfunction on_game_start()\nend\n')
+            for leaf in callbacks.ORPHAN_SCRIPT_DEPENDENCIES:
+                (scripts / leaf).write_text('orphan')
+            (scripts / 'zzz_mspizza_godis_zoomcalc.script').write_bytes(b'/* disabled */')
             menu = b''
             for name in ('OnButton_save_clicked', 'OnButton_load_clicked', 'OnButton_last_save', 'OnButton_new_game'):
                 menu += ('function main_menu:' + name + '()\nend\n').encode()
@@ -349,6 +372,11 @@ class ToolsTest(unittest.TestCase):
                 self.assertEqual((output / expected_role / 'scripts/base-only.script').read_text(), 'base callback')
             gamma_content.finalize(output)
             self.assertEqual((output / 'fsgame_p2.ltx').read_text(), fs)
+            for role in ('server', 'client'):
+                for leaf in callbacks.ORPHAN_SCRIPT_DEPENDENCIES:
+                    self.assertFalse((output / role / 'scripts' / leaf).exists())
+                zoom = (output / role / 'scripts/zzz_mspizza_godis_zoomcalc.script').read_bytes()
+                self.assertIn(b'--[[ disabled ]]', zoom)
             server_options = (output / 'server/configs/axr_options.ltx').read_text()
             client_options = (output / 'client/configs/axr_options.ltx').read_text()
             self.assertIn('new_game_faction = csky', server_options)

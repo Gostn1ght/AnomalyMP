@@ -110,3 +110,30 @@ def patch_script_fixes_mp(data):
             raise ValueError('Unexpected actor item callback condition')
         data = data[:position] + replacement + data[position + len(condition):]
     return marker + b'\n' + data
+
+
+ORPHAN_SCRIPT_DEPENDENCIES = {
+    'a_faction_prices.script': ('faction_stocks.script',),
+    'mags_patches.script': ('magazine_binder.script', 'magazines.script', 'magazines_mcm.script'),
+    'zz_ui_inventory_better_stats_bars.script': ('better_stats_bars_mcm.script',),
+}
+
+
+def prune_orphan_scripts(scripts):
+    """Remove winning compatibility patches whose required mod was not materialized."""
+    removed = []
+    for leaf, dependencies in ORPHAN_SCRIPT_DEPENDENCIES.items():
+        path = scripts / leaf
+        if path.is_file() and any(not (scripts / dependency).is_file() for dependency in dependencies):
+            path.unlink()
+            removed.append(leaf)
+    return removed
+
+
+def patch_zoomcalc(data):
+    marker = b'-- GAMMA net: replace invalid C comment delimiters.'
+    if marker in data:
+        return data
+    if data.count(b'/*') != 1 or data.count(b'*/') != 1:
+        raise ValueError('Unexpected zoom calculator comment syntax')
+    return marker + b'\n' + data.replace(b'/*', b'--[[', 1).replace(b'*/', b']]', 1)

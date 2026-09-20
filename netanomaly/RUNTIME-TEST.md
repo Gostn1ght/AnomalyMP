@@ -162,3 +162,13 @@ central actor callback dispatcher and guards background crow, monster, trader,
 task, dialogue, inventory, and map paths that can run before a local actor exists.
 The second external client remains untested until the replacement build passes the
 first-client spawn boundary.
+
+The same connection log also showed `Player state not created` immediately after
+`OnCL_Connected`: an external single-player client requests its world before the
+legacy multiplayer player-state packet. The final patch creates an empty,
+server-owned `game_PlayerState` before exporting the world and rejects the later
+replayed state packet, allowing ticket authentication and actor ownership to use
+one authoritative record. Startup log review also found three orphan compatibility
+scripts whose required mods are absent and one script containing invalid C-style
+Lua comments. Materialization now prunes the orphans and rewrites the invalid
+comment for both roles.
