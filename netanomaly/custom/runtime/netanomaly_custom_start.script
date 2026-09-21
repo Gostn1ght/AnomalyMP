@@ -1,0 +1,20 @@
+-- Test-world bootstrap. Clients never move the shared ALife world.
+local requested = false
+
+local function first_update()
+    if requested then return end
+    requested = true
+    if level.name() == "k00_marsh" then
+        printf("[CustomTest] host ready on k00_marsh")
+        return
+    end
+    printf("[CustomTest] moving host from %s to k00_marsh", level.name())
+    get_console():execute("jump_to_level k00_marsh")
+end
+
+function on_game_start()
+    local args = command_line()
+    if not string.find(args, "-netcoop", 1, true) then return end
+    if not string.find(args, "server(", 1, true) then return end
+    RegisterScriptCallback("actor_on_first_update", first_update)
+end

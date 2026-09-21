@@ -1,0 +1,88 @@
+-- Native code authorizes the peer again here; never trust a role supplied by Lua/client.
+local function actor_command(cid, action)
+    local actor = gamma_admin_actor(cid)
+    if not actor then return "! Account actor is not connected; no host fallback" end
+    local previous = db.actor
+    db.actor = actor
+    local ok, result = pcall(action, actor)
+    db.actor = previous -- Restore the server host even if the debug command raises an error.
+    if not ok then return "! Server debug action failed" end
+    return tostring(result or "* Server debug action executed")
+end
+
+function on_client_command(cid, name, entity_id, text)
+    if not gamma_net_compat.is_server() or not gamma_admin_peer_allowed(cid) then
+        return "! Administrator account required"
+    end
+    if type(text) ~= "string" or #text > 4095 then return "! Invalid command" end
+    local kind, args = text:match("^(%S+)%s*(.*)$")
+    if kind == "help" then
+        return "~ cmd <server console command>; debug <debug command>; debug_action <tab> <index>"
+    elseif kind == "cmd" then
+        if args == "" or args:find("[\r\n;]") then return "! Invalid console command" end
+        local command = args:match("^(%S+)"):lower()
+        if command == "srv" or command == "sv_cmd" then return "! Recursive command channel rejected" end
+        get_console():execute(args)
+        return "* Server console command executed"
+    elseif kind == "debug" then
+        local command, parameters = args:match("^(%S+)%s*(.*)$")
+        if not command then return "! Debug command required" end
+        command = command:lower()
+        if command == "money" then
+            local amount = tonumber(parameters)
+            if not amount or amount ~= math.floor(amount) or amount < -2147483647 or amount > 2147483647 then
+                return "! Invalid money amount"
+            end
+            return actor_command(cid, function(actor)
+                local balance = actor:money() + amount
+                if balance < 0 or balance > 4294967295 then return "! Balance out of range" end
+                actor:give_money(amount)
+                return "* Account actor balance changed on server"
+            end)
+        elseif command == "spawn" then
+            local section, count = parameters:match("^([%w_.%-]+)%s*(%d*)$")
+            count = tonumber(count) or 1
+            if not section or count < 1 or count > 50 then return "! Invalid item spawn request" end
+            return gamma_admin_spawn_item(cid, section, count) and "* Item spawned for account actor on server" or
+                "! Item spawn rejected; no host fallback"
+        end
+        if not debug_cmd_list.command_exists(command) then return "! Unknown debug command" end
+        return actor_command(cid, function()
+            return debug_cmd_list.command_give(command, parameters, nil, {})
+        end)
+    elseif kind == "debug_named" then
+        if not args:match("^[%a_][%w_]*$") then return "! Invalid debug function" end
+        if not next(ui_debug_launcher.content) then ui_debug_launcher.prepare() end
+        local requested = ui_debug_launcher[args]
+        if type(requested) ~= "function" then return "! Unknown debug function" end
+        for _, entries in pairs(ui_debug_launcher.content) do
+            for _, entry in ipairs(entries) do
+                if entry.functor and entry.functor[1] == requested and #entry.functor == 1 then
+                    return actor_command(cid, requested)
+                end
+            end
+        end
+        return "! Use the menu action with its server-defined parameters"
+    elseif kind == "debug_action" then
+        local tab, index = args:match("^(%a+)%s+(%d+)$")
+        index = tonumber(index)
+        if not tab or not index or index < 1 or index > 256 then return "! Invalid debug action" end
+        if not next(ui_debug_launcher.content) then ui_debug_launcher.prepare() end
+        local entries = ui_debug_launcher.content[tab]
+        local entry = entries and entries[index]
+        if not entry then return "! Unknown server debug action" end
+        if entry.console then
+            local enabled = not get_console_cmd(1, entry.console)
+            get_console():execute(entry.console .. " " .. (enabled and "1" or "0"))
+        elseif entry.cmd then
+            return on_client_command(cid, name, entity_id, "debug " .. entry.cmd)
+        elseif entry.functor then
+            return actor_command(cid, function() exec(unpack(entry.functor)) end)
+        else
+            return "! Invalid server debug action"
+        end
+        return "* Server debug action executed"
+    end
+    -- Retain the original debug command names through the server dispatcher.
+    return on_client_command(cid, name, entity_id, "debug " .. text)
+end

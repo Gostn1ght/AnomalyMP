@@ -1,0 +1,232 @@
+name: GAMMA on NetAnomaly
+
+on:
+  push:
+    branches: ['codex/gamma-netanomaly', 'codex/gamma-server-authority', 'main']
+    paths: ['netanomaly/**', '.github/workflows/gamma-netanomaly.yml']
+  pull_request:
+    paths: ['netanomaly/**', '.github/workflows/gamma-netanomaly.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gamma-netanomaly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Profile and launcher regression tests
+        run: |
+          python -m pip install lupa==2.8
+          python -m unittest discover -s netanomaly/tests -v
+      - name: Packet framing tests with sanitizers
+        run: |
+          clang++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -g netanomaly/tests/policy_test.cpp -o /tmp/gamma-policy-test
+          /tmp/gamma-policy-test
+      - name: Prepare GAMMA client and server bundles
+        run: |
+          python netanomaly/tools/prepare_profile.py --role client --modlist G.A.M.M.A/modpack_data/modlist.txt --user-ltx G.A.M.M.A/modpack_patches/appdata/user.ltx --output netanomaly/generated/client
+          python netanomaly/tools/prepare_profile.py --role server --modlist G.A.M.M.A/modpack_data/modlist.txt --user-ltx G.A.M.M.A/modpack_patches/appdata/user.ltx --output netanomaly/generated/server
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GAMMA-NetAnomaly-profiles-experimental
+          path: netanomaly/generated
+          if-no-files-found: error
+
+  engine:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[gamma-engine]'))
+    needs: checks
+    runs-on: windows-2022
+    timeout-minutes: 90
+    outputs:
+      errors: ${{ steps.diagnostics.outputs.errors }}
+    steps:
+      - name: Checkout GAMMA adapter
+        uses: actions/checkout@v4
+        with:
+          path: gamma
+      - name: Read source lock
+        id: source
+        shell: pwsh
+        run: |
+          $lock = Get-Content gamma/netanomaly/engine/source.json -Raw | ConvertFrom-Json
+          "repository=$($lock.repository)" >> $env:GITHUB_OUTPUT
+          "ref=$($lock.ref)" >> $env:GITHUB_OUTPUT
+          "sdk_repository=$($lock.sdk_repository)" >> $env:GITHUB_OUTPUT
+          "sdk_ref=$($lock.sdk_ref)" >> $env:GITHUB_OUTPUT
+          "optick_ref=$($lock.optick_ref)" >> $env:GITHUB_OUTPUT
+      - name: Checkout pinned NetAnomaly engine
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.source.outputs.repository }}
+          ref: ${{ steps.source.outputs.ref }}
+          path: engine
+          submodules: false
+      - name: Checkout matching Monolith SDK
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.source.outputs.sdk_repository }}
+          ref: ${{ steps.source.outputs.sdk_ref }}
+          path: sdk-source
+          sparse-checkout: |
+            sdk/libraries
+            src/3rd party/stackwalker/lib
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: microsoft/setup-msbuild@v2
+        with:
+          msbuild-architecture: x64
+      - name: Verify and apply engine patch
+        shell: pwsh
+        run: |
+          python gamma/netanomaly/tools/make_engine_patch.py --source engine --output regenerated.patch
+          if ($LASTEXITCODE -ne 0) { throw 'Patch generation failed' }
+          if ((Get-FileHash regenerated.patch).Hash -ne (Get-FileHash gamma/netanomaly/engine/gamma.patch).Hash) { throw 'Patch and generator differ' }
+          python gamma/netanomaly/tools/apply_engine.py engine
+          if ($LASTEXITCODE -ne 0) { throw 'Patch application failed' }
+          New-Item -ItemType Directory -Path engine/sdk/libraries -Force | Out-Null
+          Copy-Item -Path sdk-source/sdk/libraries/* -Destination engine/sdk/libraries -Recurse -Force
+          New-Item -ItemType Directory -Path 'engine/src/3rd party/stackwalker/lib' -Force | Out-Null
+          Copy-Item -LiteralPath 'sdk-source/src/3rd party/stackwalker/lib/StackWalker.lib' -Destination 'engine/src/3rd party/stackwalker/lib/StackWalker.lib'
+      - name: Checkout archived Optick dependency
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.source.outputs.repository }}
+          ref: ${{ steps.source.outputs.optick_ref }}
+          path: engine/src/3rd party/optick-git
+      - name: Build DX11 x64 on GitHub only
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_ACTIONS -ne 'true') { throw 'Build must run on GitHub Actions' }
+          msbuild engine/src/engine-vs2022.sln /m:2 /p:Configuration=DX11 /p:Platform=x64 /p:MultiProcessorCompilation=false /bl:engine-build.binlog /fl /flp:logfile=engine-build.log /v:minimal
+          if ($LASTEXITCODE -ne 0) { throw "MSBuild failed: $LASTEXITCODE" }
+      - name: Package experimental runtime
+        shell: pwsh
+        run: |
+          $exe = 'engine/_build/_game/bin_dbg/AnomalyDX11.exe'
+          if (!(Test-Path -LiteralPath $exe)) { throw 'Expected executable missing' }
+          New-Item -ItemType Directory -Path package/bin -Force | Out-Null
+          Copy-Item -LiteralPath $exe -Destination package/bin/AnomalyGammaNetDX11.exe
+          $pdb = 'engine/_build/_game/bin_dbg/AnomalyDX11.pdb'
+          if (!(Test-Path -LiteralPath $pdb)) { throw 'Matching debug symbols missing' }
+          Copy-Item -LiteralPath $pdb -Destination package/bin/AnomalyGammaNetDX11.pdb
+          Copy-Item -Path engine/sdk/binaries/*.dll -Destination package/bin
+          New-Item -ItemType Directory -Path 'package/mods/NetAnomaly Engine Data' -Force | Out-Null
+          Copy-Item -LiteralPath engine/gamedata -Destination 'package/mods/NetAnomaly Engine Data/gamedata' -Recurse
+          Copy-Item -LiteralPath gamma/netanomaly/README.md -Destination package/README.md
+          Copy-Item -LiteralPath gamma/netanomaly/engine/source.json -Destination package/source.json
+          Copy-Item -LiteralPath engine/License.txt -Destination package/Engine-License.txt
+          Get-ChildItem -Path package -File -Recurse | Get-FileHash -Algorithm SHA256 | Select-Object Path,Hash | ConvertTo-Json | Set-Content package/sha256.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GAMMA-NetAnomaly-DX11-experimental
+          path: package
+          if-no-files-found: error
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: GAMMA-NetAnomaly-build-log
+          path: |
+            engine-build.binlog
+            engine-build.log
+          if-no-files-found: warn
+      - name: Extract compiler diagnostics
+        id: diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          $errors = @()
+          if (Test-Path engine-build.log) {
+            $errors = @(Select-String -Path engine-build.log -Pattern ': (fatal )?error ' | Select-Object -ExpandProperty Line -Unique | Select-Object -First 20)
+          }
+          $json = ConvertTo-Json -InputObject @($errors) -Compress
+          $data = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($json))
+          "errors=$data" >> $env:GITHUB_OUTPUT
+
+  report:
+    # Store results as Git notes so an SSH-only checkout can read CI results too.
+    if: always()
+    needs: [checks, engine, publish-runtime]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Record results on the tested commit
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          ENGINE_RESULT: ${{ needs.engine.result }}
+          ENGINE_ERRORS: ${{ needs.engine.outputs.errors }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, json, base64, subprocess, re
+          errors = os.environ.get('ENGINE_ERRORS', '')
+          report = {'sha': os.environ['GITHUB_SHA'], 'run_id': os.environ['GITHUB_RUN_ID'],
+                    'url': os.environ['GITHUB_SERVER_URL'] + '/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID'],
+                    'checks': os.environ['CHECKS_RESULT'], 'engine': os.environ['ENGINE_RESULT'],
+                    'compiler_errors': json.loads(base64.b64decode(errors)) if errors else [],
+                    'gameplay_128_players': 'not tested'}
+          jobs = json.loads(subprocess.check_output(['gh', 'api', 'repos/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID'] + '/jobs?per_page=100']))
+          report['jobs'] = [{'name': j['name'], 'result': j['conclusion'], 'steps': [{'name': s['name'], 'result': s['conclusion']} for s in j['steps'] if s['conclusion'] == 'failure']} for j in jobs['jobs']]
+          for j in jobs['jobs']:
+              if j['conclusion'] == 'failure':
+                  log = subprocess.run(['gh', 'api', '--allow-escape-sequences', 'repos/' + os.environ['GITHUB_REPOSITORY'] + '/actions/jobs/' + str(j['id']) + '/logs'], capture_output=True, text=True)
+                  report.setdefault('failed_job_logs', {})[j['name']] = re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', log.stdout[-18000:] or log.stderr[-1000:])
+          with open('/tmp/gamma-ci-report.json', 'w') as f: json.dump(report, f, indent=2)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin refs/notes/gamma-ci:refs/notes/gamma-ci || true
+          git notes --ref=gamma-ci add -f -F /tmp/gamma-ci-report.json "$GITHUB_SHA"
+          git push origin refs/notes/gamma-ci
+
+  publish-runtime:
+    if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[gamma-engine]'))) && startsWith(github.ref, 'refs/heads/codex/gamma-')
+    needs: engine
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: GAMMA-NetAnomaly-DX11-experimental
+          path: runtime-artifact
+      - name: Make the tested binary downloadable through the existing SSH access
+        shell: bash
+        run: |
+          mkdir -p runtime
+          cp runtime-artifact/bin/AnomalyGammaNetDX11.exe runtime/AnomalyGammaNetDX11.exe
+          gzip -c runtime-artifact/bin/AnomalyGammaNetDX11.pdb > runtime/AnomalyGammaNetDX11.pdb.gz
+          cp runtime-artifact/source.json runtime/source.json
+          cp runtime-artifact/Engine-License.txt runtime/Engine-License.txt
+          printf '%s\n' "$GITHUB_SHA" > runtime/built-from.txt
+          sha256sum runtime/AnomalyGammaNetDX11.exe runtime/AnomalyGammaNetDX11.pdb.gz > runtime/sha256.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          parent=()
+          if git fetch origin refs/heads/codex/gamma-runtime; then parent=(-p "$(git rev-parse FETCH_HEAD)"); fi
+          export GIT_INDEX_FILE="$RUNNER_TEMP/netanomaly-runtime.index"
+          git read-tree --empty
+          git add --force runtime
+          tree=$(git write-tree)
+          commit=$(git commit-tree "$tree" "${parent[@]}" -m "GAMMA engine build from $GITHUB_SHA")
+          git push origin "$commit:refs/heads/codex/gamma-runtime"

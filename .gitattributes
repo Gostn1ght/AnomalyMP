@@ -1,3 +1,6 @@
 *.xml encoding=windows-1251
 *.ltx linguist-language=INI
 *.script linguist-language=Lua
+netanomaly/** text eol=lf
+netanomaly/engine/*.patch -whitespace
+.github/workflows/gamma-netanomaly.yml text eol=lf
