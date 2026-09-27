@@ -1407,7 +1407,11 @@ void CAI_Stalker::net_Relcase(CObject* O)
 	if (!g_Alive())
 		return;
 
-	agent_manager().remove_links(O);
+	// A netcoop client's NPC puppets have no agent manager (their AI runs on
+	// the server).
+	CAgentManager* agents = Level().seniority_holder().team(g_Team()).squad(g_Squad()).group(g_Group()).get_agent_manager();
+	if (agents)
+		agents->remove_links(O);
 	m_pPhysics_support->in_NetRelcase(O);
 }
 

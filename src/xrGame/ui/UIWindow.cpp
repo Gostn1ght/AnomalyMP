@@ -222,8 +222,15 @@ void CUIWindow::Draw(float x, float y)
 	Draw();
 }
 
+extern ENGINE_API bool g_dedicated_server;
+
 void CUIWindow::Update()
 {
+	// Gameplay scripts can create UI (tutorials, cell items) on a dedicated
+	// server, which has no cursor or game UI to update it against.
+	if (g_dedicated_server)
+		return;
+
 	CUIDialogWnd* TIR = CurrentGameUI() ? CurrentGameUI()->TopInputReceiver() : nullptr;
 
 	if (GetUICursor().IsVisible() || (TIR && !TIR->NeedCursor()))
