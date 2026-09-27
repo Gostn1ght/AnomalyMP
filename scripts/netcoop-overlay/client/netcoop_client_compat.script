@@ -212,6 +212,9 @@ function on_auth_result(ok, role, message)
 	if ok and role == 2 then
 		-- The debug launcher registers its keys only in debug mode.
 		_G.DEV_DEBUG = true
+		-- on_game_start ran before login, while this player had no admin role.
+		-- Register the launcher's callbacks now so the spawn menu key works.
+		ui_debug_launcher.on_game_start()
 	end
 end
 

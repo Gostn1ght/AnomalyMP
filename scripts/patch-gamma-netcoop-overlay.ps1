@@ -75,6 +75,25 @@ Replace-Once $squads `
     "local pat = patrol(spawn_smart.spawn_point)" `
     "local pat = level.patrol_path_exists(spawn_smart.spawn_point) and patrol(spawn_smart.spawn_point)"
 
+# This GAMMA smart terrain lists spawn_isg but defines only spawn_greh.
+# Use its existing Greh squad definition rather than dropping the respawn.
+foreach ($role in @('server', 'client')) {
+    $school = Join-Path $runtime "$role\configs\scripts\evac\smart\pri_a28_school.ltx"
+    if (Test-Path -LiteralPath $school -PathType Leaf) {
+        Replace-Once $school `
+            "[respawn@pri_a28_school]`nspawn_chimera`nspawn_isg" `
+            "[respawn@pri_a28_school]`nspawn_chimera`nspawn_greh"
+    }
+}
+
+$debugLauncher = Join-Path $runtime 'client\scripts\ui_debug_launcher.script'
+Replace-Once $debugLauncher `
+    "function on_game_start()`n`tif not gamma_net_compat.admin_allowed() then return end" `
+    "local netcoop_admin_callbacks_registered = false`nfunction on_game_start()`n`tif netcoop_admin_callbacks_registered or not gamma_net_compat.admin_allowed() then return end"
+Replace-Once $debugLauncher `
+    "`tRegisterScriptCallback(`"on_localization_change`",on_localization_change)`nend" `
+    "`tRegisterScriptCallback(`"on_localization_change`",on_localization_change)`n`tnetcoop_admin_callbacks_registered = true`nend"
+
 foreach ($role in $roles) {
     $overlay = Join-Path $PSScriptRoot "netcoop-overlay\$($role.Name)"
     $configs = Join-Path $overlay 'configs'
@@ -109,3 +128,5 @@ foreach ($role in $roles) {
         Write-Host "Patched $g"
     }
 }
+
+& (Join-Path $PSScriptRoot 'quarantine-incomplete-gamma-scripts.ps1') -RuntimeRoot $runtime
