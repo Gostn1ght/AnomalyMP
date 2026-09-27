@@ -40,7 +40,9 @@ void moving_objects::register_object(moving_object* moving_object)
 	m_objects.insert		(moving_object);
 #endif // DEBUG
 
-	VERIFY(m_tree);
+	// A netcoop client has no AI space; the server runs NPC movement.
+	if (!m_tree)
+		return;
 	m_tree->insert(moving_object);
 }
 
@@ -55,7 +57,8 @@ void moving_objects::unregister_object(moving_object* moving_object)
 	m_objects.erase			(m_objects.find(moving_object));
 #endif // DEBUG
 
-	VERIFY(m_tree);
+	if (!m_tree)
+		return;
 	m_tree->remove(moving_object);
 }
 
@@ -68,7 +71,8 @@ void moving_objects::on_object_move(moving_object* moving_object)
 	);
 #endif
 #pragma todo("this place can be optimized in case of slowdowns")
-	VERIFY(m_tree);
+	if (!m_tree)
+		return;
 
 	m_tree->remove(moving_object);
 

@@ -156,6 +156,13 @@ void CMapManager::Destroy(CMapLocation* ml)
 	m_deffered_destroy_queue.push_back(ml);
 }
 
+// A dedicated server has no task manager; tasks are not tracked there.
+static void release_task_location(CMapLocation* ml)
+{
+	if (Level().GameTaskManagerPtr())
+		Level().GameTaskManager().MapLocationRelcase(ml);
+}
+
 void CMapManager::RemoveMapLocation(const shared_str& spot_type, u16 id)
 {
 	FindLocationBySpotID key(spot_type, id);
@@ -163,7 +170,7 @@ void CMapManager::RemoveMapLocation(const shared_str& spot_type, u16 id)
 	if (it != Locations().end())
 	{
 		if (IsGameTypeSingle())
-			Level().GameTaskManager().MapLocationRelcase((*it).location);
+			release_task_location((*it).location);
 
 		Destroy((*it).location);
 		Locations().erase(it);
@@ -176,7 +183,7 @@ void CMapManager::RemoveAllMapLocationsById(u16 id)
 	for (Locations_it it = Locations().begin(); it != Locations().end(); ) {
 		if (it->object_id == id) {
 			if (IsGameTypeSingle())
-				Level().GameTaskManager().MapLocationRelcase((*it).location);
+				release_task_location((*it).location);
 			Destroy((*it).location);
 			it = Locations().erase(it);
 		} else {
@@ -192,7 +199,7 @@ void CMapManager::RemoveMapLocationByObjectID(u16 id) //call on destroy object
 	while (it != Locations().end())
 	{
 		if (IsGameTypeSingle())
-			Level().GameTaskManager().MapLocationRelcase((*it).location);
+			release_task_location((*it).location);
 
 		Destroy((*it).location);
 		Locations().erase(it);
@@ -209,7 +216,7 @@ void CMapManager::RemoveMapLocation(CMapLocation* ml)
 	if (it != Locations().end())
 	{
 		if (IsGameTypeSingle())
-			Level().GameTaskManager().MapLocationRelcase((*it).location);
+			release_task_location((*it).location);
 
 		Destroy((*it).location);
 		Locations().erase(it);
@@ -290,7 +297,7 @@ void CMapManager::Update()
 	while ((!Locations().empty()) && (!Locations().back().actual))
 	{
 		if (IsGameTypeSingle())
-			Level().GameTaskManager().MapLocationRelcase(Locations().back().location);
+			release_task_location(Locations().back().location);
 
 		Destroy(Locations().back().location);
 		Locations().pop_back();
