@@ -32,14 +32,17 @@ Get-ChildItem -LiteralPath (Join-Path $runtime 'client\configs\ui') -Filter 'ui_
 }
 
 function Replace-Once {
-    param([string]$File, [string]$Old, [string]$New)
+    param([string]$File, [string]$Old, [string]$New, [switch]$Optional)
     $text = $latin1.GetString([System.IO.File]::ReadAllBytes($File))
     # GAMMA scripts mix line endings; use whichever form the file contains.
     if (-not $text.Contains($Old) -and -not $text.Contains($New)) {
         $Old = $Old.Replace("`n", "`r`n"); $New = $New.Replace("`n", "`r`n")
     }
     if ($text.Contains($New)) { return }
-    if (-not $text.Contains($Old)) { throw "Expected GAMMA text missing in $File" }
+    if (-not $text.Contains($Old)) {
+        if ($Optional) { return }
+        throw "Expected GAMMA text missing in $File"
+    }
     [System.IO.File]::WriteAllBytes($File, $latin1.GetBytes($text.Replace($Old, $New)))
     Write-Host "Patched $File"
 }
@@ -52,9 +55,14 @@ Get-ChildItem -LiteralPath (Join-Path $runtime 'client\configs\ui') -Filter 'ui_
         Write-Host "Renamed the new game button in $($_.Name)"
     }
 }
+# Earlier overlay versions used the module name netcoop_login, which is also
+# the engine's Lua login function.
+Replace-Once (Join-Path $runtime 'client\scripts\ui_main_menu.script') `
+    "do return netcoop_login.show_login(self) end" `
+    "do return netcoop_login_ui.show_login(self) end" -Optional
 Replace-Once (Join-Path $runtime 'client\scripts\ui_main_menu.script') `
     "function main_menu:OnButton_new_game()`n`tdo return gamma_net_compat.unavailable() end" `
-    "function main_menu:OnButton_new_game()`n`tdo return netcoop_login.show_login(self) end"
+    "function main_menu:OnButton_new_game()`n`tdo return netcoop_login_ui.show_login(self) end"
 
 # Marsh smart terrains name spawn patrols that this level does not have;
 # patrol() on a missing path raises in create_npc and the squad never spawns.

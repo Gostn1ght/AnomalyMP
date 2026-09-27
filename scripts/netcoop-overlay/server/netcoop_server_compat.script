@@ -62,3 +62,32 @@ function install()
 
 	printf("[NetAnomaly] dedicated server compatibility layer installed")
 end
+
+-- axr_main calls on_game_start of every script once all scripts are loaded.
+function on_game_start()
+	-- GAMMA's NPC vision hook reads db.actor (torch, flashlight) for every
+	-- observed object. Serve it with the observed player as db.actor, and use
+	-- the engine's own formula for NPC-to-NPC visibility.
+	local vmm = visual_memory_manager
+	local visible_value = vmm and vmm.get_visible_value
+	if visible_value then
+		vmm.get_visible_value = function(npc, who, time_delta, time_quant, luminocity, velocity_factor, velocity,
+		                                 distance, object_distance, always_visible_distance)
+			if not no_local_actor() then
+				return visible_value(npc, who, time_delta, time_quant, luminocity, velocity_factor, velocity,
+				                     distance, object_distance, always_visible_distance)
+			end
+			if who and who:clsid() == clsid.script_actor then
+				bind_actor(who)
+				local ok, value = pcall(visible_value, npc, who, time_delta, time_quant, luminocity,
+				                        velocity_factor, velocity, distance, object_distance, always_visible_distance)
+				bind_actor(nil)
+				if ok and value then return value end
+			end
+			local span = distance - always_visible_distance
+			if span <= 0 or time_quant <= 0 then return 0 end
+			return time_delta / time_quant * luminocity * (1 + velocity_factor * velocity) *
+				(distance - object_distance) / span
+		end
+	end
+end
