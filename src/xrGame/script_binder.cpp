@@ -21,6 +21,31 @@
 // comment next string when commiting
 //#define DBG_DISABLE_SCRIPTS
 
+// Netcoop server: object scripts outside the per-update binding (spawn,
+// reinit, reload, destroy) also see the nearest player as db.actor.
+namespace
+{
+struct netcoop_actor_scope
+{
+	bool bound;
+	bool server_object;
+
+	explicit netcoop_actor_scope(CScriptBinder* binder) : bound(false), server_object(false)
+	{
+		CGameObject* object = smart_cast<CGameObject*>(binder);
+		server_object = netcoop::enabled() && g_pGameLevel && Level().Server && object && !object->cast_actor();
+		if (server_object)
+			bound = netcoop::server_bind_nearest_actor(object);
+	}
+
+	~netcoop_actor_scope()
+	{
+		if (bound)
+			netcoop::server_unbind_actor();
+	}
+};
+}
+
 CScriptBinder::CScriptBinder()
 {
 	init();
@@ -58,13 +83,15 @@ void CScriptBinder::reinit()
 #endif // DEBUG_MEMORY_MANAGER
 	if (m_object)
 	{
+		netcoop_actor_scope netcoop_scope(this);
 		try
 		{
 			m_object->reinit();
 		}
 		catch (...)
 		{
-			clear();
+			if (!netcoop_scope.server_object)
+				clear();
 		}
 	}
 #ifdef DEBUG_MEMORY_MANAGER
@@ -114,13 +141,15 @@ void CScriptBinder::reload(LPCSTR section)
 
 	if (m_object)
 	{
+		netcoop_actor_scope netcoop_scope(this);
 		try
 		{
 			m_object->reload(section);
 		}
 		catch (...)
 		{
-			clear();
+			if (!netcoop_scope.server_object)
+				clear();
 		}
 	}
 #endif
@@ -144,13 +173,17 @@ BOOL CScriptBinder::net_Spawn(CSE_Abstract* DC)
 	CSE_ALifeObject* object = smart_cast<CSE_ALifeObject*>(abstract);
 	if (object && m_object)
 	{
+		netcoop_actor_scope netcoop_scope(this);
 		try
 		{
 			return ((BOOL)m_object->net_Spawn(object));
 		}
 		catch (...)
 		{
-			clear();
+			// A GAMMA script error here would leave a server NPC without any
+			// logic for good; keep its binder, the error is in the log.
+			if (!netcoop_scope.server_object)
+				clear();
 		}
 	}
 
@@ -172,6 +205,7 @@ void CScriptBinder::net_Destroy()
 #ifdef _DEBUG
 		Msg						("* Core object %s is UNbinded from the script object",smart_cast<CGameObject*>(this) ? *smart_cast<CGameObject*>(this)->cName() : "");
 #endif // _DEBUG
+		netcoop_actor_scope netcoop_scope(this);
 		try
 		{
 			m_object->net_Destroy();

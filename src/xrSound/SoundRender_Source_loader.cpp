@@ -76,9 +76,11 @@ bool CSoundRender_Source::LoadWave(LPCSTR pName)
 	// verify
 	R_ASSERT3(ovi, "Invalid source info:", pname.c_str());
 
-	if (ovi->rate != 44100)
+	// The OpenAL target plays each source at its own rate; the stream cache
+	// line (SoundRender_Core) is sized for up to 48 kHz stereo 16-bit.
+	if (ovi->rate < 8000 || ovi->rate > 48000)
 	{
-		Msg("! Warning: Invalid source rate: %s", pname.c_str());
+		Msg("! Warning: Invalid source rate %d: %s", int(ovi->rate), pname.c_str());
 		ov_clear(&ovf);
 		FS.r_close(wave);
 		return false;

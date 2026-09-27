@@ -16,6 +16,7 @@
 #include "xrServer_Objects_ALife_Items.h"
 #include "game_cl_base.h"
 #include "object_factory.h"
+#include "netcoop.h"
 #include "../Include/xrRender/Kinematics.h"
 #include "ai_object_location_impl.h"
 #include "game_graph.h"
@@ -47,6 +48,17 @@ extern MagicBox3 MagicMinBox(int iQuantity, const Fvector* akPoint);
 #endif
 
 extern ENGINE_API bool g_dedicated_server;
+
+// Script binders run GAMMA world logic: NPC schemes, smart terrain jobs,
+// monsters, stashes and other object scripts. A NetAnomaly co-op dedicated
+// server owns that logic, so it binds everything except player Actors, whose
+// binders run on their own clients.
+static bool script_binders_enabled(CGameObject* object)
+{
+	if (!g_dedicated_server)
+		return true;
+	return netcoop::enabled() && !object->cast_actor();
+}
 
 CGameObject::CGameObject()
 {
@@ -384,11 +396,11 @@ BOOL CGameObject::net_Spawn(CSE_Abstract* DC)
 	}
 
 	reload(*cNameSect());
-	if (!g_dedicated_server)
+	if (script_binders_enabled(this))
 		CScriptBinder::reload(*cNameSect());
 
 	reinit();
-	if (!g_dedicated_server)
+	if (script_binders_enabled(this))
 		CScriptBinder::reinit();
 #ifdef DEBUG
 	if(ph_dbg_draw_mask1.test(ph_m1_DbgTrackObject)&&stricmp(PH_DBG_ObjectTrackName(),*cName())==0)
@@ -1087,7 +1099,7 @@ void CGameObject::shedule_Update(u32 dt)
 	// Msg							("-SUB-:[%x][%s] CGameObject::shedule_Update",smart_cast<void*>(this),*cName());
 	inherited::shedule_Update(dt);
 
-	if (!g_dedicated_server)
+	if (script_binders_enabled(this))
 		CScriptBinder::shedule_Update(dt);
 }
 
