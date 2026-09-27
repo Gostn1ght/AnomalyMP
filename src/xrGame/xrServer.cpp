@@ -1418,7 +1418,19 @@ void xrServer::GetServerInfo(CServerInfo* si)
 	LPCSTR time = InventoryUtilities::GetTimeAsString(Device.dwTimeGlobal, InventoryUtilities::etpTimeToSecondsAndDay).
 		c_str();
 	si->AddItem("Uptime", time, RGB(255, 228, 0));
-	xr_sprintf(tmp, sizeof(tmp), "%.1f", Device.Statistic->fFPS);
+	// Show a rolling minimum alongside the current dedicated simulation FPS.
+	static u32 fps_window_start = 0;
+	static float fps_minimum = 0.f;
+	const u32 fps_now = GetTickCount();
+	const float fps = Device.Statistic->fFPS;
+	if (!fps_window_start || fps_now - fps_window_start >= 60000)
+	{
+		fps_window_start = fps_now;
+		fps_minimum = fps;
+	}
+	else if (fps > 0.f && (fps_minimum <= 0.f || fps < fps_minimum))
+		fps_minimum = fps;
+	xr_sprintf(tmp, sizeof(tmp), "%.1f / min %.1f", fps, fps_minimum);
 	si->AddItem("FPS", tmp, RGB(210, 240, 255));
 	xr_sprintf(tmp, sizeof(tmp), "%u", clients.queued_inputs);
 	si->AddItem("M1 input queue", tmp, RGB(155, 235, 180));
@@ -1483,6 +1495,10 @@ void xrServer::GetServerInfo(CServerInfo* si)
 			}
 		}
 		si->AddItem("Game time", tmp256, RGB(205, 228, 178));
+		si->AddItem("Game date", InventoryUtilities::GetGameDateAsString(InventoryUtilities::edpDateToDay, '.').c_str(),
+			RGB(205, 228, 178));
+		const shared_str weather = g_pGamePersistent ? g_pGamePersistent->Environment().GetWeather() : shared_str();
+		si->AddItem("Weather", weather.size() ? weather.c_str() : "loading", RGB(194, 217, 255));
 	}
 }
 
