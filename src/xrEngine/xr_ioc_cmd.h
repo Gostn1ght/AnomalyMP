@@ -219,14 +219,25 @@ public:
 	virtual void Info(TInfo& I)
 	{
 		I[0] = 0;
-		xr_token* tok = tokens;
+		// Some commands populate their token list lazily (sound device and
+		// monitor selection). Help calls Info before any input for them.
+		xr_token* tok = GetToken();
+		if (!tok)
+		{
+			xr_strcpy(I, sizeof(I), "(unavailable)");
+			return;
+		}
 		for (int Iter = 0;; Iter++)
 		{
 			if (tok[Iter].name == nullptr)
 				break;
 
-			if (I[0]) xr_strcat(I, "/");
-			xr_strcat(I, tok[Iter].name);
+			const size_t used = xr_strlen(I);
+			const size_t token_length = xr_strlen(tok[Iter].name);
+			if (used + (used ? 1 : 0) + token_length >= sizeof(I))
+				break;
+			if (used) xr_strcat(I, sizeof(I), "/");
+			xr_strcat(I, sizeof(I), tok[Iter].name);
 		}
 	}
 

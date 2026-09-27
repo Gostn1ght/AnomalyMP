@@ -1334,6 +1334,13 @@ void xrServer::GetServerInfo(CServerInfo* si)
 	si->AddItem("Players", tmp, RGB(210, 150, 255));
 	xr_sprintf(tmp, sizeof(tmp), "%u", clients.connected);
 	si->AddItem("Connections", tmp, RGB(150, 220, 255));
+	xr_sprintf(tmp, sizeof(tmp), "%u", GetEntitiesNum());
+	si->AddItem("Server entities", tmp, RGB(155, 235, 180));
+	if (g_pGameLevel)
+	{
+		xr_sprintf(tmp, sizeof(tmp), "%u", Level().Objects.o_count());
+		si->AddItem("Online objects", tmp, RGB(155, 235, 180));
+	}
 	si->AddItem("Game version", "AnomalyMP M1", RGB(130, 220, 255));
 	si->AddItem("Access", strstr(*connect_options, "psw=") ? "Password" : "Open", RGB(240, 190, 170));
 
