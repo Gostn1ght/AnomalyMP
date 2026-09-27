@@ -137,8 +137,58 @@ local function server_event_queue()
 	return done
 end
 
+-- GAMMA keeps one task manager (task_manager.random_task). Each player gets
+-- their own, chosen by db.actor, which the engine points at the player being
+-- served (dialogue, task updates, NPC scripts). A task another player is
+-- doing cannot be taken at the same time.
+local player_tasks = {}
+
+local function install_player_tasks()
+	local tm = task_manager
+	if not (tm and tm.CRandomTask and tm.get_task_manager) then return end
+	local shared = tm.get_task_manager
+	tm.get_task_manager = function()
+		local a = db.actor
+		if not a then return shared() end
+		local id = a:id()
+		local own = player_tasks[id]
+		if not own then
+			own = tm.CRandomTask()
+			player_tasks[id] = own
+		end
+		return own
+	end
+
+	local give = tm.CRandomTask.give_task
+	tm.CRandomTask.give_task = function(self, task_id, giver_id)
+		local a = db.actor
+		if a and netcoop_task_taken(a:id(), tostring(task_id)) then
+			printf("[NetAnomaly] task %s is already taken by another player", tostring(task_id))
+			pcall(function()
+				a:give_game_news(game.translate_string("st_tip"),
+					game.translate_string("st_netcoop_task_taken"), "ui_inGame2_PD_Lider", 0, 7000)
+			end)
+			return
+		end
+		return give(self, task_id, giver_id)
+	end
+	printf("[NetAnomaly] per-player task managers installed")
+end
+
+-- Engine (netcoop.cpp) every 0.5 s for each player, with db.actor bound.
+function update_player_tasks()
+	local a = db.actor
+	if not a then return end
+	-- Forget managers of players who left.
+	for id in pairs(player_tasks) do
+		if id ~= a:id() and not level.object_by_id(id) then player_tasks[id] = nil end
+	end
+	task_manager.get_task_manager():update()
+end
+
 -- axr_main calls on_game_start of every script once all scripts are loaded.
 function on_game_start()
+	install_player_tasks()
 	install_npc_diagnostic()
 	if AddUniqueCall and ProcessEventQueue then
 		AddUniqueCall(server_event_queue)

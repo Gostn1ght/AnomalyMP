@@ -13,6 +13,7 @@ class NET_Packet;
 class CObject;
 class xrClientData;
 class xrServer;
+struct GAME_NEWS_DATA;
 
 namespace netcoop
 {
@@ -114,6 +115,13 @@ void server_unbind_actor();
 void server_on_client_disconnect(xrClientData* CL);
 void server_update(xrServer* server); // periodic money persistence
 bool server_account_money(LPCSTR login, u32& money);
+// Per-player tasks: updates each player's tasks and sends changed lists.
+void server_tasks_update(xrServer* server);
+bool server_task_taken_by_other(u16 actor_id, LPCSTR task_id);
+void client_on_tasks(NET_Packet& P);
+// PDA news the server scripts give a player's Actor, shown on that player's client.
+void server_forward_news(u16 actor_id, const GAME_NEWS_DATA& news);
+void client_on_news(NET_Packet& P);
 bool server_set_role(LPCSTR login, u8 role, xr_string& message);
 void server_list_accounts(xr_string& out);
 } // namespace netcoop

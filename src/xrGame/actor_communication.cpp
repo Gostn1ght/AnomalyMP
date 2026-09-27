@@ -1,4 +1,5 @@
 #include "pch_script.h"
+#include "netcoop.h"
 #include "actor.h"
 #include "UIGameSP.h"
 #include "PDA.h"
@@ -36,6 +37,8 @@ void CActor::AddGameNews(GAME_NEWS_DATA& news_data)
 	GAME_NEWS_VECTOR& news_vector = game_news_registry->registry().objects();
 	news_data.receive_time = Level().GetGameTime();
 	news_vector.push_back(news_data);
+	// Netcoop server: this Actor belongs to a remote player.
+	netcoop::server_forward_news(ID(), news_data);
 
 	if (CurrentGameUI())
 	{

@@ -13,6 +13,7 @@
 #include "ui/UIMapWnd.h"
 #include "..\..\xrEngine\x_ray.h"
 #include "string_table.h"
+#include "netcoop.h"
 
 #pragma warning(push)
 #pragma warning(disable:4995)
@@ -42,6 +43,16 @@ struct FindTaskByID
 bool task_prio_pred(const SGameTaskKey& k1, const SGameTaskKey& k2)
 {
 	return k1.game_task->m_priority > k2.game_task->m_priority;
+}
+
+CGameTaskManager::CGameTaskManager(u16 owner_id)
+{
+	m_gametasks_wrapper = xr_new<CGameTaskWrapper>();
+	m_gametasks_wrapper->registry().init(owner_id);
+	m_flags.zero();
+	m_flags.set(eChanged, TRUE);
+	m_gametasks = NULL;
+	m_actual_frame = 0;
 }
 
 CGameTaskManager::CGameTaskManager()
@@ -167,6 +178,9 @@ void CGameTaskManager::UpdateTasks()
 	u32 task_count = GetGameTasks().size();
 	if (0 == task_count) return;
 
+	// A netcoop client shows the task list the server sends; the server
+	// decides when a task is completed or failed.
+	if (!netcoop::pure_client())
 	{
 		typedef buffer_vector<SGameTaskKey> Tasks;
 		Tasks tasks(

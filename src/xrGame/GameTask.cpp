@@ -136,7 +136,9 @@ void CGameTask::ChangeMapLocation(LPCSTR new_map_location, u16 new_map_object_id
 
 void CGameTask::ChangeStateCallback()
 {
-	Actor()->callback(GameObject::eTaskStateChange)(this, GetTaskState());
+	// No Actor outside a player's scope on a netcoop dedicated server.
+	if (Actor())
+		Actor()->callback(GameObject::eTaskStateChange)(this, GetTaskState());
 }
 
 ETaskState CGameTask::UpdateState()
@@ -175,7 +177,7 @@ bool CGameTask::CheckInfo(const xr_vector<shared_str>& v) const
 	xr_vector<shared_str>::const_iterator it = v.begin();
 	for (; it != v.end(); ++it)
 	{
-		res = Actor()->HasInfo(*it);
+		res = Actor() && Actor()->HasInfo(*it);
 		if (!res) break;
 	}
 	return res;
@@ -205,7 +207,7 @@ void CGameTask::CallAllFuncs(const task_state_functors& v)
 void CGameTask::SendInfo(const xr_vector<shared_str>& v)
 {
 	xr_vector<shared_str>::const_iterator it = v.begin();
-	for (; it != v.end(); ++it)
+	for (; it != v.end() && Actor(); ++it)
 		Actor()->TransferInfo((*it), true);
 }
 
@@ -247,6 +249,28 @@ void CGameTask::load_task(IReader& stream)
 	load_data(m_priority, stream);
 	CommitScriptHelperContents();
 	CreateMapLocation(true);
+}
+
+void CGameTask::load_task_remote(IReader& stream)
+{
+	load_data(m_task_state, stream);
+	load_data(m_task_type, stream);
+	load_data(m_ReceiveTime, stream);
+	load_data(m_FinishTime, stream);
+	load_data(m_TimeToComplete, stream);
+	load_data(m_timer_finish, stream);
+
+	load_data(m_Title, stream);
+	load_data(m_Description, stream);
+	load_data(m_pScriptHelper, stream);
+	load_data(m_icon_texture_name, stream);
+	load_data(m_map_hint, stream);
+	load_data(m_map_location, stream);
+	load_data(m_map_object_id, stream);
+	load_data(m_priority, stream);
+	// Completion scripts run on the server only.
+	if (m_task_state == eTaskStateInProgress)
+		CreateMapLocation(false);
 }
 
 void CGameTask::CommitScriptHelperContents()

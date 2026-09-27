@@ -77,6 +77,8 @@ public:
 
 	void save_task(IWriter& stream);
 	void load_task(IReader& stream);
+	// NetAnomaly co-op client: a task received from the server.
+	void load_task_remote(IReader& stream);
 
 
 	shared_str m_ID;

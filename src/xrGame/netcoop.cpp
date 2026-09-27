@@ -21,6 +21,10 @@
 #include "PhraseDialog.h"
 #include "PhraseDialogManager.h"
 #include "game_sv_single.h"
+#include "GameTaskManager.h"
+#include "GameTask.h"
+#include "UIGameCustom.h"
+#include "game_news.h"
 
 namespace netcoop
 {
@@ -665,6 +669,7 @@ bool server_requires_login(xrServer* server, xrClientData* CL)
 
 static xrCriticalSection s_pending_lock;
 static xr_vector<u16> s_pending_actor_destroy;
+static void server_release_task_manager(u16 actor_id);
 
 static void store_money(xrClientData* CL)
 {
@@ -727,6 +732,7 @@ static void destroy_pending_actors(xrServer* server)
 		{
 			give_to_server(server, server->game->get_entity_from_eid(ids[i]), 0);
 			Msg("[NetAnomaly] removing Actor %u of a disconnected player", ids[i]);
+			server_release_task_manager(ids[i]);
 			actor_object->DestroyObject();
 		}
 	}
@@ -1083,9 +1089,98 @@ bool talk_capture_answer(LPCSTR text)
 	return true;
 }
 
+// ---------------------------------------------------------------------------
+// server: per-player tasks
+// ---------------------------------------------------------------------------
+// The engine keeps one task list per level. A netcoop server keeps one per
+// player Actor (stored in the ALife registry under that Actor's id) and makes
+// it the level's list while that player is served.
+typedef xr_map<u16, CGameTaskManager*> TaskManagers;
+static TaskManagers s_task_managers;
+
+static CGameTaskManager* server_task_manager(u16 actor_id)
+{
+	TaskManagers::iterator it = s_task_managers.find(actor_id);
+	if (it != s_task_managers.end())
+		return it->second;
+	CGameTaskManager* manager = xr_new<CGameTaskManager>(actor_id);
+	s_task_managers.insert(std::make_pair(actor_id, manager));
+	return manager;
+}
+
+static void clear_tasks(CGameTaskManager* manager)
+{
+	vGameTasks& tasks = manager->GetGameTasks();
+	for (u32 i = 0; i < tasks.size(); ++i)
+	{
+		if (tasks[i].game_task)
+			tasks[i].game_task->RemoveMapLocations(false);
+		tasks[i].destroy();
+	}
+	tasks.clear();
+	manager->MarkChanged();
+}
+
+static void server_release_task_manager(u16 actor_id)
+{
+	TaskManagers::iterator it = s_task_managers.find(actor_id);
+	if (it == s_task_managers.end())
+		return;
+	CGameTaskManager* manager = it->second;
+	s_task_managers.erase(it);
+	if (g_pGameLevel && Level().GameTaskManagerPtr() == manager)
+		Level().SetGameTaskManager(NULL);
+	clear_tasks(manager);
+	xr_delete(manager);
+}
+
+// True when a player other than actor_id has this task in progress.
+bool server_task_taken_by_other(u16 actor_id, LPCSTR task_id)
+{
+	if (!task_id || !task_id[0])
+		return false;
+	const shared_str id = task_id;
+	for (TaskManagers::iterator it = s_task_managers.begin(); it != s_task_managers.end(); ++it)
+		if (it->first != actor_id && it->second->HasGameTask(id, true))
+			return true;
+	return false;
+}
+
+// Server scripts use db.actor and the engine uses Actor() and the level task
+// list; while one player is served all three refer to that player.
+static bool s_actor_bound = false;
+static CActor* s_bound_previous_actor = NULL;
+static CGameTaskManager* s_bound_previous_tasks = NULL;
+
+static void bind_engine_actor(CActor* actor)
+{
+	if (!g_pGameLevel || !Level().Server)
+		return;
+	if (actor)
+	{
+		if (!s_actor_bound)
+		{
+			s_actor_bound = true;
+			s_bound_previous_actor = g_actor;
+			s_bound_previous_tasks = Level().GameTaskManagerPtr();
+		}
+		g_actor = actor;
+		Level().SetGameTaskManager(server_task_manager(actor->ID()));
+	}
+	else if (s_actor_bound)
+	{
+		s_actor_bound = false;
+		g_actor = s_bound_previous_actor;
+		Level().SetGameTaskManager(s_bound_previous_tasks);
+		s_bound_previous_actor = NULL;
+		s_bound_previous_tasks = NULL;
+	}
+}
+
 // GAMMA dialogue scripts use db.actor; point it at the player being served.
 static void bind_script_actor(CActor* actor)
 {
+	bind_engine_actor(actor);
 	// Called for every server-side object script update; resolve the Lua function once.
 	static ::luabind::functor<void> f;
 	static bool resolved = false;
@@ -1386,4 +1481,266 @@ void server_unbind_actor()
 {
 	bind_script_actor(NULL);
 }
+// ---------------------------------------------------------------------------
+// task list replication
+// ---------------------------------------------------------------------------
+static const u32 tasks_update_interval = 500; // ms
+static const u32 tasks_packet_budget = 12000;
+static xr_map<u32, u32> s_sent_tasks_crc; // client id -> crc of the last list sent
+
+struct TaskPlayer
+{
+	ClientID client;
+	u16 actor;
+};
+
+struct CollectTaskPlayers
+{
+	xr_vector<TaskPlayer>* players;
+	void operator()(IClient* client) const
+	{
+		xrClientData* CL = static_cast<xrClientData*>(client);
+		if (!CL || CL->flags.bLocal || CL->netcoop_role == role_none || !CL->owner)
+			return;
+		if (!smart_cast<CSE_ALifeCreatureActor*>(CL->owner))
+			return;
+		TaskPlayer p;
+		p.client = CL->ID;
+		p.actor = CL->owner->ID;
+		players->push_back(p);
+	}
+};
+
+static void write_tasks(CGameTaskManager* manager, NET_Packet& P)
+{
+	P.w_begin(M_NETCOOP_TASKS);
+	const u32 count_pos = P.w_tell();
+	P.w_u16(0);
+	u16 count = 0;
+	vGameTasks& tasks = manager->GetGameTasks();
+	// Tasks in progress first, then finished ones while they fit.
+	for (int pass = 0; pass < 2; ++pass)
+	{
+		for (u32 i = 0; i < tasks.size(); ++i)
+		{
+			CGameTask* t = tasks[i].game_task;
+			if (!t || (t->GetTaskState() == eTaskStateInProgress) != (pass == 0))
+				continue;
+			CMemoryWriter w;
+			t->save_task(w);
+			const u32 size = tasks[i].task_id.size() + 1 + 2 + w.size();
+			if (w.size() > 0xffff || P.w_tell() + size > tasks_packet_budget)
+				continue;
+			P.w_stringZ(tasks[i].task_id.c_str());
+			P.w_u16(u16(w.size()));
+			P.w(w.pointer(), w.size());
+			++count;
+		}
+	}
+	P.w_seek(count_pos, &count, sizeof(count));
+}
+
+void server_tasks_update(xrServer* server)
+{
+	if (!enabled() || !g_pGameLevel || !Level().Server)
+		return;
+	static u32 next_update = 0;
+	const u32 now = Device.dwTimeGlobal;
+	if (now < next_update)
+		return;
+	next_update = now + tasks_update_interval;
+
+	// Managers of Actors that no longer exist (death, disconnect).
+	xr_vector<u16> gone;
+	for (TaskManagers::iterator it = s_task_managers.begin(); it != s_task_managers.end(); ++it)
+		if (!smart_cast<CActor*>(Level().Objects.net_Find(it->first)))
+			gone.push_back(it->first);
+	for (u32 i = 0; i < gone.size(); ++i)
+		server_release_task_manager(gone[i]);
+
+	xr_vector<TaskPlayer> players;
+	CollectTaskPlayers collect;
+	collect.players = &players;
+	server->ForEachClientDo(collect);
+
+	static ::luabind::functor<void> lua_update;
+	static bool lua_resolved = false;
+	if (!lua_resolved)
+		lua_resolved = ai().script_engine().functor("netcoop_server_compat.update_player_tasks", lua_update);
+
+	for (u32 i = 0; i < players.size(); ++i)
+	{
+		CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(players[i].actor));
+		if (!actor || actor->getDestroy())
+			continue;
+
+		bind_script_actor(actor);
+		CGameTaskManager* manager = Level().GameTaskManagerPtr();
+		if (manager)
+		{
+			manager->UpdateTasks();
+			if (lua_resolved)
+			{
+				try
+				{
+					lua_update();
+				}
+				catch (...)
+				{
+					Msg("! [NetAnomaly] task update script failed for Actor %u", players[i].actor);
+				}
+			}
+		}
+		manager = Level().GameTaskManagerPtr();
+		NET_Packet P;
+		if (manager)
+			write_tasks(manager, P);
+		bind_script_actor(NULL);
+		if (!manager)
+			continue;
+
+		const u32 crc = crc32(P.B.data, P.B.count);
+		u32& sent = s_sent_tasks_crc[players[i].client.value()];
+		if (sent == crc)
+			continue;
+		sent = crc;
+		server->SendTo(players[i].client, P, net_flags(TRUE, TRUE));
+	}
+}
+
+// ---------------------------------------------------------------------------
+// client: task list from the server
+// ---------------------------------------------------------------------------
+static void notify_task(LPCSTR id, LPCSTR kind)
+{
+	::luabind::functor<void> f;
+	if (!ai().script_engine().functor("netcoop_client_compat.on_task", f))
+		return;
+	try
+	{
+		f(id, kind);
+	}
+	catch (...)
+	{
+	}
+}
+
+void client_on_tasks(NET_Packet& P)
+{
+	if (!pure_client() || !Level().GameTaskManagerPtr())
+		return;
+	CGameTaskManager& manager = Level().GameTaskManager();
+
+	xr_map<shared_str, ETaskState> previous;
+	{
+		vGameTasks& tasks = manager.GetGameTasks();
+		for (u32 i = 0; i < tasks.size(); ++i)
+			if (tasks[i].game_task)
+				previous[tasks[i].task_id] = tasks[i].game_task->GetTaskState();
+	}
+	clear_tasks(&manager);
+
+	if (P.r_elapsed() < sizeof(u16))
+		return;
+	const u16 count = P.r_u16();
+	xr_vector<std::pair<shared_str, LPCSTR>> news;
+	for (u16 i = 0; i < count; ++i)
+	{
+		string256 id;
+		if (!read_string(P, id, sizeof(id)) || P.r_elapsed() < sizeof(u16))
+			break;
+		const u16 size = P.r_u16();
+		if (P.r_elapsed() < size)
+			break;
+		IReader reader(P.B.data + P.r_tell(), size);
+		P.r_advance(size);
+
+		CGameTask* t = xr_new<CGameTask>();
+		t->m_ID = id;
+		t->load_task_remote(reader);
+		vGameTasks& tasks = manager.GetGameTasks();
+		tasks.push_back(SGameTaskKey(t->m_ID));
+		tasks.back().game_task = t;
+
+		xr_map<shared_str, ETaskState>::iterator old = previous.find(t->m_ID);
+		const ETaskState state = t->GetTaskState();
+		const bool was_active = old != previous.end() && old->second == eTaskStateInProgress;
+		if (state == eTaskStateInProgress && !was_active)
+			news.push_back(std::make_pair(t->m_ID, "new"));
+		else if (was_active && state == eTaskStateCompleted)
+			news.push_back(std::make_pair(t->m_ID, "complete"));
+		else if (was_active && state == eTaskStateFail)
+			news.push_back(std::make_pair(t->m_ID, "fail"));
+	}
+
+	if (!manager.ActiveTask())
+	{
+		CGameTask* first = manager.IterateGet(NULL, eTaskStateInProgress, true);
+		if (first)
+			manager.SetActiveTask(first);
+	}
+	manager.MarkChanged();
+	if (CurrentGameUI())
+		CurrentGameUI()->UpdatePda();
+
+	for (u32 i = 0; i < news.size(); ++i)
+		notify_task(news[i].first.c_str(), news[i].second);
+}
+// ---------------------------------------------------------------------------
+// PDA news
+// ---------------------------------------------------------------------------
+struct FindActorOwner
+{
+	u16 actor_id;
+	bool operator()(IClient* client) const
+	{
+		xrClientData* CL = static_cast<xrClientData*>(client);
+		return CL && !CL->flags.bLocal && CL->owner && CL->owner->ID == actor_id;
+	}
+};
+
+void server_forward_news(u16 actor_id, const GAME_NEWS_DATA& news)
+{
+	if (!enabled() || !g_pGameLevel || !Level().Server)
+		return;
+	FindActorOwner find;
+	find.actor_id = actor_id;
+	xrClientData* CL = static_cast<xrClientData*>(Level().Server->FindClient(find));
+	if (!CL)
+		return;
+	const u32 limit = 4000;
+	if (news.news_caption.size() > limit || news.news_text.size() > limit || news.texture_name.size() > 256)
+		return;
+	NET_Packet P;
+	P.w_begin(M_NETCOOP_NEWS);
+	P.w_u8(u8(news.m_type));
+	P.w_stringZ(news.news_caption.size() ? news.news_caption.c_str() : "");
+	P.w_stringZ(news.news_text.size() ? news.news_text.c_str() : "");
+	P.w_stringZ(news.texture_name.size() ? news.texture_name.c_str() : "");
+	P.w_s32(news.show_time);
+	Level().Server->SendTo(CL->ID, P, net_flags(TRUE, TRUE));
+}
+
+void client_on_news(NET_Packet& P)
+{
+	if (!pure_client() || P.r_elapsed() < 1)
+		return;
+	CActor* actor = smart_cast<CActor*>(Level().CurrentControlEntity());
+	if (!actor)
+		return;
+	GAME_NEWS_DATA news;
+	news.m_type = P.r_u8() == GAME_NEWS_DATA::eTalk ? GAME_NEWS_DATA::eTalk : GAME_NEWS_DATA::eNews;
+	string4096 caption, text;
+	string256 texture;
+	if (!read_string(P, caption, sizeof(caption)) || !read_string(P, text, sizeof(text)) ||
+		!read_string(P, texture, sizeof(texture)) || P.r_elapsed() < sizeof(s32))
+		return;
+	news.news_caption = caption;
+	news.news_text = text;
+	news.texture_name = texture;
+	news.show_time = P.r_s32();
+	clamp(news.show_time, 0, 60000);
+	actor->AddGameNews(news);
+}
+
 } // namespace netcoop

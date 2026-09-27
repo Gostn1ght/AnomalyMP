@@ -21,7 +21,10 @@ protected:
 public:
 
 	CGameTaskManager();
+	// Tasks of one co-op player Actor on a NetAnomaly server.
+	explicit CGameTaskManager(u16 owner_id);
 	~CGameTaskManager();
+	void MarkChanged() { m_flags.set(eChanged, TRUE); }
 
 	vGameTasks& GetGameTasks();
 	CGameTask* HasGameTask(const CMapLocation* ml, bool only_inprocess);

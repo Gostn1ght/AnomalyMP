@@ -250,6 +250,7 @@ void xrServer::Update()
 	// game update
 	game->ProcessDelayedEvent();
 	game->Update();
+	netcoop::server_tasks_update(this);
 
 	// spawn queue
 	u32 svT = Device.TimerAsync();

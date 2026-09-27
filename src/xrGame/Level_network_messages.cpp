@@ -385,6 +385,16 @@ void CLevel::ClientReceive()
 				netcoop::client_on_talk_state(*P);
 			}
 			break;
+		case M_NETCOOP_TASKS:
+			{
+				netcoop::client_on_tasks(*P);
+			}
+			break;
+		case M_NETCOOP_NEWS:
+			{
+				netcoop::client_on_news(*P);
+			}
+			break;
 		case M_CHAT_MESSAGE:
 			{
 				/*if (!game_configured)

@@ -2744,7 +2744,8 @@ void CLevel::script_register(lua_State* L)
 		def("netcoop_role", &netcoop::script_role),
 		def("netcoop_account", &netcoop::script_account),
 		def("netcoop_command", &netcoop::script_command),
-		def("netcoop_pure_client", &netcoop::script_pure_client)
+		def("netcoop_pure_client", &netcoop::script_pure_client),
+		def("netcoop_task_taken", &netcoop::server_task_taken_by_other)
 	];
 
 	module(L, "weather")

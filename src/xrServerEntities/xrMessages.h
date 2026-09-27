@@ -127,6 +127,8 @@ enum
 	M_NETCOOP_TRADE_RESULT, // server -> client: u8 ok, stringZ message
 	M_NETCOOP_TALK, // client -> server: u8 op (0 start: u16 npc, 1 choose: stringZ id, 2 stop)
 	M_NETCOOP_TALK_STATE, // server -> client: u16 npc, u8 flags, lines, choices
+	M_NETCOOP_TASKS, // server -> client: u16 n, n x (stringZ id, u16 size, CGameTask::save_task)
+	M_NETCOOP_NEWS, // server -> client: u8 type, stringZ caption, stringZ text, stringZ texture, s32 show_time
 	MSG_FORCEDWORD = u32(-1)
 };
 static_assert(M_CL_INPUT == 9 && M_CL_UPDATE == 10 && M_CL_INPUT_ACK == 53,

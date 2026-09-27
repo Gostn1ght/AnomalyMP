@@ -348,6 +348,8 @@ public:
 	CMapManager& MapManager() const { return *m_map_manager; }
 	CGameTaskManager& GameTaskManager() const { return *m_game_task_manager; }
 	CGameTaskManager* GameTaskManagerPtr() const { return m_game_task_manager; }
+	// NetAnomaly co-op server: the task manager of the player being served.
+	void SetGameTaskManager(CGameTaskManager* manager) { m_game_task_manager = manager; }
 	void OnAlifeSimulatorLoaded();
 	void OnAlifeSimulatorUnLoaded();
 
