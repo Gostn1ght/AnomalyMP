@@ -12,6 +12,8 @@ The client log ended with `no data from the server for 15 s, leaving the session
 
 `ClearAllObjects` held `prefetch_lock` across calls to `ProcessGameEvents`, which acquires the same nonrecursive SRW lock. The fix narrows the lock to queue insertion. The netcoop receive watchdog now drains queued packets before checking the 15-second silence threshold, preventing a long GAMMA UI frame from treating buffered server packets as a dead connection. Both changes require a new build and runtime retest.
 
+The same lock inversion existed in seven `ClientReceive` message cases when immediate debug event processing is enabled. A single queue helper now releases `prefetch_lock` before calling `ProcessGameEvents` for those cases too.
+
 ## Movement pullback
 
 The earlier build showed input sequences being received and processed, but the user reports being pulled back to the spawn point. The code path is client `M_CL_INPUT` to `xrServer::OnMessage`, `ServerProcessInputs`, Actor physics, `M_CL_INPUT_ACK`, and client correction. The precise failure point is not yet established. New dedicated console rows expose the latest movement intent flags, simulated Actor movement state, and authoritative Actor position. During the next live test, hold forward movement and compare whether those flags become nonzero and whether the server position changes. This diagnostic does not return client position authority to the server.
