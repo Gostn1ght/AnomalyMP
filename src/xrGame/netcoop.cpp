@@ -20,6 +20,7 @@
 #include "game_base_space.h"
 #include "PhraseDialog.h"
 #include "PhraseDialogManager.h"
+#include "game_sv_single.h"
 
 namespace netcoop
 {
@@ -1073,8 +1074,12 @@ bool talk_capture_answer(LPCSTR text)
 // GAMMA dialogue scripts use db.actor; point it at the player being served.
 static void bind_script_actor(CActor* actor)
 {
-	::luabind::functor<void> f;
-	if (!ai().script_engine().functor("netcoop_server_compat.bind_actor", f))
+	// Called for every server-side object script update; resolve the Lua function once.
+	static ::luabind::functor<void> f;
+	static bool resolved = false;
+	if (!resolved)
+		resolved = ai().script_engine().functor("netcoop_server_compat.bind_actor", f);
+	if (!resolved)
 		return;
 	try
 	{
@@ -1348,5 +1353,25 @@ bool client_owns_hud_item(const CObject* item)
 		return false;
 	const CObject* parent = item->H_Parent();
 	return parent && parent == Level().CurrentControlEntity();
+}
+} // namespace netcoop
+
+namespace netcoop
+{
+bool server_bind_nearest_actor(CObject* npc)
+{
+	if (!npc || !g_pGameLevel)
+		return false;
+	const u16 id = netcoop_nearest_player_actor(npc->Position());
+	CActor* actor = id != 0xffff ? smart_cast<CActor*>(Level().Objects.net_Find(id)) : NULL;
+	if (!actor || actor->getDestroy())
+		return false;
+	bind_script_actor(actor);
+	return true;
+}
+
+void server_unbind_actor()
+{
+	bind_script_actor(NULL);
 }
 } // namespace netcoop

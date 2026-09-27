@@ -155,7 +155,9 @@ local sim_stub = setmetatable({}, {
 local function alife_compat()
 	local sim = native_alife()
 	if sim then return sim end
-	if in_game() then return sim_stub end
+	-- Level scripts (including the Actor binder reinit) run before the Actor
+	-- becomes the view entity, so answer as soon as a level is loaded.
+	if level and level.present and level.present() then return sim_stub end
 	return nil
 end
 

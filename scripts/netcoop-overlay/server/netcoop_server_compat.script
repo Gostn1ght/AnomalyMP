@@ -68,18 +68,17 @@ end
 local diag_updates = {}
 local diag_next = 0
 
-local function diag_tick(binder)
-	local obj = binder.object
-	if not obj then return end
-	local id = obj:id()
+local function diag_tick(npc, st)
+	if not npc then return end
+	local id = npc:id()
 	local entry = diag_updates[id]
 	if not entry then
-		entry = { name = obj:name(), count = 0 }
+		entry = { name = npc:name(), count = 0 }
 		diag_updates[id] = entry
 	end
 	entry.count = entry.count + 1
-	entry.pos = obj:position()
-	entry.scheme = binder.st and binder.st.active_scheme or "none"
+	entry.pos = npc:position()
+	entry.scheme = st and st.active_scheme or "none"
 
 	local now = time_global()
 	if now < diag_next then return end
@@ -94,24 +93,13 @@ local function diag_tick(binder)
 				e.name, e.count, e.pos.x, e.pos.y, e.pos.z, tostring(e.scheme))
 		end
 	end
-	printf("[NetAnomaly][npc] %d NPC binders updated in the last 10 s", total)
+	printf("[NetAnomaly][npc] %d NPCs updated in the last 10 s", total)
 	diag_updates = {}
 end
 
 local function install_npc_diagnostic()
-	local cls = xr_motivator and xr_motivator.motivator_binder
-	if not cls then
-		printf("[NetAnomaly][npc] diagnostic not installed: xr_motivator.motivator_binder missing")
-		return
-	end
-	if cls.__netcoop_diag then return end
-	printf("[NetAnomaly][npc] NPC binder diagnostic installed")
-	local update = cls.update
-	cls.__netcoop_diag = true
-	cls.update = function(self, delta)
-		update(self, delta)
-		diag_tick(self)
-	end
+	RegisterScriptCallback("npc_on_update", diag_tick)
+	printf("[NetAnomaly][npc] NPC update diagnostic installed")
 end
 
 -- axr_main calls on_game_start of every script once all scripts are loaded.

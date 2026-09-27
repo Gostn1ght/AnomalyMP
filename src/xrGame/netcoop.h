@@ -107,6 +107,10 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 void server_on_talk(xrServer* server, xrClientData* CL, NET_Packet& P);
 // An NPC answer produced during a server dialogue run; false outside a run.
 bool talk_capture_answer(LPCSTR text);
+// NPC/monster logic on the server refers to db.actor. For one binder update,
+// bind it to the nearest player; false when no player is connected.
+bool server_bind_nearest_actor(CObject* npc);
+void server_unbind_actor();
 void server_on_client_disconnect(xrClientData* CL);
 void server_update(xrServer* server); // periodic money persistence
 bool server_account_money(LPCSTR login, u32& money);

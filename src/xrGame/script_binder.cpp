@@ -8,6 +8,7 @@
 
 #include "pch_script.h"
 #include "Actor.h"
+#include "netcoop.h"
 #include "ai_space.h"
 #include "script_engine.h"
 #include "script_binder.h"
@@ -218,17 +219,31 @@ void CScriptBinder::set_object(CScriptBinderObject* object)
 
 void CScriptBinder::shedule_Update(u32 time_delta)
 {
-	if (m_object)
+	if (!m_object)
+		return;
+
+	// Netcoop server: GAMMA NPC and monster logic assumes a single db.actor. Bind
+	// it to the nearest player for this update; without players the NPC idles.
+	CGameObject* netcoop_object = smart_cast<CGameObject*>(this);
+	const bool netcoop_npc = netcoop::enabled() && g_pGameLevel && Level().Server &&
+		netcoop_object && !smart_cast<CActor*>(netcoop_object);
+	if (netcoop_npc && !netcoop::server_bind_nearest_actor(netcoop_object))
+		return;
+
+	try
 	{
-		try
-		{
-			m_object->shedule_Update(time_delta);
-		}
-		catch (...)
-		{
-			clear();
-		}
+		m_object->shedule_Update(time_delta);
 	}
+	catch (...)
+	{
+		// A single script error used to drop the binder for good, leaving the NPC
+		// without any logic. Keep it on netcoop servers; the error is logged.
+		if (!netcoop_npc)
+			clear();
+	}
+
+	if (netcoop_npc)
+		netcoop::server_unbind_actor();
 }
 
 void CScriptBinder::save(NET_Packet& output_packet)

@@ -418,6 +418,27 @@ float netcoop_nearest_actor_distance(const Fvector& position)
 	return best;
 }
 
+u16 netcoop_nearest_player_actor(const Fvector& position)
+{
+	u16 best_id = 0xffff;
+	float best = flt_max;
+	if (!s_netcoop_game)
+		return best_id;
+	for (u32 i = 0; i < s_netcoop_actor_ids.size(); ++i)
+	{
+		CSE_Abstract* e = s_netcoop_game->get_entity_from_eid(s_netcoop_actor_ids[i]);
+		if (!e)
+			continue;
+		const float d = e->o_Position.distance_to_sqr(position);
+		if (d < best)
+		{
+			best = d;
+			best_id = e->ID;
+		}
+	}
+	return best_id;
+}
+
 CSE_ALifeCreatureActor* game_sv_Single::netcoop_host_actor()
 {
 	if (!m_server)

@@ -10,6 +10,8 @@ class CSE_ALifeCreatureActor;
 // server host Actor and every connected co-op Actor). ALife uses it for
 // online/offline switching so NPCs appear around every player.
 float netcoop_nearest_actor_distance(const Fvector& position);
+// Nearest connected player Actor (never the ALife anchor), or 0xffff.
+u16 netcoop_nearest_player_actor(const Fvector& position);
 
 class game_sv_Single : public game_sv_GameState
 {
