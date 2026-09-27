@@ -56,6 +56,17 @@ Replace-Once (Join-Path $runtime 'client\scripts\ui_main_menu.script') `
     "function main_menu:OnButton_new_game()`n`tdo return gamma_net_compat.unavailable() end" `
     "function main_menu:OnButton_new_game()`n`tdo return netcoop_login.show_login(self) end"
 
+# Marsh smart terrains name spawn patrols that this level does not have;
+# patrol() on a missing path raises in create_npc and the squad never spawns.
+# Fall back to the smart terrain position like the rest of that function.
+$squads = Join-Path $runtime 'server\scripts\sim_squad_scripted.script'
+Replace-Once $squads `
+    "local pat = patrol(p_path)" `
+    "local pat = level.patrol_path_exists(p_path) and patrol(p_path)"
+Replace-Once $squads `
+    "local pat = patrol(spawn_smart.spawn_point)" `
+    "local pat = level.patrol_path_exists(spawn_smart.spawn_point) and patrol(spawn_smart.spawn_point)"
+
 foreach ($role in $roles) {
     $overlay = Join-Path $PSScriptRoot "netcoop-overlay\$($role.Name)"
     $configs = Join-Path $overlay 'configs'

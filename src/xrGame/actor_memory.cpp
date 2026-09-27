@@ -46,5 +46,8 @@ void CActorMemory::camera(
 	field_of_view = deg2rad(camera.f_fov);
 	aspect_ratio = camera.f_aspect;
 	near_plane = .1f;
-	far_plane = g_pGamePersistent->Environment().CurrentEnv->far_plane;
+	// A dedicated server may have no weather loaded.
+	far_plane = g_pGamePersistent->Environment().CurrentEnv
+		? g_pGamePersistent->Environment().CurrentEnv->far_plane
+		: 150.f;
 }
