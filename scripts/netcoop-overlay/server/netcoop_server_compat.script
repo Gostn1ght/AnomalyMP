@@ -100,7 +100,12 @@ end
 
 local function install_npc_diagnostic()
 	local cls = xr_motivator and xr_motivator.motivator_binder
-	if not cls or cls.__netcoop_diag then return end
+	if not cls then
+		printf("[NetAnomaly][npc] diagnostic not installed: xr_motivator.motivator_binder missing")
+		return
+	end
+	if cls.__netcoop_diag then return end
+	printf("[NetAnomaly][npc] NPC binder diagnostic installed")
 	local update = cls.update
 	cls.__netcoop_diag = true
 	cls.update = function(self, delta)

@@ -111,7 +111,8 @@ local function request_create(section, pos, lvid, gvid, parent_id)
 		return nil
 	end
 	local a = db.actor
-	if parent_id and a and parent_id == a:id() then
+	-- GAMMA spawners pass AC_ID (0, the story Actor) for "into my inventory".
+	if parent_id and a and (parent_id == a:id() or parent_id == 0) then
 		netcoop_command(string.format("spawn %s 1", tostring(section)))
 	elseif pos then
 		netcoop_command(string.format("spawn_at %s %.2f %.2f %.2f", tostring(section), pos.x, pos.y, pos.z))
