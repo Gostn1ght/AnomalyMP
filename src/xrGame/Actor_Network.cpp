@@ -111,6 +111,21 @@ void CActor::net_ImportInputAck(NET_Packet& P)
 	// STRICTLY NEWER ACK Sequence Validation (Drop reordered/delayed/duplicate ACKs)
 	if (!is_sequence_newer(ack_seq, m_last_applied_server_ack)) return;
 	m_last_applied_server_ack = ack_seq;
+
+	// A prediction frame is recorded after its local physics step and tagged
+	// with the sequence that the next network export will send. Compare the
+	// server's ACK with the last frame tagged at or before that sequence, not
+	// the first later frame: the latter is already further along the path and
+	// produces a backward correction on every movement ACK.
+	Fvector predicted_at_ack;
+	bool has_prediction_at_ack = false;
+	for (const auto& frame : m_client_prediction_history)
+	{
+		if (!is_sequence_newer_or_equal(ack_seq, frame.associated_sequence))
+			break;
+		predicted_at_ack = frame.position;
+		has_prediction_at_ack = true;
+	}
 	
 	// Remove acknowledged network inputs
 	while (!m_client_pending_inputs.empty()) {
@@ -130,14 +145,11 @@ void CActor::net_ImportInputAck(NET_Packet& P)
 		}
 	}
 	
-	// Compare the server result with what this client predicted for the same
-	// input: the first unacknowledged frame recorded its position before its
-	// own physics, i.e. after every acknowledged input. Replaying inputs cannot
-	// move the Actor (the physics world integrates later), so the former hard
-	// snap to the older server position pulled the player back on every ACK.
-	const Fvector predicted_at_ack = m_client_prediction_history.empty()
-		? Position()
-		: m_client_prediction_history.front().position;
+	// An ACK can outlive the bounded prediction history. Wait for a later ACK
+	// with a matching frame instead of comparing old server state to today's
+	// local position and pulling the player toward the spawn point.
+	if (!has_prediction_at_ack)
+		return;
 	Fvector error;
 	error.sub(auth_pos, predicted_at_ack);
 	m_prediction_error = error.magnitude();
