@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "LevelGameDef.h"
 #include "ai_space.h"
+#include "game_graph.h"
 #include "ParticlesObject.h"
 #include "script_process.h"
 #include "script_engine.h"
@@ -30,9 +31,18 @@ bool CLevel::Load_GameSpecific_Before()
 
 	// Netcoop client: NPCs arrive from the server and need the level AI map
 	// (graph, cross table, patrols, moving objects) that ALife normally loads.
-	if (strstr(Core.Params, "-netcoop") && !Server && !ai().get_alife() &&
+	// net_SessionName() is the server spawn name here; the level comes from map sync.
+	if (strstr(Core.Params, "-netcoop") && !Server && !ai().get_alife() && name().size() &&
 		FS.exist(fn_game, "$level$", "level.ai") && ai().load_netcoop_client_graph("all"))
-		ai().load(net_SessionName());
+	{
+		if (ai().game_graph().header().level(name().c_str(), true))
+			ai().load(name().c_str());
+		else
+		{
+			Msg("! [NetAnomaly] level %s is not in the client AI graph", name().c_str());
+			ai().unload_netcoop_client_graph();
+		}
+	}
 
 	if (GamePersistent().GameType() == eGameIDSingle && !ai().get_alife() && FS.exist(fn_game, "$level$", "level.ai") &&
 		!net_Hosts.empty())
