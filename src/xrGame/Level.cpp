@@ -999,19 +999,6 @@ void CLevel::OnFrame()
 	Device.Statistic->TEST0.Begin();
 	BulletManager().CommitEvents();
 	Device.Statistic->TEST0.End();
-	// NetAnomaly: a pure netcoop client keeps predicting its own movement, so a
-	// dead server would otherwise go unnoticed until the transport times out.
-	if (!Server && OnClient() && CurrentControlEntity() && g_netcoop_last_server_rx &&
-		!net_isDisconnected() && strstr(Core.Params, "-netcoop") &&
-		GetTickCount() - g_netcoop_last_server_rx > 15000)
-	{
-		Msg("! [NetAnomaly] no data from the server for 15 s, leaving the session");
-		g_netcoop_last_server_rx = 0;
-		OnSessionTerminate("@Connection to the server was lost");
-		Engine.Event.Defer("kernel:disconnect");
-		return;
-	}
-
 	// Client receive
 	if (net_isDisconnected())
 	{
@@ -1030,6 +1017,18 @@ void CLevel::OnFrame()
 		Device.Statistic->netClient1.Begin();
 		ClientReceive();
 		Device.Statistic->netClient1.End();
+	}
+	// A GAMMA UI can block the main thread for longer than the watchdog interval.
+	// Drain queued packets before deciding that the dedicated server is silent.
+	if (!Server && OnClient() && CurrentControlEntity() && g_netcoop_last_server_rx &&
+		!net_isDisconnected() && strstr(Core.Params, "-netcoop") &&
+		GetTickCount() - g_netcoop_last_server_rx > 15000)
+	{
+		Msg("! [NetAnomaly] no data from the server for 15 s, leaving the session");
+		g_netcoop_last_server_rx = 0;
+		OnSessionTerminate("@Connection to the server was lost");
+		Engine.Event.Defer("kernel:disconnect");
+		return;
 	}
 	
 	ProcessGameEvents();

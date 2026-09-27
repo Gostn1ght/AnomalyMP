@@ -6,6 +6,7 @@
 #include "netcoop.h"
 #include "xrServer.h"
 #include "actor_defs.h"
+#include "actor.h"
 
 #include "xrMessages.h"
 #include "xrServer_Objects_ALife_All.h"
@@ -1332,6 +1333,10 @@ void xrServer::GetServerInfo(CServerInfo* si)
 		u32 last_received = 0;
 		u32 last_processed = 0;
 		u32 input_age_ms = 0;
+		u16 input_flags = 0;
+		u32 actor_state = 0;
+		Fvector actor_position = {};
+		bool has_actor_position = false;
 		bool has_remote_actor = false;
 		void operator()(IClient* client)
 		{
@@ -1346,6 +1351,17 @@ void xrServer::GetServerInfo(CServerInfo* si)
 				last_received = data->m_last_received_sequence;
 				last_processed = data->m_last_processed_sequence;
 				input_age_ms = Device.dwTimeGlobal - data->m_last_input_receive_time;
+				input_flags = data->m_current_intent.mstate;
+				if (g_pGameLevel)
+				{
+					CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(data->owner->ID));
+					if (actor)
+					{
+						actor_state = actor->MovingState();
+						actor_position = actor->Position();
+						has_actor_position = true;
+					}
+				}
 			}
 		}
 	} clients;
@@ -1382,6 +1398,13 @@ void xrServer::GetServerInfo(CServerInfo* si)
 		si->AddItem("M1 input sequence", tmp256, RGB(155, 235, 180));
 		xr_sprintf(tmp, sizeof(tmp), "%u ms", clients.input_age_ms);
 		si->AddItem("M1 input age", tmp, clients.input_age_ms > 500 ? RGB(255, 120, 120) : RGB(155, 235, 180));
+		xr_sprintf(tmp, sizeof(tmp), "intent 0x%04x / simulated 0x%04x", clients.input_flags, clients.actor_state & 0xffff);
+		si->AddItem("M1 movement flags", tmp, RGB(155, 235, 180));
+		if (clients.has_actor_position)
+		{
+			xr_sprintf(tmp, sizeof(tmp), "%.2f %.2f %.2f", clients.actor_position.x, clients.actor_position.y, clients.actor_position.z);
+			si->AddItem("M1 server position", tmp, RGB(155, 235, 180));
+		}
 	}
 
 	//	xr_strcpy( tmp256, get_token_name(game_types, game->Type() ) );
