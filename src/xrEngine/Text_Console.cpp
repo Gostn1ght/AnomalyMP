@@ -351,8 +351,8 @@ void CTextConsole::DrawLog(HDC hDC, RECT* pRect)
 		if (item.top + line_height > m_dashboard_bottom)
 			break;
 		SetTextColor(hDC, m_server_info[i].color);
-		DrawTextA(hDC, m_server_info[i].name, -1, &item,
-			DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+		ExtTextOutA(hDC, item.left, item.top, ETO_CLIPPED, &item,
+			m_server_info[i].name, xr_strlen(m_server_info[i].name), nullptr);
 	}
 
 	RECT toolbar = {0, m_dashboard_bottom, width, m_dashboard_bottom + 34};
@@ -371,7 +371,10 @@ void CTextConsole::DrawLog(HDC hDC, RECT* pRect)
 		FillRect(hDC, &chip, chip_brush);
 		DeleteObject(chip_brush);
 		SetTextColor(hDC, i == m_log_filter ? RGB(244, 255, 255) : RGB(165, 177, 194));
-		DrawTextA(hDC, filter_labels[i], -1, &chip, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+		SIZE label_size = {};
+		GetTextExtentPoint32A(hDC, filter_labels[i], xr_strlen(filter_labels[i]), &label_size);
+		TextOutA(hDC, chip.left + (filter_widths[i] - label_size.cx) / 2,
+			chip.top + (24 - label_size.cy) / 2, filter_labels[i], xr_strlen(filter_labels[i]));
 		filter_x += filter_widths[i] + 6;
 	}
 
@@ -405,7 +408,7 @@ void CTextConsole::DrawLog(HDC hDC, RECT* pRect)
 		SetTextColor(hDC, is_mark(mark) ? static_cast<COLORREF>(bgr2rgb(get_mark_color(mark))) : RGB(190, 199, 211));
 		LPCSTR shown = is_mark(mark) && line[1] == ' ' ? line + 2 : line;
 		RECT text = {12, y, width - 24, y + line_height};
-		DrawTextA(hDC, shown, -1, &text, DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
+		ExtTextOutA(hDC, text.left, text.top, ETO_CLIPPED, &text, shown, xr_strlen(shown), nullptr);
 		y -= line_height;
 	}
 	RestoreDC(hDC, old_dc);

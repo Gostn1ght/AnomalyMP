@@ -57,8 +57,7 @@ LRESULT CALLBACK TextConsole_LogWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 		static_cast<CTextConsole*>(Console)->OnLogClick(static_cast<short>(LOWORD(lParam)), static_cast<short>(HIWORD(lParam)));
 		return 0;
 	case WM_MOUSEMOVE:
-		if (wParam & MK_LBUTTON)
-			static_cast<CTextConsole*>(Console)->OnLogDrag(static_cast<short>(HIWORD(lParam)));
+		static_cast<CTextConsole*>(Console)->OnLogDrag(static_cast<short>(HIWORD(lParam)));
 		return 0;
 	case WM_LBUTTONUP:
 	case WM_CAPTURECHANGED:
