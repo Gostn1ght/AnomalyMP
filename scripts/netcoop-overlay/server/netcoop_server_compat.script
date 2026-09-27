@@ -24,8 +24,21 @@ end
 local bound = false
 local bound_previous = nil
 
+-- Last player Actor the engine bound, by id: server-wide scripts (time
+-- events) use it as db.actor. Looked up again every time, so a player who
+-- left is never used.
+local last_player_id = nil
+
+local function any_player()
+	local obj = last_player_id and level.object_by_id(last_player_id)
+	if obj and obj:clsid() == clsid.script_actor then return obj end
+	last_player_id = nil
+	return nil
+end
+
 function bind_actor(obj)
 	if obj then
+		last_player_id = obj:id()
 		if not bound then
 			bound_previous = rawget(db, "actor")
 			bound = true
@@ -106,9 +119,31 @@ local function install_npc_diagnostic()
 	printf("[NetAnomaly][npc] NPC update diagnostic installed")
 end
 
+-- A normal game processes time events (CreateTimeEvent) from a level call
+-- that the Actor binder's reinit registers. The server has no Actor binder.
+local event_errors = 0
+local function server_event_queue()
+	local player = any_player()
+	if player then bind_actor(player) end
+	local ok, done = pcall(ProcessEventQueue)
+	if player then bind_actor(nil) end
+	if not ok then
+		event_errors = event_errors + 1
+		if event_errors <= 20 then
+			printf("[NetAnomaly] time event error: %s", tostring(done))
+		end
+		return false
+	end
+	return done
+end
+
 -- axr_main calls on_game_start of every script once all scripts are loaded.
 function on_game_start()
 	install_npc_diagnostic()
+	if AddUniqueCall and ProcessEventQueue then
+		AddUniqueCall(server_event_queue)
+		printf("[NetAnomaly] server time event queue installed")
+	end
 	-- GAMMA's NPC vision hook reads db.actor (torch, flashlight) for every
 	-- observed object. Serve it with the observed player as db.actor, and use
 	-- the engine's own formula for NPC-to-NPC visibility.
