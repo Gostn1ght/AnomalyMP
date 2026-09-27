@@ -134,7 +134,10 @@ bool CStalkerAnimationManager::standing() const
 	CAI_Stalker& obj = object();
 	stalker_movement_manager_smart_cover& movement = obj.movement();
 
-	if (movement.speed(obj.character_physics_support()->movement()) < EPS_L)
+	// A netcoop puppet does not move its own physics; use the server speed.
+	const float speed = obj.netcoop_puppet() ? obj.m_netcoop_speed
+		: movement.speed(obj.character_physics_support()->movement());
+	if (speed < EPS_L)
 		return (true);
 
 	if (eMovementTypeStand == movement.movement_type())

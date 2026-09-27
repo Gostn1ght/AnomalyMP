@@ -2163,6 +2163,10 @@ CSE_ALifeHumanStalker::CSE_ALifeHumanStalker(LPCSTR caSection) : CSE_ALifeHumanA
 {
 	m_trader_flags.set(eTraderFlagInfiniteAmmo,TRUE);
 	m_start_dialog = "";
+	m_netcoop_movement_type = 0;
+	m_netcoop_body_state = 0;
+	m_netcoop_mental_state = 0;
+	m_netcoop_speed = 0.f;
 }
 
 CSE_ALifeHumanStalker::~CSE_ALifeHumanStalker()
@@ -2191,6 +2195,10 @@ void CSE_ALifeHumanStalker::UPDATE_Write(NET_Packet& tNetPacket)
 	inherited1::UPDATE_Write(tNetPacket);
 	inherited2::UPDATE_Write(tNetPacket);
 	tNetPacket.w_stringZ(m_start_dialog);
+	tNetPacket.w_u8(m_netcoop_movement_type);
+	tNetPacket.w_u8(m_netcoop_body_state);
+	tNetPacket.w_u8(m_netcoop_mental_state);
+	tNetPacket.w_float(m_netcoop_speed);
 }
 
 void CSE_ALifeHumanStalker::UPDATE_Read(NET_Packet& tNetPacket)
@@ -2198,6 +2206,14 @@ void CSE_ALifeHumanStalker::UPDATE_Read(NET_Packet& tNetPacket)
 	inherited1::UPDATE_Read(tNetPacket);
 	inherited2::UPDATE_Read(tNetPacket);
 	tNetPacket.r_stringZ(m_start_dialog);
+	// Older senders stop after the dialog.
+	if (tNetPacket.r_elapsed() >= 3 + sizeof(float))
+	{
+		tNetPacket.r_u8(m_netcoop_movement_type);
+		tNetPacket.r_u8(m_netcoop_body_state);
+		tNetPacket.r_u8(m_netcoop_mental_state);
+		tNetPacket.r_float(m_netcoop_speed);
+	}
 }
 
 void CSE_ALifeHumanStalker::load(NET_Packet& tNetPacket)

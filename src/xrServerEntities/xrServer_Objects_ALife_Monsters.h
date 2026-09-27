@@ -207,6 +207,9 @@ public:
 
 	CSE_ALifeCreatureAbstract(LPCSTR caSection);
 	virtual ~CSE_ALifeCreatureAbstract();
+	// Netcoop replicates NPC and monster state to remote clients (the stock
+	// engine only replicated players, physics objects and items).
+	virtual BOOL Net_Relevant() { return TRUE; }
 	virtual u8 g_team();
 	virtual u8 g_squad();
 	virtual u8 g_group();
@@ -508,6 +511,11 @@ SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN2(CSE_ALifeHumanStalker, CSE_ALifeHumanAbstract, CSE_PHSkeleton)
 	shared_str m_start_dialog;
+	// Netcoop: movement state the remote NPC puppet animates from.
+	u8 m_netcoop_movement_type;
+	u8 m_netcoop_body_state;
+	u8 m_netcoop_mental_state;
+	float m_netcoop_speed;
 
 	CSE_ALifeHumanStalker(LPCSTR caSection);
 	virtual ~CSE_ALifeHumanStalker();

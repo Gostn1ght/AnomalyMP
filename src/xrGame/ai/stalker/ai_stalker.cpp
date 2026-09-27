@@ -916,6 +916,15 @@ void CAI_Stalker::net_Export(NET_Packet& P)
 	}
 
 	P.w_stringZ(m_sStartDialog);
+	P.w_u8(u8(movement().movement_type()));
+	P.w_u8(u8(movement().body_state()));
+	P.w_u8(u8(movement().mental_state()));
+	P.w_float(movement().speed(character_physics_support()->movement()));
+}
+
+bool CAI_Stalker::netcoop_puppet() const
+{
+	return Remote() && netcoop::pure_client();
 }
 
 void CAI_Stalker::net_Import(NET_Packet& P)
@@ -925,8 +934,8 @@ void CAI_Stalker::net_Import(NET_Packet& P)
 
 	u8 flags;
 
-	P.r_float();
-	set_money(P.r_u32(), false);
+	// The server update (CSE_ALifeHumanStalker::UPDATE_Write) carries no trader
+	// data; the old money read shifted every following field.
 
 	float health;
 	P.r_float(health);
@@ -960,6 +969,20 @@ void CAI_Stalker::net_Import(NET_Packet& P)
 	P.r_float();
 
 	P.r_stringZ(m_sStartDialog);
+
+	if (P.r_elapsed() >= 3 + sizeof(float))
+	{
+		const u8 movement_type = P.r_u8();
+		const u8 body_state = P.r_u8();
+		const u8 mental_state = P.r_u8();
+		m_netcoop_speed = P.r_float();
+		if (netcoop_puppet())
+		{
+			movement().set_movement_type(MonsterSpace::EMovementType(movement_type));
+			movement().set_body_state(MonsterSpace::EBodyState(body_state));
+			movement().set_mental_state(MonsterSpace::EMentalState(mental_state));
+		}
+	}
 
 	setVisible(TRUE);
 	setEnabled(TRUE);

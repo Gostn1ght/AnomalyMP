@@ -154,8 +154,11 @@ void CActor::net_ImportInputAck(NET_Packet& P)
 	error.sub(auth_pos, predicted_at_ack);
 	m_prediction_error = error.magnitude();
 
-	const float ignore_error = 0.05f; // physics noise
-	const float snap_error = 1.5f; // teleport, blocked path, respawn
+	// Client and server step physics at different moments, so a direction change
+	// alone produces a few decimetres of difference. Only a real divergence
+	// (collision the client did not see, server teleport) is corrected.
+	const float ignore_error = 0.6f;
+	const float snap_error = 3.0f;
 	if (m_prediction_error <= ignore_error)
 		return;
 
@@ -163,7 +166,7 @@ void CActor::net_ImportInputAck(NET_Packet& P)
 	Fvector shift;
 	shift.set(error);
 	if (m_prediction_error < snap_error)
-		shift.mul(0.2f);
+		shift.mul(0.1f);
 
 	Fvector corrected;
 	corrected.add(Position(), shift);

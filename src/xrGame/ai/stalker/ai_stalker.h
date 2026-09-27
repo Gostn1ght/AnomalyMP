@@ -96,6 +96,9 @@ protected:
 	typedef CCustomMonster inherited;
 
 public:
+	// Netcoop: a remote NPC on a pure client is animated from server state.
+	float m_netcoop_speed = 0.f;
+	bool netcoop_puppet() const;
 	using inherited::useful;
 	using inherited::evaluate;
 
