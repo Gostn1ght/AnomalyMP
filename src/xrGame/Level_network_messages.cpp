@@ -373,6 +373,11 @@ void CLevel::ClientReceive()
 				netcoop::client_on_trade_result(*P);
 			}
 			break;
+		case M_NETCOOP_TALK_STATE:
+			{
+				netcoop::client_on_talk_state(*P);
+			}
+			break;
 		case M_CHAT_MESSAGE:
 			{
 				/*if (!game_configured)

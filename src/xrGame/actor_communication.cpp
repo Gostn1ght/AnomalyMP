@@ -122,18 +122,18 @@ void CActor::TryToTalk()
 
 void CActor::RunTalkDialog(CInventoryOwner* talk_partner, bool disable_break)
 {
-	// A remote netcoop client has neither ALife trader entities nor a local server,
-	// so the single-player dialogue scripts cannot run here. Open the trade window
-	// directly; the server prices and executes every deal (M_NETCOOP_TRADE).
+	// A remote netcoop client has no ALife, so dialogue scripts run on the server
+	// (M_NETCOOP_TALK). The talk window only shows the server's phrases.
 	if (!ai().get_alife() && !Level().Server)
 	{
 		CEntityAlive* partner_alive = smart_cast<CEntityAlive*>(talk_partner);
 		CUIGameSP* game_ui = smart_cast<CUIGameSP*>(CurrentGameUI());
 		if (!partner_alive || !partner_alive->g_Alive() || !game_ui || smart_cast<CActor*>(talk_partner))
 			return;
+		StartTalk(talk_partner);
 		if (CurrentGameUI()->TopInputReceiver())
 			CurrentGameUI()->TopInputReceiver()->HideDialog();
-		game_ui->StartTrade(this, talk_partner);
+		game_ui->StartTalk(talk_partner->bDisableBreakDialog);
 		return;
 	}
 

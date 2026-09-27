@@ -18,6 +18,8 @@
 #include "script_engine.h"
 #include "xrServer_Objects_ALife_Monsters.h"
 #include "game_base_space.h"
+#include "PhraseDialog.h"
+#include "PhraseDialogManager.h"
 
 namespace netcoop
 {
@@ -722,11 +724,14 @@ struct StoreMoney
 	void operator()(IClient* client) const { store_money(static_cast<xrClientData*>(client)); }
 };
 
+void server_talk_prune(xrServer* server);
+
 void server_update(xrServer* server)
 {
 	if (!enabled())
 		return;
 	destroy_pending_actors();
+	server_talk_prune(server);
 	if (!s_accounts_loaded)
 		return;
 	StoreMoney store;
@@ -919,5 +924,406 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 	xr_sprintf(message, "%s %u item(s) for %u RU", partner_buys ? "sold" : "bought", (u32)items.size(), total);
 	Msg("[NetAnomaly] '%s' %s", CL->netcoop_login.c_str(), message);
 	send_trade_result(server, CL, true, message);
+}
+} // namespace netcoop
+
+// ---------------------------------------------------------------------------
+// dialogue
+// ---------------------------------------------------------------------------
+namespace netcoop
+{
+enum ETalkOp : u8
+{
+	talk_start = 0,
+	talk_choose = 1,
+	talk_stop = 2,
+};
+
+enum ETalkFlags : u8
+{
+	talk_flag_open = 1,
+	talk_flag_trade = 2,
+};
+
+static const u32 talk_max_text = 1024;
+static const u32 talk_max_entries = 64;
+static const float talk_max_distance = 5.f;
+static xr_deque<TalkState> s_talk_states;
+
+void client_talk_start(u16 npc_id)
+{
+	s_talk_states.clear();
+	NET_Packet P;
+	P.w_begin(M_NETCOOP_TALK);
+	P.w_u8(talk_start);
+	P.w_u16(npc_id);
+	Level().Send(P, net_flags(TRUE, TRUE));
+}
+
+void client_talk_choose(LPCSTR id)
+{
+	if (!id || !id[0] || xr_strlen(id) >= 256)
+		return;
+	NET_Packet P;
+	P.w_begin(M_NETCOOP_TALK);
+	P.w_u8(talk_choose);
+	P.w_stringZ(id);
+	Level().Send(P, net_flags(TRUE, TRUE));
+}
+
+void client_talk_stop()
+{
+	if (!g_pGameLevel)
+		return;
+	NET_Packet P;
+	P.w_begin(M_NETCOOP_TALK);
+	P.w_u8(talk_stop);
+	Level().Send(P, net_flags(TRUE, TRUE));
+}
+
+void client_on_talk_state(NET_Packet& P)
+{
+	if (P.r_elapsed() < 2 + 1 + 2)
+		return;
+	TalkState state;
+	state.npc = P.r_u16();
+	const u8 flags = P.r_u8();
+	state.open = !!(flags & talk_flag_open);
+	state.trade = !!(flags & talk_flag_trade);
+
+	string1024 text;
+	string256 id;
+	const u16 lines = P.r_u16();
+	for (u16 i = 0; i < lines && i < talk_max_entries; ++i)
+	{
+		if (P.r_elapsed() < 1)
+			return;
+		TalkLine line;
+		line.npc = !!P.r_u8();
+		if (!read_string(P, text, sizeof(text)))
+			return;
+		line.text = text;
+		state.lines.push_back(line);
+	}
+	if (P.r_elapsed() < 2)
+		return;
+	const u16 choices = P.r_u16();
+	for (u16 i = 0; i < choices && i < talk_max_entries; ++i)
+	{
+		TalkChoice choice;
+		if (!read_string(P, id, sizeof(id)) || !read_string(P, text, sizeof(text)) || P.r_elapsed() < 1)
+			return;
+		choice.id = id;
+		choice.text = text;
+		choice.finalizer = !!P.r_u8();
+		state.choices.push_back(choice);
+	}
+	s_talk_states.push_back(state);
+}
+
+bool client_take_talk_state(TalkState& out)
+{
+	if (s_talk_states.empty())
+		return false;
+	out = s_talk_states.front();
+	s_talk_states.pop_front();
+	return true;
+}
+
+struct TalkSession
+{
+	u16 npc;
+	DIALOG_SHARED_PTR current;
+};
+
+typedef xr_map<u32, TalkSession> TalkSessions;
+static TalkSessions s_talk_sessions;
+static TalkState* s_talk_capture = NULL;
+
+static void capture_line(bool npc, LPCSTR text)
+{
+	if (!s_talk_capture || !text || !text[0] || s_talk_capture->lines.size() >= talk_max_entries)
+		return;
+	TalkLine line;
+	line.npc = npc;
+	line.text = text;
+	s_talk_capture->lines.push_back(line);
+}
+
+bool talk_capture_answer(LPCSTR text)
+{
+	if (!s_talk_capture)
+		return false;
+	capture_line(true, text);
+	return true;
+}
+
+// GAMMA dialogue scripts use db.actor; point it at the player being served.
+static void bind_script_actor(CActor* actor)
+{
+	::luabind::functor<void> f;
+	if (!ai().script_engine().functor("netcoop_server_compat.bind_actor", f))
+		return;
+	try
+	{
+		if (actor)
+			f(actor->lua_game_object());
+		else
+			f();
+	}
+	catch (...)
+	{
+		Msg("! [NetAnomaly] netcoop_server_compat.bind_actor failed");
+	}
+}
+
+static void talk_say(TalkSession& session, CPhraseDialogManager* our, const shared_str& phrase_id)
+{
+	capture_line(false, session.current->GetPhraseText(phrase_id));
+	our->SayPhrase(session.current, phrase_id);
+	if (session.current && session.current->IsFinished())
+		session.current = DIALOG_SHARED_PTR((CPhraseDialog*)NULL);
+}
+
+// Mirrors CUITalkWnd::UpdateQuestions for a server-side dialogue run.
+static void talk_build_choices(TalkSession& session, CPhraseDialogManager* our, CPhraseDialogManager* other,
+                               TalkState& state)
+{
+	for (u32 guard = 0; guard < 16; ++guard)
+	{
+		state.choices.clear();
+		if (!session.current)
+		{
+			our->UpdateAvailableDialogs(other);
+			const CPhraseDialogManager::DIALOG_VECTOR& dialogs = our->AvailableDialogs();
+			for (u32 i = 0; i < dialogs.size() && state.choices.size() < talk_max_entries; ++i)
+			{
+				TalkChoice choice;
+				choice.id = dialogs[i]->GetDialogID();
+				choice.text = dialogs[i]->DialogCaption();
+				choice.finalizer = dialogs[i]->GetPhrase("0")->IsFinalizer();
+				state.choices.push_back(choice);
+			}
+			return;
+		}
+
+		if (!session.current->IsWeSpeaking(our))
+			return;
+
+		const PHRASE_VECTOR& phrases = session.current->PhraseList();
+		if (!phrases.empty() && session.current->allIsDummy())
+		{
+			// Only placeholder phrases: say one and continue, as the UI does.
+			CPhrase* phrase = phrases[Random.randI(phrases.size())];
+			talk_say(session, our, phrase->GetID());
+			continue;
+		}
+
+		for (u32 i = 0; i < phrases.size() && state.choices.size() < talk_max_entries; ++i)
+		{
+			TalkChoice choice;
+			choice.id = phrases[i]->GetID();
+			choice.text = session.current->GetPhraseText(choice.id);
+			choice.finalizer = phrases[i]->IsFinalizer();
+			state.choices.push_back(choice);
+		}
+		return;
+	}
+}
+
+static void send_talk_state(xrServer* server, xrClientData* CL, const TalkState& state)
+{
+	// Keep the packet well inside the transport size limit.
+	u32 budget = 12000;
+	xr_vector<const TalkLine*> lines;
+	for (u32 i = 0; i < state.lines.size(); ++i)
+	{
+		const u32 size = state.lines[i].text.size() + 8;
+		if (state.lines[i].text.size() < talk_max_text && budget > size)
+		{
+			budget -= size;
+			lines.push_back(&state.lines[i]);
+		}
+	}
+	xr_vector<const TalkChoice*> choices;
+	for (u32 i = 0; i < state.choices.size(); ++i)
+	{
+		const TalkChoice& c = state.choices[i];
+		const u32 size = c.id.size() + c.text.size() + 8;
+		if (c.id.size() < 256 && c.text.size() < talk_max_text && budget > size)
+		{
+			budget -= size;
+			choices.push_back(&c);
+		}
+	}
+
+	NET_Packet P;
+	P.w_begin(M_NETCOOP_TALK_STATE);
+	P.w_u16(state.npc);
+	P.w_u8(u8((state.open ? talk_flag_open : 0) | (state.trade ? talk_flag_trade : 0)));
+	P.w_u16((u16)lines.size());
+	for (u32 i = 0; i < lines.size(); ++i)
+	{
+		P.w_u8(lines[i]->npc ? 1 : 0);
+		P.w_stringZ(lines[i]->text.c_str());
+	}
+	P.w_u16((u16)choices.size());
+	for (u32 i = 0; i < choices.size(); ++i)
+	{
+		P.w_stringZ(choices[i]->id.c_str());
+		P.w_stringZ(choices[i]->text.c_str());
+		P.w_u8(choices[i]->finalizer ? 1 : 0);
+	}
+	server->SendTo(CL->ID, P, net_flags(TRUE, TRUE));
+}
+
+static void talk_close(xrClientData* CL, CActor* actor, CInventoryOwner* npc)
+{
+	s_talk_sessions.erase(CL->ID.value());
+	if (actor && actor->IsTalking())
+		actor->StopTalk();
+	if (npc && npc->IsTalking())
+		npc->StopTalk();
+}
+
+void server_on_talk(xrServer* server, xrClientData* CL, NET_Packet& P)
+{
+	if (!enabled() || !CL || !CL->owner || !g_pGameLevel || P.r_elapsed() < 1)
+		return;
+
+	CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(CL->owner->ID));
+	if (!actor)
+		return;
+
+	const u8 op = P.r_u8();
+	TalkSessions::iterator found = s_talk_sessions.find(CL->ID.value());
+
+	u16 npc_id = found != s_talk_sessions.end() ? found->second.npc : u16(0xffff);
+	if (op == talk_start)
+	{
+		if (P.r_elapsed() < 2)
+			return;
+		npc_id = P.r_u16();
+	}
+
+	CObject* npc_object = npc_id != 0xffff ? Level().Objects.net_Find(npc_id) : NULL;
+	CInventoryOwner* npc = smart_cast<CInventoryOwner*>(npc_object);
+	CEntityAlive* npc_alive = smart_cast<CEntityAlive*>(npc_object);
+	CPhraseDialogManager* our = smart_cast<CPhraseDialogManager*>(actor);
+	CPhraseDialogManager* other = smart_cast<CPhraseDialogManager*>(npc_object);
+
+	if (op == talk_stop)
+	{
+		talk_close(CL, actor, npc);
+		return;
+	}
+
+	TalkState state;
+	state.npc = npc_id;
+	state.open = false;
+	state.trade = false;
+
+	const bool valid = npc && npc_alive && npc_alive->g_Alive() && actor->g_Alive() && our && other &&
+		!smart_cast<CActor*>(npc_object) &&
+		actor->Position().distance_to(npc_object->Position()) <= talk_max_distance;
+	if (!valid || (op == talk_choose && found == s_talk_sessions.end()) || op > talk_stop)
+	{
+		talk_close(CL, actor, npc);
+		send_talk_state(server, CL, state);
+		return;
+	}
+
+	s_talk_capture = &state;
+	bind_script_actor(actor);
+
+	if (op == talk_start)
+	{
+		if (actor->IsTalking())
+			actor->StopTalk();
+		s_talk_sessions.erase(CL->ID.value());
+
+		if (npc->OfferTalk(actor))
+		{
+			actor->StartTalk(npc);
+
+			TalkSession& session = s_talk_sessions[CL->ID.value()];
+			session.npc = npc_id;
+			session.current = DIALOG_SHARED_PTR((CPhraseDialog*)NULL);
+
+			// Mirrors CUITalkWnd::InitOthersStartDialog.
+			other->UpdateAvailableDialogs(our);
+			if (!other->AvailableDialogs().empty())
+			{
+				session.current = other->AvailableDialogs().front();
+				other->InitDialog(our, session.current);
+				capture_line(true, session.current->GetPhraseText("0"));
+				other->SayPhrase(session.current, "0");
+				if (!session.current || session.current->IsFinished())
+					session.current = DIALOG_SHARED_PTR((CPhraseDialog*)NULL);
+			}
+			talk_build_choices(session, our, other, state);
+		}
+	}
+	else
+	{
+		char id[256];
+		TalkSession& session = found->second;
+		bool accepted = false;
+		if (read_string(P, id, sizeof(id)))
+		{
+			if (!session.current)
+			{
+				if (our->HaveAvailableDialog(id))
+				{
+					session.current = our->GetDialogByID(id);
+					our->InitDialog(other, session.current);
+					talk_say(session, our, "0");
+					accepted = true;
+				}
+			}
+			else if (session.current->IsWeSpeaking(our))
+			{
+				const shared_str wanted = id;
+				const PHRASE_VECTOR& phrases = session.current->PhraseList();
+				for (u32 i = 0; i < phrases.size(); ++i)
+				{
+					if (phrases[i]->GetID() == wanted)
+					{
+						const shared_str phrase_id = phrases[i]->GetID();
+						talk_say(session, our, phrase_id);
+						accepted = true;
+						break;
+					}
+				}
+			}
+		}
+		if (!accepted)
+			Msg("! [NetAnomaly] rejected dialogue choice from '%s'", CL->netcoop_login.c_str());
+		talk_build_choices(session, our, other, state);
+	}
+
+	bind_script_actor(NULL);
+	s_talk_capture = NULL;
+
+	// A dialogue script may have ended the conversation (break_dialog).
+	state.open = actor->IsTalking() && npc->IsTalking();
+	state.trade = actor->IsTradeEnabled() && npc->IsTradeEnabled();
+	if (!state.open)
+		talk_close(CL, actor, npc);
+	send_talk_state(server, CL, state);
+}
+
+// Drops sessions of connections that no longer exist (main thread).
+void server_talk_prune(xrServer* server)
+{
+	for (TalkSessions::iterator it = s_talk_sessions.begin(); it != s_talk_sessions.end();)
+	{
+		ClientID id;
+		id.set(it->first);
+		if (!server->ID_to_client(id))
+			it = s_talk_sessions.erase(it);
+		else
+			++it;
+	}
 }
 } // namespace netcoop

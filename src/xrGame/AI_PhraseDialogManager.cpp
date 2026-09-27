@@ -7,6 +7,7 @@
 
 #include "stdafx.h"
 #include "AI_PhraseDialogManager.h"
+#include "netcoop.h"
 #include "PhraseDialog.h"
 #include "inventoryowner.h"
 #include "character_info.h"
@@ -71,8 +72,13 @@ void CAI_PhraseDialogManager::AnswerPhrase(DIALOG_SHARED_PTR& phrase_dialog)
 
 		shared_str phrase_id = phrase_dialog->PhraseList()[phrase_num]->GetID();
 
-		CUIGameSP* pGameSP = smart_cast<CUIGameSP*>(CurrentGameUI());
-		pGameSP->TalkMenu->AddAnswer(phrase_dialog->GetPhraseText(phrase_id), pInvOwner->Name());
+		// A netcoop server records the answer for the remote talk window.
+		if (!netcoop::talk_capture_answer(phrase_dialog->GetPhraseText(phrase_id)))
+		{
+			CUIGameSP* pGameSP = smart_cast<CUIGameSP*>(CurrentGameUI());
+			if (pGameSP)
+				pGameSP->TalkMenu->AddAnswer(phrase_dialog->GetPhraseText(phrase_id), pInvOwner->Name());
+		}
 
 		CPhraseDialogManager::SayPhrase(phrase_dialog, phrase_id);
 	}

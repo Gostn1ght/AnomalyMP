@@ -85,4 +85,9 @@ protected:
 	DIALOG_SHARED_PTR m_pCurrentDialog;
 	bool TopicMode();
 	void ToTopicMode();
+
+	// Netcoop client: the server runs the dialogue, this window only shows it.
+	bool m_netcoop_remote;
+	bool m_netcoop_trade;
+	void UpdateNetcoopRemote();
 };

@@ -19,6 +19,7 @@
 #include "../../xrEngine/cameraBase.h"
 #include "UIXmlInit.h"
 #include "UI3tButton.h"
+#include "../netcoop.h"
 
 CUITalkWnd::CUITalkWnd()
 {
@@ -35,6 +36,8 @@ CUITalkWnd::CUITalkWnd()
 	InitTalkWnd();
 	m_bNeedToUpdateQuestions = false;
 	b_disable_break = false;
+	m_netcoop_remote = false;
+	m_netcoop_trade = false;
 }
 
 CUITalkWnd::~CUITalkWnd()
@@ -72,6 +75,19 @@ void CUITalkWnd::InitTalkDialog()
 
 	//очистить лог сообщений
 	UITalkDialogWnd->ClearAll();
+
+	if (netcoop::pure_client())
+	{
+		m_netcoop_remote = true;
+		m_netcoop_trade = false;
+		m_bNeedToUpdateQuestions = false;
+		netcoop::client_talk_start(m_pOthersInvOwner->object_id());
+		UITalkDialogWnd->mechanic_mode = false;
+		UITalkDialogWnd->SetOsoznanieMode(m_pOthersInvOwner->NeedOsoznanieMode());
+		UITalkDialogWnd->Show();
+		UITalkDialogWnd->UpdateButtonsLayout(b_disable_break, false);
+		return;
+	}
 
 	InitOthersStartDialog();
 	NeedUpdateQuestions();
@@ -200,8 +216,45 @@ void UpdateCameraDirection(CGameObject* pTo)
 		cam->pitch = angle_inertion_var(cam->pitch, -p, 0.15f, 0.2f, PI_DIV_6, Device.fTimeDelta);
 }
 
+void CUITalkWnd::UpdateNetcoopRemote()
+{
+	netcoop::TalkState state;
+	while (netcoop::client_take_talk_state(state))
+	{
+		for (u32 i = 0; i < state.lines.size(); ++i)
+			AddAnswer(state.lines[i].text, state.lines[i].npc ? m_pOthersInvOwner->Name() : m_pOurInvOwner->Name());
+
+		UITalkDialogWnd->ClearQuestions();
+		for (u32 i = 0; i < state.choices.size(); ++i)
+			AddQuestion(state.choices[i].text, state.choices[i].id, i, state.choices[i].finalizer);
+
+		m_netcoop_trade = state.trade;
+		if (!state.open)
+		{
+			StopTalk();
+			return;
+		}
+	}
+}
+
 void CUITalkWnd::Update()
 {
+	if (m_netcoop_remote)
+	{
+		if (g_actor && m_pActor && !m_pActor->IsTalking())
+		{
+			StopTalk();
+			return;
+		}
+		UpdateNetcoopRemote();
+		if (!m_netcoop_remote)
+			return;
+		inherited::Update();
+		UpdateCameraDirection(smart_cast<CGameObject*>(m_pOthersInvOwner));
+		UITalkDialogWnd->UpdateButtonsLayout(b_disable_break, m_netcoop_trade);
+		return;
+	}
+
 	//остановить разговор, если нужно
 	if (g_actor && m_pActor && !m_pActor->IsTalking())
 	{
@@ -251,6 +304,12 @@ void CUITalkWnd::Show(bool status)
 		StopSnd();
 		UITalkDialogWnd->Hide();
 
+		if (m_netcoop_remote)
+		{
+			m_netcoop_remote = false;
+			netcoop::client_talk_stop();
+		}
+
 		if (m_pActor)
 		{
 			ToTopicMode();
@@ -275,6 +334,15 @@ void CUITalkWnd::ToTopicMode()
 
 void CUITalkWnd::AskQuestion()
 {
+	if (m_netcoop_remote)
+	{
+		if (UITalkDialogWnd->m_ClickedQuestionID.size())
+		{
+			netcoop::client_talk_choose(UITalkDialogWnd->m_ClickedQuestionID.c_str());
+			UITalkDialogWnd->ClearQuestions();
+		}
+		return;
+	}
 	if (m_bNeedToUpdateQuestions) return; //quick dblclick:(
 	shared_str phrase_id;
 
@@ -335,7 +403,8 @@ void CUITalkWnd::AddAnswer(const shared_str& text, LPCSTR SpeakerName)
 
 void CUITalkWnd::SwitchToTrade()
 {
-	if (m_pOurInvOwner->IsTradeEnabled() && m_pOthersInvOwner->IsTradeEnabled())
+	// The server decides whether this trader deals; prices and deals run there too.
+	if (m_netcoop_remote ? m_netcoop_trade : (m_pOurInvOwner->IsTradeEnabled() && m_pOthersInvOwner->IsTradeEnabled()))
 	{
 		CUIGameSP* pGameSP = smart_cast<CUIGameSP*>(CurrentGameUI());
 		if (pGameSP)
@@ -351,6 +420,9 @@ void CUITalkWnd::SwitchToTrade()
 
 void CUITalkWnd::SwitchToUpgrade()
 {
+	if (m_netcoop_remote)
+		return; // item upgrades are not server-owned yet
+
 	//if ( m_pOurInvOwner->IsInvUpgradeEnabled() && m_pOthersInvOwner->IsInvUpgradeEnabled() )
 	{
 		CUIGameSP* pGameSP = smart_cast<CUIGameSP*>(CurrentGameUI());

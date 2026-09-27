@@ -15,6 +15,26 @@ local function no_local_actor()
 	return db.actor == nil
 end
 
+-- netcoop.cpp runs NPC dialogues for a remote player on the server. GAMMA
+-- dialogue conditions and actions use db.actor, so it points at that
+-- player's Actor for the duration of one dialogue step, then is restored.
+local bound = false
+local bound_previous = nil
+
+function bind_actor(obj)
+	if obj then
+		if not bound then
+			bound_previous = rawget(db, "actor")
+			bound = true
+		end
+		db.actor = obj
+	elseif bound then
+		db.actor = bound_previous
+		bound_previous = nil
+		bound = false
+	end
+end
+
 function install()
 	if installed then return end
 	installed = true
