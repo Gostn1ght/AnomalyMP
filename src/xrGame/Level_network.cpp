@@ -75,8 +75,7 @@ void CLevel::remove_objects()
 	ph_commander().clear();
 	ph_commander_scripts().clear();
 
-	if (!g_dedicated_server)
-		space_restriction_manager().clear();
+	space_restriction_manager().clear();
 
 	psDeviceFlags.set(rsDisableObjectsAsCrows, b_stored);
 	g_b_ClearGameCaptions = true;

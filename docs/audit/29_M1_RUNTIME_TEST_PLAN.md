@@ -4,6 +4,8 @@ Run against identical, hash-recorded binaries from the final green DX11 commit. 
 
 The user's source modpack is `C:\Users\Mahito\Desktop\Stalker_GAMMA-main\G.A.M.M.A` (`modpack_addons` plus partial `modpack_patches/gamedata`). The prepared runtime uses a merged GAMMA `gamedata` and the installed `C:\Users\Mahito\Downloads\GAMMA\GAMMA\db` archives through `fsgame_server.ltx`; it must not treat the source patch folder as a complete standalone game. Package the final DX11 build with `scripts/package-m1-dx11.ps1`: the dedicated server EXE and DLLs go directly in `dedicated`, and the client EXE and DLLs go in `bin`. Record hashes and use matching files for all participants.
 
+Use `server(all/single/alife/new/portsv=1267/maxplayers=2)` with `-netcoop_start_location=hidden_base` for the marsh test. `all.spawn` is the GAMMA spawn archive; `k00_marsh.spawn` does not exist. The dedicated option reads `[hidden_base]` from `plugins/new_game_start_locations.ltx` before ALife chooses the initial level. Confirm the server log reports `k00_marsh` and the client loads marsh resources before movement cases. Do not count a `fake_start` smoke run as a marsh test.
+
 ## Startup and lifecycle
 
 1. Boot the dedicated server and confirm it loads the map, Actor physics, network transport and Lua without renderer/UI failures. Confirm the visible status and log survive loading, focus changes and window overlap. Record memory and log errors.
