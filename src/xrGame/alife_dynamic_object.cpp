@@ -9,6 +9,7 @@
 #include "stdafx.h"
 #include "xrServer_Objects_ALife.h"
 #include "alife_simulator.h"
+#include "game_sv_single.h"
 #include "alife_schedule_registry.h"
 #include "alife_graph_registry.h"
 #include "alife_object_registry.h"
@@ -157,7 +158,7 @@ void CSE_ALifeDynamicObject::try_switch_online()
 		return;
 	}
 
-	if (alife().graph().actor()->o_Position.distance_to(o_Position) > alife().online_distance())
+	if (netcoop_nearest_actor_distance(o_Position) > alife().online_distance())
 	{
 		on_failed_switch_online();
 		return;
@@ -177,7 +178,7 @@ void CSE_ALifeDynamicObject::try_switch_offline()
 		return;
 	}
 
-	if (alife().graph().actor()->o_Position.distance_to(o_Position) <= alife().offline_distance())
+	if (netcoop_nearest_actor_distance(o_Position) <= alife().offline_distance())
 		return;
 
 	alife().switch_offline(this);

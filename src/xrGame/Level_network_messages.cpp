@@ -56,6 +56,9 @@ static bool SimmulateNetworkLag()
 }
 #endif
 
+// NetAnomaly: wall-clock time of the last packet from the server (client watchdog).
+u32 g_netcoop_last_server_rx = 0;
+
 void CLevel::ClientReceive()
 {
 	m_dwRPC = 0;
@@ -79,6 +82,7 @@ void CLevel::ClientReceive()
 		//-----------------------------------------------------
 		m_dwRPC++;
 		m_dwRPS += P->B.count;
+		g_netcoop_last_server_rx = timeGetTime();
 		//-----------------------------------------------------
 		u16 m_type;
 		u16 ID;

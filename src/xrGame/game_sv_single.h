@@ -6,6 +6,11 @@ class xrServer;
 class CALifeSimulator;
 class CSE_ALifeCreatureActor;
 
+// NetAnomaly: distance from a position to the nearest player Actor (the
+// server host Actor and every connected co-op Actor). ALife uses it for
+// online/offline switching so NPCs appear around every player.
+float netcoop_nearest_actor_distance(const Fvector& position);
+
 class game_sv_Single : public game_sv_GameState
 {
 private:

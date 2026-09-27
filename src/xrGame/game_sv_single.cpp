@@ -13,6 +13,8 @@
 #include "../xrEngine/dedicated_server_only.h"
 #include "../xrEngine/no_single.h"
 
+static void netcoop_forget_game(game_sv_Single* game);
+
 game_sv_Single::game_sv_Single()
 {
 	m_alife_simulator = NULL;
@@ -21,6 +23,7 @@ game_sv_Single::game_sv_Single()
 
 game_sv_Single::~game_sv_Single()
 {
+	netcoop_forget_game(this);
 	delete_data(m_alife_simulator);
 }
 
@@ -380,6 +383,40 @@ static bool netcoop_mode()
 	return (s_state == 1);
 }
 
+static game_sv_Single* s_netcoop_game = NULL;
+static xr_vector<u16> s_netcoop_actor_ids;
+
+static void netcoop_forget_game(game_sv_Single* game)
+{
+	if (s_netcoop_game != game)
+		return;
+	s_netcoop_game = NULL;
+	s_netcoop_actor_ids.clear();
+}
+
+float netcoop_nearest_actor_distance(const Fvector& position)
+{
+	float best = flt_max;
+	if (ai().get_alife() && ai().alife().graph().actor())
+		best = ai().alife().graph().actor()->o_Position.distance_to(position);
+
+	if (!s_netcoop_game)
+		return best;
+
+	for (xr_vector<u16>::iterator it = s_netcoop_actor_ids.begin(); it != s_netcoop_actor_ids.end();)
+	{
+		CSE_Abstract* e = s_netcoop_game->get_entity_from_eid(*it);
+		if (!e)
+		{
+			it = s_netcoop_actor_ids.erase(it);
+			continue;
+		}
+		best = _min(best, e->o_Position.distance_to(position));
+		++it;
+	}
+	return best;
+}
+
 CSE_ALifeCreatureActor* game_sv_Single::netcoop_host_actor()
 {
 	if (!m_server)
@@ -453,6 +490,12 @@ void game_sv_Single::netcoop_spawn_actor(ClientID id_who)
 
 	if (CL->ps && CL->owner)
 		CL->ps->SetGameID(CL->owner->ID);
+
+	if (CL->owner)
+	{
+		s_netcoop_game = this;
+		s_netcoop_actor_ids.push_back(CL->owner->ID);
+	}
 
 	// GAMMA's PDA script requires an owned device. Additional netcoop actors
 	// bypass the single-player starter loadout, so give them a basic PDA here.

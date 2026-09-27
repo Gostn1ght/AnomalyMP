@@ -1,0 +1,44 @@
+-- NetAnomaly: dedicated server guards for GAMMA single-player Actor callbacks.
+--
+-- The dedicated server simulates remote co-op Actors but has no locally
+-- controlled Actor, so db.actor stays nil. The engine still reports jump,
+-- landing, eating, HUD animation and condition events for those Actors, and
+-- GAMMA's handlers are client feedback (sounds, HUD, effects) written for
+-- db.actor. They belong to the owning client, so they are skipped here.
+--
+-- Installed from the end of _g.script by scripts/patch-gamma-netcoop-server.ps1.
+
+local installed = false
+local skipped = {}
+
+local function no_local_actor()
+	return db.actor == nil
+end
+
+function install()
+	if installed then return end
+	installed = true
+
+	local send = _G.SendScriptCallback
+	_G.SendScriptCallback = function(name, ...)
+		if no_local_actor() and type(name) == "string" and string.find(name, "^actor_on_") then
+			if not skipped[name] then
+				skipped[name] = true
+				printf("[NetAnomaly] dedicated: skipping client feedback callback %s", name)
+			end
+			return
+		end
+		return send(name, ...)
+	end
+
+	-- These read db.actor directly instead of going through SendScriptCallback.
+	local before_hit = _G.CActor__BeforeHitCallback
+	if before_hit then
+		_G.CActor__BeforeHitCallback = function(...)
+			if no_local_actor() then return true end
+			return before_hit(...)
+		end
+	end
+
+	printf("[NetAnomaly] dedicated server compatibility layer installed")
+end

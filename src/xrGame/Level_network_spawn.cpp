@@ -166,6 +166,11 @@ void CLevel::g_sv_Spawn(CSE_Abstract* E)
 					::luabind::functor<void> bind_ui_actor;
 					if (actor_object && ai().script_engine().functor("_G.NetCoopClientActorSpawned", bind_ui_actor))
 						bind_ui_actor(actor_object->lua_game_object());
+					// A namespaced functor loads its script on demand; the _G hook above
+					// is missing when callbacks_gameobject has not been loaded yet.
+					::luabind::functor<void> compat_actor;
+					if (actor_object && ai().script_engine().functor("netcoop_client_compat.on_actor_spawned", compat_actor))
+						compat_actor(actor_object->lua_game_object());
 				}
 			}
 		}

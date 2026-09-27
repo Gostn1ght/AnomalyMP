@@ -10,6 +10,7 @@
 #include "xrServer_Objects_ALife.h"
 #include "ai_space.h"
 #include "alife_simulator.h"
+#include "game_sv_single.h"
 #include "alife_object_registry.h"
 #include "xrServer_Objects_ALife_Monsters.h"
 #include "alife_schedule_registry.h"
@@ -161,7 +162,7 @@ void CSE_ALifeGroupAbstract::try_switch_offline()
 				// to switch offline
 				break;
 
-			if (I->alife().graph().actor()->o_Position.distance_to(tpGroupMember->o_Position) <= I
+			if (netcoop_nearest_actor_distance(tpGroupMember->o_Position) <= I
 			                                                                                     ->alife().
 			                                                                                     offline_distance())
 				// so, it is not ready, breaking a cycle, because we can't 

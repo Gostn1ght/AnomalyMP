@@ -284,7 +284,7 @@ void CPda::UpdateCL()
 {
 	inherited::UpdateCL();
 
-	if (!ParentIsActor() || Actor()->inventory().ActiveItem() != this)
+	if (!CurrentGameUI() || !ParentIsActor() || Actor()->inventory().ActiveItem() != this)
 		return;
 
 	// For battery icon
@@ -420,7 +420,7 @@ void CPda::OnMovementChanged(ACTOR_DEFS::EMoveCommand cmd)
 {
 	inherited::OnMovementChanged(cmd);
 
-	if (cmd == mcSprint)
+	if (cmd == mcSprint && CurrentGameUI())
 	{
 		CEntity::SEntityState st;
 		Actor()->g_State(st);
@@ -436,6 +436,10 @@ void CPda::OnMovementChanged(ACTOR_DEFS::EMoveCommand cmd)
 
 bool CPda::Action(u16 cmd, u32 flags)
 {
+	// No game UI on a dedicated server: the owning client handles the PDA.
+	if (!CurrentGameUI())
+		return false;
+
 	CUIPdaWnd* pda = &CurrentGameUI()->GetPdaMenu();
 
 	switch (cmd)

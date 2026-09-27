@@ -644,7 +644,12 @@ void CCustomZone::shedule_Update(u32 dt)
 		inherited::shedule_Update(dt);
 
 		// check "fast-mode" border
-		float act_distance = Level().CurrentControlEntity()->Position().distance_to(P) - s.R;
+		// A netcoop client has no control entity until its Actor spawn arrives,
+		// and a dedicated server never has one.
+		CObject* control_entity = Level().CurrentControlEntity();
+		float act_distance = control_entity
+			? control_entity->Position().distance_to(P) - s.R
+			: flt_max;
 		if (act_distance > FASTMODE_DISTANCE && !m_zone_flags.test(eAlwaysFastmode))
 			o_switch_2_slow();
 		else

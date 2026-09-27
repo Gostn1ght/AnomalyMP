@@ -16,6 +16,7 @@
 #include "CameraLook.h"
 #include "CameraFirstEye.h"
 #include "holder_custom.h"
+#include "UIGameCustom.h"
 //.#include "ui/uiinventoryWnd.h"
 #include "game_base_space.h"
 #ifdef DEBUG
@@ -23,6 +24,38 @@
 #endif
 #include <luabind/luabind.hpp>
 #include "script_game_object.h"
+
+// Inventory actions a server without game UI may execute for a remote Actor.
+static bool netcoop_server_inventory_action(u16 cmd)
+{
+	switch (cmd)
+	{
+	case kWPN_1:
+	case kWPN_2:
+	case kWPN_3:
+	case kWPN_4:
+	case kWPN_5:
+	case kWPN_6:
+	case kARTEFACT:
+	case kWPN_NEXT:
+	case kWPN_FIRE:
+	case kWPN_ZOOM:
+	case kWPN_ZOOM_INC:
+	case kWPN_ZOOM_DEC:
+	case kWPN_RELOAD:
+	case kWPN_FUNC:
+	case kWPN_FIREMODE_PREV:
+	case kWPN_FIREMODE_NEXT:
+	case kNEXT_SLOT:
+	case kPREV_SLOT:
+	case kTORCH:
+	case kNIGHT_VISION:
+	case kDETECTOR:
+		return true;
+	default:
+		return false;
+	}
+}
 
 void CActor::OnEvent(NET_Packet& P, u16 type)
 {
@@ -170,6 +203,11 @@ void CActor::OnEvent(NET_Packet& P, u16 type)
 				//				Msg("! WARNING: dead player tries to rize inventory action");
 				break;
 			}
+
+			// A dedicated server has no game UI. Remote clients forward every key,
+			// but menus, PDA, dialogue and camera belong to the owning client.
+			if (!CurrentGameUI() && !netcoop_server_inventory_action(cmd))
+				break;
 
 			if (flags & CMD_START)
 			{

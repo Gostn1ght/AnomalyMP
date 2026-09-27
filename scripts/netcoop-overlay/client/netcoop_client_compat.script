@@ -1,0 +1,189 @@
+-- NetAnomaly: compatibility layer for a pure netcoop client.
+--
+-- A remote client has no local ALife simulator: alife() returns nil and the
+-- GAMMA Actor binder never runs, so db.actor is never assigned. GAMMA UI
+-- scripts (inventory, PDA, options) assume both exist and crash.
+--
+-- The dedicated server owns the simulation. This layer only lets client UI
+-- read the locally controlled Actor; it never simulates or changes the world.
+-- Write requests (create/release/teleport/info) are dropped here and must go
+-- through server messages.
+--
+-- Installed from the end of _g.script by scripts/patch-gamma-netcoop-client.ps1.
+
+local installed = false
+local native_alife = nil
+local warned = {}
+
+local function warn_once(what)
+	if warned[what] then return end
+	warned[what] = true
+	printf("[NetAnomaly] client has no ALife: alife():%s ignored", what)
+end
+
+local controlled_actor = nil
+
+-- The locally controlled Actor: set by the engine hook after spawn, or
+-- recovered from the view entity when this script loaded too late for it.
+local function local_actor()
+	if not (level and level.present and level.present()) then
+		controlled_actor = nil
+		return nil
+	end
+	if controlled_actor then return controlled_actor end
+	local e = level.get_view_entity and level.get_view_entity()
+	if e and e:clsid() == clsid.script_actor then
+		controlled_actor = e
+	end
+	return controlled_actor
+end
+
+local function in_game()
+	return local_actor() ~= nil
+end
+
+-- Engine hook (Level_network_spawn.cpp) after the local Actor is assigned.
+function on_actor_spawned(obj)
+	controlled_actor = obj
+end
+
+function on_actor_destroyed(obj)
+	if controlled_actor and obj and controlled_actor:id() == obj:id() then
+		controlled_actor = nil
+	end
+end
+
+function is_pure_client()
+	return native_alife ~= nil and native_alife() == nil and in_game()
+end
+
+----------------------------------------------------------------------
+-- se_actor stand-in built from the live Actor game object
+----------------------------------------------------------------------
+local actor_methods = {
+	character_name = function() return db.actor:character_name() end,
+	community = function() return db.actor:character_community() end,
+	rank = function() return db.actor:character_rank() end,
+	reputation = function() return db.actor:character_reputation() end,
+	character_icon = function() return db.actor:character_icon() end,
+	profile_name = function() return db.actor:profile_name() end,
+	name = function() return db.actor:name() end,
+	section_name = function() return db.actor:section() end,
+	clsid = function() return db.actor:clsid() end,
+	alive = function() return db.actor:alive() end,
+	money = function() return db.actor:money() end,
+}
+
+local actor_fields = {
+	id = function() return db.actor:id() end,
+	parent_id = function() return 65535 end,
+	online = function() return true end,
+	position = function() return db.actor:position() end,
+	m_level_vertex_id = function() return db.actor:level_vertex_id() end,
+	m_game_vertex_id = function() return db.actor:game_vertex_id() end,
+	group_id = function() return 65535 end,
+}
+
+local se_actor_stub = setmetatable({}, {
+	__index = function(_, k)
+		local field = actor_fields[k]
+		if field then return field() end
+		local method = actor_methods[k]
+		if method then return function() return method() end end
+		warn_once("actor():" .. tostring(k))
+		return function() return nil end
+	end,
+})
+
+----------------------------------------------------------------------
+-- alife() stand-in
+----------------------------------------------------------------------
+local sim_methods = {
+	actor = function() return db.actor and se_actor_stub or nil end,
+	object = function(_, id) return nil end,
+	story_object = function() return nil end,
+	object_by_id = function() return nil end,
+	has_info = function(_, id, info)
+		local a = db.actor
+		return a ~= nil and a:has_info(info) or false
+	end,
+	level_name = function() return level.name() end,
+	level_id = function() return 0 end,
+	switch_distance = function() return 150 end,
+	object_count = function() return 0 end,
+	iterate_info = function() end,
+	iterate_objects = function() end,
+	get_children = function() return {} end,
+}
+
+local sim_stub = setmetatable({}, {
+	__index = function(_, k)
+		local m = sim_methods[k]
+		if m then return m end
+		return function()
+			warn_once(tostring(k))
+			return nil
+		end
+	end,
+})
+
+local function alife_compat()
+	local sim = native_alife()
+	if sim then return sim end
+	if in_game() then return sim_stub end
+	return nil
+end
+
+----------------------------------------------------------------------
+-- db.actor falls back to the locally controlled Actor
+----------------------------------------------------------------------
+local function install_db_actor()
+	local ns = db
+	if type(ns) ~= "table" then return end
+	local mt = getmetatable(ns)
+	if not mt then
+		mt = {}
+		setmetatable(ns, mt)
+	end
+	if mt.__netcoop_actor then return end
+	local previous = mt.__index
+	mt.__netcoop_actor = true
+	mt.__index = function(t, k)
+		if k == "actor" then
+			if native_alife() == nil then
+				return local_actor()
+			end
+			return nil
+		end
+		if type(previous) == "function" then return previous(t, k) end
+		if type(previous) == "table" then return previous[k] end
+		return nil
+	end
+end
+
+----------------------------------------------------------------------
+-- No save games on a client: the server owns the world state
+----------------------------------------------------------------------
+local function no_saves(flags)
+	if flags then flags.ret = true end
+	printf("[NetAnomaly] saving and loading are disabled: the server owns the world")
+end
+
+local function no_quick_load(dik, bind, flags)
+	no_saves(flags)
+end
+
+-- axr_main calls on_game_start of every script after all scripts are loaded.
+function on_game_start()
+	RegisterScriptCallback("on_before_save_input", no_saves)
+	RegisterScriptCallback("on_before_load_input", no_quick_load)
+end
+
+function install()
+	if installed then return end
+	installed = true
+	native_alife = _G.alife
+	_G.alife = alife_compat
+	install_db_actor()
+	printf("[NetAnomaly] netcoop client compatibility layer installed")
+end
