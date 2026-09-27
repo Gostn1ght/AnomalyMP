@@ -241,3 +241,8 @@ const CGameLevelCrossTable* CAI_Space::get_cross_table() const
 {
 	return (&game_graph().cross_table());
 }
+
+bool CAI_Space::valid_game_vertex(u32 vertex_id) const
+{
+	return m_game_graph && m_game_graph->valid_vertex_id(vertex_id);
+}

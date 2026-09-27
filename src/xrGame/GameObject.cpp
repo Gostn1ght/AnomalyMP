@@ -423,7 +423,7 @@ BOOL CGameObject::net_Spawn(CSE_Abstract* DC)
 					ai_location().level_vertex(l_tpTemporary->m_tNodeID);
 			}
 
-			if (l_tpALifeObject && ai().game_graph().valid_vertex_id(l_tpALifeObject->m_tGraphID))
+			if (l_tpALifeObject && ai().valid_game_vertex(l_tpALifeObject->m_tGraphID))
 				ai_location().game_vertex(l_tpALifeObject->m_tGraphID);
 
 			validate_ai_locations(false);
@@ -653,9 +653,9 @@ void CGameObject::setup_parent_ai_locations(bool assign_position)
 	//	VERIFY2						(ai().level_graph().valid_vertex_id(l_tpGameObject->ai_location().level_vertex_id()),*cNameSect());
 	//	ai_location().level_vertex	(l_tpGameObject->ai_location().level_vertex_id());
 
-	if (ai().game_graph().valid_vertex_id(l_tpGameObject->ai_location().game_vertex_id()))
+	if (ai().valid_game_vertex(l_tpGameObject->ai_location().game_vertex_id()))
 		ai_location().game_vertex(l_tpGameObject->ai_location().game_vertex_id());
-	else
+	else if (ai().get_cross_table())
 		ai_location().game_vertex(ai().cross_table().vertex(ai_location().level_vertex_id()).game_vertex_id());
 	//	VERIFY2						(ai().game_graph().valid_vertex_id(l_tpGameObject->ai_location().game_vertex_id()),*cNameSect());
 	//	ai_location().game_vertex	(l_tpGameObject->ai_location().game_vertex_id());

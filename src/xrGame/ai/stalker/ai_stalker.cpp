@@ -7,6 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "pch_script.h"
+#include "../../netcoop.h"
 #include "ai_stalker.h"
 #include "../ai_monsters_misc.h"
 #include "../../weapon.h"
@@ -714,16 +715,17 @@ BOOL CAI_Stalker::net_Spawn(CSE_Abstract* DC)
 		angle_normalize_signed(-tpHuman->o_torso.yaw);
 	movement().m_body.current.pitch = movement().m_body.target.pitch = 0;
 
-	if (ai().game_graph().valid_vertex_id(tpHuman->m_tGraphID))
+	if (ai().valid_game_vertex(tpHuman->m_tGraphID))
 		ai_location().game_vertex(tpHuman->m_tGraphID);
 
-	if (ai().game_graph().valid_vertex_id(tpHuman->m_tNextGraphID) && movement().restrictions().accessible(
+	if (ai().valid_game_vertex(tpHuman->m_tNextGraphID) && movement().restrictions().accessible(
 		ai().game_graph().vertex(
 			     tpHuman->m_tNextGraphID)->
 		     level_point()))
 		movement().set_game_dest_vertex(tpHuman->m_tNextGraphID);
 
-	R_ASSERT2(
+	// A netcoop client shows server-driven NPC puppets and has no ALife graphs.
+	R_ASSERT2(netcoop::pure_client() ||
 		ai().get_game_graph() &&
 		ai().get_level_graph() &&
 		ai().get_cross_table() &&
@@ -900,7 +902,7 @@ void CAI_Stalker::net_Export(NET_Packet& P)
 	P.w(&l_game_vertex_id, sizeof(l_game_vertex_id));
 	//	P.w						(&f1,						sizeof(f1));
 	//	P.w						(&f1,						sizeof(f1));
-	if (ai().game_graph().valid_vertex_id(l_game_vertex_id))
+	if (ai().valid_game_vertex(l_game_vertex_id))
 	{
 		f1 = Position().distance_to(ai().game_graph().vertex(l_game_vertex_id)->level_point());
 		P.w(&f1, sizeof(f1));

@@ -772,11 +772,11 @@ BOOL CCustomMonster::net_Spawn(CSE_Abstract* DC)
 
 	if (ai().get_level_graph() && UsedAI_Locations() && (e->ID_Parent == 0xffff))
 	{
-		if (ai().game_graph().valid_vertex_id(E->m_tGraphID))
+		if (ai().valid_game_vertex(E->m_tGraphID))
 			ai_location().game_vertex(E->m_tGraphID);
 
 		if (
-			ai().game_graph().valid_vertex_id(E->m_tNextGraphID)
+			ai().valid_game_vertex(E->m_tNextGraphID)
 			&&
 			(ai().game_graph().vertex(E->m_tNextGraphID)->level_id() == ai().level_graph().level_id())
 			&&

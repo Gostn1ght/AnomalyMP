@@ -59,6 +59,8 @@ public:
 	void init();
 	IC CGameGraph& game_graph() const;
 	IC CGameGraph* get_game_graph() const;
+	// False when no game graph is loaded (netcoop clients have no ALife graph).
+	bool valid_game_vertex(u32 vertex_id) const;
 	IC CLevelGraph& level_graph() const;
 	IC const CLevelGraph* get_level_graph() const;
 	const CGameLevelCrossTable& cross_table() const;

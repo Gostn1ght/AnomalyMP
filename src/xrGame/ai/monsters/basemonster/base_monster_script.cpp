@@ -95,7 +95,7 @@ bool CBaseMonster::AssignGamePathIfNeeded(Fvector const target_pos, u32 const le
 		m_action_target_node = target_level_vertex;
 
 		GameGraph::_GRAPH_ID const target_game_vertex = ai().cross_table().vertex(target_level_vertex).game_vertex_id();
-		bool const game_vertex_is_valid = ai().game_graph().valid_vertex_id(target_game_vertex);
+		bool const game_vertex_is_valid = ai().valid_game_vertex(target_game_vertex);
 		VERIFY(game_vertex_is_valid);
 		if (game_vertex_is_valid && self_game_vertex != target_game_vertex)
 		{

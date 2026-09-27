@@ -603,7 +603,7 @@ void CScriptGameObject::set_dest_game_vertex_id(GameGraph::_GRAPH_ID game_vertex
 		                                "CAI_Stalker : cannot access class member set_dest_game_vertex_id!");
 	else
 	{
-		if (!ai().game_graph().valid_vertex_id(game_vertex_id))
+		if (!ai().valid_game_vertex(game_vertex_id))
 		{
 #ifdef DEBUG
 			ai().script_engine().script_log				(ScriptStorage::eLuaMessageTypeError,"CAI_Stalker : invalid vertex id being setup by action %s!",stalker->brain().CStalkerPlanner::current_action().m_action_name);
