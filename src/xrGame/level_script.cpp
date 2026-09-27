@@ -7,6 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "pch_script.h"
+#include "netcoop.h"
 #include "level.h"
 #include "actor.h"
 #include "script_game_object.h"
@@ -2738,7 +2739,12 @@ void CLevel::script_register(lua_State* L)
 		def("IsGameTypeSingle", &IsGameTypeSingle),
 		def("IsDynamicMusic", &IsDynamicMusic),
 		def("render_get_dx_level", &render_get_dx_level),
-		def("IsImportantSave", &IsImportantSave)
+		def("IsImportantSave", &IsImportantSave),
+		def("netcoop_login", &netcoop::script_login),
+		def("netcoop_role", &netcoop::script_role),
+		def("netcoop_account", &netcoop::script_account),
+		def("netcoop_command", &netcoop::script_command),
+		def("netcoop_pure_client", &netcoop::script_pure_client)
 	];
 
 	module(L, "weather")

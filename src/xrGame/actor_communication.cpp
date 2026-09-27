@@ -122,11 +122,18 @@ void CActor::TryToTalk()
 
 void CActor::RunTalkDialog(CInventoryOwner* talk_partner, bool disable_break)
 {
-	// A remote netcoop client has neither ALife trader entities nor a local server.
-	// Until dialogue state is replicated, do not enter the single-player talk UI.
+	// A remote netcoop client has neither ALife trader entities nor a local server,
+	// so the single-player dialogue scripts cannot run here. Open the trade window
+	// directly; the server prices and executes every deal (M_NETCOOP_TRADE).
 	if (!ai().get_alife() && !Level().Server)
 	{
-		Msg("[NetAnomaly] NPC dialogue requires replicated trader state");
+		CEntityAlive* partner_alive = smart_cast<CEntityAlive*>(talk_partner);
+		CUIGameSP* game_ui = smart_cast<CUIGameSP*>(CurrentGameUI());
+		if (!partner_alive || !partner_alive->g_Alive() || !game_ui || smart_cast<CActor*>(talk_partner))
+			return;
+		if (CurrentGameUI()->TopInputReceiver())
+			CurrentGameUI()->TopInputReceiver()->HideDialog();
+		game_ui->StartTrade(this, talk_partner);
 		return;
 	}
 

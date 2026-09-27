@@ -9,6 +9,7 @@
 #include "alife_object_registry.h"
 #include "xrServer_Objects_ALife_Items.h"
 #include "xrServer_Objects_ALife_Monsters.h"
+#include "netcoop.h"
 
 void xrServer::Process_event(NET_Packet& P, ClientID sender)
 {
@@ -27,6 +28,12 @@ void xrServer::Process_event(NET_Packet& P, ClientID sender)
 	// read generic info
 	P.r_u16(type);
 	P.r_u16(destination);
+
+	if (!netcoop::server_remote_event_allowed(this, ID_to_client(sender), P, type, destination))
+	{
+		Msg("! [NetAnomaly] rejected event %u for entity %u from client 0x%08x", type, destination, sender.value());
+		return;
+	}
 
 	CSE_Abstract* receiver = game->get_entity_from_eid(destination);
 	if (receiver)
@@ -374,7 +381,12 @@ void xrServer::Process_event(NET_Packet& P, ClientID sender)
 		{
 			CSE_Abstract* e_dest = receiver;
 			CSE_ALifeTraderAbstract* pTa = smart_cast<CSE_ALifeTraderAbstract*>(e_dest);
+			if (!pTa)
+				break;
 			pTa->m_dwMoney = P.r_u32();
+			// Money is server-owned in netcoop: publish the new balance to clients.
+			if (netcoop::enabled())
+				SendBroadcast(BroadcastCID, P, MODE);
 		}
 		break;
 	case GE_TRADER_FLAGS:

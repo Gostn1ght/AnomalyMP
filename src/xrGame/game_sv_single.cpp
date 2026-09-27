@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "netcoop.h"
 #include "game_sv_single.h"
 #include "xrserver_objects_alife_monsters.h"
 #include "alife_simulator.h"
@@ -459,7 +460,9 @@ void game_sv_Single::netcoop_spawn_actor(ClientID id_who)
 	}
 
 	string64 nick;
-	if (CL->ps && CL->ps->getName() && CL->ps->getName()[0])
+	if (CL->netcoop_login.size())
+		xr_strcpy(nick, CL->netcoop_login.c_str());
+	else if (CL->ps && CL->ps->getName() && CL->ps->getName()[0])
 		xr_strcpy(nick, CL->ps->getName());
 	else if (CL->name.size())
 		xr_strcpy(nick, *CL->name);
@@ -481,6 +484,11 @@ void game_sv_Single::netcoop_spawn_actor(ClientID id_who)
 	pos.y += 0.3f;
 	A->o_Position = pos;
 	A->o_Angle = host->o_Angle;
+
+	// The account keeps its server-owned balance between sessions.
+	u32 stored_money = 0;
+	if (netcoop::server_account_money(CL->netcoop_login.c_str(), stored_money))
+		A->m_dwMoney = stored_money;
 
 	CL->net_PassUpdates = TRUE;
 	if (CL->ps)

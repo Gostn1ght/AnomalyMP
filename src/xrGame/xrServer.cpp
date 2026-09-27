@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "pch_script.h"
+#include "netcoop.h"
 #include "xrServer.h"
 #include "actor_defs.h"
 
@@ -48,6 +49,8 @@ void xrClientData::Clear()
 	net_Ready = FALSE;
 	net_Accepted = FALSE;
 	net_ConnectionDataRequested = FALSE;
+	netcoop_login = NULL;
+	netcoop_role = 0;
 	gamma_snapshot_ready = false;
 	net_PassUpdates = TRUE;
 	m_ping_warn.m_maxPingWarnings = 0;
@@ -280,6 +283,7 @@ void xrServer::Update()
 	if (0 == (Device.dwFrame % 100)) //once per 100 frames
 	{
 		UpdateBannedList();
+		netcoop::server_update(this);
 
 		// NetAnomaly: publish the real number of connected clients for the
 		// external server console (appdata/netanomaly_console_net.txt)
@@ -744,20 +748,34 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
 			OnChatMessage(&P, l_pC);
 		}
 		break;
+	case M_NETCOOP_AUTH:
+		{
+			netcoop::server_on_auth(this, CL, P);
+		}
+		break;
+	case M_NETCOOP_TRADE:
+		{
+			if (!CL->flags.bLocal && CL->netcoop_role != netcoop::role_none)
+				netcoop::server_on_trade(this, CL, P);
+		}
+		break;
 	case M_NETANOMALY_CMD:
 		{
-			if (!CL->flags.bLocal) break;
+			// Remote clients need a logged-in account; the Lua handler checks the role.
+			if (!CL->flags.bLocal && CL->netcoop_role == netcoop::role_none) break;
 			if (P.B.count < 3 || P.B.count > 4098 || !memchr(P.B.data + 2, 0, P.B.count - 2)) break;
 			//netanomaly: text command channel client -> server, handled in lua
 			string4096 na_text;
 			na_text[0] = 0;
 			P.r_stringZ(na_text);
 			xrClientData* na_cl = ID_to_client(sender);
-			LPCSTR na_name = (na_cl && na_cl->name.size()) ? na_cl->name.c_str() : "unknown";
+			LPCSTR na_name = (na_cl && na_cl->netcoop_login.size()) ? na_cl->netcoop_login.c_str()
+				: (na_cl && na_cl->name.size()) ? na_cl->name.c_str() : "unknown";
+			LPCSTR na_role = CL->flags.bLocal ? "admin" : netcoop::role_name(CL->netcoop_role);
 			int na_eid = (na_cl && na_cl->owner) ? int(na_cl->owner->ID) : int(65535);
 			string64 na_cid;
 			xr_sprintf(na_cid, "%08x", sender.value());
-			Msg("[NetAnomaly] local command from [%s] eid=%d", na_name, na_eid);
+			Msg("[NetAnomaly] command from [%s] (%s) eid=%d", na_name, na_role, na_eid);
 			string4096 na_reply;
 			na_reply[0] = 0;
 			::luabind::functor<LPCSTR> na_f;
@@ -765,8 +783,8 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
 			{
 				try
 				{
-					LPCSTR na_res = na_f((LPCSTR)na_cid, na_name, na_eid, (LPCSTR)na_text);
-					if (na_res) xr_strcpy(na_reply, na_res);
+					LPCSTR na_res = na_f((LPCSTR)na_cid, na_name, na_eid, (LPCSTR)na_text, na_role);
+					if (na_res) strncpy_s(na_reply, sizeof(na_reply), na_res, _TRUNCATE);
 				}
 				catch (...)
 				{

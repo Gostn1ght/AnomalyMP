@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "UIActorMenu.h"
+#include "../netcoop.h"
 #include "UIActorStateInfo.h"
 #include "../actor.h"
 #include "../uigamesp.h"
@@ -225,6 +226,12 @@ void CUIActorMenu::Update()
 		}
 	case mmTrade:
 		{
+			if (netcoop::client_take_trade_refresh())
+			{
+				InitInventoryContents(m_pTradeActorBagList);
+				InitPartnerInventoryContents();
+				UpdatePrices();
+			}
 			if (m_pPartnerInvOwner->inventory().ModifyFrame() != m_trade_partner_inventory_state)
 				InitPartnerInventoryContents();
 			CheckDistance();

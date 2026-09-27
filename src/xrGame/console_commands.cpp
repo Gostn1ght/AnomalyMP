@@ -1,4 +1,5 @@
 #include "pch_script.h"
+#include "netcoop.h"
 #include "../xrEngine/xr_ioconsole.h"
 #include "../xrEngine/xr_ioc_cmd.h"
 #include "../xrEngine/customhud.h"
@@ -2483,6 +2484,46 @@ public:
     }
 };
 
+//netanomaly: list the server's player accounts
+class CCC_NetcoopAccounts : public IConsole_Command
+{
+public:
+	CCC_NetcoopAccounts(LPCSTR N) : IConsole_Command(N) { bEmptyArgsHandled = TRUE; };
+	virtual void Execute(LPCSTR args)
+	{
+		xr_string out;
+		netcoop::server_list_accounts(out);
+		Msg("%s", out.c_str());
+	}
+};
+
+//netanomaly: grant or revoke admin; only the local server console may do this
+class CCC_NetcoopAccountRole : public IConsole_Command
+{
+public:
+	CCC_NetcoopAccountRole(LPCSTR N) : IConsole_Command(N) { bEmptyArgsHandled = TRUE; };
+	virtual void Execute(LPCSTR args)
+	{
+		string64 login = "";
+		string64 role = "";
+		if (!args || sscanf_s(args, "%63s %63s", login, (unsigned)sizeof(login), role, (unsigned)sizeof(role)) != 2 ||
+			(xr_strcmp(role, "admin") && xr_strcmp(role, "player")))
+		{
+			Msg("~ usage: sv_account_role <login> <admin|player>");
+			return;
+		}
+		if (g_pGameLevel && !Level().Server)
+		{
+			Msg("! sv_account_role: this instance is not a server");
+			return;
+		}
+		xr_string message;
+		const u8 value = !xr_strcmp(role, "admin") ? netcoop::role_admin : netcoop::role_player;
+		const bool ok = netcoop::server_set_role(login, value, message);
+		Msg("%s sv_account_role: %s (takes effect on the next login)", ok ? "*" : "!", message.c_str());
+	}
+};
+
 //netanomaly: send a text command to the server (accounts, admin, spawner)
 class CCC_NetAnomalySrv : public IConsole_Command
 {
@@ -2546,6 +2587,8 @@ void CCC_RegisterCommands()
 {
 	CMD1(CCC_NetAnomalySrv, "srv");
 	CMD1(CCC_NetAnomalySvCmd, "sv_cmd");
+	CMD1(CCC_NetcoopAccounts, "sv_accounts");
+	CMD1(CCC_NetcoopAccountRole, "sv_account_role");
 	//Not needed for a singleplayer-only mod
 	//g_OptConCom.Init();
 

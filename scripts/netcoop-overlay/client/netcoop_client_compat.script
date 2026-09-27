@@ -98,7 +98,31 @@ local se_actor_stub = setmetatable({}, {
 ----------------------------------------------------------------------
 -- alife() stand-in
 ----------------------------------------------------------------------
+----------------------------------------------------------------------
+-- Admin world changes go to the server (netanomaly_server.script)
+----------------------------------------------------------------------
+local function is_admin()
+	return netcoop_role and netcoop_role() == 2
+end
+
+local function request_create(section, pos, lvid, gvid, parent_id)
+	if not is_admin() then
+		warn_once("create (admin only)")
+		return nil
+	end
+	local a = db.actor
+	if parent_id and a and parent_id == a:id() then
+		netcoop_command(string.format("spawn %s 1", tostring(section)))
+	elseif pos then
+		netcoop_command(string.format("spawn_at %s %.2f %.2f %.2f", tostring(section), pos.x, pos.y, pos.z))
+	else
+		netcoop_command(string.format("spawn %s 1", tostring(section)))
+	end
+	return nil -- the object arrives later as a normal network spawn
+end
+
 local sim_methods = {
+	create = function(_, section, pos, lvid, gvid, parent_id) return request_create(section, pos, lvid, gvid, parent_id) end,
 	actor = function() return db.actor and se_actor_stub or nil end,
 	object = function(_, id) return nil end,
 	story_object = function() return nil end,
@@ -173,6 +197,42 @@ local function no_quick_load(dik, bind, flags)
 	no_saves(flags)
 end
 
+----------------------------------------------------------------------
+-- Engine callbacks (netcoop.cpp)
+----------------------------------------------------------------------
+local function show_text(text)
+	local a = db.actor
+	if a and text and text ~= "" then
+		pcall(function() a:give_game_news("Server", text, "ui_inGame2_PD_Lider", 0, 7000) end)
+	end
+end
+
+function on_auth_result(ok, role, message)
+	printf("[NetAnomaly] login %s: role=%s %s", ok and "ok" or "failed", tostring(role), tostring(message))
+	if ok and role == 2 then
+		-- The debug launcher registers its keys only in debug mode.
+		_G.DEV_DEBUG = true
+	end
+end
+
+function on_trade_result(ok, role, message)
+	if not ok then show_text(message) end
+end
+
+function on_server_text(text)
+	show_text(text)
+end
+
+-- The GAMMA debug menu runs locally for an admin; its world changes are
+-- routed to the server through alife():create above and admin commands.
+local function install_admin_menu()
+	local compat = gamma_net_compat
+	if type(compat) ~= "table" then return end
+	compat.admin_allowed = function() return is_admin() end
+	compat.is_server = function() return is_admin() end
+	compat.request_admin = function() return false end
+end
+
 -- axr_main calls on_game_start of every script after all scripts are loaded.
 function on_game_start()
 	RegisterScriptCallback("on_before_save_input", no_saves)
@@ -185,5 +245,6 @@ function install()
 	native_alife = _G.alife
 	_G.alife = alife_compat
 	install_db_actor()
+	install_admin_menu()
 	printf("[NetAnomaly] netcoop client compatibility layer installed")
 end

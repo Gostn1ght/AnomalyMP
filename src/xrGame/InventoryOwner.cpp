@@ -1,5 +1,6 @@
 #include "pch_script.h"
 #include "InventoryOwner.h"
+#include "netcoop.h"
 #include "entity_alive.h"
 #include "pda.h"
 #include "actor.h"
@@ -635,6 +636,13 @@ bool CInventoryOwner::AllowItemToTrade(CInventoryItem const* item, const SInvIte
 
 void CInventoryOwner::set_money(u32 amount, bool bSendEvent)
 {
+	// Money belongs to the netcoop server; a client only applies its events.
+	if (bSendEvent && netcoop::pure_client())
+	{
+		Msg("! [NetAnomaly] money change ignored on client: the server owns balances");
+		return;
+	}
+
 	if (InfinitiveMoney())
 		m_money = _max(m_money, amount);
 	else

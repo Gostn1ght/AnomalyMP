@@ -1,4 +1,5 @@
 #include "pch_script.h"
+#include "netcoop.h"
 #include "Level.h"
 #include "Level_Bullet_Manager.h"
 #include "xrserver.h"
@@ -464,7 +465,20 @@ void CLevel::OnConnectResult(NET_Packet* P)
 	// The netcoop server skips the digest challenge for remote clients.
 	// That challenge normally triggers profile creation, so send it here.
 	if (result && first_result && strstr(Core.Params, "-netcoop") && !Server)
+	{
+		// The account login must reach the server before the profile: the
+		// server creates no player state or Actor for an anonymous connection.
+		if (netcoop::client_has_credentials())
+		{
+			NET_Packet auth;
+			auth.w_begin(M_NETCOOP_AUTH);
+			netcoop::client_write_auth(auth);
+			Send(auth, net_flags(TRUE, TRUE));
+		}
+		else
+			Msg("! [NetAnomaly] no account: log in from the main menu first");
 		ClientSendProfileData();
+	}
 	if (!result)
 	{
 		m_bConnectResult = false;

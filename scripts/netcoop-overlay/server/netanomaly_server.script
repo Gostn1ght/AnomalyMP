@@ -1,0 +1,150 @@
+-- NetAnomaly: server-side player/admin commands.
+--
+-- Engine entry point (xrServer.cpp M_NETANOMALY_CMD, console "sv_cmd"):
+--   on_client_command(cid, name, entity_id, text, role) -> reply string
+-- role comes from the account bound to the connection by the engine
+-- ("admin", "player"); the local server console is always "admin".
+-- Clients reach this with netcoop_command(text) or the console "srv <text>".
+
+local HELP_PLAYER = table.concat({
+	"~ commands: help, whoami, money",
+}, "\n")
+
+local HELP_ADMIN = table.concat({
+	"~ commands: help, whoami, money",
+	"~ admin:   spawn <section> [count]           - into own inventory",
+	"~          spawn_at <section> <x> <y> <z>    - in the world",
+	"~          give_money <amount>               - change own balance",
+	"~          find <text> [limit]               - search sections",
+	"~          cmd <console command>             - run on the server",
+}, "\n")
+
+local function server_actor(entity_id)
+	if not entity_id or entity_id == 65535 then return nil, nil end
+	local obj = level.object_by_id(entity_id)
+	local se = alife():object(entity_id)
+	return obj, se
+end
+
+local function is_item_section(section)
+	-- Items have an inventory cost; creatures, squads and props do not.
+	return ini_sys:line_exist(section, "cost") and not ini_sys:line_exist(section, "npc_in_squad")
+end
+
+local function spawn_items(entity_id, section, count)
+	local obj, se = server_actor(entity_id)
+	if not (obj and se) then return "! your Actor is not on the server" end
+	local made = 0
+	for _ = 1, count do
+		if alife():create(section, obj:position(), obj:level_vertex_id(), obj:game_vertex_id(), entity_id) then
+			made = made + 1
+		end
+	end
+	return string.format("* spawned %d x %s", made, section)
+end
+
+local function spawn_world(entity_id, section, x, y, z)
+	local obj = server_actor(entity_id)
+	local pos = vector():set(x, y, z)
+	local lvid = level.vertex_id(pos)
+	if not lvid or lvid >= 4294967295 then
+		if not obj then return "! no valid position" end
+		pos = obj:position()
+		lvid = obj:level_vertex_id()
+	end
+	local gvid = obj and obj:game_vertex_id() or 0
+	local se = alife():create(section, pos, lvid, gvid)
+	if not se then return "! cannot create " .. section end
+
+	-- A squad section creates an empty group: fill it like the debug spawner.
+	if se.create_npc then
+		pcall(function() se:create_npc(nil, pos, lvid, gvid) end)
+		pcall(function() se:set_squad_relation() end)
+		pcall(function() SIMBOARD:assign_squad_to_smart(se, nil) end)
+	end
+	return string.format("* spawned %s at %.1f %.1f %.1f", section, pos.x, pos.y, pos.z)
+end
+
+local function find_sections(mask, limit)
+	local out, n = {}, 0
+	mask = string.lower(mask)
+	pcall(function()
+		ini_sys:section_for_each(function(section)
+			if n < limit and string.find(string.lower(section), mask, 1, true) then
+				n = n + 1
+				out[#out + 1] = "~   " .. section
+			end
+		end)
+	end)
+	if n == 0 then return "~ nothing found" end
+	return string.format("~ %d section(s):\n", n) .. table.concat(out, "\n")
+end
+
+function on_client_command(cid, name, entity_id, text, role)
+	local admin = role == "admin"
+	text = string.gsub(text or "", "^%s*(.-)%s*$", "%1")
+	local cmd, args = string.match(text, "^(%S+)%s*(.*)$")
+	cmd = string.lower(cmd or "help")
+	args = args or ""
+	printf("[NetAnomaly] command '%s' from %s (%s)", cmd, tostring(name), tostring(role))
+
+	if cmd == "help" or cmd == "?" then
+		return admin and HELP_ADMIN or HELP_PLAYER
+
+	elseif cmd == "whoami" then
+		return string.format("~ %s, role %s, entity %s", tostring(name), tostring(role), tostring(entity_id))
+
+	elseif cmd == "money" then
+		local obj = server_actor(entity_id)
+		if not obj then return "! your Actor is not on the server" end
+		return string.format("~ balance: %d RU", obj:money())
+	end
+
+	if not admin then
+		return "! administrator account required"
+	end
+
+	if cmd == "spawn" then
+		local section, count = string.match(args, "^([%w_%.%-]+)%s*(%d*)$")
+		count = tonumber(count) or 1
+		if not section or not ini_sys:section_exist(section) then return "! unknown section" end
+		if count < 1 or count > 50 then return "! count must be 1-50" end
+		if not is_item_section(section) then
+			local obj = server_actor(entity_id)
+			if not obj then return "! your Actor is not on the server" end
+			local p = obj:position()
+			return spawn_world(entity_id, section, p.x + 2, p.y, p.z + 2)
+		end
+		return spawn_items(entity_id, section, count)
+
+	elseif cmd == "spawn_at" then
+		local section, x, y, z = string.match(args, "^([%w_%.%-]+)%s+(%-?[%d%.]+)%s+(%-?[%d%.]+)%s+(%-?[%d%.]+)$")
+		if not section or not ini_sys:section_exist(section) then return "! unknown section" end
+		return spawn_world(entity_id, section, tonumber(x), tonumber(y), tonumber(z))
+
+	elseif cmd == "give_money" then
+		local amount = tonumber(args)
+		if not amount or amount ~= math.floor(amount) or math.abs(amount) > 100000000 then
+			return "! invalid amount"
+		end
+		local obj = server_actor(entity_id)
+		if not obj then return "! your Actor is not on the server" end
+		if obj:money() + amount < 0 then return "! balance cannot become negative" end
+		obj:give_money(amount)
+		return string.format("* balance: %d RU", obj:money())
+
+	elseif cmd == "find" then
+		local mask, limit = string.match(args, "^(%S+)%s*(%d*)$")
+		if not mask then return "! usage: find <text> [limit]" end
+		return find_sections(mask, math.min(tonumber(limit) or 30, 100))
+
+	elseif cmd == "cmd" then
+		if args == "" or string.find(args, "[\r\n;]") then return "! invalid console command" end
+		local first = string.lower(string.match(args, "^(%S+)") or "")
+		if first == "srv" or first == "sv_cmd" or first == "quit" then return "! command not allowed" end
+		get_console():execute(args)
+		return "* executed on the server: " .. args
+	end
+
+	return "! unknown command, see help"
+end

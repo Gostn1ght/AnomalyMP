@@ -4,6 +4,7 @@
 #include "alife_simulator.h"
 #include "xrserver_objects.h"
 #include "level.h"
+#include "netcoop.h"
 
 void xrServer::OnCL_Disconnected(IClient* CL)
 {
@@ -15,6 +16,7 @@ void xrServer::OnCL_Disconnected(IClient* CL)
 	P.w_clientID(CL->ID);
 	xrClientData* xrCData = (xrClientData*)(CL);
 	VERIFY(xrCData);
+	netcoop::server_on_client_disconnect(xrCData);
 
 	if (!xrCData->ps)
 		return;

@@ -120,7 +120,10 @@ void CTrade::TransferItem(CInventoryItem* pItem, bool bBuying, bool bFree)
 	if ((pPartner.type == TT_ACTOR) || (pThis.type == TT_ACTOR))
 	{
 		bool bDir = (pThis.type != TT_ACTOR) && bBuying;
-		Actor()->callback(GameObject::eTradeSellBuyItem)(pItem->object().lua_game_object(), bDir, dwTransferMoney);
+		// Netcoop servers trade for remote Actors, which are not Actor().
+		CActor* trade_actor = smart_cast<CActor*>(pThis.type == TT_ACTOR ? pThis.base : pPartner.base);
+		if (trade_actor)
+			trade_actor->callback(GameObject::eTradeSellBuyItem)(pItem->object().lua_game_object(), bDir, dwTransferMoney);
 	}
 }
 

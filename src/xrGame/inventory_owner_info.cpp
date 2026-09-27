@@ -38,6 +38,14 @@ void CInventoryOwner::OnEvent(NET_Packet& P, u16 type)
 				OnDisableInfo(info_id);
 		}
 		break;
+	case GE_MONEY:
+		{
+			// Netcoop: the server broadcasts every balance change it made.
+			const u32 amount = P.r_u32();
+			if (!OnServer())
+				set_money(amount, false);
+		}
+		break;
 	}
 }
 

@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "netcoop.h"
 #include "entity.h"
 #include "xrserver_objects.h"
 #include "level.h"
@@ -356,9 +357,20 @@ void CLevel::ClientReceive()
 			{
 				//netanomaly: server answer for the 'srv' console command
 				string4096 na_text;
-				na_text[0] = 0;
-				P->r_stringZ(na_text);
+				if (!netcoop::read_string(*P, na_text, sizeof(na_text)))
+					break;
 				Msg("%s", na_text);
+				netcoop::client_on_server_text(na_text);
+			}
+			break;
+		case M_NETCOOP_AUTH_RESULT:
+			{
+				netcoop::client_on_auth_result(*P);
+			}
+			break;
+		case M_NETCOOP_TRADE_RESULT:
+			{
+				netcoop::client_on_trade_result(*P);
 			}
 			break;
 		case M_CHAT_MESSAGE:

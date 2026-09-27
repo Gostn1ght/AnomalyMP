@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "netcoop.h"
 #include "LevelGameDef.h"
 #include "script_process.h"
 #include "xrServer_Objects_ALife_Monsters.h"
@@ -818,6 +819,13 @@ void game_sv_GameState::OnEvent(NET_Packet& tNetPacket, u16 type, u32 time, Clie
 				          sender.value()
 			          ).c_str()
 			);
+			// Netcoop: no player state, world data or Actor before account login.
+			if (netcoop::server_requires_login(m_server, CL))
+			{
+				Msg("! [NetAnomaly] client 0x%08x did not log in, disconnecting", sender.value());
+				m_server->DisconnectClient(CL, "@Login required: use the multiplayer login screen");
+				break;
+			}
 			CL->ps = createPlayerState(&tNetPacket);
 			CL->ps->m_online_time = Level().timeServer();
 			CL->ps->DeathTime = Device.dwTimeGlobal;

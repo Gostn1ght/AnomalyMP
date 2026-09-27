@@ -121,6 +121,10 @@ enum
 	M_NETANOMALY_CMD,
 	M_NETANOMALY_MSG,
 	M_CL_INPUT_ACK, // appended to preserve existing message IDs
+	M_NETCOOP_AUTH, // client -> server: u8 mode, stringZ login, stringZ key
+	M_NETCOOP_AUTH_RESULT, // server -> client: u8 ok, u8 role, stringZ message
+	M_NETCOOP_TRADE, // client -> server: u16 partner, u8 direction, u16 n, u16 item[n]
+	M_NETCOOP_TRADE_RESULT, // server -> client: u8 ok, stringZ message
 	MSG_FORCEDWORD = u32(-1)
 };
 static_assert(M_CL_INPUT == 9 && M_CL_UPDATE == 10 && M_CL_INPUT_ACK == 53,

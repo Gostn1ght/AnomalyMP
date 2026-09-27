@@ -1,0 +1,164 @@
+-- NetAnomaly: multiplayer login / registration window of the main menu.
+--
+-- The password never leaves this process: netcoop_login() (engine) derives a
+-- per-server key from it, and the key is checked by the server on connect.
+-- New accounts are always players; admin is granted from the server console
+-- with "sv_account_role <login> admin".
+
+local LAST_FILE = "netcoop_last_server.txt"
+local DEF_ADDR  = "127.0.0.1:1267"
+
+local function app_path(name)
+	local ok, p = pcall(function() return getFS():update_path("$app_data_root$", name) end)
+	return ok and p or name
+end
+
+local function read_last()
+	local f = io.open(app_path(LAST_FILE), "r")
+	if not f then return nil, nil end
+	local line = f:read("*l")
+	f:close()
+	if not line then return nil, nil end
+	local login, addr = string.match(line, "^([^|]*)|(.*)$")
+	return login, addr
+end
+
+local function write_last(login, addr)
+	local f = io.open(app_path(LAST_FILE), "w")
+	if not f then return end
+	f:write(string.format("%s|%s\n", login, addr))
+	f:close()
+end
+
+local function check_values(login, pass)
+	if login == "" then return "Enter a login" end
+	if string.len(login) < 3 or string.len(login) > 20 or not string.match(login, "^[%w_%-%.]+$") then
+		return "Login: 3-20 characters, letters, digits, _ - ."
+	end
+	if string.len(pass) < 4 or string.len(pass) > 64 then return "Password: 4-64 characters" end
+	return nil
+end
+
+local function parse_addr(addr)
+	local ip, port = string.match(addr, "^%s*([%w%.%-]+):(%d+)%s*$")
+	if not ip then
+		ip = string.match(addr, "^%s*([%w%.%-]+)%s*$")
+		port = "1267"
+	end
+	return ip, port
+end
+
+class "netcoop_login_wnd" (CUIScriptWnd)
+
+function netcoop_login_wnd:__init(owner) super()
+	self.owner = owner
+	self:SetWndRect(Frect():set(0, 0, 1024, 768))
+
+	local xml = CScriptXmlInit()
+	xml:ParseFile("ui_netcoop_login.xml")
+	xml:InitStatic("background", self)
+
+	local function cap(path, text)
+		local st = xml:InitStatic(path, self)
+		st:TextControl():SetText(text)
+		return st
+	end
+	cap("cap_title", "S.T.A.L.K.E.R. GAMMA - MULTIPLAYER")
+	cap("cap_login", "Login")
+	cap("cap_pass", "Password")
+	cap("cap_addr", "Server")
+
+	self.ed_login = xml:InitEditBox("input_login", self)
+	self.ed_pass = xml:InitEditBox("input_pass", self)
+	self.ed_addr = xml:InitEditBox("input_addr", self)
+
+	self.msg = xml:InitStatic("msg", self)
+	self.msg:TextControl():SetText("")
+
+	local function btn(path, text, handler)
+		local b = xml:Init3tButton(path, self)
+		b:TextControl():SetText(text)
+		self:Register(b, path)
+		self:AddCallback(path, ui_events.BUTTON_CLICKED, handler, self)
+		return b
+	end
+	btn("btn_enter", "LOGIN", self.OnLogin)
+	btn("btn_reg", "REGISTER", self.OnRegister)
+	btn("btn_back", "BACK", self.OnBack)
+end
+
+function netcoop_login_wnd:SetMsg(text)
+	self.msg:TextControl():SetText(text or "")
+end
+
+function netcoop_login_wnd:Reset()
+	local login, addr = read_last()
+	if not login or login == "" then login = netcoop_account and netcoop_account() or "" end
+	self.ed_login:SetText(login or "")
+	self.ed_pass:SetText("")
+	self.ed_addr:SetText((addr and addr ~= "") and addr or DEF_ADDR)
+	self:SetMsg("LOGIN - existing account, REGISTER - create a new one.")
+	pcall(function() self.ed_login:CaptureFocus(true) end)
+end
+
+function netcoop_login_wnd:Connect(register)
+	local trim = function(s) return string.gsub(s or "", "^%s*(.-)%s*$", "%1") end
+	local login = trim(self.ed_login:GetText())
+	local pass = self.ed_pass:GetText() or ""
+	local addr = trim(self.ed_addr:GetText())
+
+	local err = check_values(login, pass)
+	if err then return self:SetMsg("! " .. err) end
+	local ip, port = parse_addr(addr)
+	if not ip then return self:SetMsg("! Server address: host:port") end
+
+	if not netcoop_login(login, pass, register) then
+		return self:SetMsg("! Cannot prepare the account key, see the log")
+	end
+	self.ed_pass:SetText("")
+	write_last(login, ip .. ":" .. port)
+
+	printf("[NetAnomaly] connecting as %s to %s:%s", login, ip, port)
+	self:HideDialog()
+	exec_console_cmd("main_menu off")
+	exec_console_cmd(string.format("start client(%s/name=%s/port=%s)", ip, login, port))
+end
+
+function netcoop_login_wnd:OnLogin() self:Connect(false) end
+function netcoop_login_wnd:OnRegister() self:Connect(true) end
+
+function netcoop_login_wnd:OnBack()
+	self:HideDialog()
+	if self.owner then
+		self.owner:ShowDialog(true)
+		self.owner:Show(true)
+	end
+end
+
+function netcoop_login_wnd:OnKeyboard(dik, keyboard_action)
+	CUIScriptWnd.OnKeyboard(self, dik, keyboard_action)
+	if keyboard_action == ui_events.WINDOW_KEY_PRESSED then
+		if dik == DIK_keys.DIK_ESCAPE then
+			self:OnBack()
+		elseif dik == DIK_keys.DIK_RETURN or dik == DIK_keys.DIK_NUMPADENTER then
+			self:OnLogin()
+		end
+	end
+	return true
+end
+
+local wnd = nil
+
+function show_login(menu)
+	if not wnd then
+		wnd = netcoop_login_wnd(menu)
+	else
+		wnd.owner = menu
+	end
+	wnd:Reset()
+	wnd:ShowDialog(true)
+	if menu then
+		menu:HideDialog()
+		menu:Show(false)
+	end
+end

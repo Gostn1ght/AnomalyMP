@@ -1,6 +1,8 @@
 //#include "stdafx.h"
 #include "pch_script.h"
 #include "UIActorMenu.h"
+#include "../netcoop.h"
+#include "../Level.h"
 #include "UI3tButton.h"
 #include "UIDragDropListEx.h"
 #include "UIDragDropReferenceList.h"
@@ -670,6 +672,36 @@ void CUIActorMenu::OnBtnPerformTradeSell(CUIWindow* w, void* d)
 void CUIActorMenu::TransferItems(CUIDragDropListEx* pSellList, CUIDragDropListEx* pBuyList, CTrade* pTrade,
                                  bool bBuying)
 {
+	if (netcoop::pure_client())
+	{
+		// The server prices and executes the deal. Items and money come back as
+		// replicated events; until then the lists show the current ownership.
+		xr_vector<u16> ids;
+		for (u32 i = 0; i < pSellList->ItemsCount(); ++i)
+		{
+			CUICellItem* cell = pSellList->GetItemIdx(i);
+			ids.push_back(((PIItem)cell->m_pData)->object_id());
+			for (u32 k = 0; k < cell->ChildsCount(); ++k)
+				ids.push_back(((PIItem)cell->Child(k)->m_pData)->object_id());
+		}
+		if (!ids.empty() && ids.size() <= 256)
+		{
+			NET_Packet P;
+			P.w_begin(M_NETCOOP_TRADE);
+			P.w_u16(m_pPartnerInvOwner->object_id());
+			// bBuying: the partner buys, so the actor sells.
+			P.w_u8(bBuying ? netcoop::trade_actor_sells : netcoop::trade_actor_buys);
+			P.w_u16((u16)ids.size());
+			for (u32 i = 0; i < ids.size(); ++i)
+				P.w_u16(ids[i]);
+			Level().Send(P, net_flags(TRUE, TRUE));
+		}
+		InitInventoryContents(m_pTradeActorBagList);
+		InitPartnerInventoryContents();
+		UpdatePrices();
+		return;
+	}
+
 	while (pSellList->ItemsCount())
 	{
 		CUICellItem* cell_item = pSellList->RemoveItem(pSellList->GetItemIdx(0), false);
@@ -706,6 +738,10 @@ void CUIActorMenu::DonateCurrentItem(CUICellItem* cell_item)
 
 	PIItem item = (PIItem)cell_item->m_pData;
 	if (!item)
+		return;
+
+	// Giving items away is a server-side inventory change in netcoop.
+	if (netcoop::pure_client())
 		return;
 
 	//Alundaio: 

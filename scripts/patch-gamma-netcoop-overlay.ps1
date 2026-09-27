@@ -31,8 +31,44 @@ Get-ChildItem -LiteralPath (Join-Path $runtime 'client\configs\ui') -Filter 'ui_
     }
 }
 
+function Replace-Once {
+    param([string]$File, [string]$Old, [string]$New)
+    $text = $latin1.GetString([System.IO.File]::ReadAllBytes($File))
+    # GAMMA scripts mix line endings; use whichever form the file contains.
+    if (-not $text.Contains($Old) -and -not $text.Contains($New)) {
+        $Old = $Old.Replace("`n", "`r`n"); $New = $New.Replace("`n", "`r`n")
+    }
+    if ($text.Contains($New)) { return }
+    if (-not $text.Contains($Old)) { throw "Expected GAMMA text missing in $File" }
+    [System.IO.File]::WriteAllBytes($File, $latin1.GetBytes($text.Replace($Old, $New)))
+    Write-Host "Patched $File"
+}
+
+# The main menu's new-game button opens the multiplayer login instead.
+Get-ChildItem -LiteralPath (Join-Path $runtime 'client\configs\ui') -Filter 'ui_mm_main*.xml' -File | ForEach-Object {
+    $text = $latin1.GetString([System.IO.File]::ReadAllBytes($_.FullName))
+    if ($text.Contains('caption="ui_mm_newgame"')) {
+        [System.IO.File]::WriteAllBytes($_.FullName, $latin1.GetBytes($text.Replace('caption="ui_mm_newgame"', 'caption="ui_mm_netcoop_play"')))
+        Write-Host "Renamed the new game button in $($_.Name)"
+    }
+}
+Replace-Once (Join-Path $runtime 'client\scripts\ui_main_menu.script') `
+    "function main_menu:OnButton_new_game()`n`tdo return gamma_net_compat.unavailable() end" `
+    "function main_menu:OnButton_new_game()`n`tdo return netcoop_login.show_login(self) end"
+
 foreach ($role in $roles) {
     $overlay = Join-Path $PSScriptRoot "netcoop-overlay\$($role.Name)"
+    $configs = Join-Path $overlay 'configs'
+    if (Test-Path -LiteralPath $configs -PathType Container) {
+        $target = Join-Path $runtime "$($role.Name)\configs"
+        Get-ChildItem -LiteralPath $configs -Recurse -File | ForEach-Object {
+            $relative = $_.FullName.Substring($configs.Length + 1)
+            $destination = Join-Path $target $relative
+            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
+            Copy-Item -LiteralPath $_.FullName -Destination $destination -Force
+            Write-Host "Installed $($role.Name)\configs\$relative"
+        }
+    }
     $scripts = Join-Path $runtime "$($role.Name)\scripts"
     if (-not (Test-Path -LiteralPath $scripts -PathType Container)) {
         throw "Script directory missing: $scripts"
