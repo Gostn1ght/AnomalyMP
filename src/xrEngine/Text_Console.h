@@ -22,6 +22,16 @@ private:
 
 	bool m_bScrollLog;
 	u32 m_dwStartLine;
+	int m_log_filter;
+	int m_log_scroll;
+	int m_log_count;
+	int m_log_visible_rows;
+	bool m_dragging_scrollbar;
+	int m_dashboard_bottom;
+	int m_log_top;
+	int m_log_bottom;
+	bool MatchesLogFilter(LPCSTR line) const;
+	void SetLogFilter(int filter);
 	void DrawLog(HDC hDC, RECT* pRect);
 
 private:
@@ -56,6 +66,10 @@ public:
 	void OnPaint();
 	void RefreshDisplay();
 	void FocusCommandInput();
+	void ScrollLog(int rows);
+	void OnLogClick(int x, int y);
+	void OnLogDrag(int y);
+	void EndLogDrag();
 }; // class TextConsole
 
 //extern ENGINE_API CTextConsole* TextConsole;

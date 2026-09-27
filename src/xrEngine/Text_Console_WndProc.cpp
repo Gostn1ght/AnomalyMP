@@ -54,7 +54,18 @@ LRESULT CALLBACK TextConsole_LogWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 			static_cast<CTextConsole*>(Console)->RefreshDisplay();
 		return 0;
 	case WM_LBUTTONDOWN:
-		static_cast<CTextConsole*>(Console)->FocusCommandInput();
+		static_cast<CTextConsole*>(Console)->OnLogClick(static_cast<short>(LOWORD(lParam)), static_cast<short>(HIWORD(lParam)));
+		return 0;
+	case WM_MOUSEMOVE:
+		if (wParam & MK_LBUTTON)
+			static_cast<CTextConsole*>(Console)->OnLogDrag(static_cast<short>(HIWORD(lParam)));
+		return 0;
+	case WM_LBUTTONUP:
+	case WM_CAPTURECHANGED:
+		static_cast<CTextConsole*>(Console)->EndLogDrag();
+		return 0;
+	case WM_MOUSEWHEEL:
+		static_cast<CTextConsole*>(Console)->ScrollLog(GET_WHEEL_DELTA_WPARAM(wParam) / WHEEL_DELTA * 3);
 		return 0;
 	case WM_SETCURSOR:
 		SetCursor(LoadCursor(nullptr, IDC_ARROW));
