@@ -58,12 +58,13 @@ void CALifeGraphRegistry::update(CSE_ALifeDynamicObject* object)
 
 	if (object->s_flags.is(M_SPAWN_OBJECT_ASPLAYER))
 	{
+		const bool first_actor_registration = !m_actor && !m_level;
 		m_actor = smart_cast<CSE_ALifeCreatureActor*>(object);
 		R_ASSERT2(m_actor, "Invalid flag M_SPAWN_OBJECT_ASPLAYER for non-actor object!");
 		// A dedicated netcoop new game has no main-menu Actor binder to move the
 		// starter Actor out of fake_start. Select the GAMMA spawn point before
 		// setup_current_level() chooses and loads the first level.
-		if (g_dedicated_server && strstr(Core.Params, "-netcoop") &&
+		if (first_actor_registration && g_dedicated_server && strstr(Core.Params, "-netcoop") &&
 			!xr_strcmp(g_pGamePersistent->m_game_params.m_new_or_load, "new"))
 		{
 			LPCSTR option = strstr(Core.Params, "-netcoop_start_location=");
