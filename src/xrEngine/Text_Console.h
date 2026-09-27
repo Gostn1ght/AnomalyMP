@@ -30,6 +30,7 @@ private:
 	HBITMAP m_hBB_BM, m_hOld_BM;
 
 	bool m_bNeedUpdate;
+	bool m_host_window_ready;
 	u32 m_dwLastUpdateTime;
 
 	u32 m_last_time;

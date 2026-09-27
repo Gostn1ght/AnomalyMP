@@ -20,6 +20,7 @@ CTextConsole::CTextConsole()
 	m_dwStartLine = 0;
 
 	m_bNeedUpdate = false;
+	m_host_window_ready = false;
 	m_dwLastUpdateTime = Device.dwTimeGlobal;
 	m_last_time = Device.dwTimeGlobal;
 }
@@ -360,6 +361,23 @@ void CTextConsole::RefreshDisplay()
 {
 	if (!m_hLogWnd || !m_pMainWnd)
 		return;
+
+	// Device creation can replace the host window style after the child console
+	// was created. Apply clipping once after the render device is ready, and
+	// restore it if a later display reset removes it. Recalculate the non-client
+	// area so DXGI stops painting over the console child windows.
+	if (Device.b_is_Ready && (!m_host_window_ready ||
+		!(GetWindowLongPtr(*m_pMainWnd, GWL_STYLE) & WS_CLIPCHILDREN)))
+	{
+		const LONG_PTR style = GetWindowLongPtr(*m_pMainWnd, GWL_STYLE);
+		SetWindowLongPtr(*m_pMainWnd, GWL_STYLE, style | WS_CLIPCHILDREN);
+		SetWindowPos(*m_pMainWnd, nullptr, 0, 0, 0, 0,
+			SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+		ShowWindow(m_hConsoleWnd, SW_SHOW);
+		ShowWindow(m_hLogWnd, SW_SHOW);
+		m_host_window_ready = true;
+		Msg("[NetAnomaly] Dedicated console host style: 0x%Ix", static_cast<size_t>(style | WS_CLIPCHILDREN));
+	}
 
 	RECT parent_rect, child_rect;
 	GetClientRect(*m_pMainWnd, &parent_rect);

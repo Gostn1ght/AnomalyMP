@@ -9,6 +9,11 @@
 #include "stdafx.h"
 #include "alife_graph_registry.h"
 #include "../xrEngine/x_ray.h"
+#include "../xrEngine/IGame_Persistent.h"
+
+#include <cmath>
+
+extern ENGINE_API bool g_dedicated_server;
 
 using namespace ALife;
 
@@ -55,6 +60,47 @@ void CALifeGraphRegistry::update(CSE_ALifeDynamicObject* object)
 	{
 		m_actor = smart_cast<CSE_ALifeCreatureActor*>(object);
 		R_ASSERT2(m_actor, "Invalid flag M_SPAWN_OBJECT_ASPLAYER for non-actor object!");
+		// A dedicated netcoop new game has no main-menu Actor binder to move the
+		// starter Actor out of fake_start. Select the GAMMA spawn point before
+		// setup_current_level() chooses and loads the first level.
+		if (g_dedicated_server && strstr(Core.Params, "-netcoop") &&
+			!xr_strcmp(g_pGamePersistent->m_game_params.m_new_or_load, "new"))
+		{
+			LPCSTR option = strstr(Core.Params, "-netcoop_start_location=");
+			if (option)
+			{
+				option += xr_strlen("-netcoop_start_location=");
+				string64 section = {};
+				u32 length = 0;
+				while ((option[length] >= 'a' && option[length] <= 'z') ||
+					(option[length] >= 'A' && option[length] <= 'Z') ||
+					(option[length] >= '0' && option[length] <= '9') || option[length] == '_')
+				{
+					R_ASSERT2(length + 1 < sizeof(section), "Netcoop start location name is too long");
+					section[length] = option[length];
+					++length;
+				}
+				R_ASSERT2(length && (!option[length] || option[length] == ' '),
+					"Invalid -netcoop_start_location value");
+				string_path config_path;
+				FS.update_path(config_path, "$game_config$", "plugins\\new_game_start_locations.ltx");
+				R_ASSERT3(FS.exist(config_path), "Missing GAMMA start locations file", config_path);
+				CInifile starts(config_path, TRUE);
+				R_ASSERT3(starts.section_exist(section), "Unknown netcoop start location", section);
+				const u32 graph_id = starts.r_u32(section, "gvid");
+				R_ASSERT2(graph_id < ai().game_graph().header().vertex_count(), "Invalid start game graph vertex");
+				const u32 level_id = starts.r_u32(section, "lvid");
+				const Fvector position = {starts.r_float(section, "x"), starts.r_float(section, "y"),
+					starts.r_float(section, "z")};
+				R_ASSERT2(std::isfinite(position.x) && std::isfinite(position.y) &&
+					std::isfinite(position.z), "Invalid start position");
+				m_actor->m_tGraphID = static_cast<GameGraph::_GRAPH_ID>(graph_id);
+				m_actor->m_tNodeID = level_id;
+				m_actor->o_Position = position;
+				Msg("[NetAnomaly] Dedicated new game start: %s, graph=%u, level_vertex=%u, position=%.2f %.2f %.2f",
+					section, graph_id, level_id, position.x, position.y, position.z);
+			}
+		}
 	}
 
 	if (m_actor && !m_level)
