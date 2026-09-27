@@ -55,6 +55,14 @@ function install()
 	if installed then return end
 	installed = true
 
+	-- schemes_ai_gamma calls IsActor, which no GAMMA script defines. On a
+	-- co-op server every player Actor is "the actor".
+	if rawget(_G, "IsActor") == nil then
+		_G.IsActor = function(o)
+			return o ~= nil and o.clsid ~= nil and o:clsid() == clsid.script_actor
+		end
+	end
+
 	local send = _G.SendScriptCallback
 	_G.SendScriptCallback = function(name, ...)
 		if no_local_actor() and type(name) == "string" and string.find(name, "^actor_on_") then
