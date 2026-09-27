@@ -187,6 +187,13 @@ void CLevel::ClientReceive()
 				u32 Ping = P->r_u32();
 				CGameObject* O = smart_cast<CGameObject*>(Objects.net_Find(ID));
 				if (0 == O) break;
+				// In netcoop the client's legacy Actor update is only forwarded to
+				// the host for packet compatibility. Movement is supplied by validated
+				// M_CL_INPUT and simulated on the dedicated server. Do not schedule
+				// the old physics correction pass for this Actor: net_Import already
+				// rejects its transform, and a correction would replay stale state.
+				if (Server && strstr(Core.Params, "-netcoop") && smart_cast<CActor*>(O))
+					break;
 				O->net_Import(*P);
 				//---------------------------------------------------
 				UpdateDeltaUpd(timeServer());

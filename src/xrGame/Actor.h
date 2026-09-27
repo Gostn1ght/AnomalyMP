@@ -587,7 +587,7 @@ public:
 		u16 mstate;
 		Fvector accel;
 		float jump;
-		Fvector position; // predicted position before this frame's physics
+		Fvector position; // predicted position after this frame's physics
 	};
 	xr_deque<ClientPredictionFrame> m_client_prediction_history;
 	xr_deque<ActorInputCommand> m_client_pending_inputs;
