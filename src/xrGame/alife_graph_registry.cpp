@@ -56,7 +56,11 @@ void CALifeGraphRegistry::update(CSE_ALifeDynamicObject* object)
 	if (!object->m_bDirectControl)
 		return;
 
-	if (object->s_flags.is(M_SPAWN_OBJECT_ASPLAYER))
+	// NetAnomaly co-op: player Actors carry M_SPAWN_OBJECT_ASPLAYER too, but
+	// the ALife actor stays the story Actor (id 0). A player Actor there left
+	// a dangling alife():actor() after the player disconnected.
+	const bool netcoop_player_actor = m_actor && m_actor != object && strstr(Core.Params, "-netcoop");
+	if (object->s_flags.is(M_SPAWN_OBJECT_ASPLAYER) && !netcoop_player_actor)
 	{
 		const bool first_actor_registration = !m_actor && !m_level;
 		m_actor = smart_cast<CSE_ALifeCreatureActor*>(object);

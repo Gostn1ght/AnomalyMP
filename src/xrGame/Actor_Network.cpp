@@ -95,6 +95,12 @@ void CActor::net_ExportInput(NET_Packet& P, const ActorInputCommand& cmd)
 	P.w_float(cmd.pitch);
 }
 
+// NetAnomaly co-op: a player moves on their own client, which is the source
+// of that Actor's position; the server follows it. Steps longer than this are
+// ignored so a position the server sets (teleport, level scripts) wins, and
+// the client then snaps to it through the input ACK.
+static const float netcoop_owner_max_step = 8.f;
+
 void CActor::net_ImportInputAck(NET_Packet& P)
 {
 	if (P.B.count - P.r_tell() != sizeof(u32) + 2 * sizeof(Fvector))
@@ -158,8 +164,11 @@ void CActor::net_ImportInputAck(NET_Packet& P)
 	// Client and server step physics at different moments, so a direction change
 	// alone produces a few decimetres of difference. Only a real divergence
 	// (collision the client did not see, server teleport) is corrected.
-	const float ignore_error = 0.6f;
-	const float snap_error = 3.0f;
+	// The server follows the owning client's position (see
+	// netcoop_follow_owner_position), so an ACK differs from the prediction only
+	// by latency, or by a real server-side move. Only the latter is applied.
+	const float ignore_error = netcoop::enabled() ? netcoop_owner_max_step : 0.6f;
+	const float snap_error = netcoop::enabled() ? netcoop_owner_max_step : 3.0f;
 	if (m_prediction_error <= ignore_error)
 		return;
 
@@ -407,16 +416,38 @@ void CActor::net_ExportDeadBody(NET_Packet& P)
 	};
 };
 
+static void netcoop_follow_owner_position(CActor* actor, NET_Packet& P)
+{
+	if (!netcoop::enabled() || !actor->g_Alive() || P.r_elapsed() < sizeof(float) + sizeof(u32) + sizeof(u8) + sizeof(Fvector))
+		return;
+	float health;
+	u32 time_stamp;
+	u8 flags;
+	Fvector position;
+	P.r_float(health);
+	P.r_u32(time_stamp);
+	P.r_u8(flags);
+	P.r_vec3(position);
+	if (!_valid(position) || position.distance_to(actor->Position()) > netcoop_owner_max_step)
+		return;
+	CCharacterPhysicsSupport* physics = actor->character_physics_support();
+	if (physics && physics->movement())
+		physics->movement()->SetPosition(position);
+	actor->Position().set(position);
+}
+
 void CActor::net_Import(NET_Packet& P) // import from server
 {
 	// The ALife anchor Actor stays hidden on clients; its chunk is skipped by
 	// CObjectList::net_Import alignment.
 	if (ID() == 0 && netcoop::pure_client())
 		return;
-	// Client M_CL_UPDATE is legacy gameplay data, never an authoritative
-	// movement source for a server Actor (which is marked Local at spawn).
+	// On the server only the player's position is taken from M_CL_UPDATE.
 	if (OnServer() && Level().Server)
+	{
+		netcoop_follow_owner_position(this, P);
 		return;
+	}
 	//-----------------------------------------------
 	net_Import_Base(P);
 	//-----------------------------------------------
