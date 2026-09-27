@@ -104,6 +104,11 @@ void CAI_Stalker::on_ownership_reject(CObject* O, bool just_before_destroy)
 	CGameObject* const game_object = smart_cast<CGameObject*>(O);
 	VERIFY(game_object);
 
+	// A replicated NPC puppet may receive the reject for an item it never took
+	// (or during session cleanup); DropItem assumes the item is in its inventory.
+	if (!game_object || game_object->H_Parent() != this)
+		return;
+
 	if (!inventory().DropItem(game_object, just_before_destroy, just_before_destroy))
 		return;
 

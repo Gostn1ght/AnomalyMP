@@ -227,6 +227,9 @@ namespace crash_saving {
     }
 }
 
+extern Flags32 g_mt_config;
+extern BOOL psLua_ParallelGC;
+
 CLevel::CLevel() :
     IPureClient(Device.GetTimerGlobal())
 #ifdef PROFILE_CRITICAL_SECTIONS
@@ -246,6 +249,16 @@ CLevel::CLevel() :
     if (!g_dedicated_server)
     {
         m_game_task_manager = xr_new<CGameTaskManager>();
+    }
+    else
+    {
+        // The worker thread that runs Device.seqParallel and the parallel Lua GC is
+        // paced by rendering. A dedicated server does not render, so those jobs
+        // (NPC object handler -> _g.update_best_weapon) ran Lua concurrently with
+        // game logic and corrupted the Lua state. Run them on the main thread.
+        g_mt_config.zero();
+        psLua_ParallelGC = FALSE;
+        Msg("[NetAnomaly] dedicated server: multithreaded game jobs disabled");
     }
     m_dwDeltaUpdate = u32(fixed_step * 1000);
     m_seniority_hierarchy_holder = xr_new<CSeniorityHierarchyHolder>();
