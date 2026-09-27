@@ -10,6 +10,7 @@
 // password for reuse on other services.
 
 class NET_Packet;
+class CObject;
 class xrClientData;
 class xrServer;
 
@@ -83,6 +84,10 @@ void client_talk_choose(LPCSTR id);
 void client_talk_stop();
 void client_on_talk_state(NET_Packet& P);
 bool client_take_talk_state(TalkState& out); // oldest unapplied state
+
+// HUD items (weapons, PDA, food, devices) held by the locally controlled Actor
+// switch state on the owning client; the server does not drive their animations.
+bool client_owns_hud_item(const CObject* item);
 
 // Lua: netcoop_login(login, password, register), netcoop_role(),
 // netcoop_account(), netcoop_command(text), netcoop_pure_client()

@@ -237,9 +237,20 @@ local function install_admin_menu()
 end
 
 -- axr_main calls on_game_start of every script after all scripts are loaded.
+-- Admin debug/spawn menu: F7 (GAMMA default) and Num3.
+local function admin_menu_key(key)
+	if key ~= DIK_keys.DIK_NUMPAD3 or not is_admin() then return end
+	local a = db.actor
+	if not (a and a:alive()) then return end
+	if ui_debug_launcher and ui_debug_launcher.start_debug_main then
+		ui_debug_launcher.start_debug_main()
+	end
+end
+
 function on_game_start()
 	RegisterScriptCallback("on_before_save_input", no_saves)
 	RegisterScriptCallback("on_before_load_input", no_quick_load)
+	RegisterScriptCallback("on_key_release", admin_menu_key)
 end
 
 function install()

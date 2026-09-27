@@ -38,14 +38,6 @@ static bool netcoop_server_inventory_action(u16 cmd)
 	case kWPN_6:
 	case kARTEFACT:
 	case kWPN_NEXT:
-	case kWPN_FIRE:
-	case kWPN_ZOOM:
-	case kWPN_ZOOM_INC:
-	case kWPN_ZOOM_DEC:
-	case kWPN_RELOAD:
-	case kWPN_FUNC:
-	case kWPN_FIREMODE_PREV:
-	case kWPN_FIREMODE_NEXT:
 	case kNEXT_SLOT:
 	case kPREV_SLOT:
 	case kTORCH:

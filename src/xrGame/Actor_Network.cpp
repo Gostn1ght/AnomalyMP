@@ -1,4 +1,5 @@
 #include "pch_script.h"
+#include "netcoop.h"
 #include "actor.h"
 #include "hudmanager.h"
 #include "Actor_Flags.h"
@@ -408,6 +409,10 @@ void CActor::net_ExportDeadBody(NET_Packet& P)
 
 void CActor::net_Import(NET_Packet& P) // import from server
 {
+	// The ALife anchor Actor stays hidden on clients; its chunk is skipped by
+	// CObjectList::net_Import alignment.
+	if (ID() == 0 && netcoop::pure_client())
+		return;
 	// Client M_CL_UPDATE is legacy gameplay data, never an authoritative
 	// movement source for a server Actor (which is marked Local at spawn).
 	if (OnServer() && Level().Server)
@@ -843,6 +848,18 @@ BOOL CActor::net_Spawn(CSE_Abstract* DC)
 
 	//Alun: In theory it will call SwitchNightVision 'true' when outfit or helmet spawn and moved to slot if m_bNightVisionOn is true
 	m_bNightVisionOn = !!m_trader_flags.test(CSE_ALifeTraderAbstract::eTraderFlagNightVisionActive);
+
+	// Netcoop: the dedicated server's ALife anchor Actor (id 0) is not a player.
+	// It has no body, cannot be seen, heard or touched, and never updates, so
+	// players do not collide with it at the start point and AI ignores it.
+	if (netcoop::enabled() && ID() == 0 && (g_dedicated_server || netcoop::pure_client()))
+	{
+		character_physics_support()->movement()->DestroyCharacter();
+		spatial.type &= ~STYPE_REACTTOSOUND;
+		setVisible(FALSE);
+		setEnabled(FALSE);
+		Msg("[NetAnomaly] ALife anchor Actor hidden and disabled");
+	}
 
 	return TRUE;
 }

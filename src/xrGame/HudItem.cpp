@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "netcoop.h"
 #include "HudItem.h"
 #include "physic_item.h"
 #include "actor.h"
@@ -145,7 +146,14 @@ void CHudItem::renderable_Render()
 void CHudItem::SwitchState(u32 S)
 {
 	if (OnClient())
+	{
+		if (netcoop::client_owns_hud_item(&object()))
+		{
+			SetNextState(S);
+			OnStateSwitch(S, GetState());
+		}
 		return;
+	}
 
 	SetNextState(S);
 
@@ -167,6 +175,9 @@ void CHudItem::OnEvent(NET_Packet& P, u16 type)
 		{
 			u8 S;
 			P.r_u8(S);
+			// The owning netcoop client already switched this item itself.
+			if (netcoop::client_owns_hud_item(&object()))
+				break;
 			OnStateSwitch(u32(S), GetState());
 		}
 		break;

@@ -63,8 +63,55 @@ function install()
 	printf("[NetAnomaly] dedicated server compatibility layer installed")
 end
 
+-- Diagnostic: every 10 s the log shows whether NPC logic is actually running
+-- on the server (binder updates, positions, active schemes).
+local diag_updates = {}
+local diag_next = 0
+
+local function diag_tick(binder)
+	local obj = binder.object
+	if not obj then return end
+	local id = obj:id()
+	local entry = diag_updates[id]
+	if not entry then
+		entry = { name = obj:name(), count = 0 }
+		diag_updates[id] = entry
+	end
+	entry.count = entry.count + 1
+	entry.pos = obj:position()
+	entry.scheme = binder.st and binder.st.active_scheme or "none"
+
+	local now = time_global()
+	if now < diag_next then return end
+	diag_next = now + 10000
+
+	local total, shown = 0, 0
+	for oid, e in pairs(diag_updates) do
+		total = total + 1
+		if shown < 5 and e.pos then
+			shown = shown + 1
+			printf("[NetAnomaly][npc] %s updates=%d pos=%.1f,%.1f,%.1f scheme=%s",
+				e.name, e.count, e.pos.x, e.pos.y, e.pos.z, tostring(e.scheme))
+		end
+	end
+	printf("[NetAnomaly][npc] %d NPC binders updated in the last 10 s", total)
+	diag_updates = {}
+end
+
+local function install_npc_diagnostic()
+	local cls = xr_motivator and xr_motivator.motivator_binder
+	if not cls or cls.__netcoop_diag then return end
+	local update = cls.update
+	cls.__netcoop_diag = true
+	cls.update = function(self, delta)
+		update(self, delta)
+		diag_tick(self)
+	end
+end
+
 -- axr_main calls on_game_start of every script once all scripts are loaded.
 function on_game_start()
+	install_npc_diagnostic()
 	-- GAMMA's NPC vision hook reads db.actor (torch, flashlight) for every
 	-- observed object. Serve it with the observed player as db.actor, and use
 	-- the engine's own formula for NPC-to-NPC visibility.

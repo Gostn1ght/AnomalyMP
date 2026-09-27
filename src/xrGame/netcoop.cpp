@@ -1339,3 +1339,14 @@ void server_talk_prune(xrServer* server)
 	}
 }
 } // namespace netcoop
+
+namespace netcoop
+{
+bool client_owns_hud_item(const CObject* item)
+{
+	if (!item || !pure_client())
+		return false;
+	const CObject* parent = item->H_Parent();
+	return parent && parent == Level().CurrentControlEntity();
+}
+} // namespace netcoop

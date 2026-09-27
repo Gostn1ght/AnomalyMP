@@ -36,6 +36,7 @@
 #include "../xrEngine/GameMtlLib.h"
 #include "../Layers/xrRender/xrRender_console.h"
 #include "pch_script.h"
+#include "netcoop.h"
 #include "script_game_object.h"
 #include "ai/stalker/ai_stalker.h"
 
@@ -1189,6 +1190,9 @@ void CWeapon::OnEvent(NET_Packet& P, u16 type)
 			else
 				m_set_next_ammoType_on_reload = NextAmmo;
 
+			// The owning netcoop client keeps its own weapon state and ammo.
+			if (netcoop::client_owns_hud_item(&CHudItem::object()))
+				break;
 			if (OnClient()) SetAmmoElapsed(int(AmmoElapsed));
 			OnStateSwitch(u32(state), GetState());
 		}
@@ -2155,7 +2159,16 @@ CUIWindow* CWeapon::ZoomTexture()
 
 void CWeapon::SwitchState(u32 S)
 {
-	if (OnClient()) return;
+	if (OnClient())
+	{
+		// The owning netcoop client animates and fires its own weapon.
+		if (netcoop::client_owns_hud_item(&CHudItem::object()))
+		{
+			SetNextState(S);
+			OnStateSwitch(S, GetState());
+		}
+		return;
+	}
 
 #ifndef MASTER_GOLD
     if ( bDebug )

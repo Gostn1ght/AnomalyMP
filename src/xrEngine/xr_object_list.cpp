@@ -402,6 +402,12 @@ void CObjectList::net_Import(NET_Packet* Packet)
 
 			P->net_Import(*Packet);
 
+			// Stay aligned on the object chunk even if an object reads a different
+			// layout than its server entity wrote (netcoop replicates NPCs, which the
+			// stock engine never sent), so one mismatch cannot corrupt the rest.
+			if (Packet->r_tell() != rsize + size)
+				Packet->r_seek(rsize + size);
+
 			if (g_Dump_Import_Obj) Msg("* %s : %d - %d", *(P->cNameSect()), size, Packet->r_tell() - rsize);
 		}
 		else Packet->r_advance(size);

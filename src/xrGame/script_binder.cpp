@@ -7,6 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "pch_script.h"
+#include "Actor.h"
 #include "ai_space.h"
 #include "script_engine.h"
 #include "script_binder.h"
@@ -184,8 +185,12 @@ void CScriptBinder::net_Destroy()
 
 void CScriptBinder::set_object(CScriptBinderObject* object)
 {
-	//netcoop: a pure client has no alife simulator, so Lua binders must stay disabled (same as in MP)
-	if (strstr(Core.Params, "-netcoop") && !strstr(Core.Params, "server("))
+	//netcoop: a pure client has no alife simulator, so NPC and remote-player binders stay
+	// disabled (the server runs their logic). The locally controlled Actor keeps its
+	// GAMMA binder: actor_on_update, time events, item-use and HUD animations run there.
+	CActor* netcoop_actor = smart_cast<CActor*>(this);
+	const bool netcoop_own_actor = netcoop_actor && netcoop_actor->Local();
+	if (strstr(Core.Params, "-netcoop") && !strstr(Core.Params, "server(") && !netcoop_own_actor)
 	{
 		static bool s_netcoop_bind_logged = false;
 		if (!s_netcoop_bind_logged)
