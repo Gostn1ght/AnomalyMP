@@ -28,6 +28,12 @@ bool CLevel::Load_GameSpecific_Before()
 	g_pGamePersistent->LoadTitle();
 	string_path fn_game;
 
+	// Netcoop client: NPCs arrive from the server and need the level AI map
+	// (graph, cross table, patrols, moving objects) that ALife normally loads.
+	if (strstr(Core.Params, "-netcoop") && !Server && !ai().get_alife() &&
+		FS.exist(fn_game, "$level$", "level.ai") && ai().load_netcoop_client_graph("all"))
+		ai().load(net_SessionName());
+
 	if (GamePersistent().GameType() == eGameIDSingle && !ai().get_alife() && FS.exist(fn_game, "$level$", "level.ai") &&
 		!net_Hosts.empty())
 		ai().load(net_SessionName());

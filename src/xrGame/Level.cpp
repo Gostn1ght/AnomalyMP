@@ -347,6 +347,7 @@ CLevel::~CLevel()
     pObjects4CrPr.clear();
     pActors4CrPr.clear();
     ai().unload();
+    ai().unload_netcoop_client_graph();
 #ifdef DEBUG
     xr_delete(m_level_debug);
 #endif

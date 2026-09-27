@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "pch_script.h"
+#include "netcoop.h"
 #include "ai_debug.h"
 #include "CustomMonster.h"
 #include "ai_space.h"
@@ -331,8 +332,8 @@ void CCustomMonster::shedule_Update(u32 DT)
 	while ((NET.size() > 2) && (NET[1].dwTimeStamp < dwTimeCL)) NET.pop_front();
 
 	float dt = float(DT) / 1000.f;
-	// *** general stuff
-	if (g_Alive())
+	// *** general stuff (a pure netcoop client shows server-driven puppets)
+	if (g_Alive() && !(Remote() && netcoop::pure_client()))
 	{
 		if (false && g_mt_config.test(mtAiVision))
 #ifndef DEBUG

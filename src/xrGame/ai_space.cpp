@@ -36,6 +36,8 @@ CAI_Space::CAI_Space()
 	m_level_graph = 0;
 	m_alife_simulator = 0;
 	m_patrol_path_storage = 0;
+	m_netcoop_spawn_file = 0;
+	m_netcoop_graph_chunk = 0;
 	m_script_engine = 0;
 	m_moving_objects = 0;
 	m_doors_manager = 0;
@@ -197,8 +199,7 @@ void CAI_Space::patrol_path_storage_raw(IReader& stream)
 
 void CAI_Space::patrol_path_storage(IReader& stream)
 {
-	if (g_dedicated_server)
-		return;
+	// The dedicated server runs the NPC jobs, so it needs every patrol path.
 
 	xr_delete(m_patrol_path_storage);
 	m_patrol_path_storage = xr_new<CPatrolPathStorage>();
@@ -245,4 +246,53 @@ const CGameLevelCrossTable* CAI_Space::get_cross_table() const
 bool CAI_Space::valid_game_vertex(u32 vertex_id) const
 {
 	return m_game_graph && m_game_graph->valid_vertex_id(vertex_id);
+}
+
+bool CAI_Space::load_netcoop_client_graph(LPCSTR spawn_name)
+{
+	if (m_game_graph || m_alife_simulator)
+		return false;
+
+	string_path file_name;
+	if (!FS.exist(file_name, "$game_spawn$", spawn_name, ".spawn"))
+		return false;
+
+	m_netcoop_spawn_file = FS.r_open(file_name);
+	if (!m_netcoop_spawn_file)
+		return false;
+
+	if (IReader* patrols = m_netcoop_spawn_file->open_chunk(3))
+	{
+		xr_delete(m_patrol_path_storage);
+		m_patrol_path_storage = xr_new<CPatrolPathStorage>();
+		m_patrol_path_storage->load(*patrols);
+		m_patrol_path_storage->load_from_config();
+		patrols->close();
+	}
+
+	// CGameGraph keeps pointing into this chunk, so it stays open.
+	m_netcoop_graph_chunk = m_netcoop_spawn_file->open_chunk(4);
+	if (!m_netcoop_graph_chunk)
+	{
+		FS.r_close(m_netcoop_spawn_file);
+		return false;
+	}
+
+	m_game_graph = xr_new<CGameGraph>(*m_netcoop_graph_chunk);
+	xr_delete(m_graph_engine);
+	m_graph_engine = xr_new<CGraphEngine>(game_graph().header().vertex_count());
+	Msg("* [NetAnomaly] client AI graph loaded from %s.spawn", spawn_name);
+	return true;
+}
+
+void CAI_Space::unload_netcoop_client_graph()
+{
+	if (!m_netcoop_graph_chunk)
+		return;
+	xr_delete(m_level_graph);
+	xr_delete(m_game_graph);
+	xr_delete(m_graph_engine);
+	m_netcoop_graph_chunk->close();
+	m_netcoop_graph_chunk = 0;
+	FS.r_close(m_netcoop_spawn_file);
 }

@@ -1029,7 +1029,7 @@ void CAI_Stalker::UpdateCL()
 		START_PROFILE("stalker/client_update")
 			VERIFY2(PPhysicsShell()||getEnabled(), *cName());
 
-			if (g_Alive())
+			if (g_Alive() && !(Remote() && netcoop::pure_client()))
 			{
 				if (g_mt_config.test(mtObjectHandler) && CObjectHandler::planner().initialized())
 				{
@@ -1156,7 +1156,8 @@ void CAI_Stalker::shedule_Update(u32 DT)
 			// *** general stuff
 			float dt = float(DT) / 1000.f;
 
-			if (g_Alive())
+			// On a pure netcoop client this NPC is a server-driven puppet: no AI here.
+			if (g_Alive() && !(Remote() && netcoop::pure_client()))
 			{
 				animation().play_delayed_callbacks();
 

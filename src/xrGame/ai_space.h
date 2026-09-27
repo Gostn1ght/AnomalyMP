@@ -42,6 +42,9 @@ private:
 	CCoverManager* m_cover_manager;
 	CScriptEngine* m_script_engine;
 	CPatrolPathStorage* m_patrol_path_storage;
+	// Netcoop client: graph and patrols read from the spawn file without ALife.
+	IReader* m_netcoop_spawn_file;
+	IReader* m_netcoop_graph_chunk;
 	moving_objects* m_moving_objects;
 	doors::manager* m_doors_manager;
 
@@ -52,6 +55,8 @@ private:
 	void patrol_path_storage(IReader& stream);
 	void set_alife(CALifeSimulator* alife_simulator);
 	void game_graph(CGameGraph* game_graph);
+	bool load_netcoop_client_graph(LPCSTR spawn_name);
+	void unload_netcoop_client_graph();
 
 public:
 	CAI_Space();
