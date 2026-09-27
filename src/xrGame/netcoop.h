@@ -54,6 +54,36 @@ bool client_take_trade_refresh(); // true once after a server trade result
 void client_on_server_text(LPCSTR text);
 void client_send_command(LPCSTR text);
 
+// Server-driven dialogue: the client talk window only shows what the server's
+// dialogue run produced and sends the chosen phrase back.
+struct TalkLine
+{
+	bool npc;
+	shared_str text;
+};
+
+struct TalkChoice
+{
+	shared_str id;
+	shared_str text;
+	bool finalizer;
+};
+
+struct TalkState
+{
+	u16 npc;
+	bool open;
+	bool trade;
+	xr_vector<TalkLine> lines;
+	xr_vector<TalkChoice> choices;
+};
+
+void client_talk_start(u16 npc_id);
+void client_talk_choose(LPCSTR id);
+void client_talk_stop();
+void client_on_talk_state(NET_Packet& P);
+bool client_take_talk_state(TalkState& out); // oldest unapplied state
+
 // Lua: netcoop_login(login, password, register), netcoop_role(),
 // netcoop_account(), netcoop_command(text), netcoop_pure_client()
 bool script_login(LPCSTR login, LPCSTR password, bool register_account);
@@ -69,6 +99,9 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P);
 // Remote clients may not change money, other players' inventories or living
 // NPC inventories through raw events. P is left at its read position.
 bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet& P, u16 type, u16 destination);
+void server_on_talk(xrServer* server, xrClientData* CL, NET_Packet& P);
+// An NPC answer produced during a server dialogue run; false outside a run.
+bool talk_capture_answer(LPCSTR text);
 void server_on_client_disconnect(xrClientData* CL);
 void server_update(xrServer* server); // periodic money persistence
 bool server_account_money(LPCSTR login, u32& money);

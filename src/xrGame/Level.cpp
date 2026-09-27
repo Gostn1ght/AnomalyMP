@@ -1001,7 +1001,7 @@ void CLevel::OnFrame()
 	// dead server would otherwise go unnoticed until the transport times out.
 	if (!Server && OnClient() && CurrentControlEntity() && g_netcoop_last_server_rx &&
 		!net_isDisconnected() && strstr(Core.Params, "-netcoop") &&
-		timeGetTime() - g_netcoop_last_server_rx > 15000)
+		GetTickCount() - g_netcoop_last_server_rx > 15000)
 	{
 		Msg("! [NetAnomaly] no data from the server for 15 s, leaving the session");
 		g_netcoop_last_server_rx = 0;

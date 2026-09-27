@@ -83,7 +83,7 @@ void CLevel::ClientReceive()
 		//-----------------------------------------------------
 		m_dwRPC++;
 		m_dwRPS += P->B.count;
-		g_netcoop_last_server_rx = timeGetTime();
+		g_netcoop_last_server_rx = GetTickCount();
 		//-----------------------------------------------------
 		u16 m_type;
 		u16 ID;

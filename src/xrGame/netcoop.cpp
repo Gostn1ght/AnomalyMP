@@ -624,7 +624,7 @@ void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
 			reject(server, CL, "Unknown account, use Register");
 			return;
 		}
-		const u32 now = timeGetTime();
+		const u32 now = GetTickCount();
 		if (a->locked_until && now < a->locked_until)
 		{
 			reject(server, CL, "Too many failed logins, try again in a minute");
