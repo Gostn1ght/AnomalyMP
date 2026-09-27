@@ -690,7 +690,8 @@ void CConsole::Show()
 	reset_selected_tip();
 	update_tips();
 
-	m_editor->IR_Capture();
+	if (!g_dedicated_server)
+		m_editor->IR_Capture();
 	if (!g_dedicated_server)
 		Device.seqRender.Add(this, 1);
 	Device.seqFrame.Add(this);
@@ -724,7 +725,8 @@ void CConsole::Hide()
 
 	Device.seqFrame.Remove(this);
 	Device.seqRender.Remove(this);
-	m_editor->IR_Release();
+	if (!g_dedicated_server)
+		m_editor->IR_Release();
 }
 
 void CConsole::SelectCommand()

@@ -11,6 +11,8 @@ CTextConsole::CTextConsole()
 	m_pMainWnd = NULL;
 	m_hConsoleWnd = NULL;
 	m_hLogWnd = NULL;
+	m_hCommandWnd = NULL;
+	m_originalCommandProc = NULL;
 	m_hLogWndFont = NULL;
 	m_hDC_LogWnd = NULL;
 	m_hDC_LogWnd_BackBuffer = NULL;
@@ -21,8 +23,8 @@ CTextConsole::CTextConsole()
 
 	m_bNeedUpdate = false;
 	m_host_window_ready = false;
-	m_dwLastUpdateTime = Device.dwTimeGlobal;
-	m_last_time = Device.dwTimeGlobal;
+	m_dwLastUpdateTime = GetTickCount();
+	m_last_time = GetTickCount();
 }
 
 CTextConsole::~CTextConsole()
@@ -99,7 +101,7 @@ void CTextConsole::CreateLogWnd()
 	RegisterClass(&wndClass);
 
 	// Set the window's initial style
-	u32 dwWindowStyle = WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS;
+	u32 dwWindowStyle = WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
 	// u32 dwWindowStyleEx = WS_EX_CLIENTEDGE;
 
 	// Set the window's initial width
@@ -158,6 +160,49 @@ void CTextConsole::CreateLogWnd()
 	//------------------------------------------------
 	m_hBackGroundBrush = GetStockBrush(BLACK_BRUSH);
 	UpdateWindow(m_hLogWnd);
+
+	// The old GDI prompt depended on DirectInput's keyboard capture and could
+	// not reliably accept text after focus changes. A native edit control keeps
+	// command entry separate from the game's input receiver stack.
+	m_hCommandWnd = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", "",
+		WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL,
+		4, lHeight - 25, lWidth - 8, 23, m_hLogWnd, nullptr, hInstance, nullptr);
+	R_ASSERT2(m_hCommandWnd, "Unable to create dedicated command input");
+	SendMessage(m_hCommandWnd, WM_SETFONT, reinterpret_cast<WPARAM>(m_hLogWndFont), TRUE);
+	SendMessage(m_hCommandWnd, EM_SETLIMITTEXT, CONSOLE_BUF_SIZE - 1, 0);
+	SetWindowLongPtr(m_hCommandWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+	m_originalCommandProc = reinterpret_cast<WNDPROC>(SetWindowLongPtr(m_hCommandWnd,
+		GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(&CTextConsole::CommandWndProc)));
+}
+
+LRESULT CALLBACK CTextConsole::CommandWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	CTextConsole* console = reinterpret_cast<CTextConsole*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
+	if (console && message == WM_KEYDOWN && wParam == VK_RETURN)
+	{
+		console->SubmitCommand();
+		return 0;
+	}
+	if (message == WM_CHAR && wParam == '\r')
+		return 0;
+	return console && console->m_originalCommandProc
+		? CallWindowProc(console->m_originalCommandProc, hWnd, message, wParam, lParam)
+		: DefWindowProc(hWnd, message, wParam, lParam);
+}
+
+void CTextConsole::SubmitCommand()
+{
+	char command[CONSOLE_BUF_SIZE] = {};
+	GetWindowTextA(m_hCommandWnd, command, sizeof(command));
+	SetWindowTextA(m_hCommandWnd, "");
+	ExecuteCommand(command, true);
+	RefreshDisplay();
+}
+
+void CTextConsole::FocusCommandInput()
+{
+	if (m_hCommandWnd)
+		SetFocus(m_hCommandWnd);
 }
 
 void CTextConsole::Initialize()
@@ -166,18 +211,19 @@ void CTextConsole::Initialize()
 
 	m_pMainWnd = &Device.m_hWnd;
 	SetWindowTextA(*m_pMainWnd, "Lost Zone / AnomalyMP Dedicated Server");
-	m_dwLastUpdateTime = Device.dwTimeGlobal;
-	m_last_time = Device.dwTimeGlobal;
+	m_dwLastUpdateTime = GetTickCount();
+	m_last_time = GetTickCount();
 
 	CreateConsoleWnd();
 	CreateLogWnd();
 
 	ShowWindow(m_hConsoleWnd, SW_SHOW);
 	UpdateWindow(m_hConsoleWnd);
-	SetTimer(m_hLogWnd, 1, 250, nullptr);
+	SetTimer(m_hLogWnd, 1, 100, nullptr);
 
 	m_server_info.ResetData();
 	RefreshDisplay();
+	FocusCommandInput();
 }
 
 void CTextConsole::Destroy()
@@ -185,6 +231,11 @@ void CTextConsole::Destroy()
 	if (m_hLogWnd)
 		KillTimer(m_hLogWnd, 1);
 	inherited::Destroy();
+	if (m_hCommandWnd)
+	{
+		DestroyWindow(m_hCommandWnd);
+		m_hCommandWnd = nullptr;
+	}
 
 	SelectObject(m_hDC_LogWnd_BackBuffer, m_hPrevFont);
 	SelectObject(m_hDC_LogWnd_BackBuffer, m_hOld_BM);
@@ -317,7 +368,7 @@ void CTextConsole::DrawLog(HDC hDC, RECT* pRect)
 	}
 
 	const u32 now = GetTickCount();
-	if (g_pGameLevel && (now - m_last_time > 500))
+	if (g_pGameLevel && (now - m_last_time >= 100))
 	{
 		m_last_time = now;
 
@@ -350,9 +401,10 @@ void CTextConsole::OnFrame()
 {
 	inherited::OnFrame();
 	// The dedicated server has no renderer-driven present loop for this window.
-	if (Device.dwTimeGlobal - m_dwLastUpdateTime >= 250)
+	const u32 now = GetTickCount();
+	if (now - m_dwLastUpdateTime >= 100)
 	{
-		m_dwLastUpdateTime = Device.dwTimeGlobal;
+		m_dwLastUpdateTime = now;
 		RefreshDisplay();
 	}
 }
@@ -397,5 +449,7 @@ void CTextConsole::RefreshDisplay()
 			MoveWindow(m_hLogWnd, 0, 0, width, height, FALSE);
 		}
 	}
+	if (m_hCommandWnd && width > 12 && height > 28)
+		MoveWindow(m_hCommandWnd, 4, height - 25, width - 8, 23, FALSE);
 	RedrawWindow(m_hLogWnd, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW);
 }

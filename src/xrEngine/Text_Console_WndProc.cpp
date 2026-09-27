@@ -6,7 +6,7 @@ LRESULT CALLBACK TextConsole_WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM
 	switch (uMsg)
 	{
 	case WM_LBUTTONDOWN:
-		SetFocus(GetAncestor(hWnd, GA_ROOT));
+		static_cast<CTextConsole*>(Console)->FocusCommandInput();
 		return 0;
 	case WM_SETCURSOR:
 		SetCursor(LoadCursor(nullptr, IDC_ARROW));
@@ -49,7 +49,7 @@ LRESULT CALLBACK TextConsole_LogWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 			static_cast<CTextConsole*>(Console)->RefreshDisplay();
 		return 0;
 	case WM_LBUTTONDOWN:
-		SetFocus(GetAncestor(hWnd, GA_ROOT));
+		static_cast<CTextConsole*>(Console)->FocusCommandInput();
 		return 0;
 	case WM_SETCURSOR:
 		SetCursor(LoadCursor(nullptr, IDC_ARROW));

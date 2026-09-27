@@ -15,6 +15,10 @@ private:
 
 	HWND m_hLogWnd;
 	void CreateLogWnd();
+	HWND m_hCommandWnd;
+	WNDPROC m_originalCommandProc;
+	static LRESULT CALLBACK CommandWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+	void SubmitCommand();
 
 	bool m_bScrollLog;
 	u32 m_dwStartLine;
@@ -51,6 +55,7 @@ public:
 	void AddString(LPCSTR string);
 	void OnPaint();
 	void RefreshDisplay();
+	void FocusCommandInput();
 }; // class TextConsole
 
 //extern ENGINE_API CTextConsole* TextConsole;
