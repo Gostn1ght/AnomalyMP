@@ -208,6 +208,14 @@ xr_vector<xr_string> get_lua_stack(lua_State* L)
 	return res;
 }
 
+// A NetAnomaly co-op dedicated server runs every GAMMA object script for all
+// players. One failing mod script there must not stop the world for everyone:
+// the error is logged and the failed call returns nil.
+static bool netcoop_server_tolerant()
+{
+	return strstr(Core.Params, "-netcoop") && strstr(Core.Params, "server(");
+}
+
 void CScriptEngine::lua_error(lua_State* L)
 {
 	ai().script_engine().print_stack();
@@ -226,6 +234,14 @@ void CScriptEngine::lua_error(lua_State* L)
 
 	auto error_str = make_string("\n%s\n\nLUA error: %s\n\nCheck log for details", lua_error_line.c_str(), lua_tostring(L, -1));
 	LPCSTR error_msg = error_str.c_str();
+
+	if (netcoop_server_tolerant())
+	{
+		Msg("! [NetAnomaly] server script error ignored: %s", lua_error_line.c_str());
+		lua_pop(L, 1);
+		lua_pushnil(L);
+		return;
+	}
 
 #if !XRAY_EXCEPTIONS
 	Debug.fatal(DEBUG_INFO, error_msg);
@@ -283,7 +299,8 @@ int CScriptEngine::lua_pcall_failed(lua_State* L)
 	LPCSTR error_msg = error_str.c_str();
 
 #if !XRAY_EXCEPTIONS
-	Debug.fatal(DEBUG_INFO, error_msg);
+	if (!netcoop_server_tolerant())
+		Debug.fatal(DEBUG_INFO, error_msg);
 #endif
 	if (lua_isstring(L, -1))
 		lua_pop(L, 1);
@@ -294,6 +311,11 @@ void lua_cast_failed(lua_State* L, LUABIND_TYPE_INFO info)
 {
 	CScriptEngine::print_output(L, "", LUA_ERRRUN);
 
+	if (netcoop_server_tolerant())
+	{
+		Msg("! [NetAnomaly] server script result ignored: cannot cast lua value to %s", info->name());
+		return;
+	}
 	Debug.fatal(DEBUG_INFO, "LUA error: cannot cast lua value to %s", info->name());
 }
 
