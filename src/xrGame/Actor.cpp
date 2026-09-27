@@ -1,4 +1,5 @@
 #include "pch_script.h"
+#include "netcoop.h"
 #include "Actor_Flags.h"
 #include "hudmanager.h"
 #ifdef DEBUG
@@ -2382,6 +2383,11 @@ bool canRenderLegs(CActor* actor, CHolderCustom* m_holder) noexcept
 void CActor::renderable_Render()
 {
 	VERIFY(_valid(XFORM()));
+
+	// The dedicated server's own ALife Actor (id 0) only anchors the simulation;
+	// players must not see it standing at the start point.
+	if (ID() == 0 && this != Level().CurrentViewEntity() && netcoop::pure_client())
+		return;
 
 	if (cam_active == eacFirstEye && this == Level().CurrentViewEntity())
 	{
