@@ -112,10 +112,6 @@ void CActor::net_ImportInputAck(NET_Packet& P)
 	if (!is_sequence_newer(ack_seq, m_last_applied_server_ack)) return;
 	m_last_applied_server_ack = ack_seq;
 	
-	// Prediction error tracking
-	Fvector pred_pos = Position();
-	m_prediction_error = pred_pos.distance_to(auth_pos);
-	
 	// Remove acknowledged network inputs
 	while (!m_client_pending_inputs.empty()) {
 		if (is_sequence_newer_or_equal(ack_seq, m_client_pending_inputs.front().sequence)) {
@@ -134,15 +130,40 @@ void CActor::net_ImportInputAck(NET_Packet& P)
 		}
 	}
 	
-	// Snap to authoritative state completely
+	// Compare the server result with what this client predicted for the same
+	// input: the first unacknowledged frame recorded its position before its
+	// own physics, i.e. after every acknowledged input. Replaying inputs cannot
+	// move the Actor (the physics world integrates later), so the former hard
+	// snap to the older server position pulled the player back on every ACK.
+	const Fvector predicted_at_ack = m_client_prediction_history.empty()
+		? Position()
+		: m_client_prediction_history.front().position;
+	Fvector error;
+	error.sub(auth_pos, predicted_at_ack);
+	m_prediction_error = error.magnitude();
+
+	const float ignore_error = 0.05f; // physics noise
+	const float snap_error = 1.5f; // teleport, blocked path, respawn
+	if (m_prediction_error <= ignore_error)
+		return;
+
+	// Converge over a few ACKs without visible jumps; snap only on large errors.
+	Fvector shift;
+	shift.set(error);
+	if (m_prediction_error < snap_error)
+		shift.mul(0.2f);
+
+	Fvector corrected;
+	corrected.add(Position(), shift);
+	for (auto& frame : m_client_prediction_history)
+		frame.position.add(shift);
+
 	if (character_physics_support() && character_physics_support()->movement()) {
-		character_physics_support()->movement()->SetPosition(auth_pos);
-		character_physics_support()->movement()->SetVelocity(auth_vel);
+		character_physics_support()->movement()->SetPosition(corrected);
+		if (m_prediction_error >= snap_error)
+			character_physics_support()->movement()->SetVelocity(auth_vel);
 	}
-	Position().set(auth_pos);
-	
-	// Replay
-	ReplayPendingInputs();
+	Position().set(corrected);
 }
 
 void CActor::net_Export(NET_Packet& P) // export to server
@@ -458,8 +479,9 @@ void CActor::net_Import_Base(NET_Packet& P)
 	u8 ActiveSlot;
 	P.r_u8(ActiveSlot);
 
-	//----------- for E3 -----------------------------
-	if (OnClient())
+	// The owning client selects its own hands (PDA, weapons); the server follows
+	// through GE_INV_ACTION. Applying the server's slot here undid local choices.
+	if (OnClient() && !Local())
 		//------------------------------------------------
 	{
 		if (ActiveSlot == NO_ACTIVE_SLOT) inventory().SetActiveSlot(NO_ACTIVE_SLOT);

@@ -165,7 +165,11 @@ void player_legs_controller::copy_bones_from_actor(CActor* actor, bool isShadowP
         if (BoneID != BI_NONE)
         {
             m_model->LL_GetTransform(ID).set(actor_K->LL_GetTransform(BoneID));
-            m_model->LL_GetTransform_R(ID).set(actor_K->LL_GetTransform_R(BoneID));
+            // The render matrix includes the mesh bind pose. Outfit legs meshes can
+            // have a different bind pose than the Actor mesh, and copying the
+            // Actor's render matrix twisted their knees backwards.
+            m_model->LL_GetTransform_R(ID).mul_43(m_model->LL_GetTransform(ID),
+                m_model->LL_GetData(ID).m2b_transform);
         }
     }
 

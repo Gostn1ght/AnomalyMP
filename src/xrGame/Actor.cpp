@@ -1969,6 +1969,7 @@ void CActor::shedule_Update(u32 DT)
 			frame.mstate = mstate_real;
 			frame.accel = NET_SavedAccel;
 			frame.jump = NET_Jump;
+			frame.position = Position();
 			if (m_client_prediction_history.size() >= 512)
 				m_client_prediction_history.pop_front();
 			m_client_prediction_history.push_back(frame);

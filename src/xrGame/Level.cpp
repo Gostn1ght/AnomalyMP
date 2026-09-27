@@ -680,7 +680,7 @@ void CLevel::ProcessSpawnEvents()
         auto spawn_data_it = spawn_events_data_copy.find(obj_id);
         if (spawn_data_it != spawn_events_data_copy.end())
         {
-            if (spawn_data_it->second.hasAlifeObject)
+            if (spawn_data_it->second.hasAlifeObject && ai().get_alife())
             {
                 auto obj = ai().alife().objects().object(obj_id);
                 if (!obj || !obj->m_bOnline)
@@ -692,7 +692,8 @@ void CLevel::ProcessSpawnEvents()
         }        
 
 		// If there is a parent of this object, check if its still in alife
-		if (parent_id != 0xffff)
+		// A netcoop client has no ALife; the server already decided these objects are online.
+		if (parent_id != 0xffff && ai().get_alife())
 		{
 			auto parent_obj = ai().alife().objects().object(parent_id);
 			if (!parent_obj || !parent_obj->m_bOnline)
@@ -817,7 +818,7 @@ void CLevel::ProcessGameEvents()
 							safe_insert(models, pSettings->r_string(section, "Predator_Visual"));
 						}*/
 
-						auto obj = ai().alife().objects().object(obj_id);
+						auto obj = ai().get_alife() ? ai().alife().objects().object(obj_id, true) : nullptr;
 
 						// Actual visual from alife object
 						if (obj && obj->visual())

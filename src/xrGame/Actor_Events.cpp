@@ -51,6 +51,7 @@ static bool netcoop_server_inventory_action(u16 cmd)
 	case kTORCH:
 	case kNIGHT_VISION:
 	case kDETECTOR:
+	case kACTIVE_JOBS: // PDA slot; CPda::Action itself needs no UI on the server
 		return true;
 	default:
 		return false;

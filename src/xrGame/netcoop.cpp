@@ -701,7 +701,18 @@ void server_on_client_disconnect(xrClientData* CL)
 	}
 }
 
-static void destroy_pending_actors()
+// The disconnected client no longer exists, so the server takes over the
+// Actor and everything it carries before destroying it.
+static void give_to_server(xrServer* server, CSE_Abstract* entity, u32 depth)
+{
+	if (!entity || depth > 8)
+		return;
+	entity->owner = static_cast<xrClientData*>(server->GetServerClient());
+	for (u32 i = 0; i < entity->children.size(); ++i)
+		give_to_server(server, server->game->get_entity_from_eid(entity->children[i]), depth + 1);
+}
+
+static void destroy_pending_actors(xrServer* server)
 {
 	xr_vector<u16> ids;
 	s_pending_lock.Enter();
@@ -711,8 +722,9 @@ static void destroy_pending_actors()
 	for (u32 i = 0; i < ids.size() && g_pGameLevel; ++i)
 	{
 		CGameObject* actor_object = smart_cast<CGameObject*>(Level().Objects.net_Find(ids[i]));
-		if (actor_object && smart_cast<CActor*>(actor_object))
+		if (actor_object && smart_cast<CActor*>(actor_object) && server->GetServerClient())
 		{
+			give_to_server(server, server->game->get_entity_from_eid(ids[i]), 0);
 			Msg("[NetAnomaly] removing Actor %u of a disconnected player", ids[i]);
 			actor_object->DestroyObject();
 		}
@@ -730,7 +742,7 @@ void server_update(xrServer* server)
 {
 	if (!enabled())
 		return;
-	destroy_pending_actors();
+	destroy_pending_actors(server);
 	server_talk_prune(server);
 	if (!s_accounts_loaded)
 		return;
