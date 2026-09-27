@@ -773,6 +773,18 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 	case GE_MONEY:
 		return false; // money changes only on the server
 
+	case GEG_PLAYER_ITEM_EAT:
+	case GEG_PLAYER_ITEM2SLOT:
+	case GEG_PLAYER_ITEM2BELT:
+	case GEG_PLAYER_ITEM2RUCK:
+	case GEG_PLAYER_ACTIVATEARTEFACT:
+	case GEG_PLAYER_ACTIVATE_SLOT:
+		{
+			// Players use and arrange items only in their own inventory.
+			CSE_Abstract* dest = server->game->get_entity_from_eid(destination);
+			return dest && dest == CL->owner;
+		}
+
 	case GE_TRADE_BUY:
 	case GE_TRADE_SELL:
 	case GE_OWNERSHIP_TAKE:

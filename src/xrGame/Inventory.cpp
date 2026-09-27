@@ -12,6 +12,7 @@
 
 #include "ui/UIInventoryUtilities.h"
 #include "ui/UIActorMenu.h"
+#include "netcoop.h"
 
 #include "eatable_item.h"
 #include "script_engine.h"
@@ -1117,6 +1118,25 @@ bool CInventory::Eat(PIItem pIItem)
 	if (pInventory != IO->m_inventory) return false;
 	if (pItemToEat->object().H_Parent()->ID() != entity_alive->ID()) return false;
 
+	// A netcoop client has already run the use scripts (item animations) here;
+	// the server applies the item to its Actor and removes it.
+	if (netcoop::pure_client())
+	{
+		NET_Packet P;
+		CGameObject::u_EventGen(P, GEG_PLAYER_ITEM_EAT, entity_alive->ID());
+		P.w_u16(pIItem->object().ID());
+		CGameObject::u_EventSend(P);
+
+		CActor* actor = Actor();
+		if (actor && actor->m_inventory == this)
+		{
+			actor->callback(GameObject::eUseObject)((smart_cast<CGameObject*>(pIItem))->lua_game_object());
+			if (CurrentGameUI())
+				CurrentGameUI()->GetActorMenu().SetCurrentItem(NULL);
+		}
+		return true;
+	}
+
 	if (!pItemToEat->UseBy(entity_alive))
 		return false;
 
@@ -1131,7 +1151,8 @@ bool CInventory::Eat(PIItem pIItem)
 				return false;
 		}
 	*/
-	if (Actor()->m_inventory == this)
+	// The dedicated server has no local Actor or game UI.
+	if (Actor() && Actor()->m_inventory == this && CurrentGameUI())
 	{
 		if (IsGameTypeSingle())
 			Actor()->callback(GameObject::eUseObject)((smart_cast<CGameObject*>(pIItem))->lua_game_object());

@@ -35,6 +35,7 @@
 #include "../PDA.h"
 #include "../ActorBackpack.h"
 #include "../actor_defs.h"
+#include "../netcoop.h"
 
  //Alundaio
 
@@ -127,6 +128,16 @@ void CUIActorMenu::SendEvent_Item_Eat(PIItem pItem, u16 recipient)
 {
 	if (pItem->parent_id() != recipient)
 		move_item_from_to(pItem->parent_id(), recipient, pItem->object_id());
+
+	// On a netcoop client the use scripts run here, where the HUD is: an item
+	// animation script takes over and eats the item when its animation ends.
+	if (netcoop::pure_client())
+	{
+		::luabind::functor<bool> funct;
+		CGameObject* GO = pItem->cast_game_object();
+		if (GO && ai().script_engine().functor("_G.CInventory__eat", funct) && !funct(GO->lua_game_object()))
+			return;
+	}
 
 	NET_Packet P;
 	CGameObject::u_EventGen(P, GEG_PLAYER_ITEM_EAT, recipient);
