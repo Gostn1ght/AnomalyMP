@@ -81,6 +81,7 @@ xrServer::xrServer() : IPureServer(Device.GetTimerGlobal(), g_dedicated_server)
 {
 	m_file_transfers = NULL;
 	m_aDelayedPackets.clear();
+	m_netcoop_main_thread = GetCurrentThreadId();
 	m_server_logo = NULL;
 	m_server_rules = NULL;
 	m_last_updates_size = 0;
@@ -244,6 +245,7 @@ void xrServer::Update()
 #ifdef DEBUG
 	VERIFY(verify_entities());
 #endif
+	netcoop_process_packets();
 	ProceedDelayedPackets();
 	// game update
 	game->ProcessDelayedEvent();
@@ -534,6 +536,16 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
 #endif
 	xrClientData* CL = ID_to_client(sender);
     if (!CL) return 0;
+    if (!CL->flags.bLocal && netcoop::enabled() && GetCurrentThreadId() != m_netcoop_main_thread)
+    {
+        m_netcoop_packets_cs.Enter();
+        m_netcoop_packets.push_back(DelayedPacket());
+        DelayedPacket& queued = m_netcoop_packets.back();
+        queued.SenderID = sender;
+        CopyMemory(&queued.Packet, &P, sizeof(NET_Packet));
+        m_netcoop_packets_cs.Leave();
+        return 0;
+    }
     if (strstr(Core.Params, "-netcoop"))
     {
         switch (type)
@@ -1242,6 +1254,23 @@ void xrServer::ProceedDelayedPackets()
 	}
 	DelayedPackestCS.Leave();
 };
+
+void xrServer::netcoop_process_packets()
+{
+	xr_deque<DelayedPacket> packets;
+	m_netcoop_packets_cs.Enter();
+	packets.swap(m_netcoop_packets);
+	m_netcoop_packets_cs.Leave();
+
+	for (DelayedPacket& queued : packets)
+	{
+		csMessage.Enter();
+		u32 result = OnMessage(queued.Packet, queued.SenderID);
+		csMessage.Leave();
+		if (result)
+			SendBroadcast(queued.SenderID, queued.Packet, result);
+	}
+}
 
 void xrServer::AddDelayedPacket(NET_Packet& Packet, ClientID Sender)
 {

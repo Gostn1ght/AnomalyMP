@@ -154,6 +154,15 @@ private:
 	void AddDelayedPacket(NET_Packet& Packet, ClientID Sender);
 	u32 OnDelayedMessage(NET_Packet& P, ClientID sender); // Non-Zero means broadcasting with "flags" as returned
 
+	// NetAnomaly co-op: messages from remote clients arrive on the DirectPlay
+	// thread. Their handlers spawn objects and call Lua, which must run on the
+	// main thread with the rest of the simulation, so they are queued here and
+	// handled in Update.
+	DWORD m_netcoop_main_thread;
+	xrCriticalSection m_netcoop_packets_cs;
+	xr_deque<DelayedPacket> m_netcoop_packets;
+	void netcoop_process_packets();
+
 	void SendUpdatesToAll();
 	void _stdcall SendGameUpdateTo(IClient* client);
 private:
