@@ -44,6 +44,11 @@ LRESULT CALLBACK TextConsole_LogWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 {
 	switch (uMsg)
 	{
+	case WM_CTLCOLOREDIT:
+		// Match the native command field to the black dedicated log window.
+		SetTextColor(reinterpret_cast<HDC>(wParam), RGB(225, 225, 225));
+		SetBkColor(reinterpret_cast<HDC>(wParam), RGB(0, 0, 0));
+		return reinterpret_cast<LRESULT>(GetStockObject(BLACK_BRUSH));
 	case WM_TIMER:
 		if (Console)
 			static_cast<CTextConsole*>(Console)->RefreshDisplay();

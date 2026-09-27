@@ -164,11 +164,12 @@ void CTextConsole::CreateLogWnd()
 	// The old GDI prompt depended on DirectInput's keyboard capture and could
 	// not reliably accept text after focus changes. A native edit control keeps
 	// command entry separate from the game's input receiver stack.
-	m_hCommandWnd = CreateWindowExA(WS_EX_CLIENTEDGE, "EDIT", "",
+	m_hCommandWnd = CreateWindowExA(0, "EDIT", "",
 		WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL,
 		4, lHeight - 25, lWidth - 8, 23, m_hLogWnd, nullptr, hInstance, nullptr);
 	R_ASSERT2(m_hCommandWnd, "Unable to create dedicated command input");
 	SendMessage(m_hCommandWnd, WM_SETFONT, reinterpret_cast<WPARAM>(m_hLogWndFont), TRUE);
+	SendMessage(m_hCommandWnd, EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN, MAKELPARAM(6, 6));
 	SendMessage(m_hCommandWnd, EM_SETLIMITTEXT, CONSOLE_BUF_SIZE - 1, 0);
 	SetWindowLongPtr(m_hCommandWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 	m_originalCommandProc = reinterpret_cast<WNDPROC>(SetWindowLongPtr(m_hCommandWnd,

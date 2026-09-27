@@ -555,9 +555,12 @@ void CCustomZone::UpdateWorkload(u32 dt)
 	default: NODEFAULT;
 	}
 
-	if (Level().CurrentEntity())
+	// A remote client may have a current entity before its control Actor has
+	// spawned. Both zone update paths must test the object they dereference.
+	CObject* control_entity = Level().CurrentControlEntity();
+	if (control_entity)
 	{
-		Fvector P = Level().CurrentControlEntity()->Position();
+		Fvector P = control_entity->Position();
 		P.y -= 0.9f;
 		float radius = 1.0f;
 		CalcDistanceTo(P, m_fDistanceToCurEntity, radius);

@@ -106,47 +106,42 @@ bool CSoundRender_Source::LoadWave(LPCSTR pName)
 	fTimeTotal = s_f_def_source_footer + dwBytesTotal / float(m_wformat.nAvgBytesPerSec);
 
 	vorbis_comment* ovm = ov_comment(&ovf, -1);
-	if (ovm->comments)
+	// Ordinary Vorbis tags (TITLE, DATE, etc.) are not X-Ray's binary
+	// distance metadata. GAMMA sound packs may contain many such tags and
+	// the engine metadata, if present, need not be the first comment.
+	for (int i = 0; ovm && i < ovm->comments; ++i)
 	{
-		IReader F(ovm->user_comments[0], ovm->comment_lengths[0]);
+		const int length = ovm->comment_lengths[i];
+		if (!ovm->user_comments[i] || length < 4)
+			continue;
+		IReader F(ovm->user_comments[i], length);
 		u32 vers = F.r_u32();
-		if (vers == 0x0001)
+		if (vers == 0x0001 && length >= 16)
 		{
 			m_fMinDist = F.r_float();
 			m_fMaxDist = F.r_float();
 			m_fBaseVolume = 1.0f;
 			m_uGameType = F.r_u32();
 			m_fMaxAIDist = m_fMaxDist;
+			break;
 		}
-		else if (vers == 0x0002)
+		else if (vers == 0x0002 && length >= 20)
 		{
 			m_fMinDist = F.r_float();
 			m_fMaxDist = F.r_float();
 			m_fBaseVolume = F.r_float();
 			m_uGameType = F.r_u32();
 			m_fMaxAIDist = m_fMaxDist;
+			break;
 		}
-		else if (vers == OGG_COMMENT_VERSION)
+		else if (vers == OGG_COMMENT_VERSION && length >= 24)
 		{
 			m_fMinDist = F.r_float();
 			m_fMaxDist = F.r_float();
 			m_fBaseVolume = F.r_float();
 			m_uGameType = F.r_u32();
 			m_fMaxAIDist = F.r_float();
-		} 
-		else
-		{
-			if (strstr(Core.Params, "-dbg"))
-			{
-				Log("! Invalid ogg-comment version, file: ", pname.c_str());
-			}
-		}
-	}
-	else
-	{
-		if (strstr(Core.Params, "-dbg"))
-		{
-			Log("! Missing ogg-comment, file: ", pname.c_str());
+			break;
 		}
 	}
 	R_ASSERT3((m_fMaxAIDist >= 0.1f) && (m_fMaxDist >= 0.1f), "Invalid max distance.", pname.c_str());
