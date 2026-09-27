@@ -11,6 +11,9 @@
 local installed = false
 local skipped = {}
 
+-- Actor ids with admin god mode enabled (toggled by netanomaly_server "god").
+god_mode = {}
+
 local function no_local_actor()
 	return db.actor == nil
 end
@@ -52,12 +55,13 @@ function install()
 	end
 
 	-- These read db.actor directly instead of going through SendScriptCallback.
+	-- Admin god mode (netanomaly_server "god") cancels hits on that Actor here,
+	-- where the server applies all damage.
 	local before_hit = _G.CActor__BeforeHitCallback
-	if before_hit then
-		_G.CActor__BeforeHitCallback = function(...)
-			if no_local_actor() then return true end
-			return before_hit(...)
-		end
+	_G.CActor__BeforeHitCallback = function(actor, shit, bone_id)
+		if actor and god_mode[actor:id()] then return false end
+		if no_local_actor() or not before_hit then return true end
+		return before_hit(actor, shit, bone_id)
 	end
 
 	printf("[NetAnomaly] dedicated server compatibility layer installed")
