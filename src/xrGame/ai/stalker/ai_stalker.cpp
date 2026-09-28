@@ -991,9 +991,26 @@ void CAI_Stalker::net_Import(NET_Packet& P)
 	P.r_float /*r_angle8*/(N.o_torso.yaw);
 	P.r_float /*r_angle8*/(N.o_torso.pitch);
 	P.r_float /*r_angle8*/(N.o_torso.roll);
-	id_Team = P.r_u8();
-	id_Squad = P.r_u8();
-	id_Group = P.r_u8();
+	const u8 team = P.r_u8();
+	const u8 squad = P.r_u8();
+	const u8 group = P.r_u8();
+	// A puppet is registered in the seniority hierarchy under its spawn team;
+	// move the registration with it, or destroying it later looks in the
+	// wrong group.
+	if (netcoop_puppet() && g_Alive() && (team != g_Team() || squad != g_Squad() || group != g_Group()))
+	{
+		Level().seniority_holder().team(g_Team()).squad(g_Squad()).group(g_Group()).unregister_member(this);
+		id_Team = team;
+		id_Squad = squad;
+		id_Group = group;
+		Level().seniority_holder().team(g_Team()).squad(g_Squad()).group(g_Group()).register_member(this);
+	}
+	else
+	{
+		id_Team = team;
+		id_Squad = squad;
+		id_Group = group;
+	}
 
 
 	GameGraph::_GRAPH_ID graph_vertex_id = movement().game_dest_vertex_id();
