@@ -438,6 +438,8 @@ void CInventoryOwner::SetCommunity(CHARACTER_COMMUNITY_INDEX new_community)
 	CEntityAlive* EA = smart_cast<CEntityAlive*>(this);
 	VERIFY(EA);
 
+	// A netcoop client has no ALife; community, rank and reputation are the server's.
+	if (!ai().get_alife()) return;
 	CSE_Abstract* e_entity = ai().alife().objects().object(EA->ID(), false);
 	if (!e_entity) return;
 
@@ -460,6 +462,8 @@ void CInventoryOwner::SetRank(CHARACTER_RANK_VALUE rank)
 {
 	CEntityAlive* EA = smart_cast<CEntityAlive*>(this);
 	VERIFY(EA);
+	// A netcoop client has no ALife; community, rank and reputation are the server's.
+	if (!ai().get_alife()) return;
 	CSE_Abstract* e_entity = ai().alife().objects().object(EA->ID(), false);
 	if (!e_entity) return;
 	CSE_ALifeTraderAbstract* trader = smart_cast<CSE_ALifeTraderAbstract*>(e_entity);
@@ -481,6 +485,8 @@ void CInventoryOwner::SetReputation(CHARACTER_REPUTATION_VALUE reputation)
 {
 	CEntityAlive* EA = smart_cast<CEntityAlive*>(this);
 	VERIFY(EA);
+	// A netcoop client has no ALife; community, rank and reputation are the server's.
+	if (!ai().get_alife()) return;
 	CSE_Abstract* e_entity = ai().alife().objects().object(EA->ID(), false);
 	if (!e_entity) return;
 
