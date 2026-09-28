@@ -182,7 +182,7 @@ void CMainMenu::Activate(bool bActivate)
 		(m_screenshotFrame == Device.dwFrame + 1))
 		return;
 
-	bool b_is_single = IsGameTypeSingle();
+	bool b_is_single = IsGameTypeSingle() && !strstr(Core.Params, "-netcoop"); // netcoop: level keeps running under the menu, no pause
 
 	if (g_dedicated_server && bActivate) return;
 
@@ -506,7 +506,7 @@ void CMainMenu::OnFrame()
 
 		if (g_pGameLevel && m_Flags.test(flActive))
 		{
-			bool b_is_single = IsGameTypeSingle();
+			bool b_is_single = IsGameTypeSingle() && !strstr(Core.Params, "-netcoop"); // netcoop: level keeps running under the menu, no pause
 			if (b_is_single)
 			{
 				Device.seqFrame.Remove(g_pGameLevel);

@@ -1034,6 +1034,10 @@ void CGamePersistent::LoadTitle(bool change_tip, shared_str map_name)
 
 bool CGamePersistent::CanBePaused()
 {
+	// Netcoop: the world runs on the server for everyone; a client's clock
+	// must not stop (its view of server time would fall behind).
+	if (strstr(Core.Params, "-netcoop"))
+		return false;
 	return IsGameTypeSingle() || (g_pGameLevel && Level().IsDemoPlay());
 }
 

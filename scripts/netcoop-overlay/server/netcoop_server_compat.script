@@ -296,6 +296,26 @@ local function server_world_tick()
 	end
 end
 
+-- Local debug channel: the server runs gamma-runtime/netcoop_debug.lua
+-- (then deletes it) and logs the result. Only someone with access to the
+-- server's files can use it; it needs no game window.
+local debug_next = 0
+local function server_debug_file()
+	local now = time_global()
+	if now < debug_next then return end
+	debug_next = now + 2000
+	local f = io.open("netcoop_debug.lua", "r")
+	if not f then return end
+	local code = f:read("*a")
+	f:close()
+	os.remove("netcoop_debug.lua")
+	local chunk, err = loadstring(code)
+	if not chunk then printf("[NetAnomaly][debug] compile error: %s", tostring(err)) return end
+	local ok, res = pcall(chunk)
+	printf("[NetAnomaly][debug] %s: %s", ok and "result" or "error", tostring(res))
+	if get_console then get_console():execute("flush") end
+end
+
 -- Engine (netcoop.cpp) every 0.5 s for each player, with db.actor bound.
 function update_player_tasks()
 	local a = db.actor
@@ -303,6 +323,7 @@ function update_player_tasks()
 	server_game_load()
 	install_hide_hud()
 	server_world_tick()
+	server_debug_file()
 	-- Forget managers of players who left.
 	for id in pairs(player_tasks) do
 		if id ~= a:id() and not level.object_by_id(id) then player_tasks[id] = nil end
@@ -329,6 +350,15 @@ local function install_trade_profiles()
 end
 
 function on_game_start()
+	-- SMR reads its options through MCM; log what the server actually sees
+	-- (a civil war setting would turn every stalker against its own squad).
+	local ok, res = pcall(function()
+		return string.format("smr_enabled=%s civil_war=%s ui_mcm=%s",
+			tostring(smr_amain_mcm and smr_amain_mcm.get_config("smr_enabled")),
+			tostring(smr_stalkers_mcm and smr_stalkers_mcm.get_config("civil_war")),
+			tostring(ui_mcm ~= nil))
+	end)
+	printf("[NetAnomaly] server SMR options: %s", tostring(res))
 	install_hide_hud()
 	install_trade_profiles()
 	install_player_tasks()

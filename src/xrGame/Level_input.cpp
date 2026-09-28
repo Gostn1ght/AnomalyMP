@@ -209,7 +209,8 @@ void CLevel::IR_OnKeyboardPress(int key)
         if (Device.editor())	return;
 #endif // INGAME_EDITOR
 
-		if (!g_block_pause && (IsGameTypeSingle() || IsDemoPlay()))
+		// No pause in a netcoop session: the server's world does not stop.
+		if (!g_block_pause && (IsGameTypeSingle() || IsDemoPlay()) && !strstr(Core.Params, "-netcoop"))
 		{
 #ifdef DEBUG
             if(psActorFlags.test(AF_NO_CLIP))
