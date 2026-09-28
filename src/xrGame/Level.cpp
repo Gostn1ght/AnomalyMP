@@ -1033,6 +1033,15 @@ void CLevel::OnFrame()
 	}
 	// A GAMMA UI can block the main thread for longer than the watchdog interval.
 	// Drain queued packets before deciding that the dedicated server is silent.
+	// A client that itself stood still (loading, window drag, debugger) has not
+	// been able to receive; restart the silence timer instead of leaving.
+	{
+		static u32 netcoop_last_frame_tick = 0;
+		const u32 frame_tick = GetTickCount();
+		if (g_netcoop_last_server_rx && netcoop_last_frame_tick && frame_tick - netcoop_last_frame_tick > 2000)
+			g_netcoop_last_server_rx = frame_tick;
+		netcoop_last_frame_tick = frame_tick;
+	}
 	if (!Server && OnClient() && CurrentControlEntity() && g_netcoop_last_server_rx &&
 		!net_isDisconnected() && strstr(Core.Params, "-netcoop") &&
 		GetTickCount() - g_netcoop_last_server_rx > 15000)
