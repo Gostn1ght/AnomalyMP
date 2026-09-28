@@ -942,6 +942,13 @@ void CActor::net_Destroy()
 	SetDefaultVisualOutfit(NULL);
 
 
+	// A talk partner (NPC) must not keep a pointer to a destroyed Actor.
+	if (IsTalking())
+	{
+		if (CInventoryOwner* partner = GetTalkPartner())
+			partner->StopTalk();
+		StopTalk();
+	}
 	if (g_actor == this) g_actor = NULL;
 
 	Engine.Sheduler.Unregister(this);

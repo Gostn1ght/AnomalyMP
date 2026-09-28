@@ -732,6 +732,14 @@ static void destroy_pending_actors(xrServer* server)
 		{
 			give_to_server(server, server->game->get_entity_from_eid(ids[i]), 0);
 			Msg("[NetAnomaly] removing Actor %u of a disconnected player", ids[i]);
+			// An NPC still talking to this Actor would keep a dangling partner.
+			CActor* leaving = smart_cast<CActor*>(actor_object);
+			if (leaving && leaving->IsTalking())
+			{
+				if (CInventoryOwner* partner = leaving->GetTalkPartner())
+					partner->StopTalk();
+				leaving->StopTalk();
+			}
 			server_release_task_manager(ids[i]);
 			actor_object->DestroyObject();
 		}
