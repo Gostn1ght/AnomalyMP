@@ -282,7 +282,12 @@ void CLevel::IR_OnKeyboardPress(int key)
 
 	if (g_bDisableAllInput || !bReady || !b_ui_exist) return;
 
-	if (b_ui_exist && CurrentGameUI()->IR_UIOnKeyboardPress(key)) return;
+	if (b_ui_exist && CurrentGameUI()->IR_UIOnKeyboardPress(key))
+	{
+		if ((_curr == kACTIVE_JOBS || _curr == kUSE) && strstr(Core.Params, "-netcoop"))
+			Msg("[NetAnomaly] key %d taken by the game UI", _curr);
+		return;
+	}
 
 	if (Device.Paused() && !IsDemoPlay()
 #ifdef DEBUG
@@ -557,6 +562,8 @@ void CLevel::IR_OnKeyboardPress(int key)
 	if (CURRENT_ENTITY())
 	{
 		IInputReceiver* IR = smart_cast<IInputReceiver*>(smart_cast<CGameObject*>(CURRENT_ENTITY()));
+		if ((_curr == kACTIVE_JOBS || _curr == kUSE) && strstr(Core.Params, "-netcoop"))
+			Msg("[NetAnomaly] key %d to entity %u (%s)", _curr, CURRENT_ENTITY()->ID(), IR ? "receiver" : "no receiver");
 		if (IR) IR->IR_OnKeyboardPress(get_binded_action(key));
 	}
 
