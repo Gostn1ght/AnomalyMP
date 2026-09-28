@@ -4,6 +4,7 @@
 #include "game_cl_base.h"
 #include "net_queue.h"
 #include "ai_space.h"
+#include "script_engine.h"
 #include "game_level_cross_table.h"
 #include "level_graph.h"
 #include "client_spawn_manager.h"
@@ -12,8 +13,31 @@
 #include "../xrEngine/xr_object.h"
 #include "../xrEngine/IGame_Persistent.h"
 
+// Netcoop client: creating the ALife simulator normally calls the game start
+// callback (_g.start_game_callback -> on_game_start of every GAMMA script,
+// which registers item animations, HUD, input and PDA callbacks). A client has
+// no simulator; call it once per level before the first object from the
+// server spawns, when the game (and its time) is already configured.
+static void netcoop_client_start_game(CLevel* level)
+{
+	static CLevel* started = NULL;
+	if (started == level || !strstr(Core.Params, "-netcoop") || level->Server || ai().get_alife() || !level->game)
+		return;
+	started = level;
+	::luabind::functor<void> start_game;
+	LPCSTR callback = pSettings->r_string("alife", "start_game_callback");
+	if (ai().script_engine().functor(callback, start_game))
+	{
+		start_game();
+		Msg("[NetAnomaly] client game start callback %s done", callback);
+	}
+	else
+		Msg("! [NetAnomaly] client game start callback %s not found", callback);
+}
+
 void CLevel::cl_Process_Spawn(NET_Packet& P)
 {
+	netcoop_client_start_game(this);
 	// Begin analysis
 	shared_str s_name;
 	P.r_stringZ(s_name);
