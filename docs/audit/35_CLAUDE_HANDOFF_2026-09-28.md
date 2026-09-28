@@ -39,8 +39,9 @@ Server (dedicated, netcoop):
   (`netcoop_broadcast("weather", ...)`, message `M_NETCOOP_SCRIPT`).
 
 Client:
-- `_g.start_game_callback` (-> every script's `on_game_start`) now runs while
-  the level loads (`Level_load.cpp`). It only ran when an ALife simulator was
+- `_g.start_game_callback` (-> every script's `on_game_start`) now runs once
+  per level before the first server spawn (`Level_network_spawn.cpp`; during
+  level load the client `game` does not exist yet and GAMMA reads game time). It only ran when an ALife simulator was
   created, i.e. never on a client: item animations, HUD, input, PDA and our own
   client hooks were not registered.
 - The owning client activates/hides its own slots and HUD items and sends every
