@@ -143,6 +143,8 @@ bool script_send_to_actor(u16 actor_id, LPCSTR channel, LPCSTR data);
 // Server scripts open NPC trade/upgrade windows for a player: the player's
 // client opens them (on_script_message "open_ui"). True when sent.
 bool server_open_ui(u16 actor_id, LPCSTR kind, u16 partner_id);
+// Starts the thread that reports and aborts a script call hanging a frame.
+void script_watchdog_start();
 void client_on_script(NET_Packet& P);
 bool server_set_role(LPCSTR login, u8 role, xr_string& message);
 void server_list_accounts(xr_string& out);

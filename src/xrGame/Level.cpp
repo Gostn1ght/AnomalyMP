@@ -61,6 +61,7 @@
 
 #include "alife_simulator.h"
 #include "alife_object_registry.h"
+#include "netcoop.h"
 
 #ifdef DEBUG
 #include "level_debug.h"
@@ -1036,6 +1037,7 @@ void CLevel::OnFrame()
 	// Netcoop sessions are debugged from their logs; keep them on disk.
 	if (strstr(Core.Params, "-netcoop"))
 	{
+		netcoop::script_watchdog_start();
 		static u32 netcoop_next_flush = 0;
 		const u32 flush_tick = GetTickCount();
 		if (flush_tick >= netcoop_next_flush)

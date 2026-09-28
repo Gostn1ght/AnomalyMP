@@ -1873,4 +1873,91 @@ bool server_open_ui(u16 actor_id, LPCSTR kind, u16 partner_id)
 	return sent;
 }
 
+// Script hang watchdog. A mod script that never returns freezes the whole
+// process (window, input, network). A watcher thread notices a frame that
+// takes over 20 s and arms a Lua count hook: the hook logs the Lua stack of
+// the running script and, after 60 s, aborts that script call with an error.
+// No hook is installed while frames advance, so normal play costs nothing.
+namespace
+{
+volatile LONG wd_armed = 0;
+volatile u32 wd_frame = 0;
+volatile u32 wd_since = 0;
+volatile bool wd_logged = false;
+
+void wd_disarm(lua_State* L)
+{
+	lua_sethook(L, 0, 0, 0);
+	InterlockedExchange(&wd_armed, 0);
+}
+
+void wd_hook(lua_State* L, lua_Debug*)
+{
+	if (Device.dwFrame != wd_frame)
+	{
+		wd_disarm(L);
+		return;
+	}
+	const u32 stuck = GetTickCount() - wd_since;
+	if (!wd_logged)
+	{
+		wd_logged = true;
+		Msg("! [NetAnomaly] script hang: frame %u has run for %u s, Lua stack:", wd_frame, stuck / 1000);
+		lua_Debug ar;
+		for (int level = 0; level < 24 && lua_getstack(L, level, &ar); ++level)
+		{
+			if (!lua_getinfo(L, "nSl", &ar))
+				break;
+			Msg("! [NetAnomaly]   %2d: %s:%d %s", level, ar.short_src, ar.currentline, ar.name ? ar.name : "?");
+		}
+		FlushLog();
+	}
+	if (stuck > 60000)
+	{
+		wd_disarm(L);
+		wd_frame = 0; // re-arm if the script catches the error and goes on
+		Msg("! [NetAnomaly] script hang: aborting the script call");
+		FlushLog();
+		luaL_error(L, "netcoop: script hung for %u s", stuck / 1000);
+	}
+}
+
+DWORD WINAPI wd_thread(void*)
+{
+	u32 last_frame = Device.dwFrame;
+	u32 since = GetTickCount();
+	for (;;)
+	{
+		Sleep(1000);
+		const u32 frame = Device.dwFrame;
+		const u32 now = GetTickCount();
+		if (frame != last_frame)
+		{
+			last_frame = frame;
+			since = now;
+			continue;
+		}
+		if (now - since < 20000 || wd_armed || !g_pGameLevel || wd_frame == frame)
+			continue;
+		wd_frame = frame;
+		wd_since = since;
+		wd_logged = false;
+		InterlockedExchange(&wd_armed, 1);
+		Msg("! [NetAnomaly] frame %u stuck for %u s, watching scripts", frame, (now - since) / 1000);
+		lua_sethook(ai().script_engine().lua(), wd_hook, LUA_MASKCOUNT, 10000);
+	}
+}
+} // namespace
+
+void script_watchdog_start()
+{
+	static bool started = false;
+	if (started || !enabled())
+		return;
+	started = true;
+	HANDLE h = CreateThread(0, 0, wd_thread, 0, 0, 0);
+	if (h)
+		CloseHandle(h);
+}
+
 } // namespace netcoop
