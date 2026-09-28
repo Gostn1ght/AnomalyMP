@@ -955,6 +955,13 @@ void CAI_Stalker::net_Export(NET_Packet& P)
 	P.w_u8(anim_mode);
 	for (int i = 0; i < 3; ++i)
 		P.w_u32(anims[i].valid() ? anims[i].val : 0);
+
+	u8 hands_flags = 0;
+	CWeapon* weapon = smart_cast<CWeapon*>(inventory().ActiveItem());
+	if (weapon && weapon->strapped_mode())
+		hands_flags |= 1;
+	P.w_u16(inventory().GetActiveSlot());
+	P.w_u8(hands_flags);
 }
 
 bool CAI_Stalker::netcoop_puppet() const
@@ -1023,6 +1030,20 @@ void CAI_Stalker::net_Import(NET_Packet& P)
 		m_netcoop_anim_mode = P.r_u8();
 		for (int i = 0; i < 3; ++i)
 			m_netcoop_anim[i] = P.r_u32();
+	}
+	if (P.r_elapsed() >= sizeof(u16) + sizeof(u8))
+	{
+		const u16 active_slot = P.r_u16();
+		const u8 hands_flags = P.r_u8();
+		// A puppet holds what the server NPC holds.
+		if (netcoop_puppet())
+		{
+			if (active_slot == NO_ACTIVE_SLOT || (active_slot <= inventory().LastSlot() && inventory().ItemFromSlot(active_slot)))
+				inventory().SetActiveSlot(active_slot);
+			CWeapon* weapon = smart_cast<CWeapon*>(inventory().ActiveItem());
+			if (weapon)
+				weapon->strapped_mode(!!(hands_flags & 1));
+		}
 	}
 
 	setVisible(TRUE);

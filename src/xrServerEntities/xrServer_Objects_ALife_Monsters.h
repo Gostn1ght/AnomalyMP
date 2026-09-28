@@ -520,6 +520,9 @@ SERVER_ENTITY_DECLARE_BEGIN2(CSE_ALifeHumanStalker, CSE_ALifeHumanAbstract, CSE_
 	// 3 head/torso/legs; MotionID values for those channels.
 	u8 m_netcoop_anim_mode;
 	u32 m_netcoop_anim[3];
+	// Item in hands: active inventory slot and flags (bit 0: weapon strapped).
+	u16 m_netcoop_active_slot;
+	u8 m_netcoop_hands_flags;
 
 	CSE_ALifeHumanStalker(LPCSTR caSection);
 	virtual ~CSE_ALifeHumanStalker();

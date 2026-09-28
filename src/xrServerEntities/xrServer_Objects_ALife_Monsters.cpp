@@ -2169,6 +2169,8 @@ CSE_ALifeHumanStalker::CSE_ALifeHumanStalker(LPCSTR caSection) : CSE_ALifeHumanA
 	m_netcoop_speed = 0.f;
 	m_netcoop_anim_mode = 0;
 	m_netcoop_anim[0] = m_netcoop_anim[1] = m_netcoop_anim[2] = 0;
+	m_netcoop_active_slot = 0xffff;
+	m_netcoop_hands_flags = 0;
 }
 
 CSE_ALifeHumanStalker::~CSE_ALifeHumanStalker()
@@ -2204,6 +2206,8 @@ void CSE_ALifeHumanStalker::UPDATE_Write(NET_Packet& tNetPacket)
 	tNetPacket.w_u8(m_netcoop_anim_mode);
 	for (int i = 0; i < 3; ++i)
 		tNetPacket.w_u32(m_netcoop_anim[i]);
+	tNetPacket.w_u16(m_netcoop_active_slot);
+	tNetPacket.w_u8(m_netcoop_hands_flags);
 }
 
 void CSE_ALifeHumanStalker::UPDATE_Read(NET_Packet& tNetPacket)
@@ -2224,6 +2228,11 @@ void CSE_ALifeHumanStalker::UPDATE_Read(NET_Packet& tNetPacket)
 		tNetPacket.r_u8(m_netcoop_anim_mode);
 		for (int i = 0; i < 3; ++i)
 			tNetPacket.r_u32(m_netcoop_anim[i]);
+	}
+	if (tNetPacket.r_elapsed() >= sizeof(u16) + sizeof(u8))
+	{
+		tNetPacket.r_u16(m_netcoop_active_slot);
+		tNetPacket.r_u8(m_netcoop_hands_flags);
 	}
 }
 
