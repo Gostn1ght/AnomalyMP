@@ -36,16 +36,27 @@ local function any_player()
 	return nil
 end
 
+-- GAMMA scripts recognise "the player" by AC_ID (0, the story Actor) and keep
+-- its state in db.storage[AC_ID]. While a player is served, AC_ID is that
+-- player's id and the player has a storage table.
+local STORY_AC_ID = AC_ID or 0
+
 function bind_actor(obj)
 	if obj then
-		last_player_id = obj:id()
+		local id = obj:id()
+		last_player_id = id
 		if not bound then
 			bound_previous = rawget(db, "actor")
 			bound = true
 		end
 		db.actor = obj
+		_G.AC_ID = id
+		if type(db.storage) == "table" and db.storage[id] == nil then
+			db.storage[id] = { pstor = {}, object = obj }
+		end
 	elseif bound then
 		db.actor = bound_previous
+		_G.AC_ID = STORY_AC_ID
 		bound_previous = nil
 		bound = false
 	end
@@ -132,16 +143,6 @@ function install()
 		if actor and god_mode[actor:id()] then return false end
 		if no_local_actor() or not before_hit then return true end
 		return before_hit(actor, shit, bone_id)
-	end
-
-	-- Dialogue actions open trade/repair windows after hide_hud_inventory()
-	-- succeeds. The server has no HUD; the player's client opens the window
-	-- (npc:start_trade on the server is routed there by the engine).
-	local hide_hud = _G.hide_hud_inventory
-	_G.hide_hud_inventory = function(...)
-		if get_hud and get_hud() and hide_hud then return hide_hud(...) end
-		printf("[NetAnomaly] hide_hud_inventory on the server for %s", tostring(db.actor and db.actor:name()))
-		return true
 	end
 
 	printf("[NetAnomaly] dedicated server compatibility layer installed")
@@ -293,7 +294,18 @@ function update_player_tasks()
 end
 
 -- axr_main calls on_game_start of every script once all scripts are loaded.
+-- Dialogue actions open trade/repair windows after hide_hud_inventory()
+-- succeeds. The server has no HUD; the player's client opens the window
+-- (npc:start_trade on the server is routed there by the engine). Installed
+-- here because ui_inventory replaces hide_hud_inventory when it loads.
+local function install_hide_hud()
+	_G.hide_hud_inventory = function()
+		return true
+	end
+end
+
 function on_game_start()
+	install_hide_hud()
 	install_player_tasks()
 	if death_manager and death_manager.init_drop_settings then
 		local ok, err = pcall(death_manager.init_drop_settings)
