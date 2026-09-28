@@ -22,6 +22,7 @@ local function warn_once(what)
 end
 
 local controlled_actor = nil
+local use_own_actor_id -- defined below
 
 -- The locally controlled Actor: set by the engine hook after spawn, or
 -- recovered from the view entity when this script loaded too late for it.
@@ -34,6 +35,7 @@ local function local_actor()
 	local e = level.get_view_entity and level.get_view_entity()
 	if e and e:clsid() == clsid.script_actor then
 		controlled_actor = e
+		use_own_actor_id(e)
 	end
 	return controlled_actor
 end
@@ -42,9 +44,24 @@ local function in_game()
 	return local_actor() ~= nil
 end
 
+-- GAMMA scripts use AC_ID (0, the story Actor) for "the player". On a client
+-- the own Actor has another id: AC_ID becomes that id, and db.storage[0]
+-- (captured copies of the old constant) reads the own Actor's storage.
+use_own_actor_id = function(obj)
+	if not obj then return end
+	_G.AC_ID = obj:id()
+	local storage = db and db.storage
+	if type(storage) == "table" and not getmetatable(storage) then
+		setmetatable(storage, { __index = function(t, k)
+			if k == 0 and controlled_actor then return rawget(t, controlled_actor:id()) end
+		end })
+	end
+end
+
 -- Engine hook (Level_network_spawn.cpp) after the local Actor is assigned.
 function on_actor_spawned(obj)
 	controlled_actor = obj
+	use_own_actor_id(obj)
 end
 
 function on_actor_destroyed(obj)
