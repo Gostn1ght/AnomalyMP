@@ -8,6 +8,7 @@
 
 #include "stdafx.h"
 #include "ai_stalker.h"
+#include "../../netcoop.h"
 #include "../../pda.h"
 #include "../../inventory.h"
 #include "../../../xrServerEntities/xrmessages.h"
@@ -25,6 +26,7 @@ using namespace MonsterSpace;
 
 void CAI_Stalker::OnEvent(NET_Packet& P, u16 type)
 {
+	netcoop::ServerActorScope netcoop_scope(this);
 	inherited::OnEvent(P, type);
 	CInventoryOwner::OnEvent(P, type);
 

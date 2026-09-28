@@ -180,6 +180,8 @@ private:
 	IC void play_torso();
 	void play_legs();
 	void update_impl();
+	// Netcoop client puppet: plays the animations the server stalker plays.
+	bool play_netcoop_puppet();
 
 private:
 	static void global_play_callback(CBlend* blend);

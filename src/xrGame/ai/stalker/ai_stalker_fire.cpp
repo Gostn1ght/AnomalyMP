@@ -8,6 +8,7 @@
 
 #include "pch_script.h"
 #include "ai_stalker.h"
+#include "../../netcoop.h"
 #include "ai_stalker_impl.h"
 #include "../../script_entity_action.h"
 #include "../../inventory.h"
@@ -972,6 +973,9 @@ void CAI_Stalker::on_weapon_hide(CWeapon* weapon)
 
 void CAI_Stalker::notify_on_wounded_or_killed(CObject* object)
 {
+	// NPC puppets on a netcoop client have no agent manager; the server runs this.
+	if (netcoop::pure_client())
+		return;
 	CAI_Stalker* stalker = smart_cast<CAI_Stalker*>(object);
 	if (!stalker)
 		return;

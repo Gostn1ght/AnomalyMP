@@ -110,8 +110,18 @@ void server_on_talk(xrServer* server, xrClientData* CL, NET_Packet& P);
 bool talk_capture_answer(LPCSTR text);
 // NPC/monster logic on the server refers to db.actor. For one binder update,
 // bind it to the nearest player; false when no player is connected.
+// Nested binds keep the outermost player until the outermost unbind.
 bool server_bind_nearest_actor(CObject* npc);
 void server_unbind_actor();
+
+// For the whole update or event of a server NPC or monster: its AI planner,
+// evaluators and callbacks run GAMMA scripts that use db.actor too.
+struct ServerActorScope
+{
+	bool bound;
+	explicit ServerActorScope(CObject* object);
+	~ServerActorScope();
+};
 void server_on_client_disconnect(xrClientData* CL);
 void server_update(xrServer* server); // periodic money persistence
 bool server_account_money(LPCSTR login, u32& money);

@@ -102,24 +102,27 @@ local function diag_tick(npc, st)
 		diag_updates[id] = entry
 	end
 	entry.count = entry.count + 1
-	entry.pos = npc:position()
+	local pos = npc:position()
+	if entry.pos then entry.moved = (entry.moved or 0) + pos:distance_to(entry.pos) end
+	entry.pos = pos
 	entry.scheme = st and st.active_scheme or "none"
 
 	local now = time_global()
 	if now < diag_next then return end
 	diag_next = now + 10000
 
-	local total, shown = 0, 0
+	local total, shown, moving = 0, 0, 0
 	for oid, e in pairs(diag_updates) do
 		total = total + 1
-		if shown < 5 and e.pos then
+		if (e.moved or 0) > 1 then moving = moving + 1 end
+		if shown < 6 and e.pos then
 			shown = shown + 1
-			printf("[NetAnomaly][npc] %s updates=%d pos=%.1f,%.1f,%.1f scheme=%s",
-				e.name, e.count, e.pos.x, e.pos.y, e.pos.z, tostring(e.scheme))
+			printf(string.format("[NetAnomaly][npc] %s updates=%d moved=%.1f pos=%.1f,%.1f,%.1f scheme=%s",
+				e.name, e.count, e.moved or 0, e.pos.x, e.pos.y, e.pos.z, tostring(e.scheme)))
 		end
+		e.count, e.moved = 0, 0
 	end
-	printf("[NetAnomaly][npc] %d NPCs updated in the last 10 s", total)
-	diag_updates = {}
+	printf(string.format("[NetAnomaly][npc] %d NPCs updated, %d moved over 1 m in the last 10 s", total, moving))
 end
 
 local function install_npc_diagnostic()

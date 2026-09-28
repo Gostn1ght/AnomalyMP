@@ -256,7 +256,29 @@ local function admin_menu_key(key)
 	end
 end
 
+-- The emission and psi-storm managers are normally created by the ALife save
+-- state load, which a client does not have; level_weathers reads them. A
+-- client does not start its own emission: its timer is pushed out of reach
+-- until emissions come from the server.
+local function init_event_managers()
+	for _, m in ipairs({ { surge_manager, "get_surge_manager" }, { psi_storm_manager, "get_psi_storm_manager" } }) do
+		local module, getter = m[1], m[2]
+		if module and module[getter] then
+			local ok, err = pcall(function()
+				local mgr = module[getter]()
+				if not mgr._state_loaded then
+					mgr:initialize()
+					mgr._state_loaded = true
+				end
+				mgr._delta = 1000000000
+			end)
+			if not ok then printf("[NetAnomaly] %s init failed: %s", getter, tostring(err)) end
+		end
+	end
+end
+
 function on_game_start()
+	init_event_managers()
 	RegisterScriptCallback("on_before_save_input", no_saves)
 	RegisterScriptCallback("on_before_load_input", no_quick_load)
 	RegisterScriptCallback("on_key_release", admin_menu_key)

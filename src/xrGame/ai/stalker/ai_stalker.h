@@ -98,6 +98,10 @@ protected:
 public:
 	// Netcoop: a remote NPC on a pure client is animated from server state.
 	float m_netcoop_speed = 0.f;
+	// Server animation state for a netcoop client puppet (see
+	// CSE_ALifeHumanStalker::m_netcoop_anim_mode).
+	u8 m_netcoop_anim_mode = 0;
+	u32 m_netcoop_anim[3] = {0, 0, 0};
 	bool netcoop_puppet() const;
 	using inherited::useful;
 	using inherited::evaluate;

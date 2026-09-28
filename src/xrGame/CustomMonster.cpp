@@ -324,6 +324,7 @@ void CCustomMonster::net_Import(NET_Packet& P)
 
 void CCustomMonster::shedule_Update(u32 DT)
 {
+	netcoop::ServerActorScope netcoop_scope(this);
 	VERIFY(!g_Alive() || processing_enabled());
 	// Queue shrink
 	VERIFY(_valid(Position()));
@@ -436,6 +437,7 @@ void CCustomMonster::update_sound_player()
 
 void CCustomMonster::UpdateCL()
 {
+	netcoop::ServerActorScope netcoop_scope(this);
 	START_PROFILE("CustomMonster/client_update")
 		m_client_update_delta = (u32)std::min(Device.dwTimeGlobal - m_last_client_update_time, u32(100));
 		m_last_client_update_time = Device.dwTimeGlobal;
@@ -855,6 +857,7 @@ void CCustomMonster::Hit(SHit* pHDS)
 
 void CCustomMonster::OnEvent(NET_Packet& P, u16 type)
 {
+	netcoop::ServerActorScope netcoop_scope(this);
 	inherited::OnEvent(P, type);
 }
 

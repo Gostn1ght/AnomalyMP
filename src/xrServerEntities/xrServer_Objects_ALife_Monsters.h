@@ -516,6 +516,10 @@ SERVER_ENTITY_DECLARE_BEGIN2(CSE_ALifeHumanStalker, CSE_ALifeHumanAbstract, CSE_
 	u8 m_netcoop_body_state;
 	u8 m_netcoop_mental_state;
 	float m_netcoop_speed;
+	// Animations the server stalker plays: mode 0 none, 1 script, 2 global,
+	// 3 head/torso/legs; MotionID values for those channels.
+	u8 m_netcoop_anim_mode;
+	u32 m_netcoop_anim[3];
 
 	CSE_ALifeHumanStalker(LPCSTR caSection);
 	virtual ~CSE_ALifeHumanStalker();

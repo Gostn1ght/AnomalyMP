@@ -217,6 +217,44 @@ void CStalkerAnimationManager::play_legs()
 	object().movement().setup_speed_from_animation(speed);
 }
 
+bool CStalkerAnimationManager::play_netcoop_puppet()
+{
+	CAI_Stalker& stalker = object();
+	if (!stalker.netcoop_puppet() || !stalker.m_netcoop_anim_mode)
+		return false;
+
+	MotionID anims[3];
+	for (int i = 0; i < 3; ++i)
+		if (stalker.m_netcoop_anim[i])
+			anims[i].val = stalker.m_netcoop_anim[i];
+
+	switch (stalker.m_netcoop_anim_mode)
+	{
+	case 1:
+	case 2:
+		if (!anims[0])
+			return false;
+		play_global_impl(anims[0], false);
+		return true;
+	case 3:
+		if (!anims[1] || !anims[2])
+			return false;
+		global().reset();
+		if (anims[0])
+		{
+			head().animation(anims[0]);
+			head().play(m_skeleton_animated, head_play_callback, false, false);
+		}
+		torso().animation(anims[1]);
+		torso().play(m_skeleton_animated, torso_play_callback, false, false);
+		legs().animation(anims[2]);
+		legs().play(m_skeleton_animated, legs_play_callback, false, false, true);
+		torso().synchronize(m_skeleton_animated, m_legs);
+		return true;
+	}
+	return false;
+}
+
 void CStalkerAnimationManager::update_impl()
 {
 	if (!object().g_Alive())
@@ -224,6 +262,9 @@ void CStalkerAnimationManager::update_impl()
 
 	update_tracks();
 	play_delayed_callbacks();
+
+	if (play_netcoop_puppet())
+		return;
 #ifdef HOLDERCUSTOM_NEW
 	if (object().Holder())
 		return;

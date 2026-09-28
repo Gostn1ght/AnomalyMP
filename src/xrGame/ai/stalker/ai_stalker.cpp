@@ -887,7 +887,16 @@ void CAI_Stalker::net_Export(NET_Packet& P)
 	P.w_u32(N.dwTimeStamp);
 	P.w_u8(0);
 	P.w_vec3(N.p_pos);
-	P.w_float /*w_angle8*/(N.o_model);
+	// Netcoop clients show the body as the server renders it: animation
+	// movement (animpoints, smart covers) turns XFORM without the body yaw.
+	float model_yaw = N.o_model;
+	if (netcoop::enabled())
+	{
+		float h, p, b;
+		XFORM().getHPB(h, p, b);
+		model_yaw = angle_normalize(h);
+	}
+	P.w_float /*w_angle8*/(model_yaw);
 	P.w_float /*w_angle8*/(N.o_torso.yaw);
 	P.w_float /*w_angle8*/(N.o_torso.pitch);
 	P.w_float /*w_angle8*/(N.o_torso.roll);
@@ -920,6 +929,32 @@ void CAI_Stalker::net_Export(NET_Packet& P)
 	P.w_u8(u8(movement().body_state()));
 	P.w_u8(u8(movement().mental_state()));
 	P.w_float(movement().speed(character_physics_support()->movement()));
+
+	u8 anim_mode = 0;
+	MotionID anims[3];
+	CStalkerAnimationManager& am = animation();
+	if (!g_Alive())
+		anim_mode = 0;
+	else if (!am.script_animations().empty() && am.script().animation())
+	{
+		anim_mode = 1;
+		anims[0] = am.script().animation();
+	}
+	else if (am.global().animation())
+	{
+		anim_mode = 2;
+		anims[0] = am.global().animation();
+	}
+	else if (am.legs().animation() && am.torso().animation())
+	{
+		anim_mode = 3;
+		anims[0] = am.head().animation();
+		anims[1] = am.torso().animation();
+		anims[2] = am.legs().animation();
+	}
+	P.w_u8(anim_mode);
+	for (int i = 0; i < 3; ++i)
+		P.w_u32(anims[i].valid() ? anims[i].val : 0);
 }
 
 bool CAI_Stalker::netcoop_puppet() const
@@ -982,6 +1017,12 @@ void CAI_Stalker::net_Import(NET_Packet& P)
 			movement().set_body_state(MonsterSpace::EBodyState(body_state));
 			movement().set_mental_state(MonsterSpace::EMentalState(mental_state));
 		}
+	}
+	if (P.r_elapsed() >= sizeof(u8) + 3 * sizeof(u32))
+	{
+		m_netcoop_anim_mode = P.r_u8();
+		for (int i = 0; i < 3; ++i)
+			m_netcoop_anim[i] = P.r_u32();
 	}
 
 	setVisible(TRUE);
@@ -1048,6 +1089,7 @@ void CAI_Stalker::destroy_anim_mov_ctrl()
 
 void CAI_Stalker::UpdateCL()
 {
+	netcoop::ServerActorScope netcoop_scope(this);
 	START_PROFILE("stalker")
 		START_PROFILE("stalker/client_update")
 			VERIFY2(PPhysicsShell()||getEnabled(), *cName());
@@ -1153,6 +1195,7 @@ BOOL NPCsLookAtActor = TRUE;
 float NPCsLookAtActorMinDistance = 3.5f;
 void CAI_Stalker::shedule_Update(u32 DT)
 {
+	netcoop::ServerActorScope netcoop_scope(this);
 	// Optimization update
 //	if (Device.dwFrame % 2) return;
 

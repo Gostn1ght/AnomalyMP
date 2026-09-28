@@ -1465,8 +1465,15 @@ bool client_owns_hud_item(const CObject* item)
 
 namespace netcoop
 {
+static int s_nearest_bind_depth = 0;
+
 bool server_bind_nearest_actor(CObject* npc)
 {
+	if (s_nearest_bind_depth > 0)
+	{
+		++s_nearest_bind_depth;
+		return true;
+	}
 	if (!npc || !g_pGameLevel)
 		return false;
 	const u16 id = netcoop_nearest_player_actor(npc->Position());
@@ -1474,12 +1481,28 @@ bool server_bind_nearest_actor(CObject* npc)
 	if (!actor || actor->getDestroy())
 		return false;
 	bind_script_actor(actor);
+	s_nearest_bind_depth = 1;
 	return true;
 }
 
 void server_unbind_actor()
 {
-	bind_script_actor(NULL);
+	if (s_nearest_bind_depth <= 0)
+		return;
+	if (--s_nearest_bind_depth == 0)
+		bind_script_actor(NULL);
+}
+
+ServerActorScope::ServerActorScope(CObject* object) : bound(false)
+{
+	if (enabled() && g_pGameLevel && Level().Server && object && !smart_cast<CActor*>(object))
+		bound = server_bind_nearest_actor(object);
+}
+
+ServerActorScope::~ServerActorScope()
+{
+	if (bound)
+		server_unbind_actor();
 }
 // ---------------------------------------------------------------------------
 // task list replication
