@@ -68,11 +68,37 @@ local function quiet_busy_hands()
 	end
 end
 
+-- The PDA opens from its slot (8). A PDA the player gets (starter kit from
+-- the server, pickups) goes to the rucksack; equip it when the slot is free.
+local PDA_SLOT = 8
+local function equip_pda()
+	local a = db.actor
+	if not a or a:item_in_slot(PDA_SLOT) then return true end
+	local pda
+	a:iterate_inventory(function(_, item)
+		if not pda and string.find(item:section(), "device_pda", 1, true) then
+			pda = item
+		end
+	end, a)
+	if pda then
+		a:move_to_slot(pda, PDA_SLOT)
+		printf("[NetAnomaly] %s equipped in the PDA slot", pda:section())
+	end
+	return true
+end
+
+local function on_item_take(item)
+	if item and string.find(item:section(), "device_pda", 1, true) then
+		CreateTimeEvent("netcoop_client", "equip_pda", 1, equip_pda)
+	end
+end
+
 -- Engine hook (Level_network_spawn.cpp) after the local Actor is assigned.
 function on_actor_spawned(obj)
 	controlled_actor = obj
 	use_own_actor_id(obj)
 	quiet_busy_hands()
+	CreateTimeEvent("netcoop_client", "equip_pda", 5, equip_pda)
 end
 
 function on_actor_destroyed(obj)
@@ -356,6 +382,7 @@ end
 
 function on_game_start()
 	quiet_busy_hands()
+	RegisterScriptCallback("actor_on_item_take", on_item_take)
 	init_event_managers()
 	-- PDA tabs read the simulation board; the simulation itself runs on the
 	-- server, so the client keeps an empty board.
