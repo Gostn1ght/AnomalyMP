@@ -400,6 +400,11 @@ void xrServer::Process_event(NET_Packet& P, ClientID sender)
 		break;
 	case GE_FREEZE_OBJECT:
 		break;
+	case GE_NETCOOP_WPN_AIM:
+		// Only the server's own level fires the weapon; clients need no copy.
+		if (SV_Client)
+			SendTo(SV_Client->ID, P, MODE);
+		break;
 	case GE_REQUEST_PLAYERS_INFO:
 		{
 			SendPlayersInfo(sender);

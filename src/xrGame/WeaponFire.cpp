@@ -67,6 +67,17 @@ void CWeapon::FireStart()
 
 void CWeapon::FireTrace(const Fvector& P, const Fvector& D)
 {
+	// Netcoop: the server fires the player's weapon too; tell it where this
+	// shot really starts and points (the server Actor has no camera).
+	if (netcoop::pure_client() && ParentIsActor() && H_Parent() && H_Parent()->Local() && _valid(P) && _valid(D))
+	{
+		NET_Packet aim;
+		u_EventGen(aim, GE_NETCOOP_WPN_AIM, ID());
+		aim.w_vec3(P);
+		aim.w_vec3(D);
+		u_EventSend(aim);
+	}
+
 	VERIFY(m_magazine.size());
 
 	CCartridge& l_cartridge = m_magazine.back();

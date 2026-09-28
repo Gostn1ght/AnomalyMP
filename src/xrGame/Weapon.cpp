@@ -1164,10 +1164,34 @@ void CWeapon::load(IReader& input_packet)
 	load_data(m_bRememberActorNVisnStatus, input_packet);
 }
 
+bool CWeapon::netcoop_aim(Fvector& pos, Fvector& dir) const
+{
+	if (!m_netcoop_aim_time || Device.dwTimeGlobal - m_netcoop_aim_time > 1000)
+		return false;
+	pos.set(m_netcoop_aim_pos);
+	dir.set(m_netcoop_aim_dir);
+	return true;
+}
+
 void CWeapon::OnEvent(NET_Packet& P, u16 type)
 {
 	switch (type)
 	{
+	case GE_NETCOOP_WPN_AIM:
+		{
+			Fvector pos, dir;
+			P.r_vec3(pos);
+			P.r_vec3(dir);
+			// The server accepts a shot origin near the holder only.
+			if (OnServer() && H_Parent() && _valid(pos) && _valid(dir) && dir.square_magnitude() > EPS &&
+				pos.distance_to(H_Parent()->Position()) < 3.f)
+			{
+				m_netcoop_aim_pos.set(pos);
+				m_netcoop_aim_dir.set(dir).normalize();
+				m_netcoop_aim_time = Device.dwTimeGlobal;
+			}
+		}
+		break;
 	case GE_ADDON_CHANGE:
 		{
 			P.r_u8(m_flagsAddOnState);

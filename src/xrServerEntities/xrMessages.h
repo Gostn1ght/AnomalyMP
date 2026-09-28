@@ -229,6 +229,10 @@ enum
 
 	GE_TRADER_FLAGS,
 
+	// Netcoop: a player's client reports where one of its shots started and
+	// its direction; the server fires that weapon along it.
+	GE_NETCOOP_WPN_AIM,
+
 	GE_FORCEDWORD = u32(-1)
 };
 

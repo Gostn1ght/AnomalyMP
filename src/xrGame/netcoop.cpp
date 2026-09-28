@@ -799,6 +799,13 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 			return dest && dest == CL->owner;
 		}
 
+	case GE_NETCOOP_WPN_AIM:
+		{
+			// Only for a weapon the sender's own Actor holds.
+			CSE_Abstract* weapon = server->game->get_entity_from_eid(destination);
+			return weapon && CL->owner && weapon->ID_Parent == CL->owner->ID;
+		}
+
 	case GE_TRADE_BUY:
 	case GE_TRADE_SELL:
 	case GE_OWNERSHIP_TAKE:

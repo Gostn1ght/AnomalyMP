@@ -20,6 +20,7 @@
 #include "player_hud.h"
 #include "HUDManager.h"
 #include "WeaponKnife.h"
+#include "netcoop.h"
 
 static const float VEL_MAX = 10.f;
 static const float VEL_A_MAX = 10.f;
@@ -113,6 +114,14 @@ SPickParam& CActor::GetPick()
 
 void CActor::g_fireParams(const CHudItem* pHudItem, Fvector& fire_pos, Fvector& fire_dir)
 {
+	// Netcoop server: a player's shot goes where that player aimed on their
+	// client, not along this server copy's camera.
+	if (netcoop::enabled() && OnServer() && !Local())
+	{
+		const CWeapon* weapon = smart_cast<const CWeapon*>(pHudItem);
+		if (weapon && weapon->netcoop_aim(fire_pos, fire_dir))
+			return;
+	}
 	SPickParam& pp = GetPick();
 
 	attachable_hud_item* item_0 = g_player_hud->attached_item(0);

@@ -56,6 +56,13 @@ public:
 	CWeapon();
 	virtual ~CWeapon();
 
+	// Netcoop server: the owning player's last reported shot (see
+	// GE_NETCOOP_WPN_AIM); used as fire position and direction while fresh.
+	Fvector m_netcoop_aim_pos;
+	Fvector m_netcoop_aim_dir;
+	u32 m_netcoop_aim_time = 0;
+	bool netcoop_aim(Fvector& pos, Fvector& dir) const;
+
 	// Generic
 	virtual void Load(LPCSTR section);
 
