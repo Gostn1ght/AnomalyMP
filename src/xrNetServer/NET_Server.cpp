@@ -782,6 +782,22 @@ BOOL IPureServer::HasBandwidth(IClient* C)
 	return FALSE;
 }
 
+BOOL IPureServer::HasSendQueueRoom(IClient* C, u32 max_pending)
+{
+	if (psNET_direct_connect)
+		return TRUE;
+	DWORD dwPending;
+	if (FAILED(NET->GetSendQueueInfo(C->ID.value(), &dwPending, 0, 0)))
+		return FALSE;
+	if (dwPending > max_pending)
+	{
+		C->stats.dwTimesBlocked++;
+		return FALSE;
+	}
+	C->dwTime_LastUpdate = TimeGlobal(device_timer);
+	return TRUE;
+}
+
 void IPureServer::UpdateClientStatistic(IClient* C)
 {
 	// Query network statistic for this client

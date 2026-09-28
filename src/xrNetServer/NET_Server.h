@@ -244,6 +244,9 @@ public:
 	//IC IClient*				disconnected_client_Get			(u32 num)	{ return net_Players_disconnected[num]; }
 
 	BOOL HasBandwidth(IClient* C);
+	// Rate is decided by the caller; only refuses while the client's send
+	// queue holds more than max_pending messages.
+	BOOL HasSendQueueRoom(IClient* C, u32 max_pending);
 
 	IC int GetPort() { return psNET_Port; };
 	bool GetClientAddress(ClientID ID, ip_address& Address, DWORD* pPort = NULL);

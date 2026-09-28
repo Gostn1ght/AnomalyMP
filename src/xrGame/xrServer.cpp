@@ -316,7 +316,12 @@ void _stdcall xrServer::SendGameUpdateTo(IClient* client)
 		return;
 	}
 
-	if (!HasBandwidth(client)
+	// Netcoop: SendUpdatesToAll already runs at the update rate. HasBandwidth
+	// has its own 33 ms timer (skipping a tick whenever the two drift apart)
+	// and drops the snapshot while more than 3 messages are queued, which a
+	// single tick of update packets exceeds.
+	const bool has_room = netcoop::smooth() ? !!HasSendQueueRoom(client, 64) : !!HasBandwidth(client);
+	if (!has_room
 #ifdef DEBUG
 			&& !g_sv_SendUpdate
 #endif
@@ -428,7 +433,13 @@ void xrServer::SendUpdatesToAll()
 #ifdef DEBUG
 		VERIFY(verify_entities());
 #endif
-		m_last_update_time = Device.dwTimeGlobal;
+		// Netcoop: a fixed tick (catching up at most one interval) instead of
+		// "at least 33 ms since the frame that sent", which averages 36+ ms.
+		const u32 interval = u32(1000 / (psNET_ServerUpdate > 0 ? psNET_ServerUpdate : 30));
+		if (netcoop::smooth() && Device.dwTimeGlobal - m_last_update_time < 2 * interval)
+			m_last_update_time += interval;
+		else
+			m_last_update_time = Device.dwTimeGlobal;
 	}
 	if (m_file_transfers)
 	{

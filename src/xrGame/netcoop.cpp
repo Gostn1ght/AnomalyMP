@@ -25,6 +25,8 @@
 #include "GameTask.h"
 #include "UIGameCustom.h"
 #include "game_news.h"
+#include <dbghelp.h>
+#pragma comment(lib, "dbghelp.lib")
 
 namespace netcoop
 {
@@ -1922,13 +1924,76 @@ void wd_hook(lua_State* L, lua_Debug*)
 	}
 }
 
+// Hitch sampling: a frame over 100 ms gets the main thread's native stack
+// logged (at most once a second), so stutter can be attributed to a system
+// or a script callback. The thread is suspended only while its stack is
+// unwound, without allocations or locks.
+HANDLE wd_main_thread = 0;
+
+u32 sample_main_stack(DWORD64* pcs, u32 max_pcs)
+{
+	if (!wd_main_thread || SuspendThread(wd_main_thread) == DWORD(-1))
+		return 0;
+	u32 count = 0;
+	CONTEXT ctx;
+	ZeroMemory(&ctx, sizeof(ctx));
+	ctx.ContextFlags = CONTEXT_FULL;
+	if (GetThreadContext(wd_main_thread, &ctx))
+	{
+		while (count < max_pcs && ctx.Rip)
+		{
+			pcs[count++] = ctx.Rip;
+			DWORD64 image_base = 0;
+			PRUNTIME_FUNCTION fn = RtlLookupFunctionEntry(ctx.Rip, &image_base, 0);
+			if (!fn)
+				break; // generated code (LuaJIT traces) has no unwind data
+			void* handler_data = 0;
+			DWORD64 establisher = 0;
+			RtlVirtualUnwind(UNW_FLAG_NHANDLER, image_base, ctx.Rip, fn, &ctx, &handler_data, &establisher, 0);
+		}
+	}
+	ResumeThread(wd_main_thread);
+	return count;
+}
+
+void log_hitch(u32 frame, u32 ms, const DWORD64* pcs, u32 count)
+{
+	static bool sym_ready = false;
+	if (!sym_ready)
+	{
+		sym_ready = true;
+		SymSetOptions(SymGetOptions() | SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
+		SymInitialize(GetCurrentProcess(), 0, TRUE);
+	}
+	string4096 line;
+	xr_sprintf(line, "[NetAnomaly][hitch] frame %u at %u ms:", frame, ms);
+	for (u32 i = 0; i < count; ++i)
+	{
+		char buffer[sizeof(SYMBOL_INFO) + 256];
+		SYMBOL_INFO* sym = (SYMBOL_INFO*)buffer;
+		ZeroMemory(buffer, sizeof(buffer));
+		sym->SizeOfStruct = sizeof(SYMBOL_INFO);
+		sym->MaxNameLen = 255;
+		DWORD64 displacement = 0;
+		string512 part;
+		if (SymFromAddr(GetCurrentProcess(), pcs[i], &displacement, sym))
+			xr_sprintf(part, " < %s", sym->Name);
+		else
+			xr_sprintf(part, " < %llx", pcs[i]);
+		xr_strcat(line, part);
+	}
+	Msg("%s", line);
+}
+
 DWORD WINAPI wd_thread(void*)
 {
 	u32 last_frame = Device.dwFrame;
 	u32 since = GetTickCount();
+	u32 sampled_frame = 0;
+	u32 next_sample = 0;
 	for (;;)
 	{
-		Sleep(1000);
+		Sleep(10);
 		const u32 frame = Device.dwFrame;
 		const u32 now = GetTickCount();
 		if (frame != last_frame)
@@ -1936,6 +2001,15 @@ DWORD WINAPI wd_thread(void*)
 			last_frame = frame;
 			since = now;
 			continue;
+		}
+		if (g_netcoop_metrics && g_pGameLevel && now - since >= 100 && sampled_frame != frame && now >= next_sample)
+		{
+			sampled_frame = frame;
+			next_sample = now + 1000;
+			DWORD64 pcs[24];
+			const u32 count = sample_main_stack(pcs, 24);
+			if (count && Device.dwFrame == frame)
+				log_hitch(frame, now - since, pcs, count);
 		}
 		if (now - since < 20000 || wd_armed || !g_pGameLevel || wd_frame == frame)
 			continue;
@@ -1955,6 +2029,8 @@ void script_watchdog_start()
 	if (started || !enabled())
 		return;
 	started = true;
+	DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &wd_main_thread,
+	                THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE, 0);
 	HANDLE h = CreateThread(0, 0, wd_thread, 0, 0, 0);
 	if (h)
 		CloseHandle(h);
