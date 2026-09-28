@@ -32,6 +32,12 @@ class CControl_Manager
 	COM_VEC m_active_elems;
 
 	CControlAnimation* m_animation;
+
+public:
+	// Netcoop: the animation component (motion sync for client puppets).
+	CControlAnimation* animation_com() { return m_animation; }
+
+private:
 	CControlDirection* m_direction;
 	CControlMovement* m_movement;
 	CControlPathBuilder* m_path;

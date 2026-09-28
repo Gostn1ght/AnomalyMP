@@ -9,6 +9,9 @@
 #include "../../../PHDestroyable.h"
 #include "../../../CharacterPhysicsSupport.h"
 #include "../../../Level.h"
+#include "../control_manager.h"
+#include "../control_animation.h"
+#include "../../../../Include/xrRender/KinematicsAnimated.h"
 
 void CBaseMonster::net_Save(NET_Packet& P)
 {
@@ -72,6 +75,39 @@ void CBaseMonster::net_Export(NET_Packet& P)
 		P.w(&f1, sizeof(f1));
 		P.w(&f1, sizeof(f1));
 	}
+
+	u32 motion = 0;
+	float motion_speed = 1.f;
+	if (netcoop::enabled() && m_control_manager && control().animation_com())
+	{
+		const MotionID m = control().animation_com()->netcoop_global_motion(motion_speed);
+		if (m.valid())
+			motion = m.val;
+		if (!_valid(motion_speed))
+			motion_speed = 1.f;
+	}
+	P.w_u32(motion);
+	P.w_float(motion_speed);
+}
+
+void CBaseMonster::netcoop_play_motion()
+{
+	IKinematicsAnimated* K = smart_cast<IKinematicsAnimated*>(Visual());
+	if (!K)
+		return;
+	if (m_netcoop_motion && m_netcoop_motion != m_netcoop_motion_played)
+	{
+		MotionID m;
+		m.val = m_netcoop_motion;
+		u16 part = K->LL_GetMotionDef(m)->bone_or_part;
+		if (part == u16(-1))
+			part = K->LL_PartID("default");
+		CBlend* blend = K->LL_PlayCycle(part, m, TRUE, 0, 0);
+		if (blend && m_netcoop_motion_speed > 0.f)
+			blend->speed = m_netcoop_motion_speed;
+		m_netcoop_motion_played = m_netcoop_motion;
+	}
+	K->UpdateTracks();
 }
 
 void CBaseMonster::net_Import(NET_Packet& P)
@@ -136,7 +172,11 @@ void CBaseMonster::net_Import(NET_Packet& P)
 		P.r(&f1, sizeof(f1));
 		P.r(&f1, sizeof(f1));
 	}
-
+	if (P.r_elapsed() >= sizeof(u32) + sizeof(float))
+	{
+		P.r_u32(m_netcoop_motion);
+		P.r_float(m_netcoop_motion_speed);
+	}
 
 	setVisible(TRUE);
 	setEnabled(TRUE);

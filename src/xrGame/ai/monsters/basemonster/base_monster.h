@@ -444,6 +444,13 @@ public:
 
 	CControlManagerCustom& com_man() { return m_com_manager; }
 
+	// Netcoop: the server's current monster motion; a client puppet plays it
+	// (its own animation AI does not run).
+	u32 m_netcoop_motion = 0;
+	float m_netcoop_motion_speed = 1.f;
+	u32 m_netcoop_motion_played = 0;
+	void netcoop_play_motion();
+
 	virtual bool check_start_conditions(ControlCom::EControlType);
 
 	virtual void on_activate_control(ControlCom::EControlType)

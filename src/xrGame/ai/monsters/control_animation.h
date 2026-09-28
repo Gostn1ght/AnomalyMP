@@ -88,6 +88,12 @@ public:
 	void add_anim_event(MotionID, float, u32);
 
 	CBlend* current_blend() { return m_data.global.blend; }
+	// Netcoop server: the global motion playing now and its speed.
+	MotionID netcoop_global_motion(float& speed) const
+	{
+		speed = m_data.global.blend ? m_data.global.blend->speed : 1.f;
+		return m_data.global.get_motion();
+	}
 
 	void restart();
 

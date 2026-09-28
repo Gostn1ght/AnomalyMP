@@ -435,6 +435,9 @@ SERVER_ENTITY_DECLARE_END
 
 SERVER_ENTITY_DECLARE_BEGIN2(CSE_ALifeMonsterBase, CSE_ALifeMonsterAbstract, CSE_PHSkeleton)
 	u16 m_spec_object_id;
+	// Netcoop: the motion a server monster plays, shown by client puppets.
+	u32 m_netcoop_motion = 0;
+	float m_netcoop_motion_speed = 1.f;
 
 	CSE_ALifeMonsterBase(LPCSTR caSection); // constructor for variable initialization
 	virtual ~CSE_ALifeMonsterBase();

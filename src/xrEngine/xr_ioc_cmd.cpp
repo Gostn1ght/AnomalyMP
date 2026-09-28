@@ -1081,6 +1081,8 @@ void CCC_Register()
 
 	// bone damage modifier
 	CMD4(CCC_Float, "g_hit_pwr_modif", &hit_modifier, .5f, 3.f);
+	extern float g_ai_sound_range_cap;
+	CMD4(CCC_Float, "ai_sound_range_cap", &g_ai_sound_range_cap, 0.f, 1000.f);
 
 	CMD4(CCC_Float, "g_dispersion_base", &g_dispersion_base, 0.0f, 5.0f);
 	CMD4(CCC_Float, "g_dispersion_factor", &g_dispersion_factor, 0.1f, 10.0f);

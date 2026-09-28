@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "../../../netcoop.h"
 #include "base_monster.h"
 #include "../../../../xrphysics/PhysicsShell.h"
 #include "../../../hit.h"
@@ -353,7 +354,15 @@ void CBaseMonster::UpdateCL()
 		update_pos_by_grouping_behaviour();
 	}
 
-	control().update_frame();
+	// A netcoop client puppet plays the server's motion; its controllers
+	// (animation, direction, movement AI) would move and turn it locally.
+	if (Remote() && netcoop::pure_client())
+	{
+		if (g_Alive())
+			netcoop_play_motion();
+	}
+	else
+		control().update_frame();
 
 	m_pPhysics_support->in_UpdateCL();
 }

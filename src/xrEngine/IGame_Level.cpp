@@ -262,8 +262,16 @@ void IGame_Level::SetViewEntity(CObject* O)
 	pCurrentViewEntity = O;
 }
 
+// Upper bound of how far AI hears a sound, in metres (0 = the sound's own
+// max_ai_distance). Many mod sounds carry no distance metadata and default
+// to 300 m, which on a shared server pulls monsters across the level; a
+// netcoop session starts with 120 m.
+float g_ai_sound_range_cap = -1.f;
+
 void IGame_Level::SoundEvent_Register(ref_sound_data_ptr S, float range)
 {
+	if (g_ai_sound_range_cap < 0.f)
+		g_ai_sound_range_cap = strstr(Core.Params, "-netcoop") ? 120.f : 0.f;
 	if (!g_bLoaded) return;
 	if (!S) return;
 	if (S->g_object && S->g_object->getDestroy())
@@ -279,11 +287,18 @@ void IGame_Level::SoundEvent_Register(ref_sound_data_ptr S, float range)
 	Fvector snd_position = p->position;
 	if (S->feedback->is_2D())
 	{
-		snd_position.add(Sound->listener_position());
+		// A dedicated server has no listener: a 2D sound (a player's HUD
+		// weapon) comes from the object that plays it.
+		if (g_dedicated_server && S->g_object)
+			snd_position.set(S->g_object->Position());
+		else
+			snd_position.add(Sound->listener_position());
 	}
 
 	VERIFY(p && _valid(range));
 	range = _min(range, p->max_ai_distance);
+	const float max_ai_distance = g_ai_sound_range_cap > 0.f ? _min(p->max_ai_distance, g_ai_sound_range_cap) : p->max_ai_distance;
+	range = _min(range, max_ai_distance);
 	VERIFY(_valid(snd_position));
 	VERIFY(_valid(p->max_ai_distance));
 	VERIFY(_valid(p->volume));
@@ -306,10 +321,10 @@ void IGame_Level::SoundEvent_Register(ref_sound_data_ptr S, float range)
 		// Energy and signal
 		VERIFY(_valid((*it)->spatial.sphere.P));
 		float dist = snd_position.distance_to((*it)->spatial.sphere.P);
-		if (dist > p->max_ai_distance) continue;
+		if (dist > max_ai_distance) continue;
 		VERIFY(_valid(dist));
-		VERIFY2(!fis_zero(p->max_ai_distance), S->handle->file_name());
-		float Power = (1.f - dist / p->max_ai_distance) * p->volume;
+		VERIFY2(!fis_zero(max_ai_distance), S->handle->file_name());
+		float Power = (1.f - dist / max_ai_distance) * p->volume;
 		VERIFY(_valid(Power));
 		if (Power > EPS_S)
 		{
