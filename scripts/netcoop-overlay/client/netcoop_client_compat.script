@@ -324,7 +324,27 @@ local function open_ui(data)
 	end
 end
 
+-- Trade profile of an NPC from the server: buy/sell conditions for the trade
+-- window. Supplies (restocking) stay on the server.
+local function use_trade_profile(data)
+	local id, cfg = string.match(data or "", "^(%d+)%s+(.+)$")
+	local npc = id and level.object_by_id(tonumber(id))
+	if not (npc and cfg and trade_manager) then return end
+	local ok, err = pcall(function()
+		trade_manager.trade_init(npc, cfg)
+		local config = trade_manager.get_trade_cfg(cfg)
+		if config then
+			trade_manager.setup_buy_sell_conditions(npc, npc:id(), config)
+		end
+	end)
+	if not ok then printf("[NetAnomaly] trade profile %s failed: %s", cfg, tostring(err)) end
+end
+
 function on_script_message(channel, data)
+	if channel == "trade_cfg" then
+		use_trade_profile(data)
+		return
+	end
 	if channel ~= "weather" then
 		printf("[NetAnomaly] server message %s: %s", tostring(channel), tostring(data))
 	end

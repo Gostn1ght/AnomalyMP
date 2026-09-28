@@ -17,6 +17,7 @@ local HELP_ADMIN = table.concat({
 	"~          give_money <amount>               - change own balance",
 	"~          find <text> [limit]               - search sections",
 	"~          cmd <console command>             - run on the server",
+	"~          lua <code>                        - run Lua on the server (debug)",
 }, "\n")
 
 local function server_actor(entity_id)
@@ -143,6 +144,15 @@ function on_client_command(cid, name, entity_id, text, role)
 		local mask, limit = string.match(args, "^(%S+)%s*(%d*)$")
 		if not mask then return "! usage: find <text> [limit]" end
 		return find_sections(mask, math.min(tonumber(limit) or 30, 100))
+
+	elseif cmd == "lua" then
+		-- Admin debugging: run a Lua chunk on the server, return its result.
+		if args == "" then return "! usage: lua <code>" end
+		local chunk, err = loadstring(args)
+		if not chunk then chunk, err = loadstring("return " .. args) end
+		if not chunk then return "! " .. tostring(err) end
+		local ok, res = pcall(chunk)
+		return (ok and "~ " or "! ") .. tostring(res)
 
 	elseif cmd == "cmd" then
 		if args == "" or string.find(args, "[\r\n;]") then return "! invalid console command" end

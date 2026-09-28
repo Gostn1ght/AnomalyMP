@@ -246,6 +246,22 @@ local function install_player_tasks()
 	printf("[NetAnomaly] per-player task managers installed")
 end
 
+-- Dialogue actions open trade/repair windows after hide_hud_inventory()
+-- succeeds. The server has no HUD; the player's client opens the window
+-- (npc:start_trade on the server is routed there by the engine). Installed
+-- here because ui_inventory replaces hide_hud_inventory when it loads.
+local function server_hide_hud()
+	return true
+end
+
+-- ui_inventory assigns its own version in its on_game_start, after ours;
+-- this is re-applied from the per-player update.
+local function install_hide_hud()
+	if _G.hide_hud_inventory ~= server_hide_hud then
+		_G.hide_hud_inventory = server_hide_hud
+	end
+end
+
 -- A normal game initialises these from the Actor binder's net_spawn, which
 -- the server does not have. on_game_load waits for the first player, as its
 -- handlers expect db.actor.
@@ -285,6 +301,7 @@ function update_player_tasks()
 	local a = db.actor
 	if not a then return end
 	server_game_load()
+	install_hide_hud()
 	server_world_tick()
 	-- Forget managers of players who left.
 	for id in pairs(player_tasks) do
@@ -294,18 +311,26 @@ function update_player_tasks()
 end
 
 -- axr_main calls on_game_start of every script once all scripts are loaded.
--- Dialogue actions open trade/repair windows after hide_hud_inventory()
--- succeeds. The server has no HUD; the player's client opens the window
--- (npc:start_trade on the server is routed there by the engine). Installed
--- here because ui_inventory replaces hide_hud_inventory when it loads.
-local function install_hide_hud()
-	_G.hide_hud_inventory = function()
-		return true
+-- The trade window on a client needs the NPC's trade profile (what it buys
+-- and sells), which NPC logic sets up on the server only. Send it before the
+-- window opens (same ordered channel as "open_ui").
+local function install_trade_profiles()
+	if not (dialogs and dialogs.npc_is_trader and trade_manager) then return end
+	local npc_is_trader = dialogs.npc_is_trader
+	dialogs.npc_is_trader = function(a, b)
+		local npc = dialogs.who_is_npc(a, b)
+		local player = db.actor
+		local cfg = npc and trade_manager.get_trade_profile(npc:id(), "cfg_ltx")
+		if player and cfg and netcoop_send_to_actor then
+			netcoop_send_to_actor(player:id(), "trade_cfg", npc:id() .. " " .. cfg)
+		end
+		return npc_is_trader(a, b)
 	end
 end
 
 function on_game_start()
 	install_hide_hud()
+	install_trade_profiles()
 	install_player_tasks()
 	if death_manager and death_manager.init_drop_settings then
 		local ok, err = pcall(death_manager.init_drop_settings)
