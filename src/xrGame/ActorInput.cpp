@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "netcoop.h"
 #include <dinput.h>
 #include "Actor.h"
 #include "Torch.h"
