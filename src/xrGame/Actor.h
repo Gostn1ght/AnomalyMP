@@ -581,6 +581,9 @@ public:
 	// Netcoop server: take a player's position and presentation (facing,
 	// look, movement state) from the owning client's update.
 	void netcoop_follow_owner(NET_Packet& P);
+	// Netcoop client: another player, shown from the server's snapshots
+	// (position, facing, look, movement state) interpolated each frame.
+	void netcoop_update_remote();
 	
 	u32 m_next_input_sequence = 1;
 	bool m_jump_input_pending = false;

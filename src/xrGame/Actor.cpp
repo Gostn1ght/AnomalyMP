@@ -1281,6 +1281,8 @@ void CActor::UpdateCL()
 
 	inherited::UpdateCL();
 	m_pPhysics_support->in_UpdateCL();
+	if (g_Alive() && Remote() && netcoop::pure_client())
+		netcoop_update_remote();
 	if (g_dedicated_server)
 	{
 		// Movement is stepped once in shedule_Update; the remaining work here
@@ -2033,6 +2035,17 @@ void CActor::shedule_Update(u32 DT)
 				}
 			}
 		}
+	}
+	else if (!authoritative_remote && Remote() && netcoop::pure_client())
+	{
+		// Another player on a netcoop client: placed every frame from the
+		// server snapshots (netcoop_update_remote); only animate here.
+		if (NET.size())
+		{
+			g_SetAnimation(mstate_real);
+			set_state_box(NET_Last.mstate);
+		}
+		mstate_old = mstate_real;
 	}
 	else if (!authoritative_remote)
 	{

@@ -596,7 +596,9 @@ void CActor::net_Import_Base(NET_Packet& P)
 			} else {
 				NET.push_back(N);
 			}
-		if (NET.size() > 5) NET.pop_front();
+		// A netcoop client interpolates other players netcoop_interp_ms
+		// behind server time: keep enough 30 Hz snapshots for that.
+		if (NET.size() > (netcoop::pure_client() ? 24u : 5u)) NET.pop_front();
 	}
 	//-----------------------------------------------
 	net_Import_Base_proceed();
@@ -1451,6 +1453,54 @@ void CActor::CalculateInterpolationParams()
 }
 
 int actInterpType = 0;
+
+void CActor::netcoop_update_remote()
+{
+	if (NET.empty())
+		return;
+	const u32 t = Level().timeServer() - netcoop::remote_interp_delay();
+	while (NET.size() > 2 && NET[1].dwTimeStamp <= t)
+		NET.pop_front();
+
+	net_update cur = NET.back();
+	Fvector velocity;
+	velocity.set(0.f, 0.f, 0.f);
+	bool extrapolating = true;
+	if (NET.size() >= 2 && t >= NET[0].dwTimeStamp && t <= NET[1].dwTimeStamp && NET[1].dwTimeStamp > NET[0].dwTimeStamp)
+	{
+		const net_update& A = NET[0];
+		const net_update& B = NET[1];
+		const float span = float(B.dwTimeStamp - A.dwTimeStamp);
+		const float f = float(t - A.dwTimeStamp) / span;
+		cur = B;
+		cur.p_pos.lerp(A.p_pos, B.p_pos, f);
+		cur.o_model = angle_lerp(A.o_model, B.o_model, f);
+		cur.o_torso.yaw = angle_lerp(A.o_torso.yaw, B.o_torso.yaw, f);
+		cur.o_torso.pitch = angle_lerp(A.o_torso.pitch, B.o_torso.pitch, f);
+		cur.o_torso.roll = angle_lerp(A.o_torso.roll, B.o_torso.roll, f);
+		velocity.sub(B.p_pos, A.p_pos).mul(1000.f / span);
+		extrapolating = false;
+	}
+	else if (t < NET.front().dwTimeStamp)
+		cur = NET.front();
+
+	if (!_valid(cur.p_pos))
+		return;
+	CCharacterPhysicsSupport* physics = character_physics_support();
+	if (physics && physics->movement())
+	{
+		physics->movement()->SetPosition(cur.p_pos);
+		physics->movement()->SetVelocity(velocity);
+	}
+	Position().set(cur.p_pos);
+	r_model_yaw = angle_normalize(cur.o_model);
+	unaffected_r_torso = cur.o_torso;
+	r_torso = cur.o_torso;
+	mstate_real = mstate_wishful = cur.mstate;
+	NET_SavedAccel = cur.p_accel;
+	NET_Last = cur;
+	netcoop::metric_puppet_frame(ID(), cur.p_pos, extrapolating);
+}
 
 void CActor::make_Interpolation()
 {
