@@ -297,7 +297,7 @@ local function server_world_tick()
 end
 
 -- Local debug channel: the server runs gamma-runtime/netcoop_debug.lua
--- (then deletes it) and logs the result. Only someone with access to the
+-- (then empties it) and logs the result. Only someone with access to the
 -- server's files can use it; it needs no game window.
 local debug_next = 0
 local function server_debug_file()
@@ -308,7 +308,10 @@ local function server_debug_file()
 	if not f then return end
 	local code = f:read("*a")
 	f:close()
-	os.remove("netcoop_debug.lua")
+	if not code or code == "" then return end
+	-- os.remove is not available to GAMMA scripts: empty the file instead.
+	local w = io.open("netcoop_debug.lua", "w")
+	if w then w:close() end
 	local chunk, err = loadstring(code)
 	if not chunk then printf("[NetAnomaly][debug] compile error: %s", tostring(err)) return end
 	local ok, res = pcall(chunk)
