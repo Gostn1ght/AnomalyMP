@@ -984,6 +984,7 @@ static xr_deque<TalkState> s_talk_states;
 void client_talk_start(u16 npc_id)
 {
 	s_talk_states.clear();
+	Msg("[NetAnomaly] talk request to NPC %u", npc_id);
 	NET_Packet P;
 	P.w_begin(M_NETCOOP_TALK);
 	P.w_u8(talk_start);
@@ -1021,6 +1022,7 @@ void client_on_talk_state(NET_Packet& P)
 	const u8 flags = P.r_u8();
 	state.open = !!(flags & talk_flag_open);
 	state.trade = !!(flags & talk_flag_trade);
+	Msg("[NetAnomaly] talk state from server: NPC %u open=%d trade=%d", state.npc, state.open ? 1 : 0, state.trade ? 1 : 0);
 
 	string1024 text;
 	string256 id;
@@ -1352,6 +1354,10 @@ void server_on_talk(xrServer* server, xrClientData* CL, NET_Packet& P)
 		actor->Position().distance_to(npc_object->Position()) <= talk_max_distance;
 	if (!valid || (op == talk_choose && found == s_talk_sessions.end()) || op > talk_stop)
 	{
+		Msg("! [NetAnomaly] talk op %u with %u from '%s' rejected: npc=%d alive=%d distance=%.1f session=%d",
+			op, npc_id, CL->netcoop_login.c_str(), npc ? 1 : 0, npc_alive && npc_alive->g_Alive() ? 1 : 0,
+			npc_object ? actor->Position().distance_to(npc_object->Position()) : -1.f,
+			found != s_talk_sessions.end() ? 1 : 0);
 		talk_close(CL, actor, npc);
 		send_talk_state(server, CL, state);
 		return;
@@ -1366,7 +1372,10 @@ void server_on_talk(xrServer* server, xrClientData* CL, NET_Packet& P)
 			actor->StopTalk();
 		s_talk_sessions.erase(CL->ID.value());
 
-		if (npc->OfferTalk(actor))
+		const bool offered = npc->OfferTalk(actor);
+		Msg("[NetAnomaly] talk '%s' -> %s: offer=%d talk_enabled=%d", CL->netcoop_login.c_str(),
+			npc_object->cName().c_str(), offered ? 1 : 0, npc->IsTalkEnabled() ? 1 : 0);
+		if (offered)
 		{
 			actor->StartTalk(npc);
 
