@@ -20,6 +20,10 @@ void XRCORE_API CreateLog(BOOL no_log = FALSE);
 void InitLog();
 void CloseLog();
 void XRCORE_API FlushLog();
+// Appends only the lines logged since the previous flush.
+void XRCORE_API FlushLogAppend();
+// Holds the log lock while another thread reads LogFile.
+void XRCORE_API LogLock(bool lock);
 
 extern XRCORE_API xr_vector<xr_string> LogFile;
 extern XRCORE_API BOOL LogExecCB;

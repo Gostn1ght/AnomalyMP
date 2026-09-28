@@ -27,6 +27,7 @@ static xrCriticalSection logCS;
 #endif // PROFILE_CRITICAL_SECTIONS
 xr_vector<xr_string> LogFile;
 static LogCallback LogCB = 0;
+static size_t log_flushed_lines = 0;
 
 void FlushLog()
 {
@@ -45,9 +46,50 @@ void FlushLog()
 				f->w_string(s ? s : "");
 			}
 			FS.w_close(f);
+			log_flushed_lines = LogFile.size();
 		}
 		logCS.Leave();
 	}
+}
+
+// Appends the lines logged since the last flush instead of rewriting the
+// whole log (megabytes after an hour), so a periodic flush does not stall
+// the frame. The line merged with a repeat counter after it was written
+// keeps its first form on disk.
+void FlushLogAppend()
+{
+	if (no_log)
+		return;
+	logCS.Enter();
+	if (!log_flushed_lines || log_flushed_lines > LogFile.size())
+	{
+		logCS.Leave();
+		FlushLog();
+		return;
+	}
+	if (log_flushed_lines < LogFile.size())
+	{
+		FILE* f = fopen(logFName, "ab");
+		if (f)
+		{
+			for (size_t i = log_flushed_lines; i < LogFile.size(); ++i)
+			{
+				fputs(LogFile[i].c_str(), f);
+				fputs("\r\n", f);
+			}
+			fclose(f);
+			log_flushed_lines = LogFile.size();
+		}
+	}
+	logCS.Leave();
+}
+
+void LogLock(bool lock)
+{
+	if (lock)
+		logCS.Enter();
+	else
+		logCS.Leave();
 }
 
 std::string getCurrentTimeStamp(LPCSTR format = "%d.%m.%Y %H:%M:%S") {

@@ -25,8 +25,6 @@
 #include "GameTask.h"
 #include "UIGameCustom.h"
 #include "game_news.h"
-#include <dbghelp.h>
-#pragma comment(lib, "dbghelp.lib")
 
 namespace netcoop
 {
@@ -1956,30 +1954,29 @@ u32 sample_main_stack(DWORD64* pcs, u32 max_pcs)
 	return count;
 }
 
+// Frames are written as module+offset (the game exe as a plain address at
+// its fixed base); scratchpad symhitch.py resolves them with the PDB. No
+// dbghelp in the process: its state is the crash handler's.
 void log_hitch(u32 frame, u32 ms, const DWORD64* pcs, u32 count)
 {
-	static bool sym_ready = false;
-	if (!sym_ready)
-	{
-		sym_ready = true;
-		SymSetOptions(SymGetOptions() | SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
-		SymInitialize(GetCurrentProcess(), 0, TRUE);
-	}
 	string4096 line;
 	xr_sprintf(line, "[NetAnomaly][hitch] frame %u at %u ms:", frame, ms);
+	const HMODULE exe = GetModuleHandle(0);
 	for (u32 i = 0; i < count; ++i)
 	{
-		char buffer[sizeof(SYMBOL_INFO) + 256];
-		SYMBOL_INFO* sym = (SYMBOL_INFO*)buffer;
-		ZeroMemory(buffer, sizeof(buffer));
-		sym->SizeOfStruct = sizeof(SYMBOL_INFO);
-		sym->MaxNameLen = 255;
-		DWORD64 displacement = 0;
-		string512 part;
-		if (SymFromAddr(GetCurrentProcess(), pcs[i], &displacement, sym))
-			xr_sprintf(part, " < %s", sym->Name);
-		else
+		string128 part;
+		HMODULE module = 0;
+		GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+		                   (LPCSTR)pcs[i], &module);
+		if (!module || module == exe)
 			xr_sprintf(part, " < %llx", pcs[i]);
+		else
+		{
+			string_path path;
+			GetModuleFileNameA(module, path, sizeof(path));
+			LPCSTR name = strrchr(path, '\\');
+			xr_sprintf(part, " < %s+%llx", name ? name + 1 : path, pcs[i] - DWORD64(module));
+		}
 		xr_strcat(line, part);
 	}
 	Msg("%s", line);

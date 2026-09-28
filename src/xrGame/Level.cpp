@@ -1044,7 +1044,7 @@ void CLevel::OnFrame()
 		if (flush_tick >= netcoop_next_flush)
 		{
 			netcoop_next_flush = flush_tick + 3000;
-			FlushLog();
+			FlushLogAppend();
 		}
 	}
 	// A client that itself stood still (loading, window drag, debugger) has not

@@ -385,6 +385,8 @@ void CTextConsole::DrawLog(HDC hDC, RECT* pRect)
 	m_log_visible_rows = (m_log_bottom - m_log_top) / line_height;
 	if (m_log_visible_rows < 1)
 		m_log_visible_rows = 1;
+	// Other threads append to LogFile under the log lock.
+	LogLock(true);
 	m_log_count = 0;
 	for (const auto& line : LogFile)
 		if (MatchesLogFilter(line.c_str()))
@@ -412,6 +414,7 @@ void CTextConsole::DrawLog(HDC hDC, RECT* pRect)
 		y -= line_height;
 	}
 	RestoreDC(hDC, old_dc);
+	LogLock(false);
 
 	RECT track = {width - 14, m_log_top, width - 6, m_log_bottom};
 	HBRUSH track_brush = CreateSolidBrush(RGB(31, 39, 50));
@@ -539,10 +542,18 @@ void CTextConsole::OnFrame()
 {
 	inherited::OnFrame();
 	// The dedicated server has no renderer-driven present loop for this window.
+	// Redrawing the log is synchronous GDI work on the main thread: only when
+	// lines were added, at most twice a second (and once a second anyway for
+	// the dashboard).
 	const u32 now = GetTickCount();
-	if (now - m_dwLastUpdateTime >= 100)
+	static size_t shown_lines = size_t(-1);
+	LogLock(true);
+	const size_t lines = LogFile.size();
+	LogLock(false);
+	if ((lines != shown_lines && now - m_dwLastUpdateTime >= 500) || now - m_dwLastUpdateTime >= 1000)
 	{
 		m_dwLastUpdateTime = now;
+		shown_lines = lines;
 		RefreshDisplay();
 	}
 }
