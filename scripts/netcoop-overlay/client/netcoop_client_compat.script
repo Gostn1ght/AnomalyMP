@@ -325,6 +325,9 @@ local function open_ui(data)
 end
 
 function on_script_message(channel, data)
+	if channel ~= "weather" then
+		printf("[NetAnomaly] server message %s: %s", tostring(channel), tostring(data))
+	end
 	if channel == "weather" then
 		use_server_weather(data)
 	elseif channel == "open_ui" then

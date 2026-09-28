@@ -1859,7 +1859,10 @@ bool server_open_ui(u16 actor_id, LPCSTR kind, u16 partner_id)
 {
 	string128 data;
 	xr_sprintf(data, "%s %u", kind, partner_id);
-	return script_send_to_actor(actor_id, "open_ui", data);
+	const bool sent = script_send_to_actor(actor_id, "open_ui", data);
+	if (enabled() && g_pGameLevel && Level().Server)
+		Msg("[NetAnomaly] open %s with %u for Actor %u: %s", kind, partner_id, actor_id, sent ? "sent" : "no remote owner");
+	return sent;
 }
 
 } // namespace netcoop

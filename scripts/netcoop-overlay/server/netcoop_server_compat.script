@@ -140,6 +140,7 @@ function install()
 	local hide_hud = _G.hide_hud_inventory
 	_G.hide_hud_inventory = function(...)
 		if get_hud and get_hud() and hide_hud then return hide_hud(...) end
+		printf("[NetAnomaly] hide_hud_inventory on the server for %s", tostring(db.actor and db.actor:name()))
 		return true
 	end
 
