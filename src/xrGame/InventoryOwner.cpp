@@ -231,7 +231,9 @@ void CInventoryOwner::UpdateInventoryOwner(u32 deltaT)
 	{
 		//если наш собеседник перестал говорить с нами,
 		//то и нам нечего ждать.
-		if (!m_pTalkPartner->IsTalking())
+		// A netcoop client's NPC puppet never talks locally; the server ends
+		// the dialogue (M_NETCOOP_TALK_STATE).
+		if (!m_pTalkPartner->IsTalking() && !netcoop::pure_client())
 		{
 			StopTalk();
 		}
