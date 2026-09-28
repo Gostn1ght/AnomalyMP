@@ -346,9 +346,37 @@ local function use_trade_profile(data)
 	if not ok then printf("[NetAnomaly] trade profile %s failed: %s", cfg, tostring(err)) end
 end
 
+-- A server NPC animation attached or detached a prop (guitar, harmonica,
+-- radio). The item may still be on its way to this client: retry for 5 s.
+local function set_attached(data)
+	local id, on = string.match(data or "", "^(%d+)%s+(%d)$")
+	id = tonumber(id)
+	if not id then return end
+	local tries = 0
+	local function apply()
+		local itm = level.object_by_id(id)
+		if itm then
+			pcall(itm.enable_attachable_item, itm, on == "1")
+			return true
+		end
+		tries = tries + 1
+		return tries > 10
+	end
+	if not apply() and CreateTimeEvent then
+		CreateTimeEvent("netcoop_attach", tostring(id), 0.5, function()
+			if apply() then return true end
+			ResetTimeEvent("netcoop_attach", tostring(id), 0.5)
+			return false
+		end)
+	end
+end
+
 function on_script_message(channel, data)
 	if channel == "trade_cfg" then
 		use_trade_profile(data)
+		return
+	elseif channel == "attach" then
+		set_attached(data)
 		return
 	end
 	if channel ~= "weather" then

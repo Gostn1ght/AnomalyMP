@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////////
 
 #include "pch_script.h"
+#include "netcoop.h"
 #include "script_game_object.h"
 #include "script_game_object_impl.h"
 #include "InventoryOwner.h"
@@ -1346,6 +1347,14 @@ void CScriptGameObject::enable_attachable_item(bool value)
 		return;
 	}
 	attachable_item->enable(value);
+	// Netcoop: NPC animation props (guitar, harmonica, radio) are attached by
+	// server scripts; clients show them only if told.
+	if (netcoop::enabled() && g_pGameLevel && Level().Server)
+	{
+		string32 data;
+		xr_sprintf(data, "%u %d", object().ID(), value ? 1 : 0);
+		netcoop::script_broadcast("attach", data);
+	}
 }
 
 bool CScriptGameObject::attachable_item_enabled() const

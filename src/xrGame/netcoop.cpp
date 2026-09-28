@@ -2062,9 +2062,19 @@ bool smooth()
 	return enabled() && g_netcoop_smooth != 0;
 }
 
+// Snapshot timing seen by this client (exponential averages, ms): the
+// interpolation delay covers the usual interval plus three deviations so a
+// late snapshot still arrives before it is needed.
+static float s_snap_interval = 33.f;
+static float s_snap_jitter = 5.f;
+
 u32 remote_interp_delay()
 {
-	return (pure_client() && g_netcoop_smooth) ? u32(g_netcoop_interp_ms) : NET_Latency;
+	if (!(pure_client() && g_netcoop_smooth))
+		return NET_Latency;
+	const float adaptive = s_snap_interval + 3.f * s_snap_jitter;
+	const float delay = _max(float(g_netcoop_interp_ms), _min(adaptive, 250.f));
+	return u32(delay);
 }
 
 namespace
@@ -2095,6 +2105,12 @@ xr_map<u16, u32> shot_log_time;
 
 void metric_snapshot(u32 interval_ms)
 {
+	if (interval_ms < 1000)
+	{
+		const float x = float(interval_ms);
+		s_snap_interval += (x - s_snap_interval) * 0.02f;
+		s_snap_jitter += (_abs(x - s_snap_interval) - s_snap_jitter) * 0.02f;
+	}
 	++m.snaps;
 	m.snap_ms_sum += interval_ms;
 	m.snap_ms_max = _max(m.snap_ms_max, interval_ms);
