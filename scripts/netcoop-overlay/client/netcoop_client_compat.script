@@ -279,6 +279,12 @@ end
 
 function on_game_start()
 	init_event_managers()
+	-- PDA tabs read the simulation board; the simulation itself runs on the
+	-- server, so the client keeps an empty board.
+	if sim_board and sim_board.get_sim_board then
+		local ok, err = pcall(sim_board.get_sim_board)
+		if not ok then printf("[NetAnomaly] sim board init failed: %s", tostring(err)) end
+	end
 	RegisterScriptCallback("on_before_save_input", no_saves)
 	RegisterScriptCallback("on_before_load_input", no_quick_load)
 	RegisterScriptCallback("on_key_release", admin_menu_key)

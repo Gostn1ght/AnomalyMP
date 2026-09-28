@@ -208,12 +208,12 @@ xr_vector<xr_string> get_lua_stack(lua_State* L)
 	return res;
 }
 
-// A NetAnomaly co-op dedicated server runs every GAMMA object script for all
-// players. One failing mod script there must not stop the world for everyone:
-// the error is logged and the failed call returns nil.
+// NetAnomaly co-op runs GAMMA single-player scripts on a dedicated server and
+// on clients without a local simulation. One failing mod script must not stop
+// the session: the error is logged and the failed call returns nil.
 static bool netcoop_server_tolerant()
 {
-	return strstr(Core.Params, "-netcoop") && strstr(Core.Params, "server(");
+	return strstr(Core.Params, "-netcoop") != NULL;
 }
 
 void CScriptEngine::lua_error(lua_State* L)
