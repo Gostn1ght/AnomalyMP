@@ -14,6 +14,14 @@ class CObject;
 class xrClientData;
 class xrServer;
 struct GAME_NEWS_DATA;
+class CWeapon;
+
+// Console: netcoop_smooth (0 = old network presentation, 1 = doc 38 stage 1),
+// netcoop_interp_ms (interpolation delay for remote objects on a client),
+// netcoop_metrics (10 s network summary in the log).
+extern int g_netcoop_smooth;
+extern int g_netcoop_interp_ms;
+extern int g_netcoop_metrics;
 
 namespace netcoop
 {
@@ -148,4 +156,17 @@ void script_watchdog_start();
 void client_on_script(NET_Packet& P);
 bool server_set_role(LPCSTR login, u8 role, xr_string& message);
 void server_list_accounts(xr_string& out);
+
+// Network smoothness (doc 38, stages 0 and 1).
+bool smooth();
+// How far behind the estimated server time a client shows remote objects.
+u32 remote_interp_delay();
+// Metrics, summarised in the log every 10 s.
+void metric_snapshot(u32 interval_ms);
+void metric_snapshot_duplicate();
+void metric_puppet_frame(u16 id, const Fvector& pos, bool extrapolating);
+void metric_actor_error(float error, bool applied);
+void metric_owner_step_rejected(float step);
+void metric_weapon_fire(CWeapon* weapon);
+void metrics_update();
 } // namespace netcoop

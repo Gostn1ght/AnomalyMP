@@ -7,6 +7,7 @@
 #include "ParticlesObject.h"
 #include "entity.h"
 #include "actor.h"
+#include "netcoop.h"
 
 #include "actoreffector.h"
 #include "effectorshot.h"
@@ -60,6 +61,7 @@ void CWeapon::FireStart()
 	if (ParentIsActor())
 		Actor()->StopSprint();
 
+	netcoop::metric_weapon_fire(this);
 	CShootingObject::FireStart();
 }
 

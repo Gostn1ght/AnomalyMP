@@ -1038,6 +1038,7 @@ void CLevel::OnFrame()
 	if (strstr(Core.Params, "-netcoop"))
 	{
 		netcoop::script_watchdog_start();
+		netcoop::metrics_update();
 		static u32 netcoop_next_flush = 0;
 		const u32 flush_tick = GetTickCount();
 		if (flush_tick >= netcoop_next_flush)

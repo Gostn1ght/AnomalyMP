@@ -8,6 +8,7 @@
 #include "../../../hit.h"
 #include "../../../PHDestroyable.h"
 #include "../../../CharacterPhysicsSupport.h"
+#include "../../../Level.h"
 
 void CBaseMonster::net_Save(NET_Packet& P)
 {
@@ -28,10 +29,24 @@ void CBaseMonster::net_Export(NET_Packet& P)
 	R_ASSERT(!NET.empty());
 	net_update& N = NET.back();
 	P.w_float(GetfHealth());
-	P.w_u32(N.dwTimeStamp);
-	P.w_u8(0);
-	P.w_vec3(N.p_pos);
-	P.w_float /*w_angle8*/(N.o_model);
+	// Netcoop: current state and time instead of the AI schedule's last record
+	// (see CAI_Stalker::net_Export).
+	if (netcoop::smooth())
+	{
+		float h, p, b;
+		XFORM().getHPB(h, p, b);
+		P.w_u32(Level().timeServer());
+		P.w_u8(0);
+		P.w_vec3(Position());
+		P.w_float(angle_normalize(-h));
+	}
+	else
+	{
+		P.w_u32(N.dwTimeStamp);
+		P.w_u8(0);
+		P.w_vec3(N.p_pos);
+		P.w_float /*w_angle8*/(N.o_model);
+	}
 	P.w_float /*w_angle8*/(N.o_torso.yaw);
 	P.w_float /*w_angle8*/(N.o_torso.pitch);
 	P.w_float /*w_angle8*/(N.o_torso.roll);
@@ -95,11 +110,16 @@ void CBaseMonster::net_Import(NET_Packet& P)
 	P.r(&l_game_vertex_id, sizeof(l_game_vertex_id));
 	P.r(&l_game_vertex_id, sizeof(l_game_vertex_id));
 
+	const bool puppet = Remote() && netcoop::pure_client();
 	if (NET.empty() || (NET.back().dwTimeStamp < N.dwTimeStamp))
 	{
+		if (puppet && !NET.empty())
+			netcoop::metric_snapshot(N.dwTimeStamp - NET.back().dwTimeStamp);
 		NET.push_back(N);
 		NET_WasInterpolating = TRUE;
 	}
+	else if (puppet)
+		netcoop::metric_snapshot_duplicate();
 
 	//	P.r						(&m_fGoingSpeed,			sizeof(m_fGoingSpeed));
 	//	P.r						(&m_fGoingSpeed,			sizeof(m_fGoingSpeed));

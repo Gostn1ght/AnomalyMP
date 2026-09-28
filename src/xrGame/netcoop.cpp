@@ -1961,3 +1961,173 @@ void script_watchdog_start()
 }
 
 } // namespace netcoop
+
+// ---------------------------------------------------------------------------
+// Network smoothness and metrics (doc 38, stages 0 and 1)
+// ---------------------------------------------------------------------------
+#include "Weapon.h"
+#include "ai/stalker/ai_stalker.h"
+#include "memory_manager.h"
+#include "enemy_manager.h"
+#include "visual_memory_manager.h"
+
+int g_netcoop_smooth = 1;
+int g_netcoop_interp_ms = 100;
+int g_netcoop_metrics = 1;
+
+namespace netcoop
+{
+bool smooth()
+{
+	return enabled() && g_netcoop_smooth != 0;
+}
+
+u32 remote_interp_delay()
+{
+	return (pure_client() && g_netcoop_smooth) ? u32(g_netcoop_interp_ms) : NET_Latency;
+}
+
+namespace
+{
+struct Metrics
+{
+	u32 frames, frame_ms_sum, frame_ms_max, frames_over_33, frames_over_100;
+	u32 snaps, snap_ms_sum, snap_ms_max, snaps_over_100, dups;
+	u32 puppet_frames, extrap_frames, jumps;
+	float jump_max;
+	u32 acks, fixes;
+	float err_sum, err_max;
+	u32 owner_rejects;
+	float owner_reject_max;
+	u32 shots;
+};
+Metrics m;
+u32 next_print = 0;
+
+struct PuppetTrack
+{
+	Fvector pos;
+	u32 time;
+};
+xr_map<u16, PuppetTrack> puppets;
+xr_map<u16, u32> shot_log_time;
+} // namespace
+
+void metric_snapshot(u32 interval_ms)
+{
+	++m.snaps;
+	m.snap_ms_sum += interval_ms;
+	m.snap_ms_max = _max(m.snap_ms_max, interval_ms);
+	if (interval_ms > 100)
+		++m.snaps_over_100;
+}
+
+void metric_snapshot_duplicate()
+{
+	++m.dups;
+}
+
+// A jump is a frame step longer than a running NPC can cover (10 m/s) plus
+// 0.25 m: the object was teleported, not moved.
+void metric_puppet_frame(u16 id, const Fvector& pos, bool extrapolating)
+{
+	++m.puppet_frames;
+	if (extrapolating)
+		++m.extrap_frames;
+	PuppetTrack& t = puppets[id];
+	const u32 now = Device.dwTimeGlobal;
+	if (t.time && now - t.time < 500)
+	{
+		const float step = t.pos.distance_to(pos);
+		const float allowed = 0.25f + 10.f * float(now - t.time) / 1000.f;
+		if (step > allowed)
+		{
+			++m.jumps;
+			m.jump_max = _max(m.jump_max, step);
+		}
+	}
+	t.pos = pos;
+	t.time = now;
+}
+
+void metric_actor_error(float error, bool applied)
+{
+	++m.acks;
+	m.err_sum += error;
+	m.err_max = _max(m.err_max, error);
+	if (applied)
+		++m.fixes;
+}
+
+void metric_owner_step_rejected(float step)
+{
+	++m.owner_rejects;
+	m.owner_reject_max = _max(m.owner_reject_max, step);
+}
+
+// Server: who an NPC shoots at and whether it sees the target. Client: a
+// puppet's weapon must never start firing on its own.
+void metric_weapon_fire(CWeapon* weapon)
+{
+	if (!enabled() || !g_pGameLevel || !weapon || !weapon->H_Parent())
+		return;
+	CAI_Stalker* stalker = smart_cast<CAI_Stalker*>(weapon->H_Parent());
+	if (!stalker)
+		return;
+	++m.shots;
+	const u32 now = Device.dwTimeGlobal;
+	u32& last = shot_log_time[stalker->ID()];
+	if (last && now - last < 3000)
+		return;
+	last = now;
+	if (pure_client())
+	{
+		Msg("[NetAnomaly][shot] client puppet %s (%u) started firing %s", stalker->cName().c_str(), stalker->ID(),
+		    weapon->cNameSect().c_str());
+		return;
+	}
+	const CEntityAlive* enemy = stalker->g_Alive() ? stalker->memory().enemy().selected() : 0;
+	Msg("[NetAnomaly][shot] %s (%u) fires %s at %s (%u) dist %.1f visible %d", stalker->cName().c_str(), stalker->ID(),
+	    weapon->cNameSect().c_str(), enemy ? enemy->cName().c_str() : "no enemy", enemy ? enemy->ID() : 0,
+	    enemy ? enemy->Position().distance_to(stalker->Position()) : 0.f,
+	    enemy ? int(stalker->memory().visual().visible_now(enemy)) : 0);
+}
+
+void metrics_update()
+{
+	if (!enabled())
+		return;
+	const u32 dt = Device.dwTimeDelta;
+	++m.frames;
+	m.frame_ms_sum += dt;
+	m.frame_ms_max = _max(m.frame_ms_max, dt);
+	if (dt > 33)
+		++m.frames_over_33;
+	if (dt > 100)
+		++m.frames_over_100;
+
+	const u32 now = GetTickCount();
+	if (!next_print)
+		next_print = now + 10000;
+	if (now < next_print)
+		return;
+	next_print = now + 10000;
+	if (g_netcoop_metrics)
+	{
+		Msg("[NetAnomaly][metrics] %s smooth=%d delay=%u | frame avg %.1f max %u >33ms %u >100ms %u"
+		    " | snaps %u avg %.0f max %u >100ms %u dup %u | puppets %u extrap %.1f%% jumps %u max %.2f"
+		    " | actor acks %u fixes %u err avg %.2f max %.2f | owner rejects %u max %.1f | shots %u",
+		    pure_client() ? "client" : "server", g_netcoop_smooth, remote_interp_delay(),
+		    m.frames ? float(m.frame_ms_sum) / m.frames : 0.f, m.frame_ms_max, m.frames_over_33, m.frames_over_100,
+		    m.snaps, m.snaps ? float(m.snap_ms_sum) / m.snaps : 0.f, m.snap_ms_max, m.snaps_over_100, m.dups,
+		    m.puppet_frames, m.puppet_frames ? 100.f * m.extrap_frames / m.puppet_frames : 0.f, m.jumps, m.jump_max,
+		    m.acks, m.fixes, m.acks ? m.err_sum / m.acks : 0.f, m.err_max, m.owner_rejects, m.owner_reject_max,
+		    m.shots);
+	}
+	ZeroMemory(&m, sizeof(m));
+	if (puppets.size() > 4096)
+		puppets.clear();
+	if (shot_log_time.size() > 4096)
+		shot_log_time.clear();
+}
+} // namespace netcoop

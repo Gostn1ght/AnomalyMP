@@ -338,7 +338,7 @@ void CCustomMonster::shedule_Update(u32 DT)
 	VERIFY(!g_Alive() || processing_enabled());
 	// Queue shrink
 	VERIFY(_valid(Position()));
-	u32 dwTimeCL = Level().timeServer() - NET_Latency;
+	u32 dwTimeCL = Level().timeServer() - netcoop::remote_interp_delay();
 	VERIFY(!NET.empty());
 	while ((NET.size() > 2) && (NET[1].dwTimeStamp < dwTimeCL)) NET.pop_front();
 
@@ -486,6 +486,7 @@ void CCustomMonster::UpdateCL()
 			STOP_PROFILE
 		}
 
+		bool netcoop_extrapolating = false;
 		START_PROFILE("CustomMonster/client_update/network extrapolation")
 			if (NET.empty())
 			{
@@ -496,12 +497,13 @@ void CCustomMonster::UpdateCL()
 			m_dwCurrentTime = Device.dwTimeGlobal;
 
 			// distinguish interpolation/extrapolation
-			u32 dwTime = Level().timeServer() - NET_Latency;
+			u32 dwTime = Level().timeServer() - netcoop::remote_interp_delay();
 			net_update& N = NET.back();
 			if ((dwTime > N.dwTimeStamp) || (NET.size() < 2))
 			{
 				// BAD.	extrapolation
 				NET_Last = N;
+				netcoop_extrapolating = true;
 			}
 			else
 			{
@@ -560,6 +562,8 @@ void CCustomMonster::UpdateCL()
 				XFORM().rotateY(NET_Last.o_model);
 			if (!animation_movement_controlled())
 				XFORM().translate_over(NET_Last.p_pos);
+			if (Remote() && netcoop::pure_client())
+				netcoop::metric_puppet_frame(ID(), XFORM().c, netcoop_extrapolating);
 
 			if (!animation_movement_controlled() && m_update_rotation_on_frame)
 			{

@@ -169,6 +169,7 @@ void CActor::net_ImportInputAck(NET_Packet& P)
 	// by latency, or by a real server-side move. Only the latter is applied.
 	const float ignore_error = netcoop::enabled() ? netcoop_owner_max_step : 0.6f;
 	const float snap_error = netcoop::enabled() ? netcoop_owner_max_step : 3.0f;
+	netcoop::metric_actor_error(m_prediction_error, m_prediction_error > ignore_error);
 	if (m_prediction_error <= ignore_error)
 		return;
 
@@ -428,8 +429,14 @@ static void netcoop_follow_owner_position(CActor* actor, NET_Packet& P)
 	P.r_u32(time_stamp);
 	P.r_u8(flags);
 	P.r_vec3(position);
-	if (!_valid(position) || position.distance_to(actor->Position()) > netcoop_owner_max_step)
+	if (!_valid(position))
 		return;
+	const float step = position.distance_to(actor->Position());
+	if (step > netcoop_owner_max_step)
+	{
+		netcoop::metric_owner_step_rejected(step);
+		return;
+	}
 	CCharacterPhysicsSupport* physics = actor->character_physics_support();
 	if (physics && physics->movement())
 		physics->movement()->SetPosition(position);

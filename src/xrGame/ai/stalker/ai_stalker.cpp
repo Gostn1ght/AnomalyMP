@@ -887,22 +887,35 @@ void CAI_Stalker::net_Export(NET_Packet& P)
 
 	P.w_float(GetfHealth());
 
-	P.w_u32(N.dwTimeStamp);
+	// NET.back() is recorded by the AI schedule (100 ms and slower), so a
+	// netcoop server sends the current state with the current time instead:
+	// clients interpolate between evenly spaced, fresh snapshots.
+	u32 time_stamp = N.dwTimeStamp;
+	Fvector position = N.p_pos;
+	SRotation torso = N.o_torso;
+	if (netcoop::smooth())
+	{
+		time_stamp = Level().timeServer();
+		position = Position();
+		torso = movement().m_head.current;
+	}
+	P.w_u32(time_stamp);
 	P.w_u8(0);
-	P.w_vec3(N.p_pos);
+	P.w_vec3(position);
 	// Netcoop clients show the body as the server renders it: animation
 	// movement (animpoints, smart covers) turns XFORM without the body yaw.
+	// XFORM is built with rotateY(yaw), whose heading is -yaw.
 	float model_yaw = N.o_model;
 	if (netcoop::enabled())
 	{
 		float h, p, b;
 		XFORM().getHPB(h, p, b);
-		model_yaw = angle_normalize(h);
+		model_yaw = angle_normalize(-h);
 	}
 	P.w_float /*w_angle8*/(model_yaw);
-	P.w_float /*w_angle8*/(N.o_torso.yaw);
-	P.w_float /*w_angle8*/(N.o_torso.pitch);
-	P.w_float /*w_angle8*/(N.o_torso.roll);
+	P.w_float /*w_angle8*/(torso.yaw);
+	P.w_float /*w_angle8*/(torso.pitch);
+	P.w_float /*w_angle8*/(torso.roll);
 	P.w_u8(u8(g_Team()));
 	P.w_u8(u8(g_Squad()));
 	P.w_u8(u8(g_Group()));
@@ -1023,9 +1036,13 @@ void CAI_Stalker::net_Import(NET_Packet& P)
 
 	if (NET.empty() || (NET.back().dwTimeStamp < N.dwTimeStamp))
 	{
+		if (netcoop_puppet() && !NET.empty())
+			netcoop::metric_snapshot(N.dwTimeStamp - NET.back().dwTimeStamp);
 		NET.push_back(N);
 		NET_WasInterpolating = TRUE;
 	}
+	else if (netcoop_puppet())
+		netcoop::metric_snapshot_duplicate();
 
 	P.r_float();
 	P.r_float();
@@ -1191,14 +1208,28 @@ void CAI_Stalker::UpdateCL()
 			{
 				START_PROFILE("stalker/client_update/sight_manager")
 					VERIFY(!m_pPhysicsShell);
-					try
+					if (netcoop_puppet() && netcoop::smooth())
 					{
-						sight().update();
+						// A puppet has no sight AI: body and head face where the
+						// server NPC faces, interpolated with its position.
+						SBoneRotation& body = movement().m_body;
+						SBoneRotation& head = movement().m_head;
+						body.current.yaw = body.target.yaw = NET_Last.o_model;
+						body.current.pitch = body.target.pitch = 0.f;
+						head.current.yaw = head.target.yaw = NET_Last.o_torso.yaw;
+						head.current.pitch = head.target.pitch = NET_Last.o_torso.pitch;
 					}
-					catch (...)
+					else
 					{
-						sight().setup(CSightAction(SightManager::eSightTypeCurrentDirection));
-						sight().update();
+						try
+						{
+							sight().update();
+						}
+						catch (...)
+						{
+							sight().setup(CSightAction(SightManager::eSightTypeCurrentDirection));
+							sight().update();
+						}
 					}
 
 					Exec_Look(client_update_fdelta());
@@ -1255,7 +1286,7 @@ void CAI_Stalker::shedule_Update(u32 DT)
 			//		Msg				("[%6d][SH][%s]",Device.dwTimeGlobal,*cName());
 			// Queue shrink
 			VERIFY(_valid(Position()));
-			u32 dwTimeCL = Level().timeServer() - NET_Latency;
+			u32 dwTimeCL = Level().timeServer() - netcoop::remote_interp_delay();
 			VERIFY(!NET.empty());
 			while ((NET.size() > 2) && (NET[1].dwTimeStamp < dwTimeCL)) NET.pop_front();
 
