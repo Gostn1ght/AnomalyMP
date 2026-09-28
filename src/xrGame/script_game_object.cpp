@@ -7,6 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "pch_script.h"
+#include "netcoop.h"
 #include "script_game_object.h"
 #include "script_game_object_impl.h"
 #include "script_entity_action.h"
@@ -1321,6 +1322,9 @@ void CScriptGameObject::StartTrade(CScriptGameObject* obj)
 	CActor* actor = smart_cast<CActor*>(&obj->object());
 	if (!actor)
 		return;
+	// Netcoop server: the player's client opens the trade window.
+	if (netcoop::server_open_ui(actor->ID(), "trade", object().ID()))
+		return;
 
 	CInventoryOwner* pActorInv = smart_cast<CInventoryOwner*>(actor);
 	if (!pActorInv)
@@ -1349,6 +1353,8 @@ void CScriptGameObject::StartUpgrade(CScriptGameObject* obj)
 	if (!pOtherOwner)
 		return;
 	
+	if (netcoop::server_open_ui(actor->ID(), "upgrade", object().ID()))
+		return;
 	CUIGameSP* pGameSP = smart_cast<CUIGameSP*>(CurrentGameUI());
 	if (pGameSP)
 		pGameSP->StartUpgrade(pActorInv, pOtherOwner);

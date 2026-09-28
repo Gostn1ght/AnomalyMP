@@ -134,6 +134,15 @@ function install()
 		return before_hit(actor, shit, bone_id)
 	end
 
+	-- Dialogue actions open trade/repair windows after hide_hud_inventory()
+	-- succeeds. The server has no HUD; the player's client opens the window
+	-- (npc:start_trade on the server is routed there by the engine).
+	local hide_hud = _G.hide_hud_inventory
+	_G.hide_hud_inventory = function(...)
+		if get_hud and get_hud() and hide_hud then return hide_hud(...) end
+		return true
+	end
+
 	printf("[NetAnomaly] dedicated server compatibility layer installed")
 end
 

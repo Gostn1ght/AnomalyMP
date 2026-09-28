@@ -1834,4 +1834,32 @@ void client_on_script(NET_Packet& P)
 	}
 }
 
+bool script_send_to_actor(u16 actor_id, LPCSTR channel, LPCSTR data)
+{
+	if (!enabled() || !g_pGameLevel || !Level().Server || !channel || !channel[0])
+		return false;
+	if (!data)
+		data = "";
+	if (xr_strlen(channel) >= 64 || xr_strlen(data) >= 8000)
+		return false;
+	FindActorOwner find;
+	find.actor_id = actor_id;
+	xrClientData* CL = static_cast<xrClientData*>(Level().Server->FindClient(find));
+	if (!CL)
+		return false;
+	NET_Packet P;
+	P.w_begin(M_NETCOOP_SCRIPT);
+	P.w_stringZ(channel);
+	P.w_stringZ(data);
+	Level().Server->SendTo(CL->ID, P, net_flags(TRUE, TRUE));
+	return true;
+}
+
+bool server_open_ui(u16 actor_id, LPCSTR kind, u16 partner_id)
+{
+	string128 data;
+	xr_sprintf(data, "%s %u", kind, partner_id);
+	return script_send_to_actor(actor_id, "open_ui", data);
+}
+
 } // namespace netcoop

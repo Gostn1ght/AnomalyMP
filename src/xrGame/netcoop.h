@@ -137,6 +137,12 @@ void client_on_news(NET_Packet& P);
 // calls netcoop_client_compat.on_script_message(channel, data) on every
 // logged-in client.
 void script_broadcast(LPCSTR channel, LPCSTR data);
+// Same message to the client that owns one player Actor; false when the
+// Actor is not a remote player's.
+bool script_send_to_actor(u16 actor_id, LPCSTR channel, LPCSTR data);
+// Server scripts open NPC trade/upgrade windows for a player: the player's
+// client opens them (on_script_message "open_ui"). True when sent.
+bool server_open_ui(u16 actor_id, LPCSTR kind, u16 partner_id);
 void client_on_script(NET_Packet& P);
 bool server_set_role(LPCSTR login, u8 role, xr_string& message);
 void server_list_accounts(xr_string& out);

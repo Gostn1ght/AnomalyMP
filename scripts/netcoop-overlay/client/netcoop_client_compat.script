@@ -285,9 +285,24 @@ local function use_server_weather(name)
 	printf("[NetAnomaly] server weather: %s", name)
 end
 
+-- A server dialogue action opened an NPC window for this player.
+local function open_ui(data)
+	local kind, id = string.match(data or "", "^(%S+)%s+(%d+)$")
+	local npc = id and level.object_by_id(tonumber(id))
+	local a = db.actor
+	if not (npc and a) then return end
+	if kind == "trade" then
+		npc:start_trade(a)
+	elseif kind == "upgrade" then
+		npc:start_upgrade(a)
+	end
+end
+
 function on_script_message(channel, data)
 	if channel == "weather" then
 		use_server_weather(data)
+	elseif channel == "open_ui" then
+		open_ui(data)
 	end
 end
 
