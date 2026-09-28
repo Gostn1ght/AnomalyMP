@@ -51,9 +51,58 @@ function bind_actor(obj)
 	end
 end
 
+----------------------------------------------------------------------
+-- GAMMA callbacks: one failing handler must not skip the others
+----------------------------------------------------------------------
+-- axr_main.make_callback calls every handler of a callback in one loop, so a
+-- handler that failed (world setup scripts that belong to the other side of
+-- the connection) ended the loop and the remaining mods never ran. Handlers
+-- are wrapped when registered; the first error of each is logged.
+local wrapped_callbacks = {}
+local failed_callbacks = {}
+
+local function isolate_callbacks()
+	local am = axr_main
+	if type(am) ~= "table" or am.__netcoop_isolated or not am.callback_set then return end
+	am.__netcoop_isolated = true
+	local set, unset = am.callback_set, am.callback_unset
+	am.callback_set = function(name, handler)
+		if handler == nil then return set(name, handler) end
+		local by_name = wrapped_callbacks[name]
+		if not by_name then
+			by_name = {}
+			wrapped_callbacks[name] = by_name
+		end
+		local wrapper = by_name[handler]
+		if not wrapper then
+			wrapper = function(...)
+				local ok, err
+				if type(handler) == "function" then
+					ok, err = pcall(handler, ...)
+				elseif handler[name] then
+					ok, err = pcall(handler[name], handler, ...)
+				else
+					ok = true
+				end
+				if not ok and not failed_callbacks[wrapper] then
+					failed_callbacks[wrapper] = true
+					printf("[NetAnomaly] %s handler failed: %s", tostring(name), tostring(err))
+				end
+			end
+			by_name[handler] = wrapper
+		end
+		return set(name, wrapper)
+	end
+	am.callback_unset = function(name, handler)
+		local by_name = wrapped_callbacks[name]
+		return unset(name, by_name and by_name[handler] or handler)
+	end
+end
+
 function install()
 	if installed then return end
 	installed = true
+	isolate_callbacks()
 
 	-- schemes_ai_gamma calls IsActor, which no GAMMA script defines. On a
 	-- co-op server every player Actor is "the actor".
