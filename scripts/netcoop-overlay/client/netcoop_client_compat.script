@@ -302,11 +302,17 @@ local function use_server_weather(name)
 	local first = server_weather == nil
 	server_weather = name
 	if first and level_weathers and level_weathers.WeatherManager then
-		level_weathers.WeatherManager.select_weather = function() end
+		-- update() reads levelWeather, which select_weather normally sets.
+		level_weathers.WeatherManager.select_weather = function(self)
+			self.levelWeather = self.levelWeather or "default"
+		end
 		level_weathers.WeatherManager.change_period = function() end
 	end
 	local wm = level_weathers and level_weathers.get_weather_manager()
-	if wm then wm.weather_file = name end
+	if wm then
+		wm.weather_file = name
+		wm.levelWeather = wm.levelWeather or "default"
+	end
 	pcall(level.set_weather, name, first)
 	printf("[NetAnomaly] server weather: %s", name)
 end
