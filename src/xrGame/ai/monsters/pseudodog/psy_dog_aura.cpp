@@ -6,6 +6,7 @@
 #include "../../../actor_memory.h"
 #include "../../../visual_memory_manager.h"
 #include "../../../level.h"
+extern ENGINE_API bool g_dedicated_server;
 
 CPPEffectorPsyDogAura::CPPEffectorPsyDogAura(const SPPInfo& ppi, u32 time_to_fade)
 	: inherited(ppi)
@@ -63,6 +64,11 @@ void CPsyDogAura::reinit()
 void CPsyDogAura::update_schedule()
 {
 	if (!m_object->g_Alive())
+		return;
+	// The aura is a post-process on the local player's screen. A dedicated
+	// server has no local player (CurrentEntity is not a player Actor).
+	m_actor = smart_cast<CActor*>(Level().CurrentEntity());
+	if (!m_actor || g_dedicated_server)
 		return;
 
 	m_time_phantom_saw_actor = 0;

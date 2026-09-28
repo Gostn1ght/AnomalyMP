@@ -417,9 +417,11 @@ void CActor::net_ExportDeadBody(NET_Packet& P)
 	};
 };
 
-static void netcoop_follow_owner_position(CActor* actor, NET_Packet& P)
+void CActor::netcoop_follow_owner(NET_Packet& P)
 {
-	if (!netcoop::enabled() || !actor->g_Alive() || P.r_elapsed() < sizeof(float) + sizeof(u32) + sizeof(u8) + sizeof(Fvector))
+	// Layout of CActor::net_Export up to the movement state.
+	const u32 head_size = sizeof(float) + sizeof(u32) + sizeof(u8) + sizeof(Fvector) + 4 * sizeof(float) + 3 + sizeof(u16);
+	if (!netcoop::enabled() || !g_Alive() || P.r_elapsed() < head_size)
 		return;
 	float health;
 	u32 time_stamp;
@@ -429,18 +431,45 @@ static void netcoop_follow_owner_position(CActor* actor, NET_Packet& P)
 	P.r_u32(time_stamp);
 	P.r_u8(flags);
 	P.r_vec3(position);
-	if (!_valid(position))
-		return;
-	const float step = position.distance_to(actor->Position());
-	if (step > netcoop_owner_max_step)
+	float model_yaw;
+	SRotation torso;
+	P.r_float(model_yaw);
+	P.r_float(torso.yaw);
+	P.r_float(torso.pitch);
+	P.r_float(torso.roll);
+	P.r_u8();
+	P.r_u8();
+	P.r_u8();
+	const u16 move_state = P.r_u16();
+	Fvector accel;
+	accel.set(0.f, 0.f, 0.f);
+	if (P.r_elapsed() >= 2 * sizeof(u16) + 2 * sizeof(u8))
+		P.r_sdir(accel);
+
+	if (_valid(position))
 	{
-		netcoop::metric_owner_step_rejected(step);
-		return;
+		const float step = position.distance_to(Position());
+		if (step > netcoop_owner_max_step)
+			netcoop::metric_owner_step_rejected(step);
+		else
+		{
+			CCharacterPhysicsSupport* physics = character_physics_support();
+			if (physics && physics->movement())
+				physics->movement()->SetPosition(position);
+			Position().set(position);
+		}
 	}
-	CCharacterPhysicsSupport* physics = actor->character_physics_support();
-	if (physics && physics->movement())
-		physics->movement()->SetPosition(position);
-	actor->Position().set(position);
+	// What the other players see: where this player faces and looks and how
+	// it moves (run, crouch, sprint, jump). The server Actor exports these.
+	if (_valid(model_yaw) && _valid(torso.yaw) && _valid(torso.pitch) && _valid(torso.roll))
+	{
+		r_model_yaw = angle_normalize(model_yaw);
+		unaffected_r_torso = torso;
+		r_torso = torso;
+	}
+	mstate_real = (mstate_real & 0xffff0000) | u32(move_state);
+	if (_valid(accel))
+		NET_SavedAccel = accel;
 }
 
 void CActor::net_Import(NET_Packet& P) // import from server
@@ -452,7 +481,7 @@ void CActor::net_Import(NET_Packet& P) // import from server
 	// On the server only the player's position is taken from M_CL_UPDATE.
 	if (OnServer() && Level().Server)
 	{
-		netcoop_follow_owner_position(this, P);
+		netcoop_follow_owner(P);
 		return;
 	}
 	//-----------------------------------------------

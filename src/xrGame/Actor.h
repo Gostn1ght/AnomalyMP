@@ -578,6 +578,9 @@ public:
 	virtual void net_Export(NET_Packet& P); // export to server
 	void net_ExportInput(NET_Packet& P, const ActorInputCommand& cmd);
 	void net_ImportInputAck(NET_Packet& P);
+	// Netcoop server: take a player's position and presentation (facing,
+	// look, movement state) from the owning client's update.
+	void netcoop_follow_owner(NET_Packet& P);
 	
 	u32 m_next_input_sequence = 1;
 	bool m_jump_input_pending = false;
