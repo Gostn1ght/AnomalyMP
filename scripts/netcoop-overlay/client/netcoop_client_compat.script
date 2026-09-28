@@ -58,10 +58,21 @@ use_own_actor_id = function(obj)
 	end
 end
 
+-- GAMMA's "Busy Hands" handler (callbacks_gameobject) pauses the game with a
+-- warning and saves on any failed engine call. A netcoop client has no saves,
+-- and such errors come from single-player scripts that do not apply to it;
+-- the engine already logs them.
+local function quiet_busy_hands()
+	_G.COnLuaBindFatalError = function(offender)
+		printf("[NetAnomaly] engine call failed in %s", tostring(offender))
+	end
+end
+
 -- Engine hook (Level_network_spawn.cpp) after the local Actor is assigned.
 function on_actor_spawned(obj)
 	controlled_actor = obj
 	use_own_actor_id(obj)
+	quiet_busy_hands()
 end
 
 function on_actor_destroyed(obj)
@@ -329,6 +340,7 @@ local function init_event_managers()
 end
 
 function on_game_start()
+	quiet_busy_hands()
 	init_event_managers()
 	-- PDA tabs read the simulation board; the simulation itself runs on the
 	-- server, so the client keeps an empty board.
