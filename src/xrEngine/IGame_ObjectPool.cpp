@@ -27,6 +27,12 @@ void IGame_ObjectPool::prefetch()
 	for (CInifile::SectCIt I = sect.Data.begin(); I != sect.Data.end(); I++)
 	{
 		const CInifile::Item& item = *I;
+		// Mod packs (GAMMA) remove sections the stock prefetch list names.
+		if (!pSettings->section_exist(item.first) || !pSettings->line_exist(item.first, "class"))
+		{
+			Msg("! prefetch: section [%s] is missing, skipped", item.first.c_str());
+			continue;
+		}
 		CLASS_ID CLS = pSettings->r_clsid(item.first.c_str(), "class");
 		p_count++;
 		CObject* pObject = (CObject*)NEW_INSTANCE(CLS);
