@@ -1111,8 +1111,13 @@ float SqrDistancePointToSegment(const Fvector& pt, const Fvector& orig, const Fv
 }
 
 BOOL g_render_short_tracers = 1;
+extern ENGINE_API bool g_dedicated_server;
+
 void CBulletManager::Render()
 {
+	// No tracers without a renderer (dedicated server).
+	if (g_dedicated_server)
+		return;
 #ifdef DEBUG
 	if (g_bDrawBulletHit && !m_bullet_points.empty()) {
 		VERIFY							(!(m_bullet_points.size() % 2));
