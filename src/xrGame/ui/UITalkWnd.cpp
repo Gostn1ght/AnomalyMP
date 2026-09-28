@@ -38,6 +38,9 @@ CUITalkWnd::CUITalkWnd()
 	b_disable_break = false;
 	m_netcoop_remote = false;
 	m_netcoop_trade = false;
+	m_netcoop_waiting = false;
+	m_netcoop_wait_until = 0;
+	m_netcoop_clear_questions = false;
 }
 
 CUITalkWnd::~CUITalkWnd()
@@ -80,6 +83,8 @@ void CUITalkWnd::InitTalkDialog()
 	{
 		m_netcoop_remote = true;
 		m_netcoop_trade = false;
+		m_netcoop_waiting = false;
+		m_netcoop_clear_questions = false;
 		m_bNeedToUpdateQuestions = false;
 		netcoop::client_talk_start(m_pOthersInvOwner->object_id());
 		UITalkDialogWnd->mechanic_mode = false;
@@ -221,6 +226,8 @@ void CUITalkWnd::UpdateNetcoopRemote()
 	netcoop::TalkState state;
 	while (netcoop::client_take_talk_state(state))
 	{
+		m_netcoop_waiting = false;
+		m_netcoop_clear_questions = false;
 		for (u32 i = 0; i < state.lines.size(); ++i)
 			AddAnswer(state.lines[i].text, state.lines[i].npc ? m_pOthersInvOwner->Name() : m_pOurInvOwner->Name());
 
@@ -247,6 +254,11 @@ void CUITalkWnd::Update()
 			Msg("[NetAnomaly] talk window closed: the local Actor is no longer talking");
 			StopTalk();
 			return;
+		}
+		if (m_netcoop_clear_questions)
+		{
+			m_netcoop_clear_questions = false;
+			UITalkDialogWnd->ClearQuestions();
 		}
 		UpdateNetcoopRemote();
 		if (!m_netcoop_remote)
@@ -338,10 +350,14 @@ void CUITalkWnd::AskQuestion()
 {
 	if (m_netcoop_remote)
 	{
-		if (UITalkDialogWnd->m_ClickedQuestionID.size())
+		// Called from the clicked choice's own mouse handler: removing the
+		// choices here would free the window that is still being iterated.
+		if ((!m_netcoop_waiting || Device.dwTimeGlobal > m_netcoop_wait_until) && UITalkDialogWnd->m_ClickedQuestionID.size())
 		{
 			netcoop::client_talk_choose(UITalkDialogWnd->m_ClickedQuestionID.c_str());
-			UITalkDialogWnd->ClearQuestions();
+			m_netcoop_waiting = true;
+			m_netcoop_wait_until = Device.dwTimeGlobal + 3000;
+			m_netcoop_clear_questions = true;
 		}
 		return;
 	}

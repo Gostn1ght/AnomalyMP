@@ -89,5 +89,10 @@ protected:
 	// Netcoop client: the server runs the dialogue, this window only shows it.
 	bool m_netcoop_remote;
 	bool m_netcoop_trade;
+	// A choice was sent; its window is still inside the click handler, so the
+	// old choices are cleared on the next Update and new clicks wait for the server.
+	bool m_netcoop_waiting;
+	bool m_netcoop_clear_questions;
+	u32 m_netcoop_wait_until;
 	void UpdateNetcoopRemote();
 };
