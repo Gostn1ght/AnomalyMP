@@ -193,9 +193,31 @@ local game_loaded = false
 local function server_game_load()
 	if game_loaded then return end
 	game_loaded = true
+	local wok, werr = pcall(function() level_weathers.get_weather_manager():reset() end)
+	if not wok then printf("[NetAnomaly] weather manager reset error: %s", tostring(werr)) end
 	local ok, err = pcall(SendScriptCallback, "on_game_load")
 	if not ok then printf("[NetAnomaly] on_game_load error: %s", tostring(err)) end
 	printf("[NetAnomaly] server on_game_load sent")
+end
+
+-- World systems a normal game updates from the Actor binder: the server
+-- chooses the weather with GAMMA's weather manager and sends it to clients.
+local world_next = 0
+local weather_sent, weather_next = nil, 0
+local function server_world_tick()
+	local now = time_global()
+	if now < world_next then return end
+	world_next = now + 2000
+
+	local wm = level_weathers and level_weathers.get_weather_manager()
+	if not wm then return end
+	local ok, err = pcall(wm.update, wm)
+	if not ok then printf("[NetAnomaly] weather update error: %s", tostring(err)) end
+	local weather = wm.weather_file or (level.get_weather and level.get_weather()) or ""
+	if weather ~= "" and (weather ~= weather_sent or now >= weather_next) then
+		weather_sent, weather_next = weather, now + 15000
+		if netcoop_broadcast then netcoop_broadcast("weather", weather) end
+	end
 end
 
 -- Engine (netcoop.cpp) every 0.5 s for each player, with db.actor bound.
@@ -203,6 +225,7 @@ function update_player_tasks()
 	local a = db.actor
 	if not a then return end
 	server_game_load()
+	server_world_tick()
 	-- Forget managers of players who left.
 	for id in pairs(player_tasks) do
 		if id ~= a:id() and not level.object_by_id(id) then player_tasks[id] = nil end

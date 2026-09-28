@@ -132,6 +132,12 @@ void client_on_tasks(NET_Packet& P);
 // PDA news the server scripts give a player's Actor, shown on that player's client.
 void server_forward_news(u16 actor_id, const GAME_NEWS_DATA& news);
 void client_on_news(NET_Packet& P);
+
+// Server Lua -> client Lua: netcoop_broadcast(channel, data) on the server
+// calls netcoop_client_compat.on_script_message(channel, data) on every
+// logged-in client.
+void script_broadcast(LPCSTR channel, LPCSTR data);
+void client_on_script(NET_Packet& P);
 bool server_set_role(LPCSTR login, u8 role, xr_string& message);
 void server_list_accounts(xr_string& out);
 } // namespace netcoop

@@ -1775,4 +1775,63 @@ void client_on_news(NET_Packet& P)
 	actor->AddGameNews(news);
 }
 
+// ---------------------------------------------------------------------------
+// server Lua -> client Lua messages
+// ---------------------------------------------------------------------------
+struct CollectLoggedIn
+{
+	xr_vector<ClientID>* ids;
+	void operator()(IClient* client) const
+	{
+		xrClientData* CL = static_cast<xrClientData*>(client);
+		if (CL && !CL->flags.bLocal && CL->netcoop_role != role_none)
+			ids->push_back(CL->ID);
+	}
+};
+
+void script_broadcast(LPCSTR channel, LPCSTR data)
+{
+	if (!enabled() || !g_pGameLevel || !Level().Server || !channel || !channel[0])
+		return;
+	if (!data)
+		data = "";
+	if (xr_strlen(channel) >= 64 || xr_strlen(data) >= 8000)
+	{
+		Msg("! [NetAnomaly] script message '%s' is too large", channel);
+		return;
+	}
+	xr_vector<ClientID> ids;
+	CollectLoggedIn collect;
+	collect.ids = &ids;
+	Level().Server->ForEachClientDo(collect);
+	for (u32 i = 0; i < ids.size(); ++i)
+	{
+		NET_Packet P;
+		P.w_begin(M_NETCOOP_SCRIPT);
+		P.w_stringZ(channel);
+		P.w_stringZ(data);
+		Level().Server->SendTo(ids[i], P, net_flags(TRUE, TRUE));
+	}
+}
+
+void client_on_script(NET_Packet& P)
+{
+	if (!pure_client())
+		return;
+	string64 channel;
+	static char data[8192];
+	if (!read_string(P, channel, sizeof(channel)) || !read_string(P, data, sizeof(data)))
+		return;
+	::luabind::functor<void> f;
+	if (!ai().script_engine().functor("netcoop_client_compat.on_script_message", f))
+		return;
+	try
+	{
+		f((LPCSTR)channel, (LPCSTR)data);
+	}
+	catch (...)
+	{
+	}
+}
+
 } // namespace netcoop

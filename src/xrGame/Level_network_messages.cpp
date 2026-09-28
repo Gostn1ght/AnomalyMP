@@ -397,6 +397,11 @@ void CLevel::ClientReceive()
 				netcoop::client_on_news(*P);
 			}
 			break;
+		case M_NETCOOP_SCRIPT:
+			{
+				netcoop::client_on_script(*P);
+			}
+			break;
 		case M_CHAT_MESSAGE:
 			{
 				/*if (!game_configured)

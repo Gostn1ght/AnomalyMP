@@ -229,6 +229,32 @@ function on_server_text(text)
 	show_text(text)
 end
 
+----------------------------------------------------------------------
+-- World state from the server (netcoop_broadcast on the server)
+----------------------------------------------------------------------
+local server_weather = nil
+
+-- The server's weather manager chooses the weather; the local one must not.
+local function use_server_weather(name)
+	if not name or name == "" or name == server_weather then return end
+	local first = server_weather == nil
+	server_weather = name
+	if first and level_weathers and level_weathers.WeatherManager then
+		level_weathers.WeatherManager.select_weather = function() end
+		level_weathers.WeatherManager.change_period = function() end
+	end
+	local wm = level_weathers and level_weathers.get_weather_manager()
+	if wm then wm.weather_file = name end
+	pcall(level.set_weather, name, first)
+	printf("[NetAnomaly] server weather: %s", name)
+end
+
+function on_script_message(channel, data)
+	if channel == "weather" then
+		use_server_weather(data)
+	end
+end
+
 -- Engine (netcoop.cpp) when the task list from the server adds, completes or
 -- fails a task. The server's own task news arrive as PDA news.
 function on_task(task_id, kind)
