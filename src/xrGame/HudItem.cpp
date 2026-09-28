@@ -1030,6 +1030,12 @@ bool CHudItem::ParentIsActor()
 	if (!EA)
 		return false;
 
+	// Single-player code reads this as "held by the player", then uses
+	// Actor(). On a netcoop client other players are Actors too: only this
+	// client's own Actor counts (and there is none before it spawns).
+	if (EA->cast_actor() && netcoop::pure_client())
+		return O == Actor();
+
 	return !!EA->cast_actor();
 }
 

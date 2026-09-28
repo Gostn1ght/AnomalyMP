@@ -284,7 +284,7 @@ void CPda::UpdateCL()
 {
 	inherited::UpdateCL();
 
-	if (!CurrentGameUI() || !ParentIsActor() || Actor()->inventory().ActiveItem() != this)
+	if (!CurrentGameUI() || !ParentIsActor() || !Actor() || Actor()->inventory().ActiveItem() != this)
 		return;
 
 	// For battery icon
