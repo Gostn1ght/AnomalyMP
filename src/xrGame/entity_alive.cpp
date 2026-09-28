@@ -323,14 +323,16 @@ void CEntityAlive::OnEvent(NET_Packet& P, u16 type)
 
 void CEntityAlive::Die(CObject* who)
 {
-	if (IsGameTypeSingle())
+	// Kill bookkeeping (rank, reputation) needs ALife; the server records it.
+	if (IsGameTypeSingle() && !netcoop::pure_client())
 		RELATION_REGISTRY().Action(smart_cast<CEntityAlive*>(who), this, RELATION_REGISTRY::KILL);
 	inherited::Die(who);
 
 	const CGameObject* who_object = smart_cast<const CGameObject*>(who);
 	callback(GameObject::eDeath)(lua_game_object(), who_object ? who_object->lua_game_object() : 0);
 
-	if (!getDestroy() && (GameID() == eGameIDSingle))
+	// The server assigns killers; a netcoop client only shows the death.
+	if (!getDestroy() && (GameID() == eGameIDSingle) && !netcoop::pure_client())
 	{
 		NET_Packet P;
 		u_EventGen(P, GE_ASSIGN_KILLER, ID());
