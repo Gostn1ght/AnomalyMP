@@ -328,7 +328,9 @@ bool CInventory::DropItem(CGameObject* pObj, bool just_before_destroy, bool dont
 	};
 	if (smart_cast<CWeapon*>(pObj))
 	{
-		Fvector dir = Actor()->Direction();
+		// The Actor may not exist yet (netcoop client loading while an NPC drops a weapon).
+		CObject* dropper = smart_cast<CObject*>(m_pOwner);
+		Fvector dir = Actor() ? Actor()->Direction() : (dropper ? dropper->Direction() : Fvector().set(0.f, 0.f, 1.f));
 		dir.y = sin(-45.f * PI / 180.f);
 		dir.normalize();
 		smart_cast<CWeapon*>(pObj)->SetActivationSpeedOverride(dir.mul(7));
