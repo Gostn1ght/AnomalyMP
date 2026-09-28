@@ -127,6 +127,14 @@ local function request_create(section, pos, lvid, gvid, parent_id)
 		warn_once("create (admin only)")
 		return nil
 	end
+	-- Only the admin's debug spawn menu creates objects from a client. World
+	-- scripts that run on game start (stash and loot placement) belong to the
+	-- server, which runs them itself.
+	local trace = debug and debug.traceback and debug.traceback() or ""
+	if not string.find(trace, "ui_debug", 1, true) then
+		warn_once("create (only from the admin spawn menu)")
+		return nil
+	end
 	local a = db.actor
 	-- GAMMA spawners pass AC_ID (0, the story Actor) for "into my inventory".
 	if parent_id and a and (parent_id == a:id() or parent_id == 0) then
