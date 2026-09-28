@@ -306,6 +306,8 @@ public:
 	IC CSeniorityHierarchyHolder& seniority_holder();
 	IC CClientSpawnManager& client_spawn_manager();
 	IC CAutosaveManager& autosave_manager();
+	// Null on a dedicated server (no local player to autosave for).
+	CAutosaveManager* autosave_manager_ptr() const { return m_autosave_manager; }
     IC CDebugRenderer& debug_renderer();
 	void __stdcall script_gc(); // GC-cycle
     static int LuaGC(); // GC that will called from Device via Device.LuaGC

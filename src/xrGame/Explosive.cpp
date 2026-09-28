@@ -630,6 +630,19 @@ void CExplosive::OnEvent(NET_Packet& P, u16 type)
 			P.r_vec3(pos);
 			P.r_vec3(normal);
 
+			// A bad position from the network (NaN) asserts in the physics
+			// activation shape and takes the whole server down.
+			if (!_valid(pos))
+			{
+				Msg("! [NetAnomaly] explosive %u: invalid explosion position, using the object's",
+				    cast_game_object()->ID());
+				pos.set(cast_game_object()->Position());
+			}
+			if (!_valid(normal) || normal.square_magnitude() < EPS)
+				normal.set(0.f, 1.f, 0.f);
+			if (!_valid(pos))
+				break;
+
 			SetInitiator(parent_id);
 			ExplodeParams(pos, normal);
 			Explode();
