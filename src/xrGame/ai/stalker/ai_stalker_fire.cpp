@@ -406,7 +406,8 @@ void CAI_Stalker::Hit(SHit* pHDS)
 		}
 	}
 
-	if (g_Alive() && (!m_hit_callback || m_hit_callback(&HDS)))
+	// Hit scripts and hit memory are server AI; a netcoop client puppet only shows the hit.
+	if (g_Alive() && !netcoop_puppet() && (!m_hit_callback || m_hit_callback(&HDS)))
 	{
 		CScriptHit tLuaHit(&HDS);
 

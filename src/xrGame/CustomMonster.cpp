@@ -708,6 +708,7 @@ void CCustomMonster::Exec_Visibility()
 {
 	//if (0==Sector())				return;
 	if (!g_Alive()) return;
+	if (Remote() && netcoop::pure_client()) return;
 
 	Device.Statistic->AI_Vis.Begin();
 	switch (eye_pp_stage % 2)
@@ -979,6 +980,9 @@ float CCustomMonster::feel_vision_mtl_transp(CObject* O, u32 element)
 void CCustomMonster::feel_sound_new(CObject* who, int type, CSound_UserDataPtr user_data, const Fvector& position,
                                     float power)
 {
+	// NPC puppets on a netcoop client perceive nothing; their AI is on the server.
+	if (Remote() && netcoop::pure_client())
+		return;
 	// Lain: added
 	if (!g_Alive())
 	{
