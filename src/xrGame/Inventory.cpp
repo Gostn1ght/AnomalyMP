@@ -747,7 +747,11 @@ bool CInventory::Action(u16 cmd, u32 flags)
 
 	if (ActiveItem() &&
 		ActiveItem()->Action(cmd, flags))
+	{
+		if (cmd == kACTIVE_JOBS && netcoop::pure_client())
+			Msg("[NetAnomaly] PDA key taken by the active item %s", ActiveItem()->object().cNameSect().c_str());
 		return true;
+	}
 	bool b_send_event = false;
 	switch (cmd)
 	{
@@ -790,6 +794,10 @@ bool CInventory::Action(u16 cmd, u32 flags)
 		b_send_event = true;
 		if (flags & CMD_START)
 		{
+			if (netcoop::pure_client())
+				Msg("[NetAnomaly] PDA key: 3d=%d active=%u next=%u pda_in_slot=%d active_item=%s", psActorFlags.test(AF_3D_PDA) ? 1 : 0,
+					GetActiveSlot(), GetNextActiveSlot(), ItemFromSlot(PDA_SLOT) ? 1 : 0,
+					ActiveItem() ? ActiveItem()->object().cNameSect().c_str() : "none");
 			if (!psActorFlags.test(AF_3D_PDA)) return false;
 
 			if (smart_cast<CPda*>(ActiveItem()))
