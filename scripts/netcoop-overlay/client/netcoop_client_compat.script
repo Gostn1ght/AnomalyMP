@@ -285,6 +285,35 @@ end
 
 function on_trade_result(ok, role, message)
 	if not ok then show_text(message) end
+	-- Items and money arrive as replicated events; rebuild the open window.
+	local gui = ui_inventory and ui_inventory.GUI
+	if gui then gui.update_info = true end
+end
+
+-- GAMMA's trade window (ui_inventory) moves items and money itself, which a
+-- client cannot do: NPC inventories and money belong to the server. The
+-- deal is sent to the server, which prices, checks and executes it.
+local function install_server_trade()
+	local ui = ui_inventory and ui_inventory.UIInventory
+	if not ui or ui.__netcoop_trade or not netcoop_trade then return end
+	ui.__netcoop_trade = true
+	local function request(self, bag, actor_sells)
+		local npc = self:GetPartner()
+		local cc = self.CC and self.CC[bag]
+		if not (npc and cc and cc.indx_id) then return end
+		local ids = {}
+		for id in pairs(cc.indx_id) do
+			if cc:GetCell_ID(id) then ids[#ids + 1] = tostring(id) end
+		end
+		if #ids == 0 then return end
+		if netcoop_trade(npc:id(), actor_sells, table.concat(ids, " ")) then
+			printf("[NetAnomaly] trade request: %s %d item(s) with %s", actor_sells and "sell" or "buy", #ids, npc:name())
+			if self.PlaySND and snd_trade then self:PlaySND(snd_trade) end
+		end
+		self.update_info = true
+	end
+	ui.TMode_Sell = function(self) request(self, "actor_trade", true) end
+	ui.TMode_Buy = function(self) request(self, "npc_trade", false) end
 end
 
 function on_server_text(text)
@@ -439,6 +468,7 @@ end
 
 function on_game_start()
 	quiet_busy_hands()
+	install_server_trade()
 	RegisterScriptCallback("actor_on_item_take", on_item_take)
 	init_event_managers()
 	-- PDA tabs read the simulation board; the simulation itself runs on the

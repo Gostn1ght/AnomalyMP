@@ -348,6 +348,40 @@ bool script_login(LPCSTR login, LPCSTR password, bool register_account)
 int script_role() { return client_role(); }
 LPCSTR script_account() { return client_login(); }
 void script_command(LPCSTR text) { client_send_command(text); }
+
+// Lua trade UIs (GAMMA ui_inventory) ask the server for a deal: the items
+// (space separated ids) the actor sells to or buys from the partner. The
+// server prices and executes it; M_NETCOOP_TRADE_RESULT reports back.
+bool script_trade(u16 partner_id, bool actor_sells, LPCSTR ids)
+{
+	if (!pure_client() || !ids)
+		return false;
+	xr_vector<u16> list;
+	for (LPCSTR p = ids; *p;)
+	{
+		char* end = 0;
+		const unsigned long id = strtoul(p, &end, 10);
+		if (end == p)
+		{
+			++p;
+			continue;
+		}
+		if (id < 0xffff)
+			list.push_back(u16(id));
+		p = end;
+	}
+	if (list.empty() || list.size() > 256)
+		return false;
+	NET_Packet P;
+	P.w_begin(M_NETCOOP_TRADE);
+	P.w_u16(partner_id);
+	P.w_u8(actor_sells ? trade_actor_sells : trade_actor_buys);
+	P.w_u16(u16(list.size()));
+	for (u32 i = 0; i < list.size(); ++i)
+		P.w_u16(list[i]);
+	Level().Send(P, net_flags(TRUE, TRUE));
+	return true;
+}
 bool script_pure_client() { return pure_client(); }
 
 // ---------------------------------------------------------------------------
