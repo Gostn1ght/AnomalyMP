@@ -1193,7 +1193,10 @@ void CWeapon::OnEvent(NET_Packet& P, u16 type)
 			// The owning netcoop client keeps its own weapon state and ammo.
 			if (netcoop::client_owns_hud_item(&CHudItem::object()))
 				break;
-			if (OnClient()) SetAmmoElapsed(int(AmmoElapsed));
+			// A netcoop server takes the ammo count of a player's weapon from
+			// its owner, which reloads on its own client.
+			if (OnClient() || (netcoop::enabled() && smart_cast<CActor*>(H_Parent())))
+				SetAmmoElapsed(int(AmmoElapsed));
 			OnStateSwitch(u32(state), GetState());
 		}
 		break;
@@ -1288,6 +1291,16 @@ void CWeapon::OnHiddenItem()
 
 void CWeapon::SendHiddenItem()
 {
+	// The owning netcoop client hides its weapon itself (SwitchState reports it).
+	if (netcoop::client_owns_hud_item(&CHudItem::object()))
+	{
+		if (!CHudItem::object().getDestroy() && m_pInventory)
+		{
+			SwitchState(eHiding);
+			SetPending(TRUE);
+		}
+		return;
+	}
 	if (!CHudItem::object().getDestroy() && m_pInventory)
 	{
 		// !!! Just single entry for given state !!!
@@ -2161,11 +2174,24 @@ void CWeapon::SwitchState(u32 S)
 {
 	if (OnClient())
 	{
-		// The owning netcoop client animates and fires its own weapon.
+		// The owning netcoop client animates and fires its own weapon. The
+		// server copy follows it: it fires the authoritative shots and the
+		// other players see the animations.
 		if (netcoop::client_owns_hud_item(&CHudItem::object()))
 		{
 			SetNextState(S);
 			OnStateSwitch(S, GetState());
+			if (!CHudItem::object().getDestroy())
+			{
+				NET_Packet P;
+				CHudItem::object().u_EventGen(P, GE_WPN_STATE_CHANGE, CHudItem::object().ID());
+				P.w_u8(u8(S));
+				P.w_u8(u8(m_sub_state));
+				P.w_u8(m_ammoType);
+				P.w_u8(u8(iAmmoElapsed & 0xff));
+				P.w_u8(m_set_next_ammoType_on_reload);
+				CHudItem::object().u_EventSend(P, net_flags(TRUE, TRUE, FALSE, TRUE));
+			}
 		}
 		return;
 	}

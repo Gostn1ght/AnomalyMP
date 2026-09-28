@@ -552,9 +552,17 @@ void CInventory::Activate_deffered	(u32 slot, u32 _frame)
 }*/
 
 
+// A netcoop client activates the slots of its own Actor itself, like it
+// animates its own HUD items; the server follows through inventory actions
+// and item state events.
+static bool netcoop_own_inventory(CInventoryOwner* owner)
+{
+	return netcoop::pure_client() && owner && smart_cast<CObject*>(owner) == Level().CurrentControlEntity();
+}
+
 void CInventory::Activate(u16 slot, bool bForce)
 {
-	if (!OnServer())
+	if (!OnServer() && !netcoop_own_inventory(m_pOwner))
 	{
 		return;
 	}
@@ -817,7 +825,7 @@ void CInventory::ActiveWeapon(u16 slot)
 
 void CInventory::Update()
 {
-	if (OnServer())
+	if (OnServer() || netcoop_own_inventory(m_pOwner))
 	{
 		if (m_iActiveSlot != m_iNextActiveSlot)
 		{

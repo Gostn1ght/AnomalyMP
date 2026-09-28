@@ -151,6 +151,14 @@ void CHudItem::SwitchState(u32 S)
 		{
 			SetNextState(S);
 			OnStateSwitch(S, GetState());
+			// The server and the other players follow the owner's state.
+			if (!object().getDestroy())
+			{
+				NET_Packet P;
+				object().u_EventGen(P, GE_WPN_STATE_CHANGE, object().ID());
+				P.w_u8(u8(S));
+				object().u_EventSend(P, net_flags(TRUE, TRUE, FALSE, TRUE));
+			}
 		}
 		return;
 	}
@@ -276,6 +284,13 @@ void CHudItem::SendDeactivateItem()
 
 void CHudItem::SendHiddenItem()
 {
+	// The owner ignores its own state echo from the server, so it hides the
+	// item itself (SwitchState reports it to the server).
+	if (netcoop::client_owns_hud_item(&object()))
+	{
+		SwitchState(eHiding);
+		return;
+	}
 	if (!object().getDestroy())
 	{
 		NET_Packet P;
