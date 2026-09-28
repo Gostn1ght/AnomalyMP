@@ -1033,6 +1033,17 @@ void CLevel::OnFrame()
 	}
 	// A GAMMA UI can block the main thread for longer than the watchdog interval.
 	// Drain queued packets before deciding that the dedicated server is silent.
+	// Netcoop sessions are debugged from their logs; keep them on disk.
+	if (strstr(Core.Params, "-netcoop"))
+	{
+		static u32 netcoop_next_flush = 0;
+		const u32 flush_tick = GetTickCount();
+		if (flush_tick >= netcoop_next_flush)
+		{
+			netcoop_next_flush = flush_tick + 3000;
+			FlushLog();
+		}
+	}
 	// A client that itself stood still (loading, window drag, debugger) has not
 	// been able to receive; restart the silence timer instead of leaving.
 	{

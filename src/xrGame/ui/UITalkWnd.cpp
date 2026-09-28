@@ -231,6 +231,7 @@ void CUITalkWnd::UpdateNetcoopRemote()
 		m_netcoop_trade = state.trade;
 		if (!state.open)
 		{
+			Msg("[NetAnomaly] talk window closed: the server ended the dialogue");
 			StopTalk();
 			return;
 		}
@@ -243,6 +244,7 @@ void CUITalkWnd::Update()
 	{
 		if (g_actor && m_pActor && !m_pActor->IsTalking())
 		{
+			Msg("[NetAnomaly] talk window closed: the local Actor is no longer talking");
 			StopTalk();
 			return;
 		}
