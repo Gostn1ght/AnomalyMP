@@ -60,6 +60,23 @@ bool CLevel::Load_GameSpecific_Before()
 	CHARACTER_REPUTATION::Reset();
 	MONSTER_COMMUNITY::Reset();
 
+	// Netcoop client: creating the ALife simulator normally calls the game start
+	// callback (_g.start_game_callback -> on_game_start of every GAMMA script,
+	// which registers item animations, HUD, input and PDA callbacks). A client
+	// has no simulator, so call it here, before the Actor and its binder spawn.
+	if (strstr(Core.Params, "-netcoop") && !Server && !ai().get_alife())
+	{
+		::luabind::functor<void> start_game;
+		LPCSTR callback = pSettings->r_string("alife", "start_game_callback");
+		if (ai().script_engine().functor(callback, start_game))
+		{
+			start_game();
+			Msg("[NetAnomaly] client game start callback %s done", callback);
+		}
+		else
+			Msg("! [NetAnomaly] client game start callback %s not found", callback);
+	}
+
 	return (TRUE);
 }
 
