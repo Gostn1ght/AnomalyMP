@@ -325,7 +325,7 @@ void CAI_Stalker::Hit(SHit* pHDS)
 	{
 		bool already_critically_wounded = critically_wounded();
 
-		if (!already_critically_wounded)
+		if (!already_critically_wounded && !netcoop_puppet())
 		{
 			const CCoverPoint* cover = agent_manager().member().member(this).cover();
 			if (!invulnerable() && cover && HDS.initiator() &&
@@ -352,7 +352,8 @@ void CAI_Stalker::Hit(SHit* pHDS)
 
 		if (
 			!wounded() &&
-			!already_critically_wounded)
+			!already_critically_wounded &&
+			!netcoop_puppet())
 		{
 			bool became_critically_wounded = update_critical_wounded(HDS.boneID, HDS.power);
 			if (
@@ -1029,6 +1030,8 @@ void CAI_Stalker::wounded(bool value)
 
 	character_physics_support()->movement()->DestroyCharacter();
 
+	if (netcoop_puppet())
+		return;
 	if (!agent_manager().member().registered_in_combat(this))
 		return;
 

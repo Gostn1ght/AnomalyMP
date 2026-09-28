@@ -2371,6 +2371,8 @@ bool CScriptGameObject::InstallUpgrade(LPCSTR upgrade)
 
 	if (!pSettings->section_exist(upgrade))
 		return false;
+	if (!ai().get_alife())
+		return false;
 
 	return ai().alife().inventory_upgrade_manager().upgrade_install(*item, upgrade, false);
 }

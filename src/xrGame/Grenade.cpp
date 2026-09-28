@@ -60,7 +60,7 @@ void CGrenade::Hit(SHit* pHDS)
 	if (ALife::eHitTypeExplosion == pHDS->hit_type && m_grenade_detonation_threshold_hit < pHDS->damage() && CExplosive
 		::Initiator() == u16(-1))
 	{
-		CExplosive::SetCurrentParentID(pHDS->who->ID());
+		CExplosive::SetCurrentParentID(pHDS->who ? pHDS->who->ID() : u16(-1));
 		Destroy();
 	}
 	inherited::Hit(pHDS);

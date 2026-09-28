@@ -81,7 +81,7 @@ void CAI_Rat::HitSignal(float amount, Fvector& vLocalDir, CObject* who, s16 /**e
 	m_hit_time = Device.dwTimeGlobal;
 	m_hit_direction.set(D);
 	m_hit_direction.normalize();
-	m_tHitPosition = who->Position();
+	m_tHitPosition = who ? who->Position() : Position();
 
 	// Play hit sound
 	if (!AlreadyDie())

@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "../../../netcoop.h"
 #include "base_monster.h"
 
 #include "../../../ai_object_location.h"
@@ -76,9 +77,19 @@ void CBaseMonster::net_Import(NET_Packet& P)
 	P.r_float /*r_angle8*/(N.o_torso.yaw);
 	P.r_float /*r_angle8*/(N.o_torso.pitch);
 	P.r_float /*r_angle8*/(N.o_torso.roll);
-	id_Team = P.r_u8();
-	id_Squad = P.r_u8();
-	id_Group = P.r_u8();
+	{
+		const u8 team = P.r_u8();
+		const u8 squad = P.r_u8();
+		const u8 group = P.r_u8();
+		// A monster puppet stays registered (seniority, monster squad) under
+		// its spawn team; changing ids here would leave dangling entries.
+		if (!(Remote() && netcoop::pure_client() && g_Alive()))
+		{
+			id_Team = team;
+			id_Squad = squad;
+			id_Group = group;
+		}
+	}
 
 	GameGraph::_GRAPH_ID l_game_vertex_id = ai_location().game_vertex_id();
 	P.r(&l_game_vertex_id, sizeof(l_game_vertex_id));

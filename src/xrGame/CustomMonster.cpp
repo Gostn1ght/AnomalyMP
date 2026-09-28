@@ -308,9 +308,19 @@ void CCustomMonster::net_Import(NET_Packet& P)
 	P.r_float /*r_angle8*/(N.o_torso.pitch);
 	P.r_float /*r_angle8*/(N.o_torso.roll);
 
-	id_Team = P.r_u8();
-	id_Squad = P.r_u8();
-	id_Group = P.r_u8();
+	{
+		const u8 team = P.r_u8();
+		const u8 squad = P.r_u8();
+		const u8 group = P.r_u8();
+		// A monster puppet stays registered (seniority, monster squad) under
+		// its spawn team; changing ids here would leave dangling entries.
+		if (!(Remote() && netcoop::pure_client() && g_Alive()))
+		{
+			id_Team = team;
+			id_Squad = squad;
+			id_Group = group;
+		}
+	}
 
 	if (NET.empty() || (NET.back().dwTimeStamp < N.dwTimeStamp))
 	{

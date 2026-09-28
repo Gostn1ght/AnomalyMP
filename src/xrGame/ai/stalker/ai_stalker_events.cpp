@@ -39,6 +39,8 @@ void CAI_Stalker::OnEvent(NET_Packet& P, u16 type)
 			P.r_u16(id);
 			CObject* O = Level().Objects.net_Find(id);
 
+			if (!O && netcoop::pure_client())
+				break;
 			R_ASSERT(O);
 
 #ifndef SILENCE
@@ -57,7 +59,7 @@ void CAI_Stalker::OnEvent(NET_Packet& P, u16 type)
 				Msg("TAKE - %s (%d)", *O->cName(),O->ID());
 #endif
 			}
-			else
+			else if (!netcoop_puppet())
 			{
 				//				DropItemSendMessage(O);
 				NET_Packet P;

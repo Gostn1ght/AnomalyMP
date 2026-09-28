@@ -652,6 +652,9 @@ void CAI_Stalker::Die(CObject* who)
 			                                                                                                     .end())
 				continue;
 
+			// The server removes a dead NPC's ammo.
+			if (netcoop_puppet())
+				continue;
 			NET_Packet packet;
 			u_EventGen(packet, GE_DESTROY, (*I)->object().ID());
 			u_EventSend(packet);
@@ -1241,7 +1244,8 @@ void CAI_Stalker::shedule_Update(u32 DT)
 		START_PROFILE("stalker/schedule_update")
 			VERIFY2(getEnabled()||PPhysicsShell(), *cName());
 
-			if (!CObjectHandler::planner().initialized())
+			// A puppet's items follow the server NPC (active slot in its update).
+			if (!CObjectHandler::planner().initialized() && !netcoop_puppet())
 			{
 				START_PROFILE("stalker/client_update/object_handler")
 					update_object_handler();

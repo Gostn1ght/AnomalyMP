@@ -316,6 +316,9 @@ u32 get_time_minutes()
 
 void change_game_time(u32 days, u32 hours, u32 mins)
 {
+	// Game time belongs to the server.
+	if (!Level().Server)
+		return;
 	game_sv_Single* tpGame = smart_cast<game_sv_Single *>(Level().Server->game);
 	if (tpGame && ai().get_alife())
 	{
@@ -1140,6 +1143,8 @@ int g_get_general_goodwill_between(u16 from, u16 to)
 {
 	CHARACTER_GOODWILL presonal_goodwill = RELATION_REGISTRY().GetGoodwill(from, to);
 	VERIFY(presonal_goodwill != NO_GOODWILL);
+	if (!ai().get_alife())
+		return presonal_goodwill;
 
 	CSE_ALifeTraderAbstract* from_obj = smart_cast<CSE_ALifeTraderAbstract*>(ai().alife().objects().object(from));
 	CSE_ALifeTraderAbstract* to_obj = smart_cast<CSE_ALifeTraderAbstract*>(ai().alife().objects().object(to));

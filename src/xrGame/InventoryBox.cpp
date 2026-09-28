@@ -34,6 +34,11 @@ void CInventoryBox::OnEvent(NET_Packet& P, u16 type)
 			P.r_u16(id);
 			CObject* itm = Level().Objects.net_Find(id);
 			VERIFY(itm);
+			if (!itm)
+			{
+				Msg("! [NetAnomaly] box %u: item %u to take is not spawned here", ID(), id);
+				break;
+			}
 			m_items.push_back(id);
 			itm->H_SetParent(this);
 			itm->setVisible(FALSE);
@@ -62,14 +67,20 @@ void CInventoryBox::OnEvent(NET_Packet& P, u16 type)
 			xr_vector<u16>::iterator it;
 			it = std::find(m_items.begin(), m_items.end(), id);
 			VERIFY(it!=m_items.end());
-			m_items.erase(it);
+			if (it != m_items.end())
+				m_items.erase(it);
+			if (!itm)
+			{
+				Msg("! [NetAnomaly] box %u: item %u to give out is not spawned here", ID(), id);
+				break;
+			}
 
 			bool just_before_destroy = !P.r_eof() && P.r_u8();
 			bool dont_create_shell = (type == GE_TRADE_SELL) || just_before_destroy;
 
 			itm->H_SetParent(NULL, dont_create_shell);
 
-			if (m_in_use)
+			if (m_in_use && Actor())
 			{
 				CGameObject* GO = smart_cast<CGameObject*>(itm);
 				Actor()->callback(GameObject::eInvBoxItemTake)(this->lua_game_object(), GO->lua_game_object());

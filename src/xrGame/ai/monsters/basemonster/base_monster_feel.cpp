@@ -7,6 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "pch_script.h"
+#include "../../../netcoop.h"
 #include "base_monster.h"
 #include "../../../actor.h"
 #include "../../../ActorEffector.h"
@@ -30,6 +31,8 @@ void CBaseMonster::feel_sound_new(CObject* who, int eType, CSound_UserDataPtr us
                                   float power)
 {
 	if (!g_Alive()) return;
+	// Monster puppets on a netcoop client perceive nothing; the server does.
+	if (Remote() && netcoop::pure_client()) return;
 
 	// ignore my sounds
 	if (this == who) return;
@@ -242,6 +245,13 @@ bool CBaseMonster::feel_vision_isRelevant(CObject* O)
 void CBaseMonster::HitSignal(float amount, Fvector& vLocalDir, CObject* who, s16 element)
 {
 	if (!g_Alive()) return;
+	// The hitter may not exist on a netcoop client, and hit memory, morale
+	// and enemies of a monster puppet are server AI.
+	if (!who || (Remote() && netcoop::pure_client()))
+	{
+		sound().play(MonsterSound::eMonsterSoundTakeDamage);
+		return;
+	}
 
 	feel_sound_new(who, SOUND_TYPE_WEAPON_SHOOTING, 0, who->Position(), 1.f);
 	if (g_Alive()) sound().play(MonsterSound::eMonsterSoundTakeDamage);

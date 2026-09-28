@@ -699,7 +699,7 @@ void CActor::Hit(SHit* pHDS)
 					this->lua_game_object(),
 					HDS.damage(),
 					HDS.direction(),
-					smart_cast<const CGameObject*>(HDS.who)->lua_game_object(),
+					HDS.who ? smart_cast<const CGameObject*>(HDS.who)->lua_game_object() : 0,
 					HDS.boneID
 				);
 			}
