@@ -57,23 +57,48 @@ Client:
   eat is applied on the server.
 - Ogg sources up to 48 kHz are accepted (GAMMA music).
 
-## Verified at runtime
+## Verified at runtime (builds 7bbc6d8 .. 14b8373, 2026-09-28)
 
-- Server loads, login works, NPC logic runs on the server: diagnostic shows
-  ~47 NPCs updating, ~16 moving (walker/animpoint schemes).
-- PDA opens on the client (it then hit SIMBOARD nil, fixed in 6630f67).
+- Server: NPC logic runs (walker/animpoint schemes, ~16 of 47 NPCs moving),
+  time events (ZCP mutant respawns), weather chosen and sent (w_partly3,
+  w_rain4 seen on the client).
+- Client: GAMMA HUD and on_game_start handlers work; admin debug menu (F7);
+  admin `srv spawn` puts items into the inventory; pistol drawn into hands and
+  holstered; 3D PDA opens through activate_slot(8) with the map on screen; PDA
+  is auto-equipped in slot 8.
+- NPC puppets sit and work at animpoints (technician at his bench) instead of
+  T-posing.
+- Dialogue: trader/technician dialogue window with GAMMA phrases, choices go
+  through the server (e.g. "work?" -> "nothing"), "trade" opens the NPC trade
+  window on the client with the trader's goods (trade profile sent by server).
+- Two clients: tester (admin) and tester2 (player) on one server; player 2
+  sees player 1's third-person model; both can talk to the same NPC.
+- Admin server Lua console: `srv lua <code>` (admin only) runs on the server
+  and prints the result, e.g. `srv lua return tostring(hide_hud_inventory())`.
 
-## Not yet verified (next test)
+## Open issues (next)
 
-Build 9ead87b / 7d1b51c:
-- dialogue window with traders (server/client log lines
-  `[NetAnomaly] talk ...` show the reason if it closes);
-- items in hand, weapon fire damage on NPCs, PDA tabs layout (likely fixed by
-  the start callback), NPC animations/heading, weather sync, tasks in PDA;
-- two clients (`session.ps1 -Second` in the Claude scratchpad starts both).
+- The PDA key (P) does not reach CInventory::Action; Lua sees it
+  (on_before_key_press ret_value=true). Build 14b8373 logs the path:
+  `[NetAnomaly] key 51 taken by the game UI` / `key 51 to entity ...` /
+  `actor key 51: remote=.. talking=..`. Read those lines after pressing P.
+- Buying/selling in the trade window not yet exercised (needs mouse input;
+  the game cursor ignores synthetic absolute mouse positions).
+- PDA tab captions overlap at 960x540 (test profiles p1/p2 run windowed at
+  960x540); normal at larger resolutions.
 
-Test helper (runtime only): `gamma-runtime/client/scripts/zz_netcoop_test.script`,
-F10 walks to the nearest stalker and starts a dialogue, F9 lists stalkers.
+## Test helpers (runtime only, not in the repo)
+
+`gamma-runtime/client/scripts/zz_netcoop_test.script`:
+F10 walk to the nearest trader/technician (else stalker) and talk; F9 list
+actors; F11 walk to 3 m from the other player; F8 admin spawn pistol + ammo;
+F7 is the GAMMA debug menu (do not use for tests); F6 activate the PDA slot
+and print slot state; P is watched and logged.
+
+Scratchpad `win.ps1`: -Keys (scancodes, WAITn, HOLDk:ms, TURNdx for relative
+mouse), -Text (ASCII typing, set WIN_EN_LAYOUT=1), -Shot (set
+WIN_SCREEN_CAPTURE=1 for DX11 windows). After loading GAMMA waits for a key:
+send SPACE after the bar is full, or the level stays paused.
 
 ## Known gaps
 
