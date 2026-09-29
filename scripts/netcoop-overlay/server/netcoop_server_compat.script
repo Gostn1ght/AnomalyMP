@@ -308,6 +308,20 @@ local function server_game_load()
 	if game_loaded then return end
 	game_loaded = true
 	init_event_managers()
+	-- Faction relations: in a single player new game the faction select
+	-- window sets them and marks new_game_relations; the server has no such
+	-- window, so game_relations.reset_all_relations ran and read the
+	-- relation table by its own faction order, which differs from GAMMA's
+	-- column order - Clear Sky and loners became enemies of their own
+	-- (community relation -2000, s99-s101). The engine already loaded the
+	-- table correctly; keep it.
+	local sok, serr = pcall(function()
+		local state = alife_storage_manager.get_state()
+		if state and not state.new_game_relations then
+			state.new_game_relations = true
+		end
+	end)
+	if not sok then printf("[NetAnomaly] relations flag failed: %s", tostring(serr)) end
 	local wok, werr = pcall(function() level_weathers.get_weather_manager():reset() end)
 	if not wok then printf("[NetAnomaly] weather manager reset error: %s", tostring(werr)) end
 	local ok, err = pcall(SendScriptCallback, "on_game_load")
