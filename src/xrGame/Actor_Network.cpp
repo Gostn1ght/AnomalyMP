@@ -1570,6 +1570,24 @@ void CActor::netcoop_update_remote()
 	}
 	else if (t < NET.front().dwTimeStamp)
 		cur = NET.front();
+	else if (NET.size() >= 2 && t > NET.back().dwTimeStamp)
+	{
+		// The next snapshot is late: keep moving along the last velocity for
+		// up to 200 ms instead of stopping and then jumping.
+		const net_update& A = NET[NET.size() - 2];
+		const net_update& B = NET.back();
+		const u32 span = B.dwTimeStamp - A.dwTimeStamp;
+		if (span > 0 && span < 1000)
+		{
+			Fvector v;
+			v.sub(B.p_pos, A.p_pos).div(float(span));
+			if (v.magnitude() < 0.012f) // below 12 m/s: not a teleport
+			{
+				cur.p_pos.mad(B.p_pos, v, float(_min(t - B.dwTimeStamp, 200u)));
+				velocity.set(v).mul(1000.f);
+			}
+		}
+	}
 
 	if (!_valid(cur.p_pos))
 		return;
