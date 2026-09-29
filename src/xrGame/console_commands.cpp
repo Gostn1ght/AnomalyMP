@@ -2715,6 +2715,7 @@ void CCC_RegisterCommands()
 	CMD4(CCC_Integer, "netcoop_smooth", &g_netcoop_smooth, 0, 1);
 	CMD4(CCC_Integer, "netcoop_interp_ms", &g_netcoop_interp_ms, 0, 500);
 	CMD4(CCC_Integer, "netcoop_metrics", &g_netcoop_metrics, 0, 1);
+	CMD4(CCC_Integer, "netcoop_player_predict", &g_netcoop_player_predict, 0, 1);
 	CMD4(CCC_Integer, "lua_gcstep", &psLUA_GCSTEP, 1, 1000);
 
 	// demonized: GC step that is used for repeated calls on second thread while frame is rendering, limit to small values

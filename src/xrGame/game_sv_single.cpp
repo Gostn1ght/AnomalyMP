@@ -418,6 +418,15 @@ float netcoop_nearest_actor_distance(const Fvector& position)
 	return best;
 }
 
+// True for an Actor spawned for a remote player (not the host's story Actor).
+bool netcoop_is_player_actor(u16 id)
+{
+	for (u32 i = 0; i < s_netcoop_actor_ids.size(); ++i)
+		if (s_netcoop_actor_ids[i] == id)
+			return true;
+	return false;
+}
+
 u16 netcoop_nearest_player_actor(const Fvector& position)
 {
 	u16 best_id = 0xffff;

@@ -596,6 +596,12 @@ public:
 	// Netcoop client: another player, shown from the server's snapshots
 	// (position, facing, look, movement state) interpolated each frame.
 	void netcoop_update_remote();
+	// Prediction mode: the shown position is the prediction plus an error
+	// that fades out, so a new snapshot never makes the player jump.
+	Fvector m_netcoop_shown_pos;
+	Fvector m_netcoop_shown_error;
+	u32 m_netcoop_shown_stamp = 0;
+	bool m_netcoop_shown_valid = false;
 	
 	u32 m_next_input_sequence = 1;
 	bool m_jump_input_pending = false;

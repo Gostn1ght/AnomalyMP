@@ -1226,9 +1226,11 @@ void CWeapon::OnEvent(NET_Packet& P, u16 type)
 			// event, but magazine weapons shoot only while 'working', which
 			// the trigger (FireStart) sets on the owner's client. Without it
 			// the server copy never fired a bullet and player damage was 0.
-			if (netcoop::enabled() && OnServer() && H_Parent() && !H_Parent()->Local() &&
-				smart_cast<CActor*>(H_Parent()))
+			if (netcoop::server_player_copy(H_Parent()))
 			{
+				// Misfires are the owner's to decide.
+				if (state == eFire && bMisfire)
+					bMisfire = false;
 				if (state == eFire)
 					FireStart();
 				else if (IsWorking())
@@ -1245,9 +1247,10 @@ void CWeapon::OnEvent(NET_Packet& P, u16 type)
 					count = 0;
 				}
 				if (++count <= 10)
-					Msg("[NetAnomaly][wpn] %s %s %s: event state %u, now state %u, ammo %u, working %d, valid %d",
+					Msg("[NetAnomaly][wpn] %s %s %s: event state %u, now state %u, ammo %u, working %d, valid %d, player copy %d, local %d",
 					    OnServer() ? "server" : "client", H_Parent()->cName().c_str(), cNameSect().c_str(),
-					    u32(state), GetState(), u32(AmmoElapsed), IsWorking() ? 1 : 0, IsValid() ? 1 : 0);
+					    u32(state), GetState(), u32(AmmoElapsed), IsWorking() ? 1 : 0, IsValid() ? 1 : 0,
+					    netcoop::server_player_copy(H_Parent()) ? 1 : 0, H_Parent()->Local() ? 1 : 0);
 			}
 		}
 		break;

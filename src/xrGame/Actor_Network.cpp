@@ -227,7 +227,7 @@ void CActor::net_Export(NET_Packet& P) // export to server
 	// The owner's clock is mapped into server time (netcoop_follow_owner).
 	// The owning client sends its real-time clock, not its server-time
 	// estimate: that estimate moved in steps and its timer drifted.
-	if (netcoop::enabled() && OnServer() && !Local() && m_netcoop_owner_offset_valid)
+	if (netcoop::server_player_copy(this) && m_netcoop_owner_offset_valid)
 		P.w_u32(u32(s64(m_netcoop_owner_time) + s64(m_netcoop_owner_offset)));
 	else if (netcoop::pure_client() && Local())
 		P.w_u32(netcoop::real_time_ms());
@@ -1553,7 +1553,36 @@ void CActor::netcoop_update_remote()
 	Fvector velocity;
 	velocity.set(0.f, 0.f, 0.f);
 	bool extrapolating = true;
-	if (NET.size() >= 2 && t >= NET[0].dwTimeStamp && t <= NET[1].dwTimeStamp && NET[1].dwTimeStamp > NET[0].dwTimeStamp)
+	if (g_netcoop_player_predict)
+	{
+		// Zero display delay: the newest snapshot moved forward along the
+		// owner's own velocity by the time it took to arrive (capped).
+		const net_update& B = NET.back();
+		const s32 age = s32(netcoop::snapshot_now() - B.dwTimeStamp);
+		Fvector v = B.p_velocity;
+		if (!_valid(v) || v.magnitude() > 12.f)
+			v.set(0.f, 0.f, 0.f);
+		cur = B;
+		cur.p_pos.mad(B.p_pos, v, float(_max(0, _min(age, 250))) * 0.001f);
+		velocity = v;
+		extrapolating = age > 250;
+		if (!m_netcoop_shown_valid || m_netcoop_shown_pos.distance_to(cur.p_pos) > 3.f)
+		{
+			m_netcoop_shown_error.set(0.f, 0.f, 0.f);
+			m_netcoop_shown_valid = true;
+		}
+		else if (B.dwTimeStamp != m_netcoop_shown_stamp)
+		{
+			// A new snapshot: keep the shown position and fade the difference.
+			m_netcoop_shown_error.sub(m_netcoop_shown_pos, cur.p_pos);
+		}
+		m_netcoop_shown_stamp = B.dwTimeStamp;
+		const float dt = _min(Device.fTimeDelta, 0.1f);
+		m_netcoop_shown_error.mul(expf(-12.f * dt));
+		cur.p_pos.add(m_netcoop_shown_error);
+		m_netcoop_shown_pos = cur.p_pos;
+	}
+	else if (NET.size() >= 2 && t >= NET[0].dwTimeStamp && t <= NET[1].dwTimeStamp && NET[1].dwTimeStamp > NET[0].dwTimeStamp)
 	{
 		const net_update& A = NET[0];
 		const net_update& B = NET[1];

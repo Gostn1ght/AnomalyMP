@@ -69,7 +69,7 @@ void CWeapon::FireTrace(const Fvector& P, const Fvector& D)
 {
 	// Netcoop server: log a player's shots (origin, whether the owner's aim
 	// was used) to find out why player damage does not land.
-	if (netcoop::enabled() && OnServer() && H_Parent() && !H_Parent()->Local() && smart_cast<CActor*>(H_Parent()))
+	if (netcoop::server_player_copy(H_Parent()))
 	{
 		static u32 last_log = 0;
 		if (Device.dwTimeGlobal - last_log > 500)

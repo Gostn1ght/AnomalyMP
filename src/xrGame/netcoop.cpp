@@ -2214,6 +2214,7 @@ void script_watchdog_start()
 int g_netcoop_smooth = 1;
 int g_netcoop_interp_ms = 100;
 int g_netcoop_metrics = 1;
+int g_netcoop_player_predict = 1;
 
 namespace netcoop
 {
@@ -2281,6 +2282,16 @@ void snapshot_clock_advance(u32 now)
 	}
 }
 } // namespace
+
+} // namespace netcoop
+bool netcoop_is_player_actor(u16 id); // game_sv_single.cpp
+namespace netcoop
+{
+bool server_player_copy(const CObject* object)
+{
+	return object && enabled() && !pure_client() && g_pGameLevel && Level().Server && object->ID() != 0 &&
+		netcoop_is_player_actor(object->ID());
+}
 
 u32 real_time_ms()
 {
@@ -2485,7 +2496,7 @@ void metric_weapon_fire(CWeapon* weapon)
 	{
 		// Server: a player's weapon fires; is the owner's aim there?
 		CActor* player = smart_cast<CActor*>(weapon->H_Parent());
-		if (player && !pure_client() && !player->Local())
+		if (player && server_player_copy(player))
 		{
 			const u32 now = Device.dwTimeGlobal;
 			u32& last = shot_log_time[player->ID()];

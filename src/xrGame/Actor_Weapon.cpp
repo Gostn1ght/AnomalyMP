@@ -116,7 +116,7 @@ void CActor::g_fireParams(const CHudItem* pHudItem, Fvector& fire_pos, Fvector& 
 {
 	// Netcoop server: a player's shot goes where that player aimed on their
 	// client, not along this server copy's camera.
-	if (netcoop::enabled() && OnServer() && !Local())
+	if (netcoop::server_player_copy(this))
 	{
 		const CWeapon* weapon = smart_cast<const CWeapon*>(pHudItem);
 		if (weapon && weapon->netcoop_aim(fire_pos, fire_dir))

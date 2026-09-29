@@ -22,6 +22,9 @@ class CWeapon;
 extern int g_netcoop_smooth;
 extern int g_netcoop_interp_ms;
 extern int g_netcoop_metrics;
+// Other players shown at the present moment (prediction from the newest
+// snapshot and the owner's velocity) instead of ~0.1 s in the past.
+extern int g_netcoop_player_predict;
 
 namespace netcoop
 {
@@ -168,6 +171,10 @@ void server_list_accounts(xr_string& out);
 
 // Network smoothness (doc 38, stages 0 and 1).
 bool smooth();
+// Server: the object is the Actor of a remote player. Local() is not used
+// for this: on the dedicated server it did not tell these copies apart
+// (s96: players' shots never reached FireStart).
+bool server_player_copy(const CObject* object);
 // A real-time millisecond clock of this process: never paused or scaled
 // (the engine's global timer stops in menus and follows time_factor).
 u32 real_time_ms();
