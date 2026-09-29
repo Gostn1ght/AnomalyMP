@@ -584,6 +584,9 @@ public:
 	// Owner's real-time clock of the last accepted update, and its offset to
 	// server time (lower envelope of receive time - owner time).
 	u32 m_netcoop_owner_time = 0;
+	// Server time when the newest owner update arrived: the time stamp of
+	// this player's snapshots (the owner-clock mapping jumped, s102).
+	u32 m_netcoop_owner_received = 0;
 	// Offset = the least delay seen in the current and the previous second:
 	// the first updates after a join arrive seconds late, and a minimum over
 	// all time made the player's snapshot times jump back by those seconds.

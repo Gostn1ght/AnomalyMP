@@ -2485,6 +2485,41 @@ void metric_player_frame(bool extrapolating, s32 lead_ms, float step)
 	m.pl_step_max = _max(m.pl_step_max, step);
 }
 
+namespace
+{
+struct RemoteActorStat
+{
+	u32 frames;
+	bool remote;
+	bool alive;
+	u32 net_size;
+	s32 age;
+};
+xr_map<u16, RemoteActorStat> s_remote_actors;
+u32 s_remote_actors_next = 0;
+}
+
+void metric_remote_actor(u16 id, bool remote, bool alive, u32 net_size, s32 age_ms)
+{
+	RemoteActorStat& s = s_remote_actors[id];
+	++s.frames;
+	s.remote = remote;
+	s.alive = alive;
+	s.net_size = net_size;
+	s.age = age_ms;
+	const u32 now = real_time_ms();
+	if (now < s_remote_actors_next)
+		return;
+	s_remote_actors_next = now + 10000;
+	for (auto& it : s_remote_actors)
+	{
+		if (it.second.frames)
+			Msg("[NetAnomaly][player] %u: %u frames, remote %d alive %d, %u snapshots, newest %d ms old", it.first,
+			    it.second.frames, it.second.remote ? 1 : 0, it.second.alive ? 1 : 0, it.second.net_size, it.second.age);
+		it.second.frames = 0;
+	}
+}
+
 void metric_actor_error(float error, bool applied)
 {
 	++m.acks;

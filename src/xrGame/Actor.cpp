@@ -1306,6 +1306,9 @@ void CActor::UpdateCL()
 
 	inherited::UpdateCL();
 	m_pPhysics_support->in_UpdateCL();
+	if (netcoop::pure_client() && this != Level().CurrentControlEntity())
+		netcoop::metric_remote_actor(ID(), !!Remote(), !!g_Alive(), NET.size(),
+			NET.empty() ? -1 : s32(netcoop::snapshot_now() - NET.back().dwTimeStamp));
 	if (g_Alive() && Remote() && netcoop::pure_client())
 		netcoop_update_remote();
 	if (g_dedicated_server)

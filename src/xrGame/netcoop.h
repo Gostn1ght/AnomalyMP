@@ -211,6 +211,8 @@ void metric_snapshot_duplicate();
 void metric_puppet_frame(u16 id, const Fvector& pos, bool extrapolating, s32 lead_ms);
 // The same for other players only (logged separately on the [clock] line).
 void metric_player_frame(bool extrapolating, s32 lead_ms, float step);
+// Client: another player's Actor this frame (why it is or is not shown).
+void metric_remote_actor(u16 id, bool remote, bool alive, u32 net_size, s32 age_ms);
 void metric_actor_error(float error, bool applied);
 void metric_owner_step_rejected(float step);
 void metric_weapon_fire(CWeapon* weapon);

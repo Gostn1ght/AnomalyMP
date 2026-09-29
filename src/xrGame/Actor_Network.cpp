@@ -227,8 +227,8 @@ void CActor::net_Export(NET_Packet& P) // export to server
 	// The owner's clock is mapped into server time (netcoop_follow_owner).
 	// The owning client sends its real-time clock, not its server-time
 	// estimate: that estimate moved in steps and its timer drifted.
-	if (netcoop::server_player_copy(this) && m_netcoop_owner_offset_valid)
-		P.w_u32(u32(s64(m_netcoop_owner_time) + s64(m_netcoop_owner_offset)));
+	if (netcoop::server_player_copy(this) && m_netcoop_owner_received)
+		P.w_u32(m_netcoop_owner_received);
 	else if (netcoop::pure_client() && Local())
 		P.w_u32(netcoop::real_time_ms());
 	else
@@ -473,6 +473,7 @@ void CActor::netcoop_follow_owner(NET_Packet& P)
 		if (!m_netcoop_owner_time || time_stamp > m_netcoop_owner_time)
 		{
 			m_netcoop_owner_time = time_stamp;
+			m_netcoop_owner_received = Level().timeServer();
 			// Offset owner clock -> server clock: the least-delayed update
 			// gives it; rising 5 % of elapsed time follows a slower owner clock.
 			const u32 received = Level().timeServer();

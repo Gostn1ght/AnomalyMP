@@ -44,7 +44,7 @@ void ClSteamNetConnectionStatusChangedCallback(SteamNetConnectionStatusChangedCa
 void steam_net_update_client(void* P)
 {
 	Msg("- [SteamNetClient] Thread for steam network client is started");
-	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
+	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL); // NetAnomaly: below normal starved under full CPU (snapshots seconds late)
 	SteamNetClient*	C = (SteamNetClient*)P;
 	C->Update();
 	//	Признак снимаем последним действием потока: по нему разрыв соединения

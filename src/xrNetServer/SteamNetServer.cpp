@@ -21,7 +21,7 @@ void SvSteamNetConnectionStatusChangedCallback(SteamNetConnectionStatusChangedCa
 void steam_net_update_server(void* P)
 {
 	Msg("- [SteamNetServer] Thread for steam network server is started");
-	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
+	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL); // NetAnomaly: below normal starved under full CPU (snapshots seconds late)
 	SteamNetServer* C = (SteamNetServer*)P;
 	C->Update();
 }
