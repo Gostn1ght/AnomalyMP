@@ -419,6 +419,13 @@ float netcoop_nearest_actor_distance(const Fvector& position)
 }
 
 // True for an Actor spawned for a remote player (not the host's story Actor).
+// A dead player's client gets a new Actor (netcoop::script_respawn).
+void netcoop_respawn_spawn(ClientID id)
+{
+	if (s_netcoop_game)
+		s_netcoop_game->netcoop_spawn_actor(id);
+}
+
 bool netcoop_is_player_actor(u16 id)
 {
 	for (u32 i = 0; i < s_netcoop_actor_ids.size(); ++i)

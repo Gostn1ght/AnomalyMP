@@ -958,7 +958,20 @@ void CActor::Die(CObject* who)
 		m_DangerSnd.stop();
 	}
 
-	if (IsGameTypeSingle())
+	if (netcoop::enabled())
+	{
+		// Netcoop: no game-over. On the server there is no UI at all (it
+		// crashed here on a player's death); the player's own client keeps
+		// looking at the body and offers a respawn (netcoop_client_compat).
+		if (netcoop::pure_client() && this == Level().CurrentControlEntity())
+		{
+			cam_Set(eacFreeLook);
+			if (CurrentGameUI())
+				CurrentGameUI()->HideShownDialogs();
+			netcoop::client_on_own_death();
+		}
+	}
+	else if (IsGameTypeSingle())
 	{
 		// demonized: First Person Death
 		if (firstPersonDeath) {

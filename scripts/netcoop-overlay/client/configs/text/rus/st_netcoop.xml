@@ -3,4 +3,10 @@
 	<string id="ui_mm_netcoop_play">
 		<text>Сетевая игра</text>
 	</string>
+	<string id="st_netcoop_respawn_in">
+		<text>Возрождение через</text>
+	</string>
+	<string id="st_netcoop_respawn_press">
+		<text>Нажмите ПРОБЕЛ для возрождения</text>
+	</string>
 </string_table>

@@ -3,4 +3,10 @@
 	<string id="ui_mm_netcoop_play">
 		<text>Multiplayer</text>
 	</string>
+	<string id="st_netcoop_respawn_in">
+		<text>Respawn in</text>
+	</string>
+	<string id="st_netcoop_respawn_press">
+		<text>Press SPACE to respawn</text>
+	</string>
 </string_table>

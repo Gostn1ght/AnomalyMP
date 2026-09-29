@@ -1,6 +1,7 @@
 #include "pch_script.h"
 #include "actorcondition.h"
 #include "actor.h"
+#include "netcoop.h"
 #include "actorEffector.h"
 #include "inventory.h"
 #include "level.h"
@@ -27,6 +28,11 @@
 
 BOOL GodMode()
 {
+	// Netcoop server: AF_GODMODE_RT is on by default and cleared only when a
+	// client shows its game UI - a dedicated server has none, so every
+	// player was immortal there (hits of power 0, s99-s100).
+	if (netcoop::enabled() && !netcoop::pure_client())
+		return psActorFlags.test(AF_GODMODE);
 	if (GameID() == eGameIDSingle)
 		return psActorFlags.test(AF_GODMODE | AF_GODMODE_RT);
 	return FALSE;

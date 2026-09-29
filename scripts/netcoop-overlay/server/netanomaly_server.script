@@ -93,6 +93,12 @@ function on_client_command(cid, name, entity_id, text, role)
 	if cmd == "help" or cmd == "?" then
 		return admin and HELP_ADMIN or HELP_PLAYER
 
+	elseif cmd == "respawn" then
+		-- A dead player's client asks for a new Actor (after its countdown).
+		if not entity_id or entity_id == 65535 then return "! your Actor is not on the server" end
+		if netcoop_respawn and netcoop_respawn(entity_id) then return "* respawn" end
+		return "! you are alive"
+
 	elseif cmd == "whoami" then
 		return string.format("~ %s, role %s, entity %s", tostring(name), tostring(role), tostring(entity_id))
 

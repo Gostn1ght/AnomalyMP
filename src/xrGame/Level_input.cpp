@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "netcoop.h"
 #include <dinput.h>
 #include "../xrEngine/xr_ioconsole.h"
 #include "entity_alive.h"
@@ -160,6 +161,9 @@ extern string_path g_last_saved_game;
 void CLevel::IR_OnKeyboardPress(int key)
 {
 	if (Device.dwPrecacheFrame)
+		return;
+	// Netcoop: after this client's player died, SPACE asks for a respawn.
+	if (netcoop::client_death_key(key))
 		return;
 
 	bool b_ui_exist = (!!CurrentGameUI());

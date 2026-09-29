@@ -1584,7 +1584,7 @@ void CActor::netcoop_update_remote()
 		cur.p_pos.add(m_netcoop_shown_error);
 		// Facing and look follow the snapshots smoothly: applied directly,
 		// they turned in 30 steps a second (jerky turns).
-		const float k = 1.f - expf(-20.f * dt);
+		const float k = 1.f - expf(-35.f * dt);
 		m_netcoop_shown_model_yaw = angle_lerp(m_netcoop_shown_model_yaw, cur.o_model, k);
 		m_netcoop_shown_torso.yaw = angle_lerp(m_netcoop_shown_torso.yaw, cur.o_torso.yaw, k);
 		m_netcoop_shown_torso.pitch = angle_lerp(m_netcoop_shown_torso.pitch, cur.o_torso.pitch, k);

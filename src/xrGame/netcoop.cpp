@@ -10,6 +10,10 @@
 #include "xrMessages.h"
 #include "Level.h"
 #include "Actor.h"
+#include "Actor_Flags.h"
+#include "ui_base.h"
+#include "string_table.h"
+#include "xr_level_controller.h"
 #include "InventoryOwner.h"
 #include "inventory_item.h"
 #include "entity_alive.h"
@@ -917,6 +921,10 @@ void server_update(xrServer* server)
 {
 	if (!enabled())
 		return;
+	// The runtime god mode (cutscenes) is cleared by showing the game UI; a
+	// dedicated server has none, and the flag also stopped condition damage
+	// (UpdateCondition, CanBeHarmed). Keep it off here.
+	psActorFlags.set(AF_GODMODE_RT, FALSE);
 	destroy_pending_actors(server);
 	server_talk_prune(server);
 	if (!s_accounts_loaded)
@@ -2548,8 +2556,71 @@ void metric_weapon_fire(CWeapon* weapon)
 	    enemy ? int(stalker->memory().visual().visible_now(enemy)) : 0);
 }
 
+namespace
+{
+bool s_own_dead = false;
+bool s_respawn_sent = false;
+u32 s_death_time = 0;
+u32 s_respawn_sent_time = 0;
+const u32 respawn_delay_ms = 10000;
+}
+
+void client_on_own_death()
+{
+	s_own_dead = true;
+	s_respawn_sent = false;
+	s_death_time = real_time_ms();
+	Msg("[NetAnomaly] player died, respawn in %u s", respawn_delay_ms / 1000);
+}
+
+void client_death_frame()
+{
+	if (!s_own_dead || !pure_client() || !g_pGameLevel)
+		return;
+	CActor* own = smart_cast<CActor*>(Level().CurrentControlEntity());
+	if (own && own->g_Alive())
+	{
+		s_own_dead = false; // the server gave a new Actor
+		return;
+	}
+	const u32 now = real_time_ms();
+	if (s_respawn_sent && now - s_respawn_sent_time > 5000)
+		s_respawn_sent = false; // ask again if nothing came
+	if ((now / 500) % 2)
+		return; // blink
+	CGameFont* font = UI().Font().pFontGraffiti22Russian;
+	if (!font)
+		return;
+	const u32 elapsed = now - s_death_time;
+	string256 text;
+	if (elapsed < respawn_delay_ms)
+		xr_sprintf(text, "%s %u", CStringTable().translate("st_netcoop_respawn_in").c_str(),
+		           (respawn_delay_ms - elapsed + 999) / 1000);
+	else
+		xr_strcpy(text, CStringTable().translate("st_netcoop_respawn_press").c_str());
+	font->SetAligment(CGameFont::alCenter);
+	font->SetColor(0xffffffff);
+	font->OutSetI(0.f, -0.25f);
+	font->OutNext("%s", text);
+}
+
+bool client_death_key(int key)
+{
+	if (!s_own_dead || !pure_client())
+		return false;
+	if (real_time_ms() - s_death_time < respawn_delay_ms || s_respawn_sent)
+		return true;
+	if (get_binded_action(key) != kJUMP)
+		return true;
+	s_respawn_sent = true;
+	s_respawn_sent_time = real_time_ms();
+	client_send_command("respawn");
+	return true;
+}
+
 void metrics_update()
 {
+	client_death_frame();
 	if (!enabled())
 		return;
 	const u32 dt = Device.dwTimeDelta;
@@ -2598,5 +2669,31 @@ void metrics_update()
 		puppets.clear();
 	if (shot_log_time.size() > 4096)
 		shot_log_time.clear();
+}
+} // namespace netcoop
+
+void netcoop_respawn_spawn(ClientID id); // game_sv_single.cpp
+namespace netcoop
+{
+bool script_respawn(u16 actor_id)
+{
+	if (!enabled() || !g_pGameLevel || !Level().Server)
+		return false;
+	xrServer* server = Level().Server;
+	FindActorOwner find;
+	find.actor_id = actor_id;
+	xrClientData* CL = static_cast<xrClientData*>(server->FindClient(find));
+	if (!CL || !CL->owner)
+		return false;
+	CActor* body = smart_cast<CActor*>(Level().Objects.net_Find(actor_id));
+	if (!body || body->g_Alive())
+		return false;
+	// The body and what it carries stay in the world as a corpse, owned by
+	// the server; the player gets a new Actor at the spawn point.
+	give_to_server(server, CL->owner, 0);
+	CL->owner = NULL;
+	netcoop_respawn_spawn(CL->ID);
+	Msg("[NetAnomaly] respawn for client 0x%08x (body %u stays)", CL->ID.value(), actor_id);
+	return true;
 }
 } // namespace netcoop

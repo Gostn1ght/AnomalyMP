@@ -220,6 +220,15 @@ void metric_server_sent(u32 bytes, u32 objects);
 void metric_snapshot_blocked();
 void metrics_update();
 
+// Death and respawn of this client's player: after death the camera stays at
+// the body with a blinking countdown (10 s), then SPACE asks the server for
+// a new Actor ("respawn" command). The body stays in the world as a corpse.
+void client_on_own_death();
+void client_death_frame();
+bool client_death_key(int key); // true when the key was used
+// Lua (server): netcoop_respawn(actor_id) - a new Actor for a dead player.
+bool script_respawn(u16 actor_id);
+
 // Load test: bots connect to a server as players and walk (netcoop_bots.cpp).
 // Console: netcoop_bots <count> [address]; command line -netcoop_bots <count>
 // [-netcoop_bots_addr <address>]. Pumped every frame by the game.
