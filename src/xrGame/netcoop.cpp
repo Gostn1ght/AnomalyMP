@@ -2203,7 +2203,23 @@ void metric_weapon_fire(CWeapon* weapon)
 		return;
 	CAI_Stalker* stalker = smart_cast<CAI_Stalker*>(weapon->H_Parent());
 	if (!stalker)
+	{
+		// Server: a player's weapon fires; is the owner's aim there?
+		CActor* player = smart_cast<CActor*>(weapon->H_Parent());
+		if (player && !pure_client() && !player->Local())
+		{
+			const u32 now = Device.dwTimeGlobal;
+			u32& last = shot_log_time[player->ID()];
+			if (last && now - last < 1000)
+				return;
+			last = now;
+			Fvector pos, dir;
+			const bool aim = weapon->netcoop_aim(pos, dir);
+			Msg("[NetAnomaly][shot] player %s fires %s, owner aim %s", player->cName().c_str(),
+			    weapon->cNameSect().c_str(), aim ? "fresh" : "missing");
+		}
 		return;
+	}
 	++m.shots;
 	const u32 now = Device.dwTimeGlobal;
 	u32& last = shot_log_time[stalker->ID()];
