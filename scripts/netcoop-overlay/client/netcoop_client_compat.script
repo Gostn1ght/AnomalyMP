@@ -324,26 +324,58 @@ end
 -- World state from the server (netcoop_broadcast on the server)
 ----------------------------------------------------------------------
 local server_weather = nil
+local applying_server_weather = false
+local engine_set_weather = nil
 
--- The server's weather manager chooses the weather; the local one must not.
-local function use_server_weather(name)
-	if not name or name == "" or name == server_weather then return end
-	local first = server_weather == nil
-	server_weather = name
-	if first and level_weathers and level_weathers.WeatherManager then
-		-- update() reads levelWeather, which select_weather normally sets.
-		level_weathers.WeatherManager.select_weather = function(self)
+-- The server chooses the weather; this client's weather manager (and the
+-- GAMMA fixes that extend it) must never pick its own. Installed at game
+-- start, after every script has patched WeatherManager.
+local function install_weather_follow()
+	local wm_class = level_weathers and level_weathers.WeatherManager
+	if wm_class then
+		wm_class.select_weather = function(self)
 			self.levelWeather = self.levelWeather or "default"
 		end
-		level_weathers.WeatherManager.change_period = function() end
+		wm_class.select_custom_weather = function(self)
+			self.levelWeather = self.levelWeather or "default"
+		end
+		wm_class.change_period = function() end
 	end
+	-- Local weather changes (admin debug menu, other scripts) go to the
+	-- server so that everyone gets them; a player's own change is ignored.
+	if not engine_set_weather and level and level.set_weather then
+		engine_set_weather = level.set_weather
+		level.set_weather = function(name, now)
+			if applying_server_weather then
+				return engine_set_weather(name, now)
+			end
+			if is_admin() and name and name ~= "" then
+				netcoop_command(string.format("weather %s%s", tostring(name), now and " now" or ""))
+			end
+		end
+	end
+end
+
+-- data: "name" (transition) or "name|1" (switch at once). Applied whenever
+-- the current weather differs, not only when the name changes: a local
+-- change used to stay because the repeated name was ignored.
+local function use_server_weather(data)
+	local name, forced = string.match(data or "", "^([^|]+)|?(%d?)$")
+	if not name or name == "" then return end
+	local first = server_weather == nil
+	local current = level.get_weather and level.get_weather() or nil
+	if not first and name == current and forced ~= "1" then return end
+	server_weather = name
 	local wm = level_weathers and level_weathers.get_weather_manager()
 	if wm then
 		wm.weather_file = name
 		wm.levelWeather = wm.levelWeather or "default"
 	end
-	pcall(level.set_weather, name, first)
-	printf("[NetAnomaly] server weather: %s", name)
+	applying_server_weather = true
+	local setter = engine_set_weather or level.set_weather
+	pcall(setter, name, first or forced == "1")
+	applying_server_weather = false
+	printf("[NetAnomaly] server weather: %s%s", name, (first or forced == "1") and " (now)" or "")
 end
 
 -- A server dialogue action opened an NPC window for this player.
@@ -467,6 +499,7 @@ local function init_event_managers()
 end
 
 function on_game_start()
+	install_weather_follow()
 	quiet_busy_hands()
 	install_server_trade()
 	RegisterScriptCallback("actor_on_item_take", on_item_take)

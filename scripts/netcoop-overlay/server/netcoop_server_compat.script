@@ -265,10 +265,33 @@ end
 -- A normal game initialises these from the Actor binder's net_spawn, which
 -- the server does not have. on_game_load waits for the first player, as its
 -- handlers expect db.actor.
+-- The emission and psi-storm managers are created by the ALife save load in
+-- a normal game; the weather's change_period reads their last event times
+-- and failed every game hour on the server, so the weather never changed
+-- period. They are initialised here; emissions themselves stay off until
+-- the master module drives them for all players.
+local function init_event_managers()
+	for _, m in ipairs({ { surge_manager, "get_surge_manager" }, { psi_storm_manager, "get_psi_storm_manager" } }) do
+		local module, getter = m[1], m[2]
+		if module and module[getter] then
+			local ok, err = pcall(function()
+				local mgr = module[getter]()
+				if not mgr._state_loaded then
+					mgr:initialize()
+					mgr._state_loaded = true
+				end
+				mgr._delta = 1000000000
+			end)
+			if not ok then printf("[NetAnomaly] %s init failed: %s", getter, tostring(err)) end
+		end
+	end
+end
+
 local game_loaded = false
 local function server_game_load()
 	if game_loaded then return end
 	game_loaded = true
+	init_event_managers()
 	local wok, werr = pcall(function() level_weathers.get_weather_manager():reset() end)
 	if not wok then printf("[NetAnomaly] weather manager reset error: %s", tostring(werr)) end
 	local ok, err = pcall(SendScriptCallback, "on_game_load")
@@ -280,6 +303,18 @@ end
 -- chooses the weather with GAMMA's weather manager and sends it to clients.
 local world_next = 0
 local weather_sent, weather_next = nil, 0
+local weather_forced = false
+
+-- Admin: the same weather for everyone (netanomaly_server "weather").
+function set_server_weather(name, now)
+	if not (name and name ~= "") then return "! no weather name" end
+	local wm = level_weathers and level_weathers.get_weather_manager()
+	if wm then wm.weather_file = name end
+	local ok, err = pcall(level.set_weather, name, now and true or false)
+	if not ok then return "! " .. tostring(err) end
+	weather_sent, weather_next, weather_forced = nil, 0, now and true or false
+	return string.format("* weather %s%s for all players", name, now and " (now)" or "")
+end
 local function server_world_tick()
 	local now = time_global()
 	if now < world_next then return end
@@ -291,8 +326,10 @@ local function server_world_tick()
 	if not ok then printf("[NetAnomaly] weather update error: %s", tostring(err)) end
 	local weather = wm.weather_file or (level.get_weather and level.get_weather()) or ""
 	if weather ~= "" and (weather ~= weather_sent or now >= weather_next) then
-		weather_sent, weather_next = weather, now + 15000
-		if netcoop_broadcast then netcoop_broadcast("weather", weather) end
+		weather_sent, weather_next = weather, now + 5000
+		-- "name|1": switch at once (admin "now"); otherwise a transition.
+		if netcoop_broadcast then netcoop_broadcast("weather", weather .. (weather_forced and "|1" or "")) end
+		weather_forced = false
 	end
 end
 
