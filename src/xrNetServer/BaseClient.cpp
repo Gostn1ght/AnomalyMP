@@ -72,8 +72,6 @@ void BaseClient::ParseConnectionOptions(LPCSTR options, ClientConnectionOptions&
 			strncpy_s(out.user_pass, UP, strchr(UP, '/') - UP);
 		else
 			xr_strcpy(out.user_pass, UP);
-
-		xr_strcpy(Core.Password, UP);
 	}
 
 	// SERVER PORT
