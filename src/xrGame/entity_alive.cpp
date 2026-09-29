@@ -9,6 +9,7 @@
 #include "wound.h"
 #include "xrmessages.h"
 #include "level.h"
+#include "Actor.h"
 #include "../Include/xrRender/Kinematics.h"
 #include "relation_registry.h"
 #include "monster_community.h"
@@ -276,6 +277,18 @@ void CEntityAlive::HitImpulse(float /**amount/**/, Fvector& /**vWorldDir/**/, Fv
 void CEntityAlive::Hit(SHit* pHDS)
 {
 	SHit HDS = *pHDS;
+	// Netcoop server: hits dealt by players (does their fire land?).
+	if (netcoop::enabled() && g_pGameLevel && Level().Server && HDS.who && HDS.who != this &&
+		smart_cast<CActor*>(HDS.who))
+	{
+		static u32 last_log = 0;
+		if (Device.dwTimeGlobal - last_log > 500)
+		{
+			last_log = Device.dwTimeGlobal;
+			Msg("[NetAnomaly][hit] %s -> %s power %.2f type %d", HDS.who->cName().c_str(), cName().c_str(),
+			    HDS.damage(), int(HDS.hit_type));
+		}
+	}
 	//-------------------------------------------------------------------
 	if (HDS.hit_type == ALife::eHitTypeWound_2)
 		HDS.hit_type = ALife::eHitTypeWound;

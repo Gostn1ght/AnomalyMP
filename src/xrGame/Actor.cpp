@@ -1212,10 +1212,21 @@ bool CActor::ServerProcessInputs(float server_dt)
 		cam_Active()->Set(-r_torso.yaw, r_torso.pitch, 0);
 		Fvector accel;
 		float jump = 0.0f;
-		g_cl_CheckControls(mstate_wishful, accel, jump, server_dt);
-		g_Orientate(mstate_real, server_dt);
-		g_Physics(accel, jump, server_dt);
-		g_cl_ValidateMState(server_dt, mstate_wishful);
+		if (netcoop::enabled())
+		{
+			// Netcoop: the server copy follows the owner's positions (speed
+			// checked in netcoop_follow_owner). Simulating the same input here
+			// as well moved it between owner updates, and other players saw
+			// that drift as jitter.
+			g_Orientate(mstate_real, server_dt);
+		}
+		else
+		{
+			g_cl_CheckControls(mstate_wishful, accel, jump, server_dt);
+			g_Orientate(mstate_real, server_dt);
+			g_Physics(accel, jump, server_dt);
+			g_cl_ValidateMState(server_dt, mstate_wishful);
+		}
 
 		// Clear the edge action so it doesn't repeat infinitely if no new packets arrive
 		CL->m_current_intent.mstate &= ~mcJump;

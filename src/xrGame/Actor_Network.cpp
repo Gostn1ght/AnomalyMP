@@ -1490,7 +1490,8 @@ void CActor::netcoop_update_remote()
 {
 	if (NET.empty())
 		return;
-	const u32 t = Level().timeServer() - netcoop::remote_interp_delay();
+	const u32 last_interval = NET.size() >= 2 ? NET.back().dwTimeStamp - NET[NET.size() - 2].dwTimeStamp : 0;
+	const u32 t = Level().timeServer() - netcoop::remote_interp_delay(last_interval);
 	while (NET.size() > 2 && NET[1].dwTimeStamp <= t)
 		NET.pop_front();
 
@@ -1531,6 +1532,9 @@ void CActor::netcoop_update_remote()
 	mstate_real = mstate_wishful = cur.mstate;
 	NET_SavedAccel = cur.p_accel;
 	NET_Last = cur;
+	// Build the model matrix from the facing (and strafe lean); without it
+	// the model kept its spawn orientation.
+	g_Orientate(mstate_real, Device.fTimeDelta);
 	netcoop::metric_puppet_frame(ID(), cur.p_pos, extrapolating);
 }
 

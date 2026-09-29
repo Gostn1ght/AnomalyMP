@@ -163,6 +163,9 @@ void server_list_accounts(xr_string& out);
 bool smooth();
 // How far behind the estimated server time a client shows remote objects.
 u32 remote_interp_delay();
+// Same, but at least 1.5 times the object's own last snapshot interval
+// (area of interest sends far objects less often).
+u32 remote_interp_delay(u32 last_interval);
 // Metrics, summarised in the log every 10 s.
 void metric_snapshot(u32 interval_ms);
 void metric_snapshot_duplicate();
@@ -170,5 +173,7 @@ void metric_puppet_frame(u16 id, const Fvector& pos, bool extrapolating);
 void metric_actor_error(float error, bool applied);
 void metric_owner_step_rejected(float step);
 void metric_weapon_fire(CWeapon* weapon);
+// Server: bytes of object updates sent this tick and objects serialised.
+void metric_server_sent(u32 bytes, u32 objects);
 void metrics_update();
 } // namespace netcoop

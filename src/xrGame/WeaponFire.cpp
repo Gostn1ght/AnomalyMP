@@ -67,6 +67,20 @@ void CWeapon::FireStart()
 
 void CWeapon::FireTrace(const Fvector& P, const Fvector& D)
 {
+	// Netcoop server: log a player's shots (origin, whether the owner's aim
+	// was used) to find out why player damage does not land.
+	if (netcoop::enabled() && OnServer() && H_Parent() && !H_Parent()->Local() && smart_cast<CActor*>(H_Parent()))
+	{
+		static u32 last_log = 0;
+		if (Device.dwTimeGlobal - last_log > 500)
+		{
+			last_log = Device.dwTimeGlobal;
+			Fvector aim_pos, aim_dir;
+			const bool aim = netcoop_aim(aim_pos, aim_dir);
+			Msg("[NetAnomaly][shot] player %s %s from %.1f,%.1f,%.1f dir %.2f,%.2f,%.2f owner aim %s",
+			    H_Parent()->cName().c_str(), cNameSect().c_str(), P.x, P.y, P.z, D.x, D.y, D.z, aim ? "used" : "missing");
+		}
+	}
 	// Netcoop: the server fires the player's weapon too; tell it where this
 	// shot really starts and points (the server Actor has no camera).
 	if (netcoop::pure_client() && ParentIsActor() && H_Parent() && H_Parent()->Local() && _valid(P) && _valid(D))

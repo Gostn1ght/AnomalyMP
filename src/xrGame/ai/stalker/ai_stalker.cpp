@@ -1286,7 +1286,8 @@ void CAI_Stalker::shedule_Update(u32 DT)
 			//		Msg				("[%6d][SH][%s]",Device.dwTimeGlobal,*cName());
 			// Queue shrink
 			VERIFY(_valid(Position()));
-			u32 dwTimeCL = Level().timeServer() - netcoop::remote_interp_delay();
+			const u32 last_interval = NET.size() >= 2 ? NET.back().dwTimeStamp - NET[NET.size() - 2].dwTimeStamp : 0;
+			u32 dwTimeCL = Level().timeServer() - netcoop::remote_interp_delay(last_interval);
 			VERIFY(!NET.empty());
 			while ((NET.size() > 2) && (NET[1].dwTimeStamp < dwTimeCL)) NET.pop_front();
 
