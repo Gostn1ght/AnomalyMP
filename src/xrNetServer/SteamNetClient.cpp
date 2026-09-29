@@ -5,11 +5,37 @@
 
 SteamNetClient* s_pCallbackInstance = nullptr;
 
+// NetAnomaly: several clients in one process (load-test bots). Callbacks are
+// routed by connection handle; the last created client is the fallback for
+// the moment between ConnectByIPAddress and registration.
+static xrCriticalSection s_client_registry_lock;
+static xr_map<HSteamNetConnection, SteamNetClient*> s_client_registry;
+static LONG s_client_library_refs = 0;
+bool g_steamnet_server_running = false;
+
+static void client_registry_set(HSteamNetConnection h, SteamNetClient* c)
+{
+	xrCriticalSection::raii lock(&s_client_registry_lock);
+	if (c)
+		s_client_registry[h] = c;
+	else
+		s_client_registry.erase(h);
+}
+
 void ClSteamNetConnectionStatusChangedCallback(SteamNetConnectionStatusChangedCallback_t *pInfo)
 {
-	if (s_pCallbackInstance)
+	SteamNetClient* target = nullptr;
 	{
-		s_pCallbackInstance->OnSteamNetConnectionStatusChanged(pInfo);
+		xrCriticalSection::raii lock(&s_client_registry_lock);
+		auto it = s_client_registry.find(pInfo->m_hConn);
+		if (it != s_client_registry.end())
+			target = it->second;
+	}
+	if (!target)
+		target = s_pCallbackInstance;
+	if (target)
+	{
+		target->OnSteamNetConnectionStatusChanged(pInfo);
 	}
 }
 
@@ -52,7 +78,13 @@ bool SteamNetClient::CreateConnection(ClientConnectionOptions & connectOpt)
 	m_bWasConnected = false;
 	m_pInterface = SteamNetworkingSockets();
 
-	if (m_pInterface != nullptr)
+	if (m_pInterface != nullptr && !g_steamnet_server_running)
+	{
+		// Another client of this process (bots) already started the library.
+		InterlockedIncrement(&s_client_library_refs);
+		m_bServerClient = false;
+	}
+	else if (m_pInterface != nullptr)
 	{
 		// server client
 		SteamNetworkingIdentity identity;
@@ -84,6 +116,7 @@ bool SteamNetClient::CreateConnection(ClientConnectionOptions & connectOpt)
 			Msg("! [SteamNetClient] Server interface is NULL");
 			return false;
 		}
+		InterlockedIncrement(&s_client_library_refs);
 	}
 
 	SteamNetworkingIPAddr serverAddr;
@@ -124,6 +157,7 @@ bool SteamNetClient::CreateConnection(ClientConnectionOptions & connectOpt)
 		Msg("! [SteamNetClient] Failed to create connection");
 		return false;
 	}
+	client_registry_set(m_hConnection, this);
 
 	m_user_name = connectOpt.user_name;
 	m_user_pass = connectOpt.user_pass;
@@ -156,6 +190,7 @@ void SteamNetClient::DestroyConnection()
 
 		if (m_hConnection != k_HSteamNetConnection_Invalid)
 		{
+			client_registry_set(m_hConnection, nullptr);
 			m_pInterface->CloseConnection(m_hConnection, 0, nullptr, false);
 			m_hConnection = k_HSteamNetConnection_Invalid;
 		}
@@ -181,7 +216,7 @@ void SteamNetClient::DestroyConnection()
 	}
 
 	// if no server client
-	if (had_interface && !m_bServerClient)
+	if (had_interface && !m_bServerClient && InterlockedDecrement(&s_client_library_refs) == 0)
 	{
 		//	Гасить сетевую библиотеку можно только после выхода потока: иначе
 		//	он продолжит звать её функции по снесённым внутренним структурам.

@@ -6,6 +6,7 @@
 // -----------------------------------------------------------------------------
 
 SteamNetServer* s_pCallbackInstance = nullptr;
+extern bool g_steamnet_server_running; // SteamNetClient.cpp
 
 void SvSteamNetConnectionStatusChangedCallback(SteamNetConnectionStatusChangedCallback_t* pInfo)
 {
@@ -73,6 +74,7 @@ bool SteamNetServer::CreateConnection(GameDescriptionData& game_descr, ServerCon
 	}
 
 	m_pInterface = SteamNetworkingSockets();
+	g_steamnet_server_running = true;
 
 	if (m_pInterface == NULL)
 	{
@@ -132,6 +134,7 @@ void SteamNetServer::DestroyConnection()
 	xrCriticalSection::raii lock(&csConnection);
 
 	m_server_password.clear();
+	g_steamnet_server_running = false;
 
 	if (m_pInterface == nullptr)
 	{
