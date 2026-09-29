@@ -251,9 +251,12 @@ void CFlashlight::OnStateSwitch(u32 S, u32 oldState)
 	{
 		CHudItemObject::OnStateSwitch(S, oldState);
 
-		g_player_hud->attach_item(this);
-
-		m_sounds.PlaySound("sndShow", Fvector().set(0, 0, 0), this, true, false);
+		// Netcoop: another player's hand torch stays out of this client's hands.
+		if (ParentIsActor())
+		{
+			g_player_hud->attach_item(this);
+			m_sounds.PlaySound("sndShow", Fvector().set(0, 0, 0), this, true, false);
+		}
 
 		bool need_zoom = false;
 		attachable_hud_item* i0 = g_player_hud->attached_item(0);

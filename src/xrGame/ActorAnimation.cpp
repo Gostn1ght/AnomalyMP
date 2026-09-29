@@ -6,6 +6,7 @@
 #include "inventory.h"
 #include "missile.h"
 #include "level.h"
+#include "netcoop.h"
 #ifdef DEBUG
 #include "PHDebug.h"
 #include "ui_base.h"
@@ -524,7 +525,23 @@ void CActor::g_SetAnimation(u32 mstate_rl)
 								break;
 							case CWeapon::eReload:
 								if (!R3)
+								{
 									M_torso = TW->reload;
+									// Netcoop: another player's reload plays once per
+									// reload; then the torso holds the weapon.
+									if (netcoop::pure_client() && Remote())
+									{
+										const u32 serial = W->GetStateSerial();
+										if (m_netcoop_reload_done_serial == serial)
+											M_torso = TW->moving[moving_idx];
+										else if (m_current_torso == TW->reload && m_current_torso_blend &&
+											m_current_torso_blend->timeCurrent + Device.fTimeDelta >= m_current_torso_blend->timeTotal)
+										{
+											m_netcoop_reload_done_serial = serial;
+											M_torso = TW->moving[moving_idx];
+										}
+									}
+								}
 								else
 								{
 									CWeapon::EWeaponSubStates sub_st = W->GetReloadState();

@@ -71,8 +71,12 @@ public:
 	{
 		m_hud_item_state = v;
 		m_dw_curr_state_time = Device.dwTimeGlobal;
+		++m_state_serial;
 		ResetSubStateTime();
 	}
+	// Counts state entries (another player's reload is shown once per entry).
+	IC u32 GetStateSerial() const { return m_state_serial; }
+	u32 m_state_serial = 0;
 
 	IC void SetNextState(u32 v) { m_nextState = v; }
 	IC u32 CurrStateTime() const { return Device.dwTimeGlobal - m_dw_curr_state_time; }

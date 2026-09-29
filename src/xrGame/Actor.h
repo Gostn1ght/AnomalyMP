@@ -602,6 +602,9 @@ public:
 	Fvector m_netcoop_shown_error;
 	u32 m_netcoop_shown_stamp = 0;
 	bool m_netcoop_shown_valid = false;
+	// Another player's reload: the torso animation played for this state
+	// entry of the weapon (it looped the start while the reload lasted).
+	u32 m_netcoop_reload_done_serial = 0;
 	float m_netcoop_shown_model_yaw = 0.f;
 	SRotation m_netcoop_shown_torso;
 	

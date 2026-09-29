@@ -132,12 +132,16 @@ void CCustomDevice::OnStateSwitch(u32 S, u32 oldState)
 	{
 	case eShowing:
 	{
-		g_player_hud->attach_item(this);
+		// Netcoop: another player's detector showing must not land in this
+		// client's hands (ParentIsActor = this client's own Actor there).
+		if (ParentIsActor())
+			g_player_hud->attach_item(this);
 
 		if (!IsUsingCondition() || (m_CustomDeviceEnabled && IsUsingCondition() && GetCondition() >= m_fLowestBatteryCharge))
 			TurnDeviceInternal(true);
 
-		m_sounds.PlaySound("sndShow", Fvector().set(0, 0, 0), this, true, false);
+		if (ParentIsActor())
+			m_sounds.PlaySound("sndShow", Fvector().set(0, 0, 0), this, true, false);
 
 		attachable_hud_item* i0 = g_player_hud->attached_item(0);
 		if (m_bCanBeZoomed && i0)
@@ -160,7 +164,8 @@ void CCustomDevice::OnStateSwitch(u32 S, u32 oldState)
 	{
 		if (oldState != eHiding)
 		{
-			m_sounds.PlaySound("sndHide", Fvector().set(0, 0, 0), this, true, false);
+			if (ParentIsActor())
+				m_sounds.PlaySound("sndHide", Fvector().set(0, 0, 0), this, true, false);
 
 			m_fZoomfactor > .5f && (oldState == eIdleZoom || oldState == eIdleZoomIn || oldState == eIdleZoomOut || oldState == eShowing) && HudAnimationExist(m_bFastAnimMode ? "anm_zoom_hide_fast" : "anm_zoom_hide")
 				? PlayHUDMotion(m_bFastAnimMode ? "anm_zoom_hide_fast" : "anm_zoom_hide", TRUE, this, GetState()) 
