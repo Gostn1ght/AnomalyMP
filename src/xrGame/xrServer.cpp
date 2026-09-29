@@ -421,6 +421,7 @@ void xrServer::SendUpdatesAOI()
 		u32 offset;
 		u16 size;
 		u16 id;
+		bool player;
 		Fvector position;
 	};
 	static xr_vector<u8> data;
@@ -456,6 +457,9 @@ void xrServer::SendUpdatesAOI()
 		c.offset = u32(data.size());
 		c.size = u16(tmp.B.count);
 		c.id = Test.ID;
+		// Other players are few and watched closely: they are sent every
+		// tick up to 300 m, every 2nd tick beyond (NPCs: 50/150/300 m tiers).
+		c.player = Test.owner != GetServerClient() && smart_cast<CSE_ALifeCreatureActor*>(&Test) != NULL;
 		c.position = root->o_Position;
 		data.insert(data.end(), tmp.B.data, tmp.B.data + tmp.B.count);
 		chunks.push_back(c);
@@ -480,7 +484,7 @@ void xrServer::SendUpdatesAOI()
 			{
 				const Chunk& c = chunks[i];
 				const float d = c.id == CL->owner->ID ? 0.f : eye.distance_to(c.position);
-				const u32 every = d < 50.f ? 1 : d < 150.f ? 2 : d < 300.f ? 4 : 16;
+				const u32 every = c.player ? (d < 300.f ? 1 : 2) : d < 50.f ? 1 : d < 150.f ? 2 : d < 300.f ? 4 : 16;
 				if ((server->m_aoi_tick + c.id) % every)
 					continue;
 				if (P.B.count + c.size > packet_limit)
