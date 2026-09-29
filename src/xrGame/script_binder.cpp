@@ -17,6 +17,7 @@
 #include "script_game_object.h"
 #include "gameobject.h"
 #include "level.h"
+#include "inventory_item.h"
 
 // comment next string when commiting
 //#define DBG_DISABLE_SCRIPTS
@@ -223,9 +224,14 @@ void CScriptBinder::set_object(CScriptBinderObject* object)
 	//netcoop: a pure client has no alife simulator, so NPC and remote-player binders stay
 	// disabled (the server runs their logic). The locally controlled Actor keeps its
 	// GAMMA binder: actor_on_update, time events, item-use and HUD animations run there.
+	// Items keep their binders too: GAMMA's torch, night vision, thermal
+	// vision and battery logic lives there (the torch did not light, s96);
+	// they update only while this client's Actor holds them.
 	CActor* netcoop_actor = smart_cast<CActor*>(this);
 	const bool netcoop_own_actor = netcoop_actor && netcoop_actor->Local();
-	if (strstr(Core.Params, "-netcoop") && !strstr(Core.Params, "server(") && !netcoop_own_actor)
+	CGameObject* netcoop_go = smart_cast<CGameObject*>(this);
+	const bool netcoop_item = netcoop_go && smart_cast<CInventoryItem*>(netcoop_go);
+	if (strstr(Core.Params, "-netcoop") && !strstr(Core.Params, "server(") && !netcoop_own_actor && !netcoop_item)
 	{
 		static bool s_netcoop_bind_logged = false;
 		if (!s_netcoop_bind_logged)
@@ -262,6 +268,10 @@ void CScriptBinder::shedule_Update(u32 time_delta)
 	const bool netcoop_npc = netcoop::enabled() && g_pGameLevel && Level().Server &&
 		netcoop_object && !smart_cast<CActor*>(netcoop_object);
 	if (netcoop_npc && !netcoop::server_bind_nearest_actor(netcoop_object))
+		return;
+	// Netcoop client: an item's script runs only while its own Actor holds it.
+	if (netcoop::pure_client() && netcoop_object && !smart_cast<CActor*>(netcoop_object) &&
+		(!netcoop_object->H_Root() || netcoop_object->H_Root() != Level().CurrentControlEntity()))
 		return;
 
 	try
