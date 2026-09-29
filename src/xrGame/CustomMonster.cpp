@@ -506,6 +506,21 @@ void CCustomMonster::UpdateCL()
 				// BAD.	extrapolation
 				NET_Last = N;
 				netcoop_extrapolating = true;
+				// A netcoop puppet continues along its last velocity for a
+				// short while instead of stopping and then jumping.
+				if (Remote() && netcoop::pure_client() && NET.size() >= 2 && dwTime > N.dwTimeStamp)
+				{
+					const net_update& A = NET[NET.size() - 2];
+					const u32 span = N.dwTimeStamp - A.dwTimeStamp;
+					const u32 ahead = _min(dwTime - N.dwTimeStamp, 200u);
+					if (span > 0 && span < 1000)
+					{
+						Fvector velocity;
+						velocity.sub(N.p_pos, A.p_pos).div(float(span));
+						if (velocity.magnitude() < 0.012f) // below 12 m/s
+							NET_Last.p_pos.mad(N.p_pos, velocity, float(ahead));
+					}
+				}
 			}
 			else
 			{

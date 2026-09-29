@@ -2227,6 +2227,10 @@ bool smooth()
 // late snapshot still arrives before it is needed.
 static float s_snap_interval = 33.f;
 static float s_snap_jitter = 5.f;
+// Real-time length of this client's frames: snapshots are applied once a
+// frame, so an object's newest snapshot can be a frame older than it is.
+static float s_frame_ema = 33.f;
+static u32 s_frame_last = 0;
 
 namespace
 {
@@ -2297,7 +2301,11 @@ u32 remote_interp_delay(u32 last_interval)
 	const u32 base = remote_interp_delay();
 	if (!(pure_client() && g_netcoop_smooth))
 		return base;
-	return _max(base, _min(last_interval * 3 / 2, 800u));
+	// The object's own snapshot interval (far ones are sent less often) plus
+	// two client frames and a margin: s93 extrapolated 14-22 % of frames
+	// with 1.5 x interval at 40-60 ms client frames.
+	const u32 frames = u32(2.f * _min(s_frame_ema, 100.f));
+	return _max(base, _min(last_interval + frames + 30, 800u));
 }
 
 namespace
@@ -2456,6 +2464,10 @@ void metrics_update()
 	if (!enabled())
 		return;
 	const u32 dt = Device.dwTimeDelta;
+	const u32 real_now = real_time_ms();
+	if (s_frame_last && real_now > s_frame_last)
+		s_frame_ema += (float(_min(real_now - s_frame_last, 250u)) - s_frame_ema) * 0.05f;
+	s_frame_last = real_now;
 	++m.frames;
 	m.frame_ms_sum += dt;
 	m.frame_ms_max = _max(m.frame_ms_max, dt);
