@@ -9,6 +9,11 @@ XRNETSERVER_API ClientID BroadcastCID(0xffffffff);
 XRNETSERVER_API int psNET_ServerUpdate = 30; // FPS
 XRNETSERVER_API int psNET_ServerPending = 3;
 XRNETSERVER_API BOOL psNET_direct_connect = FALSE;
+// Client settings (both transports).
+XRNETSERVER_API Flags32	psNET_Flags = { 0 };
+XRNETSERVER_API int		psNET_ClientUpdate = 30;		// FPS
+XRNETSERVER_API int		psNET_ClientPending = 2;
+XRNETSERVER_API char	psNET_Name[32] = "Player";
 
 // -----------------------------------------------------------------------------
 

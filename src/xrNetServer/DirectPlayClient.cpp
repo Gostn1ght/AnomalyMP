@@ -12,10 +12,10 @@
 #include "dxerr.h"
 #pragma warning(pop)
 
-XRNETSERVER_API Flags32	psNET_Flags = { 0 };
-XRNETSERVER_API int		psNET_ClientUpdate = 30;		// FPS
-XRNETSERVER_API int		psNET_ClientPending = 2;
-XRNETSERVER_API char	psNET_Name[32] = "Player";
+
+
+
+
 
 //static	INetLog* pClNetLog = NULL;
 
