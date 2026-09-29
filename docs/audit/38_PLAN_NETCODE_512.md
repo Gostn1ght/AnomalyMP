@@ -117,3 +117,29 @@
   (`relation_registry` community goodwill к id игрока), ранг/репутация —
   на акторе игрока, изменения faction↔faction от действий игрока на
   сервере блокируются.
+
+## 8. Транспорт из Lost Zone / NEAREST-STAGE Engine (решение владельца, 2026-09-29)
+
+Владелец: для 32 игроков взять за основу сетевой код Lost Zone
+(`Desktop/Mahito/Lost-Zone`, форк NEAREST-STAGE Engine — open source,
+автор alistairfox / 0-Shaman-0, основан на X-Ray OMP). Этап 4 переносится
+вперёд. Что берём:
+
+- `xrNetServer`: абстракция `BaseServer`/`BaseClient` с реализациями
+  `SteamNetServer`/`SteamNetClient` (Valve GameNetworkingSockets, BSD-3) и
+  `DirectPlayServer`/`DirectPlayClient` (запасной вариант), выбор
+  `NET_SERVER_CLASS`/`NET_CLIENT_CLASS`; `xrServer`/`CLevel` наследуют их.
+- Библиотека: `SDK/include/GameNetworkingSockets`, `GameNetworkingSockets.lib`,
+  рядом с exe `GameNetworkingSockets.dll`, `libprotobuf.dll`, `libcrypto-3-x64.dll`.
+
+Что не берём: NPC-синхронизацию (в Lost Zone её нет, PvP-движок) — наша
+(этап 1) остаётся. Синхронизация игрока OMP (`actor_mp_state`) — сравнить с
+нашей после переноса транспорта.
+
+Наши правки поверх их слоя: порты 1024–65535 и `-netport`, сеть при
+`/single` в netcoop, `GammaNetPolicy` (лимит игроков, проверка пакета актора),
+`HasSendQueueRoom`, M1 input ACK.
+
+Порядок: ветка `netcoop-steamnet` (CI собирает её отдельно) → сборка →
+тест 2 клиентов → слияние в `all-in-one-vs2022-wpo`. Авторство указать в
+README и в заголовках перенесённых файлов.
