@@ -94,6 +94,11 @@ bool SteamNetServer::CreateConnection(GameDescriptionData& game_descr, ServerCon
 	opt.SetPtr(k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged, (void*)SvSteamNetConnectionStatusChangedCallback);
 
 	SteamNetworkingUtils()->SetGlobalConfigValueInt32(k_ESteamNetworkingConfig_SendBufferSize, 8256 * 8256);
+	// NetAnomaly: world snapshots for many players need more than the
+	// library's default rate; the snapshot sender itself skips a client
+	// whose queue is late (HasSendQueueRoom).
+	SteamNetworkingUtils()->SetGlobalConfigValueInt32(k_ESteamNetworkingConfig_SendRateMin, 512 * 1024);
+	SteamNetworkingUtils()->SetGlobalConfigValueInt32(k_ESteamNetworkingConfig_SendRateMax, 4 * 1024 * 1024);
 
 	// CREATE LISTENER
 	// То же самое, что на клиенте: экземпляр маршрутизации должен существовать
@@ -528,6 +533,17 @@ bool SteamNetServer::GetClientAddress(ClientID ID, ip_address& address, DWORD* p
 #pragma endregion
 
 // -----------------------------------------------------------------------------
+
+bool SteamNetServer::GetClientSendQueueTime(ClientID ID, u32& ms)
+{
+	if (!m_pInterface)
+		return false;
+	SteamNetConnectionRealTimeStatus_t status;
+	if (!m_pInterface->GetConnectionRealTimeStatus(ID.value(), &status, 0, 0))
+		return false;
+	ms = status.m_usecQueueTime > 0 ? u32(status.m_usecQueueTime / 1000) : 0;
+	return true;
+}
 
 bool SteamNetServer::GetClientPendingMessagesCount(ClientID ID, DWORD& dwPending)
 {

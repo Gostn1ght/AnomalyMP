@@ -68,6 +68,7 @@ protected:
 	virtual void			DestroyConnection() override;
 
 	virtual bool      GetClientPendingMessagesCount(ClientID ID, DWORD& dwPending) override;
+	virtual bool      GetClientSendQueueTime(ClientID ID, u32& ms) override;
 
 	virtual void			_SendTo_LL(ClientID ID, void* data, u32 size, u32 dwFlags = DPNSEND_GUARANTEED, u32 dwTimeout = 0) override;
 

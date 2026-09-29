@@ -322,6 +322,8 @@ void _stdcall xrServer::SendGameUpdateTo(IClient* client)
 	// and drops the snapshot while more than 3 messages are queued, which a
 	// single tick of update packets exceeds.
 	const bool has_room = netcoop::smooth() ? !!HasSendQueueRoom(client, 64) : !!HasBandwidth(client);
+	if (!has_room && client != GetServerClient())
+		netcoop::metric_snapshot_blocked();
 	if (!has_room
 #ifdef DEBUG
 			&& !g_sv_SendUpdate

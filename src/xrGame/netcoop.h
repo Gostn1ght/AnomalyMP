@@ -194,6 +194,8 @@ void metric_owner_step_rejected(float step);
 void metric_weapon_fire(CWeapon* weapon);
 // Server: bytes of object updates sent this tick and objects serialised.
 void metric_server_sent(u32 bytes, u32 objects);
+// Server: a client's snapshot skipped because its send queue was late.
+void metric_snapshot_blocked();
 void metrics_update();
 
 // Load test: bots connect to a server as players and walk (netcoop_bots.cpp).

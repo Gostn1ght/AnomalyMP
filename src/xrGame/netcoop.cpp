@@ -2316,6 +2316,7 @@ struct Metrics
 	float owner_reject_max;
 	u32 shots;
 	u32 sv_bytes, sv_ticks, sv_objects;
+	u32 sv_blocked;
 };
 Metrics m;
 u32 next_print = 0;
@@ -2386,6 +2387,11 @@ void metric_actor_error(float error, bool applied)
 	m.err_max = _max(m.err_max, error);
 	if (applied)
 		++m.fixes;
+}
+
+void metric_snapshot_blocked()
+{
+	++m.sv_blocked;
 }
 
 void metric_server_sent(u32 bytes, u32 objects)
@@ -2475,13 +2481,13 @@ void metrics_update()
 		Msg("[NetAnomaly][metrics] %s smooth=%d delay=%u | frame avg %.1f max %u >33ms %u >100ms %u"
 		    " | snaps %u avg %.0f max %u >100ms %u dup %u | puppets %u extrap %.1f%% jumps %u max %.2f"
 		    " | actor acks %u fixes %u err avg %.2f max %.2f | owner rejects %u max %.1f | shots %u"
-		    " | sent %.1f KB/s objects %u",
+		    " | sent %.1f KB/s objects %u blocked %u",
 		    pure_client() ? "client" : "server", g_netcoop_smooth, remote_interp_delay(),
 		    m.frames ? float(m.frame_ms_sum) / m.frames : 0.f, m.frame_ms_max, m.frames_over_33, m.frames_over_100,
 		    m.snaps, m.snaps ? float(m.snap_ms_sum) / m.snaps : 0.f, m.snap_ms_max, m.snaps_over_100, m.dups,
 		    m.puppet_frames, m.puppet_frames ? 100.f * m.extrap_frames / m.puppet_frames : 0.f, m.jumps, m.jump_max,
 		    m.acks, m.fixes, m.acks ? m.err_sum / m.acks : 0.f, m.err_max, m.owner_rejects, m.owner_reject_max,
-		    m.shots, m.sv_bytes / 1024.f / 10.f, m.sv_objects);
+		    m.shots, m.sv_bytes / 1024.f / 10.f, m.sv_objects, m.sv_blocked);
 	}
 	ZeroMemory(&m, sizeof(m));
 	if (puppets.size() > 4096)

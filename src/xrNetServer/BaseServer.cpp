@@ -553,6 +553,20 @@ bool BaseServer::HasSendQueueRoom(IClient* C, u32 max_pending)
 {
 	if (psNET_direct_connect)
 		return true;
+	// SteamNet reports pending bytes, not messages: compared with a message
+	// limit, any 64 bytes of reliable data blocked a client's snapshots for
+	// seconds (s92: gaps of 7-10 s). Use the send queue time instead.
+	u32 queue_ms;
+	if (GetClientSendQueueTime(C->ID, queue_ms))
+	{
+		if (queue_ms > 100)
+		{
+			C->stats.dwTimesBlocked++;
+			return false;
+		}
+		C->dwTime_LastUpdate = TimeGlobal(device_timer);
+		return true;
+	}
 	DWORD dwPending;
 	if (!GetClientPendingMessagesCount(C->ID.value(), dwPending))
 		return false;

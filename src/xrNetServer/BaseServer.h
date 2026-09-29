@@ -103,6 +103,9 @@ protected:
 	virtual void			  DestroyConnection() = 0;
 
 	virtual bool        GetClientPendingMessagesCount(ClientID ID, DWORD& dwPending) = 0;
+	// How long a message sent now would wait in the client's send queue, ms.
+	// False when the transport cannot tell (then the message count is used).
+	virtual bool        GetClientSendQueueTime(ClientID ID, u32& ms) { return false; }
 
 	virtual void			  _Recieve(const void* data, u32 data_size, u32 param) override;
 	virtual void			  _SendTo_LL(ClientID ID, void* data, u32 size, u32 dwFlags = DPNSEND_GUARANTEED, u32 dwTimeout = 0) = 0;
