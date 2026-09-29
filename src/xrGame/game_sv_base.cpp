@@ -820,6 +820,8 @@ void game_sv_GameState::OnEvent(NET_Packet& tNetPacket, u16 type, u32 time, Clie
 			          ).c_str()
 			);
 			// Netcoop: no player state, world data or Actor before account login.
+			if (netcoop::server_defer_player_state(CL, tNetPacket))
+				break; // re-queued when the login check finishes
 			if (netcoop::server_requires_login(m_server, CL))
 			{
 				Msg("! [NetAnomaly] client 0x%08x did not log in, disconnecting", sender.value());

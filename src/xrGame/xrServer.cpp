@@ -246,6 +246,7 @@ void xrServer::Update()
 	VERIFY(verify_entities());
 #endif
 	netcoop_process_packets();
+	netcoop::server_auth_update(this);
 	ProceedDelayedPackets();
 	// game update
 	game->ProcessDelayedEvent();

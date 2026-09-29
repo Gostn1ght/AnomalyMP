@@ -602,12 +602,45 @@ static void reject(xrServer* server, xrClientData* CL, LPCSTR message)
 	server->DisconnectClient(CL, reason);
 }
 
+// The server's PBKDF2 (60000 rounds) took ~100 ms of a frame for every
+// login; with many players joining the world stuttered for everyone. It runs
+// on a worker thread; the result is applied on the main thread by
+// server_auth_update, and the client's player state waits for it.
+struct PendingAuth
+{
+	ClientID client;
+	xr_string login;
+	xr_string key;
+	xr_string salt;
+	bool create;
+	xr_string hash;
+	bool hashed;
+	volatile LONG done;
+	NET_Packet* player_state; // M_CREATE_PLAYER_STATE that arrived meanwhile
+};
+static xr_vector<PendingAuth*> s_pending_auth;
+
+static void auth_worker(void* data)
+{
+	PendingAuth* pending = static_cast<PendingAuth*>(data);
+	pending->hashed = server_hash(pending->key.c_str(), pending->salt, pending->hash);
+	InterlockedExchange(&pending->done, 1);
+}
+
+static PendingAuth* pending_auth_of(ClientID id)
+{
+	for (PendingAuth* pending : s_pending_auth)
+		if (pending->client == id)
+			return pending;
+	return NULL;
+}
+
 void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
 {
 	if (!enabled() || !CL || CL->flags.bLocal || CL == server->GetServerClient())
 		return;
-	if (CL->netcoop_role != role_none)
-		return; // already authenticated on this connection
+	if (CL->netcoop_role != role_none || pending_auth_of(CL->ID))
+		return; // already authenticated or being checked on this connection
 
 	if (P.r_elapsed() < 1)
 	{
@@ -634,8 +667,77 @@ void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
 		return;
 	}
 
+	PendingAuth* pending = xr_new<PendingAuth>();
+	pending->client = CL->ID;
+	pending->login = login;
+	pending->key = key;
+	pending->hashed = false;
+	pending->done = 0;
+	pending->player_state = NULL;
+
 	Account* a = account_find(login);
-	if (mode == auth_register || (mode == auth_auto && !a))
+	pending->create = mode == auth_register || (mode == auth_auto && !a);
+	if (pending->create)
+	{
+		if (a)
+		{
+			xr_delete(pending);
+			reject(server, CL, "Account already exists, use Login");
+			return;
+		}
+		u8 salt[salt_bytes];
+		if (!random_bytes(salt, salt_bytes))
+		{
+			xr_delete(pending);
+			reject(server, CL, "Server error: no random source");
+			return;
+		}
+		pending->salt = to_hex(salt, salt_bytes);
+	}
+	else
+	{
+		if (!a)
+		{
+			xr_delete(pending);
+			reject(server, CL, "Unknown account, use Register");
+			return;
+		}
+		const u32 now = GetTickCount();
+		if (a->locked_until && now < a->locked_until)
+		{
+			xr_delete(pending);
+			reject(server, CL, "Too many failed logins, try again in a minute");
+			return;
+		}
+		pending->salt = a->salt;
+	}
+	s_pending_auth.push_back(pending);
+	thread_spawn(auth_worker, "netcoop-auth", 0, pending);
+}
+
+static void finish_auth(xrServer* server, PendingAuth* pending)
+{
+	xrClientData* CL = static_cast<xrClientData*>(server->ID_to_client(pending->client));
+	if (!CL)
+		return; // disconnected meanwhile
+
+	LoginInUse in_use;
+	in_use.login = pending->login;
+	to_lower(in_use.login);
+	in_use.self = CL;
+	if (server->FindClient(in_use))
+	{
+		reject(server, CL, "This account is already online");
+		return;
+	}
+	if (!pending->hashed)
+	{
+		reject(server, CL, "Server error: cannot hash password");
+		return;
+	}
+
+	Account* a = account_find(pending->login.c_str());
+	if (pending->create)
 	{
 		if (a)
 		{
@@ -643,20 +745,10 @@ void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
 			return;
 		}
 		Account created;
-		created.login = login;
+		created.login = pending->login;
 		created.role = role_player; // only the server console grants admin
-		u8 salt[salt_bytes];
-		if (!random_bytes(salt, salt_bytes))
-		{
-			reject(server, CL, "Server error: no random source");
-			return;
-		}
-		created.salt = to_hex(salt, salt_bytes);
-		if (!server_hash(key, created.salt, created.hash))
-		{
-			reject(server, CL, "Server error: cannot hash password");
-			return;
-		}
+		created.salt = pending->salt;
+		created.hash = pending->hash;
 		created.has_money = false;
 		created.money = 0;
 		created.failures = 0;
@@ -665,28 +757,21 @@ void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
 		s_accounts_dirty = true;
 		accounts_save();
 		a = &s_accounts[in_use.login];
-		Msg("[NetAnomaly] account '%s' registered", login);
+		Msg("[NetAnomaly] account '%s' registered", pending->login.c_str());
 	}
 	else
 	{
-		if (!a)
+		if (!a || a->salt != pending->salt)
 		{
 			reject(server, CL, "Unknown account, use Register");
 			return;
 		}
-		const u32 now = GetTickCount();
-		if (a->locked_until && now < a->locked_until)
-		{
-			reject(server, CL, "Too many failed logins, try again in a minute");
-			return;
-		}
-		xr_string hash;
-		if (!server_hash(key, a->salt, hash) || !constant_time_equal(hash, a->hash))
+		if (!constant_time_equal(pending->hash, a->hash))
 		{
 			if (++a->failures >= 5)
 			{
 				a->failures = 0;
-				a->locked_until = now + 60000;
+				a->locked_until = GetTickCount() + 60000;
 			}
 			reject(server, CL, "Wrong password");
 			return;
@@ -703,6 +788,38 @@ void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
 	xr_sprintf(message, "Logged in as %s (%s)", a->login.c_str(), role_name(a->role));
 	Msg("[NetAnomaly] client 0x%08x %s", CL->ID.value(), message);
 	send_auth_result(server, CL, true, a->role, message);
+
+	if (pending->player_state)
+		server->game->AddDelayedEvent(*pending->player_state, GAME_EVENT_CREATE_PLAYER_STATE, 0, CL->ID);
+}
+
+void server_auth_update(xrServer* server)
+{
+	for (u32 i = 0; i < s_pending_auth.size();)
+	{
+		PendingAuth* pending = s_pending_auth[i];
+		if (!InterlockedCompareExchange(&pending->done, 0, 0))
+		{
+			++i;
+			continue;
+		}
+		s_pending_auth.erase(s_pending_auth.begin() + i);
+		finish_auth(server, pending);
+		SecureZeroMemory(&pending->key[0], pending->key.size());
+		xr_delete(pending->player_state);
+		xr_delete(pending);
+	}
+}
+
+bool server_defer_player_state(xrClientData* CL, NET_Packet& P)
+{
+	PendingAuth* pending = CL ? pending_auth_of(CL->ID) : NULL;
+	if (!pending)
+		return false;
+	if (!pending->player_state)
+		pending->player_state = xr_new<NET_Packet>();
+	CopyMemory(pending->player_state, &P, sizeof(NET_Packet));
+	return true;
 }
 
 bool server_requires_login(xrServer* server, xrClientData* CL)

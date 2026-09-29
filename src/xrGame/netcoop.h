@@ -111,6 +111,10 @@ bool script_pure_client();
 
 // ---- server ------------------------------------------------------------
 void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P);
+// Every frame: applies logins whose password hash finished on a worker.
+void server_auth_update(xrServer* server);
+// True (and the packet kept) while the client's login is being checked.
+bool server_defer_player_state(xrClientData* CL, NET_Packet& P);
 bool server_requires_login(xrServer* server, xrClientData* CL);
 void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P);
 // Remote clients may not change money, other players' inventories or living
