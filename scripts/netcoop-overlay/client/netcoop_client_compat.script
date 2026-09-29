@@ -324,6 +324,7 @@ end
 -- World state from the server (netcoop_broadcast on the server)
 ----------------------------------------------------------------------
 local server_weather = nil
+local applied_actual = nil -- level.get_weather() right after applying it
 local applying_server_weather = false
 local engine_set_weather = nil
 
@@ -364,7 +365,10 @@ local function use_server_weather(data)
 	if not name or name == "" then return end
 	local first = server_weather == nil
 	local current = level.get_weather and level.get_weather() or nil
-	if not first and name == current and forced ~= "1" then return end
+	-- Re-applying the same weather restarted it (rain sound cut on and off
+	-- every broadcast): apply only a new weather, or when something changed
+	-- the weather locally since.
+	if not first and forced ~= "1" and name == server_weather and current == applied_actual then return end
 	server_weather = name
 	local wm = level_weathers and level_weathers.get_weather_manager()
 	if wm then
@@ -375,6 +379,7 @@ local function use_server_weather(data)
 	local setter = engine_set_weather or level.set_weather
 	pcall(setter, name, first or forced == "1")
 	applying_server_weather = false
+	applied_actual = level.get_weather and level.get_weather() or name
 	printf("[NetAnomaly] server weather: %s%s", name, (first or forced == "1") and " (now)" or "")
 end
 

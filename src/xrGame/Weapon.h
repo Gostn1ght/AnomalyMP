@@ -61,6 +61,11 @@ public:
 	Fvector m_netcoop_aim_pos;
 	Fvector m_netcoop_aim_dir;
 	u32 m_netcoop_aim_time = 0;
+	u32 m_netcoop_last_shot = 0;
+public:
+	// Netcoop: a copy of another player's weapon (on the server or another
+	// client) - it fires only shot by shot from the owner.
+	bool netcoop_player_copy();
 	bool netcoop_aim(Fvector& pos, Fvector& dir) const;
 
 	// Generic

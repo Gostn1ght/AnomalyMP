@@ -11,6 +11,7 @@
 #include "WeaponAmmo.h"
 
 #include "actor.h"
+#include "netcoop.h"
 #include "spectator.h"
 #include "game_cl_base.h"
 #include "level.h"
@@ -449,6 +450,11 @@ void CShootingObject::RenderLight()
 
 bool CShootingObject::SendHitAllowed(CObject* pUser)
 {
+	// Netcoop: only the server's bullets hurt (NPCs' and players' alike);
+	// the server refused players' bullets as not its own Actor's, so players
+	// could not hurt anyone. Clients' bullets are visual only.
+	if (netcoop::enabled())
+		return OnServer();
 	if (Game().IsServerControlHits())
 		return OnServer();
 

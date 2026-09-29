@@ -318,7 +318,7 @@ end
 local function server_world_tick()
 	local now = time_global()
 	if now < world_next then return end
-	world_next = now + 2000
+	world_next = now + 500 -- a weather change reaches everyone within ~0.5 s
 
 	local wm = level_weathers and level_weathers.get_weather_manager()
 	if not wm then return end

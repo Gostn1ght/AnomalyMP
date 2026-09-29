@@ -1173,6 +1173,15 @@ bool CWeapon::netcoop_aim(Fvector& pos, Fvector& dir) const
 	return true;
 }
 
+bool CWeapon::netcoop_player_copy()
+{
+	if (!netcoop::enabled() || !H_Parent() || !smart_cast<CActor*>(H_Parent()))
+		return false;
+	if (netcoop::pure_client())
+		return !netcoop::client_owns_hud_item(&CHudItem::object());
+	return netcoop::server_player_copy(H_Parent());
+}
+
 void CWeapon::OnEvent(NET_Packet& P, u16 type)
 {
 	switch (type)
@@ -1189,7 +1198,20 @@ void CWeapon::OnEvent(NET_Packet& P, u16 type)
 				m_netcoop_aim_pos.set(pos);
 				m_netcoop_aim_dir.set(dir).normalize();
 				m_netcoop_aim_time = Device.dwTimeGlobal;
+				// Netcoop server: exactly one shot per shot of the owner, along
+				// the owner's aim (the copy's own firing loop is off: it did
+				// not know the owner's fire mode and never stopped in time).
+				if (netcoop::server_player_copy(H_Parent()) && iAmmoElapsed > 0 && !m_magazine.empty() &&
+					Device.dwTimeGlobal - m_netcoop_last_shot >= 30)
+				{
+					m_netcoop_last_shot = Device.dwTimeGlobal;
+					FireTrace(m_netcoop_aim_pos, m_netcoop_aim_dir);
+				}
 			}
+			// Other clients: the owner fired once - its sound, flash and smoke.
+			else if (netcoop::pure_client() && H_Parent() && smart_cast<CActor*>(H_Parent()) &&
+				!netcoop::client_owns_hud_item(&CHudItem::object()))
+				OnShot();
 		}
 		break;
 	case GE_ADDON_CHANGE:
@@ -1226,16 +1248,10 @@ void CWeapon::OnEvent(NET_Packet& P, u16 type)
 			// event, but magazine weapons shoot only while 'working', which
 			// the trigger (FireStart) sets on the owner's client. Without it
 			// the server copy never fired a bullet and player damage was 0.
-			if (netcoop::server_player_copy(H_Parent()))
-			{
-				// Misfires are the owner's to decide.
-				if (state == eFire && bMisfire)
-					bMisfire = false;
-				if (state == eFire)
-					FireStart();
-				else if (IsWorking())
-					FireEnd();
-			}
+			// Copies of a player's weapon (server, other clients) never run
+			// their own firing loop: shots come one by one (GE_NETCOOP_WPN_AIM).
+			if (netcoop_player_copy() && IsWorking())
+				FireEnd();
 			// Netcoop diagnostics (player damage, reload seen by others):
 			// what a copy of a player's weapon does with the owner's state.
 			if (netcoop::enabled() && H_Parent() && smart_cast<CActor*>(H_Parent()))

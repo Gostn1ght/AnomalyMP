@@ -678,7 +678,8 @@ void CWeaponMagazined::UpdateCL()
 			break;
 		case eFire:
 			{
-				state_Fire(dt);
+				if (!netcoop_player_copy())
+					state_Fire(dt);
 			}
 			break;
 		//case eHidden: break; ???
