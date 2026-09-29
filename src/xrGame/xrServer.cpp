@@ -648,11 +648,12 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
     if (!CL) return 0;
     if (!CL->flags.bLocal && netcoop::enabled() && GetCurrentThreadId() != m_netcoop_main_thread)
     {
+        const u32 header[3] = {sender.value(), P.timeReceive, P.B.count};
         m_netcoop_packets_cs.Enter();
-        m_netcoop_packets.push_back(DelayedPacket());
-        DelayedPacket& queued = m_netcoop_packets.back();
-        queued.SenderID = sender;
-        CopyMemory(&queued.Packet, &P, sizeof(NET_Packet));
+        const size_t at = m_netcoop_packets.size();
+        m_netcoop_packets.resize(at + sizeof(header) + P.B.count);
+        CopyMemory(&m_netcoop_packets[at], header, sizeof(header));
+        CopyMemory(&m_netcoop_packets[at + sizeof(header)], P.B.data, P.B.count);
         m_netcoop_packets_cs.Leave();
         return 0;
     }
@@ -1369,19 +1370,53 @@ void xrServer::ProceedDelayedPackets()
 
 void xrServer::netcoop_process_packets()
 {
-	xr_deque<DelayedPacket> packets;
+	xr_vector<u8>& work = m_netcoop_packets_work;
+	work.clear();
 	m_netcoop_packets_cs.Enter();
-	packets.swap(m_netcoop_packets);
+	work.swap(m_netcoop_packets);
 	m_netcoop_packets_cs.Leave();
+	if (work.empty())
+		return;
 
-	for (DelayedPacket& queued : packets)
+	// Only a client's newest position update matters (they are unreliable
+	// and carry their own time); older ones in the same batch are skipped.
+	static xr_map<u32, size_t> newest_update;
+	newest_update.clear();
+	const size_t header = 3 * sizeof(u32);
+	for (size_t at = 0; at + header <= work.size();)
 	{
+		u32 h[3];
+		CopyMemory(h, &work[at], header);
+		if (h[2] >= sizeof(u16) && *(const u16*)&work[at + header] == M_CL_UPDATE)
+			newest_update[h[0]] = at;
+		at += header + h[2];
+	}
+
+	NET_Packet P;
+	for (size_t at = 0; at + header <= work.size();)
+	{
+		u32 h[3];
+		CopyMemory(h, &work[at], header);
+		const size_t record = at;
+		at += header + h[2];
+		if (h[2] > NET_PacketSizeLimit)
+			continue;
+		if (h[2] >= sizeof(u16) && *(const u16*)&work[record + header] == M_CL_UPDATE &&
+			newest_update[h[0]] != record)
+			continue;
+		ClientID sender;
+		sender.set(h[0]);
+		P.construct(&work[record + header], h[2]);
+		P.timeReceive = h[1];
 		csMessage.Enter();
-		u32 result = OnMessage(queued.Packet, queued.SenderID);
+		u32 result = OnMessage(P, sender);
 		csMessage.Leave();
 		if (result)
-			SendBroadcast(queued.SenderID, queued.Packet, result);
+			SendBroadcast(sender, P, result);
 	}
+	// Keep the buffers' capacity, but not a burst's worth forever.
+	if (work.capacity() > 4 * 1024 * 1024)
+		xr_vector<u8>().swap(work);
 }
 
 void xrServer::AddDelayedPacket(NET_Packet& Packet, ClientID Sender)

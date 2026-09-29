@@ -119,7 +119,12 @@ void xrServer::OnCL_Connected(IClient* _CL)
 	//csPlayers.Enter					();	//sychronized by a parent call
 	Export_game_type(CL);
 	Perform_game_export();
+	CTimer join_timer;
+	join_timer.Start();
 	SendConnectionData(CL);
+	if (strstr(Core.Params, "-netcoop"))
+		Msg("[NetAnomaly] connection data for 0x%08x: %u of %u objects in %u ms", CL->ID.value(),
+		    u32(conn_spawned_ids.size()), u32(entities.size()), join_timer.GetElapsed_ms());
 
 	VERIFY2(CL->ps, "Player state not created");
 	if (!CL->ps)

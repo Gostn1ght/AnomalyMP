@@ -25,9 +25,25 @@ namespace
 {
 const u32 bot_send_interval = 33; // ms, the player client's update rate
 const u32 bot_connect_timeout = 30000;
-const u32 bot_actor_timeout = 120000;
+const u32 bot_actor_timeout = 300000; // joining sends the whole world
 const float bot_speed = 3.f; // m/s, walking
 LPCSTR const bot_password = "netcoop-bot";
+
+// The engine's global timer is paused in the main menu, where the bots run:
+// their clock (server time estimate, send rate) uses a timer of their own.
+CTimer& bot_timer()
+{
+	static CTimer timer;
+	static bool started = false;
+	if (!started)
+	{
+		timer.Start();
+		started = true;
+	}
+	return timer;
+}
+
+u32 bot_now() { return bot_timer().GetElapsed_ms(); }
 
 class NetcoopBot : public IPureClient
 {
@@ -41,7 +57,7 @@ public:
 		st_failed,
 	};
 
-	NetcoopBot(u32 index) : IPureClient(Device.GetTimerGlobal()), m_index(index)
+	NetcoopBot(u32 index) : IPureClient(&bot_timer()), m_index(index)
 	{
 		xr_sprintf(m_login, "nbot_%03u", index);
 	}
@@ -55,7 +71,7 @@ public:
 		xr_strcpy(user_name, Core.UserName);
 		const bool ok = Connect(options);
 		xr_strcpy(Core.UserName, user_name);
-		m_state_time = Device.dwTimeGlobal;
+		m_state_time = bot_now();
 		if (!ok)
 			fail("cannot create the connection");
 		return ok;
@@ -70,6 +86,8 @@ public:
 
 	void update(u32 now)
 	{
+		if (m_state == st_failed && !m_stopped)
+			stop(); // outside the message queue lock
 		if (m_state == st_failed || m_stopped)
 			return;
 		if (m_state == st_connecting)
@@ -415,7 +433,7 @@ void bots_set(u32 count, LPCSTR address)
 		NetcoopBot* b = s_bots.back();
 		s_bots.pop_back();
 		b->stop();
-		s_dead.push_back({b, Device.dwTimeGlobal});
+		s_dead.push_back({b, bot_now()});
 	}
 	Msg("[NetAnomaly][bots] target %u bot(s) on %s", s_wanted, s_address);
 }
@@ -423,7 +441,7 @@ void bots_set(u32 count, LPCSTR address)
 void bots_frame()
 {
 	check_command_line();
-	const u32 now = Device.dwTimeGlobal;
+	const u32 now = bot_now();
 
 	for (u32 i = 0; i < s_dead.size();)
 	{

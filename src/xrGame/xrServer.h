@@ -160,10 +160,13 @@ private:
 	// NetAnomaly co-op: messages from remote clients arrive on the DirectPlay
 	// thread. Their handlers spawn objects and call Lua, which must run on the
 	// main thread with the rest of the simulation, so they are queued here and
-	// handled in Update.
+	// handled in Update. Records in one flat buffer (u32 sender, u32 receive
+	// time, u32 size, bytes): a queued NET_Packet copy is 16 KB, and with
+	// many players the copies and their frees took whole seconds a frame.
 	DWORD m_netcoop_main_thread;
 	xrCriticalSection m_netcoop_packets_cs;
-	xr_deque<DelayedPacket> m_netcoop_packets;
+	xr_vector<u8> m_netcoop_packets;
+	xr_vector<u8> m_netcoop_packets_work;
 	void netcoop_process_packets();
 
 	void SendUpdatesToAll();
