@@ -62,7 +62,7 @@ public:
 		xr_sprintf(m_login, "nbot_%03u", index);
 	}
 
-	bool start(LPCSTR address)
+	bool start(LPCSTR address, u32 now)
 	{
 		string512 options;
 		xr_sprintf(options, "%s/name=%s", address, m_login);
@@ -71,7 +71,7 @@ public:
 		xr_strcpy(user_name, Core.UserName);
 		const bool ok = Connect(options);
 		xr_strcpy(Core.UserName, user_name);
-		m_state_time = bot_now();
+		m_state_time = now; // the frame's time: later reads would be ahead of it
 		if (!ok)
 			fail("cannot create the connection");
 		return ok;
@@ -462,7 +462,7 @@ void bots_frame()
 		s_last_start = now;
 		NetcoopBot* b = xr_new<NetcoopBot>(u32(s_bots.size()) + 1);
 		s_bots.push_back(b);
-		b->start(s_address);
+		b->start(s_address, now);
 	}
 
 	for (NetcoopBot* b : s_bots)
