@@ -2136,6 +2136,8 @@ struct Metrics
 	u32 snaps, snap_ms_sum, snap_ms_max, snaps_over_100, dups;
 	u32 puppet_frames, extrap_frames, jumps;
 	float jump_max;
+	s64 lead_sum;
+	s32 lead_min, lead_max;
 	u32 acks, fixes;
 	float err_sum, err_max;
 	u32 owner_rejects;
@@ -2179,8 +2181,13 @@ void metric_snapshot_duplicate()
 
 // A jump is a frame step longer than a running NPC can cover (10 m/s) plus
 // 0.25 m: the object was teleported, not moved.
-void metric_puppet_frame(u16 id, const Fvector& pos, bool extrapolating)
+void metric_puppet_frame(u16 id, const Fvector& pos, bool extrapolating, s32 lead_ms)
 {
+	if (!m.puppet_frames || lead_ms < m.lead_min)
+		m.lead_min = lead_ms;
+	if (!m.puppet_frames || lead_ms > m.lead_max)
+		m.lead_max = lead_ms;
+	m.lead_sum += lead_ms;
 	++m.puppet_frames;
 	if (extrapolating)
 		++m.extrap_frames;
@@ -2288,8 +2295,11 @@ void metrics_update()
 	if (g_netcoop_metrics)
 	{
 		const float day_sec = g_pGameLevel ? Level().GetGameDayTimeSec() : 0.f;
-		Msg("[NetAnomaly][clock] %s game %02u:%02u factor %.1f", pure_client() ? "client" : "server",
-		    u32(day_sec / 3600.f) % 24, u32(day_sec / 60.f) % 60, g_pGameLevel ? Level().GetGameTimeFactor() : 0.f);
+		Msg("[NetAnomaly][clock] %s game %02u:%02u factor %.1f | net delta %d ms ping %u ms | snapshot lead avg %d min %d max %d ms",
+		    pure_client() ? "client" : "server", u32(day_sec / 3600.f) % 24, u32(day_sec / 60.f) % 60,
+		    g_pGameLevel ? Level().GetGameTimeFactor() : 0.f, g_pGameLevel ? Level().timeServer_Delta() : 0,
+		    g_pGameLevel ? Level().GetStatistic().getPing() : 0u,
+		    m.puppet_frames ? s32(m.lead_sum / s64(m.puppet_frames)) : 0, m.lead_min, m.lead_max);
 		Msg("[NetAnomaly][metrics] %s smooth=%d delay=%u | frame avg %.1f max %u >33ms %u >100ms %u"
 		    " | snaps %u avg %.0f max %u >100ms %u dup %u | puppets %u extrap %.1f%% jumps %u max %.2f"
 		    " | actor acks %u fixes %u err avg %.2f max %.2f | owner rejects %u max %.1f | shots %u"

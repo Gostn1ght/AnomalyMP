@@ -565,7 +565,8 @@ void CCustomMonster::UpdateCL()
 			if (!animation_movement_controlled())
 				XFORM().translate_over(NET_Last.p_pos);
 			if (Remote() && netcoop::pure_client())
-				netcoop::metric_puppet_frame(ID(), XFORM().c, netcoop_extrapolating);
+				netcoop::metric_puppet_frame(ID(), XFORM().c, netcoop_extrapolating,
+					NET.empty() ? 0 : s32(Level().timeServer() - NET.back().dwTimeStamp));
 
 			if (!animation_movement_controlled() && m_update_rotation_on_frame)
 			{

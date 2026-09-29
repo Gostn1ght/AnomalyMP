@@ -172,7 +172,9 @@ u32 remote_interp_delay(u32 last_interval);
 // Metrics, summarised in the log every 10 s.
 void metric_snapshot(u32 interval_ms);
 void metric_snapshot_duplicate();
-void metric_puppet_frame(u16 id, const Fvector& pos, bool extrapolating);
+// lead_ms: estimated server time minus the newest snapshot's time; above the
+// interpolation delay the object is extrapolated.
+void metric_puppet_frame(u16 id, const Fvector& pos, bool extrapolating, s32 lead_ms);
 void metric_actor_error(float error, bool applied);
 void metric_owner_step_rejected(float step);
 void metric_weapon_fire(CWeapon* weapon);

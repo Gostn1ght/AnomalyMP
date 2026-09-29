@@ -1535,7 +1535,7 @@ void CActor::netcoop_update_remote()
 	// Build the model matrix from the facing (and strafe lean); without it
 	// the model kept its spawn orientation.
 	g_Orientate(mstate_real, Device.fTimeDelta);
-	netcoop::metric_puppet_frame(ID(), cur.p_pos, extrapolating);
+	netcoop::metric_puppet_frame(ID(), cur.p_pos, extrapolating, s32(Level().timeServer() - NET.back().dwTimeStamp));
 }
 
 void CActor::make_Interpolation()
