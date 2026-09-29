@@ -15,6 +15,7 @@ class xrClientData;
 class xrServer;
 struct GAME_NEWS_DATA;
 class CWeapon;
+class CActor;
 
 // Console: netcoop_smooth (0 = old network presentation, 1 = doc 38 stage 1),
 // netcoop_interp_ms (interpolation delay for remote objects on a client),
@@ -139,6 +140,18 @@ struct ServerActorScope
 	bool bound;
 	explicit ServerActorScope(CObject* object);
 	~ServerActorScope();
+};
+
+// While a player's Actor on the server is hit: db.actor is that player, so
+// GAMMA's hit scripts (armour, body parts, damage) hurt the right Actor.
+// They zeroed the hit and took health from whatever db.actor was bound
+// (the NPC's nearest player or the host Actor), s98.
+struct ServerVictimScope
+{
+	bool active;
+	CActor* previous;
+	explicit ServerVictimScope(CActor* victim);
+	~ServerVictimScope();
 };
 void server_on_client_disconnect(xrClientData* CL);
 void server_update(xrServer* server); // periodic money persistence

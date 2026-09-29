@@ -554,6 +554,7 @@ struct playing_pred
 
 void CActor::Hit(SHit* pHDS)
 {
+	netcoop::ServerVictimScope netcoop_victim(this);
 	bool b_initiated = pHDS->aim_bullet; // physics strike by poltergeist
 
 	pHDS->aim_bullet = false;

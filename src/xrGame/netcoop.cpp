@@ -1355,8 +1355,11 @@ static void bind_engine_actor(CActor* actor)
 }
 
 // GAMMA dialogue scripts use db.actor; point it at the player being served.
+static CActor* s_bound_actor = NULL;
+
 static void bind_script_actor(CActor* actor)
 {
+	s_bound_actor = actor;
 	bind_engine_actor(actor);
 	// Called for every server-side object script update; resolve the Lua function once.
 	static ::luabind::functor<void> f;
@@ -1687,6 +1690,21 @@ ServerActorScope::~ServerActorScope()
 {
 	if (bound)
 		server_unbind_actor();
+}
+
+ServerVictimScope::ServerVictimScope(CActor* victim) : active(false), previous(NULL)
+{
+	if (!server_player_copy(victim))
+		return;
+	active = true;
+	previous = s_bound_actor;
+	bind_script_actor(victim);
+}
+
+ServerVictimScope::~ServerVictimScope()
+{
+	if (active)
+		bind_script_actor(previous);
 }
 // ---------------------------------------------------------------------------
 // task list replication
