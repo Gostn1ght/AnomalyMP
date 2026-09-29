@@ -2260,6 +2260,9 @@ void metrics_update()
 	next_print = now + 10000;
 	if (g_netcoop_metrics)
 	{
+		const float day_sec = g_pGameLevel ? Level().GetGameDayTimeSec() : 0.f;
+		Msg("[NetAnomaly][clock] %s game %02u:%02u factor %.1f", pure_client() ? "client" : "server",
+		    u32(day_sec / 3600.f) % 24, u32(day_sec / 60.f) % 60, g_pGameLevel ? Level().GetGameTimeFactor() : 0.f);
 		Msg("[NetAnomaly][metrics] %s smooth=%d delay=%u | frame avg %.1f max %u >33ms %u >100ms %u"
 		    " | snaps %u avg %.0f max %u >100ms %u dup %u | puppets %u extrap %.1f%% jumps %u max %.2f"
 		    " | actor acks %u fixes %u err avg %.2f max %.2f | owner rejects %u max %.1f | shots %u",
