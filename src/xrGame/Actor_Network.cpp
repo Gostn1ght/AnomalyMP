@@ -1591,6 +1591,7 @@ void CActor::netcoop_update_remote()
 
 	if (!_valid(cur.p_pos))
 		return;
+	const float frame_step = Position().distance_to(cur.p_pos);
 	CCharacterPhysicsSupport* physics = character_physics_support();
 	if (physics && physics->movement())
 	{
@@ -1607,7 +1608,9 @@ void CActor::netcoop_update_remote()
 	// Build the model matrix from the facing (and strafe lean); without it
 	// the model kept its spawn orientation.
 	g_Orientate(mstate_real, Device.fTimeDelta);
-	netcoop::metric_puppet_frame(ID(), cur.p_pos, extrapolating, s32(netcoop::snapshot_now() - NET.back().dwTimeStamp));
+	const s32 lead = s32(netcoop::snapshot_now() - NET.back().dwTimeStamp);
+	netcoop::metric_player_frame(extrapolating, lead, frame_step);
+	netcoop::metric_puppet_frame(ID(), cur.p_pos, extrapolating, lead);
 }
 
 void CActor::make_Interpolation()

@@ -2246,16 +2246,39 @@ CTimer& real_timer()
 	return timer;
 }
 
-const double snapshot_clock_decay_rate = 0.05; // ms per real ms
+// Server time minus real time, from the freshest snapshots of the current
+// and previous second (a window, so a wrong estimate lasts at most 2 s; the
+// old maximum-with-decay held one stamp from the future for tens of seconds,
+// s96). A jump ahead by more than 250 ms needs 5 confirming snapshots. The
+// clock shown moves toward the estimate at most 10 % faster or slower than
+// real time, so the timeline never jumps.
 bool s_snapshot_clock_valid = false;
-double s_snapshot_clock_offset = 0.0; // server time minus real time
-u32 s_snapshot_clock_time = 0;
+double s_clock_now_max = 0.0, s_clock_prev_max = 0.0;
+bool s_clock_prev_valid = false;
+u32 s_clock_bucket_time = 0;
+double s_clock_candidate = 0.0;
+u32 s_clock_candidates = 0;
+double s_clock_applied = 0.0;
+u32 s_clock_applied_time = 0;
 
-void snapshot_clock_decay(u32 now)
+double snapshot_clock_target()
 {
-	if (s_snapshot_clock_valid && now > s_snapshot_clock_time)
-		s_snapshot_clock_offset -= snapshot_clock_decay_rate * double(now - s_snapshot_clock_time);
-	s_snapshot_clock_time = now;
+	return s_clock_prev_valid ? _max(s_clock_now_max, s_clock_prev_max) : s_clock_now_max;
+}
+
+void snapshot_clock_advance(u32 now)
+{
+	const double target = snapshot_clock_target();
+	const double elapsed = now > s_clock_applied_time ? double(now - s_clock_applied_time) : 0.0;
+	s_clock_applied_time = now;
+	const double diff = target - s_clock_applied;
+	if (_abs(diff) > 500.0)
+		s_clock_applied = target;
+	else
+	{
+		const double step = 0.1 * elapsed;
+		s_clock_applied += diff > 0.0 ? _min(diff, step) : _max(diff, -step);
+	}
 }
 } // namespace
 
@@ -2269,13 +2292,35 @@ void snapshot_sample(u32 server_stamp)
 	if (!pure_client())
 		return;
 	const u32 now = real_time_ms();
-	snapshot_clock_decay(now);
 	const double offset = double(server_stamp) - double(now);
-	// A snapshot is never newer than the server's present, so the freshest
-	// one gives the best estimate; late ones are ignored.
-	if (!s_snapshot_clock_valid || offset > s_snapshot_clock_offset)
-		s_snapshot_clock_offset = offset;
-	s_snapshot_clock_valid = true;
+	if (!s_snapshot_clock_valid)
+	{
+		s_clock_now_max = s_clock_applied = offset;
+		s_clock_bucket_time = s_clock_applied_time = now;
+		s_snapshot_clock_valid = true;
+		return;
+	}
+	if (now - s_clock_bucket_time >= 1000)
+	{
+		s_clock_prev_max = s_clock_now_max;
+		s_clock_prev_valid = true;
+		s_clock_now_max = offset;
+		s_clock_bucket_time = now;
+		s_clock_candidates = 0;
+	}
+	if (offset > snapshot_clock_target() + 250.0)
+	{
+		// Far ahead of the others: wait for confirmation.
+		s_clock_candidate = s_clock_candidates ? _min(s_clock_candidate, offset) : offset;
+		if (++s_clock_candidates < 5)
+			return;
+		s_clock_now_max = s_clock_candidate;
+		s_clock_prev_valid = false;
+		s_clock_candidates = 0;
+		return;
+	}
+	if (offset > s_clock_now_max)
+		s_clock_now_max = offset;
 }
 
 u32 snapshot_now()
@@ -2283,8 +2328,8 @@ u32 snapshot_now()
 	if (!s_snapshot_clock_valid || !pure_client())
 		return g_pGameLevel ? Level().timeServer() : 0;
 	const u32 now = real_time_ms();
-	snapshot_clock_decay(now);
-	return u32(s64(now) + s64(s_snapshot_clock_offset));
+	snapshot_clock_advance(now);
+	return u32(s64(now) + s64(s_clock_applied));
 }
 
 u32 remote_interp_delay()
@@ -2318,6 +2363,10 @@ struct Metrics
 	float jump_max;
 	s64 lead_sum;
 	s32 lead_min, lead_max;
+	u32 pl_frames, pl_extrap;
+	s64 pl_lead_sum;
+	s32 pl_lead_max;
+	float pl_step_max;
 	u32 acks, fixes;
 	float err_sum, err_max;
 	u32 owner_rejects;
@@ -2386,6 +2435,16 @@ void metric_puppet_frame(u16 id, const Fvector& pos, bool extrapolating, s32 lea
 	}
 	t.pos = pos;
 	t.time = now;
+}
+
+void metric_player_frame(bool extrapolating, s32 lead_ms, float step)
+{
+	++m.pl_frames;
+	if (extrapolating)
+		++m.pl_extrap;
+	m.pl_lead_sum += lead_ms;
+	m.pl_lead_max = _max(m.pl_lead_max, lead_ms);
+	m.pl_step_max = _max(m.pl_step_max, step);
 }
 
 void metric_actor_error(float error, bool applied)
@@ -2485,11 +2544,14 @@ void metrics_update()
 	if (g_netcoop_metrics)
 	{
 		const float day_sec = g_pGameLevel ? Level().GetGameDayTimeSec() : 0.f;
-		Msg("[NetAnomaly][clock] %s game %02u:%02u factor %.1f | net delta %d ms ping %u ms | snapshot lead avg %d min %d max %d ms",
+		Msg("[NetAnomaly][clock] %s game %02u:%02u factor %.1f | net delta %d ms ping %u ms | snapshot lead avg %d min %d max %d ms"
+		    " | players: frames %u extrap %.1f%% lead avg %d max %d ms, largest frame step %.2f m",
 		    pure_client() ? "client" : "server", u32(day_sec / 3600.f) % 24, u32(day_sec / 60.f) % 60,
 		    g_pGameLevel ? Level().GetGameTimeFactor() : 0.f, g_pGameLevel ? Level().timeServer_Delta() : 0,
 		    g_pGameLevel ? Level().GetStatistic().getPing() : 0u,
-		    m.puppet_frames ? s32(m.lead_sum / s64(m.puppet_frames)) : 0, m.lead_min, m.lead_max);
+		    m.puppet_frames ? s32(m.lead_sum / s64(m.puppet_frames)) : 0, m.lead_min, m.lead_max,
+		    m.pl_frames, m.pl_frames ? 100.f * m.pl_extrap / m.pl_frames : 0.f,
+		    m.pl_frames ? s32(m.pl_lead_sum / s64(m.pl_frames)) : 0, m.pl_lead_max, m.pl_step_max);
 		Msg("[NetAnomaly][metrics] %s smooth=%d delay=%u | frame avg %.1f max %u >33ms %u >100ms %u"
 		    " | snaps %u avg %.0f max %u >100ms %u dup %u | puppets %u extrap %.1f%% jumps %u max %.2f"
 		    " | actor acks %u fixes %u err avg %.2f max %.2f | owner rejects %u max %.1f | shots %u"
