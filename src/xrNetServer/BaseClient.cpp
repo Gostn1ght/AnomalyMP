@@ -221,8 +221,11 @@ bool BaseClient::Sync_Thread()
 
 	for (; IsConnectionInit() && !net_Disconnected; )
 	{
-		// Waiting for queue empty state
-		if (net_Syncronised)	break; // Sleep(2000);
+		// Waiting for queue empty state. Once synchronised, keep measuring
+		// once a second: the first samples are taken while the level loads,
+		// and a clock estimate that is never corrected leaves every client
+		// showing the world at a different moment.
+		if (net_Syncronised)	Sleep(1000);
 		else {
 			DWORD			dwPending = 0;
 			do {
@@ -260,7 +263,7 @@ bool BaseClient::Sync_Thread()
 			if (net_DeltaArray.size() >= syncSamples) {
 				net_Syncronised = TRUE;
 				net_TimeDelta = net_TimeDelta_Calculated;
-				return true;
+				// keep running: periodic correction above
 			}
 		}
 	}
@@ -270,12 +273,14 @@ bool BaseClient::Sync_Thread()
 
 void	BaseClient::Sync_Average()
 {
-	//***** Analyze results
+	//***** Analyze results: the latest samples only (older ones may date
+	// from the level load).
 	s64		summary_delta = 0;
-	s32		size = net_DeltaArray.size();
-	u32*	I = net_DeltaArray.begin();
-	u32*  E = I + size;
-	for (; I != E; I++)		summary_delta += *((int*)I);
+	s32		size = _min(s32(net_DeltaArray.size()), 16);
+	if (size <= 0)
+		return;
+	for (s32 i = 0; i < size; ++i)
+		summary_delta += s32(net_DeltaArray.recent(u32(i)));
 
 	s64 frac = s64(summary_delta) % s64(size);
 	if (frac < 0)				frac = -frac;

@@ -24,8 +24,10 @@ public:
 		table[write++] = value;
 		if (write == syncQueueSize)	write = 0;
 
-		if (count <= syncQueueSize)	count++;
+		if (count < syncQueueSize)	count++;
 	}
+	// i-th most recent sample (0 = newest), i < size()
+	IC u32		recent(u32 i) const { return table[(write + syncQueueSize - 1 - i) % syncQueueSize]; }
 	IC u32*		begin() { return table; }
 	IC u32*		end() { return table + count; }
 	IC u32		size() { return count; }
