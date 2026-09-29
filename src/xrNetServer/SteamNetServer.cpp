@@ -344,6 +344,10 @@ void SteamNetServer::OnClientDataReceived(HSteamNetConnection connection, SteamN
 	{
 		xr_strcpy(cl_data.name, data->name);
 		xr_strcpy(cl_data.pass, data->pass);
+		// The process id is the client's claim; only the server's own local
+		// connection may carry the server's (see xrServer local-client check).
+		if (cl_data.process_id == GetCurrentProcessId())
+			cl_data.process_id = 0;
 
 		if (m_bServerClientConnected)
 			FinishConnection(cl_data);

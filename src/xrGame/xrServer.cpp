@@ -1111,7 +1111,9 @@ void xrServer::Server_Client_Check(IClient* CL)
 		return;
 	};
 
-	if (CL->process_id == GetCurrentProcessId() && CL->ID == Level().GetClientID())
+	// The transport admits the server's process id only for the server's own
+	// local connection (its client ID is not known to the level yet here).
+	if (CL->process_id == GetCurrentProcessId())
 	{
 		CL->flags.bLocal = 1;
 		SV_Client = (xrClientData*)CL;
