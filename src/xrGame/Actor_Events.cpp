@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "actor.h"
+#include "netcoop.h"
 #include "customdetector.h"
 #include "weapon.h"
 #include "artefact.h"
@@ -282,6 +283,14 @@ void CActor::OnEvent(NET_Packet& P, u16 type)
 				inventory().Ruck(iitem);
 				break; //2
 			case GEG_PLAYER_ITEM_EAT:
+				// A player's client has already asked the GAMMA use scripts
+				// (animations, UI); on the server they refused, and the item
+				// was never used (medkits did nothing, s96).
+				if (netcoop::server_player_copy(this))
+				{
+					inventory().Eat(iitem);
+					break; //2
+				}
 				::luabind::functor<bool> funct;
 				if (iitem && ai().script_engine().functor("_G.CInventory__eat", funct))
 				{

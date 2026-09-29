@@ -1148,6 +1148,7 @@ bool CInventory::Eat(PIItem pIItem)
 		CActor* actor = Actor();
 		if (actor && actor->m_inventory == this)
 		{
+			pItemToEat->ApplyEffectsOnly(entity_alive);
 			actor->callback(GameObject::eUseObject)((smart_cast<CGameObject*>(pIItem))->lua_game_object());
 			if (CurrentGameUI())
 				CurrentGameUI()->GetActorMenu().SetCurrentItem(NULL);

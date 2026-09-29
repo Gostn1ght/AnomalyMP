@@ -120,6 +120,24 @@ void CEatableItem::OnH_B_Independent(bool just_before_destroy)
 	inherited::OnH_B_Independent(just_before_destroy);
 }
 
+void CEatableItem::ApplyEffectsOnly(CEntityAlive* entity_alive)
+{
+	if (!entity_alive)
+		return;
+	SMedicineInfluenceValues V;
+	V.Load(m_physic_item->cNameSect());
+	entity_alive->conditions().ApplyInfluence(V, m_physic_item->cNameSect());
+	for (u8 i = 0; i < (u8)eBoostMaxCount; i++)
+	{
+		if (pSettings->line_exist(m_physic_item->cNameSect().c_str(), ef_boosters_section_names[i]))
+		{
+			SBooster B;
+			B.Load(m_physic_item->cNameSect(), (EBoostParams)i);
+			entity_alive->conditions().ApplyBooster(B, m_physic_item->cNameSect());
+		}
+	}
+}
+
 bool CEatableItem::UseBy(CEntityAlive* entity_alive)
 {
 	SMedicineInfluenceValues V;

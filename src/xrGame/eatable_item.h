@@ -41,6 +41,10 @@ public:
 	virtual void OnH_B_Independent(bool just_before_destroy);
 	virtual void OnH_A_Independent();
 	virtual bool UseBy(CEntityAlive* npc);
+	// Netcoop owner client: the item's influences and boosters on its own
+	// Actor, without using it up (the server uses the item and owns health
+	// and radiation; stamina, satiety, bleeding, boosters live here).
+	void ApplyEffectsOnly(CEntityAlive* entity_alive);
 
 	bool Empty() const { return m_iRemainingUses == 0; };
 	bool CanDelete() const { return m_bRemoveAfterUse == 1; };
