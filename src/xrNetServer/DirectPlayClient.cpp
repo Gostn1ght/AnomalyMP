@@ -1,7 +1,7 @@
 
+#include "stdafx.h"
 // DirectPlay transport: built only with USE_DIRECT_PLAY (GameNetworkingSockets is the default).
 #ifdef USE_DIRECT_PLAY
-#include "stdafx.h"
 #include "DirectPlayClient.h"
 #include "BaseClient.h"
 #include "ip_address.h"
