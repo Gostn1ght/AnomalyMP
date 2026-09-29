@@ -1234,6 +1234,21 @@ void CWeapon::OnEvent(NET_Packet& P, u16 type)
 				else if (IsWorking())
 					FireEnd();
 			}
+			// Netcoop diagnostics (player damage, reload seen by others):
+			// what a copy of a player's weapon does with the owner's state.
+			if (netcoop::enabled() && H_Parent() && smart_cast<CActor*>(H_Parent()))
+			{
+				static u32 window = 0, count = 0;
+				if (Device.dwTimeGlobal - window > 1000)
+				{
+					window = Device.dwTimeGlobal;
+					count = 0;
+				}
+				if (++count <= 10)
+					Msg("[NetAnomaly][wpn] %s %s %s: event state %u, now state %u, ammo %u, working %d, valid %d",
+					    OnServer() ? "server" : "client", H_Parent()->cName().c_str(), cNameSect().c_str(),
+					    u32(state), GetState(), u32(AmmoElapsed), IsWorking() ? 1 : 0, IsValid() ? 1 : 0);
+			}
 		}
 		break;
 	default:

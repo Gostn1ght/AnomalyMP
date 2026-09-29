@@ -477,11 +477,19 @@ void CActor::netcoop_follow_owner(NET_Packet& P)
 			// gives it; rising 5 % of elapsed time follows a slower owner clock.
 			const u32 received = Level().timeServer();
 			const double offset = double(received) - double(time_stamp);
-			if (m_netcoop_owner_offset_valid && received > m_netcoop_owner_offset_time)
-				m_netcoop_owner_offset += 0.05 * double(received - m_netcoop_owner_offset_time);
-			if (!m_netcoop_owner_offset_valid || offset < m_netcoop_owner_offset)
-				m_netcoop_owner_offset = offset;
-			m_netcoop_owner_offset_time = received;
+			if (!m_netcoop_owner_offset_valid || received - m_netcoop_owner_offset_time >= 1000)
+			{
+				// A new one-second bucket.
+				m_netcoop_owner_offset_prev = m_netcoop_owner_offset_now;
+				m_netcoop_owner_offset_prev_valid = m_netcoop_owner_offset_valid;
+				m_netcoop_owner_offset_now = offset;
+				m_netcoop_owner_offset_time = received;
+			}
+			else if (offset < m_netcoop_owner_offset_now)
+				m_netcoop_owner_offset_now = offset;
+			m_netcoop_owner_offset = m_netcoop_owner_offset_prev_valid
+				? _min(m_netcoop_owner_offset_now, m_netcoop_owner_offset_prev)
+				: m_netcoop_owner_offset_now;
 			m_netcoop_owner_offset_valid = true;
 		}
 
@@ -654,6 +662,12 @@ void CActor::net_Import_Base(NET_Packet& P)
 	//----------- for E3 -----------------------------
 	if (Local() && OnClient()) return;
 	//-------------------------------------------------
+	// Netcoop: a player's snapshot times can jump back once (the server's
+	// estimate of that player's clock settles after the join). Rejecting
+	// every older snapshot froze the player for as long as the jump; start
+	// the timeline again instead.
+	if (!NET.empty() && N.dwTimeStamp + 300 < NET.back().dwTimeStamp && netcoop::pure_client() && Remote())
+		NET.clear();
 	if (!NET.empty() && N.dwTimeStamp < NET.back().dwTimeStamp) return;
 
 	if (!NET.empty() && N.dwTimeStamp == NET.back().dwTimeStamp)
@@ -667,8 +681,6 @@ void CActor::net_Import_Base(NET_Packet& P)
 				// Packet drained, but we do NOT apply the movement state to the authoritative server Actor.
 			} else {
 				NET.push_back(N);
-				if (Remote())
-					netcoop::snapshot_sample(N.dwTimeStamp);
 			}
 		// A netcoop client interpolates other players netcoop_interp_ms
 		// behind server time: keep enough 30 Hz snapshots for that.
