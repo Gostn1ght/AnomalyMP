@@ -407,6 +407,99 @@ void xrServer::SendUpdatePacketsToAll()
 	}
 }
 
+// Netcoop area of interest. Every object is serialised once per tick; each
+// client then gets the objects near its Actor every tick and farther ones
+// less often (staggered by id), instead of every object every tick. Items
+// held by someone use the holder's position.
+void xrServer::SendUpdatesAOI()
+{
+	struct Chunk
+	{
+		u32 offset;
+		u16 size;
+		u16 id;
+		Fvector position;
+	};
+	static xr_vector<u8> data;
+	static xr_vector<Chunk> chunks;
+	data.clear();
+	chunks.clear();
+	++m_aoi_tick;
+
+	NET_Packet tmp;
+	u32 position;
+	for (xrS_entities::iterator I = entities.begin(), E = entities.end(); I != E; ++I)
+	{
+		CSE_Abstract& Test = *(I->second);
+		if (0 == Test.owner || !Test.net_Ready || Test.s_flags.is(M_SPAWN_OBJECT_PHANTOM) || !Test.Net_Relevant())
+			continue;
+		tmp.B.count = 0;
+		tmp.w_u16(Test.ID);
+		tmp.w_chunk_open8(position);
+		Test.UPDATE_Write(tmp);
+		const u32 object_size = u32(tmp.w_tell() - position) - sizeof(u8);
+		tmp.w_chunk_close8(position);
+		if (object_size == 0)
+			continue;
+		CSE_Abstract* root = &Test;
+		for (int depth = 0; depth < 4 && root->ID_Parent != 0xffff; ++depth)
+		{
+			CSE_Abstract* parent = ID_to_entity(root->ID_Parent);
+			if (!parent)
+				break;
+			root = parent;
+		}
+		Chunk c;
+		c.offset = u32(data.size());
+		c.size = u16(tmp.B.count);
+		c.id = Test.ID;
+		c.position = root->o_Position;
+		data.insert(data.end(), tmp.B.data, tmp.B.data + tmp.B.count);
+		chunks.push_back(c);
+	}
+
+	const u32 packet_limit = 8 * 1024;
+	u32 sent_bytes = 0;
+	struct Sender
+	{
+		xrServer* server;
+		u32* sent;
+		void operator()(IClient* client)
+		{
+			xrClientData* CL = static_cast<xrClientData*>(client);
+			if (client == server->GetServerClient() || !client->flags.bConnected || !CL->gamma_snapshot_ready ||
+				!CL->owner)
+				return;
+			const Fvector& eye = CL->owner->o_Position;
+			NET_Packet P;
+			P.w_begin(M_UPDATE_OBJECTS);
+			for (u32 i = 0; i < chunks.size(); ++i)
+			{
+				const Chunk& c = chunks[i];
+				const float d = c.id == CL->owner->ID ? 0.f : eye.distance_to(c.position);
+				const u32 every = d < 50.f ? 1 : d < 150.f ? 2 : d < 300.f ? 4 : 16;
+				if ((server->m_aoi_tick + c.id) % every)
+					continue;
+				if (P.B.count + c.size > packet_limit)
+				{
+					server->SendTo(CL->ID, P, net_flags(FALSE, TRUE));
+					*sent += P.B.count;
+					P.w_begin(M_UPDATE_OBJECTS);
+				}
+				P.w(&data[c.offset], c.size);
+			}
+			if (P.B.count > 2)
+			{
+				server->SendTo(CL->ID, P, net_flags(FALSE, TRUE));
+				*sent += P.B.count;
+			}
+		}
+	} send = {this, &sent_bytes};
+	ForEachClientDo(send);
+	m_last_updates_size = sent_bytes;
+	netcoop::metric_server_sent(sent_bytes, u32(chunks.size()));
+}
+
 void xrServer::SendUpdatesToAll()
 {
 	if (IsGameTypeSingle() && !strstr(Core.Params, "-netcoop"))
@@ -423,8 +516,13 @@ void xrServer::SendUpdatesToAll()
 	if ((Device.dwTimeGlobal - m_last_update_time) >= u32(1000 / (psNET_ServerUpdate > 0 ? psNET_ServerUpdate : 30)))
 	{
 		ForEachClientDoSender(sendtofd);
-		MakeUpdatePackets();
-		SendUpdatePacketsToAll();
+		if (netcoop::smooth())
+			SendUpdatesAOI();
+		else
+		{
+			MakeUpdatePackets();
+			SendUpdatePacketsToAll();
+		}
 
 #ifdef DEBUG
 		g_sv_SendUpdate = 0;

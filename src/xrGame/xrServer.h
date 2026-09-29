@@ -122,6 +122,9 @@ private:
 
 	void MakeUpdatePackets();
 	void SendUpdatePacketsToAll();
+	// Netcoop: per-client object updates by distance (area of interest).
+	void SendUpdatesAOI();
+	u32 m_aoi_tick = 0;
 	u32 m_last_updates_size;
 	u32 m_last_update_time;
 

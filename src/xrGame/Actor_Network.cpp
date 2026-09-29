@@ -1490,7 +1490,8 @@ void CActor::netcoop_update_remote()
 {
 	if (NET.empty())
 		return;
-	const u32 t = Level().timeServer() - netcoop::remote_interp_delay();
+	const u32 last_interval = NET.size() >= 2 ? NET.back().dwTimeStamp - NET[NET.size() - 2].dwTimeStamp : 0;
+	const u32 t = Level().timeServer() - netcoop::remote_interp_delay(last_interval);
 	while (NET.size() > 2 && NET[1].dwTimeStamp <= t)
 		NET.pop_front();
 

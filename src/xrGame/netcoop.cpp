@@ -2111,6 +2111,14 @@ u32 remote_interp_delay()
 	return u32(delay);
 }
 
+u32 remote_interp_delay(u32 last_interval)
+{
+	const u32 base = remote_interp_delay();
+	if (!(pure_client() && g_netcoop_smooth))
+		return base;
+	return _max(base, _min(last_interval * 3 / 2, 800u));
+}
+
 namespace
 {
 struct Metrics
@@ -2124,6 +2132,7 @@ struct Metrics
 	u32 owner_rejects;
 	float owner_reject_max;
 	u32 shots;
+	u32 sv_bytes, sv_ticks, sv_objects;
 };
 Metrics m;
 u32 next_print = 0;
@@ -2141,7 +2150,9 @@ void metric_snapshot(u32 interval_ms)
 {
 	if (interval_ms < 1000)
 	{
-		const float x = float(interval_ms);
+		// Far objects are sent every 2-16 ticks on purpose; only near-rate
+		// intervals measure network jitter.
+		const float x = float(_min(interval_ms, 90u));
 		s_snap_interval += (x - s_snap_interval) * 0.02f;
 		s_snap_jitter += (_abs(x - s_snap_interval) - s_snap_jitter) * 0.02f;
 	}
@@ -2187,6 +2198,13 @@ void metric_actor_error(float error, bool applied)
 	m.err_max = _max(m.err_max, error);
 	if (applied)
 		++m.fixes;
+}
+
+void metric_server_sent(u32 bytes, u32 objects)
+{
+	m.sv_bytes += bytes;
+	++m.sv_ticks;
+	m.sv_objects = objects;
 }
 
 void metric_owner_step_rejected(float step)
@@ -2265,13 +2283,14 @@ void metrics_update()
 		    u32(day_sec / 3600.f) % 24, u32(day_sec / 60.f) % 60, g_pGameLevel ? Level().GetGameTimeFactor() : 0.f);
 		Msg("[NetAnomaly][metrics] %s smooth=%d delay=%u | frame avg %.1f max %u >33ms %u >100ms %u"
 		    " | snaps %u avg %.0f max %u >100ms %u dup %u | puppets %u extrap %.1f%% jumps %u max %.2f"
-		    " | actor acks %u fixes %u err avg %.2f max %.2f | owner rejects %u max %.1f | shots %u",
+		    " | actor acks %u fixes %u err avg %.2f max %.2f | owner rejects %u max %.1f | shots %u"
+		    " | sent %.1f KB/s objects %u",
 		    pure_client() ? "client" : "server", g_netcoop_smooth, remote_interp_delay(),
 		    m.frames ? float(m.frame_ms_sum) / m.frames : 0.f, m.frame_ms_max, m.frames_over_33, m.frames_over_100,
 		    m.snaps, m.snaps ? float(m.snap_ms_sum) / m.snaps : 0.f, m.snap_ms_max, m.snaps_over_100, m.dups,
 		    m.puppet_frames, m.puppet_frames ? 100.f * m.extrap_frames / m.puppet_frames : 0.f, m.jumps, m.jump_max,
 		    m.acks, m.fixes, m.acks ? m.err_sum / m.acks : 0.f, m.err_max, m.owner_rejects, m.owner_reject_max,
-		    m.shots);
+		    m.shots, m.sv_bytes / 1024.f / 10.f, m.sv_objects);
 	}
 	ZeroMemory(&m, sizeof(m));
 	if (puppets.size() > 4096)
