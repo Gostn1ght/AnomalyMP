@@ -2242,7 +2242,7 @@ CTimer& real_timer()
 	return timer;
 }
 
-const double snapshot_clock_decay = 0.05; // ms per real ms
+const double snapshot_clock_decay_rate = 0.05; // ms per real ms
 bool s_snapshot_clock_valid = false;
 double s_snapshot_clock_offset = 0.0; // server time minus real time
 u32 s_snapshot_clock_time = 0;
@@ -2250,7 +2250,7 @@ u32 s_snapshot_clock_time = 0;
 void snapshot_clock_decay(u32 now)
 {
 	if (s_snapshot_clock_valid && now > s_snapshot_clock_time)
-		s_snapshot_clock_offset -= snapshot_clock_decay * double(now - s_snapshot_clock_time);
+		s_snapshot_clock_offset -= snapshot_clock_decay_rate * double(now - s_snapshot_clock_time);
 	s_snapshot_clock_time = now;
 }
 } // namespace
