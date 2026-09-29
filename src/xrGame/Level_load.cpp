@@ -45,7 +45,7 @@ bool CLevel::Load_GameSpecific_Before()
 	}
 
 	if (GamePersistent().GameType() == eGameIDSingle && !ai().get_alife() && FS.exist(fn_game, "$level$", "level.ai") &&
-		!net_Hosts.empty())
+		!Server) // a remote client (the transport has no host enumeration list)
 		ai().load(net_SessionName());
 
 	if (!g_dedicated_server && !ai().get_alife() && ai().get_game_graph() && FS.exist(fn_game, "$level$", "level.game"))

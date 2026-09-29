@@ -2,35 +2,35 @@
 #include "net_log.h"
 //---------------------------------------------------------
 string64 PacketName[] = {
-	"M_UPDATE", // DUAL: Update state
-	"M_SPAWN", // DUAL: Spawning, full state
+	"M_UPDATE",	// DUAL: Update state
+	"M_SPAWN",					// DUAL: Spawning, full state
 
 	"M_SV_CONFIG_NEW_CLIENT",
 	"M_SV_CONFIG_GAME",
 	"M_SV_CONFIG_FINISHED",
 
-	"M_MIGRATE_DEACTIVATE", // TO:   Changing server, just deactivate
-	"M_MIGRATE_ACTIVATE", // TO:   Changing server", full state
+	"M_MIGRATE_DEACTIVATE",		// TO:   Changing server, just deactivate
+	"M_MIGRATE_ACTIVATE",			// TO:   Changing server", full state
 
-	"M_CHAT", // DUAL:
+	"M_CHAT",						// DUAL:
 
-	"M_EVENT", // Game Event
-	"M_CL_INPUT", // Client Input Data
+	"M_EVENT",					// Game Event
+	"M_CL_INPUT",					// Client Input Data
 	//----------- for E3 -----------------------------
 	"M_CL_UPDATE",
 	"M_UPDATE_OBJECTS",
 	//-------------------------------------------------
-	"M_CLIENTREADY", // Client has finished to load level and are ready to play
+	"M_CLIENTREADY",				// Client has finished to load level and are ready to play
 
-	"M_CHANGE_LEVEL", // changing level
+	"M_CHANGE_LEVEL",				// changing level
 	"M_LOAD_GAME",
 	"M_RELOAD_GAME",
 	"M_SAVE_GAME",
 	"M_SAVE_PACKET",
 
 	"M_SWITCH_DISTANCE",
-	"M_GAMEMESSAGE", // Game Message
-	"M_EVENT_PACK", // Pack of M_EVENT
+	"M_GAMEMESSAGE",					// Game Message
+	"M_EVENT_PACK",					// Pack of M_EVENT
 
 	//-----------------------------------------------------
 	"M_GAMESPY_CDKEY_VALIDATION_CHALLENGE",
@@ -70,43 +70,42 @@ INetLog::INetLog(LPCSTR sFileName, u32 dwStartTime)
 
 	m_pLogFile = NULL;
 	m_pLogFile = fopen(sFileName, "wb");
-	m_dwStartTime = 0; //dwStartTime;
+	m_dwStartTime = 0;//dwStartTime;
+
 }
 
-INetLog::~INetLog()
+INetLog::~INetLog() 
 {
 	FlushLog();
 	if (m_pLogFile) fclose(m_pLogFile);
 	m_pLogFile = NULL;
 }
 
-void INetLog::FlushLog()
+void	INetLog::FlushLog()
 {
 	if (m_pLogFile)
 	{
-		for (xr_vector<SLogPacket>::iterator it = m_aLogPackets.begin(); it != m_aLogPackets.end(); it++)
+		for(xr_vector<SLogPacket>::iterator it = m_aLogPackets.begin(); it != m_aLogPackets.end(); it++)
 		{
 			SLogPacket* pLPacket = &(*it);
-			if (pLPacket->m_u16Type >= sizeof(PacketName) / sizeof(PacketName[0]))
-				fprintf(m_pLogFile, "%s %10u %10u %10u\n", pLPacket->m_bIsIn ? "In:" : "Out:", pLPacket->m_u32Time,
-				        pLPacket->m_u16Type, pLPacket->m_u32Size);
+			if (pLPacket->m_u16Type >= sizeof(PacketName)/sizeof(PacketName[0]))
+				fprintf(m_pLogFile, "%s %10d %10d %10d\n", pLPacket->m_bIsIn ? "In:" : "Out:", pLPacket->m_u32Time, pLPacket->m_u16Type, pLPacket->m_u32Size);
 			else
-				fprintf(m_pLogFile, "%s %10u %10s %10u\n", pLPacket->m_bIsIn ? "In:" : "Out:", pLPacket->m_u32Time,
-				        PacketName[pLPacket->m_u16Type], pLPacket->m_u32Size);
+				fprintf(m_pLogFile, "%s %10d %10s %10d\n", pLPacket->m_bIsIn ? "In:" : "Out:", pLPacket->m_u32Time, PacketName[pLPacket->m_u16Type], pLPacket->m_u32Size);
 		};
 	};
 
 	m_aLogPackets.clear();
 }
 
-void INetLog::LogPacket(u32 Time, NET_Packet* pPacket, bool IsIn)
+void		INetLog::LogPacket(u32 Time, NET_Packet* pPacket, bool IsIn)
 {
 	if (!pPacket) return;
 
 	m_cs.Enter();
-
+	
 	SLogPacket NewPacket;
-
+	
 	NewPacket.m_u16Type = *((u16*)&pPacket->B.data);
 	NewPacket.m_u32Size = pPacket->B.count;
 	NewPacket.m_u32Time = Time - m_dwStartTime;
@@ -118,14 +117,14 @@ void INetLog::LogPacket(u32 Time, NET_Packet* pPacket, bool IsIn)
 	m_cs.Leave();
 };
 
-void INetLog::LogData(u32 Time, void* data, u32 size, bool IsIn)
+void		INetLog::LogData(u32 Time, void* data, u32 size, bool IsIn)
 {
 	if (!data) return;
 
 	m_cs.Enter();
 
 	SLogPacket NewPacket;
-
+	
 	NewPacket.m_u16Type = *((u16*)data);
 	NewPacket.m_u32Size = size;
 	NewPacket.m_u32Time = Time - m_dwStartTime;

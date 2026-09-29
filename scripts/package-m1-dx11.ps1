@@ -31,5 +31,16 @@ foreach ($dependencySource in @($BuildBin, $DependencyBin)) {
     }
 }
 
+# Network transport (GameNetworkingSockets) and its dependencies ship next to
+# both executables.
+$sdkBin = Join-Path (Split-Path -Parent $PSScriptRoot) 'sdk/binaries'
+foreach ($name in @('GameNetworkingSockets.dll', 'libprotobuf.dll', 'libcrypto-3-x64.dll')) {
+    $dll = Join-Path $sdkBin $name
+    if (Test-Path -LiteralPath $dll -PathType Leaf) {
+        Copy-Item -LiteralPath $dll -Destination (Join-Path $serverBin $name) -Force
+        Copy-Item -LiteralPath $dll -Destination (Join-Path $clientBin $name) -Force
+    }
+}
+
 Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $serverBin 'AnomalyGammaNetServerDX11.exe'), (Join-Path $clientBin 'AnomalyGammaNetClientDX11.exe') |
     Select-Object Path, Hash
