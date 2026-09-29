@@ -58,7 +58,7 @@ float CWeapon::GetWeaponDeterioration()
 
 void CWeapon::FireStart()
 {
-	if (ParentIsActor())
+	if (ParentIsActor() && Actor() && H_Parent() == Actor())
 		Actor()->StopSprint();
 
 	netcoop::metric_weapon_fire(this);
