@@ -339,7 +339,7 @@ void CCustomMonster::shedule_Update(u32 DT)
 	// Queue shrink
 	VERIFY(_valid(Position()));
 	const u32 last_interval = NET.size() >= 2 ? NET.back().dwTimeStamp - NET[NET.size() - 2].dwTimeStamp : 0;
-	u32 dwTimeCL = Level().timeServer() - netcoop::remote_interp_delay(last_interval);
+	u32 dwTimeCL = netcoop::snapshot_now() - netcoop::remote_interp_delay(last_interval);
 	VERIFY(!NET.empty());
 	while ((NET.size() > 2) && (NET[1].dwTimeStamp < dwTimeCL)) NET.pop_front();
 
@@ -499,7 +499,7 @@ void CCustomMonster::UpdateCL()
 
 			// distinguish interpolation/extrapolation
 			const u32 last_interval = NET.size() >= 2 ? NET.back().dwTimeStamp - NET[NET.size() - 2].dwTimeStamp : 0;
-			u32 dwTime = Level().timeServer() - netcoop::remote_interp_delay(last_interval);
+			u32 dwTime = netcoop::snapshot_now() - netcoop::remote_interp_delay(last_interval);
 			net_update& N = NET.back();
 			if ((dwTime > N.dwTimeStamp) || (NET.size() < 2))
 			{
@@ -566,7 +566,7 @@ void CCustomMonster::UpdateCL()
 				XFORM().translate_over(NET_Last.p_pos);
 			if (Remote() && netcoop::pure_client())
 				netcoop::metric_puppet_frame(ID(), XFORM().c, netcoop_extrapolating,
-					NET.empty() ? 0 : s32(Level().timeServer() - NET.back().dwTimeStamp));
+					NET.empty() ? 0 : s32(netcoop::snapshot_now() - NET.back().dwTimeStamp));
 
 			if (!animation_movement_controlled() && m_update_rotation_on_frame)
 			{

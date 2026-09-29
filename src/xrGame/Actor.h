@@ -581,8 +581,12 @@ public:
 	// Netcoop server: take a player's position and presentation (facing,
 	// look, movement state) from the owning client's update.
 	void netcoop_follow_owner(NET_Packet& P);
-	// Owner time (its estimate of server time) of the last accepted update.
+	// Owner's real-time clock of the last accepted update, and its offset to
+	// server time (lower envelope of receive time - owner time).
 	u32 m_netcoop_owner_time = 0;
+	double m_netcoop_owner_offset = 0.0;
+	u32 m_netcoop_owner_offset_time = 0;
+	bool m_netcoop_owner_offset_valid = false;
 	// Netcoop client: another player, shown from the server's snapshots
 	// (position, facing, look, movement state) interpolated each frame.
 	void netcoop_update_remote();

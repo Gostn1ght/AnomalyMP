@@ -312,7 +312,7 @@ private:
 		P.w_u16(m_actor);
 		P.w_u32(0); // ping, filled in by the server
 		P.w_float(1.f); // health
-		P.w_u32(timeServer());
+		P.w_u32(now); // the owner's real-time clock; the server maps it
 		P.w_u8(0); // flags
 		P.w_vec3(pos);
 		P.w_float(yaw); // model yaw

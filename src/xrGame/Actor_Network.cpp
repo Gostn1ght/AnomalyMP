@@ -223,8 +223,13 @@ void CActor::net_Export(NET_Packet& P) // export to server
 	// Netcoop server: a player's position is the owner's, sampled at the
 	// owner's time; stamping it with the export time made other clients
 	// interpolate steps (same position, then a jump).
-	if (netcoop::enabled() && OnServer() && !Local() && m_netcoop_owner_time)
-		P.w_u32(m_netcoop_owner_time);
+	// The owner's clock is mapped into server time (netcoop_follow_owner).
+	// The owning client sends its real-time clock, not its server-time
+	// estimate: that estimate moved in steps and its timer drifted.
+	if (netcoop::enabled() && OnServer() && !Local() && m_netcoop_owner_offset_valid)
+		P.w_u32(u32(s64(m_netcoop_owner_time) + s64(m_netcoop_owner_offset)));
+	else if (netcoop::pure_client() && Local())
+		P.w_u32(netcoop::real_time_ms());
 	else
 		P.w_u32(Level().timeServer());
 	P.w_u8(flags);
@@ -465,7 +470,19 @@ void CActor::netcoop_follow_owner(NET_Packet& P)
 			dt = float(time_stamp - m_netcoop_owner_time) / 1000.f;
 		clamp(dt, 0.02f, 1.f);
 		if (!m_netcoop_owner_time || time_stamp > m_netcoop_owner_time)
+		{
 			m_netcoop_owner_time = time_stamp;
+			// Offset owner clock -> server clock: the least-delayed update
+			// gives it; rising 5 % of elapsed time follows a slower owner clock.
+			const u32 received = Level().timeServer();
+			const double offset = double(received) - double(time_stamp);
+			if (m_netcoop_owner_offset_valid && received > m_netcoop_owner_offset_time)
+				m_netcoop_owner_offset += 0.05 * double(received - m_netcoop_owner_offset_time);
+			if (!m_netcoop_owner_offset_valid || offset < m_netcoop_owner_offset)
+				m_netcoop_owner_offset = offset;
+			m_netcoop_owner_offset_time = received;
+			m_netcoop_owner_offset_valid = true;
+		}
 
 		Fvector delta;
 		delta.sub(position, Position());
@@ -627,6 +644,8 @@ void CActor::net_Import_Base(NET_Packet& P)
 				// Packet drained, but we do NOT apply the movement state to the authoritative server Actor.
 			} else {
 				NET.push_back(N);
+				if (Remote())
+					netcoop::snapshot_sample(N.dwTimeStamp);
 			}
 		// A netcoop client interpolates other players netcoop_interp_ms
 		// behind server time: keep enough 30 Hz snapshots for that.
@@ -1491,7 +1510,7 @@ void CActor::netcoop_update_remote()
 	if (NET.empty())
 		return;
 	const u32 last_interval = NET.size() >= 2 ? NET.back().dwTimeStamp - NET[NET.size() - 2].dwTimeStamp : 0;
-	const u32 t = Level().timeServer() - netcoop::remote_interp_delay(last_interval);
+	const u32 t = netcoop::snapshot_now() - netcoop::remote_interp_delay(last_interval);
 	while (NET.size() > 2 && NET[1].dwTimeStamp <= t)
 		NET.pop_front();
 
@@ -1535,7 +1554,7 @@ void CActor::netcoop_update_remote()
 	// Build the model matrix from the facing (and strafe lean); without it
 	// the model kept its spawn orientation.
 	g_Orientate(mstate_real, Device.fTimeDelta);
-	netcoop::metric_puppet_frame(ID(), cur.p_pos, extrapolating, s32(Level().timeServer() - NET.back().dwTimeStamp));
+	netcoop::metric_puppet_frame(ID(), cur.p_pos, extrapolating, s32(netcoop::snapshot_now() - NET.back().dwTimeStamp));
 }
 
 void CActor::make_Interpolation()

@@ -1038,6 +1038,8 @@ void CAI_Stalker::net_Import(NET_Packet& P)
 	{
 		if (netcoop_puppet() && !NET.empty())
 			netcoop::metric_snapshot(N.dwTimeStamp - NET.back().dwTimeStamp);
+		if (netcoop_puppet())
+			netcoop::snapshot_sample(N.dwTimeStamp);
 		NET.push_back(N);
 		NET_WasInterpolating = TRUE;
 	}
@@ -1287,7 +1289,7 @@ void CAI_Stalker::shedule_Update(u32 DT)
 			// Queue shrink
 			VERIFY(_valid(Position()));
 			const u32 last_interval = NET.size() >= 2 ? NET.back().dwTimeStamp - NET[NET.size() - 2].dwTimeStamp : 0;
-			u32 dwTimeCL = Level().timeServer() - netcoop::remote_interp_delay(last_interval);
+			u32 dwTimeCL = netcoop::snapshot_now() - netcoop::remote_interp_delay(last_interval);
 			VERIFY(!NET.empty());
 			while ((NET.size() > 2) && (NET[1].dwTimeStamp < dwTimeCL)) NET.pop_front();
 

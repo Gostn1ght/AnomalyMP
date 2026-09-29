@@ -164,6 +164,16 @@ void server_list_accounts(xr_string& out);
 
 // Network smoothness (doc 38, stages 0 and 1).
 bool smooth();
+// A real-time millisecond clock of this process: never paused or scaled
+// (the engine's global timer stops in menus and follows time_factor).
+u32 real_time_ms();
+// Interpolation clock of a pure client. Server time is not estimated from
+// pings (that estimate moved by hundreds of ms and the engine timer drifted
+// ~2 % against the server): it follows the newest server snapshots, the upper
+// envelope of (snapshot time - real time), decaying 5 % so that a slower
+// server clock is followed too. Falls back to Level().timeServer().
+void snapshot_sample(u32 server_stamp);
+u32 snapshot_now();
 // How far behind the estimated server time a client shows remote objects.
 u32 remote_interp_delay();
 // Same, but at least 1.5 times the object's own last snapshot interval

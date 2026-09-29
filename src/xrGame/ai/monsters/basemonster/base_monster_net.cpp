@@ -151,6 +151,8 @@ void CBaseMonster::net_Import(NET_Packet& P)
 	{
 		if (puppet && !NET.empty())
 			netcoop::metric_snapshot(N.dwTimeStamp - NET.back().dwTimeStamp);
+		if (puppet)
+			netcoop::snapshot_sample(N.dwTimeStamp);
 		NET.push_back(N);
 		NET_WasInterpolating = TRUE;
 	}

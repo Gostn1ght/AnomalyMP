@@ -2111,6 +2111,61 @@ bool smooth()
 static float s_snap_interval = 33.f;
 static float s_snap_jitter = 5.f;
 
+namespace
+{
+CTimer& real_timer()
+{
+	static CTimer timer;
+	static bool started = false;
+	if (!started)
+	{
+		timer.Start();
+		started = true;
+	}
+	return timer;
+}
+
+const double snapshot_clock_decay = 0.05; // ms per real ms
+bool s_snapshot_clock_valid = false;
+double s_snapshot_clock_offset = 0.0; // server time minus real time
+u32 s_snapshot_clock_time = 0;
+
+void snapshot_clock_decay(u32 now)
+{
+	if (s_snapshot_clock_valid && now > s_snapshot_clock_time)
+		s_snapshot_clock_offset -= snapshot_clock_decay * double(now - s_snapshot_clock_time);
+	s_snapshot_clock_time = now;
+}
+} // namespace
+
+u32 real_time_ms()
+{
+	return real_timer().GetElapsed_ms();
+}
+
+void snapshot_sample(u32 server_stamp)
+{
+	if (!pure_client())
+		return;
+	const u32 now = real_time_ms();
+	snapshot_clock_decay(now);
+	const double offset = double(server_stamp) - double(now);
+	// A snapshot is never newer than the server's present, so the freshest
+	// one gives the best estimate; late ones are ignored.
+	if (!s_snapshot_clock_valid || offset > s_snapshot_clock_offset)
+		s_snapshot_clock_offset = offset;
+	s_snapshot_clock_valid = true;
+}
+
+u32 snapshot_now()
+{
+	if (!s_snapshot_clock_valid || !pure_client())
+		return g_pGameLevel ? Level().timeServer() : 0;
+	const u32 now = real_time_ms();
+	snapshot_clock_decay(now);
+	return u32(s64(now) + s64(s_snapshot_clock_offset));
+}
+
 u32 remote_interp_delay()
 {
 	if (!(pure_client() && g_netcoop_smooth))
