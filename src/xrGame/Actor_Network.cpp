@@ -96,9 +96,9 @@ void CActor::net_ExportInput(NET_Packet& P, const ActorInputCommand& cmd)
 }
 
 // NetAnomaly co-op: a player moves on their own client, which is the source
-// of that Actor's position; the server follows it. Steps longer than this are
-// ignored so a position the server sets (teleport, level scripts) wins, and
-// the client then snaps to it through the input ACK.
+// of that Actor's position; the server follows it at a limited speed (see
+// netcoop_follow_owner). The owner is snapped to the server position only
+// when its prediction differs by more than this (server teleport, cheat).
 static const float netcoop_owner_max_step = 8.f;
 
 void CActor::net_ImportInputAck(NET_Packet& P)
@@ -220,7 +220,13 @@ void CActor::net_Export(NET_Packet& P) // export to server
 	//CSE_ALifeCreatureAbstract
 	u8 flags = 0;
 	P.w_float(GetfHealth());
-	P.w_u32(Level().timeServer());
+	// Netcoop server: a player's position is the owner's, sampled at the
+	// owner's time; stamping it with the export time made other clients
+	// interpolate steps (same position, then a jump).
+	if (netcoop::enabled() && OnServer() && !Local() && m_netcoop_owner_time)
+		P.w_u32(m_netcoop_owner_time);
+	else
+		P.w_u32(Level().timeServer());
 	P.w_u8(flags);
 	Fvector p = Position();
 	P.w_vec3(p); //Position());
@@ -448,16 +454,42 @@ void CActor::netcoop_follow_owner(NET_Packet& P)
 
 	if (_valid(position))
 	{
-		const float step = position.distance_to(Position());
-		if (step > netcoop_owner_max_step)
-			netcoop::metric_owner_step_rejected(step);
-		else
+		// Speed check instead of a per-update step limit: a step longer than
+		// the limit used to be dropped, and every later update was then even
+		// further away, so the server copy froze and the owner was pulled back
+		// to it. Now the copy moves toward the claimed position by at most
+		// what running (12 m/s) or climbing (8 m/s) allows in the owner's
+		// elapsed time; falling is not limited.
+		float dt = 0.1f;
+		if (m_netcoop_owner_time && time_stamp > m_netcoop_owner_time)
+			dt = float(time_stamp - m_netcoop_owner_time) / 1000.f;
+		clamp(dt, 0.02f, 1.f);
+		if (!m_netcoop_owner_time || time_stamp > m_netcoop_owner_time)
+			m_netcoop_owner_time = time_stamp;
+
+		Fvector delta;
+		delta.sub(position, Position());
+		const float horizontal = _sqrt(delta.x * delta.x + delta.z * delta.z);
+		const float allowed_h = 12.f * dt + 1.f;
+		const float allowed_up = 8.f * dt + 1.f;
+		const bool limited = horizontal > allowed_h || delta.y > allowed_up;
+		if (horizontal > allowed_h)
 		{
-			CCharacterPhysicsSupport* physics = character_physics_support();
-			if (physics && physics->movement())
-				physics->movement()->SetPosition(position);
-			Position().set(position);
+			const float k = allowed_h / horizontal;
+			delta.x *= k;
+			delta.z *= k;
 		}
+		if (delta.y > allowed_up)
+			delta.y = allowed_up;
+		if (limited)
+			netcoop::metric_owner_step_rejected(position.distance_to(Position()));
+
+		Fvector accepted;
+		accepted.add(Position(), delta);
+		CCharacterPhysicsSupport* physics = character_physics_support();
+		if (physics && physics->movement())
+			physics->movement()->SetPosition(accepted);
+		Position().set(accepted);
 	}
 	// What the other players see: where this player faces and looks and how
 	// it moves (run, crouch, sprint, jump). The server Actor exports these.
