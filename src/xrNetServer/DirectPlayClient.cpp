@@ -1,4 +1,6 @@
 
+// DirectPlay transport: built only with USE_DIRECT_PLAY (GameNetworkingSockets is the default).
+#ifdef USE_DIRECT_PLAY
 #include "stdafx.h"
 #include "DirectPlayClient.h"
 #include "BaseClient.h"
@@ -631,3 +633,4 @@ bool DirectPlayClient::GetServerAddress(ip_address & pAddress, DWORD * pPort)
 #pragma endregion
 
 //------------------------------------------------------------------------------
+#endif // USE_DIRECT_PLAY

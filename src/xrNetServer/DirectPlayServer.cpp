@@ -1,4 +1,6 @@
 #include "stdafx.h"
+// DirectPlay transport: built only with USE_DIRECT_PLAY (GameNetworkingSockets is the default).
+#ifdef USE_DIRECT_PLAY
 #include "DirectPlayServer.h"
 #include "dxerr.h"
 
@@ -381,3 +383,4 @@ bool DirectPlayServer::GetClientPendingMessagesCount(ClientID ID, DWORD & dwPend
 }
 
 // -----------------------------------------------------------------------------
+#endif // USE_DIRECT_PLAY
