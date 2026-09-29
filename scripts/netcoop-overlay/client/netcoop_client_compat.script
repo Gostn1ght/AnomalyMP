@@ -505,6 +505,15 @@ end
 
 function on_game_start()
 	install_weather_follow()
+	-- Keep the faction relations the engine read from the table: GAMMA's
+	-- reset_all_relations (run when no faction select window marked a new
+	-- game) reads the table in a different column order (see server).
+	pcall(function()
+		local state = alife_storage_manager.get_state()
+		if state and not state.new_game_relations then
+			state.new_game_relations = true
+		end
+	end)
 	quiet_busy_hands()
 	install_server_trade()
 	RegisterScriptCallback("actor_on_item_take", on_item_take)
