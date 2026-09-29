@@ -2,6 +2,7 @@
 #include "torch.h"
 #include "entity.h"
 #include "actor.h"
+#include "netcoop.h"
 #include "../xrEngine/LightAnimLibrary.h"
 #include "../xrphysics/PhysicsShell.h"
 #include "xrserver_objects_alife_items.h"
@@ -134,6 +135,15 @@ void CTorch::Switch()
 
 void CTorch::Switch(bool light_on)
 {
+	// Netcoop: this client's own torch - tell the server (other players see
+	// its light through the server's copy).
+	if (light_on != m_switched_on && netcoop::client_owns_hud_item(this))
+	{
+		NET_Packet P;
+		u_EventGen(P, GE_NETCOOP_ITEM_STATE, ID());
+		P.w_u8(light_on ? 1 : 0);
+		u_EventSend(P);
+	}
 	CActor* pActor = smart_cast<CActor*>(H_Parent());
 	if (pActor)
 	{
@@ -517,6 +527,22 @@ void CTorch::net_Export(NET_Packet& P)
 	P.w_u8(F);
 }
 
+void CTorch::OnEvent(NET_Packet& P, u16 type)
+{
+	// Netcoop server: the owning player switched this torch.
+	if (type == GE_NETCOOP_ITEM_STATE)
+	{
+		if (OnServer() && P.r_elapsed() >= 1)
+		{
+			const bool on = P.r_u8() != 0;
+			if (on != m_switched_on)
+				Switch(on);
+		}
+		return;
+	}
+	inherited::OnEvent(P, type);
+}
+
 void CTorch::net_Import(NET_Packet& P)
 {
 	inherited::net_Import(P);
@@ -524,6 +550,10 @@ void CTorch::net_Import(NET_Packet& P)
 	BYTE F = P.r_u8();
 	bool new_m_switched_on = !!(F & eTorchActive);
 
+	// Netcoop: this client switches its own torch (GAMMA's device script);
+	// the server's older state switched it back every snapshot (flicker).
+	if (netcoop::client_owns_hud_item(this))
+		return;
 	if (new_m_switched_on != m_switched_on) Switch(new_m_switched_on);
 }
 

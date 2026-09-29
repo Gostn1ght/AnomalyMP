@@ -233,6 +233,10 @@ enum
 	// its direction; the server fires that weapon along it.
 	GE_NETCOOP_WPN_AIM,
 
+	// Netcoop: a player's client switched one of its own devices (torch):
+	// u8 on. The server's copy follows, so other players see it.
+	GE_NETCOOP_ITEM_STATE,
+
 	GE_FORCEDWORD = u32(-1)
 };
 

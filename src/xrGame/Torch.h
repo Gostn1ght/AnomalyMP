@@ -51,6 +51,7 @@ public:
 	virtual void net_Destroy();
 	virtual void net_Export(NET_Packet& P); // export to server
 	virtual void net_Import(NET_Packet& P); // import from server
+	virtual void OnEvent(NET_Packet& P, u16 type);
 
 	virtual void OnH_A_Chield();
 	virtual void OnH_B_Independent(bool just_before_destroy);

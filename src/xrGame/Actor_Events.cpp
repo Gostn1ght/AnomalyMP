@@ -44,6 +44,7 @@ static bool netcoop_server_inventory_action(u16 cmd)
 	case kTORCH:
 	case kNIGHT_VISION:
 	case kDETECTOR:
+	case kWPN_ZOOM: // the copy aims too: other players see the player aim
 	case kACTIVE_JOBS: // PDA slot; CPda::Action itself needs no UI on the server
 		return true;
 	default:

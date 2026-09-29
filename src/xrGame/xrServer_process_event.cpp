@@ -400,6 +400,10 @@ void xrServer::Process_event(NET_Packet& P, ClientID sender)
 		break;
 	case GE_FREEZE_OBJECT:
 		break;
+	case GE_NETCOOP_ITEM_STATE:
+		if (SV_Client)
+			SendTo(SV_Client->ID, P, MODE);
+		break;
 	case GE_NETCOOP_WPN_AIM:
 		// One shot of a player: the server's level fires it, the other
 		// clients show it (sound, flash).

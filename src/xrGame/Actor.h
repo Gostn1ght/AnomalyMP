@@ -602,6 +602,8 @@ public:
 	Fvector m_netcoop_shown_error;
 	u32 m_netcoop_shown_stamp = 0;
 	bool m_netcoop_shown_valid = false;
+	float m_netcoop_shown_model_yaw = 0.f;
+	SRotation m_netcoop_shown_torso;
 	
 	u32 m_next_input_sequence = 1;
 	bool m_jump_input_pending = false;

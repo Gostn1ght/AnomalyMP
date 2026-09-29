@@ -1125,8 +1125,13 @@ void CWeapon::net_Import(NET_Packet& P)
 				Msg("!! Weapon [%d], State - [%d]", ID(), wstate);
 			else
 			{
-				m_ammoType = ammoType;
-				SetAmmoElapsed((ammo_elapsed));
+				// Netcoop: the owner's client counts its own ammo; the server's
+				// count arrives late and made rounds come back or vanish.
+				if (!netcoop::client_owns_hud_item(&CHudItem::object()))
+				{
+					m_ammoType = ammoType;
+					SetAmmoElapsed((ammo_elapsed));
+				}
 			}
 		}
 		break;

@@ -1569,6 +1569,8 @@ void CActor::netcoop_update_remote()
 		if (!m_netcoop_shown_valid || m_netcoop_shown_pos.distance_to(cur.p_pos) > 3.f)
 		{
 			m_netcoop_shown_error.set(0.f, 0.f, 0.f);
+			m_netcoop_shown_model_yaw = cur.o_model;
+			m_netcoop_shown_torso = cur.o_torso;
 			m_netcoop_shown_valid = true;
 		}
 		else if (B.dwTimeStamp != m_netcoop_shown_stamp)
@@ -1580,6 +1582,15 @@ void CActor::netcoop_update_remote()
 		const float dt = _min(Device.fTimeDelta, 0.1f);
 		m_netcoop_shown_error.mul(expf(-12.f * dt));
 		cur.p_pos.add(m_netcoop_shown_error);
+		// Facing and look follow the snapshots smoothly: applied directly,
+		// they turned in 30 steps a second (jerky turns).
+		const float k = 1.f - expf(-20.f * dt);
+		m_netcoop_shown_model_yaw = angle_lerp(m_netcoop_shown_model_yaw, cur.o_model, k);
+		m_netcoop_shown_torso.yaw = angle_lerp(m_netcoop_shown_torso.yaw, cur.o_torso.yaw, k);
+		m_netcoop_shown_torso.pitch = angle_lerp(m_netcoop_shown_torso.pitch, cur.o_torso.pitch, k);
+		m_netcoop_shown_torso.roll = angle_lerp(m_netcoop_shown_torso.roll, cur.o_torso.roll, k);
+		cur.o_model = m_netcoop_shown_model_yaw;
+		cur.o_torso = m_netcoop_shown_torso;
 		m_netcoop_shown_pos = cur.p_pos;
 	}
 	else if (NET.size() >= 2 && t >= NET[0].dwTimeStamp && t <= NET[1].dwTimeStamp && NET[1].dwTimeStamp > NET[0].dwTimeStamp)
