@@ -1222,6 +1222,18 @@ void CWeapon::OnEvent(NET_Packet& P, u16 type)
 			if (OnClient() || (netcoop::enabled() && smart_cast<CActor*>(H_Parent())))
 				SetAmmoElapsed(int(AmmoElapsed));
 			OnStateSwitch(u32(state), GetState());
+			// Netcoop server: a player's weapon is switched to firing by this
+			// event, but magazine weapons shoot only while 'working', which
+			// the trigger (FireStart) sets on the owner's client. Without it
+			// the server copy never fired a bullet and player damage was 0.
+			if (netcoop::enabled() && OnServer() && H_Parent() && !H_Parent()->Local() &&
+				smart_cast<CActor*>(H_Parent()))
+			{
+				if (state == eFire)
+					FireStart();
+				else if (IsWorking())
+					FireEnd();
+			}
 		}
 		break;
 	default:
