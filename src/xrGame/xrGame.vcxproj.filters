@@ -10055,6 +10055,9 @@
     <ClCompile Include="netcoop.cpp">
       <Filter>Core\Server\Games\server\single</Filter>
     </ClCompile>
+    <ClCompile Include="netcoop_bots.cpp">
+      <Filter>Core\Server\Games\server\single</Filter>
+    </ClCompile>
     <ClCompile Include="game_sv_teamdeathmatch.cpp">
       <Filter>Core\Server\Games\server\team_deathmatch</Filter>
     </ClCompile>

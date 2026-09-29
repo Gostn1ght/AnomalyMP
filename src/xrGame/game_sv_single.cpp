@@ -524,6 +524,12 @@ void game_sv_Single::netcoop_spawn_actor(ClientID id_who)
 	{
 		s_netcoop_game = this;
 		s_netcoop_actor_ids.push_back(CL->owner->ID);
+
+		// Tells the client which Actor is its own (load-test bots load no
+		// level and do not parse the spawn messages).
+		string128 you;
+		xr_sprintf(you, "%u %.2f %.2f %.2f", CL->owner->ID, pos.x, pos.y, pos.z);
+		netcoop::script_send_to_actor(CL->owner->ID, "you", you);
 	}
 
 	// GAMMA's PDA script requires an owned device. Additional netcoop actors

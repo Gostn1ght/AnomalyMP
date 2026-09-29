@@ -36,6 +36,7 @@ enum EAuthMode : u8
 {
 	auth_login = 0,
 	auth_register = 1,
+	auth_auto = 2, // log in, or register when the account does not exist (load-test bots)
 };
 
 enum ETradeDirection : u8
@@ -54,6 +55,8 @@ bool read_string(NET_Packet& P, LPSTR dest, u32 dest_size);
 // ---- client ------------------------------------------------------------
 // Derives the connection key and remembers it for the next connection.
 bool client_set_credentials(LPCSTR login, LPCSTR password, bool register_account);
+// The per-server key sent at login: hex PBKDF2-SHA256(password, "NetAnomaly/" + lower(login)).
+bool derive_client_key(LPCSTR login, LPCSTR password, xr_string& key_hex);
 bool client_has_credentials();
 LPCSTR client_login();
 u8 client_role();
@@ -176,4 +179,10 @@ void metric_weapon_fire(CWeapon* weapon);
 // Server: bytes of object updates sent this tick and objects serialised.
 void metric_server_sent(u32 bytes, u32 objects);
 void metrics_update();
+
+// Load test: bots connect to a server as players and walk (netcoop_bots.cpp).
+// Console: netcoop_bots <count> [address]; command line -netcoop_bots <count>
+// [-netcoop_bots_addr <address>]. Pumped every frame by the game.
+void bots_set(u32 count, LPCSTR address);
+void bots_frame();
 } // namespace netcoop

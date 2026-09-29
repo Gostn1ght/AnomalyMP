@@ -2497,6 +2497,24 @@ public:
 	}
 };
 
+//netanomaly: load test, netcoop_bots <count> [address]; 0 disconnects all bots
+class CCC_NetcoopBots : public IConsole_Command
+{
+public:
+	CCC_NetcoopBots(LPCSTR N) : IConsole_Command(N) { bEmptyArgsHandled = TRUE; };
+	virtual void Execute(LPCSTR args)
+	{
+		u32 count = 0;
+		string256 address = "";
+		if (!args || sscanf_s(args, "%u %255s", &count, address, (unsigned)sizeof(address)) < 1)
+		{
+			Msg("~ usage: netcoop_bots <count> [address, e.g. 127.0.0.1/port=5445]");
+			return;
+		}
+		netcoop::bots_set(count, address);
+	}
+};
+
 //netanomaly: grant or revoke admin; only the local server console may do this
 class CCC_NetcoopAccountRole : public IConsole_Command
 {
@@ -2588,6 +2606,7 @@ void CCC_RegisterCommands()
 	CMD1(CCC_NetAnomalySrv, "srv");
 	CMD1(CCC_NetAnomalySvCmd, "sv_cmd");
 	CMD1(CCC_NetcoopAccounts, "sv_accounts");
+	CMD1(CCC_NetcoopBots, "netcoop_bots");
 	CMD1(CCC_NetcoopAccountRole, "sv_account_role");
 	//Not needed for a singleplayer-only mod
 	//g_OptConCom.Init();

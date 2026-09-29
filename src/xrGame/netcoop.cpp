@@ -210,6 +210,21 @@ static void client_load_credentials()
 	fclose(f);
 }
 
+bool derive_client_key(LPCSTR login, LPCSTR password, xr_string& key_hex)
+{
+	xr_string lower = login;
+	to_lower(lower);
+	xr_string salt = "NetAnomaly/";
+	salt += lower;
+
+	u8 key[key_bytes];
+	if (!pbkdf2(password, xr_strlen(password), salt.c_str(), (u32)salt.size(), client_key_iterations, key, key_bytes))
+		return false;
+	key_hex = to_hex(key, key_bytes);
+	SecureZeroMemory(key, sizeof(key));
+	return true;
+}
+
 bool client_set_credentials(LPCSTR login, LPCSTR password, bool register_account)
 {
 	if (!login || !password || !login_valid(login))
@@ -224,13 +239,8 @@ bool client_set_credentials(LPCSTR login, LPCSTR password, bool register_account
 		return false;
 	}
 
-	xr_string lower = login;
-	to_lower(lower);
-	xr_string salt = "NetAnomaly/";
-	salt += lower;
-
-	u8 key[key_bytes];
-	if (!pbkdf2(password, password_length, salt.c_str(), (u32)salt.size(), client_key_iterations, key, key_bytes))
+	xr_string key_hex;
+	if (!derive_client_key(login, password, key_hex))
 	{
 		Msg("! [NetAnomaly] cannot derive the account key");
 		return false;
@@ -238,9 +248,8 @@ bool client_set_credentials(LPCSTR login, LPCSTR password, bool register_account
 
 	s_client_loaded = true;
 	s_client_login = login;
-	s_client_key = to_hex(key, key_bytes);
+	s_client_key = key_hex;
 	s_client_register = register_account;
-	SecureZeroMemory(key, sizeof(key));
 
 	// Remember the derived key, not the password, for the next connection.
 	string_path path;
@@ -626,7 +635,7 @@ void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
 	}
 
 	Account* a = account_find(login);
-	if (mode == auth_register)
+	if (mode == auth_register || (mode == auth_auto && !a))
 	{
 		if (a)
 		{
