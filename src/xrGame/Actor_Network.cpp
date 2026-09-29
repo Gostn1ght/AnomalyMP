@@ -4,6 +4,7 @@
 #include "hudmanager.h"
 #include "Actor_Flags.h"
 #include "inventory.h"
+#include "HudItem.h"
 #include "xrserver_objects_alife_monsters.h"
 #include "xrServer.h"
 #include "../xrEngine/CustomHUD.h"
@@ -617,7 +618,29 @@ void CActor::net_Import_Base(NET_Packet& P)
 
 	// The owning client selects its own hands (PDA, weapons); the server follows
 	// through GE_INV_ACTION. Applying the server's slot here undid local choices.
-	if (OnClient() && !Local())
+	if (OnClient() && !Local() && netcoop::pure_client())
+	{
+		// Another player: CInventory::Update changes the active slot only of
+		// this client's own inventory, so the other player's hands stayed
+		// empty. Apply the server's slot directly, and show/hide the items as
+		// a weapon state event from the owner would.
+		const u16 slot = u16(ActiveSlot);
+		if (inventory().GetActiveSlot() != slot &&
+			(slot == NO_ACTIVE_SLOT || (slot <= inventory().LastSlot() && inventory().ItemFromSlot(slot))))
+		{
+			PIItem previous = inventory().ActiveItem();
+			inventory().SetActiveSlot(slot);
+			PIItem current = inventory().ActiveItem();
+			if (previous && previous != current)
+				if (CHudItem* hud = previous->cast_hud_item())
+					hud->OnStateSwitch(CHUDState::eHidden, hud->GetState());
+			if (current)
+				if (CHudItem* hud = current->cast_hud_item())
+					if (hud->IsHidden())
+						hud->OnStateSwitch(CHUDState::eIdle, hud->GetState());
+		}
+	}
+	else if (OnClient() && !Local())
 		//------------------------------------------------
 	{
 		if (ActiveSlot == NO_ACTIVE_SLOT) inventory().SetActiveSlot(NO_ACTIVE_SLOT);
