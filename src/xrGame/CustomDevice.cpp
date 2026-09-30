@@ -304,7 +304,7 @@ static bool netcoop_left_hand_xform(CCustomDevice* device)
 {
 	if (!netcoop::pure_client())
 		return false;
-	CObject* parent = device->object().H_Parent();
+	CObject* parent = device->H_Parent();
 	CActor* holder = smart_cast<CActor*>(parent);
 	if (!holder || holder == Actor() || !holder->Visual())
 		return false;
@@ -331,7 +331,7 @@ static bool netcoop_left_hand_xform(CCustomDevice* device)
 	if (bone == BI_NONE)
 		return false;
 	kinematics->CalculateBones();
-	Fmatrix& xform = device->object().XFORM();
+	Fmatrix& xform = device->XFORM();
 	xform.mul_43(kinematics->LL_GetBoneInstance(bone).mTransform, own ? device->offset() : fallback_offset);
 	xform.mulA_43(holder->XFORM());
 	return true;
