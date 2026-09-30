@@ -112,13 +112,21 @@ foreach ($role in $roles) {
     foreach ($assetKind in @('configs', 'textures')) {
         $assets = Join-Path $overlay $assetKind
         if (-not (Test-Path -LiteralPath $assets -PathType Container)) { continue }
-        $target = Join-Path $runtime "$($role.Name)\$assetKind"
+        # Both role fsgame files resolve $game_textures$ to gamedata\textures.
+        # Only configs and scripts have separate client/server roots. Putting
+        # DDS files under client\textures leaves the engine using its missing
+        # texture placeholder (a solid square instead of the RP wheel).
+        $target = if ($assetKind -eq 'textures') {
+            Join-Path $runtime 'gamedata\textures'
+        } else {
+            Join-Path $runtime "$($role.Name)\$assetKind"
+        }
         Get-ChildItem -LiteralPath $assets -Recurse -File | ForEach-Object {
             $relative = $_.FullName.Substring($assets.Length + 1)
             $destination = Join-Path $target $relative
             New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
             Copy-Item -LiteralPath $_.FullName -Destination $destination -Force
-            Write-Host "Installed $($role.Name)\$assetKind\$relative"
+            Write-Host "Installed $destination"
         }
     }
     $scripts = Join-Path $runtime "$($role.Name)\scripts"
