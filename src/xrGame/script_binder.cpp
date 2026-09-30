@@ -110,6 +110,12 @@ void CScriptBinder::Load(LPCSTR section)
 
 void CScriptBinder::reload(LPCSTR section)
 {
+	// Reject a remote actor before calling actor_init: its Lua constructor
+	// writes db.actor_binder and fires global actor_on_init callbacks. Deleting
+	// the binder in set_object afterwards cannot undo those HUD side effects.
+	CActor* actor = smart_cast<CActor*>(this);
+	if (actor && !actor->Local() && strstr(Core.Params, "-netcoop") && !strstr(Core.Params, "server("))
+		return;
 #ifdef DEBUG_MEMORY_MANAGER
 	size_t									start = 0;
 	if (g_bMEMO)
