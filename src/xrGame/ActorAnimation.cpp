@@ -546,7 +546,12 @@ void CActor::g_SetAnimation(u32 mstate_rl)
 		if (H)
 		{
 			VERIFY(H->animation_slot() <= _total_anim_slots_);
-			STorsoWpn* TW = &ST->m_torso[H->animation_slot() - 1];
+			// GAMMA axes inherit CWeaponKnife but advertise the rifle slot (2).
+			// A player's one-handed melee item needs the knife grip and attacks;
+			// first-person HUD motions still come from its own item definition.
+			const u32 slot = netcoop::pure_client() && smart_cast<CWeaponKnife*>(_i)
+				? 5 : H->animation_slot();
+			STorsoWpn* TW = &ST->m_torso[slot - 1];
 			if (!b_DropActivated && !fis_zero(f_DropPower))
 			{
 				M_torso = TW->drop;
