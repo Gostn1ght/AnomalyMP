@@ -85,7 +85,7 @@ function netcoop_rp_wnd:SetSelected(index)
     local a = index and self.anims[index]
     if a then
         self.marks[index]:Show(true)
-        self.caption:TextControl():SetText(string.format("%02d / 28\n%s", index,
+        self.caption:TextControl():SetText(string.format("%02d / 28\\n%s", index,
             game.translate_string(a.title or ("st_netcoop_rp_" .. a.name))))
     else
         self.caption:TextControl():SetText(game.translate_string("st_netcoop_rp_select"))
