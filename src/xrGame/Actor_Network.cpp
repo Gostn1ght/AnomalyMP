@@ -260,7 +260,12 @@ void CActor::net_Export(NET_Packet& P) // export to server
 	//	P.w_float_q16		(fArmor,-500,1000);
 	P.w_float(g_Radiation());
 
-	P.w_u8(u8(inventory().GetActiveSlot()));
+	// A player's hands are what its owner reports (the server's copy missed
+	// some slot changes: a PDA stayed in the hands for other players).
+	if (netcoop::server_player_copy(this) && m_netcoop_owner_slot != 0xff)
+		P.w_u8(m_netcoop_owner_slot);
+	else
+		P.w_u8(u8(inventory().GetActiveSlot()));
 	/////////////////////////////////////////////////
 	u16 NumItems = PHGetSyncItemsNumber();
 
@@ -457,6 +462,16 @@ void CActor::netcoop_follow_owner(NET_Packet& P)
 	accel.set(0.f, 0.f, 0.f);
 	if (P.r_elapsed() >= 2 * sizeof(u16) + 2 * sizeof(u8))
 		P.r_sdir(accel);
+	// Then velocity (sdir), radiation, active slot.
+	if (P.r_elapsed() >= sizeof(u16) + 2 * sizeof(float) + sizeof(u8))
+	{
+		Fvector velocity;
+		P.r_sdir(velocity);
+		P.r_float();
+		const u8 slot = P.r_u8();
+		if (slot == u8(NO_ACTIVE_SLOT) || slot <= inventory().LastSlot())
+			m_netcoop_owner_slot = slot;
+	}
 
 	if (_valid(position))
 	{

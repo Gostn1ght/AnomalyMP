@@ -216,6 +216,39 @@ void CInventoryItem::OnH_A_Independent()
 	m_dwItemIndependencyTime = Level().timeServer();
 	m_ItemCurrPlace.type = eItemPlaceUndefined;
 	inherited::OnH_A_Independent();
+	netcoop_make_kinematic();
+}
+
+void CInventoryItem::netcoop_make_kinematic()
+{
+	if (!netcoop::pure_client() || object().H_Parent())
+		return;
+	CPhysicsShell* shell = object().PPhysicsShell();
+	if (!shell)
+		return;
+	if (m_netcoop_kinematic_shell != shell)
+	{
+		shell->DisableCollision();
+		m_netcoop_kinematic_shell = shell;
+	}
+	if (shell->isEnabled())
+		shell->Disable();
+}
+
+void CInventoryItem::netcoop_follow_server_item(const net_update_IItem& N)
+{
+	if (object().H_Parent() || !_valid(N.State.position))
+		return;
+	Fmatrix m;
+	m.rotation(N.State.quaternion);
+	m.c.set(N.State.position);
+	if (!_valid(m))
+		return;
+	netcoop_make_kinematic();
+	if (CPhysicsShell* shell = object().PPhysicsShell())
+		shell->SetTransform(m, mh_clear);
+	object().XFORM().set(m);
+	object().spatial_move(); // render and pick bounds follow without processing
 }
 
 void CInventoryItem::OnH_B_Chield()
@@ -428,6 +461,12 @@ void CInventoryItem::net_Import(NET_Packet& P)
 	net_Import_PH_Params(P,N, num_items);
 	////////////////////////////////////////////
 	P.r_u8(); //active (not freezed ot not)
+
+	if (netcoop::pure_client())
+	{
+		netcoop_follow_server_item(N);
+		return;
+	}
 
 	if (this->cast_game_object()->Local())
 	{

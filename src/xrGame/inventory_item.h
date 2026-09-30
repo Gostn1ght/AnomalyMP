@@ -254,6 +254,12 @@ public:
 protected:
 	net_updateInvData* m_net_updateData;
 	net_updateInvData* NetSync();
+	// Netcoop client: a world item does not simulate its own physics (each
+	// client rolled and kicked items its own way); it is placed where the
+	// server's item is. Collision is off for the shell it was set up for.
+	void netcoop_follow_server_item(const net_update_IItem& N);
+	void netcoop_make_kinematic();
+	void* m_netcoop_kinematic_shell = nullptr;
 	void CalculateInterpolationParams();
 
 public:
