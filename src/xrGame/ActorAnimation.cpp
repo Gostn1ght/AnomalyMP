@@ -943,6 +943,8 @@ void CActor::rp_start(int index, bool own)
 	if (m_rp_index >= 0)
 		rp_finish();
 	m_rp_index = index;
+	m_rp_started = Device.dwTimeGlobal;
+	Msg("[NetAnomaly] rp: %s starts %s on %s", netcoop::rp_anims()[index].name.c_str(), own ? "(own)" : "(remote)", cName().c_str());
 	m_rp_phase = 0;
 	m_rp_step = 0;
 	m_rp_stopping = false;
@@ -981,6 +983,7 @@ void CActor::rp_finish()
 {
 	if (m_rp_index < 0)
 		return;
+	Msg("[NetAnomaly] rp: %s finished on %s", netcoop::rp_anims()[m_rp_index].name.c_str(), cName().c_str());
 	m_rp_index = -1;
 	m_rp_stopping = false;
 	m_rp_motion_done = true;
@@ -1009,9 +1012,13 @@ bool CActor::rp_update()
 	const bool own = this == Level().CurrentControlEntity();
 	if (own && !m_rp_stopping)
 	{
-		// Drawing a weapon ends the animation; late joiners get the index again.
-		if (inventory().GetActiveSlot() != NO_ACTIVE_SLOT)
+		// Drawing a weapon ends the animation (the one being put away still
+		// counts as active for a moment); late joiners get the index again.
+		if (Device.dwTimeGlobal >= m_rp_started + 1500 && inventory().GetNextActiveSlot() != NO_ACTIVE_SLOT)
+		{
+			Msg("[NetAnomaly] rp: %s ends, slot %u drawn", anims[m_rp_index].name.c_str(), u32(inventory().GetNextActiveSlot()));
 			rp_request_stop(true);
+		}
 		else if (Device.dwTimeGlobal >= m_rp_resend)
 		{
 			rp_send(u8(m_rp_index));

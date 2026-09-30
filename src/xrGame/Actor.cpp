@@ -1982,8 +1982,11 @@ void CActor::shedule_Update(u32 DT)
 		const bool rp_playing = m_rp_index >= 0;
 		if (rp_playing)
 		{
-			if (mstate_wishful & (mcAnyMove | mcJump))
+			if ((mstate_wishful & (mcAnyMove | mcJump)) && !m_rp_stopping)
+			{
+				Msg("[NetAnomaly] rp: ends, player moves (0x%x)", mstate_wishful & (mcAnyMove | mcJump));
 				rp_request_stop(true);
+			}
 			mstate_wishful &= ~(mcAnyMove | mcJump | mcSprint);
 		}
 		g_cl_CheckControls(mstate_wishful, NET_SavedAccel, NET_Jump, dt);

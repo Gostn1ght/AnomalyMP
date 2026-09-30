@@ -601,6 +601,7 @@ public:
 	bool m_rp_motion_done = true;
 	u32 m_rp_motion_deadline = 0;
 	u32 m_rp_resend = 0;
+	u32 m_rp_started = 0;
 	bool m_rp_camera_switched = false;
 	// own: this client's player (sends it and moves its camera)
 	void rp_start(int index, bool own);
