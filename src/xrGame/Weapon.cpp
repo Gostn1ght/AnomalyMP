@@ -230,13 +230,17 @@ void CWeapon::UpdateXForm()
 
 	if (fis_zero(D.magnitude()))
 	{
-		mRes.set(E->XFORM());
-		mRes.c.set(mR.c);
+		// mR is in skeleton space; its translation cannot replace the
+		// actor's world translation (the weapon would jump to the origin).
+		mRes.mul_43(E->XFORM(), mR);
 	}
 	else
 	{
 		D.normalize();
 		R.crossproduct(mR.j, D);
+		if (fis_zero(R.magnitude()))
+			R.crossproduct(mR.i, D);
+		R.normalize();
 
 		N.crossproduct(D, R);
 		N.normalize();

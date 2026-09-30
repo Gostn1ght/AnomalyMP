@@ -23,6 +23,7 @@
 #include "player_hud.h"
 #include "WeaponKnife.h"
 #include "Pda.h"
+#include "CustomDevice.h"
 #include "../xrEngine/SkeletonMotions.h"
 #include "xrMessages.h"
 
@@ -344,6 +345,87 @@ char* mov_state[] = {
 	"sprint",
 };
 
+// These combined torso motions are supplied by Anomaly's stalker_animation.omf.
+// A secondary HUD device is not the active inventory slot: select its pose
+// explicitly, without changing the active weapon or the actor's leg animation.
+static CCustomDevice* netcoop_drawn_device(CActor* actor)
+{
+	if (!netcoop::pure_client())
+		return nullptr;
+	for (CInventoryItem* item : actor->inventory().m_all)
+		if (CCustomDevice* device = smart_cast<CCustomDevice*>(item))
+			if (!device->IsHidden())
+				return device;
+	return nullptr;
+}
+
+static MotionID netcoop_device_torso(CActor* actor, CCustomDevice* device, u32 movement,
+                                    STorsoWpn::eMovingState moving)
+{
+	IKinematicsAnimated* model = smart_cast<IKinematicsAnimated*>(actor->Visual());
+	if (!model || !netcoop::pure_client() || (movement & mcClimb))
+		return MotionID();
+	CInventoryItem* active = actor->inventory().ActiveItem();
+	CPda* pda = smart_cast<CPda*>(active);
+	if (!device && !pda)
+		return MotionID();
+
+	LPCSTR family = "pda";
+	LPCSTR action = "aim_1";
+	CHudItem* item = pda;
+	if (device)
+	{
+		item = device;
+		family = "0+detector";
+		if (smart_cast<CWeaponKnife*>(active))
+			family = "knife+detector";
+		else if (smart_cast<CMissile*>(active))
+			family = "6+detector";
+		else if (CWeapon* weapon = smart_cast<CWeapon*>(active))
+		{
+			if (weapon->animation_slot() != 1)
+				return MotionID(); // no combined two-handed weapon pose in the asset
+			family = "pistol+detector";
+			if (weapon->GetState() == CWeapon::eFire)
+				action = weapon->IsZoomed() ? "attack_0" : "attack_1";
+			else if (weapon->IsZoomed())
+				action = "aim_0";
+		}
+	}
+	else if (pda->m_bZoomed)
+		action = "aim_0";
+
+	if (moving == STorsoWpn::eSprint)
+		action = "escape_0";
+	else if (moving == STorsoWpn::eRun && xr_strcmp(action, "aim_1") == 0)
+		action = "aim_3";
+	else if (moving == STorsoWpn::eWalk && xr_strcmp(action, "aim_1") == 0)
+		action = "aim_2";
+	if (item->GetState() == CHUDState::eShowing)
+		action = device ? "drawdevice_0" : "draw_0";
+	else if (item->GetState() == CHUDState::eHiding)
+		action = device ? "holsterdevice_0" : "holster_0";
+	else if (device && smart_cast<CWeaponKnife*>(active))
+	{
+		CWeaponKnife* knife = smart_cast<CWeaponKnife*>(active);
+		if (knife->GetState() == CWeapon::eFire)
+			action = "attack_0";
+		else if (knife->GetState() == CWeapon::eFire2)
+			action = "attack_1";
+	}
+
+	string128 name;
+	xr_sprintf(name, "%s_torso_%s_%s", (movement & mcCrouch) ? "cr" : "norm", family, action);
+	MotionID motion = model->ID_Cycle_Safe(name);
+	if (!motion.valid())
+	{
+		// Some Anomaly models only provide standing device motions.
+		xr_sprintf(name, "norm_torso_%s_%s", family, action);
+		motion = model->ID_Cycle_Safe(name);
+	}
+	return motion;
+}
+
 void CActor::g_SetAnimation(u32 mstate_rl)
 {
 	// A netcoop RP animation drives the whole body while it plays.
@@ -366,6 +448,7 @@ void CActor::g_SetAnimation(u32 mstate_rl)
 		return;
 	}
 	STorsoWpn::eMovingState moving_idx = STorsoWpn::eIdle;
+	CCustomDevice* drawn_device = netcoop_drawn_device(this);
 	SActorState* ST = 0;
 	SAnimState* AS = 0;
 
@@ -495,14 +578,14 @@ void CActor::g_SetAnimation(u32 mstate_rl)
 								break;
 
 							case CWeapon::eFire:
-								if (is_standing)
+								if (is_standing && !drawn_device)
 									M_torso = M_legs = M_head = TW->all_attack_0;
 								else
 									M_torso = TW->attack_zoom;
 								break;
 
 							case CWeapon::eFire2:
-								if (is_standing)
+								if (is_standing && !drawn_device)
 									M_torso = M_legs = M_head = TW->all_attack_1;
 								else
 									M_torso = TW->fire_idle;
@@ -661,6 +744,12 @@ void CActor::g_SetAnimation(u32 mstate_rl)
 			else
 				M_torso = ST->m_torso[4].moving[moving_idx]; //Alundaio: Fix torso animations for no weapon
 		}
+	}
+	if (!m_bAnimTorsoPlayed)
+	{
+		const MotionID device_motion = netcoop_device_torso(this, drawn_device, mstate_rl, moving_idx);
+		if (device_motion.valid())
+			M_torso = device_motion;
 	}
 	MotionID mid = smart_cast<IKinematicsAnimated*>(Visual())->ID_Cycle("norm_idle_0");
 
