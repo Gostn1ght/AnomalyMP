@@ -9,4 +9,97 @@
 	<string id="st_netcoop_respawn_press">
 		<text>Press SPACE to respawn</text>
 	</string>
+	<string id="st_netcoop_rp_hands_pockets">
+		<text>Hands in pockets</text>
+	</string>
+	<string id="st_netcoop_rp_salute">
+		<text>Salute</text>
+	</string>
+	<string id="st_netcoop_rp_greet">
+		<text>Greet</text>
+	</string>
+	<string id="st_netcoop_rp_refuse">
+		<text>Refuse</text>
+	</string>
+	<string id="st_netcoop_rp_hands_behind">
+		<text>Hands behind back</text>
+	</string>
+	<string id="st_netcoop_rp_look_around">
+		<text>Look around</text>
+	</string>
+	<string id="st_netcoop_rp_listen">
+		<text>Listen</text>
+	</string>
+	<string id="st_netcoop_rp_hands_up">
+		<text>Hands up</text>
+	</string>
+	<string id="st_netcoop_rp_guard">
+		<text>Sentry</text>
+	</string>
+	<string id="st_netcoop_rp_sit_1">
+		<text>Sit 1</text>
+	</string>
+	<string id="st_netcoop_rp_sit_2">
+		<text>Sit 2</text>
+	</string>
+	<string id="st_netcoop_rp_sit_3">
+		<text>Sit 3</text>
+	</string>
+	<string id="st_netcoop_rp_sleep">
+		<text>Sleep</text>
+	</string>
+	<string id="st_netcoop_rp_pushups">
+		<text>Push-ups</text>
+	</string>
+	<string id="st_netcoop_rp_bar_1">
+		<text>At the bar 1</text>
+	</string>
+	<string id="st_netcoop_rp_bar_2">
+		<text>At the bar 2</text>
+	</string>
+	<string id="st_netcoop_rp_bar_3">
+		<text>At the bar 3</text>
+	</string>
+	<string id="st_netcoop_rp_bar_4">
+		<text>At the bar 4</text>
+	</string>
+	<string id="st_netcoop_rp_bar_5">
+		<text>At the bar 5</text>
+	</string>
+	<string id="st_netcoop_rp_bar_6">
+		<text>At the bar 6</text>
+	</string>
+	<string id="st_netcoop_rp_trance_1">
+		<text>Trance 1</text>
+	</string>
+	<string id="st_netcoop_rp_trance_2">
+		<text>Trance 2</text>
+	</string>
+	<string id="st_netcoop_rp_wounded_1">
+		<text>Wounded 1</text>
+	</string>
+	<string id="st_netcoop_rp_wounded_2">
+		<text>Wounded 2</text>
+	</string>
+	<string id="st_netcoop_rp_prisoner">
+		<text>Hostage</text>
+	</string>
+	<string id="st_netcoop_rp_psy">
+		<text>Psy attack</text>
+	</string>
+	<string id="st_netcoop_rp_gop_stop">
+		<text>Stick-up</text>
+	</string>
+	<string id="st_netcoop_rp_loot">
+		<text>Search</text>
+	</string>
+	<string id="st_netcoop_rp_title">
+		<text>Animations</text>
+	</string>
+	<string id="st_netcoop_rp_stop">
+		<text>Stop</text>
+	</string>
+	<string id="st_netcoop_rp_hint">
+		<text>Z - menu, move to leave the animation</text>
+	</string>
 </string_table>

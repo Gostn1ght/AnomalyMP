@@ -1,0 +1,92 @@
+-- NetAnomaly: RP animation (emote) menu. Z opens and closes it; a button
+-- starts the animation, moving or "Stop" ends it. The list comes from the
+-- engine (configs\netcoop\rp_anims.ltx).
+
+local MENU_KEY = DIK_keys.DIK_Z
+local COLUMNS = 4
+local COL_W, ROW_H = 174, 40
+local LEFT, TOP = 172, 176
+
+local function anim_list()
+	local out = {}
+	if not netcoop_rp_list then return out end
+	for name, title in string.gmatch(netcoop_rp_list() or "", "([^=;]+)=([^;]*);") do
+		out[#out + 1] = { name = name, title = title }
+	end
+	return out
+end
+
+class "netcoop_rp_wnd" (CUIScriptWnd)
+
+function netcoop_rp_wnd:__init() super()
+	self:SetWndRect(Frect():set(0, 0, 1024, 768))
+	self:SetAutoDelete(true)
+
+	local xml = CScriptXmlInit()
+	xml:ParseFile("ui_netcoop_rp.xml")
+	xml:InitStatic("background", self)
+	xml:InitStatic("cap_title", self):TextControl():SetText(game.translate_string("st_netcoop_rp_title"))
+	xml:InitStatic("cap_hint", self):TextControl():SetText(game.translate_string("st_netcoop_rp_hint"))
+
+	self.anims = anim_list()
+	for i, a in ipairs(self.anims) do
+		local id = "btn_rp_" .. i
+		local b = xml:Init3tButton("btn_anim", self)
+		local col, row = (i - 1) % COLUMNS, math.floor((i - 1) / COLUMNS)
+		b:SetWndPos(vector2():set(LEFT + col * COL_W, TOP + row * ROW_H))
+		b:TextControl():SetText(game.translate_string(a.title))
+		self:Register(b, id)
+		local name = a.name
+		self:AddCallback(id, ui_events.BUTTON_CLICKED, function() self:Play(name) end, self)
+	end
+
+	local stop = xml:Init3tButton("btn_stop", self)
+	stop:TextControl():SetText(game.translate_string("st_netcoop_rp_stop"))
+	self:Register(stop, "btn_rp_stop")
+	self:AddCallback("btn_rp_stop", ui_events.BUTTON_CLICKED, function()
+		if netcoop_rp_stop then netcoop_rp_stop() end
+		self:Close()
+	end, self)
+end
+
+function netcoop_rp_wnd:Play(name)
+	if netcoop_rp_play then netcoop_rp_play(name) end
+	self:Close()
+end
+
+function netcoop_rp_wnd:Close()
+	if self:IsShown() then self:HideDialog() end
+end
+
+function netcoop_rp_wnd:OnKeyboard(dik, keyboard_action)
+	CUIScriptWnd.OnKeyboard(self, dik, keyboard_action)
+	if keyboard_action == ui_events.WINDOW_KEY_PRESSED and (dik == DIK_keys.DIK_ESCAPE or dik == MENU_KEY) then
+		self:Close()
+	end
+	return true
+end
+
+local wnd = nil
+
+function toggle()
+	if not (db.actor and db.actor:alive()) then return end
+	if wnd and wnd:IsShown() then
+		wnd:Close()
+		return
+	end
+	wnd = netcoop_rp_wnd()
+	wnd:ShowDialog(true)
+end
+
+local function on_key_press(dik)
+	if dik ~= MENU_KEY then return end
+	-- Free key only: no modifier held, no other window open.
+	if key_state(DIK_keys.DIK_LCONTROL) ~= 0 or key_state(DIK_keys.DIK_LSHIFT) ~= 0 or key_state(DIK_keys.DIK_LMENU) ~= 0 then return end
+	toggle()
+end
+
+function on_game_start()
+	if netcoop_pure_client and netcoop_pure_client() then
+		RegisterScriptCallback("on_key_press", on_key_press)
+	end
+end

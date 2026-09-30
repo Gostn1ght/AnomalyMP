@@ -9,4 +9,97 @@
 	<string id="st_netcoop_respawn_press">
 		<text>Нажмите ПРОБЕЛ для возрождения</text>
 	</string>
+	<string id="st_netcoop_rp_hands_pockets">
+		<text>Руки в карманах</text>
+	</string>
+	<string id="st_netcoop_rp_salute">
+		<text>Отдать честь</text>
+	</string>
+	<string id="st_netcoop_rp_greet">
+		<text>Поприветствовать</text>
+	</string>
+	<string id="st_netcoop_rp_refuse">
+		<text>Отказ</text>
+	</string>
+	<string id="st_netcoop_rp_hands_behind">
+		<text>Руки за спиной</text>
+	</string>
+	<string id="st_netcoop_rp_look_around">
+		<text>Осмотреться</text>
+	</string>
+	<string id="st_netcoop_rp_listen">
+		<text>Прислушаться</text>
+	</string>
+	<string id="st_netcoop_rp_hands_up">
+		<text>Руки вверх</text>
+	</string>
+	<string id="st_netcoop_rp_guard">
+		<text>Часовой</text>
+	</string>
+	<string id="st_netcoop_rp_sit_1">
+		<text>Сидеть 1</text>
+	</string>
+	<string id="st_netcoop_rp_sit_2">
+		<text>Сидеть 2</text>
+	</string>
+	<string id="st_netcoop_rp_sit_3">
+		<text>Сидеть 3</text>
+	</string>
+	<string id="st_netcoop_rp_sleep">
+		<text>Спать</text>
+	</string>
+	<string id="st_netcoop_rp_pushups">
+		<text>Отжимания</text>
+	</string>
+	<string id="st_netcoop_rp_bar_1">
+		<text>У стойки 1</text>
+	</string>
+	<string id="st_netcoop_rp_bar_2">
+		<text>У стойки 2</text>
+	</string>
+	<string id="st_netcoop_rp_bar_3">
+		<text>У стойки 3</text>
+	</string>
+	<string id="st_netcoop_rp_bar_4">
+		<text>У стойки 4</text>
+	</string>
+	<string id="st_netcoop_rp_bar_5">
+		<text>У стойки 5</text>
+	</string>
+	<string id="st_netcoop_rp_bar_6">
+		<text>У стойки 6</text>
+	</string>
+	<string id="st_netcoop_rp_trance_1">
+		<text>Транс 1</text>
+	</string>
+	<string id="st_netcoop_rp_trance_2">
+		<text>Транс 2</text>
+	</string>
+	<string id="st_netcoop_rp_wounded_1">
+		<text>Ранен 1</text>
+	</string>
+	<string id="st_netcoop_rp_wounded_2">
+		<text>Ранен 2</text>
+	</string>
+	<string id="st_netcoop_rp_prisoner">
+		<text>Заложник</text>
+	</string>
+	<string id="st_netcoop_rp_psy">
+		<text>Пси-удар</text>
+	</string>
+	<string id="st_netcoop_rp_gop_stop">
+		<text>Гоп-стоп</text>
+	</string>
+	<string id="st_netcoop_rp_loot">
+		<text>Обыскать</text>
+	</string>
+	<string id="st_netcoop_rp_title">
+		<text>Анимации</text>
+	</string>
+	<string id="st_netcoop_rp_stop">
+		<text>Прекратить</text>
+	</string>
+	<string id="st_netcoop_rp_hint">
+		<text>Z — меню, движение — выйти из анимации</text>
+	</string>
 </string_table>
