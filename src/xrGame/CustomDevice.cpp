@@ -5,6 +5,8 @@
 #include "player_hud.h"
 #include "weapon.h"
 #include "Missile.h"
+#include "netcoop.h"
+#include "../Include/xrRender/Kinematics.h"
 
 CCustomDevice::CCustomDevice()
 {
@@ -294,8 +296,51 @@ void CCustomDevice::OnAnimationEnd(u32 state)
 	}
 }
 
+// Netcoop: another player's detector, torch or glow stick is held in the
+// left hand, placed by the item's attach bone and offset (the ones NPCs use;
+// detectors without their own take the tch_detector values). Single player
+// code put it between the hands, where it looked like a PDA held up.
+static bool netcoop_left_hand_xform(CCustomDevice* device)
+{
+	if (!netcoop::pure_client())
+		return false;
+	CObject* parent = device->object().H_Parent();
+	CActor* holder = smart_cast<CActor*>(parent);
+	if (!holder || holder == Actor() || !holder->Visual())
+		return false;
+	IKinematics* kinematics = smart_cast<IKinematics*>(holder->Visual());
+	if (!kinematics)
+		return false;
+	static Fmatrix fallback_offset;
+	static bool fallback_ready = false;
+	if (!fallback_ready)
+	{
+		Fvector angle = Fvector().set(-1.303f, -1.493f, -1.202f);
+		Fvector position = Fvector().set(0.110f, -0.019f, 0.000f);
+		if (pSettings->section_exist("tch_detector") && pSettings->line_exist("tch_detector", "attach_angle_offset"))
+		{
+			angle = pSettings->r_fvector3("tch_detector", "attach_angle_offset");
+			position = pSettings->r_fvector3("tch_detector", "attach_position_offset");
+		}
+		fallback_offset.setHPB(angle.x, angle.y, angle.z);
+		fallback_offset.c = position;
+		fallback_ready = true;
+	}
+	const bool own = device->bone_name().size() != 0;
+	const u16 bone = kinematics->LL_BoneID(own ? device->bone_name() : shared_str("bip01_l_hand"));
+	if (bone == BI_NONE)
+		return false;
+	kinematics->CalculateBones();
+	Fmatrix& xform = device->object().XFORM();
+	xform.mul_43(kinematics->LL_GetBoneInstance(bone).mTransform, own ? device->offset() : fallback_offset);
+	xform.mulA_43(holder->XFORM());
+	return true;
+}
+
 void CCustomDevice::UpdateXForm()
 {
+	if (netcoop_left_hand_xform(this))
+		return;
 	CInventoryItem::UpdateXForm();
 }
 
