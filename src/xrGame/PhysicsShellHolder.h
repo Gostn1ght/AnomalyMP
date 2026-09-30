@@ -57,6 +57,20 @@ public:
 
 	virtual bool ActivationSpeedOverriden(Fvector& dest, bool clear_override) { return false; }
 
+	// Netcoop: an item a player drops starts in front of the player and is
+	// thrown forward (used once, by the next activate_physic_shell).
+	void netcoop_set_throw(const Fmatrix& start, const Fvector& velocity)
+	{
+		m_netcoop_throw_start.set(start);
+		m_netcoop_throw_velocity.set(velocity);
+		m_netcoop_throw = true;
+	}
+private:
+	bool m_netcoop_throw = false;
+	Fmatrix m_netcoop_throw_start;
+	Fvector m_netcoop_throw_velocity;
+public:
+
 	IC CPhysicsShell*& PPhysicsShell()
 	{
 		return m_pPhysicsShell;

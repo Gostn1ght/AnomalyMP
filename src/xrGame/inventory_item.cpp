@@ -270,13 +270,70 @@ void CInventoryItem::netcoop_follow_server_item(const net_update_IItem& N)
 	}
 	if (!_valid(m))
 		return;
-	object().XFORM().set(m);
-	object().spatial_move(); // render and pick bounds follow without processing
+	m_netcoop_target.set(m);
+	if (!m_netcoop_has_target || m_netcoop_shown.c.distance_to(m.c) > 3.f)
+	{
+		// First state or a teleport: no easing.
+		m_netcoop_has_target = true;
+		m_netcoop_shown.set(m);
+		object().XFORM().set(m);
+		object().spatial_move(); // render and pick bounds follow without processing
+		return;
+	}
+	if (m_netcoop_shown.c.distance_to(m.c) > 0.002f)
+	{
+		if (!m_netcoop_smoothing)
+		{
+			m_netcoop_smoothing = true;
+			object().processing_activate();
+		}
+	}
+	else if (!m_netcoop_smoothing)
+		m_netcoop_shown.set(m); // turned in place
+	object().XFORM().set(m_netcoop_shown);
+	object().spatial_move();
+}
+
+void CInventoryItem::netcoop_smooth_update()
+{
+	if (!m_netcoop_smoothing)
+		return;
+	if (object().H_Parent() || !m_netcoop_has_target)
+	{
+		netcoop_smooth_stop();
+		return;
+	}
+	const float k = 1.f - _exp(-18.f * Device.fTimeDelta);
+	Fquaternion from, to, q;
+	from.set(m_netcoop_shown);
+	to.set(m_netcoop_target);
+	q.slerp(from, to, _max(0.f, _min(1.f, k)));
+	Fvector c;
+	c.lerp(m_netcoop_shown.c, m_netcoop_target.c, k);
+	m_netcoop_shown.rotation(q);
+	m_netcoop_shown.c.set(c);
+	const bool arrived = m_netcoop_shown.c.distance_to(m_netcoop_target.c) < 0.002f;
+	if (arrived)
+		m_netcoop_shown.set(m_netcoop_target);
+	object().XFORM().set(m_netcoop_shown);
+	object().spatial_move();
+	if (arrived)
+		netcoop_smooth_stop();
+}
+
+void CInventoryItem::netcoop_smooth_stop()
+{
+	if (!m_netcoop_smoothing)
+		return;
+	m_netcoop_smoothing = false;
+	object().processing_deactivate();
 }
 
 void CInventoryItem::OnH_B_Chield()
 {
 	Level().RemoveObject_From_4CrPr(m_object);
+	netcoop_smooth_stop();
+	m_netcoop_has_target = false;
 }
 
 void CInventoryItem::OnH_A_Chield()
@@ -307,6 +364,7 @@ void CInventoryItem::UpdateCL()
 		Interpolate();
 	}
 	netcoop_make_kinematic();
+	netcoop_smooth_update();
 }
 
 void CInventoryItem::OnEvent(NET_Packet& P, u16 type)

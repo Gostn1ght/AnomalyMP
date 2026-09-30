@@ -590,6 +590,7 @@ public:
 	// The owner's active slot from its updates (what other players see in
 	// its hands); 0xff until the first update.
 	u8 m_netcoop_owner_slot = 0xff;
+	float netcoop_model_yaw() const { return r_model_yaw; }
 	// Offset = the least delay seen in the current and the previous second:
 	// the first updates after a join arrive seconds late, and a minimum over
 	// all time made the player's snapshot times jump back by those seconds.

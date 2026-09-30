@@ -241,6 +241,10 @@ void CPhysicsShellHolder::correct_spawn_pos()
 void CPhysicsShellHolder::activate_physic_shell()
 {
 	VERIFY(!m_pPhysicsShell);
+	const bool netcoop_throw = m_netcoop_throw;
+	m_netcoop_throw = false;
+	if (netcoop_throw)
+		XFORM().set(m_netcoop_throw_start);
 	create_physic_shell();
 	Fvector l_fw, l_up;
 	l_fw.set(XFORM().k);
@@ -270,7 +274,12 @@ void CPhysicsShellHolder::activate_physic_shell()
 	correct_spawn_pos();
 
 	Fvector overriden_vel;
-	if (ActivationSpeedOverriden(overriden_vel, true))
+	if (netcoop_throw)
+	{
+		ActivationSpeedOverriden(overriden_vel, true); // drop a stale override
+		m_pPhysicsShell->set_LinearVel(m_netcoop_throw_velocity);
+	}
+	else if (ActivationSpeedOverriden(overriden_vel, true))
 	{
 		m_pPhysicsShell->set_LinearVel(overriden_vel);
 	}

@@ -326,6 +326,31 @@ bool CInventory::DropItem(CGameObject* pObj, bool just_before_destroy, bool dont
 		if (Level().CurrentViewEntity() == pActor_owner)
 			CurrentGameUI()->OnInventoryAction(pIItem, GE_OWNERSHIP_REJECT);
 	};
+	CObject* netcoop_dropper = smart_cast<CObject*>(m_pOwner);
+	CPhysicsShellHolder* netcoop_thrown = smart_cast<CPhysicsShellHolder*>(pObj);
+	if (!just_before_destroy && netcoop_thrown && netcoop_dropper && OnServer() &&
+		netcoop::server_player_copy(netcoop_dropper))
+	{
+		// Netcoop: a player's dropped item leaves the chest forward along the
+		// player's facing with a small arc, instead of appearing at the feet
+		// (weapons were thrown along the server's anchor Actor facing).
+		const CActor* player = smart_cast<const CActor*>(netcoop_dropper);
+		Fmatrix start;
+		start.rotateY(player ? -player->netcoop_model_yaw() : 0.f);
+		Fvector forward = start.k;
+		forward.y = 0.f;
+		if (forward.square_magnitude() < EPS)
+			forward.set(0.f, 0.f, 1.f);
+		forward.normalize();
+		start.c.mad(netcoop_dropper->Position(), forward, 0.5f);
+		start.c.y += 1.2f;
+		Fvector velocity;
+		velocity.mul(forward, 3.f);
+		velocity.y += 1.5f;
+		netcoop_thrown->netcoop_set_throw(start, velocity);
+		pObj->H_SetParent(nullptr, dont_create_shell);
+		return true;
+	}
 	if (smart_cast<CWeapon*>(pObj))
 	{
 		// The Actor may not exist yet (netcoop client loading while an NPC drops a weapon).

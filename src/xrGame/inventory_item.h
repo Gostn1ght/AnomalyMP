@@ -260,6 +260,15 @@ protected:
 	void netcoop_follow_server_item(const net_update_IItem& N);
 	void netcoop_make_kinematic();
 	void* m_netcoop_kinematic_shell = nullptr;
+	// Server updates come 20 times a second: the shown transform eases toward
+	// the last one (a thrown or kicked item flies smoothly) and snaps on
+	// long jumps. Processing is kept on while it moves.
+	void netcoop_smooth_update();
+	void netcoop_smooth_stop();
+	Fmatrix m_netcoop_target;
+	Fmatrix m_netcoop_shown;
+	bool m_netcoop_has_target = false;
+	bool m_netcoop_smoothing = false;
 	void CalculateInterpolationParams();
 
 public:

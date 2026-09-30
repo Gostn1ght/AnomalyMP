@@ -48,6 +48,8 @@
 #include "characterphysicssupport.h"
 #include "game_cl_base_weapon_usage_statistic.h"
 #include "../xrengine/xr_collide_form.h"
+#include "../xrphysics/PhysicsShell.h"
+#include "inventory_item.h"
 #ifdef DEBUG
 #	include "debug_renderer.h"
 #	include "../xrPhysics/phvalide.h"
@@ -434,6 +436,52 @@ void CActor::net_ExportDeadBody(NET_Packet& P)
 	};
 };
 
+// Netcoop server: a player walking or running through items on the ground
+// pushes them along (the server copy is moved by position, so its body never
+// touched them). A kicked item waits 0.3 s before the next kick.
+static void netcoop_kick_items(CActor* player, const Fvector& moved, float dt)
+{
+	Fvector step = moved;
+	step.y = 0.f;
+	const float speed = step.magnitude() / dt;
+	if (speed < 1.f || speed > 20.f)
+		return;
+	step.normalize();
+	static xr_vector<CObject*> nearest;
+	static xr_map<u16, u32> kicked_at;
+	nearest.clear();
+	Fvector feet = player->Position();
+	feet.y += 0.3f;
+	Level().ObjectSpace.GetNearest(nearest, feet, 0.8f, player);
+	const u32 now = Device.dwTimeGlobal;
+	for (CObject* object : nearest)
+	{
+		CInventoryItem* item = smart_cast<CInventoryItem*>(object);
+		CPhysicsShellHolder* holder = smart_cast<CPhysicsShellHolder*>(object);
+		if (!item || !holder || object->H_Parent() || !holder->PPhysicsShell())
+			continue;
+		Fvector away;
+		away.sub(object->Position(), player->Position());
+		away.y = 0.f;
+		if (away.magnitude() > 0.8f || away.dotproduct(step) < -0.1f)
+			continue; // behind the player
+		u32& last = kicked_at[object->ID()];
+		if (now - last < 300)
+			continue;
+		last = now;
+		away.normalize_safe();
+		Fvector dir;
+		dir.mad(step, away, 0.5f);
+		dir.y = 0.35f;
+		dir.normalize();
+		CPhysicsShell* shell = holder->PPhysicsShell();
+		shell->Enable();
+		shell->applyImpulse(dir, shell->getMass() * (0.6f * _min(speed, 7.f) + 1.f));
+	}
+	if (kicked_at.size() > 512)
+		kicked_at.clear();
+}
+
 void CActor::netcoop_follow_owner(NET_Packet& P)
 {
 	// Layout of CActor::net_Export up to the movement state.
@@ -532,6 +580,7 @@ void CActor::netcoop_follow_owner(NET_Packet& P)
 		if (physics && physics->movement())
 			physics->movement()->SetPosition(accepted);
 		Position().set(accepted);
+		netcoop_kick_items(this, delta, dt);
 	}
 	// What the other players see: where this player faces and looks and how
 	// it moves (run, crouch, sprint, jump). The server Actor exports these.
