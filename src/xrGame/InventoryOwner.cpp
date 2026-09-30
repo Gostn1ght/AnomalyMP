@@ -27,6 +27,7 @@
 #include "alife_object_registry.h"
 #include "CustomOutfit.h"
 #include "Bolt.h"
+#include "CustomDevice.h"
 #include "string_table.h"
 
 CInventoryOwner::CInventoryOwner()
@@ -331,6 +332,19 @@ void CInventoryOwner::renderable_Render()
 {
 	if (inventory().ActiveItem())
 		inventory().ActiveItem()->renderable_Render();
+
+	// A hand device is drawn alongside the active weapon, rather than being
+	// the active inventory slot. Its HUD belongs to its owner, but its world
+	// model must also be visible to the other clients and in third person.
+	if (netcoop::pure_client() && smart_cast<CActor*>(this))
+	{
+		for (TIItemContainer::const_iterator it = inventory().m_all.begin(); it != inventory().m_all.end(); ++it)
+		{
+			CCustomDevice* device = smart_cast<CCustomDevice*>(*it);
+			if (device && *it != inventory().ActiveItem() && !device->IsHidden() && !attached(*it))
+				device->renderable_Render();
+		}
+	}
 
 	CAttachmentOwner::renderable_Render();
 }

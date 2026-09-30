@@ -10,6 +10,8 @@
 #include "../xrengine/xr_collide_form.h"
 #include "Level.h"
 #include "Actor.h"
+#include "netcoop.h"
+#include "../Include/xrRender/Kinematics.h"
 
 CFlashlight::CFlashlight()
 {
@@ -123,14 +125,31 @@ void CFlashlight::UpdateCL()
 	if (!IsWorking())
 		return;
 
-	if (!IsAttachedToHUD())
+	if (!IsAttachedToHUD() && !netcoop::pure_client())
 	{
 		TurnDeviceInternal(false);
 		return;
 	}
 
 	firedeps dep;
-	HudItemData()->setup_firedeps(dep);
+	if (GetHUDmode())
+		HudItemData()->setup_firedeps(dep);
+	else
+	{
+		UpdateXForm();
+		Fmatrix light_transform = XFORM();
+		IKinematics* visual = smart_cast<IKinematics*>(Visual());
+		const u16 bone = visual && light_trace_bone.size() ? visual->LL_BoneID(light_trace_bone) : BI_NONE;
+		if (bone != BI_NONE)
+		{
+			visual->CalculateBones();
+			light_transform.mul_43(XFORM(), visual->LL_GetBoneInstance(bone).mTransform);
+		}
+		dep.vLastFP = light_transform.c;
+		dep.m_FireParticlesXForm = light_transform;
+	}
+	light_render->set_hud_mode(!!GetHUDmode());
+	light_omni->set_hud_mode(!!GetHUDmode());
 
 	light_render->set_position(dep.vLastFP);
 	light_omni->set_position(dep.vLastFP);
@@ -138,7 +157,7 @@ void CFlashlight::UpdateCL()
 
 	Fvector dir = dep.m_FireParticlesXForm.k;
 
-	if (Actor()->cam_freelook != eflDisabled)
+	if (GetHUDmode() && actor->cam_freelook != eflDisabled)
 	{
 		dir.setHP(-angle_normalize_signed(Actor()->old_torso_yaw), dir.getP() > 0.f ? dir.getP() * .6f : dir.getP() * .8f);
 		dir.lerp(dep.m_FireParticlesXForm.k, dir, Actor()->freelook_cam_control);

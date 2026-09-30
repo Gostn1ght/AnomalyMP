@@ -304,9 +304,11 @@ static bool netcoop_left_hand_xform(CCustomDevice* device)
 {
 	if (!netcoop::pure_client())
 		return false;
+	if (device->UpdateHandAttachmentXForm())
+		return true;
 	CObject* parent = device->H_Parent();
 	CActor* holder = smart_cast<CActor*>(parent);
-	if (!holder || holder == Actor() || !holder->Visual())
+	if (!holder || !holder->Visual())
 		return false;
 	IKinematics* kinematics = smart_cast<IKinematics*>(holder->Visual());
 	if (!kinematics)
@@ -326,13 +328,12 @@ static bool netcoop_left_hand_xform(CCustomDevice* device)
 		fallback_offset.c = position;
 		fallback_ready = true;
 	}
-	const bool own = device->bone_name().size() != 0;
-	const u16 bone = kinematics->LL_BoneID(own ? device->bone_name() : shared_str("bip01_l_hand"));
+	const u16 bone = kinematics->LL_BoneID("bip01_l_hand");
 	if (bone == BI_NONE)
 		return false;
 	kinematics->CalculateBones();
 	Fmatrix& xform = device->XFORM();
-	xform.mul_43(kinematics->LL_GetBoneInstance(bone).mTransform, own ? device->offset() : fallback_offset);
+	xform.mul_43(kinematics->LL_GetBoneInstance(bone).mTransform, fallback_offset);
 	xform.mulA_43(holder->XFORM());
 	return true;
 }

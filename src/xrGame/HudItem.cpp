@@ -225,6 +225,10 @@ void CHudItem::OnStateSwitch(u32 S, u32 oldState)
 
 	g_player_hud->updateMovementLayerState();
 
+	if (netcoop::pure_client() && smart_cast<CActor*>(object().H_Parent()) &&
+		!netcoop::client_owns_hud_item(&object()))
+		return;
+
 	::luabind::functor<void> funct;
 	if (ai().script_engine().functor("_G.CHudItem__OnStateSwitch", funct))
 	{
@@ -235,7 +239,7 @@ void CHudItem::OnStateSwitch(u32 S, u32 oldState)
 void CHudItem::OnAnimationEnd(u32 state)
 {
 	CActor* A = smart_cast<CActor*>(object().H_Parent());
-	if (A)
+	if (A && (!netcoop::pure_client() || netcoop::client_owns_hud_item(&object())))
 		A->callback(GameObject::eActorHudAnimationEnd)(smart_cast<CGameObject*>(this)->lua_game_object(),
 		                                               this->hud_sect.c_str(), this->m_current_motion.c_str(), state,
 		                                               this->animation_slot());
@@ -635,6 +639,9 @@ void CHudItem::UpdateCL()
 
 void CHudItem::OnMotionMark(u32 state, const motion_marks& M)
 {
+	if (netcoop::pure_client() && smart_cast<CActor*>(object().H_Parent()) &&
+		!netcoop::client_owns_hud_item(&object()))
+		return;
 	::luabind::functor<bool> funct;
 	if (ai().script_engine().functor("_G.CHudItem__OnMotionMark", funct))
 		funct(state, *M.name, object().lua_game_object(), object().lua_game_object() ? object().lua_game_object()->Parent() : nullptr);

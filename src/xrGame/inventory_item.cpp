@@ -1394,6 +1394,24 @@ void CInventoryItem::activate_physic_shell()
 	object().CPhysicsShellHolder::activate_physic_shell();
 }
 
+bool CInventoryItem::UpdateHandAttachmentXForm()
+{
+	if (!netcoop::pure_client() || !bone_name().size())
+		return false;
+	CActor* holder = smart_cast<CActor*>(object().H_Parent());
+	IKinematics* visual = holder ? smart_cast<IKinematics*>(holder->Visual()) : NULL;
+	if (!visual)
+		return false;
+	const u16 bone = visual->LL_BoneID(bone_name());
+	if (bone == BI_NONE)
+		return false;
+	visual->CalculateBones();
+	Fmatrix transform;
+	transform.mul_43(visual->LL_GetBoneInstance(bone).mTransform, offset());
+	object().XFORM().mul_43(holder->XFORM(), transform);
+	return true;
+}
+
 void CInventoryItem::UpdateXForm()
 {
 	if (0 == object().H_Parent()) return;

@@ -250,6 +250,7 @@ public:
 
 
 	virtual void UpdateXForm();
+	bool UpdateHandAttachmentXForm();
 
 protected:
 	net_updateInvData* m_net_updateData;

@@ -920,6 +920,8 @@ void CPda::UpdateHudAdditional(Fmatrix& trans)
 
 void CPda::UpdateXForm()
 {
+	if (UpdateHandAttachmentXForm())
+		return;
 	CInventoryItem::UpdateXForm();
 }
 

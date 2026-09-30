@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "player_hud.h"
 #include "HudItem.h"
+#include "netcoop.h"
 #include "ui_base.h"
 #include "actor.h"
 #include "physic_item.h"
@@ -1703,6 +1704,10 @@ bool player_hud::allow_activation(CHudItem* item)
 shared_str current_player_hud_sect;
 void player_hud::attach_item(CHudItem* item)
 {
+	// This HUD is shared by the local view, never by a remote player's items.
+	if (netcoop::pure_client() && item->object().H_Parent() &&
+		!netcoop::client_owns_hud_item(&item->object()))
+		return;
 	attachable_hud_item* pi = item->HudItemData();
 	int item_idx = pi->m_attach_place_idx;
 
