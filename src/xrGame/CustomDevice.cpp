@@ -146,7 +146,7 @@ void CCustomDevice::OnStateSwitch(u32 S, u32 oldState)
 			m_sounds.PlaySound("sndShow", Fvector().set(0, 0, 0), this, true, false);
 
 		attachable_hud_item* i0 = g_player_hud->attached_item(0);
-		if (m_bCanBeZoomed && i0)
+		if (ParentIsActor() && m_bCanBeZoomed && i0)
 		{
 			CWeapon* wpn = smart_cast<CWeapon*>(i0->m_parent_hud_item);
 			if (wpn && wpn->IsZoomed() && wpn->GetZRotatingFactor() > .5f)
@@ -249,7 +249,7 @@ void CCustomDevice::OnAnimationEnd(u32 state)
 	{
 	case eShowing:
 	{
-		if (m_bCanBeZoomed)
+		if (ParentIsActor() && m_bCanBeZoomed)
 		{
 			attachable_hud_item* i0 = g_player_hud->attached_item(0);
 			if (i0)

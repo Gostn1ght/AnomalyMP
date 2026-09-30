@@ -223,11 +223,10 @@ void CHudItem::OnStateSwitch(u32 S, u32 oldState)
 		break;
 	}
 
-	g_player_hud->updateMovementLayerState();
-
 	if (netcoop::pure_client() && smart_cast<CActor*>(object().H_Parent()) &&
 		!netcoop::client_owns_hud_item(&object()))
 		return;
+	g_player_hud->updateMovementLayerState();
 
 	::luabind::functor<void> funct;
 	if (ai().script_engine().functor("_G.CHudItem__OnStateSwitch", funct))

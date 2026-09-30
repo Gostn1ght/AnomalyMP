@@ -122,7 +122,9 @@ void CFlashlight::UpdateCL()
 	if (!actor)
 		return;
 
-	if (!IsWorking())
+	// IsWorking() on the device base restricts detector UI to the view
+	// actor. A remote handheld light must still update its world beam.
+	if (!m_bWorking)
 		return;
 
 	if (!IsAttachedToHUD() && !netcoop::pure_client())
@@ -279,7 +281,7 @@ void CFlashlight::OnStateSwitch(u32 S, u32 oldState)
 
 		bool need_zoom = false;
 		attachable_hud_item* i0 = g_player_hud->attached_item(0);
-		if (m_bCanBeZoomed && i0)
+		if (ParentIsActor() && m_bCanBeZoomed && i0)
 		{
 			CWeapon* wpn = smart_cast<CWeapon*>(i0->m_parent_hud_item);
 			if (wpn && wpn->IsZoomed())
@@ -306,7 +308,7 @@ void CFlashlight::OnAnimationEnd(u32 state)
 		if (!IsUsingCondition() || (IsUsingCondition() && GetCondition() >= m_fLowestBatteryCharge))
 			TurnDeviceInternal(true);
 
-		if (m_bCanBeZoomed)
+		if (ParentIsActor() && m_bCanBeZoomed)
 		{
 			attachable_hud_item* i0 = g_player_hud->attached_item(0);
 			if (i0)
