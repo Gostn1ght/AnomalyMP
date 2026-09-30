@@ -97,9 +97,10 @@
 		<text>јнимации</text>
 	</string>
 	<string id="st_netcoop_rp_stop">
-		<text>ѕрекратить</text>
+		<text>¬ыйти из анимации</text>
 	</string>
 	<string id="st_netcoop_rp_hint">
-		<text>Z Ч меню, движение Ч выйти из анимации</text>
+		<text>Ћ ћ Ч выбрать\nZ / Esc Ч закрыть меню</text>
 	</string>
+	<string id="st_netcoop_rp_select"><text>¬ыберите позу на круге</text></string>
 </string_table>

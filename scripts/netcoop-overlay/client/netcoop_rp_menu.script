@@ -1,92 +1,164 @@
--- NetAnomaly: RP animation (emote) menu. Z opens and closes it; a button
--- starts the animation, moving or "Stop" ends it. The list comes from the
--- engine (configs\netcoop\rp_anims.ltx).
-
+-- Fixed RP wheel. Plain Z is reserved before GAMMA's actor callbacks.
 local MENU_KEY = DIK_keys.DIK_Z
-local COLUMNS = 4
-local COL_W, ROW_H = 174, 40
-local LEFT, TOP = 172, 176
+local CX, CY, RADIUS = 512, 384, 310
+local ORDER = {
+    "hands_pockets", "salute", "greet", "refuse", "hands_behind", "look_around", "listen",
+    "hands_up", "guard", "sit_1", "sit_2", "sit_3", "sleep", "pushups",
+    "bar_1", "bar_2", "bar_3", "bar_4", "bar_5", "bar_6", "trance_1",
+    "trance_2", "wounded_1", "wounded_2", "prisoner", "psy", "gop_stop", "loot"
+}
+local wnd
+
+local function plain_z(dik)
+    return dik == MENU_KEY and key_state(DIK_keys.DIK_LCONTROL) == 0
+        and key_state(DIK_keys.DIK_RCONTROL) == 0 and key_state(DIK_keys.DIK_LSHIFT) == 0
+        and key_state(DIK_keys.DIK_RSHIFT) == 0 and key_state(DIK_keys.DIK_LMENU) == 0
+        and key_state(DIK_keys.DIK_RMENU) == 0
+end
 
 local function anim_list()
-	local out = {}
-	if not netcoop_rp_list then return out end
-	for name, title in string.gmatch(netcoop_rp_list() or "", "([^=;]+)=([^;]*);") do
-		out[#out + 1] = { name = name, title = title }
-	end
-	return out
+    local titles, out = {}, {}
+    for name, title in string.gmatch(netcoop_rp_list() or "", "([^=;]+)=([^;]*);") do
+        titles[name] = title
+    end
+    for i, name in ipairs(ORDER) do
+        out[i] = {name = name, title = titles[name], enabled = titles[name] ~= nil}
+    end
+    return out
 end
 
 class "netcoop_rp_wnd" (CUIScriptWnd)
 
 function netcoop_rp_wnd:__init() super()
-	self:SetWndRect(Frect():set(0, 0, 1024, 768))
-	self:SetAutoDelete(true)
-
-	local xml = CScriptXmlInit()
-	xml:ParseFile("ui_netcoop_rp.xml")
-	xml:InitStatic("background", self)
-	xml:InitStatic("cap_title", self):TextControl():SetText(game.translate_string("st_netcoop_rp_title"))
-	xml:InitStatic("cap_hint", self):TextControl():SetText(game.translate_string("st_netcoop_rp_hint"))
-
-	self.anims = anim_list()
-	for i, a in ipairs(self.anims) do
-		local id = "btn_rp_" .. i
-		local b = xml:Init3tButton("btn_anim", self)
-		local col, row = (i - 1) % COLUMNS, math.floor((i - 1) / COLUMNS)
-		b:SetWndPos(vector2():set(LEFT + col * COL_W, TOP + row * ROW_H))
-		b:TextControl():SetText(game.translate_string(a.title))
-		self:Register(b, id)
-		local name = a.name
-		self:AddCallback(id, ui_events.BUTTON_CLICKED, function() self:Play(name) end, self)
-	end
-
-	local stop = xml:Init3tButton("btn_stop", self)
-	stop:TextControl():SetText(game.translate_string("st_netcoop_rp_stop"))
-	self:Register(stop, "btn_rp_stop")
-	self:AddCallback("btn_rp_stop", ui_events.BUTTON_CLICKED, function()
-		if netcoop_rp_stop then netcoop_rp_stop() end
-		self:Close()
-	end, self)
+    self:SetWndRect(Frect():set(0, 0, 1024, 768))
+    self:SetAutoDelete(false)
+    self.xscale = (device().height / device().width) / (768 / 1024)
+    self.anims = anim_list()
+    local xml = CScriptXmlInit()
+    xml:ParseFile("ui_netcoop_rp.xml")
+    xml:InitStatic("shade", self)
+    local ring = xml:InitStatic("ring", self)
+    ring:SetWndPos(vector2():set(CX - RADIUS * self.xscale, CY - RADIUS))
+    ring:SetWndSize(vector2():set(2 * RADIUS * self.xscale, 2 * RADIUS))
+    self.title = xml:InitStatic("cap_title", self)
+    self.title:TextControl():SetText(game.translate_string("st_netcoop_rp_title"))
+    self.caption = xml:InitStatic("cap_selected", self)
+    self.status = xml:InitStatic("cap_status", self)
+    local hint = xml:InitStatic("cap_hint", self)
+    hint:TextControl():SetText(game.translate_string("st_netcoop_rp_hint"))
+    for _, label in ipairs({self.title, self.caption, self.status, hint}) do
+        local pos = label:GetWndPos()
+        label:SetWndPos(vector2():set(CX - 190 * self.xscale, pos.y))
+        label:SetWndSize(vector2():set(380 * self.xscale, label:GetHeight()))
+    end
+    self.icons, self.marks = {}, {}
+    for i, a in ipairs(self.anims) do
+        local angle = -math.pi / 2 + (i - 1) * 2 * math.pi / #ORDER
+        local x, y = CX + 268 * math.cos(angle) * self.xscale, CY + 268 * math.sin(angle)
+        local mark = xml:InitStatic("selection", self)
+        mark:SetWndPos(vector2():set(x - 29 * self.xscale, y - 29))
+        mark:SetWndSize(vector2():set(58 * self.xscale, 58))
+        mark:Show(false)
+        self.marks[i] = mark
+        local icon = xml:InitStatic("pose_icon", self)
+        icon:InitTexture("ui_netcoop_pose_" .. a.name)
+        icon:SetWndPos(vector2():set(x - 26 * self.xscale, y - 26))
+        icon:SetWndSize(vector2():set(52 * self.xscale, 52))
+        if not a.enabled then icon:SetTextureColor(GetARGB(80, 160, 160, 160)) end
+        self.icons[i] = icon
+    end
+    local stop = xml:Init3tButton("btn_stop", self)
+    stop:SetWndPos(vector2():set(CX - 100 * self.xscale, 430))
+    stop:SetWndSize(vector2():set(200 * self.xscale, 38))
+    stop:TextControl():SetText(game.translate_string("st_netcoop_rp_stop"))
+    self:Register(stop, "btn_rp_stop")
+    self:AddCallback("btn_rp_stop", ui_events.BUTTON_CLICKED, function()
+        if netcoop_rp_stop then netcoop_rp_stop() end
+        self:Close()
+    end, self)
 end
 
-function netcoop_rp_wnd:Play(name)
-	if netcoop_rp_play then netcoop_rp_play(name) end
-	self:Close()
+function netcoop_rp_wnd:SetSelected(index)
+    if self.selected == index then return end
+    if self.selected then self.marks[self.selected]:Show(false) end
+    self.selected = index
+    local a = index and self.anims[index]
+    if a then
+        self.marks[index]:Show(true)
+        self.caption:TextControl():SetText(string.format("%02d / 28\n%s", index,
+            game.translate_string(a.title or ("st_netcoop_rp_" .. a.name))))
+    else
+        self.caption:TextControl():SetText(game.translate_string("st_netcoop_rp_select"))
+    end
+end
+
+function netcoop_rp_wnd:Update()
+    CUIScriptWnd.Update(self)
+    local p = GetCursorPosition()
+    local dx, dy = (p.x - CX) / self.xscale, p.y - CY
+    local radius = math.sqrt(dx * dx + dy * dy)
+    local index
+    if radius >= 220 and radius <= RADIUS + 10 then
+        local angle = (math.atan2(dy, dx) + math.pi / 2 + math.pi / #ORDER) % (2 * math.pi)
+        index = math.floor(angle * #ORDER / (2 * math.pi)) + 1
+    end
+    self:SetSelected(index)
+    local active = netcoop_rp_active and netcoop_rp_active() or ""
+    self.status:TextControl():SetText(active ~= "" and game.translate_string("st_netcoop_rp_" .. active) or "")
 end
 
 function netcoop_rp_wnd:Close()
-	if self:IsShown() then self:HideDialog() end
+    if self:IsShown() then self:HideDialog() end
 end
 
-function netcoop_rp_wnd:OnKeyboard(dik, keyboard_action)
-	CUIScriptWnd.OnKeyboard(self, dik, keyboard_action)
-	if keyboard_action == ui_events.WINDOW_KEY_PRESSED and (dik == DIK_keys.DIK_ESCAPE or dik == MENU_KEY) then
-		self:Close()
-	end
-	return true
+function netcoop_rp_wnd:OnKeyboard(dik, action)
+    if action == ui_events.WINDOW_KEY_PRESSED then
+        if dik == DIK_keys.DIK_ESCAPE or dik == MENU_KEY or dik == DIK_keys.MOUSE_2 then
+            self:Close()
+            return true
+        end
+        if dik == DIK_keys.MOUSE_1 and self.selected then
+            local a = self.anims[self.selected]
+            if a.enabled and netcoop_rp_play then netcoop_rp_play(a.name) end
+            self:Close()
+            return true
+        end
+    end
+    return CUIScriptWnd.OnKeyboard(self, dik, action)
 end
-
-local wnd = nil
 
 function toggle()
-	if not (db.actor and db.actor:alive()) then return end
-	if wnd and wnd:IsShown() then
-		wnd:Close()
-		return
-	end
-	wnd = netcoop_rp_wnd()
-	wnd:ShowDialog(true)
+    if not (db.actor and db.actor:alive() and netcoop_rp_list) then return end
+    if wnd and wnd:IsShown() then wnd:Close(); return end
+    if not actor_menu.is_hud_free() then return end
+    if not wnd then wnd = netcoop_rp_wnd() end
+    wnd:SetSelected(nil)
+    wnd.caption:TextControl():SetText(game.translate_string("st_netcoop_rp_select"))
+    wnd:ShowDialog(true)
 end
 
-local function on_key_press(dik)
-	if dik ~= MENU_KEY then return end
-	-- Free key only: no modifier held, no other window open.
-	if key_state(DIK_keys.DIK_LCONTROL) ~= 0 or key_state(DIK_keys.DIK_LSHIFT) ~= 0 or key_state(DIK_keys.DIK_LMENU) ~= 0 then return end
-	toggle()
+local function on_before_key_press(dik, bind, disabled, flags)
+    if not plain_z(dik) or disabled then return end
+    if (wnd and wnd:IsShown()) or actor_menu.is_hud_free() then
+        toggle()
+        flags.ret_value = false
+    end
+end
+
+local function consume_z(dik, bind, disabled, flags)
+    if plain_z(dik) then flags.ret_value = false end
+end
+
+local function on_destroy()
+    if wnd then wnd:Close() end
+    wnd = nil
 end
 
 function on_game_start()
-	if netcoop_pure_client and netcoop_pure_client() then
-		RegisterScriptCallback("on_key_press", on_key_press)
-	end
+    if netcoop_pure_client and netcoop_pure_client() then
+        RegisterScriptCallback("on_before_key_press", on_before_key_press)
+        RegisterScriptCallback("on_before_key_release", consume_z)
+        RegisterScriptCallback("on_before_key_hold", consume_z)
+        RegisterScriptCallback("actor_on_net_destroy", on_destroy)
+    end
 end

@@ -93,6 +93,13 @@ foreach ($role in @('server', 'client')) {
 }
 
 $debugLauncher = Join-Path $runtime 'client\scripts\ui_debug_launcher.script'
+# A network item can have no replicated GAMMA parts table yet. The tooltip
+# must retain its base description rather than call spairs(nil) or invent
+# local random part conditions for an item owned by the server.
+Replace-Once (Join-Path $runtime 'client\scripts\zzzz_arti_jamming_repairs.script') `
+    "local parts = item_parts.get_parts_con(obj, nil, true)" `
+    "local parts = item_parts.get_parts_con(obj, nil, true)`n`t`tif not parts and netcoop_pure_client and netcoop_pure_client() then return _str2 end"
+
 Replace-Once $debugLauncher `
     "function on_game_start()`n`tif not gamma_net_compat.admin_allowed() then return end" `
     "local netcoop_admin_callbacks_registered = false`nfunction on_game_start()`n`tif netcoop_admin_callbacks_registered or not gamma_net_compat.admin_allowed() then return end"
@@ -102,15 +109,16 @@ Replace-Once $debugLauncher `
 
 foreach ($role in $roles) {
     $overlay = Join-Path $PSScriptRoot "netcoop-overlay\$($role.Name)"
-    $configs = Join-Path $overlay 'configs'
-    if (Test-Path -LiteralPath $configs -PathType Container) {
-        $target = Join-Path $runtime "$($role.Name)\configs"
-        Get-ChildItem -LiteralPath $configs -Recurse -File | ForEach-Object {
-            $relative = $_.FullName.Substring($configs.Length + 1)
+    foreach ($assetKind in @('configs', 'textures')) {
+        $assets = Join-Path $overlay $assetKind
+        if (-not (Test-Path -LiteralPath $assets -PathType Container)) { continue }
+        $target = Join-Path $runtime "$($role.Name)\$assetKind"
+        Get-ChildItem -LiteralPath $assets -Recurse -File | ForEach-Object {
+            $relative = $_.FullName.Substring($assets.Length + 1)
             $destination = Join-Path $target $relative
             New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
             Copy-Item -LiteralPath $_.FullName -Destination $destination -Force
-            Write-Host "Installed $($role.Name)\configs\$relative"
+            Write-Host "Installed $($role.Name)\$assetKind\$relative"
         }
     }
     $scripts = Join-Path $runtime "$($role.Name)\scripts"

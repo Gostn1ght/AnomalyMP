@@ -97,9 +97,10 @@
 		<text>Animations</text>
 	</string>
 	<string id="st_netcoop_rp_stop">
-		<text>Stop</text>
+		<text>Exit animation</text>
 	</string>
 	<string id="st_netcoop_rp_hint">
-		<text>Z - menu, move to leave the animation</text>
+		<text>LMB — select\nZ / Esc — close menu</text>
 	</string>
+	<string id="st_netcoop_rp_select"><text>Select a pose on the wheel</text></string>
 </string_table>
