@@ -243,14 +243,33 @@ void CInventoryItem::netcoop_follow_server_item(const net_update_IItem& N)
 {
 	if (object().H_Parent() || !_valid(N.State.position))
 		return;
+	netcoop_make_kinematic();
+	// The server sends the physics body's state (its centre of mass), not the
+	// object's origin: an AK's differ by ~20 cm. Put the body there, then
+	// take the object's transform from the shell.
+	CPhysicsShell* shell = object().PPhysicsShell();
+	CPHSynchronize* sync = shell ? object().PHGetSyncItem(0) : NULL;
 	Fmatrix m;
-	m.rotation(N.State.quaternion);
-	m.c.set(N.State.position);
+	if (sync)
+	{
+		SPHNetState state = N.State;
+		state.linear_vel.set(0.f, 0.f, 0.f);
+		state.angular_vel.set(0.f, 0.f, 0.f);
+		state.force.set(0.f, 0.f, 0.f);
+		state.torque.set(0.f, 0.f, 0.f);
+		state.previous_position = state.position;
+		state.previous_quaternion = state.quaternion;
+		state.enabled = false;
+		sync->set_State(state);
+		shell->GetGlobalTransformDynamic(&m);
+	}
+	else
+	{
+		m.rotation(N.State.quaternion);
+		m.c.set(N.State.position);
+	}
 	if (!_valid(m))
 		return;
-	netcoop_make_kinematic();
-	if (CPhysicsShell* shell = object().PPhysicsShell())
-		shell->SetTransform(m, mh_clear);
 	object().XFORM().set(m);
 	object().spatial_move(); // render and pick bounds follow without processing
 }
