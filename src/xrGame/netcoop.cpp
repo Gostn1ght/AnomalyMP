@@ -2741,8 +2741,7 @@ bool script_respawn(u16 actor_id)
 } // namespace netcoop
 
 // ---------------------------------------------------------------------------
-// RP animations (player emotes), configs
-etcoopp_anims.ltx.
+// RP animations (player emotes), configs/netcoop/rp_anims.ltx.
 // ---------------------------------------------------------------------------
 namespace netcoop
 {

@@ -237,9 +237,7 @@ bool script_respawn(u16 actor_id);
 void bots_set(u32 count, LPCSTR address);
 void bots_frame();
 
-// RP animations (player emotes) from configs
-etcoop
-p_anims.ltx (stock
+// RP animations (player emotes) from configs/netcoop/rp_anims.ltx (stock
 // stalker motions).
 struct RpAnim
 {
