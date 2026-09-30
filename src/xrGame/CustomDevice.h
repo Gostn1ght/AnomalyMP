@@ -12,12 +12,14 @@ protected:
 	bool m_bThrowAnm;
 	bool m_bWorking;
 	bool m_bOldZoom;
+	u32 m_netcoop_state_sync = 0;
 
 public:
 	CCustomDevice();
 	virtual ~CCustomDevice();
 
 	virtual BOOL net_Spawn(CSE_Abstract* DC);
+	virtual void OnEvent(NET_Packet& P, u16 type);
 	virtual void Load(LPCSTR section);
 
 	virtual void OnH_B_Independent(bool just_before_destroy);

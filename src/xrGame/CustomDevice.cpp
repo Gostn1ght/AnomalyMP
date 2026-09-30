@@ -6,6 +6,7 @@
 #include "weapon.h"
 #include "Missile.h"
 #include "netcoop.h"
+#include "xrmessages.h"
 #include "../Include/xrRender/Kinematics.h"
 
 CCustomDevice::CCustomDevice()
@@ -356,8 +357,37 @@ void CCustomDevice::OnHiddenItem()
 
 BOOL CCustomDevice::net_Spawn(CSE_Abstract* DC)
 {
+	m_netcoop_state_sync = 0;
 	TurnDeviceInternal(false);
 	return (inherited::net_Spawn(DC));
+}
+
+void CCustomDevice::OnEvent(NET_Packet& P, u16 type)
+{
+	if (type != GE_NETCOOP_ITEM_STATE)
+	{
+		inherited::OnEvent(P, type);
+		return;
+	}
+	if (!netcoop::enabled() || P.r_elapsed() < 1)
+		return;
+	// A stable snapshot, not a new draw/holster transition. The destination
+	// class defines this byte: CTorch uses on/off; devices use state + work.
+	const u8 flags = P.r_u8();
+	const u32 state = flags & 0x7f;
+	if (netcoop::client_owns_hud_item(this) ||
+		(state != eHidden && state != eIdle && state != eIdleZoom))
+		return;
+	if (GetState() != state)
+	{
+		StopCurrentAnimWithoutCallback();
+		OnStateSwitch(state, GetState());
+		SetNextState(state);
+		SetPending(FALSE);
+	}
+	const bool working = state != eHidden && (flags & 0x80) != 0;
+	if (m_bWorking != working)
+		TurnDeviceInternal(working);
 }
 
 void CCustomDevice::Load(LPCSTR section)
@@ -520,6 +550,19 @@ void CCustomDevice::UpdateCL()
 			TurnDeviceInternal(false);
 		else if (m_CustomDeviceEnabled && !m_bWorking && (GetState() == eIdle || m_CustomDeviceEnabled && GetState() == eIdleZoom) && GetCondition() >= m_fLowestBatteryCharge)
 			TurnDeviceInternal(true);
+	}
+
+	// State-change events sent before another player connected cannot reach
+	// that player. Refresh stable held/hidden states without replaying motions.
+	if (netcoop::client_owns_hud_item(this) && !getDestroy() &&
+		Device.dwTimeGlobal >= m_netcoop_state_sync &&
+		(GetState() == eHidden || GetState() == eIdle || GetState() == eIdleZoom))
+	{
+		NET_Packet P;
+		u_EventGen(P, GE_NETCOOP_ITEM_STATE, ID());
+		P.w_u8(u8(GetState()) | (m_bWorking ? 0x80 : 0));
+		u_EventSend(P, net_flags(TRUE, TRUE));
+		m_netcoop_state_sync = Device.dwTimeGlobal + 1000;
 	}
 
 	if (!IsWorking()) return;

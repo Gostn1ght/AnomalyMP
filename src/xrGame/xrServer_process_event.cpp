@@ -401,8 +401,8 @@ void xrServer::Process_event(NET_Packet& P, ClientID sender)
 	case GE_FREEZE_OBJECT:
 		break;
 	case GE_NETCOOP_ITEM_STATE:
-		if (SV_Client)
-			SendTo(SV_Client->ID, P, MODE);
+		// Deliver to the authority and all observers, including late joiners.
+		SendBroadcast(sender, P, MODE);
 		break;
 	case GE_NETCOOP_RP:
 		SendBroadcast(sender, P, MODE);
