@@ -66,6 +66,7 @@ void CInventoryItemObject::OnH_A_Independent()
 {
 	CInventoryItem::OnH_A_Independent();
 	CPhysicItem::OnH_A_Independent();
+	netcoop_make_kinematic(); // the shell exists only now
 }
 
 

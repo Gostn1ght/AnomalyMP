@@ -221,11 +221,15 @@ void CInventoryItem::OnH_A_Independent()
 
 void CInventoryItem::netcoop_make_kinematic()
 {
-	if (!netcoop::pure_client() || object().H_Parent())
+	if (!netcoop::pure_client())
 		return;
-	CPhysicsShell* shell = object().PPhysicsShell();
+	CPhysicsShell* shell = object().H_Parent() ? nullptr : object().PPhysicsShell();
 	if (!shell)
+	{
+		// A new shell may reuse the old address after a pickup.
+		m_netcoop_kinematic_shell = nullptr;
 		return;
+	}
 	if (m_netcoop_kinematic_shell != shell)
 	{
 		shell->DisableCollision();
@@ -283,6 +287,7 @@ void CInventoryItem::UpdateCL()
 	{
 		Interpolate();
 	}
+	netcoop_make_kinematic();
 }
 
 void CInventoryItem::OnEvent(NET_Packet& P, u16 type)
