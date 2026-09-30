@@ -935,7 +935,10 @@ void CInventory::UpdateDropItem(PIItem pIItem)
 		pIItem->SetDropManual(FALSE);
 		pIItem->DenyTrade();
 
-		if (OnServer())
+		// Netcoop: a player's client drops from its own inventory too; with
+		// OnServer() only, an item dropped from the hands (weapons) was hidden
+		// and never left the inventory (s104).
+		if (OnServer() || netcoop_own_inventory(m_pOwner))
 		{
 			NET_Packet P;
 			pIItem->object().u_EventGen(P, GE_OWNERSHIP_REJECT, pIItem->object().H_Parent()->ID());
