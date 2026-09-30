@@ -49,6 +49,8 @@ private:
 private:
 	u32 m_client_update_delta;
 	u32 m_last_client_update_time;
+	// Netcoop client: when the dead body was last moved to the server's place.
+	u32 m_netcoop_corpse_sync_time = 0;
 
 protected:
 

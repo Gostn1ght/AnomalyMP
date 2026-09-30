@@ -72,10 +72,10 @@ public:
 	~SThunderboltCollection();
 	void load(CInifile* pIni, CInifile* thunderbolts, LPCSTR sect);
 
-	SThunderboltDesc* GetRandomDesc()
+	SThunderboltDesc* GetRandomDesc(CRandom& rng = ::Random)
 	{
 		VERIFY(palette.size() > 0);
-		return palette[Random.randI(palette.size())];
+		return palette[rng.randI(palette.size())];
 	}
 };
 
@@ -115,6 +115,11 @@ private:
 	float current_time;
 	float next_lightning_time;
 	BOOL bEnabled;
+	// Netcoop: every client strikes the same lightning at the same moment
+	// (slots of the synchronised game time, one seeded generator per slot);
+	// ::Random and the local clock gave each player different lightning.
+	CRandom m_bolt_rng;
+	u32 m_bolt_slot = u32(-1);
 
 	// params
 	// Fvector2 p_var_alt;

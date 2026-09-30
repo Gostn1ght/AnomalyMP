@@ -13,6 +13,7 @@
 #include "pch_script.h"
 #include "inventory_item.h"
 #include "inventory_item_impl.h"
+#include "netcoop.h"
 #include "inventory.h"
 //#include "Physics.h"
 #include "physicsshellholder.h"
@@ -639,7 +640,11 @@ void CInventoryItem::net_Export_PH_Params(NET_Packet& P, SPHNetState& State, mas
 void CInventoryItem::net_Export(NET_Packet& P)
 {
 	//copy from CPhysicObject
-	if (object().H_Parent() || IsGameTypeSingle())
+	// Netcoop: a world item's physics (position, rotation, velocity) goes to
+	// the clients as in multiplayer; the single player game sent nothing, so
+	// each client rolled and pushed items on its own (s103: an item kicked
+	// 100 m away still lay at the old place for the other player).
+	if (object().H_Parent() || (IsGameTypeSingle() && !netcoop::enabled()))
 	{
 		P.w_u8(0);
 		return;

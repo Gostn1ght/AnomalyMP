@@ -449,6 +449,22 @@ void CCustomMonster::update_sound_player()
 void CCustomMonster::UpdateCL()
 {
 	netcoop::ServerActorScope netcoop_scope(this);
+	// Netcoop client: a dead body falls and rolls in this client's own
+	// physics; where it lies is the server's. Move it there when it is more
+	// than 1.5 m off (checked twice a second).
+	if (!g_Alive() && Remote() && netcoop::pure_client() && !NET.empty() && PPhysicsShell() &&
+		Device.dwTimeGlobal - m_netcoop_corpse_sync_time > 500)
+	{
+		m_netcoop_corpse_sync_time = Device.dwTimeGlobal;
+		Fvector delta;
+		delta.sub(NET.back().p_pos, Position());
+		if (_valid(delta) && delta.magnitude() > 1.5f && delta.magnitude() < 500.f)
+		{
+			Fmatrix shift;
+			shift.translate(delta);
+			PPhysicsShell()->TransformPosition(shift, mh_clear);
+		}
+	}
 	START_PROFILE("CustomMonster/client_update")
 		m_client_update_delta = (u32)std::min(Device.dwTimeGlobal - m_last_client_update_time, u32(100));
 		m_last_client_update_time = Device.dwTimeGlobal;

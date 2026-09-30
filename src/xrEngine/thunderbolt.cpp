@@ -187,14 +187,21 @@ BOOL CEffect_Thunderbolt::RayPick(const Fvector& s, const Fvector& d, float& dis
 
 #define FAR_DIST g_pGamePersistent->Environment().CurrentEnv->far_plane
 
+static bool thunderbolt_netcoop()
+{
+	static const bool netcoop = strstr(Core.Params, "-netcoop") != NULL;
+	return netcoop;
+}
+
 void CEffect_Thunderbolt::Bolt(shared_str id, float period, float lt)
 {
 	VERIFY(id.size());
+	CRandom& Random = thunderbolt_netcoop() ? m_bolt_rng : ::Random;
 	state = stWorking;
 	life_time = lt + Random.randF(-lt * 0.5f, lt * 0.5f);
 	current_time = 0.f;
 
-	current = g_pGamePersistent->Environment().thunderbolt_collection(collection, id)->GetRandomDesc();
+	current = g_pGamePersistent->Environment().thunderbolt_collection(collection, id)->GetRandomDesc(Random);
 	VERIFY(current);
 
 	Fmatrix XF, S;
@@ -249,7 +256,28 @@ void CEffect_Thunderbolt::Bolt(shared_str id, float period, float lt)
 void CEffect_Thunderbolt::OnFrame(shared_str id, float period, float duration)
 {
 	BOOL enabled = !!(id.size());
-	if (bEnabled != enabled)
+	if (thunderbolt_netcoop())
+	{
+		bEnabled = enabled;
+		if (enabled && state == stIdle && period > 0.f)
+		{
+			CEnvironment& env = g_pGamePersistent->Environment();
+			const float slot_len = _max(period * _max(env.fTimeFactor, 1.f), 1.f); // game seconds
+			const float game_time = env.GetGameTime();
+			const u32 slot = u32(game_time / slot_len);
+			if (slot != m_bolt_slot)
+			{
+				m_bolt_rng.seed(s32(slot * 2654435761u ^ crc32(id.c_str(), id.size())));
+				const float strike_at = (float(slot) + m_bolt_rng.randF(0.1f, 0.9f)) * slot_len;
+				if (game_time >= strike_at)
+				{
+					m_bolt_slot = slot;
+					Bolt(id, period, duration);
+				}
+			}
+		}
+	}
+	else if (bEnabled != enabled)
 	{
 		bEnabled = enabled;
 		next_lightning_time = Device.fTimeGlobal + period + Random.randF(-period * 0.5f, period * 0.5f);
