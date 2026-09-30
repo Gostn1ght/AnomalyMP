@@ -70,6 +70,19 @@ Replace-Once (Join-Path $runtime 'server\scripts\mcm_log.script') `
     "`tAddUniqueCall(timed_flush)" `
     "`tif not netcoop_server_compat then AddUniqueCall(timed_flush) end"
 
+# AI evaluators also run while no player is connected, outside the temporary
+# db.actor binding. Recognize every player's Actor by class rather than
+# dereferencing a missing single-player Actor (xr_danger:eval_danger).
+Replace-Once (Join-Path $runtime 'server\scripts\xr_danger.script') `
+    "local from_actor = (danger:object() and (danger:object():id() == db.actor:id()))" `
+    "local from_actor = (danger:object() and danger:object():clsid() == clsid.script_actor) or false"
+Replace-Once (Join-Path $runtime 'server\scripts\xr_danger.script') `
+    "best_danger:object():id() == db.actor:id()" `
+    "best_danger:object():clsid() == clsid.script_actor"
+Replace-Once (Join-Path $runtime 'server\scripts\xr_danger.script') `
+    "if not xr_weight_torch_detection then return end" `
+    "if not db.actor or not xr_weight_torch_detection then return end"
+
 # Marsh smart terrains name spawn patrols that this level does not have;
 # patrol() on a missing path raises in create_npc and the squad never spawns.
 # Fall back to the smart terrain position like the rest of that function.

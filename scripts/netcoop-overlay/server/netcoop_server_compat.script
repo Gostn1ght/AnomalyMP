@@ -420,6 +420,13 @@ local function install_trade_profiles()
 end
 
 function on_game_start()
+	-- The dedicated server skips the single-player Actor binder constructor,
+	-- which normally loads these themes before NPC net_spawn initializes its
+	-- voices. Camps and scripted NPC speech still need that initialization.
+	if sound_theme and sound_theme.load_sound then
+		sound_theme.load_sound()
+		printf("[NetAnomaly] server NPC sound themes loaded")
+	end
 	-- SMR reads its options through MCM; log what the server actually sees
 	-- (a civil war setting would turn every stalker against its own squad).
 	local ok, res = pcall(function()
