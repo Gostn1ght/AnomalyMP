@@ -60,6 +60,19 @@ void CActor::OnEvent(NET_Packet& P, u16 type)
 	u16 id;
 	switch (type)
 	{
+	case GE_NETCOOP_RP:
+		{
+			// Another player started (index) or stopped (0xff) an RP animation.
+			if (!OnServer() && this != Level().CurrentControlEntity() && P.r_elapsed() >= 1)
+			{
+				const u8 index = P.r_u8();
+				if (index == 0xff)
+					rp_request_stop(false);
+				else if (int(index) != m_rp_index || m_rp_stopping)
+					rp_start(int(index), false);
+			}
+		}
+		break;
 	case GE_TRADE_BUY:
 	case GE_OWNERSHIP_TAKE:
 		{

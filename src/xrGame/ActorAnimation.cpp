@@ -23,6 +23,8 @@
 #include "player_hud.h"
 #include "WeaponKnife.h"
 #include "Pda.h"
+#include "../xrEngine/SkeletonMotions.h"
+#include "xrMessages.h"
 
 static const float y_spin0_factor = 0.0f;
 static const float y_spin1_factor = 0.4f;
@@ -344,6 +346,9 @@ char* mov_state[] = {
 
 void CActor::g_SetAnimation(u32 mstate_rl)
 {
+	// A netcoop RP animation drives the whole body while it plays.
+	if (m_rp_index >= 0 && rp_update())
+		return;
 	if (!g_Alive())
 	{
 		if (m_current_legs || m_current_torso)
@@ -797,4 +802,172 @@ void CActor::g_SetAnimation(u32 mstate_rl)
 
 	m_current_torso_blend->timeCurrent = m_current_legs_blend->timeCurrent / m_current_legs_blend->timeTotal *
 		m_current_torso_blend->timeTotal;
+}
+
+// ---------------------------------------------------------------------------
+// Netcoop RP animations (emotes). The owner's client starts and stops them and
+// tells the others (GE_NETCOOP_RP: list index, 0xff = stop); every client plays
+// the chain on its own copy of the body, so only the index goes on the wire.
+// While one plays, the normal torso and legs animations are paused.
+// ---------------------------------------------------------------------------
+static void rp_motion_end(CBlend* blend)
+{
+	if (CActor* actor = static_cast<CActor*>(blend->CallbackParam))
+		actor->m_rp_motion_done = true;
+}
+
+bool CActor::rp_play_motion(const shared_str& name)
+{
+	IKinematicsAnimated* k = smart_cast<IKinematicsAnimated*>(Visual());
+	if (!k)
+		return false;
+	const MotionID motion = k->ID_Cycle_Safe(name.c_str());
+	if (!motion.valid())
+	{
+		Msg("~ [NetAnomaly] rp: no motion '%s' on %s", name.c_str(), cName().c_str());
+		return false;
+	}
+	CMotionDef* def = k->LL_GetMotionDef(motion);
+	if (!def)
+		return false;
+	m_rp_motion_done = false;
+	m_rp_motion_deadline = Device.dwTimeGlobal + 20000;
+	k->LL_PlayCycle(def->bone_or_part, motion, TRUE, def->Accrue(), def->Falloff(), def->Speed(), TRUE,
+	                rp_motion_end, this, 0);
+	return true;
+}
+
+void CActor::rp_send(u8 index)
+{
+	NET_Packet P;
+	u_EventGen(P, GE_NETCOOP_RP, ID());
+	P.w_u8(index);
+	u_EventSend(P, net_flags(TRUE, TRUE));
+}
+
+void CActor::rp_start(int index, bool own)
+{
+	if (index < 0 || index >= int(netcoop::rp_anims().size()) || !g_Alive())
+		return;
+	if (m_rp_index == index && !m_rp_stopping)
+		return;
+	if (m_rp_index >= 0)
+		rp_finish();
+	m_rp_index = index;
+	m_rp_phase = 0;
+	m_rp_step = 0;
+	m_rp_stopping = false;
+	m_rp_motion_done = true;
+	if (own)
+	{
+		// Hands free, and a camera from the side to see yourself.
+		inventory().Activate(NO_ACTIVE_SLOT);
+		if (cam_active == eacFirstEye)
+		{
+			cam_Set(eacLookAt);
+			m_rp_camera_switched = true;
+		}
+		rp_send(u8(index));
+		m_rp_resend = Device.dwTimeGlobal + 2000;
+	}
+}
+
+void CActor::rp_request_stop(bool own)
+{
+	if (m_rp_index < 0)
+		return;
+	if (own && !m_rp_stopping)
+		rp_send(0xff);
+	m_rp_stopping = true;
+	if (m_rp_phase == 1)
+	{
+		// Leave the loop now: the "out" chain starts from here.
+		m_rp_phase = 2;
+		m_rp_step = 0;
+		m_rp_motion_done = true;
+	}
+}
+
+void CActor::rp_finish()
+{
+	if (m_rp_index < 0)
+		return;
+	m_rp_index = -1;
+	m_rp_stopping = false;
+	m_rp_motion_done = true;
+	m_bAnimTorsoPlayed = FALSE;
+	m_current_torso.invalidate();
+	m_current_legs.invalidate();
+	m_current_head.invalidate();
+	if (m_rp_camera_switched)
+	{
+		m_rp_camera_switched = false;
+		if (cam_active == eacLookAt)
+			cam_Set(eacFirstEye);
+	}
+}
+
+bool CActor::rp_update()
+{
+	if (m_rp_index < 0)
+		return false;
+	const xr_vector<netcoop::RpAnim>& anims = netcoop::rp_anims();
+	if (!g_Alive() || m_rp_index >= int(anims.size()))
+	{
+		rp_finish();
+		return false;
+	}
+	const bool own = this == Level().CurrentControlEntity();
+	if (own && !m_rp_stopping)
+	{
+		// Drawing a weapon ends the animation; late joiners get the index again.
+		if (inventory().GetActiveSlot() != NO_ACTIVE_SLOT)
+			rp_request_stop(true);
+		else if (Device.dwTimeGlobal >= m_rp_resend)
+		{
+			rp_send(u8(m_rp_index));
+			m_rp_resend = Device.dwTimeGlobal + 2000;
+		}
+	}
+	if (!m_rp_motion_done && Device.dwTimeGlobal < m_rp_motion_deadline)
+		return true;
+	const netcoop::RpAnim& a = anims[m_rp_index];
+	for (int guard = 0; guard < 64; ++guard)
+	{
+		const xr_vector<shared_str>& chain = m_rp_phase == 0 ? a.in : m_rp_phase == 1 ? a.mid : a.out;
+		if (m_rp_step < chain.size())
+		{
+			if (rp_play_motion(chain[m_rp_step++]))
+				return true;
+			continue;
+		}
+		if (m_rp_phase == 0)
+		{
+			m_rp_phase = m_rp_stopping ? 2 : 1;
+			m_rp_step = 0;
+			continue;
+		}
+		if (m_rp_phase == 1)
+		{
+			if (a.loop && !m_rp_stopping && !a.mid.empty())
+			{
+				m_rp_step = 0;
+				if (guard > 0 && m_rp_motion_done)
+					break; // no mid motion resolves on this body
+				continue;
+			}
+			if (!a.loop && !m_rp_stopping && own)
+			{
+				// A one-shot animation ends by itself: tell the others.
+				rp_send(0xff);
+				m_rp_stopping = true;
+			}
+			m_rp_phase = 2;
+			m_rp_step = 0;
+			continue;
+		}
+		break;
+	}
+	rp_finish();
+	return false;
 }

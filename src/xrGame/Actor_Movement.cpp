@@ -498,6 +498,12 @@ bool CActor::g_LadderOrient()
 // ****************************** Update actor orientation according to camera orientation
 void CActor::g_cl_Orientate(u32 mstate_rl, float dt)
 {
+	// During an RP animation the body keeps its facing; the camera looks around.
+	if (m_rp_index >= 0)
+	{
+		r_torso.pitch = 0.f;
+		return;
+	}
 	// capture camera into torso (only for FirstEye & LookAt cameras)
 	if (eacFreeLook != cam_active)
 	{

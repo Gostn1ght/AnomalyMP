@@ -1976,7 +1976,19 @@ void CActor::shedule_Update(u32 DT)
 	if (!authoritative_remote && Level().CurrentControlEntity() == this && !Level().IsDemoPlay())
 		//------------------------------------------------
 	{
+		// Netcoop RP animation: moving or jumping plays its way out; the
+		// player stands still until it has finished.
+		const u32 rp_held = mstate_wishful & (mcAnyMove | mcSprint);
+		const bool rp_playing = m_rp_index >= 0;
+		if (rp_playing)
+		{
+			if (mstate_wishful & (mcAnyMove | mcJump))
+				rp_request_stop(true);
+			mstate_wishful &= ~(mcAnyMove | mcJump | mcSprint);
+		}
 		g_cl_CheckControls(mstate_wishful, NET_SavedAccel, NET_Jump, dt);
+		if (rp_playing)
+			mstate_wishful |= rp_held; // keys still held move the player afterwards
 		{
 			/*
 			if (mstate_real & mcJump)

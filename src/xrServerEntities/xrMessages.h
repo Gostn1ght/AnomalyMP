@@ -237,6 +237,10 @@ enum
 	// u8 on. The server's copy follows, so other players see it.
 	GE_NETCOOP_ITEM_STATE,
 
+	// Netcoop: a player's client starts (u8 index into the RP animation list)
+	// or stops (0xff) an RP animation; the other clients play it too.
+	GE_NETCOOP_RP,
+
 	GE_FORCEDWORD = u32(-1)
 };
 

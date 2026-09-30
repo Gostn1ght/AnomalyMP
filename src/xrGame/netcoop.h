@@ -236,4 +236,23 @@ bool script_respawn(u16 actor_id);
 // [-netcoop_bots_addr <address>]. Pumped every frame by the game.
 void bots_set(u32 count, LPCSTR address);
 void bots_frame();
+
+// RP animations (player emotes) from configs
+etcoop
+p_anims.ltx (stock
+// stalker motions).
+struct RpAnim
+{
+	shared_str name;
+	shared_str title;
+	xr_vector<shared_str> in, mid, out;
+	bool loop = true;
+};
+const xr_vector<RpAnim>& rp_anims();
+// Lua: netcoop_rp_list() -> "name=title;...", netcoop_rp_play(name),
+// netcoop_rp_stop(), netcoop_rp_active() -> name or "".
+LPCSTR script_rp_list();
+bool script_rp_play(LPCSTR name);
+void script_rp_stop();
+LPCSTR script_rp_active();
 } // namespace netcoop

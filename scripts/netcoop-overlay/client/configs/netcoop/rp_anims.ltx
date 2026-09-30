@@ -1,0 +1,234 @@
+; NetAnomaly RP animations (player emotes).
+; The motions are stock stalker animations that GAMMA already ships.
+;
+; [rp_list]    order of the menu; each name has its own [rp_<name>] section.
+; in / mid / out  motion chains: "in" plays once, "mid" repeats while
+;                 loop = true, "out" plays once when the player moves or
+;                 picks another animation.
+; title        string id of the menu name (configs\text\*\st_netcoop.xml).
+
+[rp_list]
+hands_pockets
+salute
+greet
+refuse
+hands_behind
+look_around
+listen
+hands_up
+guard
+sit_1
+sit_2
+sit_3
+sleep
+pushups
+bar_1
+bar_2
+bar_3
+bar_4
+bar_5
+bar_6
+trance_1
+trance_2
+wounded_1
+wounded_2
+prisoner
+psy
+gop_stop
+loot
+
+[rp_hands_pockets]
+title = st_netcoop_rp_hands_pockets
+in    = lead_1_in_0
+mid   = lead_1_idle_0, lead_1_idle_1, lead_1_idle_4, lead_1_idle_8, lead_1_idle_9
+out   = lead_1_out_0
+loop  = true
+
+[rp_salute]
+title = st_netcoop_rp_salute
+in    = chest_0_idle_0
+mid   = chest_0_idle_2, chest_0_idle_1
+out   = chest_0_idle_3
+loop  = false
+
+[rp_greet]
+title = st_netcoop_rp_greet
+in    = hello_0_idle_0
+mid   = idle_0_idle_1
+out   = idle_0_idle_1
+loop  = false
+
+[rp_refuse]
+title = st_netcoop_rp_refuse
+in    = net_0_0
+mid   = idle_0_idle_1
+out   = idle_0_idle_1
+loop  = false
+
+[rp_hands_behind]
+title = st_netcoop_rp_hands_behind
+in    = ohrana_0
+mid   = ohrana_1
+out   = ohrana_2
+loop  = true
+
+[rp_look_around]
+title = st_netcoop_rp_look_around
+in    = poisk_0_idle_0
+mid   = poisk_0_idle_1
+out   = poisk_0_idle_2
+loop  = true
+
+[rp_listen]
+title = st_netcoop_rp_listen
+in    = prisluh_0_in
+mid   = prisluh_0_0, prisluh_0_1, prisluh_0_2
+out   = prisluh_0_out
+loop  = true
+
+[rp_hands_up]
+title = st_netcoop_rp_hands_up
+in    =
+mid   = hand_up_0
+out   =
+loop  = true
+
+[rp_guard]
+title = st_netcoop_rp_guard
+in    = chasovoy_0
+mid   = chasovoy_1, chasovoy_2, chasovoy_3
+out   = chasovoy_4
+loop  = true
+
+[rp_sit_1]
+title = st_netcoop_rp_sit_1
+in    = idle_0_to_sit_0
+mid   = item_0_idle_0, item_0_idle_1, item_0_idle_2, item_0_idle_3
+out   = sit_0_lazy_idle_0
+loop  = true
+
+[rp_sit_2]
+title = st_netcoop_rp_sit_2
+in    = idle_0_to_sit_1
+mid   = item_2_aim_0, item_2_prepare_0
+out   = item_2_sit_0, sit_0_lazy_idle_0
+loop  = true
+
+[rp_sit_3]
+title = st_netcoop_rp_sit_3
+in    = idle_0_to_sit_2
+mid   = sit_2_idle_0, sit_2_idle_1, sit_2_idle_2, sit_2_idle_3
+out   = sit_2_lazy_idle_0
+loop  = true
+
+[rp_sleep]
+title = st_netcoop_rp_sleep
+in    = idle_0_to_sit_0, sit_0_to_sleep_0
+mid   = sleep_idle_0, sleep_idle_1
+out   = sleep_0_to_sit_0, sit_0_lazy_idle_0
+loop  = true
+
+[rp_pushups]
+title = st_netcoop_rp_pushups
+in    = otzimani_2_in
+mid   = otzimani_2_act
+out   = otzimani_2_out
+loop  = true
+
+[rp_bar_1]
+title = st_netcoop_rp_bar_1
+in    = bar_0_idle_in
+mid   = bar_0_idle_0, bar_0_idle_1, bar_0_idle_2, bar_0_idle_3
+out   = bar_0_idle_out
+loop  = true
+
+[rp_bar_2]
+title = st_netcoop_rp_bar_2
+in    = bar_2_idle_in
+mid   = bar_2_idle_0
+out   = bar_2_idle_out
+loop  = true
+
+[rp_bar_3]
+title = st_netcoop_rp_bar_3
+in    = lead_1_in_0, lead_1_idle_to_bar_0
+mid   = lead_1_bar_idle_0
+out   = lead_1_bar_to_idle_0, lead_1_out_0
+loop  = true
+
+[rp_bar_4]
+title = st_netcoop_rp_bar_4
+in    = bar_1_idle_in
+mid   = bar_1_idle_0, bar_1_idle_1, bar_1_idle_2, bar_1_idle_3
+out   = bar_1_idle_out
+loop  = true
+
+[rp_bar_5]
+title = st_netcoop_rp_bar_5
+in    = bar_3_idle_in
+mid   = bar_3_idle_0
+out   = bar_3_idle_out
+loop  = true
+
+[rp_bar_6]
+title = st_netcoop_rp_bar_6
+in    = bar_4_idle_in
+mid   = bar_4_idle_0
+out   = bar_4_idle_out
+loop  = true
+
+[rp_trance_1]
+title = st_netcoop_rp_trance_1
+in    = idle_0_to_trans_0
+mid   = trans_0_idle_0
+out   = trans_0_to_idle_0
+loop  = true
+
+[rp_trance_2]
+title = st_netcoop_rp_trance_2
+in    = idle_0_to_trans_1
+mid   = trans_1_idle_0
+out   = trans_1_to_idle_0
+loop  = true
+
+[rp_wounded_1]
+title = st_netcoop_rp_wounded_1
+in    = idle_to_wounded_0
+mid   = wounded_idle_0, wounded_opasno_0
+out   = wounded_to_idle_0
+loop  = true
+
+[rp_wounded_2]
+title = st_netcoop_rp_wounded_2
+in    = idle_to_wounded_1
+mid   = waunded_1_idle_0
+out   = waunded_1_out, wounded_to_idle_0
+loop  = true
+
+[rp_prisoner]
+title = st_netcoop_rp_prisoner
+in    = prisoner_0_sit_down_0
+mid   = prisoner_0_sit_idle_0
+out   = prisoner_0_stand_up_0
+loop  = true
+
+[rp_psy]
+title = st_netcoop_rp_psy
+in    = idle_0_to_psy_0_idle_0
+mid   = psy_0_idle_0, psy_0_idle_1, psy_0_idle_2, psy_0_idle_3
+out   = psy_0_idle_0_to_idle_0
+loop  = true
+
+[rp_gop_stop]
+title = st_netcoop_rp_gop_stop
+in    =
+mid   = gop_stop_1_0
+out   =
+loop  = false
+
+[rp_loot]
+title = st_netcoop_rp_loot
+in    = waunded_1_in
+mid   =
+out   = waunded_1_out
+loop  = false

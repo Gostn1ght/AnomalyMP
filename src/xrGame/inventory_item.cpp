@@ -303,7 +303,7 @@ void CInventoryItem::netcoop_smooth_update()
 		netcoop_smooth_stop();
 		return;
 	}
-	const float k = 1.f - _exp(-18.f * Device.fTimeDelta);
+	const float k = 1.f - expf(-18.f * Device.fTimeDelta);
 	Fquaternion from, to, q;
 	from.set(m_netcoop_shown);
 	to.set(m_netcoop_target);

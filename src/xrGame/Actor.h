@@ -591,6 +591,24 @@ public:
 	// its hands); 0xff until the first update.
 	u8 m_netcoop_owner_slot = 0xff;
 	float netcoop_model_yaw() const { return r_model_yaw; }
+
+	// Netcoop RP animation (emote): index into netcoop::rp_anims(), -1 none.
+	// Phase 0 plays "in" once, 1 repeats "mid" while looping, 2 plays "out".
+	int m_rp_index = -1;
+	u8 m_rp_phase = 0;
+	u8 m_rp_step = 0;
+	bool m_rp_stopping = false;
+	bool m_rp_motion_done = true;
+	u32 m_rp_motion_deadline = 0;
+	u32 m_rp_resend = 0;
+	bool m_rp_camera_switched = false;
+	// own: this client's player (sends it and moves its camera)
+	void rp_start(int index, bool own);
+	void rp_request_stop(bool own);
+	bool rp_update();
+	void rp_finish();
+	bool rp_play_motion(const shared_str& name);
+	void rp_send(u8 index);
 	// Offset = the least delay seen in the current and the previous second:
 	// the first updates after a join arrive seconds late, and a minimum over
 	// all time made the player's snapshot times jump back by those seconds.

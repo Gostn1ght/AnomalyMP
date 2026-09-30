@@ -2754,7 +2754,11 @@ void CLevel::script_register(lua_State* L)
 		def("netcoop_task_taken", &netcoop::server_task_taken_by_other),
 		def("netcoop_broadcast", &netcoop::script_broadcast),
 		def("netcoop_send_to_actor", &netcoop::script_send_to_actor),
-		def("netcoop_respawn", &netcoop::script_respawn)
+		def("netcoop_respawn", &netcoop::script_respawn),
+		def("netcoop_rp_list", &netcoop::script_rp_list),
+		def("netcoop_rp_play", &netcoop::script_rp_play),
+		def("netcoop_rp_stop", &netcoop::script_rp_stop),
+		def("netcoop_rp_active", &netcoop::script_rp_active)
 	];
 
 	module(L, "weather")

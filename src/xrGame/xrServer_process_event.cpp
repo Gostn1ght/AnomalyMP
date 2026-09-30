@@ -404,6 +404,9 @@ void xrServer::Process_event(NET_Packet& P, ClientID sender)
 		if (SV_Client)
 			SendTo(SV_Client->ID, P, MODE);
 		break;
+	case GE_NETCOOP_RP:
+		SendBroadcast(sender, P, MODE);
+		break;
 	case GE_NETCOOP_WPN_AIM:
 		// One shot of a player: the server's level fires it, the other
 		// clients show it (sound, flash).
