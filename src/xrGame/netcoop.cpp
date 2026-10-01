@@ -312,6 +312,48 @@ u8 client_role()
 	return s_client_role;
 }
 
+static xr_string client_device_key()
+{
+    // Prefer the firmware system UUID. Never send SMBIOS data or serials.
+    xr_string identity;
+    const DWORD provider = 0x52534d42; // 'RSMB'
+    const UINT size = GetSystemFirmwareTable(provider, 0, nullptr, 0);
+    if (size >= 8 && size <= 1024 * 1024)
+    {
+        xr_vector<u8> firmware(size);
+        if (GetSystemFirmwareTable(provider, 0, firmware.data(), size) == size)
+        {
+            for (u32 at = 8; at + 4 <= size;)
+            {
+                const u32 length = firmware[at + 1];
+                if (length < 4 || at + length > size) break;
+                if (firmware[at] == 1 && length >= 25)
+                {
+                    bool all_zero = true, all_ff = true;
+                    for (u32 n = 8; n < 24; ++n) { all_zero &= firmware[at + n] == 0; all_ff &= firmware[at + n] == 255; }
+                    if (!all_zero && !all_ff) identity = to_hex(&firmware[at + 8], 16);
+                    break;
+                }
+                at += length;
+                while (at + 1 < size && (firmware[at] || firmware[at + 1])) ++at;
+                at += 2;
+            }
+        }
+    }
+    // Virtual machines / missing UUID: bind to the Windows installation.
+    if (identity.empty())
+    {
+        char guid[128] = {}; DWORD size = sizeof(guid);
+        if (RegGetValueA(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Cryptography", "MachineGuid",
+            RRF_RT_REG_SZ | RRF_SUBKEY_WOW6464KEY, nullptr, guid, &size) == ERROR_SUCCESS) identity = guid;
+    }
+    if (identity.empty()) return xr_string();
+    u8 digest[32];
+    const char salt[] = "NetAnomaly device binding v1";
+    if (!pbkdf2(identity.data(), u32(identity.size()), salt, sizeof(salt) - 1, 1000, digest, sizeof(digest))) return xr_string();
+    return to_hex(digest, sizeof(digest));
+}
+
 void client_write_auth(NET_Packet& P)
 {
 	client_load_credentials();
@@ -323,6 +365,7 @@ void client_write_auth(NET_Packet& P)
     P.w_stringZ(s_client_character_faction.c_str());
     P.w_u8(s_client_character_economy);
     P.w_stringZ(s_client_character_name.empty() ? "device_pda_1" : s_client_character_loadout.c_str());
+    P.w_stringZ(client_device_key().c_str());
 	s_client_register = false;
 	s_client_role = role_none;
 }
@@ -449,6 +492,7 @@ bool script_pure_client() { return pure_client(); }
 // ---------------------------------------------------------------------------
 struct Account
 {
+	xr_string device;
 	xr_string login; // as registered
 	u8 role;
 	xr_string salt;
@@ -489,10 +533,10 @@ static void accounts_load()
 			continue;
 
 		// login|role|salt|hash|money
-		char* fields[5] = {};
+		char* fields[6] = {};
 		u32 count = 0;
 		char* cursor = line;
-		while (count < 5)
+		while (count < 6)
 		{
 			fields[count++] = cursor;
 			char* sep = strchr(cursor, '|');
@@ -506,6 +550,7 @@ static void accounts_load()
 
 		Account a;
 		a.login = fields[0];
+		a.device = count >= 6 && key_valid(fields[5]) ? fields[5] : "";
 		a.role = !xr_strcmp(fields[1], "admin") ? u8(role_admin) : u8(role_player);
 		a.salt = fields[2];
 		a.hash = fields[3];
@@ -536,14 +581,14 @@ static void accounts_save()
 		Msg("! [NetAnomaly] cannot write %s", temp);
 		return;
 	}
-	fprintf(f, "# NetAnomaly accounts: login|role|salt|pbkdf2-sha256|money\n");
+	fprintf(f, "# NetAnomaly accounts: login|role|salt|pbkdf2-sha256|money|device-digest\n");
 	for (Accounts::const_iterator it = s_accounts.begin(); it != s_accounts.end(); ++it)
 	{
 		const Account& a = it->second;
 		if (a.has_money)
-			fprintf(f, "%s|%s|%s|%s|%u\n", a.login.c_str(), role_name(a.role), a.salt.c_str(), a.hash.c_str(), a.money);
+			fprintf(f, "%s|%s|%s|%s|%u|%s\n", a.login.c_str(), role_name(a.role), a.salt.c_str(), a.hash.c_str(), a.money, a.device.c_str());
 		else
-			fprintf(f, "%s|%s|%s|%s|-\n", a.login.c_str(), role_name(a.role), a.salt.c_str(), a.hash.c_str());
+			fprintf(f, "%s|%s|%s|%s|-|%s\n", a.login.c_str(), role_name(a.role), a.salt.c_str(), a.hash.c_str(), a.device.c_str());
 	}
 	fclose(f);
 	if (!MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
@@ -561,6 +606,14 @@ static Account* account_find(LPCSTR login)
 	to_lower(key);
 	Accounts::iterator it = s_accounts.find(key);
 	return it == s_accounts.end() ? NULL : &it->second;
+}
+
+bool server_reset_device(LPCSTR login)
+{
+    Account* account = account_find(login);
+    if (!account) return false;
+    account->device.clear(); s_accounts_dirty = true; accounts_save();
+    return true;
 }
 
 static bool server_hash(LPCSTR client_key, const xr_string& salt_hex, xr_string& out)
@@ -673,6 +726,7 @@ static void reject(xrServer* server, xrClientData* CL, LPCSTR message)
 // server_auth_update, and the client's player state waits for it.
 struct PendingAuth
 {
+	xr_string device;
 	ClientID client;
 	xr_string login;
 	xr_string key;
@@ -748,9 +802,16 @@ void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
         if (!read_string(P, name, sizeof(name)) || !read_string(P, faction, sizeof(faction)) || P.r_elapsed() < 1)
         { xr_delete(pending); reject(server, CL, "Invalid character request"); return; }
         pending->economy = P.r_u8();
-        if (!read_string(P, loadout, sizeof(loadout)) || P.r_elapsed())
+        if (!read_string(P, loadout, sizeof(loadout)))
         { xr_delete(pending); reject(server, CL, "Invalid character loadout"); return; }
         pending->character_name = name; pending->faction = faction; pending->loadout = loadout;
+        if (P.r_elapsed())
+        {
+            char device[65];
+            if (!read_string(P, device, sizeof(device)) || P.r_elapsed() || !key_valid(device))
+            { xr_delete(pending); reject(server, CL, "Device identity unavailable"); return; }
+            pending->device = device;
+        }
     }
     else
     {
@@ -864,6 +925,13 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
 		a->locked_until = 0;
 	}
 
+    if (!a->device.empty() && !constant_time_equal(a->device, pending->device))
+    {
+        reject(server, CL, "Account is bound to another device; contact the server administrator");
+        return;
+    }
+    if (a->device.empty() && !pending->device.empty())
+    { a->device = pending->device; s_accounts_dirty = true; accounts_save(); }
 	CL->netcoop_login = a->login.c_str();
     if (!character_select(CL, pending->slot, pending->character_name.c_str(), pending->faction.c_str(), pending->economy, pending->loadout.c_str()))
     {

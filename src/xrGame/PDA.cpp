@@ -1118,9 +1118,9 @@ void CPda::netcoop_apply_screen(const u8* pixels, u32 width, u32 height)
     }
 }
 
-void CPda::renderable_Render()
+void CPda::on_renderable_Render()
 {
-    inherited::renderable_Render();
+    inherited::on_renderable_Render();
     if (!m_netcoop_screen || IsHidden() || !H_Parent() || (::Render->get_HUD() && GetHUDmode())) return;
     Render->set_Transform(&XFORM());
     Render->add_Visual(m_netcoop_screen);

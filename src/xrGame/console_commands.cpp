@@ -2542,6 +2542,18 @@ public:
 	}
 };
 
+// Device changes can only be approved in the local server console.
+class CCC_NetcoopUnbind : public IConsole_Command
+{
+public:
+    CCC_NetcoopUnbind(LPCSTR name) : IConsole_Command(name) {}
+    void Execute(LPCSTR args) override
+    {
+        if (!args || !args[0] || !g_pGameLevel || !Level().Server) return;
+        Msg("%s [NetAnomaly] reset account device binding", netcoop::server_reset_device(args) ? "*" : "!");
+    }
+};
+
 //netanomaly: send a text command to the server (accounts, admin, spawner)
 class CCC_NetAnomalySrv : public IConsole_Command
 {
@@ -2608,6 +2620,7 @@ void CCC_RegisterCommands()
 	CMD1(CCC_NetcoopAccounts, "sv_accounts");
 	CMD1(CCC_NetcoopBots, "netcoop_bots");
 	CMD1(CCC_NetcoopAccountRole, "sv_account_role");
+	CMD1(CCC_NetcoopUnbind, "sv_account_unbind");
 	//Not needed for a singleplayer-only mod
 	//g_OptConCom.Init();
 

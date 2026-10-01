@@ -30,6 +30,7 @@ extern int g_netcoop_player_predict;
 
 namespace netcoop
 {
+bool server_reset_device(LPCSTR login);
 void client_capture_pda();
 void server_on_pda_screen(xrServer* server, xrClientData* client, NET_Packet& packet);
 void client_on_pda_screen(NET_Packet& packet);
