@@ -38,7 +38,7 @@ static void netcoop_item_ground_contact(bool& collide, bool, dContact& contact, 
 {
 	if (!collide || (dGeomGetBody(contact.geom.g1) && dGeomGetBody(contact.geom.g2)) ||
 		_abs(contact.geom.normal[1]) < 0.5f) return;
-	contact.surface.mu = _max(contact.surface.mu, 0.25f);
+	contact.surface.mu = _max(contact.surface.mu, 0.45f);
 	contact.surface.bounce = _min(contact.surface.bounce, 0.08f);
 	contact.surface.bounce_vel = _max(contact.surface.bounce_vel, 1.5f);
 }
@@ -299,6 +299,8 @@ void CPhysicsShellHolder::activate_physic_shell()
 	{
 		ActivationSpeedOverriden(overriden_vel, true); // drop a stale override
 		m_pPhysicsShell->set_LinearVel(m_netcoop_throw_velocity);
+		Fvector spin; spin.set(0.7f, 0.3f, 1.2f);
+		m_pPhysicsShell->set_AngularVel(spin);
 	}
 	else if (ActivationSpeedOverriden(overriden_vel, true))
 	{
@@ -517,6 +519,17 @@ void CPhysicsShellHolder::netcoop_physics_update()
 	if (!shell || PHGetSyncItemsNumber() != m_netcoop_physics.back().states.size()) return;
 	if (shell != m_netcoop_replica_shell)
 	{
+		// Bridge from the visible local pose to the first authoritative pose.
+		// Without this sample the first death/drop packet snaps every bone.
+		if (m_netcoop_physics.size() == 1)
+		{
+			NetcoopPhysicsSnapshot seed;
+			seed.stamp = _min(m_netcoop_physics.front().stamp - 1, netcoop_interpolation_time(50));
+			seed.states.resize(PHGetSyncItemsNumber());
+			for (u16 i = 0; i < PHGetSyncItemsNumber(); ++i) PHGetSyncItem(i)->get_State(seed.states[i]);
+			if (seed.states[0].position.distance_to(m_netcoop_physics.front().states[0].position) < 0.75f)
+				m_netcoop_physics.push_front(std::move(seed));
+		}
 		for (u16 i = 0; i < PHGetSyncItemsNumber(); ++i) shell->get_ElementByStoreOrder(i)->Fix();
 		shell->EnableCollision();
 		m_netcoop_replica_shell = shell;

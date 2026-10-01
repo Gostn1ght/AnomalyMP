@@ -481,6 +481,9 @@ void CCharacterPhysicsSupport::KillHit(SHit& H)
 	//	if(Type() == etStalker && xr_strcmp(dbg_stalker_death_anim, "none") != 0)
 	float hit_angle = 0;
 	MotionID m = m_death_anims.motion(m_EntityAlife, H, hit_angle);
+	// Death motions can hold the shell upright before releasing it. A single
+	// authority runs a free ragdoll immediately in network games.
+	if (netcoop::enabled()) m = MotionID();
 
 	CAI_Stalker* const holder = m_EntityAlife.cast_stalker();
 	if (holder && (holder->wounded() || holder->movement().current_params().cover()))
@@ -607,6 +610,17 @@ void dbg_draw_geoms(xr_vector<CODEGeom*>& m_weapon_geoms)
 
 void CCharacterPhysicsSupport::in_UpdateCL()
 {
+	// Replicated corpses already have a complete interpolated shell pose.
+	// The local death animation / friction controller must not overwrite it.
+	if (netcoop::pure_client() && m_pPhysicsShell && m_EntityAlife.netcoop_physics_buffered())
+	{
+		destroy(m_interactive_motion);
+		DestroyIKController();
+		m_pPhysicsShell->SetRagDoll();
+		m_EntityAlife.netcoop_physics_update();
+		mXFORM.set(m_EntityAlife.XFORM());
+		return;
+	}
 	if (m_eState == esRemoved)
 	{
 		return;

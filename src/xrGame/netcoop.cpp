@@ -1917,9 +1917,9 @@ static void character_capture_progress(Character& character, CActor* actor)
 	writer.w_u32(u32(tasks.size()));
 	for (SGameTaskKey& task : tasks) task.save(writer);
 	save_data(actor->m_known_info_registry->registry().objects(), writer);
-	::luabind::functor<xr_string> capture;
+	::luabind::functor<luabind::internal_string> capture;
 	if (!ai().script_engine().functor("netcoop_server_compat.capture_character_state", capture)) return;
-	xr_string state;
+	luabind::internal_string state;
 	try { state = capture(actor->lua_game_object()); }
 	catch (...) { Msg("! [NetAnomaly] cannot serialize character script state for %u", actor->ID()); return; }
 	writer.w_u32(u32(state.size()));
@@ -1943,7 +1943,7 @@ static void character_restore_progress(Character& character, CActor* actor)
 	load_data(actor->m_known_info_registry->registry().objects(), reader);
 	const u32 size = reader.r_u32();
 	if (size > reader.elapsed()) return;
-	xr_string state(reinterpret_cast<const char*>(reader.pointer()), size);
+	luabind::internal_string state(reinterpret_cast<const char*>(reader.pointer()), size);
 	::luabind::functor<void> restore;
 	if (ai().script_engine().functor("netcoop_server_compat.restore_character_state", restore))
 		try { restore(actor->lua_game_object(), state); }
@@ -2497,6 +2497,23 @@ void server_physics_update(xrServer* server)
 	if (previous && now - previous < 50) return;
 	previous = now;
 	++tick;
+	struct FootContact { Fvector position, direction; };
+	xr_vector<FootContact> feet;
+	for (u32 n = 0; n < Level().Objects.o_count(); ++n)
+	{
+		CActor* actor = smart_cast<CActor*>(Level().Objects.o_get_by_iterator(n));
+		if (!actor || actor->ID() == 0 || !actor->g_Alive() || actor->getDestroy()) continue;
+		const u32 move = actor->MovingState();
+		if (!(move & (mcFwd | mcBack | mcLStrafe | mcRStrafe)) || (move & (mcJump | mcClimb))) continue;
+		FootContact contact; contact.position = actor->Position(); contact.direction.set(0.f, 0.f, 0.f);
+		if (move & mcFwd) contact.direction.add(actor->XFORM().k);
+		if (move & mcBack) contact.direction.sub(actor->XFORM().k);
+		if (move & mcRStrafe) contact.direction.add(actor->XFORM().i);
+		if (move & mcLStrafe) contact.direction.sub(actor->XFORM().i);
+		contact.direction.y = 0.f;
+		if (contact.direction.square_magnitude() < EPS_S) continue;
+		contact.direction.normalize(); feet.push_back(contact);
+	}
 	for (u32 n = 0; n < Level().Objects.o_count(); ++n)
 	{
 		CObject* object = Level().Objects.o_get_by_iterator(n);
@@ -2506,6 +2523,29 @@ void server_physics_update(xrServer* server)
 		if (!smart_cast<CInventoryItem*>(object) && !(creature && !creature->g_Alive())) continue;
 		const u16 count = holder->PHGetSyncItemsNumber();
 		if (!count || count > 128) continue;
+		// Client replica colliders are fixed; only the authority integrates
+		// contact pushes. Walking against a body gives a small, mass-scaled
+		// impulse, never a position correction or an unvalidated client force.
+		for (const FootContact& foot : feet)
+		{
+			for (u16 i = 0; i < count; ++i)
+			{
+				SPHNetState body; holder->PHGetSyncItem(i)->get_State(body);
+				Fvector gap; gap.sub(body.position, foot.position);
+				if (gap.y < -0.2f || gap.y > 0.8f) continue;
+				gap.y = 0.f;
+				if (gap.square_magnitude() > 0.36f || gap.dotproduct(foot.direction) < -0.05f) continue;
+				const float target = creature ? 0.16f : 0.5f;
+				const float gain = _max(0.f, target - body.linear_vel.dotproduct(foot.direction));
+				if (gain > 0.f)
+				{
+					holder->PPhysicsShell()->Enable();
+					holder->PPhysicsShell()->applyImpulse(foot.direction,
+						_min(holder->PPhysicsShell()->getMass(), 120.f) * _min(gain, target));
+				}
+				break;
+			}
+		}
 		NET_Packet P;
 		P.w_begin(M_NETCOOP_PHYSICS);
 		P.w_u16(holder->ID());
