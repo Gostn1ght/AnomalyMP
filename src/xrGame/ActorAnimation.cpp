@@ -956,13 +956,12 @@ void CActor::rp_start(int index, bool own)
 	m_rp_motion_done = true;
 	if (own)
 	{
-		// Hands free, and a camera from the side to see yourself.
+		// Keep the player in first person; gameplay input is locked until stop.
+		inventory().Action(kWPN_FIRE, CMD_STOP);
+		mstate_wishful &= ~(mcAnyMove | mcJump | mcSprint | mcCrouch | mcLookout);
+		m_jump_input_pending = false;
 		if (netcoop::rp_anims()[index].name != "gop_stop") inventory().Activate(NO_ACTIVE_SLOT);
-		if (cam_active == eacFirstEye)
-		{
-			cam_Set(eacLookAt);
-			m_rp_camera_switched = true;
-		}
+		cam_Set(eacFirstEye);
 		rp_send(u8(index));
 		m_rp_resend = Device.dwTimeGlobal + 2000;
 	}

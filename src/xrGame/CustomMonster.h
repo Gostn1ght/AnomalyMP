@@ -107,8 +107,9 @@ public:
         u32 anim[3] = {0, 0, 0};
         u16 active_slot = u16(-1);
         u8 hands_flags = 0;
-        u32 monster_motion = 0;
+        u32 monster_motion = u32(-1);
         float monster_motion_speed = 1.f;
+        float monster_motion_phase = 0.f;
 
 
 		// non-exported (temporal)

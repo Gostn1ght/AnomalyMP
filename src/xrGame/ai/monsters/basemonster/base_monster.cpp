@@ -327,6 +327,7 @@ void CBaseMonster::update_enemy_accessible_and_at_home_info()
 
 void CBaseMonster::UpdateCL()
 {
+	netcoop::ServerActorScope netcoop_scope(this);
 #ifdef DEBUG
 	if ( Level().CurrentEntity() == this )
 	{
@@ -365,6 +366,7 @@ void CBaseMonster::UpdateCL()
 			{
 				m_netcoop_motion = NET_Last.monster_motion;
 				m_netcoop_motion_speed = NET_Last.monster_motion_speed;
+				m_netcoop_phase = NET_Last.monster_motion_phase;
 			}
 			netcoop_play_motion();
 		}
@@ -377,6 +379,7 @@ void CBaseMonster::UpdateCL()
 
 void CBaseMonster::shedule_Update(u32 dt)
 {
+	netcoop::ServerActorScope netcoop_scope(this);
 #ifdef DEBUG
 	if ( is_paused () )
 	{

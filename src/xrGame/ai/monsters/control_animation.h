@@ -94,6 +94,7 @@ public:
 		speed = m_data.global.blend ? m_data.global.blend->speed : 1.f;
 		return m_data.global.get_motion();
 	}
+	float netcoop_global_phase() const { return m_data.global.blend ? m_data.global.blend->timeCurrent : 0.f; }
 
 	void restart();
 

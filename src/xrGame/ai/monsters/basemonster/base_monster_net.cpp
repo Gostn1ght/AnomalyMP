@@ -76,7 +76,7 @@ void CBaseMonster::net_Export(NET_Packet& P)
 		P.w(&f1, sizeof(f1));
 	}
 
-	u32 motion = 0;
+	u32 motion = u32(-1);
 	float motion_speed = 1.f;
 	if (netcoop::enabled() && m_control_manager && control().animation_com())
 	{
@@ -88,6 +88,8 @@ void CBaseMonster::net_Export(NET_Packet& P)
 	}
 	P.w_u32(motion);
 	P.w_float(motion_speed);
+	P.w_float(netcoop::enabled() && m_control_manager && control().animation_com() ?
+		control().animation_com()->netcoop_global_phase() : 0.f);
 }
 
 void CBaseMonster::netcoop_play_motion()
@@ -95,7 +97,8 @@ void CBaseMonster::netcoop_play_motion()
 	IKinematicsAnimated* K = smart_cast<IKinematicsAnimated*>(Visual());
 	if (!K)
 		return;
-	if (m_netcoop_motion && m_netcoop_motion != m_netcoop_motion_played)
+	if (m_netcoop_motion != u32(-1) && (m_netcoop_motion != m_netcoop_motion_played ||
+		m_netcoop_phase + 0.05f < m_netcoop_phase_played))
 	{
 		MotionID m;
 		m.val = m_netcoop_motion;
@@ -106,7 +109,9 @@ void CBaseMonster::netcoop_play_motion()
 		if (blend && m_netcoop_motion_speed > 0.f)
 			blend->speed = m_netcoop_motion_speed;
 		m_netcoop_motion_played = m_netcoop_motion;
+		if (blend) blend->timeCurrent = _max(0.f, _min(m_netcoop_phase, blend->timeTotal));
 	}
+	m_netcoop_phase_played = m_netcoop_phase;
 	K->UpdateTracks();
 }
 
@@ -168,6 +173,7 @@ void CBaseMonster::net_Import(NET_Packet& P)
 		P.r_u32(N.monster_motion);
 		P.r_float(N.monster_motion_speed);
 		N.pose_valid = true;
+		if (P.r_elapsed() >= sizeof(float)) P.r_float(N.monster_motion_phase);
 	}
 
 	if (NET.empty() || (NET.back().dwTimeStamp < N.dwTimeStamp))

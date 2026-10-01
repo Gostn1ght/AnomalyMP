@@ -498,6 +498,7 @@ void game_sv_Single::netcoop_spawn_actor(ClientID id_who)
 	}
 
 	const bool restoring_character = netcoop::server_character_load_actor(CL, E);
+	if (!restoring_character) A->set_visual("actors\\stalker_neutral\\stalker_neutral_1.ogf");
 	string64 nick;
 	if (CL->netcoop_character_name.size())
 		xr_strcpy(nick, CL->netcoop_character_name.c_str());

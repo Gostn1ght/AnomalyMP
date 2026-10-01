@@ -153,6 +153,13 @@ local function consume_z(dik, bind, disabled, flags)
     if plain_z(dik) then flags.ret_value = false end
 end
 
+-- Called by the engine before other mods receive the key.
+function consume_key(dik)
+    if dik ~= MENU_KEY then return false end
+    toggle()
+    return true
+end
+
 local function on_destroy()
     if wnd then wnd:Close() end
     wnd = nil

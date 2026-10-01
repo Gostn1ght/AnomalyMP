@@ -268,6 +268,16 @@ void CActor::net_Export(NET_Packet& P) // export to server
 		P.w_u8(m_netcoop_owner_slot);
 	else
 		P.w_u8(u8(inventory().GetActiveSlot()));
+	if (netcoop::enabled())
+	{
+		PIItem hands = inventory().ActiveItem();
+		PIItem outfit = inventory().ItemFromSlot(OUTFIT_SLOT);
+		PIItem helmet = inventory().ItemFromSlot(HELMET_SLOT);
+		P.w_u16(netcoop::server_player_copy(this) ? m_netcoop_owner_item : (hands ? hands->object_id() : u16(-1)));
+		P.w_u16(outfit ? outfit->object_id() : u16(-1));
+		P.w_u16(helmet ? helmet->object_id() : u16(-1));
+		P.w_stringZ(cNameVisual());
+	}
 	/////////////////////////////////////////////////
 	u16 NumItems = PHGetSyncItemsNumber();
 
@@ -519,6 +529,35 @@ void CActor::netcoop_follow_owner(NET_Packet& P)
 		const u8 slot = P.r_u8();
 		if (slot == u8(NO_ACTIVE_SLOT) || slot <= inventory().LastSlot())
 			m_netcoop_owner_slot = slot;
+		if (netcoop::enabled() && P.r_elapsed() >= 7)
+		{
+			const u16 hands = P.r_u16(), outfit = P.r_u16(), helmet = P.r_u16();
+			shared_str owner_visual; P.r_stringZ(owner_visual);
+			if (!m_netcoop_owner_time || time_stamp >= m_netcoop_owner_time)
+			{
+				PIItem held = smart_cast<CInventoryItem*>(Level().Objects.net_Find(hands));
+				if (hands == u16(-1) || (held && held->object().H_Parent() == this))
+					m_netcoop_owner_item = hands;
+				const u16 ids[] = {outfit, helmet};
+				const u16 slots[] = {OUTFIT_SLOT, HELMET_SLOT};
+				for (int n = 0; n < 2; ++n)
+				{
+					PIItem item = smart_cast<CInventoryItem*>(Level().Objects.net_Find(ids[n]));
+					if (ids[n] != u16(-1) && (!item || item->object().H_Parent() != this || item->GetSlot() != slots[n])) continue;
+					PIItem previous = inventory().ItemFromSlot(slots[n]);
+					if (previous != item)
+					{
+						if (previous) inventory().Ruck(previous, false);
+						if (item) inventory().Slot(slots[n], item, true);
+					}
+				}
+				// The server derives the model from owned armour; never trust
+				// an arbitrary client-supplied model path.
+				if (CCustomOutfit* worn = smart_cast<CCustomOutfit*>(inventory().ItemFromSlot(OUTFIT_SLOT)))
+					worn->ApplySkinModel(this, true, false);
+				else ChangeVisual(GetDefaultVisualOutfit());
+			}
+		}
 	}
 
 	if (_valid(position))
@@ -580,7 +619,7 @@ void CActor::netcoop_follow_owner(NET_Packet& P)
 		if (physics && physics->movement())
 			physics->movement()->SetPosition(accepted);
 		Position().set(accepted);
-		netcoop_kick_items(this, delta, dt);
+		// Ground contact impulses are applied once by server_physics_update.
 	}
 	// What the other players see: where this player faces and looks and how
 	// it moves (run, crouch, sprint, jump). The server Actor exports these.
@@ -688,6 +727,39 @@ void CActor::net_Import_Base(NET_Packet& P)
 
 	u8 ActiveSlot;
 	P.r_u8(ActiveSlot);
+	u16 authoritative_hands = u16(-1);
+	if (netcoop::enabled())
+	{
+		const u16 hands = P.r_u16(), outfit = P.r_u16(), helmet = P.r_u16();
+		authoritative_hands = hands;
+		shared_str visual; P.r_stringZ(visual);
+		if (OnClient() && !Local())
+		{
+			// Slot alone is ambiguous when two weapons share it. Reconcile
+			// owned items before selecting hands, including spawn/late join.
+			const u16 ids[] = {hands, outfit, helmet};
+			const u16 slots[] = {u16(ActiveSlot), OUTFIT_SLOT, HELMET_SLOT};
+			for (int n = 0; n < 3; ++n)
+			{
+				if (slots[n] == NO_ACTIVE_SLOT || slots[n] > inventory().LastSlot()) continue;
+				PIItem item = smart_cast<CInventoryItem*>(Level().Objects.net_Find(ids[n]));
+				if (ids[n] != u16(-1) && (!item || item->object().H_Parent() != this)) continue;
+				PIItem previous = inventory().ItemFromSlot(slots[n]);
+				if (previous != item)
+				{
+					if (previous) inventory().Ruck(previous, false);
+					if (item) inventory().Slot(slots[n], item, true);
+				}
+			}
+			if (g_Alive() && visual.size()) ChangeVisual(visual);
+			// Hide the previous same-slot weapon too; its hidden state event
+			// may have preceded this replica's spawn.
+			for (PIItem item : inventory().m_all)
+				if (item->object_id() != hands)
+					if (CHudItem* hud = item->cast_hud_item())
+						if (!hud->IsHidden()) hud->OnStateSwitch(CHUDState::eHidden, hud->GetState());
+		}
+	}
 
 	// The owning client selects its own hands (PDA, weapons); the server follows
 	// through GE_INV_ACTION. Applying the server's slot here undid local choices.
@@ -712,6 +784,10 @@ void CActor::net_Import_Base(NET_Packet& P)
 					if (hud->IsHidden())
 						hud->OnStateSwitch(CHUDState::eIdle, hud->GetState());
 		}
+		if (PIItem current = inventory().ActiveItem())
+			if (current->object_id() == authoritative_hands)
+				if (CHudItem* hud = current->cast_hud_item())
+					if (hud->IsHidden()) hud->OnStateSwitch(CHUDState::eIdle, hud->GetState());
 	}
 	else if (OnClient() && !Local())
 		//------------------------------------------------
@@ -860,6 +936,9 @@ void CActor::net_Import_Physic(NET_Packet& P)
 
 void CActor::net_Import_Physic_proceed()
 {
+	// Corpses use the complete buffered shell stream. Legacy correction
+	// prediction also accepted a dead owner's local bones on the server.
+	if (netcoop::enabled() && !g_Alive()) return;
 	Level().AddObject_To_Objects4CrPr(this);
 	CrPr_SetActivated(false);
 	CrPr_SetActivationStep(0);
@@ -867,6 +946,7 @@ void CActor::net_Import_Physic_proceed()
 
 BOOL CActor::net_Spawn(CSE_Abstract* DC)
 {
+	if (netcoop::enabled()) SetDefaultVisualOutfit("actors\\stalker_neutral\\stalker_neutral_1.ogf");
 	ResetPredictionState();
 	m_holder_id = ALife::_OBJECT_ID(-1);
 	m_feel_touch_characters = 0;
@@ -1308,6 +1388,7 @@ InterpData IEndT;
 
 void CActor::PH_B_CrPr() // actions & operations before physic correction-prediction steps
 {
+	if (netcoop::enabled() && !g_Alive()) return;
 	//just set last update data for now
 	//	if (!m_bHasUpdate) return;	
 	if (CrPr_IsActivated()) return;
@@ -1665,6 +1746,7 @@ void CActor::netcoop_update_remote()
 		const float span = float(B.dwTimeStamp - A.dwTimeStamp);
 		const float f = float(t - A.dwTimeStamp) / span;
 		cur = B;
+		cur.mstate = f < 1.f ? A.mstate : B.mstate;
 		cur.p_pos.lerp(A.p_pos, B.p_pos, f);
 		cur.o_model = angle_lerp(A.o_model, B.o_model, f);
 		cur.o_torso.yaw = angle_lerp(A.o_torso.yaw, B.o_torso.yaw, f);
@@ -1700,6 +1782,7 @@ void CActor::netcoop_update_remote()
 	CCharacterPhysicsSupport* physics = character_physics_support();
 	if (physics && physics->movement())
 	{
+		set_state_box(cur.mstate);
 		physics->movement()->SetPosition(cur.p_pos);
 		physics->movement()->SetVelocity(velocity);
 	}

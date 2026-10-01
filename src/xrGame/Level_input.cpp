@@ -169,6 +169,20 @@ void CLevel::IR_OnKeyboardPress(int key)
 	bool b_ui_exist = (!!CurrentGameUI());
 
 	EGameActions _curr = get_binded_action(key);
+	// Reserve the wheel before GAMMA callbacks (PAW also binds Z). During
+	// a pose only its wheel, system menus and screenshots are available.
+	if (netcoop::pure_client() && CurrentControlEntity())
+	{
+		CActor* actor = smart_cast<CActor*>(CurrentControlEntity());
+		if (actor && actor->m_rp_index >= 0 && key != DIK_Z &&
+			_curr != kQUIT && _curr != kCONSOLE && _curr != kSCREENSHOT)
+			return;
+		if (key == DIK_Z && actor && actor->g_Alive() && !g_bDisableAllInput)
+		{
+			::luabind::functor<bool> rp;
+			if (ai().script_engine().functor("netcoop_rp_menu.consume_key", rp) && rp(key)) return;
+		}
+	}
 
     if (_curr == kEDITOR)
     {

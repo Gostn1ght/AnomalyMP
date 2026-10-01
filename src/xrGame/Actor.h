@@ -590,6 +590,7 @@ public:
 	// The owner's active slot from its updates (what other players see in
 	// its hands); 0xff until the first update.
 	u8 m_netcoop_owner_slot = 0xff;
+	u16 m_netcoop_owner_item = 0xffff;
 	float netcoop_model_yaw() const { return r_model_yaw; }
 
 	// Netcoop RP animation (emote): index into netcoop::rp_anims(), -1 none.

@@ -446,9 +446,10 @@ public:
 
 	// Netcoop: the server's current monster motion; a client puppet plays it
 	// (its own animation AI does not run).
-	u32 m_netcoop_motion = 0;
+	u32 m_netcoop_motion = u32(-1);
 	float m_netcoop_motion_speed = 1.f;
-	u32 m_netcoop_motion_played = 0;
+	u32 m_netcoop_motion_played = u32(-1);
+	float m_netcoop_phase = 0.f, m_netcoop_phase_played = 0.f;
 	void netcoop_play_motion();
 
 	virtual bool check_start_conditions(ControlCom::EControlType);

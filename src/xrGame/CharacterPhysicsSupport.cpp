@@ -610,6 +610,16 @@ void dbg_draw_geoms(xr_vector<CODEGeom*>& m_weapon_geoms)
 
 void CCharacterPhysicsSupport::in_UpdateCL()
 {
+	if (netcoop::pure_client() && m_EntityAlife.Remote() && m_EntityAlife.g_Alive() &&
+		m_PhysicMovementControl->CharacterExist())
+	{
+		// AI puppets do not run movement.on_frame on this client. Their
+		// collision character must follow the displayed network position.
+		m_PhysicMovementControl->SetPosition(m_EntityAlife.Position());
+		m_PhysicMovementControl->EnableCharacter();
+		m_PhysicMovementControl->CollisionEnable(TRUE);
+		mXFORM.set(m_EntityAlife.XFORM());
+	}
 	// Replicated corpses already have a complete interpolated shell pose.
 	// The local death animation / friction controller must not overwrite it.
 	if (netcoop::pure_client() && m_pPhysicsShell && m_EntityAlife.netcoop_physics_buffered())
