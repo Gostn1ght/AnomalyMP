@@ -223,6 +223,9 @@ void CInventoryItem::netcoop_make_kinematic()
 {
 	if (!netcoop::pure_client())
 		return;
+	// Buffered replicas are fixed, solid bodies managed by PhysicsShellHolder.
+	// The legacy single-transform follower must not disable them every frame.
+	if (object().netcoop_physics_buffered()) return;
 	CPhysicsShell* shell = object().H_Parent() ? nullptr : object().PPhysicsShell();
 	if (!shell)
 	{
