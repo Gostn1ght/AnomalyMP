@@ -992,6 +992,9 @@ void CAI_Stalker::notify_on_wounded_or_killed(CObject* object)
             if (!witness->memory().visual().visible_now(this) &&
                 !witness->memory().visual().visible_now(attacker) && witness->Position().distance_to(Position()) > 8.f) continue;
             RELATION_REGISTRY().ForceSetGoodwill(witness->ID(), attacker->ID(), -1000);
+            ::luabind::functor<void> notify;
+            if (ai().script_engine().functor("netcoop_server_compat.on_squad_attacked", notify))
+                notify(witness->ID(), attacker->ID());
             witness->memory().hit().add(attacker);
         }
     }

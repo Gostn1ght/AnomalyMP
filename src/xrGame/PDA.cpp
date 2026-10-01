@@ -110,6 +110,7 @@ void CPda::OnStateSwitch(u32 S, u32 oldState)
 {
 	inherited::OnStateSwitch(S, oldState);
 
+	if (netcoop::pure_client() && ParentIsActor() && !netcoop::client_owns_hud_item(this)) return;
 	if (g_dedicated_server || !ParentIsActor())
 		return;
 
@@ -287,6 +288,13 @@ extern bool IsMainMenuActive();
 void CPda::UpdateCL()
 {
 	inherited::UpdateCL();
+	if (netcoop::client_owns_hud_item(this) && !getDestroy() && Device.dwTimeGlobal >= m_netcoop_state_sync &&
+		(GetState() == eHidden || GetState() == eIdle))
+	{
+		NET_Packet packet; u_EventGen(packet, GE_NETCOOP_ITEM_STATE, ID());
+		packet.w_u8(u8(GetState())); u_EventSend(packet, net_flags(TRUE, TRUE));
+		m_netcoop_state_sync = Device.dwTimeGlobal + 1000;
+	}
 
 	if (!CurrentGameUI() || !ParentIsActor() || !Actor() || Actor()->inventory().ActiveItem() != this)
 		return;
@@ -1102,6 +1110,19 @@ void CPda::PlayScriptFunction()
 		R_ASSERT(ai().script_engine().functor(m_functor_str.c_str(), m_functor));
 		m_functor();
 	}
+}
+
+void CPda::OnEvent(NET_Packet& packet, u16 type)
+{
+    if (type != GE_NETCOOP_ITEM_STATE) { inherited::OnEvent(packet, type); return; }
+    if (!netcoop::enabled() || packet.r_elapsed() < 1) return;
+    const u32 state = packet.r_u8();
+    if (netcoop::client_owns_hud_item(this) || (state != eHidden && state != eIdle)) return;
+    if (GetState() != state)
+    {
+        StopCurrentAnimWithoutCallback(); OnStateSwitch(state, GetState());
+        SetNextState(state); SetPending(FALSE);
+    }
 }
 
 void CPda::netcoop_apply_screen(const u8* pixels, u32 width, u32 height)

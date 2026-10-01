@@ -20,6 +20,8 @@ class CPda :
 	typedef CHudItemObject inherited;
 public:
 	IRenderVisual* m_netcoop_screen = nullptr;
+	u32 m_netcoop_state_sync = 0;
+	void OnEvent(NET_Packet& packet, u16 type) override;
 	void netcoop_apply_screen(const u8* pixels, u32 width, u32 height);
 	void on_renderable_Render() override;
 	CPda();
