@@ -548,6 +548,9 @@ void CInventoryItem::net_Import(NET_Packet& P)
 	net_Import_PH_Params(P,N, num_items);
 	////////////////////////////////////////////
 	P.r_u8(); //active (not freezed ot not)
+	// The server owns dropped-item integration; an old owner snapshot must
+	// not rewind the authoritative shell after a throw or pickup race.
+	if (netcoop::enabled() && !netcoop::pure_client()) return;
 
 	if (netcoop::pure_client())
 	{

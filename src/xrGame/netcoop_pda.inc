@@ -78,7 +78,7 @@ void server_on_pda_screen(xrServer* server, xrClientData* client, NET_Packet& pa
     CPda* device = smart_cast<CPda*>(Level().Objects.net_Find(id));
     CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(client->owner->ID));
     if (!device || !actor || !actor->g_Alive() || device->H_Parent() != actor ||
-        actor->inventory().ActiveItem() != device) return;
+        actor->inventory().ItemFromSlot(PDA_SLOT) != device) return;
     PdaFrame& frame = s_pda_server[id];
     if (!pda_assemble(packet, frame)) return;
     xr_vector<u8> pixels(pda_bytes);

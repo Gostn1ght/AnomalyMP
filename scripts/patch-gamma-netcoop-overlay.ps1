@@ -70,6 +70,14 @@ Replace-Once (Join-Path $runtime 'client\scripts\ui_mm_faction_select.script') `
     "function UINewGame:OnStartGame()`n`tif self.netcoop_creation_owner then return netcoop_login_ui.finish_creation(self) end"
 
 # mcm_log flushes its log files from a per-frame call whose device() lookup
+# Empty character loadouts and removed outfits have no item in slot 7.
+foreach ($role in @('client','server')) {
+    Replace-Once (Join-Path $runtime "$role\scripts\gameplay_disguise.script") `
+        'if (id == AC_ID) or state then' `
+        'if not item or (id == AC_ID) or state then'
+}
+
+# mcm_log flushes its log files from a per-frame call whose device() lookup
 # fails on the dedicated server; logs are still flushed on its other events.
 Replace-Once (Join-Path $runtime 'server\scripts\mcm_log.script') `
     "`tAddUniqueCall(timed_flush)" `

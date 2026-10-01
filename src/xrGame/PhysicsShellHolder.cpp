@@ -506,6 +506,8 @@ void CPhysicsShellHolder::netcoop_physics_update()
 	if (H_Parent())
 	{
 		m_netcoop_physics.clear();
+		if (PPhysicsShell() && PPhysicsShell() == m_netcoop_replica_shell)
+			for (u16 i = 0; i < PHGetSyncItemsNumber(); ++i) PPhysicsShell()->get_ElementByStoreOrder(i)->ReleaseFixed();
 		m_netcoop_replica_shell = nullptr;
 		if (m_netcoop_physics_processing) processing_deactivate();
 		m_netcoop_physics_processing = false;
@@ -515,10 +517,11 @@ void CPhysicsShellHolder::netcoop_physics_update()
 	if (!shell || PHGetSyncItemsNumber() != m_netcoop_physics.back().states.size()) return;
 	if (shell != m_netcoop_replica_shell)
 	{
-		shell->DisableCollision();
+		for (u16 i = 0; i < PHGetSyncItemsNumber(); ++i) shell->get_ElementByStoreOrder(i)->Fix();
+		shell->EnableCollision();
 		m_netcoop_replica_shell = shell;
 	}
-	shell->Disable(); // only the server integrates collisions and gravity
+	shell->Enable(); // fixed replica bodies remain solid to the local player
 	const u32 interval = m_netcoop_physics.size() > 1 ?
 		m_netcoop_physics.back().stamp - m_netcoop_physics[m_netcoop_physics.size() - 2].stamp : 50;
 	const u32 time = netcoop_interpolation_time(interval);
@@ -535,7 +538,7 @@ void CPhysicsShellHolder::netcoop_physics_update()
 		state.quaternion.slerp(first.states[i].quaternion, last.states[i].quaternion, factor);
 		state.previous_position = state.position;
 		state.previous_quaternion = state.quaternion;
-		state.enabled = false;
+		state.enabled = true;
 		state.linear_vel.set(0.f, 0.f, 0.f);
 		PHGetSyncItem(i)->set_State(state);
 	}

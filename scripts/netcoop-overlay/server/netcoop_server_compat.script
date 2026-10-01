@@ -230,6 +230,24 @@ end
 -- doing cannot be taken at the same time.
 local player_tasks = {}
 
+function capture_character_state(actor)
+    local id = actor:id()
+    local storage = db.storage[id] or {}
+    local state = {pstor=storage.pstor or {}, pstor_ctime=storage.pstor_ctime or {}}
+    task_manager.save_state(state)
+    return marshal.encode(state)
+end
+
+function restore_character_state(actor, encoded)
+    local state = marshal.decode(encoded)
+    local id = actor:id()
+    db.storage[id] = db.storage[id] or {object=actor}
+    db.storage[id].pstor = state.pstor or {}
+    db.storage[id].pstor_ctime = state.pstor_ctime or {}
+    player_tasks[id] = task_manager.CRandomTask()
+    task_manager.load_state(state)
+end
+
 local function install_player_tasks()
 	local tm = task_manager
 	if not (tm and tm.CRandomTask and tm.get_task_manager) then return end

@@ -926,7 +926,7 @@ bool CActor::rp_play_motion(const shared_str& name)
 		return false;
 	m_rp_motion_done = false;
 	m_rp_motion_deadline = Device.dwTimeGlobal + 20000;
-	k->LL_PlayCycle(def->bone_or_part, motion, TRUE, def->Accrue(), def->Falloff(), def->Speed(), TRUE,
+	k->LL_PlayCycle(def->bone_or_part, motion, TRUE, def->Accrue(), def->Falloff(), _min(def->Speed(), 1.f), TRUE,
 	                rp_motion_end, this, 0);
 	return true;
 }
@@ -957,7 +957,7 @@ void CActor::rp_start(int index, bool own)
 	if (own)
 	{
 		// Hands free, and a camera from the side to see yourself.
-		inventory().Activate(NO_ACTIVE_SLOT);
+		if (netcoop::rp_anims()[index].name != "gop_stop") inventory().Activate(NO_ACTIVE_SLOT);
 		if (cam_active == eacFirstEye)
 		{
 			cam_Set(eacLookAt);
@@ -1017,14 +1017,7 @@ bool CActor::rp_update()
 	const bool own = this == Level().CurrentControlEntity();
 	if (own && !m_rp_stopping)
 	{
-		// Drawing a weapon ends the animation (the one being put away still
-		// counts as active for a moment); late joiners get the index again.
-		if (Device.dwTimeGlobal >= m_rp_started + 1500 && inventory().GetNextActiveSlot() != NO_ACTIVE_SLOT)
-		{
-			Msg("[NetAnomaly] rp: %s ends, slot %u drawn", anims[m_rp_index].name.c_str(), u32(inventory().GetNextActiveSlot()));
-			rp_request_stop(true);
-		}
-		else if (Device.dwTimeGlobal >= m_rp_resend)
+		if (Device.dwTimeGlobal >= m_rp_resend)
 		{
 			rp_send(u8(m_rp_index));
 			m_rp_resend = Device.dwTimeGlobal + 2000;
@@ -1057,11 +1050,10 @@ bool CActor::rp_update()
 					break; // no mid motion resolves on this body
 				continue;
 			}
-			if (!a.loop && !m_rp_stopping && own)
+			if (!a.loop && !m_rp_stopping)
 			{
-				// A one-shot animation ends by itself: tell the others.
-				rp_send(0xff);
-				m_rp_stopping = true;
+				// Hold the terminal pose until the wheel's stop button is used.
+				return true;
 			}
 			m_rp_phase = 2;
 			m_rp_step = 0;

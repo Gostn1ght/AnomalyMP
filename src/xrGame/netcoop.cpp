@@ -35,6 +35,7 @@
 #include "game_sv_single.h"
 #include "GameTaskManager.h"
 #include "GameTask.h"
+#include "alife_registry_wrappers.h"
 #include "UIGameCustom.h"
 #include "game_news.h"
 #include "../xrPhysics/PhysicsShell.h"
@@ -1901,6 +1902,48 @@ ServerVictimScope::~ServerVictimScope()
 {
 	if (active)
 		bind_script_actor(previous);
+}
+
+static void character_capture_progress(Character& character, CActor* actor)
+{
+	ServerVictimScope scope(actor);
+	CMemoryWriter writer;
+	vGameTasks& tasks = server_task_manager(actor->ID())->GetGameTasks();
+	writer.w_u32(u32(tasks.size()));
+	for (SGameTaskKey& task : tasks) task.save(writer);
+	save_data(actor->m_known_info_registry->registry().objects(), writer);
+	::luabind::functor<xr_string> capture;
+	if (!ai().script_engine().functor("netcoop_server_compat.capture_character_state", capture)) return;
+	xr_string state;
+	try { state = capture(actor->lua_game_object()); }
+	catch (...) { Msg("! [NetAnomaly] cannot serialize character script state for %u", actor->ID()); return; }
+	writer.w_u32(u32(state.size()));
+	if (!state.empty()) writer.w(state.data(), state.size());
+	if (writer.size() > 1048576) { Msg("! [NetAnomaly] character progress exceeds save limit for %u", actor->ID()); return; }
+	const u8* data = static_cast<const u8*>(writer.pointer());
+	character.progress.assign(data, data + writer.size());
+}
+
+static void character_restore_progress(Character& character, CActor* actor)
+{
+	if (character.progress.empty()) return;
+	ServerVictimScope scope(actor);
+	IReader reader(character.progress.data(), character.progress.size());
+	const u32 count = reader.r_u32();
+	if (count > 512) return;
+	CGameTaskManager* manager = server_task_manager(actor->ID());
+	clear_tasks(manager);
+	vGameTasks& tasks = manager->GetGameTasks();
+	for (u32 i = 0; i < count; ++i) { SGameTaskKey task; task.load(reader); tasks.push_back(task); }
+	load_data(actor->m_known_info_registry->registry().objects(), reader);
+	const u32 size = reader.r_u32();
+	if (size > reader.elapsed()) return;
+	xr_string state(reinterpret_cast<const char*>(reader.pointer()), size);
+	::luabind::functor<void> restore;
+	if (ai().script_engine().functor("netcoop_server_compat.restore_character_state", restore))
+		try { restore(actor->lua_game_object(), state); }
+		catch (...) { Msg("! [NetAnomaly] cannot restore character script state for %u", actor->ID()); }
+	manager->MarkChanged();
 }
 // ---------------------------------------------------------------------------
 // task list replication

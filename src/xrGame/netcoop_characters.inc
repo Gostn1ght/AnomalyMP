@@ -7,11 +7,16 @@ struct Character
 	bool initialized = false, respawn = false;
 	u32 last_save = 0;
 	NET_Packet actor;
-	struct Item { xr_string section; u16 parent; NET_Packet spawn; };
+	xr_vector<u8> progress;
+	struct Item { xr_string section; u16 parent, place = 0; NET_Packet spawn; };
 	xr_vector<Item> items;
 };
 static xr_map<xr_string, Character> s_characters;
 static xr_map<u16, xr_string> s_actor_character;
+struct CharacterRestore { xr_vector<std::pair<u16, u16>> places; };
+static xr_map<u16, CharacterRestore> s_character_restore;
+static void character_capture_progress(Character& character, CActor* actor);
+static void character_restore_progress(Character& character, CActor* actor);
 
 
 static xr_string character_key(LPCSTR account, u8 slot)
@@ -87,7 +92,7 @@ static bool character_save(Character& character)
 	xr_sprintf(temp, "%s.tmp", path);
 	FILE* f = fopen(temp, "wb");
 	if (!f) return false;
-	const u32 magic = 0x3348434e; // NCH3
+	const u32 magic = 0x3448434e; // NCH4; NCH3 remains readable
 	fwrite(&magic, 4, 1, f);
 	fwrite(character.name.c_str(), 1, character.name.size() + 1, f);
 	fwrite(character.faction.c_str(), 1, character.faction.size() + 1, f);
@@ -100,8 +105,12 @@ static bool character_save(Character& character)
 	{
 		fwrite(item.section.c_str(), 1, item.section.size() + 1, f);
 		fwrite(&item.parent, 2, 1, f);
+		fwrite(&item.place, 2, 1, f);
 		character_write_packet(f, item.spawn);
 	}
+	const u32 size = u32(character.progress.size()), crc = crc32(character.progress.data(), size);
+	fwrite(&size, 4, 1, f); fwrite(&crc, 4, 1, f);
+	if (size) fwrite(character.progress.data(), 1, size, f);
 	const bool ok = !ferror(f);
 	const bool closed = fclose(f) == 0;
 	if (!ok || !closed || !MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) return false;
@@ -121,7 +130,7 @@ static Character* character_load(LPCSTR account, u8 slot)
 	Character character;
 	character.account = account; character.slot = slot;
 	u32 magic = 0, count = 0;
-	bool ok = fread(&magic, 4, 1, f) == 1 && magic == 0x3348434e &&
+	bool ok = fread(&magic, 4, 1, f) == 1 && (magic == 0x3348434e || magic == 0x3448434e) &&
 		character_read_string(f, character.name, 63) && character_read_string(f, character.faction, 32) &&
 		character_read_string(f, character.loadout, 4096);
 	if (ok)
@@ -136,8 +145,19 @@ static Character* character_load(LPCSTR account, u8 slot)
 	{
 		Character::Item item;
 		ok = character_read_string(f, item.section, 128) && fread(&item.parent, 2, 1, f) == 1 &&
-			item.parent <= i && character_read_packet(f, item.spawn) && pSettings->section_exist(item.section.c_str());
+			item.parent <= i && (magic != 0x3448434e || fread(&item.place, 2, 1, f) == 1) &&
+			character_read_packet(f, item.spawn) && pSettings->section_exist(item.section.c_str());
 		if (ok) character.items.push_back(std::move(item));
+	}
+	if (ok && magic == 0x3448434e)
+	{
+		u32 size = 0, crc = 0;
+		ok = fread(&size, 4, 1, f) == 1 && fread(&crc, 4, 1, f) == 1 && size <= 1048576;
+		if (ok)
+		{
+			character.progress.resize(size);
+			ok = (!size || fread(character.progress.data(), 1, size, f) == size) && crc32(character.progress.data(), size) == crc;
+		}
 	}
 	fclose(f);
 	if (!ok || !character_name_valid(character.name.c_str()))
@@ -252,6 +272,7 @@ void server_character_spawn_items(xrClientData* CL)
 	xr_vector<u16> parents; parents.push_back(CL->owner->ID);
 	if (character->initialized)
 	{
+		CharacterRestore& restore = s_character_restore[CL->owner->ID];
 		for (const Character::Item& saved : character->items)
 		{
 			CSE_Abstract* item = server->game->spawn_begin(saved.section.c_str());
@@ -263,6 +284,7 @@ void server_character_spawn_items(xrClientData* CL)
 			CSE_Abstract* spawned = server->game->spawn_end(item, CL->ID);
 			if (!spawned) return;
 			parents.push_back(spawned->ID);
+			if (!saved.parent && saved.place) restore.places.push_back(std::make_pair(spawned->ID, saved.place));
 		}
 	}
 	else
@@ -325,6 +347,7 @@ static void character_capture_items(xrServer* server, Character& character, CSE_
 		}
 		Character::Item record;
 		record.parent = parent_index; record.section = item->s_name.c_str();
+		if (CInventoryItem* runtime = smart_cast<CInventoryItem*>(Level().Objects.net_Find(id))) record.place = runtime->m_ItemCurrPlace.value;
 		item->Spawn_Write(record.spawn, TRUE);
 		character.items.push_back(std::move(record));
 		const u16 index = u16(character.items.size());
@@ -342,6 +365,7 @@ void server_character_save_actor(u16 actor_id)
 	CActor* runtime = smart_cast<CActor*>(Level().Objects.net_Find(actor_id));
 	CSE_ALifeCreatureActor* entity = smart_cast<CSE_ALifeCreatureActor*>(actor);
 	if (!entity || !runtime) return;
+	if (s_character_restore.find(actor_id) != s_character_restore.end()) return;
 	entity->m_dwMoney = runtime->get_money();
 	entity->m_rank = runtime->Rank(); entity->m_reputation = runtime->Reputation();
 	entity->o_Position = runtime->Position();
@@ -352,6 +376,7 @@ void server_character_save_actor(u16 actor_id)
 	character.respawn = !runtime->g_Alive();
 	character.items.clear();
 	if (runtime->g_Alive()) character_capture_items(server, character, actor, 0, 0);
+	character_capture_progress(character, runtime);
 	// A dead character resumes alive; its former inventory stays in the world.
 	const float health = entity->get_health();
 	entity->set_health(runtime->g_Alive() ? runtime->GetfHealth() : 1.f);
@@ -363,6 +388,35 @@ void server_character_save_actor(u16 actor_id)
 
 static void characters_update(xrServer* server)
 {
+	for (auto it = s_character_restore.begin(); it != s_character_restore.end();)
+	{
+		CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(it->first));
+		if (!actor) { ++it; continue; }
+		bool ready = true;
+		for (const auto& place : it->second.places)
+		{
+			CGameObject* item = smart_cast<CGameObject*>(Level().Objects.net_Find(place.first));
+			if (!item || item->H_Parent() != actor) { ready = false; break; }
+		}
+		if (!ready) { ++it; continue; }
+		const auto key = s_actor_character.find(actor->ID());
+		if (key != s_actor_character.end()) character_restore_progress(s_characters[key->second], actor);
+		// Clear automatic spawn placements, then restore slots before the belt
+		// so the outfit's capacity is available to equipped artefacts.
+		for (u32 pass = 0; pass < 3; ++pass)
+			for (const auto& value : it->second.places)
+			{
+				SInvItemPlace place; place.value = value.second;
+				if (pass == 1 && place.type != eItemPlaceSlot) continue;
+				if (pass == 2 && place.type != eItemPlaceBelt) continue;
+				NET_Packet packet;
+				CGameObject::u_EventGen(packet, pass == 0 ? GEG_PLAYER_ITEM2RUCK : pass == 1 ? GEG_PLAYER_ITEM2SLOT : GEG_PLAYER_ITEM2BELT, actor->ID());
+				packet.w_u16(value.first);
+				if (pass == 1) { packet.w_u16(place.slot_id); packet.w_u8(1); }
+				CGameObject::u_EventSend(packet);
+			}
+		it = s_character_restore.erase(it);
+	}
 	struct Save
 	{
 		void operator()(IClient* client)

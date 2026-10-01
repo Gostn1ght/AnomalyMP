@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include "CharacterPhysicsSupport.h"
+#include "netcoop.h"
 #include "alife_space.h"
 #include "hit.h"
 #include "PHDestroyable.h"
