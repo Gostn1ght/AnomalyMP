@@ -362,6 +362,7 @@ end
 -- World systems a normal game updates from the Actor binder: the server
 -- chooses the weather with GAMMA's weather manager and sends it to clients.
 local world_next = 0
+local server_debug_file
 local weather_sent, weather_next = nil, 0
 local weather_forced = false
 
@@ -379,6 +380,9 @@ local function server_world_tick()
 	local now = time_global()
 	if now < world_next then return end
 	world_next = now + 500 -- a weather change reaches everyone within ~0.5 s
+	-- Allow world diagnostics and cleanup after the last player disconnects.
+	-- There is deliberately no implicit Actor context in that case.
+	if not db.actor and server_debug_file then server_debug_file() end
 	netcoop_emission.update_world()
 
 	local wm = level_weathers and level_weathers.get_weather_manager()
@@ -398,7 +402,7 @@ end
 -- (then empties it) and logs the result. Only someone with access to the
 -- server's files can use it; it needs no game window.
 local debug_next = 0
-local function server_debug_file()
+server_debug_file = function()
 	local now = time_global()
 	if now < debug_next then return end
 	debug_next = now + 2000
