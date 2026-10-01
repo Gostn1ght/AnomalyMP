@@ -102,6 +102,12 @@ Replace-Once (Join-Path $runtime 'server\scripts\xr_danger.script') `
     "if not xr_weight_torch_detection then return end" `
     "if not db.actor or not xr_weight_torch_detection then return end"
 
+# Friendly-fire immunity applies to NPC shooters, not the second co-op Actor.
+# db.actor may be the victim's nearest player rather than the actual attacker.
+Replace-Once (Join-Path $runtime 'server\scripts\grok_no_npc_friendly_fire.script') `
+    'if shit.draftsman:id() == db.actor:id() then return end' `
+    'if shit and shit.draftsman and shit.draftsman:clsid() == clsid.script_actor then return end'
+
 # Marsh smart terrains name spawn patrols that this level does not have;
 # patrol() on a missing path raises in create_npc and the squad never spawns.
 # Fall back to the smart terrain position like the rest of that function.
