@@ -29,6 +29,7 @@
 #include "WeaponMagazined.h"
 #include "WeaponKnife.h"
 #include "CustomOutfit.h"
+#include "CustomDetector.h"
 
 #include "actor_anim_defs.h"
 
@@ -543,7 +544,7 @@ void CActor::netcoop_follow_owner(NET_Packet& P)
 				for (int n = 0; n < 2; ++n)
 				{
 					PIItem item = smart_cast<CInventoryItem*>(Level().Objects.net_Find(ids[n]));
-					if (ids[n] != u16(-1) && (!item || item->object().H_Parent() != this || item->GetSlot() != slots[n])) continue;
+					if (ids[n] != u16(-1) && (!item || item->object().H_Parent() != this || item->BaseSlot() != slots[n])) continue;
 					PIItem previous = inventory().ItemFromSlot(slots[n]);
 					if (previous != item)
 					{
@@ -755,7 +756,7 @@ void CActor::net_Import_Base(NET_Packet& P)
 			// Hide the previous same-slot weapon too; its hidden state event
 			// may have preceded this replica's spawn.
 			for (PIItem item : inventory().m_all)
-				if (item->object_id() != hands)
+				if (item->object_id() != hands && !smart_cast<CCustomDetector*>(item))
 					if (CHudItem* hud = item->cast_hud_item())
 						if (!hud->IsHidden()) hud->OnStateSwitch(CHUDState::eHidden, hud->GetState());
 		}

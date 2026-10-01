@@ -1528,7 +1528,7 @@ void CWeaponMagazined::InitAddons()
 			if (m_UIScope)
 			{
 				xr_delete(m_UIScope);
-				scope_2dtexactive = 0;//crookr
+				if (!netcoop::enabled() || (g_pGameLevel && H_Parent() == Level().CurrentViewEntity())) scope_2dtexactive = 0;//crookr
 			}
 
 			if (!g_dedicated_server && scope_tex_name != NULL)
@@ -1545,7 +1545,7 @@ void CWeaponMagazined::InitAddons()
 		if (m_eScopeStatus != ALife::eAddonPermanent && m_UIScope)
 		{
 			xr_delete(m_UIScope);
-			scope_2dtexactive = 0;//crookr
+			if (!netcoop::enabled() || (g_pGameLevel && H_Parent() == Level().CurrentViewEntity())) scope_2dtexactive = 0;//crookr
 		}
 		ResetScopeKoeffs();
 	}

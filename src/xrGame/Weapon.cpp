@@ -43,6 +43,14 @@
 #define WEAPON_REMOVE_TIME		60000
 #define ROTATION_TIME			0.25f
 
+// Scope shader constants and camera effects belong to the viewing player.
+// Replica state changes also call ZoomIn/ZoomOut when other players switch
+// weapons; they must not reset this player's lens or depth of field.
+static bool owns_view_effects(CWeapon* weapon)
+{
+	return !netcoop::enabled() || (g_pGameLevel && weapon->H_Parent() == Level().CurrentViewEntity());
+}
+
 
 float f_weapon_deterioration = 1.0f;
 extern CUIXml* pWpnScopeXml;
@@ -356,7 +364,7 @@ void CWeapon::UpdateZoomParams() {
 		m_zoom_params.m_fZoomStepCount = stepCount;
 	}
 
-	if (IsZoomed()) {
+	if (IsZoomed() && owns_view_effects(this)) {
 		scope_radius = SDS_Radius(m_zoomtype == 1);
 		if (m_zoomtype == 0 && zoomFlags.test(SDS_SPEED) && (scope_radius > 0.0)) {
 			sens_multiple = scope_scrollpower;
@@ -410,7 +418,7 @@ void CWeapon::UpdateUIScope()
 	if (!g_dedicated_server)
 	{
 		xr_delete(m_UIScope);
-		scope_2dtexactive = 0; //crookr
+		if (owns_view_effects(this)) scope_2dtexactive = 0; //crookr
 
 		if (!scope_tex_name || scope_tex_name.equal("none") || g_player_hud->m_adjust_mode) {
 			//
@@ -426,7 +434,7 @@ void CWeapon::UpdateUIScope()
 void CWeapon::SetUIScope(LPCSTR scope_texture)
 {
 	xr_delete(m_UIScope);
-	scope_2dtexactive = 0; //crookr
+	if (owns_view_effects(this)) scope_2dtexactive = 0; //crookr
 
 	m_scope_tex_name = scope_texture;
 	m_UIScope = xr_new<CUIWindow>();
@@ -2144,6 +2152,12 @@ float CWeapon::CurrentZoomFactor()
 
 void CWeapon::OnZoomIn()
 {
+	if (!owns_view_effects(this))
+	{
+		m_zoom_params.m_bIsZoomModeNow = true;
+		SetZoomFactor(CurrentZoomFactor());
+		return;
+	}
     //////////
     scope_radius = SDS_Radius(m_zoomtype == 1);
 
@@ -2209,6 +2223,12 @@ void CWeapon::OnZoomIn()
 void CWeapon::OnZoomOut()
 {
 	m_zoom_params.m_bIsZoomModeNow = false;
+	if (!owns_view_effects(this))
+	{
+		m_zoom_params.m_fCurrentZoomFactor = g_fov;
+		ResetSubStateTime();
+		return;
+	}
     if (m_zoom_params.m_bUseDynamicZoom)
     {
         m_fRTZoomFactor = scope_radius > 0.0 ? GetZoomFactor() * scope_scrollpower : GetZoomFactor(); //store current
@@ -2244,7 +2264,7 @@ CUIWindow* CWeapon::ZoomTexture()
 		return m_UIScope;
 	else
 	{
-		scope_2dtexactive = 0; //crookr
+		if (owns_view_effects(this)) scope_2dtexactive = 0; //crookr
 		return NULL;
 	}
 }
@@ -3444,6 +3464,7 @@ float CWeapon::GetSecondVPFov() const
 
 void CWeapon::UpdateSecondVP()
 {
+	if (!owns_view_effects(this)) return;
 	if (!(ParentIsActor() && (m_pInventory != NULL) && (m_pInventory->ActiveItem() == this)))
 		return;
 
