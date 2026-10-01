@@ -307,7 +307,7 @@ private:
 		P.w_float(0.f);
 		send_reliable(P);
 
-		// CActor::net_Export layout, 61 bytes (gamma_net::valid_coop_actor).
+		// CActor::net_Export layout including equipment identities and visual.
 		P.w_begin(M_CL_UPDATE);
 		P.w_u16(m_actor);
 		P.w_u32(0); // ping, filled in by the server
@@ -327,6 +327,10 @@ private:
 		P.w_sdir(vel);
 		P.w_float(0.f); // radiation
 		P.w_u8(0); // active slot
+		P.w_u16(u16(-1)); // hands
+		P.w_u16(u16(-1)); // outfit
+		P.w_u16(u16(-1)); // helmet
+		P.w_stringZ("actors\\stalker_neutral\\stalker_neutral_1.ogf");
 		P.w_u16(0); // physics items
 		Send(P, net_flags(FALSE));
 	}

@@ -17,12 +17,18 @@ inline bool newer(std::uint32_t a, std::uint32_t b)
     return delta != 0 && delta < 0x80000000u;
 }
 
-// CActor::net_Export sends 61 base bytes, optionally followed by one 77-byte physics state.
+// CActor::net_Export: 59 movement bytes, three equipment ids, a NUL-terminated
+// visual, then a two-byte body count and optionally one 77-byte physics state.
 // Validate before the host imports floats into movement/physics state.
 inline bool valid_coop_actor(const unsigned char* data, std::size_t size)
 {
-    if (!data || size < 61 || data[60] != 0 || data[59] > 1) return false;
-    if (size != (data[59] ? 138u : 61u)) return false;
+    if (!data || size < 68) return false;
+    const auto* end = static_cast<const unsigned char*>(std::memchr(data + 65, 0, size - 65));
+    if (!end || end - (data + 65) > 1023) return false;
+    const std::size_t count_offset = std::size_t(end - data) + 1;
+    if (count_offset + 2 > size || data[count_offset + 1] != 0 || data[count_offset] > 1) return false;
+    const std::size_t body_offset = count_offset + 2;
+    if (size != body_offset + (data[count_offset] ? 77u : 0u)) return false;
     const unsigned offsets[] = {0, 9, 13, 17, 21, 25, 29, 33, 44, 50, 54};
     for (auto offset : offsets)
     {
@@ -30,10 +36,10 @@ inline bool valid_coop_actor(const unsigned char* data, std::size_t size)
         std::memcpy(&value, data + offset, sizeof(value));
         if (!std::isfinite(value) || std::fabs(value) > 100000.0f) return false;
     }
-    if (data[59])
+    if (data[count_offset])
     {
-        if (data[61] > 1) return false;
-        for (unsigned offset = 62; offset < 138; offset += 4)
+        if (data[body_offset] > 1) return false;
+        for (std::size_t offset = body_offset + 1; offset < size; offset += 4)
         {
             float value;
             std::memcpy(&value, data + offset, sizeof(value));

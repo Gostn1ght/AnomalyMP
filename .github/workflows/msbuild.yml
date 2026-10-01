@@ -136,6 +136,10 @@ jobs:
     #     New-Item -Path "./_build/_game/bin_dbg/${{matrix.buildconf}}.exe"
     #     New-Item -Path "./_build/_game/bin_dbg/${{matrix.buildconf}}.pdb"
 
+    - name: Check co-op actor packet layout
+      if: matrix.buildconf == 'DX11'
+      run: ./scripts/check-actor-packet.ps1
+
     - name: Build ${{matrix.buildconf}}
       working-directory: ${{env.GITHUB_WORKSPACE}}
       # Add additional options to the MSBuild command line here (like platform or verbosity level).
