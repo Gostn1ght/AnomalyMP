@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "Actor.h"
+#include "netcoop.h"
 #include "../xrEngine/CameraBase.h"
 #ifdef DEBUG
 #include "PHDebug.h"
@@ -479,6 +480,8 @@ float firstPersonDeathHeadScale = 3.f;
 void CActor::cam_Update(float dt, float fFOV)
 {
 	if (m_holder) return;
+	// Remote cameras must not overwrite the viewing player's shared HUD/lens state.
+	if (netcoop::pure_client() && Level().CurrentViewEntity() != this) return;
 
 	// HUD FOV Update
 	if (this == Level().CurrentControlEntity())
@@ -606,7 +609,8 @@ void CActor::cam_Update(float dt, float fFOV)
 		if (firstPersonDeathDiedNow) {
             if (firstPersonDeathDied != firstPersonDeathDiedNow)
             {
-                if (m_pPhysicsShell)
+                // Enlarging a physical bone changes the shared ragdoll's geometry.
+                if (m_pPhysicsShell && !netcoop::enabled())
                 {
                     auto head = m_pPhysicsShell->get_Element("bip01_head");
                     if (head)
