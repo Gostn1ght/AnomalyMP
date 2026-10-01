@@ -211,7 +211,7 @@ function finish_creation(menu)
         end
     end
     table.sort(items)
-    local economy = tonumber(string.gsub(menu.selected_economy, "st_econ_", "")) or 1
+    local economy = tonumber((string.gsub(menu.selected_economy, "st_econ_", ""))) or 1
     menu:HideDialog()
     menu:Show(false)
     menu.netcoop_creation_owner:EnterCharacter(menu.netcoop_creation_slot, name, menu.selected_faction, economy, table.concat(items, ","))

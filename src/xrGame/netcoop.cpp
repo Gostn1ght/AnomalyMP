@@ -23,6 +23,10 @@
 #include "entity_alive.h"
 #include "trade.h"
 #include "ai_space.h"
+#include "game_graph.h"
+#include "level_graph.h"
+#include "ai_object_location.h"
+#include "Weapon.h"
 #include "script_engine.h"
 #include "xrServer_Objects_ALife_Monsters.h"
 #include "game_base_space.h"
@@ -343,9 +347,15 @@ static xr_string client_device_key()
     // Virtual machines / missing UUID: bind to the Windows installation.
     if (identity.empty())
     {
-        char guid[128] = {}; DWORD size = sizeof(guid);
-        if (RegGetValueA(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Cryptography", "MachineGuid",
-            RRF_RT_REG_SZ | RRF_SUBKEY_WOW6464KEY, nullptr, guid, &size) == ERROR_SUCCESS) identity = guid;
+        HKEY key = nullptr;
+        if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Cryptography", 0,
+            KEY_QUERY_VALUE | KEY_WOW64_64KEY, &key) == ERROR_SUCCESS)
+        {
+            char guid[128] = {}; DWORD size = sizeof(guid), type = 0;
+            if (RegQueryValueExA(key, "MachineGuid", nullptr, &type, (BYTE*)guid, &size) == ERROR_SUCCESS &&
+                type == REG_SZ && size > 1 && size <= sizeof(guid) && guid[size - 1] == 0) identity = guid;
+            RegCloseKey(key);
+        }
     }
     if (identity.empty()) return xr_string();
     u8 digest[32];

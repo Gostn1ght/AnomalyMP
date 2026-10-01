@@ -231,7 +231,15 @@ bool server_character_load_actor(xrClientData* CL, CSE_Abstract* actor)
 		trader->m_character_name_str = character->name;
 		if (!character->initialized) trader->set_character_profile(shared_str((xr_string("actor_") + character->faction).c_str()));
 	}
-	return character->initialized && !character->respawn;
+	CSE_ALifeCreatureActor* creature = smart_cast<CSE_ALifeCreatureActor*>(actor);
+	// Saves from another server map retain inventory and progress, but use
+	// that map's arrival point rather than coordinates in a different world.
+	const bool same_level = creature && ai().valid_game_vertex(creature->m_tGraphID) &&
+		ai().valid_game_vertex(ai().game_graph().current_level_vertex()) &&
+		ai().game_graph().vertex(creature->m_tGraphID)->level_id() ==
+		ai().game_graph().vertex(ai().game_graph().current_level_vertex())->level_id();
+	return character->initialized && !character->respawn && same_level &&
+		ai().get_level_graph() && ai().level_graph().valid_vertex_id(creature->m_tNodeID) && _valid(creature->o_Position);
 }
 
 void server_character_spawn_items(xrClientData* CL)
@@ -308,7 +316,13 @@ static void character_capture_items(xrServer* server, Character& character, CSE_
 		CSE_Abstract* item = server->game->get_entity_from_eid(id);
 		if (!item || character.items.size() >= 512) continue;
 		if (CInventoryItem* runtime = smart_cast<CInventoryItem*>(Level().Objects.net_Find(id)))
-			if (CSE_ALifeInventoryItem* saved = smart_cast<CSE_ALifeInventoryItem*>(item)) saved->m_fCondition = runtime->GetCondition();
+		{
+			if (CSE_ALifeInventoryItem* saved = smart_cast<CSE_ALifeInventoryItem*>(item))
+			{ saved->m_fCondition = runtime->GetCondition(); saved->m_upgrades = runtime->get_upgrades(); }
+			if (CWeapon* weapon = smart_cast<CWeapon*>(Level().Objects.net_Find(id)))
+				if (CSE_ALifeItemWeapon* saved = smart_cast<CSE_ALifeItemWeapon*>(item))
+				{ saved->a_elapsed = u16(weapon->GetAmmoElapsed()); saved->ammo_type = weapon->GetAmmoType(); saved->m_addon_flags.flags = weapon->GetAddonsState(); }
+		}
 		Character::Item record;
 		record.parent = parent_index; record.section = item->s_name.c_str();
 		item->Spawn_Write(record.spawn, TRUE);
@@ -331,6 +345,10 @@ void server_character_save_actor(u16 actor_id)
 	entity->m_dwMoney = runtime->get_money();
 	entity->m_rank = runtime->Rank(); entity->m_reputation = runtime->Reputation();
 	entity->o_Position = runtime->Position();
+	if (ai().valid_game_vertex(runtime->ai_location().game_vertex_id()))
+		entity->m_tGraphID = runtime->ai_location().game_vertex_id();
+	if (ai().get_level_graph())
+		entity->m_tNodeID = ai().level_graph().vertex_id(runtime->Position());
 	character.respawn = !runtime->g_Alive();
 	character.items.clear();
 	if (runtime->g_Alive()) character_capture_items(server, character, actor, 0, 0);
