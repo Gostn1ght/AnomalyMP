@@ -103,4 +103,7 @@
 		<text>LMB — select\nZ / Esc — close menu</text>
 	</string>
 	<string id="st_netcoop_rp_select"><text>Select a pose on the wheel</text></string>
+	<string id="st_netcoop_characters"><text>Account characters</text></string>
+	<string id="st_netcoop_create_character"><text>Create character</text></string>
+	<string id="st_netcoop_back"><text>Back</text></string>
 </string_table>

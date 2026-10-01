@@ -16,6 +16,7 @@ class xrServer;
 struct GAME_NEWS_DATA;
 class CWeapon;
 class CActor;
+class CSE_Abstract;
 
 // Console: netcoop_smooth (0 = old network presentation, 1 = doc 38 stage 1),
 // netcoop_interp_ms (interpolation delay for remote objects on a client),
@@ -184,6 +185,10 @@ void server_list_accounts(xr_string& out);
 
 // Network smoothness (doc 38, stages 0 and 1).
 bool smooth();
+bool script_character(int slot, LPCSTR name, LPCSTR faction, int economy, LPCSTR loadout);
+bool server_character_load_actor(xrClientData* CL, CSE_Abstract* actor);
+void server_character_spawn_items(xrClientData* CL);
+void server_character_save_actor(u16 actor_id);
 void server_physics_update(xrServer* server);
 void client_on_physics(NET_Packet& P);
 // Server: the object is the Actor of a remote player. Local() is not used

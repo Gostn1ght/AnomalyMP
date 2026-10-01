@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<w>
+    <panel x="252" y="156" width="520" height="460" stretch="1">
+        <texture r="15" g="17" b="14" a="255">ui_icons_PDA_tooltips</texture>
+    </panel>
+    <title x="20" y="22" width="480" height="46">
+        <text font="letterica18" r="245" g="205" b="110" align="c" vert_align="c"/>
+    </title>
+    <slot_1 x="30" y="88" width="460" height="42"><text font="letterica16" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></slot_1>
+    <slot_2 x="30" y="143" width="460" height="42"><text font="letterica16" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></slot_2>
+    <slot_3 x="30" y="198" width="460" height="42"><text font="letterica16" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></slot_3>
+    <slot_4 x="30" y="253" width="460" height="42"><text font="letterica16" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></slot_4>
+    <slot_5 x="30" y="308" width="460" height="42"><text font="letterica16" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></slot_5>
+    <back x="150" y="382" width="220" height="36"><text font="letterica16" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></back>
+</w>

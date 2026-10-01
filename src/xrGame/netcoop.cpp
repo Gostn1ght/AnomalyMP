@@ -2,6 +2,8 @@
 #include "netcoop.h"
 
 #include <bcrypt.h>
+#include <wincrypt.h>
+#pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "bcrypt.lib")
 
 #include "xrServer.h"
@@ -180,40 +182,70 @@ static xr_string s_client_key;
 static bool s_client_register = false;
 static bool s_client_loaded = false;
 static u8 s_client_role = role_none;
+static u8 s_client_character_slot = 1;
+static xr_string s_client_character_name, s_client_character_faction = "stalker", s_client_character_loadout;
+static u8 s_client_character_economy = 1;
 
 static void client_credentials_path(string_path& path)
 {
 	FS.update_path(path, "$app_data_root$", "netcoop_login.txt");
 }
 
+static void client_store_credentials()
+{
+    xr_string plain = s_client_login + "|" + s_client_key;
+    DATA_BLOB input = {u32(plain.size()), (BYTE*)plain.data()}, output = {};
+    // DPAPI encrypts for this Windows user on this computer. Copying the
+    // remembered file to a different machine does not grant an account.
+    if (!CryptProtectData(&input, L"NetAnomaly remembered account", NULL, NULL, NULL, CRYPTPROTECT_UI_FORBIDDEN, &output)) return;
+    string_path path, temp;
+    client_credentials_path(path); xr_sprintf(temp, "%s.tmp", path);
+    FILE* f = fopen(temp, "wb");
+    if (f)
+    {
+        const u32 magic = 0x324c434e;
+        fwrite(&magic, 4, 1, f); fwrite(output.pbData, 1, output.cbData, f);
+        const bool ok = !ferror(f); fclose(f);
+        if (ok) MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+    }
+    SecureZeroMemory(output.pbData, output.cbData); LocalFree(output.pbData);
+    SecureZeroMemory(&plain[0], plain.size());
+}
+
 static void client_load_credentials()
 {
-	if (s_client_loaded)
-		return;
-	s_client_loaded = true;
-
-	string_path path;
-	client_credentials_path(path);
-	FILE* f = fopen(path, "rb");
-	if (!f)
-		return;
-	char line[256] = {};
-	if (fgets(line, sizeof(line) - 1, f))
-	{
-		char* sep = strchr(line, '|');
-		if (sep)
-		{
-			*sep = 0;
-			char* key = sep + 1;
-			key[strcspn(key, "\r\n")] = 0;
-			if (login_valid(line) && key_valid(key))
-			{
-				s_client_login = line;
-				s_client_key = key;
-			}
-		}
-	}
-	fclose(f);
+    if (s_client_loaded) return;
+    s_client_loaded = true;
+    string_path path; client_credentials_path(path);
+    FILE* f = fopen(path, "rb");
+    if (!f) return;
+    u8 data[8192]; const u32 size = u32(fread(data, 1, sizeof(data), f)); fclose(f);
+    xr_string plain;
+    bool migrate = false;
+    u32 magic = 0; if (size >= 4) CopyMemory(&magic, data, 4);
+    if (magic == 0x324c434e)
+    {
+        DATA_BLOB input = {size - 4, data + 4}, output = {};
+        if (!CryptUnprotectData(&input, NULL, NULL, NULL, NULL, CRYPTPROTECT_UI_FORBIDDEN, &output)) return;
+        plain.assign((char*)output.pbData, output.cbData);
+        SecureZeroMemory(output.pbData, output.cbData); LocalFree(output.pbData);
+    }
+    else
+    {
+        // Upgrade the old derived-key file once, without losing the login.
+        plain.assign((char*)data, size); migrate = true;
+    }
+    const size_t separator = plain.find('|');
+    if (separator != xr_string::npos)
+    {
+        xr_string login = plain.substr(0, separator), key = plain.substr(separator + 1);
+        const size_t end = key.find_first_of("\r\n"); if (end != xr_string::npos) key.resize(end);
+        if (login_valid(login.c_str()) && key_valid(key.c_str()))
+        { s_client_login = login; s_client_key = key; if (migrate) client_store_credentials(); }
+        if (!key.empty()) SecureZeroMemory(&key[0], key.size());
+    }
+    if (!plain.empty()) SecureZeroMemory(&plain[0], plain.size());
+    SecureZeroMemory(data, sizeof(data));
 }
 
 bool derive_client_key(LPCSTR login, LPCSTR password, xr_string& key_hex)
@@ -257,15 +289,7 @@ bool client_set_credentials(LPCSTR login, LPCSTR password, bool register_account
 	s_client_key = key_hex;
 	s_client_register = register_account;
 
-	// Remember the derived key, not the password, for the next connection.
-	string_path path;
-	client_credentials_path(path);
-	FILE* f = fopen(path, "wb");
-	if (f)
-	{
-		fprintf(f, "%s|%s\n", s_client_login.c_str(), s_client_key.c_str());
-		fclose(f);
-	}
+	client_store_credentials();
 	return true;
 }
 
@@ -292,6 +316,11 @@ void client_write_auth(NET_Packet& P)
 	P.w_u8(s_client_register ? auth_register : auth_login);
 	P.w_stringZ(s_client_login.c_str());
 	P.w_stringZ(s_client_key.c_str());
+    P.w_u8(s_client_character_slot);
+    P.w_stringZ(s_client_character_name.empty() ? s_client_login.c_str() : s_client_character_name.c_str());
+    P.w_stringZ(s_client_character_faction.c_str());
+    P.w_u8(s_client_character_economy);
+    P.w_stringZ(s_client_character_name.empty() ? "device_pda_1" : s_client_character_loadout.c_str());
 	s_client_register = false;
 	s_client_role = role_none;
 }
@@ -307,6 +336,15 @@ void client_on_auth_result(NET_Packet& P)
 	s_client_role = ok ? role : u8(role_none);
 	Msg("%s [NetAnomaly] %s", ok ? "*" : "!", message);
 	call_lua("netcoop_client_compat.on_auth_result", !!ok, s_client_role, message);
+    if (ok && P.r_elapsed())
+    {
+        char names[512];
+        if (read_string(P, names, sizeof(names)))
+        {
+            ::luabind::functor<void> cache;
+            if (ai().script_engine().functor("netcoop_login_ui.cache_characters", cache)) cache(names);
+        }
+    }
 }
 
 static bool s_trade_refresh = false;
@@ -357,7 +395,12 @@ void client_send_command(LPCSTR text)
 // Lua entry points.
 bool script_login(LPCSTR login, LPCSTR password, bool register_account)
 {
-	return client_set_credentials(login, password, register_account);
+	if (!register_account && password && !password[0])
+    {
+        client_load_credentials();
+        return login && s_client_login == login && key_valid(s_client_key.c_str());
+    }
+    return client_set_credentials(login, password, register_account);
 }
 
 int script_role() { return client_role(); }
@@ -571,6 +614,8 @@ void server_list_accounts(xr_string& out)
 	}
 }
 
+#include "netcoop_characters.inc"
+
 // ---------------------------------------------------------------------------
 // server: authentication
 // ---------------------------------------------------------------------------
@@ -596,6 +641,17 @@ static void send_auth_result(xrServer* server, xrClientData* CL, bool ok, u8 rol
 	P.w_u8(ok ? 1 : 0);
 	P.w_u8(role);
 	P.w_stringZ(message);
+    if (ok)
+    {
+        xr_string names;
+        for (u8 slot = 1; slot <= 5; ++slot)
+        {
+            Character* character = character_load(CL->netcoop_login.c_str(), slot);
+            if (slot > 1) names += "|";
+            if (character) names += character->name;
+        }
+        P.w_stringZ(names.c_str());
+    }
 	server->SendTo(CL->ID, P, net_flags(TRUE, TRUE));
 }
 
@@ -619,6 +675,8 @@ struct PendingAuth
 	xr_string key;
 	xr_string salt;
 	bool create;
+	u8 slot = 1, economy = 1;
+	xr_string character_name, faction = "stalker", loadout;
 	xr_string hash;
 	bool hashed;
 	volatile LONG done;
@@ -680,6 +738,23 @@ void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
 	pending->hashed = false;
 	pending->done = 0;
 	pending->player_state = NULL;
+    if (P.r_elapsed())
+    {
+        char name[64], faction[32], loadout[4097];
+        pending->slot = P.r_u8();
+        if (!read_string(P, name, sizeof(name)) || !read_string(P, faction, sizeof(faction)) || P.r_elapsed() < 1)
+        { xr_delete(pending); reject(server, CL, "Invalid character request"); return; }
+        pending->economy = P.r_u8();
+        if (!read_string(P, loadout, sizeof(loadout)) || P.r_elapsed())
+        { xr_delete(pending); reject(server, CL, "Invalid character loadout"); return; }
+        pending->character_name = name; pending->faction = faction; pending->loadout = loadout;
+    }
+    else
+    {
+        // Older clients and headless test bots keep the first slot.
+        pending->character_name = login;
+        pending->loadout = "device_pda_1";
+    }
 
 	Account* a = account_find(login);
 	pending->create = mode == auth_register || (mode == auth_auto && !a);
@@ -787,6 +862,12 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
 	}
 
 	CL->netcoop_login = a->login.c_str();
+    if (!character_select(CL, pending->slot, pending->character_name.c_str(), pending->faction.c_str(), pending->economy, pending->loadout.c_str()))
+    {
+        CL->netcoop_login = NULL;
+        reject(server, CL, "Character unavailable or starting items exceed the point budget");
+        return;
+    }
 	CL->netcoop_role = a->role;
 	CL->name = a->login.c_str();
 
@@ -839,7 +920,7 @@ static void server_release_task_manager(u16 actor_id);
 
 static void store_money(xrClientData* CL)
 {
-	if (!CL || !CL->netcoop_login.size() || !CL->owner)
+	if (!CL || !CL->netcoop_login.size() || !CL->owner || CL->netcoop_character_slot != 1)
 		return;
 	CSE_ALifeTraderAbstract* trader = smart_cast<CSE_ALifeTraderAbstract*>(CL->owner);
 	if (!trader)
@@ -896,7 +977,10 @@ static void destroy_pending_actors(xrServer* server)
 		CGameObject* actor_object = smart_cast<CGameObject*>(Level().Objects.net_Find(ids[i]));
 		if (actor_object && smart_cast<CActor*>(actor_object) && server->GetServerClient())
 		{
+            server_character_save_actor(ids[i]);
+            s_actor_character.erase(ids[i]);
 			give_to_server(server, server->game->get_entity_from_eid(ids[i]), 0);
+            if (!smart_cast<CActor*>(actor_object)->g_Alive()) continue; // retain lootable corpse
 			Msg("[NetAnomaly] removing Actor %u of a disconnected player", ids[i]);
 			// An NPC still talking to this Actor would keep a dangling partner.
 			CActor* leaving = smart_cast<CActor*>(actor_object);
@@ -930,6 +1014,7 @@ void server_update(xrServer* server)
 	destroy_pending_actors(server);
 	server_talk_prune(server);
 	server_physics_update(server);
+	characters_update(server);
 	if (!s_accounts_loaded)
 		return;
 	StoreMoney store;
@@ -2811,6 +2896,8 @@ bool script_respawn(u16 actor_id)
 		return false;
 	// The body and what it carries stay in the world as a corpse, owned by
 	// the server; the player gets a new Actor at the spawn point.
+	server_character_save_actor(actor_id);
+	s_actor_character.erase(actor_id);
 	give_to_server(server, CL->owner, 0);
 	CL->owner = NULL;
 	netcoop_respawn_spawn(CL->ID);

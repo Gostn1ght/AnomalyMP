@@ -53,6 +53,8 @@ public:
 	// NetAnomaly account bound to this connection (empty until login).
 	shared_str netcoop_login;
 	u8 netcoop_role;
+	u8 netcoop_character_slot;
+	shared_str netcoop_character_name;
 
 	struct
 	{

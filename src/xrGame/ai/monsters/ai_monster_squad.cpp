@@ -61,6 +61,13 @@ void CMonsterSquad::RemoveMember(CEntity* pE)
 
 bool CMonsterSquad::SquadActive()
 {
+    if (netcoop::enabled() && (!leader || !leader->g_Alive() || leader->getDestroy()))
+    {
+        leader = nullptr;
+        for (const auto& member : m_goals)
+            if (member.first->g_Alive() && !member.first->getDestroy() &&
+                (!leader || member.first->ID() < leader->ID())) leader = member.first;
+    }
 	if (!leader) return false;
 
 	// проверить количество живых объектов в группе

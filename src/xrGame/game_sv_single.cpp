@@ -497,7 +497,11 @@ void game_sv_Single::netcoop_spawn_actor(ClientID id_who)
 		return;
 	}
 
+	const bool restoring_character = netcoop::server_character_load_actor(CL, E);
 	string64 nick;
+	if (CL->netcoop_character_name.size())
+		xr_strcpy(nick, CL->netcoop_character_name.c_str());
+	else
 	if (CL->netcoop_login.size())
 		xr_strcpy(nick, CL->netcoop_login.c_str());
 	else if (CL->ps && CL->ps->getName() && CL->ps->getName()[0])
@@ -512,6 +516,9 @@ void game_sv_Single::netcoop_spawn_actor(ClientID id_who)
 	E->m_bALifeControl = false;
 	E->s_RP = 0xFE;
 
+	A->m_bOnline = true;
+	if (!restoring_character)
+	{
 	A->s_team = host->s_team;
 	A->m_bOnline = true;
 	A->m_tGraphID = host->m_tGraphID;
@@ -522,11 +529,9 @@ void game_sv_Single::netcoop_spawn_actor(ClientID id_who)
 	pos.y += 0.3f;
 	A->o_Position = pos;
 	A->o_Angle = host->o_Angle;
+	}
+	Fvector pos = A->o_Position;
 
-	// The account keeps its server-owned balance between sessions.
-	u32 stored_money = 0;
-	if (netcoop::server_account_money(CL->netcoop_login.c_str(), stored_money))
-		A->m_dwMoney = stored_money;
 
 	CL->net_PassUpdates = TRUE;
 	if (CL->ps)
@@ -549,17 +554,7 @@ void game_sv_Single::netcoop_spawn_actor(ClientID id_who)
 		netcoop::script_send_to_actor(CL->owner->ID, "you", you);
 	}
 
-	// GAMMA's PDA script requires an owned device. Additional netcoop actors
-	// bypass the single-player starter loadout, so give them a basic PDA here.
-	// Its config defaults to the rucksack; the player can equip it in slot 8.
-	if (CL->owner && pSettings->section_exist("device_pda_1"))
-	{
-		CSE_Abstract* pda = spawn_begin("device_pda_1");
-		pda->ID_Parent = CL->owner->ID;
-		pda->s_flags.assign(M_SPAWN_OBJECT_LOCAL);
-		spawn_end(pda, id_who);
-		Msg("[NetAnomaly] starter PDA spawned for actor %u", CL->owner->ID);
-	}
+	netcoop::server_character_spawn_items(CL);
 
 	Msg("[NetAnomaly] co-op actor '%s' spawned for client 0x%08x eid %u at (%3.2f, %3.2f, %3.2f)",
 		nick, id_who.value(), CL->owner ? CL->owner->ID : u16(0xffff),

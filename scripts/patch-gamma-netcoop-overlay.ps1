@@ -64,6 +64,11 @@ Replace-Once (Join-Path $runtime 'client\scripts\ui_main_menu.script') `
     "function main_menu:OnButton_new_game()`n`tdo return gamma_net_compat.unavailable() end" `
     "function main_menu:OnButton_new_game()`n`tdo return netcoop_login_ui.show_login(self) end"
 
+# Reuse GAMMA's inventory and point picker for new multiplayer characters.
+Replace-Once (Join-Path $runtime 'client\scripts\ui_mm_faction_select.script') `
+    "function UINewGame:OnStartGame()" `
+    "function UINewGame:OnStartGame()`n`tif self.netcoop_creation_owner then return netcoop_login_ui.finish_creation(self) end"
+
 # mcm_log flushes its log files from a per-frame call whose device() lookup
 # fails on the dedicated server; logs are still flushed on its other events.
 Replace-Once (Join-Path $runtime 'server\scripts\mcm_log.script') `

@@ -103,4 +103,7 @@
 		<text>ЛКМ — выбрать\nZ / Esc — закрыть меню</text>
 	</string>
 	<string id="st_netcoop_rp_select"><text>Выберите позу на круге</text></string>
+	<string id="st_netcoop_characters"><text>Персонажи аккаунта</text></string>
+	<string id="st_netcoop_create_character"><text>Создать персонажа</text></string>
+	<string id="st_netcoop_back"><text>Назад</text></string>
 </string_table>

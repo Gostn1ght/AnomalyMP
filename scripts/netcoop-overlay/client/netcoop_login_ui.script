@@ -35,7 +35,7 @@ local function check_values(login, pass)
 	if string.len(login) < 3 or string.len(login) > 20 or not string.match(login, "^[%w_%-%.]+$") then
 		return "Login: 3-20 characters, letters, digits, _ - ."
 	end
-	if string.len(pass) < 4 or string.len(pass) > 64 then return "Password: 4-64 characters" end
+	if pass ~= "" and (string.len(pass) < 4 or string.len(pass) > 64) then return "Password: 4-64 characters" end
 	return nil
 end
 
@@ -116,12 +116,105 @@ function netcoop_login_wnd:Connect(register)
 		return self:SetMsg("! Cannot prepare the account key, see the log")
 	end
 	self.ed_pass:SetText("")
+	self.pending_login, self.pending_ip, self.pending_port = login, ip, port
+	self:ShowCharacters()
+end
+
+function netcoop_login_wnd:EnterCharacter(slot, name, faction, economy, loadout)
+	if not netcoop_character(slot, name or "", faction or "stalker", economy or 1, loadout or "") then
+		return self:SetMsg("! Invalid character selection")
+	end
+	local login, ip, port = self.pending_login, self.pending_ip, self.pending_port
 	write_last(login, ip .. ":" .. port)
 
 	printf("[NetAnomaly] connecting as %s to %s:%s", login, ip, port)
 	self:HideDialog()
 	exec_console_cmd("main_menu off")
 	exec_console_cmd(string.format("start client(%s/name=%s/port=%s)", ip, login, port))
+end
+
+
+local function character_cache_path(login, addr)
+    return app_path("netcoop_slots_" .. string.lower(login) .. "_" .. string.gsub(addr, "[^%w%-_.]", "_") .. ".txt")
+end
+
+function cache_characters(names)
+    local login, addr = read_last()
+    if not login or not addr then return end
+    local f = io.open(character_cache_path(login, addr), "w")
+    if f then f:write(names or ""); f:close() end
+end
+
+function netcoop_login_wnd:ShowCharacters()
+    local path = character_cache_path(self.pending_login, self.pending_ip .. ":" .. self.pending_port)
+    local f = io.open(path, "r")
+    local names = f and f:read("*a") or ""
+    if f then f:close() end
+    self.names = {}
+    for name in string.gmatch(names .. "|", "(.-)|") do self.names[#self.names + 1] = name end
+    if not self.character_buttons then
+        local xml = CScriptXmlInit()
+        xml:ParseFile("ui_netcoop_characters.xml")
+        self.character_panel = xml:InitStatic("panel", self)
+        self.character_title = xml:InitStatic("title", self.character_panel)
+        self.character_title:TextControl():SetText(game.translate_string("st_netcoop_characters"))
+        self.character_buttons = {}
+        for slot = 1, 5 do
+            local id = slot
+            local button = xml:Init3tButton("slot_" .. id, self.character_panel)
+            self:Register(button, "character_" .. id)
+            self:AddCallback("character_" .. id, ui_events.BUTTON_CLICKED, function() self:SelectCharacter(id) end, self)
+            self.character_buttons[id] = button
+        end
+        local back = xml:Init3tButton("back", self.character_panel)
+        back:TextControl():SetText(game.translate_string("st_netcoop_back"))
+        self:Register(back, "characters_back")
+        self:AddCallback("characters_back", ui_events.BUTTON_CLICKED, function() self.character_panel:Show(false) end, self)
+    end
+    for slot = 1, 5 do
+        local name = self.names[slot]
+        self.character_buttons[slot]:TextControl():SetText(slot .. ". " .. ((name and name ~= "") and name or game.translate_string("st_netcoop_create_character")))
+    end
+    self.character_panel:Show(true)
+end
+
+function netcoop_login_wnd:SelectCharacter(slot)
+    local name = self.names[slot]
+    if name and name ~= "" then return self:EnterCharacter(slot, name) end
+    if not ui_mm_faction_select or not ui_mm_faction_select.UINewGame then
+        return self:SetMsg("! Character creation menu is unavailable")
+    end
+    if not self.creator then
+        self.creator = ui_mm_faction_select.UINewGame(self)
+        self.creator:SetAutoDelete(false)
+    end
+    self.creator.netcoop_creation_slot = slot
+    self.creator.netcoop_creation_owner = self
+    for _, field in ipairs({"ck_story", "ck_warfare", "ck_hardcore", "ck_azazel_mode", "ck_survival", "ck_campfire", "ck_conditions", "ck_routes"}) do
+        if self.creator[field] then self.creator[field]:SetCheck(false); self.creator[field]:Enable(false) end
+    end
+    self.creator.list_map:Enable(false)
+    self:HideDialog()
+    self.creator:ShowDialog(true)
+    self.creator:Show(true)
+end
+
+-- Called before the freeplay menu writes any global new-game settings.
+function finish_creation(menu)
+    if not menu.access then return end
+    local name = menu.character_name:GetText()
+    if not name or name == "" or menu.points_left < 0 then return end
+    local items = {}
+    for _, cell in pairs(menu.CC.inventory.cell) do
+        if cell:IsShown() then
+            for _ = 1, cell:CountChilds() + 1 do items[#items + 1] = cell.section end
+        end
+    end
+    table.sort(items)
+    local economy = tonumber(string.gsub(menu.selected_economy, "st_econ_", "")) or 1
+    menu:HideDialog()
+    menu:Show(false)
+    menu.netcoop_creation_owner:EnterCharacter(menu.netcoop_creation_slot, name, menu.selected_faction, economy, table.concat(items, ","))
 end
 
 function netcoop_login_wnd:OnLogin() self:Connect(false) end

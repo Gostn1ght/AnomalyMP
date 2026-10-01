@@ -2746,6 +2746,7 @@ void CLevel::script_register(lua_State* L)
 		def("render_get_dx_level", &render_get_dx_level),
 		def("IsImportantSave", &IsImportantSave),
 		def("netcoop_login", &netcoop::script_login),
+		def("netcoop_character", &netcoop::script_character),
 		def("netcoop_role", &netcoop::script_role),
 		def("netcoop_account", &netcoop::script_account),
 		def("netcoop_command", &netcoop::script_command),
