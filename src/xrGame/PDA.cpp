@@ -18,6 +18,7 @@
 #include "ai_sounds.h"
 #include "Inventory.h"
 #include "netcoop.h"
+#include "xrMessages.h"
 
 CPda::CPda(void)
 {

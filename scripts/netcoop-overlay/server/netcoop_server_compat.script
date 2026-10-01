@@ -437,7 +437,49 @@ local function install_trade_profiles()
 	end
 end
 
+local squad_attackers = {}
+
+-- Native server AI calls this only for nearby witnesses of a squad attack.
+function on_squad_attacked(npc_id, attacker_id)
+	local npc, attacker = level.object_by_id(npc_id), level.object_by_id(attacker_id)
+	if not npc or not attacker or not npc:alive() or not attacker:alive() then return end
+	if get_object_story_id(npc_id) then return end
+	squad_attackers[npc_id] = {id = attacker_id, until_time = time_global() + 300000}
+	printf("[NetAnomaly][AI] squad witness %s confronts attacker %s", npc_id, attacker_id)
+end
+
+local function witnessed_enemy(npc, enemy)
+	local event = npc and squad_attackers[npc:id()]
+	if not event then return false end
+	local attacker = level.object_by_id(event.id)
+	if not attacker or not attacker:alive() or time_global() > event.until_time then
+		squad_attackers[npc:id()] = nil
+		return false
+	end
+	return (not enemy or enemy:id() == event.id) and npc:position():distance_to_sqr(attacker:position()) < 3600
+end
+
+local function install_squad_witnesses()
+	if not xr_combat_ignore then return end
+	local is_enemy = xr_combat_ignore.is_enemy
+	xr_combat_ignore.is_enemy = function(npc, enemy, ...)
+		if witnessed_enemy(npc, enemy) then return true end
+		return is_enemy(npc, enemy, ...)
+	end
+	local ignore = xr_combat_ignore.ignore_enemy_by_overrides
+	xr_combat_ignore.ignore_enemy_by_overrides = function(npc, enemy, ...)
+		if witnessed_enemy(npc, enemy) then return false end
+		return ignore(npc, enemy, ...)
+	end
+	local safe = xr_combat_ignore.npc_in_safe_zone
+	xr_combat_ignore.npc_in_safe_zone = function(npc)
+		if witnessed_enemy(npc) then return false end
+		return safe(npc)
+	end
+end
+
 function on_game_start()
+	install_squad_witnesses()
 	-- The dedicated server skips the single-player Actor binder constructor,
 	-- which normally loads these themes before NPC net_spawn initializes its
 	-- voices. Camps and scripted NPC speech still need that initialization.
