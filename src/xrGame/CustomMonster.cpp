@@ -339,7 +339,7 @@ void CCustomMonster::shedule_Update(u32 DT)
 	// Queue shrink
 	VERIFY(_valid(Position()));
 	const u32 last_interval = NET.size() >= 2 ? NET.back().dwTimeStamp - NET[NET.size() - 2].dwTimeStamp : 0;
-	u32 dwTimeCL = netcoop::snapshot_now() - netcoop::remote_interp_delay(last_interval);
+	u32 dwTimeCL = netcoop_interpolation_time(last_interval);
 	VERIFY(!NET.empty());
 	while ((NET.size() > 2) && (NET[1].dwTimeStamp < dwTimeCL)) NET.pop_front();
 
@@ -515,7 +515,7 @@ void CCustomMonster::UpdateCL()
 
 			// distinguish interpolation/extrapolation
 			const u32 last_interval = NET.size() >= 2 ? NET.back().dwTimeStamp - NET[NET.size() - 2].dwTimeStamp : 0;
-			u32 dwTime = netcoop::snapshot_now() - netcoop::remote_interp_delay(last_interval);
+			u32 dwTime = netcoop_interpolation_time(last_interval);
 			net_update& N = NET.back();
 			if (dwTime < NET.front().dwTimeStamp)
 			{

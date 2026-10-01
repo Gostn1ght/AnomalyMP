@@ -1,0 +1,62 @@
+-- Server-only habitat selection and native squad membership. Fixed/story
+-- squads retain their configured composition and population limits.
+local allocations = {}
+local config
+
+local function ini()
+    if not config then config = ini_file("netcoop\\world_regions.ltx") end
+    return config
+end
+
+function region_for(smart)
+    if not smart then return nil end
+    local name = smart:name()
+    local cfg = ini()
+    if cfg:line_exist("smarts", name) then return cfg:r_string("smarts", name) end
+    local sim, gg = alife(), game_graph()
+    if not gg:valid_vertex_id(smart.m_game_vertex_id) then return nil end
+    local map = sim:level_name(gg:vertex(smart.m_game_vertex_id):level_id())
+    if cfg:line_exist("levels", map) then return cfg:r_string("levels", map) end
+    return nil
+end
+
+function regional_squad(smart, original)
+    if not netcoop_enabled or not netcoop_enabled() or not smart or type(original) ~= "string" then return original end
+    if string.sub(original, 1, 11) ~= "simulation_" or not ini_sys:r_bool_ex(original, "common") then return original end
+    local faction = ini_sys:r_string_ex(original, "faction")
+    if not is_squad_monster[faction] then return original end
+    local region = region_for(smart)
+    if not region or not ini():section_exist(region) then return original end
+    local enabled = {}
+    for _, kind in ipairs(smr_pop.get_mutant_spawn_table()) do enabled[kind] = true end
+    local candidates, total = {}, 0
+    for n = 0, ini():line_count(region) - 1 do
+        local _, section, value = ini():r_line(region, n, "", "")
+        local weight, kind = string.match(value, "^%s*([%d%.]+)%s*,%s*([%w_]+)%s*$")
+        weight = tonumber(weight)
+        if weight and weight > 0 and enabled[kind] and ini_sys:section_exist(section) then
+            total = total + weight
+            candidates[#candidates + 1] = {section, total}
+        end
+    end
+    if total == 0 then return original end
+    local roll = math.random() * total
+    for _, candidate in ipairs(candidates) do if roll < candidate[2] then return candidate[1] end end
+    return candidates[#candidates][1]
+end
+
+function squad_group(member, squad, smart)
+    -- Native agent and monster managers key squads by team/squad/group.
+    -- Putting every ALife squad at a smart into group 1 merged unrelated packs.
+    if not netcoop_enabled or not netcoop_enabled() then return 1 end
+    local bucket = tostring(member.team) .. ":" .. tostring(smart and smart.squad_id or member.squad)
+    local groups = allocations[bucket]
+    if not groups then groups = {}; allocations[bucket] = groups end
+    for group, id in pairs(groups) do
+        if id == squad.id then return group end
+        if not alife():object(id) then groups[group] = nil end
+    end
+    for group = 1, 254 do if not groups[group] then groups[group] = squad.id; return group end end
+    -- Reserved overflow group; normal terrain population is far below this.
+    return 255
+end

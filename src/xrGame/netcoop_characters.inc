@@ -335,10 +335,10 @@ void server_character_save_actor(u16 actor_id)
 	character.items.clear();
 	if (runtime->g_Alive()) character_capture_items(server, character, actor, 0, 0);
 	// A dead character resumes alive; its former inventory stays in the world.
-	const float health = entity->fHealth;
-	entity->fHealth = runtime->g_Alive() ? runtime->GetfHealth() : 1.f;
+	const float health = entity->get_health();
+	entity->set_health(runtime->g_Alive() ? runtime->GetfHealth() : 1.f);
 	actor->Spawn_Write(character.actor, TRUE);
-	entity->fHealth = health;
+	entity->set_health(health);
 	character.initialized = true;
 	if (!character_save(character)) Msg("! [NetAnomaly] character save failed for %s slot %u", character.account.c_str(), character.slot);
 }

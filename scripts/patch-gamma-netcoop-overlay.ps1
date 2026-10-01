@@ -99,6 +99,16 @@ Replace-Once $squads `
     "local pat = patrol(spawn_smart.spawn_point)" `
     "local pat = level.patrol_path_exists(spawn_smart.spawn_point) and patrol(spawn_smart.spawn_point)"
 
+# Habitat weights apply to simulation squads; each ALife pack gets its own
+# native team/squad/group membership instead of merging at the same smart.
+$simBoard = Join-Path $runtime 'server\scripts\sim_board.script'
+Replace-Once $simBoard `
+    "function simulation_board:create_squad(spawn_smart, sq_id)" `
+    "function simulation_board:create_squad(spawn_smart, sq_id)`n`tif netcoop_world then sq_id = netcoop_world.regional_squad(spawn_smart, sq_id) end"
+Replace-Once $simBoard `
+    "change_team_squad_group(se_obj, se_obj.team, smart and smart.squad_id or se_obj.squad, 1)" `
+    "change_team_squad_group(se_obj, se_obj.team, smart and smart.squad_id or se_obj.squad, netcoop_world and netcoop_world.squad_group(se_obj, squad, smart) or 1)"
+
 # This GAMMA smart terrain lists spawn_isg but defines only spawn_greh.
 # Use its existing Greh squad definition rather than dropping the respawn.
 foreach ($role in @('server', 'client')) {

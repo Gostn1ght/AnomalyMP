@@ -76,9 +76,12 @@ private:
     xr_deque<NetcoopPhysicsSnapshot> m_netcoop_physics;
     CPhysicsShell* m_netcoop_replica_shell = nullptr;
     bool m_netcoop_physics_processing = false;
+    u32 m_netcoop_render_time = 0, m_netcoop_render_frame = 0;
+    float m_netcoop_render_delay = 0.f;
     void netcoop_physics_update();
 public:
     void netcoop_physics_import(NET_Packet& P);
+    u32 netcoop_interpolation_time(u32 interval);
     bool netcoop_physics_buffered() const { return !m_netcoop_physics.empty(); }
 private:
 	bool m_netcoop_throw = false;

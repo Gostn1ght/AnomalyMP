@@ -1,0 +1,66 @@
+; Explicit overrides take precedence over a whole-map fallback.
+; Unknown maps retain their original ALife tables. Values: weight, SMR species.
+[smarts]
+esc_smart_terrain_2_12 = village
+val_smart_terrain_7_3 = industrial
+val_smart_terrain_7_4 = industrial
+yan_smart_terrain_6_2 = industrial
+
+[levels]
+l01_escape = field
+l02_garbage = field
+l03_agroprom = field
+l04_darkvalley = industrial
+l05_bar = industrial
+l06_rostok = industrial
+l07_military = village
+l08_yantar = industrial
+l09_deadcity = village
+l10_red_forest = forest
+k01_darkscape = forest
+l03u_agr_underground = underground
+l04u_labx18 = underground
+l08u_brainlab = underground
+jupiter_underground = underground
+labx8 = underground
+k00_marsh = field
+
+[field]
+simulation_dog = 40, dog_
+simulation_boar = 25, boar_
+simulation_flesh = 25, flesh_
+simulation_cat = 8, cat_
+simulation_burer = 0.1, burer_
+simulation_tushkano = 2, tushkano_
+
+[forest]
+simulation_dog = 8, dog_
+simulation_boar = 30, boar_
+simulation_flesh = 15, flesh_
+simulation_bloodsucker = 12, bloodsucker_
+simulation_lurker = 20, lurker_
+simulation_chimera = 3, chimera_
+simulation_cat = 12, cat_
+
+[village]
+simulation_dog = 20, dog_
+simulation_tushkano = 35, tushkano_
+simulation_fracture = 15, fracture_
+simulation_snork = 15, snork_
+simulation_bloodsucker = 10, bloodsucker_
+simulation_burer = 5, burer_
+
+[industrial]
+simulation_burer = 25, burer_
+simulation_snork = 25, snork_
+simulation_tushkano = 25, tushkano_
+simulation_bloodsucker = 12, bloodsucker_
+simulation_fracture = 10, fracture_
+simulation_dog = 3, dog_
+
+[underground]
+simulation_tushkano = 40, tushkano_
+simulation_burer = 25, burer_
+simulation_snork = 25, snork_
+simulation_bloodsucker = 8, bloodsucker_
+simulation_controller = 2, m_controller_

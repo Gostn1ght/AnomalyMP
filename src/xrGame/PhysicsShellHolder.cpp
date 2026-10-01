@@ -473,6 +473,33 @@ void CPhysicsShellHolder::netcoop_physics_import(NET_Packet& P)
 	netcoop_physics_update();
 }
 
+u32 CPhysicsShellHolder::netcoop_interpolation_time(u32 interval)
+{
+    const u32 now = netcoop::snapshot_now();
+    if (!netcoop::pure_client())
+    {
+        const u32 delay = netcoop::remote_interp_delay(interval);
+        return now > delay ? now - delay : 0;
+    }
+    // A packet gap must not move the displayed pose backward in time.
+    // Slew delay per object, since distant replicas have a different rate.
+    if (!m_netcoop_render_frame || Device.dwFrame != m_netcoop_render_frame)
+    {
+        const float target = float(netcoop::remote_interp_delay(interval));
+        if (!m_netcoop_render_frame) m_netcoop_render_delay = target;
+        else
+        {
+            const float step = _min(Device.fTimeDelta, 0.1f) * 100.f;
+            m_netcoop_render_delay += _max(-step, _min(target - m_netcoop_render_delay, step));
+        }
+        m_netcoop_render_frame = Device.dwFrame;
+        const u32 delay = u32(m_netcoop_render_delay);
+        const u32 time = now > delay ? now - delay : 0;
+        if (!m_netcoop_render_time || s32(time - m_netcoop_render_time) >= 0) m_netcoop_render_time = time;
+    }
+    return m_netcoop_render_time;
+}
+
 void CPhysicsShellHolder::netcoop_physics_update()
 {
 	if (!netcoop::pure_client() || m_netcoop_physics.empty()) return;
@@ -494,9 +521,7 @@ void CPhysicsShellHolder::netcoop_physics_update()
 	shell->Disable(); // only the server integrates collisions and gravity
 	const u32 interval = m_netcoop_physics.size() > 1 ?
 		m_netcoop_physics.back().stamp - m_netcoop_physics[m_netcoop_physics.size() - 2].stamp : 50;
-	const u32 delay = netcoop::remote_interp_delay(interval);
-	const u32 now = netcoop::snapshot_now();
-	const u32 time = now > delay ? now - delay : 0;
+	const u32 time = netcoop_interpolation_time(interval);
 	while (m_netcoop_physics.size() > 2 && s32(time - m_netcoop_physics[1].stamp) >= 0)
 		m_netcoop_physics.pop_front();
 	const NetcoopPhysicsSnapshot& first = m_netcoop_physics.front();
