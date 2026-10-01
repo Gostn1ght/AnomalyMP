@@ -385,6 +385,7 @@ void client_write_auth(NET_Packet& P)
 
 void client_on_auth_result(NET_Packet& P)
 {
+	client_marks_reset();
 	const u8 ok = P.r_u8();
 	const u8 role = P.r_u8();
 	string512 message;

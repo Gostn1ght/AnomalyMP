@@ -38,6 +38,7 @@ void pda_forget(u16 id);
 void replicate_mark(CObject* object, u32 element, const Fvector& position, const Fvector& direction, float size, LPCSTR textures);
 void client_on_mark(NET_Packet& packet);
 void client_marks_update();
+void client_marks_reset();
 enum ERole : u8
 {
 	role_none = 0,
