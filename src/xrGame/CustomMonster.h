@@ -99,6 +99,17 @@ public:
 		SRotation o_torso; // torso in world coords
 		Fvector p_pos; // in world coords
 		float fHealth;
+        // Discrete pose state belongs to the same delayed sample as position.
+        bool pose_valid = false;
+        u8 movement_type = 0, body_state = 0, mental_state = 0;
+        float speed = 0.f;
+        u8 anim_mode = 0;
+        u32 anim[3] = {0, 0, 0};
+        u16 active_slot = u16(-1);
+        u8 hands_flags = 0;
+        u32 monster_motion = 0;
+        float monster_motion_speed = 1.f;
+
 
 		// non-exported (temporal)
 

@@ -29,6 +29,8 @@
 #include "GameTask.h"
 #include "UIGameCustom.h"
 #include "game_news.h"
+#include "../xrPhysics/PhysicsShell.h"
+#include "../xrServerEntities/PHSynchronize.h"
 
 namespace netcoop
 {
@@ -927,6 +929,7 @@ void server_update(xrServer* server)
 	psActorFlags.set(AF_GODMODE_RT, FALSE);
 	destroy_pending_actors(server);
 	server_talk_prune(server);
+	server_physics_update(server);
 	if (!s_accounts_loaded)
 		return;
 	StoreMoney store;
@@ -943,6 +946,16 @@ static bool living_npc(CSE_Abstract* entity)
 		return false;
 	CSE_ALifeCreatureAbstract* creature = smart_cast<CSE_ALifeCreatureAbstract*>(entity);
 	return creature && creature->g_Alive();
+}
+
+static bool accessible_corpse(xrClientData* CL, CSE_Abstract* entity)
+{
+	if (!CL || !CL->owner || !entity) return false;
+	CEntityAlive* body = smart_cast<CEntityAlive*>(Level().Objects.net_Find(entity->ID));
+	CEntityAlive* actor = smart_cast<CEntityAlive*>(Level().Objects.net_Find(CL->owner->ID));
+	CInventoryOwner* inventory = smart_cast<CInventoryOwner*>(body);
+	return body && !body->g_Alive() && actor && actor->g_Alive() && inventory &&
+		!inventory->deadbody_closed_status() && actor->Position().distance_to(body->Position()) <= 3.f;
 }
 
 bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet& P, u16 type, u16 destination)
@@ -991,7 +1004,7 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 			if (!dest)
 				return true; // the normal handler reports it
 
-			if (smart_cast<CSE_ALifeCreatureActor*>(dest) && dest != CL->owner)
+			if (smart_cast<CSE_ALifeCreatureActor*>(dest) && dest != CL->owner && !accessible_corpse(CL, dest))
 				return false; // another player's inventory
 			if (living_npc(dest))
 				return false; // living NPC inventories change through server trade
@@ -1007,7 +1020,7 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 					: NULL;
 				if (holder && holder != dest)
 				{
-					if (smart_cast<CSE_ALifeCreatureActor*>(holder) && holder != CL->owner)
+					if (smart_cast<CSE_ALifeCreatureActor*>(holder) && holder != CL->owner && !accessible_corpse(CL, holder))
 						return false;
 					if (living_npc(holder))
 						return false;
@@ -2248,7 +2261,73 @@ void script_watchdog_start()
 int g_netcoop_smooth = 1;
 int g_netcoop_interp_ms = 100;
 int g_netcoop_metrics = 1;
-int g_netcoop_player_predict = 1;
+int g_netcoop_player_predict = 0;
+
+namespace netcoop
+{
+void client_on_physics(NET_Packet& P)
+{
+	if (!pure_client() || P.r_elapsed() < 8) return;
+	const u16 id = P.r_u16();
+	CPhysicsShellHolder* holder = smart_cast<CPhysicsShellHolder*>(Level().Objects.net_Find(id));
+	if (holder) holder->netcoop_physics_import(P);
+}
+
+void server_physics_update(xrServer* server)
+{
+	if (!g_pGameLevel || pure_client()) return;
+	static u32 previous = 0;
+	static u32 tick = 0;
+	const u32 now = real_time_ms();
+	if (previous && now - previous < 50) return;
+	previous = now;
+	++tick;
+	for (u32 n = 0; n < Level().Objects.o_count(); ++n)
+	{
+		CObject* object = Level().Objects.o_get_by_iterator(n);
+		CPhysicsShellHolder* holder = smart_cast<CPhysicsShellHolder*>(object);
+		CEntityAlive* creature = smart_cast<CEntityAlive*>(object);
+		if (!holder || holder->getDestroy() || holder->H_Parent() || !holder->PPhysicsShell()) continue;
+		if (!smart_cast<CInventoryItem*>(object) && !(creature && !creature->g_Alive())) continue;
+		const u16 count = holder->PHGetSyncItemsNumber();
+		if (!count || count > 128) continue;
+		NET_Packet P;
+		P.w_begin(M_NETCOOP_PHYSICS);
+		P.w_u16(holder->ID());
+		P.w_u32(Level().timeServer());
+		P.w_u16(count);
+		for (u16 i = 0; i < count; ++i)
+		{
+			SPHNetState state;
+			holder->PHGetSyncItem(i)->get_State(state);
+			P.w_u8(state.enabled ? 1 : 0);
+			P.w_vec3(state.position);
+			P.w_float(state.quaternion.x);
+			P.w_float(state.quaternion.y);
+			P.w_float(state.quaternion.z);
+			P.w_float(state.quaternion.w);
+			P.w_vec3(state.linear_vel);
+		}
+		struct SendPhysics
+		{
+			xrServer* server;
+			CPhysicsShellHolder* holder;
+			NET_Packet* packet;
+			u32 tick;
+			void operator()(IClient* client)
+			{
+				xrClientData* CL = static_cast<xrClientData*>(client);
+				if (CL == server->GetServerClient() || !CL->flags.bConnected || !CL->gamma_snapshot_ready || !CL->owner) return;
+				const float distance = CL->owner->o_Position.distance_to(holder->Position());
+				const u32 every = distance < 50.f ? 1 : distance < 150.f ? 2 : distance < 300.f ? 5 : 20;
+				if ((tick + holder->ID()) % every || !server->HasSendQueueRoom(CL, 64)) return;
+				server->SendTo(CL->ID, *packet, net_flags(FALSE, TRUE));
+			}
+		} send = {server, holder, &P, tick};
+		server->ForEachClientDo(send);
+	}
+}
+} // namespace netcoop
 
 namespace netcoop
 {

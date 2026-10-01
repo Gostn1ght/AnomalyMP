@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "ai_monster_squad.h"
+#include "../../netcoop.h"
 #include "../../entity.h"
 #include "../../entity_alive.h"
 #include "../../memory_manager.h"
@@ -145,6 +146,15 @@ void CMonsterSquad::GetCommand(CEntity* pE, SSquadCommand& com)
 
 void CMonsterSquad::UpdateSquadCommands()
 {
+    // Keep a live leader, with stable id ordering after death/offline removal.
+    if (netcoop::enabled() && (!leader || !leader->g_Alive() || leader->getDestroy()))
+    {
+        leader = nullptr;
+        for (const auto& member : m_goals)
+            if (member.first->g_Alive() && !member.first->getDestroy() &&
+                (!leader || member.first->ID() < leader->ID())) leader = member.first;
+    }
+    if (!leader) return;
 	// Отменить все команды в группе
 	for (MEMBER_COMMAND_MAP_IT it = m_commands.begin(); it != m_commands.end(); it++)
 	{
@@ -155,12 +165,27 @@ void CMonsterSquad::UpdateSquadCommands()
 	for (MEMBER_GOAL_MAP_IT it_goal = m_goals.begin(); it_goal != m_goals.end(); ++it_goal)
 	{
 		SMemberGoal goal = it_goal->second;
-		if (!goal.entity || goal.entity->getDestroy())
+		if ((goal.type == MG_AttackEnemy || goal.type == MG_PanicFromEnemy) &&
+			(!goal.entity || goal.entity->getDestroy() || !goal.entity->g_Alive()))
 		{
 			it_goal->second.type = MG_None;
 		}
 	}
 
+    if (netcoop::enabled())
+    {
+        const SMemberGoal& goal = GetGoal(leader);
+        if (goal.type == MG_AttackEnemy && goal.entity && goal.entity->g_Alive())
+            for (auto& member : m_goals)
+                if (member.first != leader && member.first->g_Alive() &&
+                    member.first->Position().distance_to(leader->Position()) < 35.f &&
+                    (member.second.type == MG_Rest || member.second.type == MG_WalkGraph || member.second.type == MG_None))
+                {
+                    if (CBaseMonster* monster = smart_cast<CBaseMonster*>(member.first))
+                        monster->EnemyMan.add_enemy(smart_cast<CEntityAlive*>(goal.entity));
+                    member.second = goal;
+                }
+    }
 	ProcessAttack();
 	ProcessIdle();
 }

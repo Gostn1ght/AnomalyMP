@@ -397,6 +397,9 @@ void CLevel::ClientReceive()
 				netcoop::client_on_news(*P);
 			}
 			break;
+		case M_NETCOOP_PHYSICS:
+			netcoop::client_on_physics(*P);
+			break;
 		case M_NETCOOP_SCRIPT:
 			{
 				netcoop::client_on_script(*P);

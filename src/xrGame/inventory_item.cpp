@@ -241,7 +241,7 @@ void CInventoryItem::netcoop_make_kinematic()
 
 void CInventoryItem::netcoop_follow_server_item(const net_update_IItem& N)
 {
-	if (object().H_Parent() || !_valid(N.State.position))
+	if (object().H_Parent() || object().netcoop_physics_buffered() || !_valid(N.State.position))
 		return;
 	netcoop_make_kinematic();
 	// The server sends the physics body's state (its centre of mass), not the
@@ -296,6 +296,11 @@ void CInventoryItem::netcoop_follow_server_item(const net_update_IItem& N)
 
 void CInventoryItem::netcoop_smooth_update()
 {
+	if (object().netcoop_physics_buffered())
+	{
+		netcoop_smooth_stop();
+		return;
+	}
 	if (!m_netcoop_smoothing)
 		return;
 	if (object().H_Parent() || !m_netcoop_has_target)

@@ -184,6 +184,8 @@ void server_list_accounts(xr_string& out);
 
 // Network smoothness (doc 38, stages 0 and 1).
 bool smooth();
+void server_physics_update(xrServer* server);
+void client_on_physics(NET_Packet& P);
 // Server: the object is the Actor of a remote player. Local() is not used
 // for this: on the dedicated server it did not tell these copies apart
 // (s96: players' shots never reached FireStart).

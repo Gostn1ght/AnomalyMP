@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "ai_monster_squad.h"
+#include "../../netcoop.h"
 #include "../../entity.h"
 #include "../../ai_object_location.h"
 
@@ -39,6 +40,28 @@ struct CPredicateSideSort
 
 void CMonsterSquad::Idle_AssignAction(ENTITY_VEC& members)
 {
+    if (netcoop::enabled())
+    {
+        std::sort(members.begin(), members.end(), [](const CEntity* a, const CEntity* b) { return a->ID() < b->ID(); });
+        u32 slot = 0;
+        for (CEntity* member : members)
+        {
+            if (member == leader || !member->g_Alive()) continue;
+            const float side = (slot & 1) ? 1.f : -1.f;
+            const float trail = 2.f + 1.5f * float(slot / 2);
+            SSquadCommand command;
+            command.type = SC_FOLLOW;
+            command.entity = leader;
+            command.node = 0;
+            command.direction = leader->Direction();
+            command.position.mad(leader->Position(), leader->Direction(), -trail);
+            command.position.mad(leader->XFORM().i, side * 1.5f);
+            command.position.y = leader->Position().y;
+            UpdateCommand(member, command);
+            ++slot;
+        }
+        return;
+    }
 	// получить цель лидера
 	SMemberGoal& goal = GetGoal(leader);
 

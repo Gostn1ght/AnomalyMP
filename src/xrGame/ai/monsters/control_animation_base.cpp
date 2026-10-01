@@ -638,7 +638,7 @@ void CControlAnimationBase::check_hit(MotionID motion, float time_perc)
 	// определить дистанцию до врага
 	Fvector d;
 	d.sub(enemy->Position(), m_object->Position());
-	if (d.magnitude() > params.dist)
+	if (m_object->MeleeChecker.distance_to_enemy(enemy) > params.dist)
 		should_hit = false;
 
 	// проверка на  Field-Of-Hit

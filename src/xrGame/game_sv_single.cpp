@@ -443,7 +443,8 @@ u16 netcoop_nearest_player_actor(const Fvector& position)
 	for (u32 i = 0; i < s_netcoop_actor_ids.size(); ++i)
 	{
 		CSE_Abstract* e = s_netcoop_game->get_entity_from_eid(s_netcoop_actor_ids[i]);
-		if (!e)
+		CSE_ALifeCreatureAbstract* creature = smart_cast<CSE_ALifeCreatureAbstract*>(e);
+		if (!creature || !creature->g_Alive())
 			continue;
 		const float d = e->o_Position.distance_to_sqr(position);
 		if (d < best)

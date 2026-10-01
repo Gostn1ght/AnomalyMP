@@ -351,7 +351,8 @@ void CBaseMonster::UpdateCL()
 		update_enemy_accessible_and_at_home_info();
 		CStepManager::update(false);
 
-		update_pos_by_grouping_behaviour();
+		if (!(Remote() && netcoop::pure_client()))
+			update_pos_by_grouping_behaviour();
 	}
 
 	// A netcoop client puppet plays the server's motion; its controllers
@@ -359,7 +360,14 @@ void CBaseMonster::UpdateCL()
 	if (Remote() && netcoop::pure_client())
 	{
 		if (g_Alive())
+		{
+			if (NET_Last.pose_valid)
+			{
+				m_netcoop_motion = NET_Last.monster_motion;
+				m_netcoop_motion_speed = NET_Last.monster_motion_speed;
+			}
 			netcoop_play_motion();
+		}
 	}
 	else
 		control().update_frame();

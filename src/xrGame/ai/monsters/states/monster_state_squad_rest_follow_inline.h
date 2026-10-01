@@ -2,6 +2,7 @@
 
 #include "state_custom_action.h"
 #include "state_move_to_point.h"
+#include "../../../netcoop.h"
 
 #define TEMPLATE_SPECIALIZATION template <\
 	typename _Object\
@@ -40,7 +41,7 @@ TEMPLATE_SPECIALIZATION
 void CStateMonsterSquadRestFollowAbstract::reselect_state()
 {
 	SSquadCommand& command = monster_squad().get_squad(object)->GetCommand(object);
-	if (command.position.distance_to(object->Position()) < Random.randF(STOP_DISTANCE, STAY_DISTANCE))
+	if (command.position.distance_to(object->Position()) < (netcoop::enabled() ? (current_substate == eStateSquad_RestFollow_Idle ? 3.f : 1.5f) : Random.randF(STOP_DISTANCE, STAY_DISTANCE)))
 	{
 		select_state(eStateSquad_RestFollow_Idle);
 	}

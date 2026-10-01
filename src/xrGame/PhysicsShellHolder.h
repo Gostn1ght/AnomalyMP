@@ -3,6 +3,7 @@
 
 #include "GameObject.h"
 #include "ParticlesPlayer.h"
+#include "../xrServerEntities/PHNetState.h"
 #include "../xrEngine/iobjectphysicscollision.h"
 #include "../xrphysics/iphysicsshellholder.h"
 
@@ -65,6 +66,20 @@ public:
 		m_netcoop_throw_velocity.set(velocity);
 		m_netcoop_throw = true;
 	}
+private:
+
+    struct NetcoopPhysicsSnapshot
+    {
+        u32 stamp;
+        xr_vector<SPHNetState> states;
+    };
+    xr_deque<NetcoopPhysicsSnapshot> m_netcoop_physics;
+    CPhysicsShell* m_netcoop_replica_shell = nullptr;
+    bool m_netcoop_physics_processing = false;
+    void netcoop_physics_update();
+public:
+    void netcoop_physics_import(NET_Packet& P);
+    bool netcoop_physics_buffered() const { return !m_netcoop_physics.empty(); }
 private:
 	bool m_netcoop_throw = false;
 	Fmatrix m_netcoop_throw_start;

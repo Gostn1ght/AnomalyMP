@@ -433,7 +433,7 @@ void CCustomMonster::shedule_Update(u32 DT)
 
 void CCustomMonster::net_update::lerp(CCustomMonster::net_update& A, CCustomMonster::net_update& B, float f)
 {
-	// 
+	*this = f < 1.f ? A : B;
 	o_model = angle_lerp(A.o_model, B.o_model, f);
 	o_torso.yaw = angle_lerp(A.o_torso.yaw, B.o_torso.yaw, f);
 	o_torso.pitch = angle_lerp(A.o_torso.pitch, B.o_torso.pitch, f);
@@ -452,7 +452,7 @@ void CCustomMonster::UpdateCL()
 	// Netcoop client: a dead body falls and rolls in this client's own
 	// physics; where it lies is the server's. Move it there when it is more
 	// than 1.5 m off (checked twice a second).
-	if (!g_Alive() && Remote() && netcoop::pure_client() && !NET.empty() && PPhysicsShell() &&
+	if (!netcoop_physics_buffered() && !g_Alive() && Remote() && netcoop::pure_client() && !NET.empty() && PPhysicsShell() &&
 		Device.dwTimeGlobal - m_netcoop_corpse_sync_time > 500)
 	{
 		m_netcoop_corpse_sync_time = Device.dwTimeGlobal;
@@ -517,7 +517,11 @@ void CCustomMonster::UpdateCL()
 			const u32 last_interval = NET.size() >= 2 ? NET.back().dwTimeStamp - NET[NET.size() - 2].dwTimeStamp : 0;
 			u32 dwTime = netcoop::snapshot_now() - netcoop::remote_interp_delay(last_interval);
 			net_update& N = NET.back();
-			if ((dwTime > N.dwTimeStamp) || (NET.size() < 2))
+			if (dwTime < NET.front().dwTimeStamp)
+			{
+				NET_Last = NET.front();
+			}
+			else if ((dwTime > N.dwTimeStamp) || (NET.size() < 2))
 			{
 				// BAD.	extrapolation
 				NET_Last = N;

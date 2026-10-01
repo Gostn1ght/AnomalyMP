@@ -10,6 +10,9 @@
 #include "PHScriptCall.h"
 #include "CustomRocket.h"
 #include "Grenade.h"
+#include "netcoop.h"
+#include "../xrServerEntities/PHSynchronize.h"
+#include "inventory_item.h"
 
 //#include "phactivationshape.h"
 #include "../xrphysics/iphworld.h"
@@ -26,6 +29,18 @@
 CPhysicsShellHolder::CPhysicsShellHolder()
 {
 	init();
+}
+
+// Coulomb friction on the server: the solver limits tangential impulse to
+// mu * normal impulse. Apply only on static ground, retaining collision
+// shape, mass, slopes and the existing material callbacks.
+static void netcoop_item_ground_contact(bool& collide, bool, dContact& contact, SGameMtl*, SGameMtl*)
+{
+	if (!collide || (dGeomGetBody(contact.geom.g1) && dGeomGetBody(contact.geom.g2)) ||
+		_abs(contact.geom.normal[1]) < 0.5f) return;
+	contact.surface.mu = _max(contact.surface.mu, 0.65f);
+	contact.surface.bounce = _min(contact.surface.bounce, 0.08f);
+	contact.surface.bounce_vel = _max(contact.surface.bounce_vel, 1.5f);
 }
 
 CPhysicsShellHolder::~CPhysicsShellHolder()
@@ -72,6 +87,10 @@ const IPhysicsElement* CPhysicsShellHolder::physics_character() const
 
 void CPhysicsShellHolder::net_Destroy()
 {
+	m_netcoop_physics.clear();
+	if (m_netcoop_physics_processing) processing_deactivate();
+	m_netcoop_physics_processing = false;
+	m_netcoop_replica_shell = nullptr;
 	//remove calls
 	CPHSriptReqGObjComparer cmpr(this);
 	Level().ph_commander_scripts().remove_calls(&cmpr);
@@ -246,6 +265,8 @@ void CPhysicsShellHolder::activate_physic_shell()
 	if (netcoop_throw)
 		XFORM().set(m_netcoop_throw_start);
 	create_physic_shell();
+	if (netcoop::enabled() && !netcoop::pure_client() && smart_cast<CInventoryItem*>(this))
+		m_pPhysicsShell->add_ObjectContactCallback(netcoop_item_ground_contact);
 	Fvector l_fw, l_up;
 	l_fw.set(XFORM().k);
 	l_up.set(XFORM().j);
@@ -303,6 +324,8 @@ void CPhysicsShellHolder::setup_physic_shell()
 {
 	VERIFY(!m_pPhysicsShell);
 	create_physic_shell();
+	if (netcoop::enabled() && !netcoop::pure_client() && smart_cast<CInventoryItem*>(this))
+		m_pPhysicsShell->add_ObjectContactCallback(netcoop_item_ground_contact);
 	m_pPhysicsShell->Activate(XFORM(), 0, XFORM());
 	smart_cast<IKinematics*>(Visual())->CalculateBones_Invalidate();
 	smart_cast<IKinematics*>(Visual())->CalculateBones(TRUE);
@@ -400,6 +423,106 @@ void CPhysicsShellHolder::UpdateCL()
 	inherited::UpdateCL();
 	//обновить присоединенные партиклы
 	UpdateParticles();
+	netcoop_physics_update();
+}
+
+void CPhysicsShellHolder::netcoop_physics_import(NET_Packet& P)
+{
+	NetcoopPhysicsSnapshot snapshot;
+	snapshot.stamp = P.r_u32();
+	const u16 count = P.r_u16();
+	// 41 bytes per body: enabled, position, rotation, linear velocity.
+	if (!count || count > 128 || P.r_elapsed() != u32(count) * 41)
+		return;
+	snapshot.states.resize(count);
+	for (SPHNetState& state : snapshot.states)
+	{
+		state.enabled = P.r_u8() != 0;
+		P.r_vec3(state.position);
+		P.r_float(state.quaternion.x);
+		P.r_float(state.quaternion.y);
+		P.r_float(state.quaternion.z);
+		P.r_float(state.quaternion.w);
+		P.r_vec3(state.linear_vel);
+		const float norm = state.quaternion.magnitude();
+		if (!_valid(state.position) || !_valid(state.quaternion) || !_valid(state.linear_vel) || norm < 0.0001f)
+			return;
+		state.quaternion.normalize();
+		state.previous_position = state.position;
+		state.previous_quaternion = state.quaternion;
+		state.angular_vel.set(0.f, 0.f, 0.f);
+		state.force.set(0.f, 0.f, 0.f);
+		state.torque.set(0.f, 0.f, 0.f);
+	}
+	if (H_Parent()) return;
+	if (!m_netcoop_physics.empty())
+	{
+		if (s32(snapshot.stamp - m_netcoop_physics.back().stamp) <= 0) return;
+		if (snapshot.states.size() != m_netcoop_physics.back().states.size() ||
+			snapshot.states[0].position.distance_to(m_netcoop_physics.back().states[0].position) > 3.f)
+			m_netcoop_physics.clear();
+	}
+	netcoop::snapshot_sample(snapshot.stamp);
+	m_netcoop_physics.push_back(std::move(snapshot));
+	while (m_netcoop_physics.size() > 24) m_netcoop_physics.pop_front();
+	if (!m_netcoop_physics_processing)
+	{
+		processing_activate();
+		m_netcoop_physics_processing = true;
+	}
+	netcoop_physics_update();
+}
+
+void CPhysicsShellHolder::netcoop_physics_update()
+{
+	if (!netcoop::pure_client() || m_netcoop_physics.empty()) return;
+	if (H_Parent())
+	{
+		m_netcoop_physics.clear();
+		m_netcoop_replica_shell = nullptr;
+		if (m_netcoop_physics_processing) processing_deactivate();
+		m_netcoop_physics_processing = false;
+		return;
+	}
+	CPhysicsShell* shell = PPhysicsShell();
+	if (!shell || PHGetSyncItemsNumber() != m_netcoop_physics.back().states.size()) return;
+	if (shell != m_netcoop_replica_shell)
+	{
+		shell->DisableCollision();
+		m_netcoop_replica_shell = shell;
+	}
+	shell->Disable(); // only the server integrates collisions and gravity
+	const u32 interval = m_netcoop_physics.size() > 1 ?
+		m_netcoop_physics.back().stamp - m_netcoop_physics[m_netcoop_physics.size() - 2].stamp : 50;
+	const u32 delay = netcoop::remote_interp_delay(interval);
+	const u32 now = netcoop::snapshot_now();
+	const u32 time = now > delay ? now - delay : 0;
+	while (m_netcoop_physics.size() > 2 && s32(time - m_netcoop_physics[1].stamp) >= 0)
+		m_netcoop_physics.pop_front();
+	const NetcoopPhysicsSnapshot& first = m_netcoop_physics.front();
+	const NetcoopPhysicsSnapshot& last = m_netcoop_physics.size() > 1 ? m_netcoop_physics[1] : first;
+	const s32 span = s32(last.stamp - first.stamp);
+	const float factor = span > 0 ? _max(0.f, _min(1.f, float(s32(time - first.stamp)) / span)) : 0.f;
+	for (u16 i = 0; i < first.states.size(); ++i)
+	{
+		SPHNetState state = first.states[i];
+		state.position.lerp(first.states[i].position, last.states[i].position, factor);
+		state.quaternion.slerp(first.states[i].quaternion, last.states[i].quaternion, factor);
+		state.previous_position = state.position;
+		state.previous_quaternion = state.quaternion;
+		state.enabled = false;
+		state.linear_vel.set(0.f, 0.f, 0.f);
+		PHGetSyncItem(i)->set_State(state);
+	}
+	// No extrapolation through walls or floors when a packet is late.
+	shell->GetGlobalTransformDynamic(&XFORM());
+	if (Visual())
+		if (IKinematics* K = Visual()->dcast_PKinematics())
+		{
+			K->CalculateBones_Invalidate();
+			K->CalculateBones(TRUE);
+		}
+	spatial_move();
 }
 
 float CPhysicsShellHolder::EffectiveGravity()

@@ -1034,6 +1034,31 @@ void CAI_Stalker::net_Import(NET_Packet& P)
 	graph_vertex_id = ai_location().game_vertex_id();
 	P.r(&graph_vertex_id, sizeof(GameGraph::_GRAPH_ID));
 
+
+	P.r_float();
+	P.r_float();
+
+	P.r_stringZ(m_sStartDialog);
+
+
+    if (P.r_elapsed() >= 7)
+    {
+        N.movement_type = P.r_u8();
+        N.body_state = P.r_u8();
+        N.mental_state = P.r_u8();
+        N.speed = P.r_float();
+        N.pose_valid = true;
+    }
+    if (P.r_elapsed() >= 13)
+    {
+        N.anim_mode = P.r_u8();
+        for (int i = 0; i < 3; ++i) N.anim[i] = P.r_u32();
+    }
+    if (P.r_elapsed() >= 3)
+    {
+        N.active_slot = P.r_u16();
+        N.hands_flags = P.r_u8();
+    }
 	if (NET.empty() || (NET.back().dwTimeStamp < N.dwTimeStamp))
 	{
 		if (netcoop_puppet() && !NET.empty())
@@ -1045,45 +1070,6 @@ void CAI_Stalker::net_Import(NET_Packet& P)
 	}
 	else if (netcoop_puppet())
 		netcoop::metric_snapshot_duplicate();
-
-	P.r_float();
-	P.r_float();
-
-	P.r_stringZ(m_sStartDialog);
-
-	if (P.r_elapsed() >= 3 + sizeof(float))
-	{
-		const u8 movement_type = P.r_u8();
-		const u8 body_state = P.r_u8();
-		const u8 mental_state = P.r_u8();
-		m_netcoop_speed = P.r_float();
-		if (netcoop_puppet())
-		{
-			movement().set_movement_type(MonsterSpace::EMovementType(movement_type));
-			movement().set_body_state(MonsterSpace::EBodyState(body_state));
-			movement().set_mental_state(MonsterSpace::EMentalState(mental_state));
-		}
-	}
-	if (P.r_elapsed() >= sizeof(u8) + 3 * sizeof(u32))
-	{
-		m_netcoop_anim_mode = P.r_u8();
-		for (int i = 0; i < 3; ++i)
-			m_netcoop_anim[i] = P.r_u32();
-	}
-	if (P.r_elapsed() >= sizeof(u16) + sizeof(u8))
-	{
-		const u16 active_slot = P.r_u16();
-		const u8 hands_flags = P.r_u8();
-		// A puppet holds what the server NPC holds.
-		if (netcoop_puppet())
-		{
-			if (active_slot == NO_ACTIVE_SLOT || (active_slot <= inventory().LastSlot() && inventory().ItemFromSlot(active_slot)))
-				inventory().SetActiveSlot(active_slot);
-			CWeapon* weapon = smart_cast<CWeapon*>(inventory().ActiveItem());
-			if (weapon)
-				weapon->strapped_mode(!!(hands_flags & 1));
-		}
-	}
 
 	setVisible(TRUE);
 	setEnabled(TRUE);
@@ -1208,6 +1194,21 @@ void CAI_Stalker::UpdateCL()
 
 			if (g_Alive())
 			{
+
+                if (netcoop_puppet() && NET_Last.pose_valid)
+                {
+                    movement().set_movement_type(MonsterSpace::EMovementType(NET_Last.movement_type));
+                    movement().set_body_state(MonsterSpace::EBodyState(NET_Last.body_state));
+                    movement().set_mental_state(MonsterSpace::EMentalState(NET_Last.mental_state));
+                    m_netcoop_speed = NET_Last.speed;
+                    m_netcoop_anim_mode = NET_Last.anim_mode;
+                    for (int i = 0; i < 3; ++i) m_netcoop_anim[i] = NET_Last.anim[i];
+                    const u16 slot = NET_Last.active_slot;
+                    if (slot == NO_ACTIVE_SLOT || (slot <= inventory().LastSlot() && inventory().ItemFromSlot(slot)))
+                        inventory().SetActiveSlot(slot);
+                    if (CWeapon* weapon = smart_cast<CWeapon*>(inventory().ActiveItem()))
+                        weapon->strapped_mode(!!(NET_Last.hands_flags & 1));
+                }
 				START_PROFILE("stalker/client_update/sight_manager")
 					VERIFY(!m_pPhysicsShell);
 					if (netcoop_puppet() && netcoop::smooth())

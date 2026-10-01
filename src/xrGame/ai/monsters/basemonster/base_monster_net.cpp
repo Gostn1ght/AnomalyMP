@@ -147,17 +147,6 @@ void CBaseMonster::net_Import(NET_Packet& P)
 	P.r(&l_game_vertex_id, sizeof(l_game_vertex_id));
 
 	const bool puppet = Remote() && netcoop::pure_client();
-	if (NET.empty() || (NET.back().dwTimeStamp < N.dwTimeStamp))
-	{
-		if (puppet && !NET.empty())
-			netcoop::metric_snapshot(N.dwTimeStamp - NET.back().dwTimeStamp);
-		if (puppet)
-			netcoop::snapshot_sample(N.dwTimeStamp);
-		NET.push_back(N);
-		NET_WasInterpolating = TRUE;
-	}
-	else if (puppet)
-		netcoop::metric_snapshot_duplicate();
 
 	//	P.r						(&m_fGoingSpeed,			sizeof(m_fGoingSpeed));
 	//	P.r						(&m_fGoingSpeed,			sizeof(m_fGoingSpeed));
@@ -176,9 +165,22 @@ void CBaseMonster::net_Import(NET_Packet& P)
 	}
 	if (P.r_elapsed() >= sizeof(u32) + sizeof(float))
 	{
-		P.r_u32(m_netcoop_motion);
-		P.r_float(m_netcoop_motion_speed);
+		P.r_u32(N.monster_motion);
+		P.r_float(N.monster_motion_speed);
+		N.pose_valid = true;
 	}
+
+	if (NET.empty() || (NET.back().dwTimeStamp < N.dwTimeStamp))
+	{
+		if (puppet && !NET.empty())
+			netcoop::metric_snapshot(N.dwTimeStamp - NET.back().dwTimeStamp);
+		if (puppet)
+			netcoop::snapshot_sample(N.dwTimeStamp);
+		NET.push_back(N);
+		NET_WasInterpolating = TRUE;
+	}
+	else if (puppet)
+		netcoop::metric_snapshot_duplicate();
 
 	setVisible(TRUE);
 	setEnabled(TRUE);
