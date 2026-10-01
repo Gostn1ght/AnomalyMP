@@ -421,6 +421,23 @@ server_debug_file = function()
 	if get_console then get_console():execute("flush") end
 end
 
+local world_errors = 0
+local function server_world_loop()
+	-- This level call continues even with no connected players. World
+	-- weather/emissions must finish when their initiating player leaves.
+	server_debug_file()
+	if not game_loaded then return false end
+	local previous = rawget(db, "actor")
+	if not previous then db.actor = any_player() or level.object_by_id(0) end
+	local ok, err = pcall(server_world_tick)
+	db.actor = previous
+	if not ok then
+		world_errors = world_errors + 1
+		if world_errors <= 20 then printf("[NetAnomaly] world update error: %s", tostring(err)) end
+	end
+	return false
+end
+
 -- Engine (netcoop.cpp) every 0.5 s for each player, with db.actor bound.
 function update_player_tasks()
 	local a = db.actor
@@ -540,6 +557,7 @@ function on_game_start()
 	install_npc_diagnostic()
 	if AddUniqueCall and ProcessEventQueue then
 		AddUniqueCall(server_event_queue)
+		AddUniqueCall(server_world_loop)
 		printf("[NetAnomaly] server time event queue installed")
 	end
 	-- GAMMA's NPC vision hook reads db.actor (torch, flashlight) for every
