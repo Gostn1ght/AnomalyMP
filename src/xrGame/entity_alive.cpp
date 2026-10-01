@@ -432,6 +432,7 @@ void CEntityAlive::PlaceBloodWallmark(const Fvector& dir, const Fvector& start_p
                                       float trace_dist, float wallmark_size,
                                       IWallMarkArray* pwallmarks_vector)
 {
+    if (netcoop::pure_client()) return; // server owns both wound drops and impact splashes
 	collide::rq_result result;
 	BOOL reach_wall =
 		Level().ObjectSpace.RayPick(
@@ -467,7 +468,11 @@ void CEntityAlive::PlaceBloodWallmark(const Fvector& dir, const Fvector& start_p
 			{
 				//добавить отметку на материале
 				//::Render->add_StaticWallmark(wallmarkShader, end_point, wallmark_size, pTri, pVerts);
-				::Render->add_StaticWallmark(pwallmarks_vector, end_point, wallmark_size, pTri, pVerts);
+				if (netcoop::enabled())
+                    netcoop::replicate_mark(nullptr, result.element, end_point, dir, wallmark_size,
+                        pSettings->r_string(BLOOD_MARKS_SECT,
+                            pwallmarks_vector == &**m_pBloodDropsVector ? "blood_drops" : "wallmarks"));
+                else ::Render->add_StaticWallmark(pwallmarks_vector, end_point, wallmark_size, pTri, pVerts);
 			}
 		}
 	}

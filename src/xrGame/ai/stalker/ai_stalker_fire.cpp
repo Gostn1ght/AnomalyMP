@@ -35,6 +35,8 @@
 #include "../../object_handler_planner.h"
 #include "../../object_handler_space.h"
 #include "../../visual_memory_manager.h"
+#include "../../relation_registry.h"
+#include "../../level.h"
 #include "../../weapon.h"
 #include "ai_stalker_space.h"
 #include "../../effectorshot.h"
@@ -978,14 +980,23 @@ void CAI_Stalker::notify_on_wounded_or_killed(CObject* object)
 	// NPC puppets on a netcoop client have no agent manager; the server runs this.
 	if (netcoop::pure_client())
 		return;
-	CAI_Stalker* stalker = smart_cast<CAI_Stalker*>(object);
-	if (!stalker)
-		return;
-
-	if (!stalker->g_Alive())
-		return;
-
-	stalker->on_enemy_wounded_or_killed(this);
+	CActor* attacker = smart_cast<CActor*>(object);
+    if (netcoop::enabled() && attacker && attacker->g_Alive())
+    {
+        for (u32 i = 0; i < Level().Objects.o_count(); ++i)
+        {
+            CAI_Stalker* witness = smart_cast<CAI_Stalker*>(Level().Objects.o_get_by_iterator(i));
+            if (!witness || witness == this || !witness->g_Alive() || witness->netcoop_puppet() ||
+                witness->g_Team() != g_Team() || witness->g_Squad() != g_Squad() ||
+                witness->g_Group() != g_Group() || witness->Position().distance_to(Position()) > 30.f) continue;
+            if (!witness->memory().visual().visible_now(this) &&
+                !witness->memory().visual().visible_now(attacker) && witness->Position().distance_to(Position()) > 8.f) continue;
+            RELATION_REGISTRY().ForceSetGoodwill(witness->ID(), attacker->ID(), -1000);
+            witness->memory().hit().add(attacker);
+        }
+    }
+    CAI_Stalker* stalker = smart_cast<CAI_Stalker*>(object);
+    if (stalker && stalker->g_Alive()) stalker->on_enemy_wounded_or_killed(this);
 
 	typedef CAgentCorpseManager::MEMBER_CORPSES MEMBER_CORPSES;
 

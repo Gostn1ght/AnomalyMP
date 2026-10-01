@@ -38,7 +38,7 @@ static void netcoop_item_ground_contact(bool& collide, bool, dContact& contact, 
 {
 	if (!collide || (dGeomGetBody(contact.geom.g1) && dGeomGetBody(contact.geom.g2)) ||
 		_abs(contact.geom.normal[1]) < 0.5f) return;
-	contact.surface.mu = _max(contact.surface.mu, 0.65f);
+	contact.surface.mu = _max(contact.surface.mu, 0.25f);
 	contact.surface.bounce = _min(contact.surface.bounce, 0.08f);
 	contact.surface.bounce_vel = _max(contact.surface.bounce_vel, 1.5f);
 }

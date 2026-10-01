@@ -132,6 +132,7 @@ enum
 	M_NETCOOP_PHYSICS, // server -> clients: timestamp, object, rigid-body poses
 	M_NETCOOP_SCRIPT, // server -> client: stringZ channel, stringZ data (server Lua -> client Lua)
 	M_NETCOOP_PDA_SCREEN, // bounded fragments of an owner PDA target, RGB565 + LZO
+	M_NETCOOP_MARK, // authoritative bullet / blood wallmarks
 	MSG_FORCEDWORD = u32(-1)
 };
 static_assert(M_CL_INPUT == 9 && M_CL_UPDATE == 10 && M_CL_INPUT_ACK == 53,

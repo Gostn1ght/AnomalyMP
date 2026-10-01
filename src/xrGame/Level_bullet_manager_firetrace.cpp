@@ -23,6 +23,7 @@
 #include "actor.h"
 #include "ai/monsters/basemonster/base_monster.h"
 #include "script_game_object.h"
+#include "netcoop.h"
 
 //константы ShootFactor, определяющие 
 //поведение пули при столкновении с объектом
@@ -173,6 +174,13 @@ void CBulletManager::FireShotmark(SBullet* bullet, const Fvector& vDir, const Fv
 {
 	SGameMtlPair* mtl_pair = GMLib.GetMaterialPair(bullet->bullet_material_idx, target_material);
 	Fvector particle_dir = vNormal;
+    const bool network_marks = netcoop::enabled();
+    if (network_marks && ShowMark && mtl_pair)
+    {
+        Fvector point = vEnd;
+        if (R.O) point.mad(vEnd, vDir, -0.01f);
+        netcoop::replicate_mark(R.O, R.element, point, vDir, bullet->wallmark_size, mtl_pair->CollideMarksStr.c_str());
+    }
 
 	if (R.O)
 	{
@@ -182,7 +190,7 @@ void CBulletManager::FireShotmark(SBullet* bullet, const Fvector& vDir, const Fv
 		//на текущем актере отметок не ставим
 		if (Level().CurrentEntity() && Level().CurrentEntity()->ID() == R.O->ID()) return;
 
-		if (mtl_pair && !mtl_pair->m_pCollideMarks->empty() && ShowMark)
+		if (mtl_pair && !mtl_pair->m_pCollideMarks->empty() && ShowMark && !network_marks)
 		{
 			//добавить отметку на материале
 			Fvector p;
@@ -202,7 +210,7 @@ void CBulletManager::FireShotmark(SBullet* bullet, const Fvector& vDir, const Fv
 		Fvector* pVerts = Level().ObjectSpace.GetStaticVerts();
 		CDB::TRI* pTri = Level().ObjectSpace.GetStaticTris() + R.element;
 
-		if (mtl_pair && !mtl_pair->m_pCollideMarks->empty() && ShowMark)
+		if (mtl_pair && !mtl_pair->m_pCollideMarks->empty() && ShowMark && !network_marks)
 		{
 			//добавить отметку на материале
 			::Render->add_StaticWallmark(&*mtl_pair->m_pCollideMarks, vEnd, bullet->wallmark_size, pTri, pVerts);

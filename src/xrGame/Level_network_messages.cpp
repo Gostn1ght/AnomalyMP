@@ -397,6 +397,9 @@ void CLevel::ClientReceive()
 				netcoop::client_on_news(*P);
 			}
 			break;
+		case M_NETCOOP_MARK:
+			netcoop::client_on_mark(*P);
+			break;
 		case M_NETCOOP_PDA_SCREEN:
 			netcoop::client_on_pda_screen(*P);
 			break;

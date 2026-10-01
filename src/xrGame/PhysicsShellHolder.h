@@ -30,6 +30,7 @@ class CPhysicsShellHolder : public CGameObject,
                             public IPhysicsShellHolder
 
 {
+	friend class CCharacterPhysicsSupport;
 	bool b_sheduled;
 public:
 	void SheduleRegister()

@@ -35,6 +35,9 @@ void client_capture_pda();
 void server_on_pda_screen(xrServer* server, xrClientData* client, NET_Packet& packet);
 void client_on_pda_screen(NET_Packet& packet);
 void pda_forget(u16 id);
+void replicate_mark(CObject* object, u32 element, const Fvector& position, const Fvector& direction, float size, LPCSTR textures);
+void client_on_mark(NET_Packet& packet);
+void client_marks_update();
 enum ERole : u8
 {
 	role_none = 0,

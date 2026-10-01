@@ -40,6 +40,8 @@
 #include "game_news.h"
 #include "../xrPhysics/PhysicsShell.h"
 #include "../xrServerEntities/PHSynchronize.h"
+#include "../xrEngine/gamemtllib.h"
+#include "../Include/xrRender/Kinematics.h"
 
 namespace netcoop
 {
@@ -682,6 +684,7 @@ void server_list_accounts(xr_string& out)
 
 #include "netcoop_characters.inc"
 #include "netcoop_pda.inc"
+#include "netcoop_marks.inc"
 
 // ---------------------------------------------------------------------------
 // server: authentication
@@ -1098,6 +1101,7 @@ void server_update(xrServer* server)
 	server_physics_update(server);
 	characters_update(server);
 	server_pda_update(server);
+	server_marks_update(server);
 	if (!s_accounts_loaded)
 		return;
 	StoreMoney store;
