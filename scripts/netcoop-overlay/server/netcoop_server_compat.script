@@ -321,6 +321,18 @@ local function init_event_managers()
 	end
 end
 
+-- Remote dialogue bypasses motivator_binder:use_callback, which normally
+-- updates conditions and supplies before the player opens trade.
+function prepare_trade(npc_id)
+	local npc = level.object_by_id(npc_id)
+	if not (npc and db.actor and trade_manager) then return end
+	trade_manager.update(npc)
+	local cfg = trade_manager.get_trade_profile(npc_id, "cfg_ltx")
+	if cfg and netcoop_send_to_actor then
+		netcoop_send_to_actor(db.actor:id(), "trade_cfg", npc_id .. " " .. cfg)
+	end
+end
+
 local game_loaded = false
 local function server_game_load()
 	if game_loaded then return end

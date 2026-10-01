@@ -380,7 +380,7 @@ public:
 	virtual u32 memory_usage() = 0;
 	virtual u32 active_phase() = 0; //Swartz: actor shadow
 	virtual void RenderToTarget(RRT target) = 0;
-    virtual bool CapturePdaPixels(u32 width, u32 height, u8* rgb565) { return false; }
+    virtual bool CapturePdaPixels(u32 width, u32 height, u8* rgb565, const Fvector4& crop) { return false; }
     virtual bool UploadPdaPixels(LPCSTR name, u32 width, u32 height, const u8* rgb565) { return false; }
     virtual void ForgetPdaTexture(LPCSTR name) {}
 	// Constructor/destructor

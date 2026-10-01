@@ -1,4 +1,5 @@
 #include "pch_script.h"
+#include "netcoop.h"
 
 #include "WeaponMagazined.h"
 #include "actor.h"

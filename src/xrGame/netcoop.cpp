@@ -37,6 +37,7 @@
 #include "GameTask.h"
 #include "alife_registry_wrappers.h"
 #include "UIGameCustom.h"
+#include "ui/UIPdaWnd.h"
 #include "game_news.h"
 #include "../xrPhysics/PhysicsShell.h"
 #include "../xrServerEntities/PHSynchronize.h"
@@ -1209,6 +1210,17 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 // ---------------------------------------------------------------------------
 // server: trade
 // ---------------------------------------------------------------------------
+static void prepare_trade(u16 partner_id)
+{
+	if (!enabled() || !g_pGameLevel || !Level().Server) return;
+	::luabind::functor<void> prepare;
+	if (ai().script_engine().functor("netcoop_server_compat.prepare_trade", prepare))
+	{
+		try { prepare(partner_id); }
+		catch (...) { Msg("! [NetAnomaly] trader %u profile preparation failed", partner_id); }
+	}
+}
+
 static void send_trade_result(xrServer* server, xrClientData* CL, bool ok, LPCSTR message)
 {
 	NET_Packet P;
@@ -1258,6 +1270,8 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 	}
 
 	// The partner's CTrade: bBuying == true means the partner buys (actor sells).
+	ServerActorScope trade_actor_scope(actor);
+	prepare_trade(partner_id);
 	const bool partner_buys = direction == trade_actor_sells;
 	CObject* seller = partner_buys ? static_cast<CObject*>(actor) : partner_object;
 
@@ -1750,6 +1764,7 @@ void server_on_talk(xrServer* server, xrClientData* CL, NET_Packet& P)
 	{
 		if (actor->IsTalking())
 			actor->StopTalk();
+		prepare_trade(npc_id);
 		s_talk_sessions.erase(CL->ID.value());
 
 		const bool offered = npc->OfferTalk(actor);
@@ -2294,6 +2309,7 @@ bool script_send_to_actor(u16 actor_id, LPCSTR channel, LPCSTR data)
 
 bool server_open_ui(u16 actor_id, LPCSTR kind, u16 partner_id)
 {
+	prepare_trade(partner_id);
 	string128 data;
 	xr_sprintf(data, "%s %u", kind, partner_id);
 	const bool sent = script_send_to_actor(actor_id, "open_ui", data);

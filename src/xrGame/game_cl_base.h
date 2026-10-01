@@ -32,6 +32,7 @@ protected:
 	CUIGameCustom* m_game_ui_custom;
 	u16 m_u16VotingEnabled;
 	bool m_bServerControlHits;
+	bool m_netcoop_environment_synced = false;
 
 public:
 	typedef associative_vector<ClientID, game_PlayerState*> PLAYERS_MAP;

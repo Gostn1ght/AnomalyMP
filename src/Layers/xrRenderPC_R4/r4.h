@@ -433,7 +433,7 @@ public:
 	virtual void rmNormal();
 	virtual u32 active_phase() { return phase; }; //Swartz: actor shadow
 	void RenderToTarget(RRT target) override;
-    bool CapturePdaPixels(u32 width, u32 height, u8* rgb565) override;
+    bool CapturePdaPixels(u32 width, u32 height, u8* rgb565, const Fvector4& crop) override;
     bool UploadPdaPixels(LPCSTR name, u32 width, u32 height, const u8* rgb565) override;
     void ForgetPdaTexture(LPCSTR name) override;
     xr_map<shared_str, ref_texture> netcoop_pda_textures;

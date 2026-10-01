@@ -1276,6 +1276,9 @@ BOOL CActor::net_Relevant() // relevant for export to server
 
 void CActor::SetCallbacks()
 {
+	// The ragdoll owns these bones after death. Replacing its callbacks with
+	// standing head/spine rotations tears the visible body away from the shell.
+	if (netcoop::enabled() && !g_Alive() && PPhysicsShell()) return;
 	IKinematics* V = smart_cast<IKinematics*>(Visual());
 	VERIFY(V);
 	u16 spine0_bone = V->LL_BoneID("bip01_spine");

@@ -714,11 +714,15 @@ void CRender::RenderToTarget(RRT target)
 
 // Downsample the dedicated PDA target; the game backbuffer is never exposed
 // through this API. Network capture is limited to three frames per second.
-bool CRender::CapturePdaPixels(u32 width, u32 height, u8* pixels)
+bool CRender::CapturePdaPixels(u32 width, u32 height, u8* pixels, const Fvector4& crop)
 {
     if (!width || !height || width > 256 || height > 192 || !pixels || !Target || !Target->rt_ui_pda) return false;
     ID3D11Texture2D* source = Target->rt_ui_pda->pSurface;
     D3D11_TEXTURE2D_DESC desc; source->GetDesc(&desc);
+    if (crop.x < 0.f || crop.y < 0.f || crop.z > 1.f || crop.w > 1.f || crop.x >= crop.z || crop.y >= crop.w) return false;
+    const u32 left = u32(crop.x * desc.Width), top = u32(crop.y * desc.Height);
+    const u32 crop_width = _max(1u, u32((crop.z - crop.x) * desc.Width));
+    const u32 crop_height = _max(1u, u32((crop.w - crop.y) * desc.Height));
     if (desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM && desc.Format != DXGI_FORMAT_B8G8R8A8_UNORM &&
         desc.Format != DXGI_FORMAT_R10G10B10A2_UNORM) return false;
     desc.Usage = D3D11_USAGE_STAGING; desc.BindFlags = 0; desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ; desc.MiscFlags = 0;
@@ -729,10 +733,11 @@ bool CRender::CapturePdaPixels(u32 width, u32 height, u8* pixels)
     if (FAILED(HW.pContext->Map(staging, 0, D3D11_MAP_READ, 0, &mapped))) { staging->Release(); return false; }
     for (u32 y = 0; y < height; ++y)
     {
-        const u32* row = (const u32*)((const u8*)mapped.pData + (y * desc.Height / height) * mapped.RowPitch);
+        const u32 sy = _min(desc.Height - 1, top + y * crop_height / height);
+        const u32* row = (const u32*)((const u8*)mapped.pData + sy * mapped.RowPitch);
         for (u32 x = 0; x < width; ++x)
         {
-            const u32 pixel = row[x * desc.Width / width];
+            const u32 pixel = row[_min(desc.Width - 1, left + x * crop_width / width)];
             u32 red, green, blue;
             if (desc.Format == DXGI_FORMAT_R10G10B10A2_UNORM)
             { red = (pixel & 1023) >> 5; green = ((pixel >> 10) & 1023) >> 4; blue = ((pixel >> 20) & 1023) >> 5; }

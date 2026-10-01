@@ -4,6 +4,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "netcoop.h"
 
 #include "customoutfit.h"
 #include "../xrphysics/PhysicsShell.h"
@@ -298,6 +299,8 @@ void CCustomOutfit::OnMoveToSlot(const SInvItemPlace& prev)
 
 void CCustomOutfit::ApplySkinModel(CActor* pActor, bool bDress, bool bHUDOnly)
 {
+	// Removing armour from a corpse must not rebuild its active ragdoll.
+	if (netcoop::enabled() && !pActor->g_Alive()) return;
 	if (bDress)
 	{
 		if (!bHUDOnly && m_ActorVisual.size())

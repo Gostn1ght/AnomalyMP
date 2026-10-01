@@ -1,7 +1,7 @@
 // Included inside netcoop namespace. Only the PDA render target is sampled;
 // no HUD, desktop, game world, password or menu content is transmitted.
-static const u32 pda_width = 160, pda_height = 120, pda_bytes = pda_width * pda_height * 2;
-static const u32 pda_chunk = 6000, pda_limit = 40000;
+static const u32 pda_width = 256, pda_height = 192, pda_bytes = pda_width * pda_height * 2;
+static const u32 pda_chunk = 6000, pda_limit = 120000;
 struct PdaFrame
 {
     u32 sequence = 0, started = 0, complete = 0, relayed = 0;
@@ -54,7 +54,11 @@ void client_capture_pda()
     if (last && now - last < 334) return;
     last = now;
     xr_vector<u8> pixels(pda_bytes);
-    if (!Render->CapturePdaPixels(pda_width, pda_height, pixels.data())) return;
+    if (!CurrentGameUI()) return;
+    const Frect& rect = CurrentGameUI()->GetPdaMenu().m_cursor_box;
+    Fvector4 crop; crop.set(rect.left / UI_BASE_WIDTH, rect.top / UI_BASE_HEIGHT,
+                           rect.right / UI_BASE_WIDTH, rect.bottom / UI_BASE_HEIGHT);
+    if (!Render->CapturePdaPixels(pda_width, pda_height, pixels.data(), crop)) return;
     const u32 crc = crc32(pixels.data(), pda_bytes);
     if (device->ID() == previous_id && crc == previous_crc && now - unchanged < 2000) return;
     if (previous_id != device->ID()) Msg("[NetAnomaly][PDA] owner frame device=%u", device->ID());
