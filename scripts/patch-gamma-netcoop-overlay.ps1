@@ -76,6 +76,23 @@ foreach ($role in @('client','server')) {
         'if (id == AC_ID) or state then' `
         'if not item or (id == AC_ID) or state then'
 }
+Replace-Once (Join-Path $runtime 'server\scripts\gameplay_disguise.script') `
+    'character_community(db.actor):sub(7)' `
+    '(db.actor and character_community(db.actor):sub(7))'
+
+# Level changer placement belongs to the authority. Pure clients lack the
+# simulation smart terrain registry and cannot create server entities here.
+foreach ($module in @('lc_custom', 'lc_extra_transitions')) {
+    Replace-Once (Join-Path $runtime "client\scripts\$module.script") `
+        'function actor_on_first_update()' `
+        "function actor_on_first_update()`n`tif netcoop_pure_client and netcoop_pure_client() then return end"
+}
+
+# A replicated weapon can arrive before its server-owned parts metadata.
+# Keep the generic weapon handling active without inventing random parts.
+Replace-Once (Join-Path $runtime 'client\scripts\arti_jamming.script') `
+    'local saved_parts = item_parts.get_parts_con(gun, nil, true)' `
+    'local saved_parts = item_parts.get_parts_con(gun, nil, true) or {}'
 
 # Emission visuals run on clients, but every damage event comes from the server.
 # The two stock direct hits bypass the overridable manager mortality methods.
