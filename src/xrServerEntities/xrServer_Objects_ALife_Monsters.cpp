@@ -1540,7 +1540,7 @@ void CSE_ALifeCreatureActor::UPDATE_Read(NET_Packet& tNetPacket)
 		// Retain it for connection data so a late join starts in the right armour.
 		shared_str authoritative_visual;
 		tNetPacket.r_stringZ(authoritative_visual);
-		if (authoritative_visual.size()) set_visual(authoritative_visual);
+		if (authoritative_visual.size()) set_visual(authoritative_visual.c_str());
 	}
 	////////////////////////////////////////////////////
 	tNetPacket.r_u16(m_u16NumItems);

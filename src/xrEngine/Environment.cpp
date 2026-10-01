@@ -598,6 +598,9 @@ void CEnvironment::OnFrame()
 #else
 	if (!g_pGameLevel) return;
 #endif
+	// The level can still exist while its environment is already unloaded.
+	if (!CurrentWeather || !eff_Rain || !eff_LensFlare || !eff_Thunderbolt)
+		return;
 
 	// Min wind velocity. [ ps_ssfx_wind_trees.w 0 ~ 1 ]
 	float WindVel = _max(CurrentEnv->wind_velocity, ps_ssfx_wind_trees.w * 1000);

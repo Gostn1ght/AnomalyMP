@@ -213,6 +213,11 @@ dxEnvironmentRender::dxEnvironmentRender()
 void dxEnvironmentRender::OnFrame(CEnvironment& env)
 {
 	dxEnvDescriptorMixerRender& mixRen = *(dxEnvDescriptorMixerRender*)&*env.CurrentEnv->m_pDescriptorMixer;
+	// Unloading a level clears the mixer before the last persistent frame.
+	// Do not dereference its empty sky references during disconnect/reload.
+	if (mixRen.sky_r_textures.size() < 2 ||
+		!mixRen.sky_r_textures[0].second || !mixRen.sky_r_textures[1].second)
+		return;
 
 	if (::Render->get_generation() == IRender_interface::GENERATION_R2)
 	{
