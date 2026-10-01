@@ -17,6 +17,8 @@
 #include "string_table.h"
 #include "xr_level_controller.h"
 #include "InventoryOwner.h"
+#include "Inventory.h"
+#include "PDA.h"
 #include "inventory_item.h"
 #include "entity_alive.h"
 #include "trade.h"
@@ -615,6 +617,7 @@ void server_list_accounts(xr_string& out)
 }
 
 #include "netcoop_characters.inc"
+#include "netcoop_pda.inc"
 
 // ---------------------------------------------------------------------------
 // server: authentication
@@ -1015,6 +1018,7 @@ void server_update(xrServer* server)
 	server_talk_prune(server);
 	server_physics_update(server);
 	characters_update(server);
+	server_pda_update(server);
 	if (!s_accounts_loaded)
 		return;
 	StoreMoney store;

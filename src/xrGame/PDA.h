@@ -19,6 +19,9 @@ class CPda :
 {
 	typedef CHudItemObject inherited;
 public:
+	IRenderVisual* m_netcoop_screen = nullptr;
+	void netcoop_apply_screen(const u8* pixels, u32 width, u32 height);
+	void renderable_Render() override;
 	CPda();
 	virtual ~CPda();
 

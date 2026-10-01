@@ -711,3 +711,66 @@ void CRender::RenderToTarget(RRT target)
 	HW.pContext->CopyResource((*RT)->pSurface, pBuffer);
 	pBuffer->Release();
 }
+
+// Downsample the dedicated PDA target; the game backbuffer is never exposed
+// through this API. Network capture is limited to three frames per second.
+bool CRender::CapturePdaPixels(u32 width, u32 height, u8* pixels)
+{
+    if (!width || !height || width > 256 || height > 192 || !pixels || !Target || !Target->rt_ui_pda) return false;
+    ID3D11Texture2D* source = Target->rt_ui_pda->pSurface;
+    D3D11_TEXTURE2D_DESC desc; source->GetDesc(&desc);
+    if (desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM && desc.Format != DXGI_FORMAT_B8G8R8A8_UNORM &&
+        desc.Format != DXGI_FORMAT_R10G10B10A2_UNORM) return false;
+    desc.Usage = D3D11_USAGE_STAGING; desc.BindFlags = 0; desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ; desc.MiscFlags = 0;
+    ID3D11Texture2D* staging = nullptr;
+    if (FAILED(HW.pDevice->CreateTexture2D(&desc, nullptr, &staging))) return false;
+    HW.pContext->CopyResource(staging, source);
+    D3D11_MAPPED_SUBRESOURCE mapped;
+    if (FAILED(HW.pContext->Map(staging, 0, D3D11_MAP_READ, 0, &mapped))) { staging->Release(); return false; }
+    for (u32 y = 0; y < height; ++y)
+    {
+        const u32* row = (const u32*)((const u8*)mapped.pData + (y * desc.Height / height) * mapped.RowPitch);
+        for (u32 x = 0; x < width; ++x)
+        {
+            const u32 pixel = row[x * desc.Width / width];
+            u32 red, green, blue;
+            if (desc.Format == DXGI_FORMAT_R10G10B10A2_UNORM)
+            { red = (pixel & 1023) >> 5; green = ((pixel >> 10) & 1023) >> 4; blue = ((pixel >> 20) & 1023) >> 5; }
+            else
+            {
+                red = (pixel & 255) >> 3; green = ((pixel >> 8) & 255) >> 2; blue = ((pixel >> 16) & 255) >> 3;
+                if (desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM) std::swap(red, blue);
+            }
+            const u16 rgb = u16((red << 11) | (green << 5) | blue);
+            pixels[(y * width + x) * 2] = u8(rgb); pixels[(y * width + x) * 2 + 1] = u8(rgb >> 8);
+        }
+    }
+    HW.pContext->Unmap(staging, 0); staging->Release(); return true;
+}
+
+bool CRender::UploadPdaPixels(LPCSTR name, u32 width, u32 height, const u8* pixels)
+{
+    if (!name || !pixels || !width || !height || width > 256 || height > 192) return false;
+    xr_vector<u32> rgba(width * height);
+    for (u32 i = 0; i < rgba.size(); ++i)
+    {
+        const u16 rgb = u16(pixels[i * 2] | (u16(pixels[i * 2 + 1]) << 8));
+        const u32 red = ((rgb >> 11) & 31) * 255 / 31, green = ((rgb >> 5) & 63) * 255 / 63, blue = (rgb & 31) * 255 / 31;
+        rgba[i] = red | (green << 8) | (blue << 16) | 0xff000000;
+    }
+    D3D11_TEXTURE2D_DESC desc = {};
+    desc.Width = width; desc.Height = height; desc.MipLevels = desc.ArraySize = desc.SampleDesc.Count = 1;
+    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; desc.Usage = D3D11_USAGE_DEFAULT; desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    D3D11_SUBRESOURCE_DATA data = {rgba.data(), width * 4, 0};
+    ID3D11Texture2D* surface = nullptr;
+    if (FAILED(HW.pDevice->CreateTexture2D(&desc, &data, &surface))) return false;
+    ref_texture& texture = netcoop_pda_textures[shared_str(name)];
+    if (!texture) texture.create(name);
+    texture->surface_set(surface); surface->Release(); texture->flags.bLoaded = true; texture->PostLoad();
+    return true;
+}
+
+void CRender::ForgetPdaTexture(LPCSTR name)
+{
+    netcoop_pda_textures.erase(shared_str(name));
+}

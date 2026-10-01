@@ -17,6 +17,7 @@
 #include "ui\UIPdaWnd.h"
 #include "ai_sounds.h"
 #include "Inventory.h"
+#include "netcoop.h"
 
 CPda::CPda(void)
 {
@@ -51,6 +52,9 @@ BOOL CPda::net_Spawn(CSE_Abstract* DC)
 
 void CPda::net_Destroy()
 {
+    netcoop::pda_forget(ID());
+    if (m_netcoop_screen) Render->model_Delete(m_netcoop_screen);
+    string64 texture; xr_sprintf(texture, "$user$netcoop_pda_%u", ID()); Render->ForgetPdaTexture(texture);
 	inherited::net_Destroy();
 	TurnOff();
 	feel_touch.clear();
@@ -1098,4 +1102,26 @@ void CPda::PlayScriptFunction()
 		R_ASSERT(ai().script_engine().functor(m_functor_str.c_str(), m_functor));
 		m_functor();
 	}
+}
+
+void CPda::netcoop_apply_screen(const u8* pixels, u32 width, u32 height)
+{
+    if (g_dedicated_server) return;
+    string64 texture; xr_sprintf(texture, "$user$netcoop_pda_%u", ID());
+    if (!Render->UploadPdaPixels(texture, width, height, pixels)) return;
+    if (!m_netcoop_screen)
+    {
+        string_path path;
+        if (!FS.exist(path, "$game_meshes$", "netcoop\\pda_screen.ogf")) return;
+        m_netcoop_screen = Render->model_Create("netcoop\\pda_screen");
+        if (m_netcoop_screen) m_netcoop_screen->SetShaderTexture("models\\selflight", texture);
+    }
+}
+
+void CPda::renderable_Render()
+{
+    inherited::renderable_Render();
+    if (!m_netcoop_screen || IsHidden() || !H_Parent() || (::Render->get_HUD() && GetHUDmode())) return;
+    Render->set_Transform(&XFORM());
+    Render->add_Visual(m_netcoop_screen);
 }

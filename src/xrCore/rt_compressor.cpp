@@ -44,3 +44,10 @@ u32 rtc_decompress(void* dst, u32 dst_len, const void* src, u32 src_len)
 	VERIFY(r == LZO_E_OK);
 	return out_size;
 }
+
+u32 rtc_decompress_safe(void* dst, u32 dst_len, const void* src, u32 src_len)
+{
+    lzo_uint size = dst_len;
+    const int result = lzo1x_decompress_safe((const lzo_byte*)src, src_len, (lzo_byte*)dst, &size, nullptr);
+    return result == LZO_E_OK ? u32(size) : 0;
+}

@@ -30,6 +30,10 @@ extern int g_netcoop_player_predict;
 
 namespace netcoop
 {
+void client_capture_pda();
+void server_on_pda_screen(xrServer* server, xrClientData* client, NET_Packet& packet);
+void client_on_pda_screen(NET_Packet& packet);
+void pda_forget(u16 id);
 enum ERole : u8
 {
 	role_none = 0,

@@ -1330,6 +1330,7 @@ void CLevel::OnRender()
 					cursor->OnRender();
 			}
 			Render->RenderToTarget(Render->rtPDA);
+			netcoop::client_capture_pda();
 
 			ps_r4_hdr10_pda = 0;
 		}

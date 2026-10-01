@@ -886,6 +886,9 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
 			netcoop::server_on_auth(this, CL, P);
 		}
 		break;
+	case M_NETCOOP_PDA_SCREEN:
+		netcoop::server_on_pda_screen(this, CL, P);
+		break;
 	case M_NETCOOP_TRADE:
 		{
 			if (!CL->flags.bLocal && CL->netcoop_role != netcoop::role_none)

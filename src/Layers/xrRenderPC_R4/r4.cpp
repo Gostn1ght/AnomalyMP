@@ -561,6 +561,7 @@ void CRender::create()
 
 void CRender::destroy()
 {
+	netcoop_pda_textures.clear();
 	m_bMakeAsyncSS = false;
 	FluidManager.Destroy();
 	::PortalTraverser.destroy();
