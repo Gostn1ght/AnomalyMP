@@ -1535,9 +1535,12 @@ void CSE_ALifeCreatureActor::UPDATE_Read(NET_Packet& tNetPacket)
 		tNetPacket.r_u16(m_netcoop_hands);
 		tNetPacket.r_u16(m_netcoop_outfit);
 		tNetPacket.r_u16(m_netcoop_helmet);
-		// The native server Actor derives the visual from owned armour.
-		shared_str claimed_visual;
-		tNetPacket.r_stringZ(claimed_visual);
+		// Process_update accepts the local authority only. Its Actor has
+		// already validated the owner's outfit and derived the actual visual.
+		// Retain it for connection data so a late join starts in the right armour.
+		shared_str authoritative_visual;
+		tNetPacket.r_stringZ(authoritative_visual);
+		if (authoritative_visual.size()) set_visual(authoritative_visual);
 	}
 	////////////////////////////////////////////////////
 	tNetPacket.r_u16(m_u16NumItems);
