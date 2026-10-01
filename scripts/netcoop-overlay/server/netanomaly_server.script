@@ -17,6 +17,7 @@ local HELP_ADMIN = table.concat({
 	"~          give_money <amount>               - change own balance",
 	"~          find <text> [limit]               - search sections",
 	"~          weather <name> [now]              - weather for everyone (now = no transition)",
+	"~          emission start                    - start a shared emission",
 	"~          cmd <console command>             - run on the server",
 	"~          lua <code>                        - run Lua on the server (debug)",
 }, "\n")
@@ -147,6 +148,9 @@ function on_client_command(cid, name, entity_id, text, role)
 		obj:give_money(amount)
 		return string.format("* balance: %d RU", obj:money())
 
+	elseif cmd == "emission" then
+		if args ~= "start" then return "! usage: emission start" end
+		return netcoop_emission.start() and "* emission started for all players" or "! emission already active or unavailable here"
 	elseif cmd == "weather" then
 		local wname, now = string.match(args, "^([%w_%.%-]+)%s*(%a*)$")
 		if not wname then return "! usage: weather <name> [now]" end

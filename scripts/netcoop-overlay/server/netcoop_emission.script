@@ -1,0 +1,162 @@
+-- One authority for the emission clock, damage, quests and artefact respawn.
+-- Visual/sound effects use GAMMA's manager on the clients.
+local installed = false
+local sequence, started_at, normal_factor = 0, nil, nil
+local next_send, players = 0, {}
+local duration = 222
+
+local function manager() return surge_manager.get_surge_manager() end
+local function elapsed() return started_at and math.max(0, (time_global() - started_at) / 1000) or 0 end
+local function valid_level()
+    local name = level.name()
+    return level_weathers.valid_levels[name] == true and name ~= "l13_generators" and name ~= "l11_hospital"
+end
+local function next_interval(mgr)
+    local frequency = math.max(1, math.floor(tonumber(ui_options.get("alife/event/emission_frequency")) or 24))
+    mgr._delta = math.random(math.max(1, math.floor(frequency / 2)) * 3600, frequency * 3600)
+end
+local function payload()
+    return string.format("%d|%d|%.3f|%d", sequence, started_at and 1 or 0, elapsed(), duration)
+end
+
+function start()
+    install()
+    if started_at then return false end
+    if not valid_level() then return false end
+    local flags = { allow = true }
+    SendScriptCallback("on_before_surge", flags)
+    if flags.allow == false then return false end
+    local mgr = manager()
+    sequence = sequence + 1
+    started_at, normal_factor = time_global(), level.get_time_factor()
+    players, next_send = {}, 0
+    mgr.inited_time = game.get_game_time()
+    mgr.game_time_factor = normal_factor
+    mgr.started, mgr.finished = true, false
+    level.set_time_factor(10)
+    SetEvent("surge", "state", true)
+    SendScriptCallback("actor_on_interaction", "anomalies", nil, "emission_start")
+    printf("[NetAnomaly] emission started: " .. sequence)
+    return true
+end
+
+function finish()
+    if not started_at then return false end
+    local mgr = manager()
+    -- Stock world mortality respects story NPCs, faction immunity and shelters.
+    -- Player mortality is evaluated independently in update_player().
+    mgr:kill_objects_at_pos(false, "kill_at_end", false)
+    mgr:kill_crows_at_pos(false, true)
+    mgr.started, mgr.finished = false, true
+    mgr.last_surge_time = game.get_game_time()
+    started_at = nil
+    level.set_time_factor(normal_factor or 6)
+    next_interval(mgr)
+    SetEvent("surge", "state", false)
+    SendScriptCallback("actor_on_interaction", "anomalies", nil, "emissions")
+    SendScriptCallback("actor_on_interaction", "anomalies", nil, "emission_end")
+    netcoop_broadcast("emission", payload())
+    next_send = time_global() + 1000
+    printf("[NetAnomaly] emission finished: " .. sequence)
+    return true
+end
+
+function install()
+    if installed then return end
+    installed = true
+    local mgr = manager()
+    -- The dedicated server has no Actor binder to run the stock main loop.
+    mgr.update = function() end
+    mgr.start = function() return start() end
+    mgr.end_surge = function() return finish() end
+    mgr.started, mgr.finished = false, true
+    mgr.last_surge_time = game.get_game_time()
+    next_interval(mgr)
+    local state = alife_storage_manager.get_state()
+    if state.artefact_respawn_levels and state.artefact_respawn_levels[level.name()] then
+        state.artefact_respawn_levels[level.name()] = nil
+        bind_anomaly_zone.force_spawn_artefacts()
+    end
+end
+
+function update_world()
+    install()
+    local mgr = manager()
+    if not started_at and valid_level() and ui_options.get("alife/event/emission_state")
+        and game.get_game_time():diffSec(mgr.last_surge_time) >= mgr._delta then
+        start()
+    end
+    -- Finish after every player's final damage tick, rather than before it.
+    if started_at and elapsed() >= duration + 1 then finish() end
+    if time_global() >= next_send then
+        next_send = time_global() + 1000
+        netcoop_broadcast("emission", payload())
+    end
+end
+
+local function safe_cover(mgr, actor)
+    local pos, nearest, distance = actor:position(), nil, math.huge
+    for name, conditions in pairs(mgr.covers or {}) do
+        local zone = db.zone_by_name[name]
+        if zone and (not conditions or xr_logic.pick_section_from_condlist(actor, zone, conditions) == "true") then
+            if zone:inside(pos) then return zone:id(), zone:id() end
+            local d = pos:distance_to_sqr(zone:position())
+            if d < distance then nearest, distance = zone:id(), d end
+        end
+    end
+    return nil, nearest
+end
+local function protected(actor)
+    local community = character_community(actor)
+    return (netcoop_server_compat.god_mode[actor:id()] == true)
+        or load_var(actor, "surge_immuned", false) == true
+        or community == "actor_monolith" or community == "actor_zombied"
+end
+local function hit_player(mgr, actor, power)
+    -- Drug protection is cached by the single-player manager; clear it between owners.
+    mgr.drug_telepatic_protection, mgr.drug_radiation_protection, mgr.drug_chemical_burn_protection = nil, nil, nil
+    local h = hit()
+    h.type, h.impulse, h.direction, h.draftsman = hit.telepatic, 0, VEC_Z, actor
+    h.power = mgr:hit_power(power, h.type)
+    if mgr.survive and xr_logic.pick_section_from_condlist(actor, nil, mgr.survive) == "true" then
+        h.power = math.min(h.power, math.max(0, actor.health - 0.05))
+    end
+    if h.power > 0 then actor:hit(h) end
+end
+
+function update_player(actor)
+    local mgr, id = manager(), actor:id()
+    local own = players[id]
+    if not own then
+        own = { last = elapsed(), wave1 = false, wave2 = false }
+        players[id] = own
+        netcoop_send_to_actor(id, "emission", payload())
+    end
+    local cover, nearest = safe_cover(mgr, actor)
+    SetEvent("current_safe_cover", cover)
+    SetEvent("nearest_safe_cover", nearest)
+    if not started_at then return end
+    local t = math.min(duration, elapsed())
+    SetEvent("surge", "time", t)
+    if t >= 30 and not own.task then
+        own.task = true
+        task_manager.get_task_manager():give_task("hide_from_surge")
+    end
+    local dt = math.max(0, math.min(1, t - own.last))
+    own.last = t
+    if not actor:alive() or cover or protected(actor) then
+        own.wave1, own.wave2 = t >= 137, t >= 185
+        return
+    end
+    if t >= 108 and t < 210 then hit_player(mgr, actor, 0.3 * dt / 10) end
+    if t >= 137 and not own.wave1 then
+        own.wave1 = true
+        hit_player(mgr, actor, 2.5)
+    end
+    local fate = ui_options.get("alife/event/emission_fate") or "kill_at_wave"
+    if t >= 185 and not own.wave2 then
+        own.wave2 = true
+        if fate ~= "kill_at_end" then hit_player(mgr, actor, 10) end
+    end
+    if t >= duration then hit_player(mgr, actor, 10) end
+end

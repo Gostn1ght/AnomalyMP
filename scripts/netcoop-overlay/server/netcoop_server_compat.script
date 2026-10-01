@@ -379,6 +379,7 @@ local function server_world_tick()
 	local now = time_global()
 	if now < world_next then return end
 	world_next = now + 500 -- a weather change reaches everyone within ~0.5 s
+	netcoop_emission.update_world()
 
 	local wm = level_weathers and level_weathers.get_weather_manager()
 	if not wm then return end
@@ -423,6 +424,7 @@ function update_player_tasks()
 	server_game_load()
 	install_hide_hud()
 	server_world_tick()
+	netcoop_emission.update_player(a)
 	server_debug_file()
 	-- Forget managers of players who left.
 	for id in pairs(player_tasks) do

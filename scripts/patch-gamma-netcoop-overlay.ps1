@@ -77,6 +77,12 @@ foreach ($role in @('client','server')) {
         'if not item or (id == AC_ID) or state then'
 }
 
+# Emission visuals run on clients, but every damage event comes from the server.
+# The two stock direct hits bypass the overridable manager mortality methods.
+Replace-Once (Join-Path $runtime 'client\scripts\surge_manager.script') `
+    'db.actor:hit(h)' `
+    'if not (netcoop_pure_client and netcoop_pure_client()) then db.actor:hit(h) end'
+
 # mcm_log flushes its log files from a per-frame call whose device() lookup
 # fails on the dedicated server; logs are still flushed on its other events.
 Replace-Once (Join-Path $runtime 'server\scripts\mcm_log.script') `
