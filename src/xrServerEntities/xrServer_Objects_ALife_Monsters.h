@@ -333,6 +333,9 @@ SERVER_ENTITY_DECLARE_BEGIN3(CSE_ALifeCreatureActor, CSE_ALifeCreatureAbstract, 
 	//	float							fArmor;
 	float fRadiation;
 	u8 weapon;
+	u16 m_netcoop_hands = u16(-1);
+	u16 m_netcoop_outfit = u16(-1);
+	u16 m_netcoop_helmet = u16(-1);
 	///////////////////////////////////////////
 	u16 m_u16NumItems;
 	u16 m_holderID;
@@ -436,8 +439,9 @@ SERVER_ENTITY_DECLARE_END
 SERVER_ENTITY_DECLARE_BEGIN2(CSE_ALifeMonsterBase, CSE_ALifeMonsterAbstract, CSE_PHSkeleton)
 	u16 m_spec_object_id;
 	// Netcoop: the motion a server monster plays, shown by client puppets.
-	u32 m_netcoop_motion = 0;
+	u32 m_netcoop_motion = u32(-1);
 	float m_netcoop_motion_speed = 1.f;
+	float m_netcoop_motion_phase = 0.f;
 
 	CSE_ALifeMonsterBase(LPCSTR caSection); // constructor for variable initialization
 	virtual ~CSE_ALifeMonsterBase();

@@ -1530,6 +1530,15 @@ void CSE_ALifeCreatureActor::UPDATE_Read(NET_Packet& tNetPacket)
 	tNetPacket.r_sdir(velocity);
 	tNetPacket.r_float(fRadiation);
 	tNetPacket.r_u8(weapon);
+	if (strstr(Core.Params, "-netcoop"))
+	{
+		tNetPacket.r_u16(m_netcoop_hands);
+		tNetPacket.r_u16(m_netcoop_outfit);
+		tNetPacket.r_u16(m_netcoop_helmet);
+		// The native server Actor derives the visual from owned armour.
+		shared_str claimed_visual;
+		tNetPacket.r_stringZ(claimed_visual);
+	}
 	////////////////////////////////////////////////////
 	tNetPacket.r_u16(m_u16NumItems);
 
@@ -1572,6 +1581,13 @@ void CSE_ALifeCreatureActor::UPDATE_Write(NET_Packet& tNetPacket)
 	tNetPacket.w_sdir(velocity);
 	tNetPacket.w_float(fRadiation);
 	tNetPacket.w_u8(weapon);
+	if (strstr(Core.Params, "-netcoop"))
+	{
+		tNetPacket.w_u16(m_netcoop_hands);
+		tNetPacket.w_u16(m_netcoop_outfit);
+		tNetPacket.w_u16(m_netcoop_helmet);
+		tNetPacket.w_stringZ(get_visual());
+	}
 	////////////////////////////////////////////////////
 	tNetPacket.w_u16(m_u16NumItems);
 	if (!m_u16NumItems) return;
@@ -2019,6 +2035,8 @@ void CSE_ALifeMonsterBase::UPDATE_Read(NET_Packet& tNetPacket)
 	{
 		tNetPacket.r_u32(m_netcoop_motion);
 		tNetPacket.r_float(m_netcoop_motion_speed);
+		if (tNetPacket.r_elapsed() >= sizeof(float))
+			tNetPacket.r_float(m_netcoop_motion_phase);
 	}
 }
 
@@ -2028,6 +2046,7 @@ void CSE_ALifeMonsterBase::UPDATE_Write(NET_Packet& tNetPacket)
 	inherited2::UPDATE_Write(tNetPacket);
 	tNetPacket.w_u32(m_netcoop_motion);
 	tNetPacket.w_float(m_netcoop_motion_speed);
+	tNetPacket.w_float(m_netcoop_motion_phase);
 }
 
 void CSE_ALifeMonsterBase::load(NET_Packet& tNetPacket)
