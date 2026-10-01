@@ -1,6 +1,6 @@
 -- Fixed RP wheel. Plain Z is reserved before GAMMA's actor callbacks.
 local MENU_KEY = DIK_keys.DIK_Z
-local CX, CY, RADIUS = 512, 384, 310
+local CX, CY, RADIUS = 512, 384, 350
 local ORDER = {
     "hands_pockets", "salute", "greet", "refuse", "hands_behind", "look_around", "listen",
     "hands_up", "guard", "sit_1", "sit_2", "sit_3", "sleep", "pushups",
@@ -45,31 +45,34 @@ function netcoop_rp_wnd:__init() super()
     self.caption = xml:InitStatic("cap_selected", self)
     self.status = xml:InitStatic("cap_status", self)
     local hint = xml:InitStatic("cap_hint", self)
-    hint:TextControl():SetText(game.translate_string("st_netcoop_rp_hint"))
+    hint:TextControl():SetText(string.gsub(game.translate_string("st_netcoop_rp_hint"), "\\n", "\n"))
     for _, label in ipairs({self.title, self.caption, self.status, hint}) do
         local pos = label:GetWndPos()
-        label:SetWndPos(vector2():set(CX - 190 * self.xscale, pos.y))
-        label:SetWndSize(vector2():set(380 * self.xscale, label:GetHeight()))
+        label:SetWndPos(vector2():set(CX - 130 * self.xscale, pos.y))
+        label:SetWndSize(vector2():set(260 * self.xscale, label:GetHeight()))
     end
     self.icons, self.marks = {}, {}
     for i, a in ipairs(self.anims) do
-        local angle = -math.pi / 2 + (i - 1) * 2 * math.pi / #ORDER
-        local x, y = CX + 268 * math.cos(angle) * self.xscale, CY + 268 * math.sin(angle)
+        local outer = i <= 14
+        local slot = (i - 1) % 14
+        local angle = -math.pi / 2 + slot * 2 * math.pi / 14
+        local radius, size = outer and 296 or 196, outer and 78 or 68
+        local x, y = CX + radius * math.cos(angle) * self.xscale, CY + radius * math.sin(angle)
         local mark = xml:InitStatic("selection", self)
-        mark:SetWndPos(vector2():set(x - 29 * self.xscale, y - 29))
-        mark:SetWndSize(vector2():set(58 * self.xscale, 58))
+        mark:SetWndPos(vector2():set(x - (size + 4) / 2 * self.xscale, y - (size + 4) / 2))
+        mark:SetWndSize(vector2():set((size + 4) * self.xscale, size + 4))
         mark:Show(false)
         self.marks[i] = mark
         local icon = xml:InitStatic("pose_icon", self)
         icon:InitTexture("ui_netcoop_pose_" .. a.name)
-        icon:SetWndPos(vector2():set(x - 26 * self.xscale, y - 26))
-        icon:SetWndSize(vector2():set(52 * self.xscale, 52))
+        icon:SetWndPos(vector2():set(x - size / 2 * self.xscale, y - size / 2))
+        icon:SetWndSize(vector2():set(size * self.xscale, size))
         if not a.enabled then icon:SetTextureColor(GetARGB(80, 160, 160, 160)) end
         self.icons[i] = icon
     end
     local stop = xml:Init3tButton("btn_stop", self)
-    stop:SetWndPos(vector2():set(CX - 100 * self.xscale, 430))
-    stop:SetWndSize(vector2():set(200 * self.xscale, 38))
+    stop:SetWndPos(vector2():set(CX - 105 * self.xscale, 416))
+    stop:SetWndSize(vector2():set(210 * self.xscale, 34))
     stop:TextControl():SetText(game.translate_string("st_netcoop_rp_stop"))
     self:Register(stop, "btn_rp_stop")
     self:AddCallback("btn_rp_stop", ui_events.BUTTON_CLICKED, function()
@@ -85,7 +88,7 @@ function netcoop_rp_wnd:SetSelected(index)
     local a = index and self.anims[index]
     if a then
         self.marks[index]:Show(true)
-        self.caption:TextControl():SetText(string.format("%02d / 28\\n%s", index,
+        self.caption:TextControl():SetText(string.format("%02d / 28\n%s", index,
             game.translate_string(a.title or ("st_netcoop_rp_" .. a.name))))
     else
         self.caption:TextControl():SetText(game.translate_string("st_netcoop_rp_select"))
@@ -98,9 +101,10 @@ function netcoop_rp_wnd:Update()
     local dx, dy = (p.x - CX) / self.xscale, p.y - CY
     local radius = math.sqrt(dx * dx + dy * dy)
     local index
-    if radius >= 220 and radius <= RADIUS + 10 then
-        local angle = (math.atan2(dy, dx) + math.pi / 2 + math.pi / #ORDER) % (2 * math.pi)
-        index = math.floor(angle * #ORDER / (2 * math.pi)) + 1
+    if radius >= 144 and radius <= RADIUS then
+        local angle = (math.atan2(dy, dx) + math.pi / 2 + math.pi / 14) % (2 * math.pi)
+        index = math.floor(angle * 14 / (2 * math.pi)) + 1
+        if radius < 244 then index = index + 14 end
     end
     self:SetSelected(index)
     local active = netcoop_rp_active and netcoop_rp_active() or ""

@@ -22,19 +22,24 @@ local function warn_once(what)
 end
 
 local controlled_actor = nil
+local controlled_actor_id = nil
+local destroyed_actor_id = nil
 local use_own_actor_id -- defined below
+local install_actor_lifecycle
 
 -- The locally controlled Actor: set by the engine hook after spawn, or
 -- recovered from the view entity when this script loaded too late for it.
 local function local_actor()
 	if not (level and level.present and level.present()) then
 		controlled_actor = nil
+		controlled_actor_id = nil
 		return nil
 	end
 	if controlled_actor then return controlled_actor end
 	local e = level.get_view_entity and level.get_view_entity()
-	if e and e:clsid() == clsid.script_actor then
+	if e and e:clsid() == clsid.script_actor and e:id() ~= destroyed_actor_id then
 		controlled_actor = e
+		controlled_actor_id = e:id()
 		use_own_actor_id(e)
 	end
 	return controlled_actor
@@ -96,14 +101,57 @@ end
 -- Engine hook (Level_network_spawn.cpp) after the local Actor is assigned.
 function on_actor_spawned(obj)
 	controlled_actor = obj
+	controlled_actor_id = obj:id()
+	destroyed_actor_id = nil
+	db.actor = obj
+	install_actor_lifecycle()
 	use_own_actor_id(obj)
 	quiet_busy_hands()
 	CreateTimeEvent("netcoop_client", "equip_pda", 5, equip_pda)
 end
 
 function on_actor_destroyed(obj)
-	if controlled_actor and obj and controlled_actor:id() == obj:id() then
+	if obj and controlled_actor_id == obj:id() then
+		destroyed_actor_id = controlled_actor_id
 		controlled_actor = nil
+		controlled_actor_id = nil
+		rawset(db, "actor", nil)
+	end
+end
+
+-- A dead local actor can remain as a lootable corpse after a new actor spawns.
+-- Its binder must never update or tear down the new actor's global HUD/state.
+install_actor_lifecycle = function()
+	local binder = bind_stalker and bind_stalker.actor_binder
+	if not binder or binder.__netcoop_lifecycle then return end
+	binder.__netcoop_lifecycle = true
+	local destroy, update = binder.net_destroy, binder.update
+	binder.update = function(self, ...)
+		if self.__netcoop_destroying or self.object:id() ~= controlled_actor_id then return end
+		return update(self, ...)
+	end
+	binder.net_destroy = function(self, ...)
+		if self.__netcoop_destroying then return end
+		self.__netcoop_destroying = true
+		if self.object:id() ~= controlled_actor_id then
+			if USE_MARSHAL then UnregisterScriptCallback("save_state", self) end
+			db.del_obj(self.object)
+			db.delete_enemy(self.object)
+			return object_binder.net_destroy(self)
+		end
+		local ok, err = pcall(destroy, self, ...)
+		on_actor_destroyed(self.object)
+		if not ok then error(err) end
+	end
+	-- db.del_actor in GAMMA ignores its argument and dereferences db.actor.
+	-- Use the valid binder object, then clear the fallback pointer as well.
+	db.del_actor = function(obj)
+		obj = obj or rawget(db, "actor")
+		if not obj then return end
+		db.del_obj(obj)
+		if obj:id() ~= controlled_actor_id then return end
+		db.actor_proxy:net_destroy()
+		on_actor_destroyed(obj)
 	end
 end
 
@@ -504,6 +552,7 @@ local function init_event_managers()
 end
 
 function on_game_start()
+	install_actor_lifecycle()
 	install_weather_follow()
 	-- Keep the faction relations the engine read from the table: GAMMA's
 	-- reset_all_relations (run when no faction select window marked a new

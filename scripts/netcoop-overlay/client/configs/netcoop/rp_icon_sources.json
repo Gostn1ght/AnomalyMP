@@ -1,0 +1,114 @@
+{
+  "hands_pockets": {
+    "motion": "lead_1_idle_0",
+    "frame_fraction": 0.4
+  },
+  "salute": {
+    "motion": "otdacha_chesti",
+    "frame_fraction": 0.4
+  },
+  "greet": {
+    "motion": "hello_0_idle_0",
+    "frame_fraction": 0.4
+  },
+  "refuse": {
+    "motion": "net_0_0",
+    "frame_fraction": 0.4
+  },
+  "hands_behind": {
+    "motion": "ohrana_1",
+    "frame_fraction": 0.4
+  },
+  "look_around": {
+    "motion": "poisk_0_idle_1",
+    "frame_fraction": 0.4
+  },
+  "listen": {
+    "motion": "prisluh_0_0",
+    "frame_fraction": 0.4
+  },
+  "hands_up": {
+    "motion": "hand_up_0",
+    "frame_fraction": 0.4
+  },
+  "guard": {
+    "motion": "chasovoy_1",
+    "frame_fraction": 0.4
+  },
+  "sit_1": {
+    "motion": "sit_0_idle_0",
+    "frame_fraction": 0.4
+  },
+  "sit_2": {
+    "motion": "sit_1_idle_0",
+    "frame_fraction": 0.4
+  },
+  "sit_3": {
+    "motion": "sit_2_idle_0",
+    "frame_fraction": 0.4
+  },
+  "sleep": {
+    "motion": "sleep_idle_0",
+    "frame_fraction": 0.4
+  },
+  "pushups": {
+    "motion": "otzimani_2_idle",
+    "frame_fraction": 0.4
+  },
+  "bar_1": {
+    "motion": "bar_0_idle_0",
+    "frame_fraction": 0.4
+  },
+  "bar_2": {
+    "motion": "bar_2_idle_0",
+    "frame_fraction": 0.4
+  },
+  "bar_3": {
+    "motion": "lead_1_bar_idle_0",
+    "frame_fraction": 0.4
+  },
+  "bar_4": {
+    "motion": "bar_1_idle_0",
+    "frame_fraction": 0.4
+  },
+  "bar_5": {
+    "motion": "bar_3_idle_0",
+    "frame_fraction": 0.4
+  },
+  "bar_6": {
+    "motion": "bar_4_idle_0",
+    "frame_fraction": 0.4
+  },
+  "trance_1": {
+    "motion": "trans_0_idle_0",
+    "frame_fraction": 0.4
+  },
+  "trance_2": {
+    "motion": "trans_1_idle_0",
+    "frame_fraction": 0.4
+  },
+  "wounded_1": {
+    "motion": "wounded_idle_0",
+    "frame_fraction": 0.4
+  },
+  "wounded_2": {
+    "motion": "waunded_1_idle_0",
+    "frame_fraction": 0.4
+  },
+  "prisoner": {
+    "motion": "prisoner_0_sit_idle_0",
+    "frame_fraction": 0.4
+  },
+  "psy": {
+    "motion": "psy_0_idle_0",
+    "frame_fraction": 0.4
+  },
+  "gop_stop": {
+    "motion": "gop_stop_1_0",
+    "frame_fraction": 0.4
+  },
+  "loot": {
+    "motion": "waunded_1_in",
+    "frame_fraction": 0.4
+  }
+}

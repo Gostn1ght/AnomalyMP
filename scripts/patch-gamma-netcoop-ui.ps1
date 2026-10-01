@@ -32,16 +32,15 @@ foreach ($scriptRoot in @('client\scripts', 'gamedata\scripts')) {
         Replace-Exact (Join-Path $runtime "$scriptRoot\$name") 'alife():actor():character_name()' 'db.actor:character_name()'
     }
 
-    # Pure netcoop clients skip the GAMMA Actor binder because it requires
-    # local ALife. The engine invokes this hook only after assigning the
-    # locally controlled Actor, so remote actors cannot replace db.actor.
+    # Expose the owner after ownership is assigned. Binder teardown owns the
+    # actor lifetime: the generic destroy callback runs before that teardown.
     $callbacks = Join-Path $runtime "$scriptRoot\callbacks_gameobject.script"
     $previousSpawn = "_G.CGameObject_NetSpawn = function(obj)`n`tif not alife() and db and level.actor() and obj:id() == level.actor():id() then`n`t`tdb.actor = obj`n`tend`n`tSendScriptCallback(`"game_object_on_net_spawn`", obj)`nend"
     $plainSpawn = "_G.CGameObject_NetSpawn = function(obj)`n`tSendScriptCallback(`"game_object_on_net_spawn`", obj)`nend"
     Replace-Exact $callbacks $previousSpawn $plainSpawn
     $oldDestroy = "_G.CGameObject_NetDestroy = function(obj)`n`tSendScriptCallback(`"game_object_on_net_destroy`", obj)`nend"
     $newDestroy = "_G.CGameObject_NetDestroy = function(obj)`n`tif db and db.actor and db.actor:id() == obj:id() then`n`t`tdb.actor = nil`n`tend`n`tSendScriptCallback(`"game_object_on_net_destroy`", obj)`nend"
-    Replace-Exact $callbacks $oldDestroy $newDestroy
+    Replace-Exact $callbacks $newDestroy $oldDestroy
     $registry = '-- Game objects registry'
     $hook = "_G.NetCoopClientActorSpawned = function(obj)`n`tif db then db.actor = obj end`nend`n`n-- Game objects registry"
     Replace-Exact $callbacks $registry $hook

@@ -443,9 +443,24 @@ local squad_attackers = {}
 function on_squad_attacked(npc_id, attacker_id)
 	local npc, attacker = level.object_by_id(npc_id), level.object_by_id(attacker_id)
 	if not npc or not attacker or not npc:alive() or not attacker:alive() then return end
-	if get_object_story_id(npc_id) then return end
 	squad_attackers[npc_id] = {id = attacker_id, until_time = time_global() + 300000}
 	printf("[NetAnomaly][AI] squad witness %s confronts attacker %s", npc_id, attacker_id)
+end
+
+local function on_camp_member_hit(victim, amount, direction, attacker)
+	if not victim or not attacker or amount <= 0 or attacker:clsid() ~= clsid.script_actor then return end
+	local community = victim:character_community()
+	for id, storage in pairs(db.storage) do
+		local npc = storage.object
+		if npc and id ~= victim:id() and npc:clsid() == clsid.script_stalker and npc:alive()
+			and npc:character_community() == community then
+			local distance = npc:position():distance_to_sqr(victim:position())
+			if distance < 64 or (distance < 900 and (npc:see(victim) or npc:see(attacker))) then
+				on_squad_attacked(id, attacker:id())
+				npc:set_relation(game_object.enemy, attacker)
+			end
+		end
+	end
 end
 
 local function witnessed_enemy(npc, enemy)
@@ -480,6 +495,7 @@ end
 
 function on_game_start()
 	install_squad_witnesses()
+	RegisterScriptCallback("npc_on_hit_callback", on_camp_member_hit)
 	-- The dedicated server skips the single-player Actor binder constructor,
 	-- which normally loads these themes before NPC net_spawn initializes its
 	-- voices. Camps and scripted NPC speech still need that initialization.

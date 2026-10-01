@@ -3,7 +3,7 @@
 ;
 ; [rp_list]    order of the menu; each name has its own [rp_<name>] section.
 ; in / mid / out  motion chains: "in" plays once, "mid" repeats while
-;                 loop = true, "out" plays once when the player moves or
+;                 loop = true, "out" plays once when the explicit exit button is used or
 ;                 picks another animation.
 ; title        string id of the menu name (configs\text\*\st_netcoop.xml).
 
@@ -40,29 +40,29 @@ loot
 [rp_hands_pockets]
 title = st_netcoop_rp_hands_pockets
 in    = lead_1_in_0
-mid   = lead_1_idle_0, lead_1_idle_1, lead_1_idle_4, lead_1_idle_8, lead_1_idle_9
+mid   = lead_1_idle_0
 out   = lead_1_out_0
 loop  = true
 
 [rp_salute]
 title = st_netcoop_rp_salute
-in    = chest_0_idle_0
-mid   = chest_0_idle_2, chest_0_idle_1
-out   = chest_0_idle_3
+in    = otdacha_chesti
+mid   =
+out   =
 loop  = false
 
 [rp_greet]
 title = st_netcoop_rp_greet
 in    = hello_0_idle_0
-mid   = idle_0_idle_1
-out   = idle_0_idle_1
+mid   =
+out   =
 loop  = false
 
 [rp_refuse]
 title = st_netcoop_rp_refuse
 in    = net_0_0
-mid   = idle_0_idle_1
-out   = idle_0_idle_1
+mid   =
+out   =
 loop  = false
 
 [rp_hands_behind]
@@ -82,7 +82,7 @@ loop  = true
 [rp_listen]
 title = st_netcoop_rp_listen
 in    = prisluh_0_in
-mid   = prisluh_0_0, prisluh_0_1, prisluh_0_2
+mid   = prisluh_0_0
 out   = prisluh_0_out
 loop  = true
 
@@ -96,49 +96,49 @@ loop  = true
 [rp_guard]
 title = st_netcoop_rp_guard
 in    = chasovoy_0
-mid   = chasovoy_1, chasovoy_2, chasovoy_3
+mid   = chasovoy_1
 out   = chasovoy_4
 loop  = true
 
 [rp_sit_1]
 title = st_netcoop_rp_sit_1
 in    = idle_0_to_sit_0
-mid   = item_0_idle_0, item_0_idle_1, item_0_idle_2, item_0_idle_3
+mid   = sit_0_idle_0
 out   = sit_0_lazy_idle_0
 loop  = true
 
 [rp_sit_2]
 title = st_netcoop_rp_sit_2
 in    = idle_0_to_sit_1
-mid   = item_2_aim_0, item_2_prepare_0
+mid   = sit_1_idle_0
 out   = item_2_sit_0, sit_0_lazy_idle_0
 loop  = true
 
 [rp_sit_3]
 title = st_netcoop_rp_sit_3
 in    = idle_0_to_sit_2
-mid   = sit_2_idle_0, sit_2_idle_1, sit_2_idle_2, sit_2_idle_3
+mid   = sit_2_idle_0
 out   = sit_2_lazy_idle_0
 loop  = true
 
 [rp_sleep]
 title = st_netcoop_rp_sleep
 in    = idle_0_to_sit_0, sit_0_to_sleep_0
-mid   = sleep_idle_0, sleep_idle_1
+mid   = sleep_idle_0
 out   = sleep_0_to_sit_0, sit_0_lazy_idle_0
 loop  = true
 
 [rp_pushups]
 title = st_netcoop_rp_pushups
 in    = otzimani_2_in
-mid   = otzimani_2_act
+mid   = otzimani_2_idle
 out   = otzimani_2_out
 loop  = true
 
 [rp_bar_1]
 title = st_netcoop_rp_bar_1
 in    = bar_0_idle_in
-mid   = bar_0_idle_0, bar_0_idle_1, bar_0_idle_2, bar_0_idle_3
+mid   = bar_0_idle_0
 out   = bar_0_idle_out
 loop  = true
 
@@ -159,7 +159,7 @@ loop  = true
 [rp_bar_4]
 title = st_netcoop_rp_bar_4
 in    = bar_1_idle_in
-mid   = bar_1_idle_0, bar_1_idle_1, bar_1_idle_2, bar_1_idle_3
+mid   = bar_1_idle_0
 out   = bar_1_idle_out
 loop  = true
 
@@ -194,7 +194,7 @@ loop  = true
 [rp_wounded_1]
 title = st_netcoop_rp_wounded_1
 in    = idle_to_wounded_0
-mid   = wounded_idle_0, wounded_opasno_0
+mid   = wounded_idle_0
 out   = wounded_to_idle_0
 loop  = true
 
@@ -215,7 +215,7 @@ loop  = true
 [rp_psy]
 title = st_netcoop_rp_psy
 in    = idle_0_to_psy_0_idle_0
-mid   = psy_0_idle_0, psy_0_idle_1, psy_0_idle_2, psy_0_idle_3
+mid   = psy_0_idle_0
 out   = psy_0_idle_0_to_idle_0
 loop  = true
 

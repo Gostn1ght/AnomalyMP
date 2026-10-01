@@ -87,90 +87,80 @@ class Outline:
         return result
 
 
+# Draw the actual selected keyframe, using the engine's OMF bone transforms.
+# Costume detail is deliberately sparse so small white outlines remain readable.
+import importlib, configparser
+Motions = importlib.import_module('read-omf-poses').Motions
+runtime = Path(__file__).resolve().parents[2] / 'gamma-runtime/gamedata/meshes'
+actor = runtime/'actors/stalker_radseva_series/stalker_monolith_radseva.ogf'
+libraries = [Motions(runtime/'actors'/name, actor) for name in
+             ('stalker_animation.omf','stalker_scripts_animation.omf','stalker_smart_cover_animation.omf')]
+cfg = configparser.ConfigParser(allow_no_value=True)
+cfg.read(CLIENT/'configs/netcoop/rp_anims.ltx')
+pose_sources = {}
+
 def pose(name):
+    import numpy as np
+    section=cfg['rp_'+name]
+    motions=[n.strip() for n in (section['mid'] or section['in']).split(',') if n.strip()]
+    motion=motions[0] if section['mid'] else motions[-1]
+    library=next(m for m in libraries if motion in m.motions)
+    points=library.pose(motion, .4)
+    angle=math.radians(22)
+    if name in ('sleep','pushups'): angle=math.radians(78)
+    elif name.startswith('bar_') or name in ('loot','wounded_2'): angle=math.radians(45)
+    keys=['bip01_head','bip01_neck','bip01_pelvis']
+    for side in ('l','r'):
+        keys += ['bip01_'+side+'_'+n for n in ('upperarm','forearm','hand','thigh','calf','foot','toe0')]
+    def raw(n):
+        x,y,z=points[n];return np.array((-x*math.cos(angle)+z*math.sin(angle),-y))
+    bounds=np.array([raw(n) for n in keys])
+    lo=bounds.min(0)-(.24,.25);hi=bounds.max(0)+(.24,.20)
+    scale=min(100/(hi[0]-lo[0]),104/(hi[1]-lo[1]))
+    centre=(lo+hi)/2
+    def at(n):return tuple((raw(n)-centre)*scale+(64,64))
     o=Outline()
-    shoulder=(64,40); waist=(64,73)
-    arms=[[(49,43),(43,62),(47,78)],[(79,43),(85,62),(81,78)]]
-    legs=[[(57,74),(54,91),(52,109)],[(71,74),(75,91),(77,109)]]
-    rear=name=='hands_behind'
-    if name=='hands_pockets':
-        arms=[[(49,43),(40,60),(53,65)],[(79,43),(88,60),(75,65)]]
-    elif name=='salute': arms[1]=[(79,43),(94,39),(74,23)]
-    elif name=='greet': arms[1]=[(79,43),(97,34),(100,13)]
-    elif name=='refuse': arms=[[(49,43),(44,60),(78,42)],[(79,43),(85,60),(50,42)]]
-    elif name=='hands_behind': arms=[[(49,43),(43,62),(60,79)],[(79,43),(85,62),(68,79)]]
-    elif name=='look_around': arms[1]=[(79,43),(96,35),(68,18)]
-    elif name=='listen': arms[1]=[(79,43),(95,43),(78,28)]
-    elif name=='hands_up': arms=[[(49,43),(32,36),(30,12)],[(79,43),(96,36),(98,12)]]
-    elif name=='guard': arms=[[(49,43),(43,66),(62,59)],[(79,43),(86,63),(76,52)]]
-    elif name.startswith('sit_') or name in ('trance_2','wounded_2','prisoner'):
-        shoulder=(64,49); waist=(64,79)
-        arms=[[(49,52),(39,73),(42,86)],[(79,52),(90,73),(86,86)]]
-        legs=[[(57,80),(36,89),(41,109)],[(71,80),(91,89),(91,109)]]
-        if name=='sit_2':
-            arms=[[(49,52),(44,73),(53,81)],[(79,52),(84,73),(75,81)]]
-            legs=[[(57,80),(56,94),(54,109)],[(71,80),(73,94),(75,109)]]
-        elif name=='sit_3' or name=='trance_2':
-            legs=[[(57,80),(34,101),(77,109)],[(71,80),(96,101),(49,110)]]
-        if name=='trance_2': arms=[[(49,52),(36,77),(28,78)],[(79,52),(92,77),(100,78)]]
-        elif name=='wounded_2':
-            shoulder=(57,52)
-            arms=[[(42,55),(36,75),(63,73)],[(72,55),(83,77),(58,79)]]
-        elif name=='prisoner':
-            arms=[[(49,52),(34,37),(53,28)],[(79,52),(94,37),(75,28)]]
-            legs=[[(57,80),(42,99),(58,108)],[(71,80),(88,99),(71,108)]]
-    elif name=='sleep':
-        shoulder=(39,76);waist=(75,80)
-        arms=[[(42,63),(36,82),(24,86)],[(42,89),(56,98),(31,92)]]
-        legs=[[(76,74),(93,82),(109,95)],[(76,87),(90,100),(108,101)]]
-    elif name=='pushups':
-        shoulder=(38,59);waist=(78,72)
-        arms=[[(41,46),(32,75),(25,100)],[(35,72),(43,84),(39,101)]]
-        legs=[[(80,67),(98,82),(108,99)],[(76,79),(88,91),(95,103)]]
-    elif name.startswith('bar_'):
-        if name in ('bar_1','bar_3','bar_5'): shoulder=(58,41)
-        arms=[[(shoulder[0]-15,44),(35,64),(55,68)],[(shoulder[0]+15,44),(87,63),(75,68)]]
-        if name=='bar_2': arms[1]=[(79,43),(95,47),(77,29)]
-        elif name=='bar_3': arms[1]=[(73,44),(85,67),(101,67)]
-        elif name=='bar_4': arms[1]=[(79,43),(96,47),(100,29)]
-        elif name=='bar_5':
-            shoulder=(55,49)
-            arms=[[(40,52),(31,67),(48,69)],[(70,52),(87,67),(79,69)]]
-        elif name=='bar_6': arms=[[(49,43),(32,54),(22,42)],[(79,43),(96,54),(106,42)]]
-    elif name=='trance_1':
-        arms=[[(49,43),(35,61),(30,80)],[(79,43),(93,61),(98,80)]]
-    elif name=='wounded_1':
-        shoulder=(55,48)
-        arms=[[(40,51),(35,72),(63,70)],[(70,51),(82,73),(57,78)]]
-        legs=[[(57,74),(48,92),(45,110)],[(71,74),(80,92),(85,110)]]
-    elif name=='psy': arms=[[(49,43),(32,31),(52,24)],[(79,43),(96,31),(76,24)]]
-    elif name=='gop_stop': arms=[[(49,43),(35,63),(38,79)],[(79,43),(95,40),(106,25)]]
-    elif name=='loot':
-        shoulder=(56,55);waist=(67,81)
-        arms=[[(41,58),(31,76),(22,95)],[(71,58),(88,77),(96,97)]]
-        legs=[[(60,82),(44,101),(65,110)],[(74,82),(90,88),(95,110)]]
-    # Rear limbs first. Jacket seams stay readable through the transparent art.
-    for leg in legs: o.leg(leg)
-    o.torso(shoulder,waist,rear)
-    for arm in arms: o.arm(arm)
-    if name=='guard':
-        o.line([(37,55),(83,52),(95,48),(100,50),(83,57),(60,60),(45,61),(38,67)],closed=True)
-        o.line([(71,56),(72,64),(78,63),(78,55)],1.5)
-    if name.startswith('bar_'):
-        o.line([(20,72),(108,72),(108,78),(20,78)],1.8,True)
-        o.line([(28,78),(28,115)],1.8);o.line([(101,78),(101,115)],1.8)
-        if name=='bar_2':
-            o.line([(75,23),(83,23),(83,34),(75,34)],1.6,True)
-            o.line([(83,25),(87,25),(87,31),(83,31)],1.5)
-    if name=='sit_2':
-        o.line([(47,84),(84,84),(84,88),(47,88)],1.6,True)
-        o.line([(47,88),(47,115)],1.6);o.line([(84,88),(84,115)],1.6)
-    if name=='sleep' or name=='pushups': o.line([(12,116),(116,116)],1.5)
-    if name=='loot': o.line([(10,105),(27,101),(39,107),(36,117),(12,117)],1.7,True)
-    if name=='greet':
-        o.line([(108,18),(113,15)],1.7);o.line([(106,9),(108,4)],1.7)
+    def limb(nodes,widths):o.tube([at(n) for n in nodes], [v*scale for v in widths])
+    for side in ('l','r'):
+        pre='bip01_'+side+'_'
+        limb([pre+'thigh',pre+'calf',pre+'foot'], [.095,.078,.06])
+        o.tube([at(pre+'foot'),at(pre+'toe0')],[.065*scale,.05*scale])
+    # Jacket contour joins the actual shoulder and hip locations.
+    left=np.array(at('bip01_l_upperarm'));right=np.array(at('bip01_r_upperarm'))
+    hip=np.array(at('bip01_pelvis'));neck=np.array(at('bip01_neck'))
+    down=hip-neck;down/=np.linalg.norm(down)
+    across=np.array((down[1],-down[0]));w=.15*scale
+    if np.dot(right-left,across)<0: across=-across
+    polygon=[tuple(left-across*.025*scale),tuple(right+across*.025*scale),
+             tuple(hip+across*w+down*.10*scale),tuple(hip-across*w+down*.10*scale)]
+    o.draw.polygon([(round(x*SCALE),round(y*SCALE)) for x,y in polygon],fill=(0,0,0,0))
+    o.line(polygon,closed=True)
+    o.line([tuple(neck),tuple(hip+down*.085*scale)],1.5)
+    o.line([tuple(hip-across*w),tuple(hip+across*w)],1.7)
+    for side in ('l','r'):
+        pre='bip01_'+side+'_'
+        limb([pre+'upperarm',pre+'forearm',pre+'hand'],[.075,.06,.037])
+        x,y=at(pre+'hand');o.ellipse((x-2.6,y-2.6,x+2.6,y+3.8),1.7)
+    h=np.array(at('bip01_head'))-down*.09*scale
+    def head(u,v):return tuple(h+across*u*scale+down*v*scale)
+    hood=[head(-.075,.085),head(-.09,-.035),head(-.06,-.13),head(0,-.16),
+          head(.06,-.13),head(.09,-.035),head(.075,.085),head(0,.11)]
+    o.draw.polygon([(round(x*SCALE),round(y*SCALE)) for x,y in hood],fill=(0,0,0,0))
+    o.line(hood,closed=True)
+    o.line([head(-.048,.035),head(-.05,-.035),head(0,-.09),head(.05,-.035),head(.048,.035)],1.5)
+    o.line([head(-.047,.035),head(.047,.035)],1.5)
     if name=='gop_stop':
-        o.line([(103,28),(101,18),(103,15),(105,23),(105,12),(108,11),(108,22),(110,14),(113,15),(112,28)],1.6)
+        # Recognisable sidearm rather than the old raised-fingers doodle.
+        x,y=at('bip01_r_hand')
+        o.line([(x-2,y),(x-2,y-13),(x+12,y-13),(x+12,y-9),(x+3,y-9),(x+3,y)],1.9,True)
+    if name.startswith('bar_'):
+        hands=[at('bip01_l_hand'),at('bip01_r_hand')]
+        y=min(112,max(v[1] for v in hands)+3)
+        o.line([(15,y),(113,y)],1.8)
+        o.line([(25,y),(25,116)],1.6);o.line([(104,y),(104,116)],1.6)
+    if name=='loot':
+        x,y=at('bip01_l_hand');o.line([(x-8,y+8),(x+8,y+8),(x+8,y+18),(x-8,y+18)],1.7,True)
+    pose_sources[name]={'motion':motion,'frame_fraction':.4}
     return o.result()
 
 
@@ -180,18 +170,16 @@ for i,icon in enumerate(icons): atlas.paste(icon,((i%8)*128,(i//8)*128))
 atlas.save(TEX/'netcoop_rp_poses.dds')
 ring=Image.new('RGBA',(1024,1024))
 d=ImageDraw.Draw(ring)
-d.ellipse((7,7,1017,1017),fill=(17,20,16,235),outline=ACCENT,width=3)
-d.ellipse((149,149,875,875),fill=(11,14,12,231),outline=(116,116,82,255),width=2)
-for i in range(28):
-    a=-math.pi/2+(i-.5)*2*math.pi/28
-    d.line([(512+363*math.cos(a),512+363*math.sin(a)),(512+505*math.cos(a),512+505*math.sin(a))],fill=(190,183,158,255),width=2)
-    d.line([(512+350*math.cos(a),512+350*math.sin(a)),(512+342*math.cos(a),512+342*math.sin(a))],fill=ACCENT,width=2)
-for y in range(360,670,12): d.line([(270,y),(754,y)],fill=(36,42,32,85))
-d.line([(352,370),(672,370)],fill=ACCENT,width=2)
-d.line([(352,686),(672,686)],fill=ACCENT,width=2)
+d.ellipse((4,4,1020,1020),fill=(14,17,14,218),outline=ACCENT,width=2)
+d.ellipse((155,155,869,869),outline=(139,127,94,255),width=2)
+d.ellipse((301,301,723,723),fill=(11,14,12,236),outline=(139,127,94,255),width=2)
+for i in range(14):
+    a=-math.pi/2+(i-.5)*2*math.pi/14
+    d.line([(512+211*math.cos(a),512+211*math.sin(a)),
+            (512+508*math.cos(a),512+508*math.sin(a))],fill=(168,155,119,255),width=2)
 ring.save(TEX/'netcoop_rp_ring.dds')
 selection=Image.new('RGBA',(128,128));d=ImageDraw.Draw(selection)
-d.rounded_rectangle((4,4,123,123),radius=12,fill=(188,148,55,58),outline=(246,202,106,255),width=3)
+d.ellipse((7,7,121,121),fill=(188,148,55,52),outline=(230,197,125,255),width=2)
 selection.save(TEX/'netcoop_rp_selection.dds')
 entries=['<?xml version="1.0" encoding="windows-1251"?>','<w>','<file name="ui\\netcoop_rp_poses">']
 for i,name in enumerate(NAMES):
@@ -202,11 +190,16 @@ entries+=['</file>','<file name="ui\\netcoop_rp_ring"><texture id="ui_netcoop_rp
 # Developer art / layout previews, not captures of the game.
 preview=ring.copy()
 for i,icon in enumerate(icons):
-    a=-math.pi/2+i*2*math.pi/28
-    small=icon.resize((86,86),Image.Resampling.LANCZOS)
-    preview.alpha_composite(small,(round(512+443*math.cos(a)-43),round(512+443*math.sin(a)-43)))
+    a=-math.pi/2+(i%14)*2*math.pi/14
+    radius=(296 if i<14 else 196)*1024/700
+    size=round((78 if i<14 else 68)*1024/700)
+    small=icon.resize((size,size),Image.Resampling.LANCZOS)
+    preview.alpha_composite(small,(round(512+radius*math.cos(a)-size/2),round(512+radius*math.sin(a)-size/2)))
 preview_dir=Path(__file__).resolve().parents[2]/'build-logs'
 preview_dir.mkdir(parents=True,exist_ok=True)
 preview.save(preview_dir/'netcoop_rp_preview.png')
 atlas.save(preview_dir/'netcoop_rp_white_contours.png')
 print('Rendered 28 white outline poses, wheel, selection and texture descriptors')
+
+import json
+(CLIENT/'configs/netcoop/rp_icon_sources.json').write_text(json.dumps(pose_sources,indent=2))

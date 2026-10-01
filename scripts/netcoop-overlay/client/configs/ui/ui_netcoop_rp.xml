@@ -1,29 +1,29 @@
 <?xml version="1.0" encoding="windows-1251"?>
 <w>
     <shade x="0" y="0" width="1024" height="768" stretch="1">
-        <texture a="110" r="0" g="0" b="0">ui_icons_PDA_tooltips</texture>
+        <texture a="55" r="0" g="0" b="0">ui_icons_PDA_tooltips</texture>
     </shade>
-    <ring x="202" y="74" width="620" height="620" stretch="1">
+    <ring x="162" y="34" width="700" height="700" stretch="1">
         <texture>ui_netcoop_rp_ring</texture>
     </ring>
     <pose_icon x="0" y="0" width="52" height="52" stretch="1"/>
     <selection x="0" y="0" width="58" height="58" stretch="1">
         <texture>ui_netcoop_rp_selection</texture>
     </selection>
-    <cap_title x="322" y="265" width="380" height="34">
+    <cap_title x="322" y="288" width="380" height="34">
         <text r="218" g="190" b="125" font="letterica18" align="c" vert_align="c"/>
     </cap_title>
-    <cap_selected x="322" y="312" width="380" height="70">
+    <cap_selected x="322" y="327" width="380" height="48">
         <text r="237" g="225" b="195" font="letterica18" align="c" vert_align="c" complex_mode="1"/>
     </cap_selected>
-    <cap_status x="322" y="388" width="380" height="30">
+    <cap_status x="322" y="379" width="380" height="30">
         <text r="160" g="170" b="133" font="letterica16" align="c" vert_align="c"/>
     </cap_status>
     <btn_stop x="412" y="430" width="200" height="38" stretch="1">
         <text align="c" vert_align="c" font="letterica16"/>
         <texture>ui_button_ordinary</texture>
     </btn_stop>
-    <cap_hint x="322" y="482" width="380" height="40">
+    <cap_hint x="322" y="462" width="380" height="40">
         <text r="173" g="173" b="151" font="letterica16" align="c" vert_align="c" complex_mode="1"/>
     </cap_hint>
 </w>
