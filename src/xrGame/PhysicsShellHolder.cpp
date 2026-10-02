@@ -29,6 +29,7 @@
 CPhysicsShellHolder::CPhysicsShellHolder()
 {
 	init();
+	PHRegisterShellHolder(this);
 }
 
 // Coulomb friction on the server: the solver limits tangential impulse to
@@ -45,6 +46,9 @@ static void netcoop_item_ground_contact(bool& collide, bool, dContact& contact, 
 
 CPhysicsShellHolder::~CPhysicsShellHolder()
 {
+	// Contact metadata can survive its game object during a death/drop cycle.
+	// Retire the pointer before any destructor clears the object's vtable.
+	PHUnregisterShellHolder(this);
 	VERIFY(!m_pPhysicsShell);
 	//#ifndef MASTER_GOLD
 	//R_ASSERT( !m_pPhysicsShell );

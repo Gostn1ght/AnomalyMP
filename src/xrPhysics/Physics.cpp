@@ -23,6 +23,33 @@ extern CPHWorld* ph_world;
 ///////////////////////////////////////////////////////////////////
 
 #include "ExtendedGeom.h"
+#include <mutex>
+#include <unordered_set>
+
+namespace
+{
+std::mutex shell_holder_mutex;
+std::unordered_set<const IPhysicsShellHolder*> live_shell_holders;
+}
+
+void PHRegisterShellHolder(const IPhysicsShellHolder* holder)
+{
+	std::lock_guard<std::mutex> lock(shell_holder_mutex);
+	live_shell_holders.insert(holder);
+}
+
+void PHUnregisterShellHolder(const IPhysicsShellHolder* holder)
+{
+	std::lock_guard<std::mutex> lock(shell_holder_mutex);
+	live_shell_holders.erase(holder);
+}
+
+bool PHIsShellHolderLive(const IPhysicsShellHolder* holder)
+{
+	if (!holder) return false;
+	std::lock_guard<std::mutex> lock(shell_holder_mutex);
+	return live_shell_holders.find(holder) != live_shell_holders.end();
+}
 //union dInfBytes dInfinityValue = {{0,0,0x80,0x7f}};
 //PhysicsStepTimeCallback		*physics_step_time_callback				= 0;
 

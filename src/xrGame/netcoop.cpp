@@ -1258,11 +1258,6 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 		send_trade_result(server, CL, false, "Trader is not available");
 		return;
 	}
-	if (!partner->IsTradeEnabled())
-	{
-		send_trade_result(server, CL, false, "This character does not trade");
-		return;
-	}
 	if (actor->Position().distance_to(partner_object->Position()) > trade_max_distance)
 	{
 		send_trade_result(server, CL, false, "Trader is too far away");
@@ -1272,6 +1267,11 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 	// The partner's CTrade: bBuying == true means the partner buys (actor sells).
 	ServerActorScope trade_actor_scope(actor);
 	prepare_trade(partner_id);
+	if (!partner->IsTradeEnabled())
+	{
+		send_trade_result(server, CL, false, "This character does not trade");
+		return;
+	}
 	const bool partner_buys = direction == trade_actor_sells;
 	CObject* seller = partner_buys ? static_cast<CObject*>(actor) : partner_object;
 

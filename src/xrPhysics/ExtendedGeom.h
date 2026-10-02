@@ -20,6 +20,10 @@
 #endif
 class IPhysicsShellHolder;
 
+XRPHYSICS_API void PHRegisterShellHolder(const IPhysicsShellHolder* holder);
+XRPHYSICS_API void PHUnregisterShellHolder(const IPhysicsShellHolder* holder);
+XRPHYSICS_API bool PHIsShellHolderLive(const IPhysicsShellHolder* holder);
+
 
 class CObjectContactCallback
 {
@@ -175,7 +179,7 @@ XRPHYSICS_API void get_user_data(dxGeomUserData* & gd1, dxGeomUserData* & gd2, b
 IC IPhysicsShellHolder* retrieveRefObject(dGeomID geom)
 {
 	dxGeomUserData* ud = dGeomGetUserData(retrieveGeom(geom));
-	if (ud)return ud->ph_ref_object;
+	if (ud && PHIsShellHolderLive(ud->ph_ref_object)) return ud->ph_ref_object;
 	else return NULL;
 }
 
