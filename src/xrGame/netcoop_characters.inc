@@ -47,7 +47,7 @@ static bool character_name_valid(LPCSTR name)
 
 bool script_character(int slot, LPCSTR name, LPCSTR faction, int economy, LPCSTR loadout)
 {
-	if (slot < 1 || slot > 5 || !name || !faction || !loadout || xr_strlen(loadout) > 4096) return false;
+	if (slot < 0 || slot > 5 || !name || !faction || !loadout || xr_strlen(loadout) > 4096) return false;
 	s_client_character_slot = u8(slot);
 	s_client_character_name = name;
 	s_client_character_faction = faction;

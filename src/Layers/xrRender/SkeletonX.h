@@ -98,6 +98,7 @@ protected:
 	virtual BOOL _PickBone(IKinematics::pick_result& r, float range, const Fvector& S, const Fvector& D, Fvisual* V,
 	                       u16 bone_id, u32 iBase, u32 iCount) =0;
 public:
+	int UISkinningMode() const { return int(RenderMode) - 1; }
 	BOOL has_visible_bones();
 
 	//--DSR-- SilencerOverheat_start

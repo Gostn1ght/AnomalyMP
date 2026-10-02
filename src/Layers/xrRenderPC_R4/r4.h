@@ -417,6 +417,8 @@ public:
 	// Main
 	virtual void Calculate();
 	virtual void Render();
+	virtual bool PrepareUIModel(IRenderVisual* visual);
+	virtual void DrawUIModel(IRenderVisual* visual, const Fmatrix& world);
 	virtual void Screenshot(ScreenshotMode mode = SM_NORMAL, LPCSTR name = 0);
 	virtual void Screenshot(ScreenshotMode mode, CMemoryWriter& memory_writer);
 	virtual void ScreenshotAsyncBegin();

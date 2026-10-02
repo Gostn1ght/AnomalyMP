@@ -43,6 +43,7 @@
 #include "../xrServerEntities/PHSynchronize.h"
 #include "../xrEngine/gamemtllib.h"
 #include "../Include/xrRender/Kinematics.h"
+#include "../Include/xrRender/KinematicsAnimated.h"
 
 namespace netcoop
 {
@@ -191,6 +192,8 @@ static xr_string s_client_login;
 static xr_string s_client_key;
 static bool s_client_register = false;
 static bool s_client_loaded = false;
+static bool s_client_approved = false;
+static bool s_client_remembered = false;
 static u8 s_client_role = role_none;
 static u8 s_client_character_slot = 1;
 static xr_string s_client_character_name, s_client_character_faction = "stalker", s_client_character_loadout;
@@ -203,7 +206,7 @@ static void client_credentials_path(string_path& path)
 
 static void client_store_credentials()
 {
-    xr_string plain = s_client_login + "|" + s_client_key;
+    xr_string plain = s_client_login + "|" + s_client_key + (s_client_approved ? "|1|" : "|0|") + role_name(s_client_role);
     DATA_BLOB input = {u32(plain.size()), (BYTE*)plain.data()}, output = {};
     // DPAPI encrypts for this Windows user on this computer. Copying the
     // remembered file to a different machine does not grant an account.
@@ -216,7 +219,7 @@ static void client_store_credentials()
         const u32 magic = 0x324c434e;
         fwrite(&magic, 4, 1, f); fwrite(output.pbData, 1, output.cbData, f);
         const bool ok = !ferror(f); fclose(f);
-        if (ok) MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+        if (ok && MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) s_client_remembered = true;
     }
     SecureZeroMemory(output.pbData, output.cbData); LocalFree(output.pbData);
     SecureZeroMemory(&plain[0], plain.size());
@@ -249,9 +252,17 @@ static void client_load_credentials()
     if (separator != xr_string::npos)
     {
         xr_string login = plain.substr(0, separator), key = plain.substr(separator + 1);
+        const size_t state = key.find('|');
+        // Remembered accounts written before moderation remain approved.
+        s_client_approved = state == xr_string::npos || key.substr(state + 1, 1) == "1";
+        if (state != xr_string::npos)
+        {
+            s_client_role = key.substr(state + 3) == "admin" ? role_admin : role_none;
+            key.resize(state);
+        }
         const size_t end = key.find_first_of("\r\n"); if (end != xr_string::npos) key.resize(end);
         if (login_valid(login.c_str()) && key_valid(key.c_str()))
-        { s_client_login = login; s_client_key = key; if (migrate) client_store_credentials(); }
+        { s_client_login = login; s_client_key = key; s_client_remembered = true; if (migrate) client_store_credentials(); }
         if (!key.empty()) SecureZeroMemory(&key[0], key.size());
     }
     if (!plain.empty()) SecureZeroMemory(&plain[0], plain.size());
@@ -298,8 +309,10 @@ bool client_set_credentials(LPCSTR login, LPCSTR password, bool register_account
 	s_client_login = login;
 	s_client_key = key_hex;
 	s_client_register = register_account;
-
-	client_store_credentials();
+	s_client_approved = false;
+	s_client_remembered = false;
+	// Persist only when the server confirms the account. A mistyped password,
+	// occupied nickname or offline server must not lock the registration form.
 	return true;
 }
 
@@ -317,6 +330,7 @@ LPCSTR client_login()
 
 u8 client_role()
 {
+	client_load_credentials();
 	return s_client_role;
 }
 
@@ -394,8 +408,15 @@ void client_on_auth_result(NET_Packet& P)
 		xr_strcpy(message, "");
 
 	s_client_role = ok ? role : u8(role_none);
+	if (ok) { s_client_approved = true; client_store_credentials(); }
+    else if (!xr_strcmp(message, "Registration pending administrator approval") || !xr_strcmp(message, "Registration rejected by administrator"))
+    { s_client_approved = false; client_store_credentials(); }
+    else if (!s_client_remembered)
+    {
+        s_client_login.clear(); s_client_key.clear();
+        s_client_loaded = false; client_load_credentials();
+    }
 	Msg("%s [NetAnomaly] %s", ok ? "*" : "!", message);
-	call_lua("netcoop_client_compat.on_auth_result", !!ok, s_client_role, message);
     if (ok && P.r_elapsed())
     {
         char names[512];
@@ -403,8 +424,11 @@ void client_on_auth_result(NET_Packet& P)
         {
             ::luabind::functor<void> cache;
             if (ai().script_engine().functor("netcoop_login_ui.cache_characters", cache)) cache(names);
+            char previews[8192];
+            if (P.r_elapsed() && read_string(P, previews, sizeof(previews)) && ai().script_engine().functor("netcoop_login_ui.cache_previews", cache)) cache(previews);
         }
     }
+	call_lua("netcoop_client_compat.on_auth_result", !!ok, s_client_role, message);
 }
 
 static bool s_trade_refresh = false;
@@ -465,6 +489,57 @@ bool script_login(LPCSTR login, LPCSTR password, bool register_account)
 
 int script_role() { return client_role(); }
 LPCSTR script_account() { return client_login(); }
+int script_account_state() { return !client_has_credentials() || !s_client_remembered ? 0 : s_client_approved ? 2 : 1; }
+static IRenderVisual* s_preview_visual = nullptr;
+static xr_string s_preview_name, s_preview_motion;
+static u32 s_preview_restart = 0;
+
+void script_preview_clear()
+{
+    if (s_preview_visual) Render->model_Delete(s_preview_visual, TRUE);
+    s_preview_name.clear(); s_preview_motion.clear(); s_preview_restart = 0;
+}
+
+bool script_preview_model(LPCSTR model, int pose)
+{
+    if (g_pGameLevel || !model || !Render->models_Exists(model)) return false;
+    if (s_preview_name != model)
+    {
+        script_preview_clear();
+        s_preview_visual = Render->model_Create(model);
+        if (!Render->PrepareUIModel(s_preview_visual)) { script_preview_clear(); return false; }
+        s_preview_name = model;
+    }
+    auto k = s_preview_visual->dcast_PKinematicsAnimated();
+    if (!k) return true;
+    LPCSTR motion = "norm_idle_0";
+    if (pose >= 0 && pose < int(rp_anims().size()))
+        for (const auto& candidate : rp_anims()[pose].mid)
+            if (k->ID_Cycle_Safe(candidate.c_str()).valid()) { motion = candidate.c_str(); break; }
+    const MotionID id = k->ID_Cycle_Safe(motion);
+    if (!id.valid()) return false;
+    s_preview_motion = motion;
+    CBlend* blend = k->PlayCycle(id, FALSE);
+    if (blend) { blend->speed = _min(blend->speed, 1.f); s_preview_restart = Device.dwTimeGlobal + u32(blend->timeTotal / _max(.1f, blend->speed) * 1000.f); }
+    return true;
+}
+
+void script_preview_draw()
+{
+    if (!s_preview_visual || g_pGameLevel) return;
+    if (auto k = s_preview_visual->dcast_PKinematicsAnimated())
+    {
+        if (s_preview_restart && Device.dwTimeGlobal >= s_preview_restart)
+        {
+            CBlend* blend = k->PlayCycle(s_preview_motion.c_str(), FALSE);
+            if (blend) { blend->speed = _min(blend->speed, 1.f); s_preview_restart = Device.dwTimeGlobal + u32(blend->timeTotal / _max(.1f, blend->speed) * 1000.f); }
+        }
+        k->UpdateTracks();
+    }
+    if (auto k = s_preview_visual->dcast_PKinematics()) k->CalculateBones(TRUE);
+    Fmatrix world; world.rotateY(PI);
+    Render->DrawUIModel(s_preview_visual, world);
+}
 void script_command(LPCSTR text) { client_send_command(text); }
 
 // Lua trade UIs (GAMMA ui_inventory) ask the server for a deal: the items
@@ -507,6 +582,8 @@ bool script_pure_client() { return pure_client(); }
 // ---------------------------------------------------------------------------
 struct Account
 {
+	// 0: pending, 1: approved, 2: rejected. Old account files default to approved.
+	u8 approval = 1;
 	xr_string device;
 	xr_string login; // as registered
 	u8 role;
@@ -548,10 +625,10 @@ static void accounts_load()
 			continue;
 
 		// login|role|salt|hash|money
-		char* fields[6] = {};
+		char* fields[7] = {};
 		u32 count = 0;
 		char* cursor = line;
-		while (count < 6)
+		while (count < 7)
 		{
 			fields[count++] = cursor;
 			char* sep = strchr(cursor, '|');
@@ -564,6 +641,7 @@ static void accounts_load()
 			continue;
 
 		Account a;
+		a.approval = count >= 7 ? (!xr_strcmp(fields[6], "pending") ? 0 : !xr_strcmp(fields[6], "rejected") ? 2 : 1) : 1;
 		a.login = fields[0];
 		a.device = count >= 6 && key_valid(fields[5]) ? fields[5] : "";
 		a.role = !xr_strcmp(fields[1], "admin") ? u8(role_admin) : u8(role_player);
@@ -596,14 +674,14 @@ static void accounts_save()
 		Msg("! [NetAnomaly] cannot write %s", temp);
 		return;
 	}
-	fprintf(f, "# NetAnomaly accounts: login|role|salt|pbkdf2-sha256|money|device-digest\n");
+	fprintf(f, "# NetAnomaly accounts: login|role|salt|pbkdf2-sha256|money|device-digest|approval\n");
 	for (Accounts::const_iterator it = s_accounts.begin(); it != s_accounts.end(); ++it)
 	{
 		const Account& a = it->second;
 		if (a.has_money)
-			fprintf(f, "%s|%s|%s|%s|%u|%s\n", a.login.c_str(), role_name(a.role), a.salt.c_str(), a.hash.c_str(), a.money, a.device.c_str());
+			fprintf(f, "%s|%s|%s|%s|%u|%s|%s\n", a.login.c_str(), role_name(a.role), a.salt.c_str(), a.hash.c_str(), a.money, a.device.c_str(), a.approval == 0 ? "pending" : a.approval == 2 ? "rejected" : "approved");
 		else
-			fprintf(f, "%s|%s|%s|%s|-|%s\n", a.login.c_str(), role_name(a.role), a.salt.c_str(), a.hash.c_str(), a.device.c_str());
+			fprintf(f, "%s|%s|%s|%s|-|%s|%s\n", a.login.c_str(), role_name(a.role), a.salt.c_str(), a.hash.c_str(), a.device.c_str(), a.approval == 0 ? "pending" : a.approval == 2 ? "rejected" : "approved");
 	}
 	fclose(f);
 	if (!MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
@@ -630,6 +708,31 @@ bool server_reset_device(LPCSTR login)
     account->device.clear(); s_accounts_dirty = true; accounts_save();
     return true;
 }
+
+bool script_registration_decide(LPCSTR login, bool accept)
+{
+    if (!enabled() || !g_pGameLevel || !Level().Server || !login || !login_valid(login)) return false;
+    Account* account = account_find(login);
+    if (!account || account->approval != 0) return false;
+    account->approval = accept ? 1 : 2;
+    s_accounts_dirty = true; accounts_save();
+    Msg("[NetAnomaly] registration '%s' %s", login, accept ? "approved" : "rejected");
+    return true;
+}
+
+struct NotifyRegistration
+{
+    xrServer* server;
+    LPCSTR login;
+    void operator()(IClient* client) const
+    {
+        xrClientData* CL = static_cast<xrClientData*>(client);
+        if (!CL || CL->flags.bLocal || CL->netcoop_role != role_admin) return;
+        NET_Packet P; P.w_begin(M_NETCOOP_SCRIPT);
+        P.w_stringZ("registration"); P.w_stringZ(login);
+        server->SendTo(CL->ID, P, net_flags(TRUE, TRUE));
+    }
+};
 
 static bool server_hash(LPCSTR client_key, const xr_string& salt_hex, xr_string& out)
 {
@@ -659,6 +762,7 @@ bool server_set_role(LPCSTR login, u8 role, xr_string& message)
 		return false;
 	}
 	a->role = role;
+	if (role == role_admin) a->approval = 1; // console bootstrap of the first administrator
 	s_accounts_dirty = true;
 	accounts_save();
 	message = a->login;
@@ -723,6 +827,22 @@ static void send_auth_result(xrServer* server, xrClientData* CL, bool ok, u8 rol
             if (character) names += character->name;
         }
         P.w_stringZ(names.c_str());
+        xr_string previews;
+        for (u8 slot = 1; slot <= 5; ++slot)
+        {
+            Character* character = character_load(CL->netcoop_login.c_str(), slot);
+            xr_string visual = "actors\\stalker_neutral\\stalker_neutral_1.ogf", items;
+            if (character)
+                for (const auto& item : character->items)
+                {
+                    SInvItemPlace place; place.value = item.place;
+                    if (!item.parent && place.type == eItemPlaceSlot && place.slot_id == OUTFIT_SLOT && pSettings->line_exist(item.section.c_str(), "actor_visual"))
+                        visual = pSettings->r_string(item.section.c_str(), "actor_visual");
+                    if (items.size() + item.section.size() < 1100) { if (!items.empty()) items += ","; items += item.section; }
+                }
+            previews += visual + "|" + (character ? character->faction : "stalker") + "|" + items + "\n";
+        }
+        P.w_stringZ(previews.c_str());
     }
 	server->SendTo(CL->ID, P, net_flags(TRUE, TRUE));
 }
@@ -908,6 +1028,8 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
 		Account created;
 		created.login = pending->login;
 		created.role = role_player; // only the server console grants admin
+		created.approval = 0;
+		created.device = pending->device;
 		created.salt = pending->salt;
 		created.hash = pending->hash;
 		created.has_money = false;
@@ -919,6 +1041,8 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
 		accounts_save();
 		a = &s_accounts[in_use.login];
 		Msg("[NetAnomaly] account '%s' registered", pending->login.c_str());
+		NotifyRegistration notice = {server, pending->login.c_str()};
+		server->ForEachClientDo(notice);
 	}
 	else
 	{
@@ -948,7 +1072,20 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
     }
     if (a->device.empty() && !pending->device.empty())
     { a->device = pending->device; s_accounts_dirty = true; accounts_save(); }
+	if (a->approval != 1)
+	{
+		reject(server, CL, a->approval == 0 ? "Registration pending administrator approval" : "Registration rejected by administrator");
+		return;
+	}
 	CL->netcoop_login = a->login.c_str();
+    // Slot zero authenticates the front-end and fetches slots without creating
+    // an Actor or touching an existing character's inventory.
+    if (pending->slot == 0)
+    {
+        send_auth_result(server, CL, true, a->role, "Account verified");
+        server->DisconnectClient(CL, "@Account verified");
+        return;
+    }
     if (!character_select(CL, pending->slot, pending->character_name.c_str(), pending->faction.c_str(), pending->economy, pending->loadout.c_str()))
     {
         CL->netcoop_login = NULL;
@@ -962,6 +1099,13 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
 	xr_sprintf(message, "Logged in as %s (%s)", a->login.c_str(), role_name(a->role));
 	Msg("[NetAnomaly] client 0x%08x %s", CL->ID.value(), message);
 	send_auth_result(server, CL, true, a->role, message);
+    if (a->role == role_admin)
+        for (const auto& entry : s_accounts)
+            if (entry.second.approval == 0)
+            {
+                NotifyRegistration notice = {server, entry.second.login.c_str()};
+                notice(CL);
+            }
 
 	if (pending->player_state)
 		server->game->AddDelayedEvent(*pending->player_state, GAME_EVENT_CREATE_PLAYER_STATE, 0, CL->ID);

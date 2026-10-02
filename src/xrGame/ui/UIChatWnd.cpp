@@ -9,6 +9,7 @@
 #include "../game_cl_base.h"
 #include "../xr_level_controller.h"
 #include "../Level.h"
+#include "../netcoop.h"
 
 CUIChatWnd::CUIChatWnd()
 	: sendNextMessageToAll(true)
@@ -94,7 +95,9 @@ void CUIChatWnd::SendMessage(CUIWindow* pWnd, s16 msg, void* pData)
 
 void CUIChatWnd::OnChatCommit(CUIWindow* w, void* d)
 {
-	Game().ChatSay(UIEditBox->GetText(), sendNextMessageToAll);
+    LPCSTR text = UIEditBox->GetText();
+    if (netcoop::enabled() && text && text[0] == '/') netcoop::client_send_command(text + 1);
+    else Game().ChatSay(text, sendNextMessageToAll);
 	HideDialog();
 }
 

@@ -1,15 +1,24 @@
 <?xml version="1.0" encoding="windows-1251"?>
 <w>
-    <panel x="252" y="156" width="520" height="460" stretch="1">
-        <texture r="15" g="17" b="14" a="255">ui_icons_PDA_tooltips</texture>
-    </panel>
-    <title x="20" y="22" width="480" height="46">
-        <text font="letterica18" r="245" g="205" b="110" align="c" vert_align="c"/>
-    </title>
-    <slot_1 x="30" y="88" width="460" height="42"><text font="letterica16" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></slot_1>
-    <slot_2 x="30" y="143" width="460" height="42"><text font="letterica16" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></slot_2>
-    <slot_3 x="30" y="198" width="460" height="42"><text font="letterica16" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></slot_3>
-    <slot_4 x="30" y="253" width="460" height="42"><text font="letterica16" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></slot_4>
-    <slot_5 x="30" y="308" width="460" height="42"><text font="letterica16" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></slot_5>
-    <back x="150" y="382" width="220" height="36"><text font="letterica16" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></back>
+ <panel x="0" y="0" width="1024" height="768" stretch="1">
+  <texture r="12" g="15" b="13" a="255">ui_icons_PDA_tooltips</texture>
+  <auto_static x="0" y="0" width="1024" height="100" stretch="1"><texture r="25" g="29" b="23" a="255">ui_icons_PDA_tooltips</texture></auto_static>
+  <auto_static x="32" y="100" width="960" height="1" stretch="1"><texture r="172" g="150" b="96" a="255">ui_icons_PDA_tooltips</texture></auto_static>
+  <auto_static x="32" y="662" width="960" height="1" stretch="1"><texture r="172" g="150" b="96" a="255">ui_icons_PDA_tooltips</texture></auto_static>
+ </panel>
+ <title x="32" y="20" width="960" height="24"><text font="letterica18" r="209" g="190" b="134" align="c" vert_align="c"/></title>
+ <name x="320" y="52" width="384" height="28"><text font="graffiti19" r="235" g="235" b="214" align="c" vert_align="c"/></name>
+ <info x="320" y="80" width="384" height="18"><text font="letterica16" r="152" g="162" b="145" align="c" vert_align="c"/></info>
+ <hint x="220" y="724" width="584" height="22"><text font="letterica16" r="144" g="154" b="136" align="c" vert_align="c"/></hint>
+ <previous x="288" y="360" width="46" height="60"><text font="graffiti32" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></previous>
+ <next x="690" y="360" width="46" height="60"><text font="graffiti32" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></next>
+ <enter x="384" y="680" width="256" height="36"><text font="letterica18" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></enter>
+ <back x="32" y="680" width="180" height="36"><text font="letterica16" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></back>
+ <poses x="32" y="112" width="230" height="30"><text font="letterica16" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></poses>
+ <inventory x="762" y="112" width="230" height="30"><text font="letterica16" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></inventory>
+ <poses_panel x="32" y="146" width="230" height="510" stretch="1"><texture r="21" g="25" b="19" a="255">ui_icons_PDA_tooltips</texture></poses_panel>
+ <poses_scroll x="12" y="8" width="218" height="494" always_show_scroll="0" vert_interval="2"/>
+ <pose_button x="12" y="12" width="206" height="21"><text font="letterica16" align="l" vert_align="c"/><texture>ui_button_ordinary</texture></pose_button>
+ <inventory_panel x="762" y="146" width="230" height="510" stretch="1"><texture r="21" g="25" b="19" a="255">ui_icons_PDA_tooltips</texture></inventory_panel>
+ <inventory_scroll x="0" y="8" width="230" height="494" always_show_scroll="0" vert_interval="3"/>
 </w>

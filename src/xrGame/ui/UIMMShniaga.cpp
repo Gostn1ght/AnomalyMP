@@ -13,6 +13,7 @@
 #include "../Actor.h"
 #include "../saved_game_wrapper.h"
 #include "../login_manager.h"
+#include "../netcoop.h"
 #include "MainMenu.h"
 
 extern string_path g_last_saved_game;
@@ -130,6 +131,9 @@ void CUIMMShniaga::CreateList(xr_vector<CUITextWnd*>& lst, CUIXml& xml_doc, LPCS
 
 	for (int i = 0; i < nodes_num; ++i)
 	{
+        LPCSTR name = xml_doc.ReadAttrib("btn", i, "name", "");
+        if (!xr_strcmp(name, "btn_originals")) continue;
+        if (netcoop::enabled() && !xr_strcmp(name, "btn_mcm") && netcoop::client_role() != netcoop::role_admin) continue;
 		st = xr_new<CUITextWnd>();
 		st->SetWndPos(Fvector2().set(0, 0));
 		st->SetWndSize(Fvector2().set(m_view->GetDesiredChildWidth(), button_height));

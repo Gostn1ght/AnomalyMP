@@ -322,6 +322,7 @@ local function show_text(text)
 end
 
 function on_auth_result(ok, role, message)
+	netcoop_login_ui.on_auth_result(ok, role, message)
 	printf("[NetAnomaly] login %s: role=%s %s", ok and "ok" or "failed", tostring(role), tostring(message))
 	if ok and role == 2 then
 		-- The debug launcher registers its keys only in debug mode.
@@ -486,8 +487,21 @@ local function set_attached(data)
 	end
 end
 
+local registration_pending, registration_seen = {}, {}
+local function show_registrations()
+    if netcoop_role() ~= 2 or not db.actor then return end
+    for login in pairs(registration_pending) do
+        local text = "%c[255,193,128,255]" .. string.format(game.translate_string("st_netcoop_registration_notice"), login)
+        db.actor:give_game_news(game.translate_string("st_netcoop_register_title"), text, "ui_inGame2_PD_Lider", 0, 15000)
+        registration_pending[login] = nil
+    end
+end
 function on_script_message(channel, data)
-	if channel == "emission" then
+	if channel == "registration" then
+		if not registration_seen[data] then registration_seen[data] = true; registration_pending[data] = true end
+		show_registrations()
+		return
+	elseif channel == "emission" then
 		netcoop_emission_view.receive(data)
 		return
 	elseif channel == "trade_cfg" then
@@ -639,5 +653,6 @@ function install()
 	_G.alife = alife_compat
 	install_db_actor()
 	install_admin_menu()
+	RegisterScriptCallback("actor_on_update", show_registrations)
 	printf("[NetAnomaly] netcoop client compatibility layer installed")
 end

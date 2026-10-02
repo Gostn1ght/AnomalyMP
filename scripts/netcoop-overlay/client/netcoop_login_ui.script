@@ -7,6 +7,12 @@
 
 local LAST_FILE = "netcoop_last_server.txt"
 local DEF_ADDR  = "127.0.0.1:1267"
+local auth_return, auth_message
+local function tr(id) return game.translate_string("st_netcoop_" .. id) end
+function can_mcm() return netcoop_role and netcoop_role() == 2 end
+function on_auth_result(ok, role, message)
+    if auth_return then auth_return = ok and "characters" or "account"; auth_message = message end
+end
 
 local function app_path(name)
 	local ok, p = pcall(function() return getFS():update_path("$app_data_root$", name) end)
@@ -52,6 +58,7 @@ class "netcoop_login_wnd" (CUIScriptWnd)
 
 function netcoop_login_wnd:__init(owner) super()
 	self.owner = owner
+	self:SetAutoDelete(false)
 	self:SetWndRect(Frect():set(0, 0, 1024, 768))
 
 	local xml = CScriptXmlInit()
@@ -63,10 +70,10 @@ function netcoop_login_wnd:__init(owner) super()
 		st:TextControl():SetText(text)
 		return st
 	end
-	cap("cap_title", "S.T.A.L.K.E.R. GAMMA - MULTIPLAYER")
-	cap("cap_login", "Login")
-	cap("cap_pass", "Password")
-	cap("cap_addr", "Server")
+	self.title = cap("cap_title", tr("register_title"))
+	self.cap_login = cap("cap_login", tr("account_login"))
+	self.cap_pass = cap("cap_pass", tr("account_password"))
+	cap("cap_addr", tr("server"))
 
 	self.ed_login = xml:InitEditBox("input_login", self)
 	self.ed_pass = xml:InitEditBox("input_pass", self)
@@ -82,9 +89,9 @@ function netcoop_login_wnd:__init(owner) super()
 		self:AddCallback(path, ui_events.BUTTON_CLICKED, handler, self)
 		return b
 	end
-	btn("btn_enter", "LOGIN", self.OnLogin)
-	btn("btn_reg", "REGISTER", self.OnRegister)
-	btn("btn_back", "BACK", self.OnBack)
+	self.login_button = btn("btn_enter", tr("existing_account"), self.OnLogin)
+	self.register_button = btn("btn_reg", tr("register_send"), self.OnRegister)
+	btn("btn_back", tr("back"), self.OnBack)
 end
 
 function netcoop_login_wnd:SetMsg(text)
@@ -92,32 +99,51 @@ function netcoop_login_wnd:SetMsg(text)
 end
 
 function netcoop_login_wnd:Reset()
+	self.mode = "account"
+	if self.character_panel then self.character_panel:Show(false) end
+	netcoop_preview_clear()
 	local login, addr = read_last()
-	if not login or login == "" then login = netcoop_account and netcoop_account() or "" end
+	if netcoop_account() ~= "" then login = netcoop_account() end
 	self.ed_login:SetText(login or "")
 	self.ed_pass:SetText("")
 	self.ed_addr:SetText((addr and addr ~= "") and addr or DEF_ADDR)
-	self:SetMsg("LOGIN - existing account, REGISTER - create a new one.")
+	local remembered = netcoop_account_state() ~= 0
+	self.ed_login:Enable(not remembered); self.ed_pass:Show(not remembered); self.cap_pass:Show(not remembered)
+	self.register_button:Show(not remembered)
+	self.login_button:TextControl():SetText(tr(remembered and "check_approval" or "existing_account"))
+	self.title:TextControl():SetText(tr(remembered and "approval_title" or "register_title"))
+	self:SetMsg(tr(remembered and "approval_help" or "register_help"))
+	if auth_message == "Registration rejected by administrator" then self:SetMsg(tr("approval_rejected")) end
+	if auth_message and auth_message ~= "Registration pending administrator approval" and auth_message ~= "Registration rejected by administrator" then
+		self:SetMsg(tr("auth_failed") .. " " .. auth_message)
+	end
 	pcall(function() self.ed_login:CaptureFocus(true) end)
 end
 
 function netcoop_login_wnd:Connect(register)
+	if register and netcoop_account_state() ~= 0 then return end
 	local trim = function(s) return string.gsub(s or "", "^%s*(.-)%s*$", "%1") end
 	local login = trim(self.ed_login:GetText())
 	local pass = self.ed_pass:GetText() or ""
 	local addr = trim(self.ed_addr:GetText())
+	if register and (string.len(pass) < 4 or string.len(pass) > 64) then return self:SetMsg(tr("password_invalid")) end
 
 	local err = check_values(login, pass)
-	if err then return self:SetMsg("! " .. err) end
+	if err then return self:SetMsg(tr("login_invalid")) end
 	local ip, port = parse_addr(addr)
-	if not ip then return self:SetMsg("! Server address: host:port") end
+	if not ip or tonumber(port) < 1 or tonumber(port) > 65535 then return self:SetMsg(tr("server_invalid")) end
 
 	if not netcoop_login(login, pass, register) then
-		return self:SetMsg("! Cannot prepare the account key, see the log")
+		return self:SetMsg(tr("key_failed"))
 	end
 	self.ed_pass:SetText("")
 	self.pending_login, self.pending_ip, self.pending_port = login, ip, port
-	self:ShowCharacters()
+	write_last(login, ip .. ":" .. port)
+	netcoop_character(0, "", "stalker", 1, "")
+	auth_return = "account"; auth_message = nil
+	self:HideDialog(); netcoop_preview_clear()
+	exec_console_cmd("main_menu off")
+	exec_console_cmd(string.format("start client(%s/name=%s/port=%s)", ip, login, port))
 end
 
 function netcoop_login_wnd:EnterCharacter(slot, name, faction, economy, loadout)
@@ -129,6 +155,7 @@ function netcoop_login_wnd:EnterCharacter(slot, name, faction, economy, loadout)
 
 	printf("[NetAnomaly] connecting as %s to %s:%s", login, ip, port)
 	self:HideDialog()
+	netcoop_preview_clear()
 	exec_console_cmd("main_menu off")
 	exec_console_cmd(string.format("start client(%s/name=%s/port=%s)", ip, login, port))
 end
@@ -145,37 +172,106 @@ function cache_characters(names)
     if f then f:write(names or ""); f:close() end
 end
 
+local BASE_MODEL = "actors\\stalker_neutral\\stalker_neutral_1.ogf"
+local function preview_cache_path(login, addr) return character_cache_path(login, addr) .. ".preview" end
+function cache_previews(data)
+    local login, addr = read_last()
+    if not login or not addr then return end
+    local f = io.open(preview_cache_path(login, addr), "w")
+    if f then f:write(data or ""); f:close() end
+end
 function netcoop_login_wnd:ShowCharacters()
-    local path = character_cache_path(self.pending_login, self.pending_ip .. ":" .. self.pending_port)
-    local f = io.open(path, "r")
+    self.mode = "characters"
+    local addr = self.pending_ip .. ":" .. self.pending_port
+    local f = io.open(character_cache_path(self.pending_login, addr), "r")
     local names = f and f:read("*a") or ""
     if f then f:close() end
-    self.names = {}
+    self.names, self.previews = {}, {}
     for name in string.gmatch(names .. "|", "(.-)|") do self.names[#self.names + 1] = name end
-    if not self.character_buttons then
-        local xml = CScriptXmlInit()
-        xml:ParseFile("ui_netcoop_characters.xml")
+    f = io.open(preview_cache_path(self.pending_login, addr), "r")
+    local previews = f and f:read("*a") or ""
+    if f then f:close() end
+    for visual, faction, items in string.gmatch(previews, "([^|\n]*)|([^|\n]*)|([^\n]*)\n") do
+        self.previews[#self.previews + 1] = {visual = visual, faction = faction, items = items}
+    end
+    if not self.character_panel then
+        local xml = CScriptXmlInit(); xml:ParseFile("ui_netcoop_characters.xml")
         self.character_panel = xml:InitStatic("panel", self)
-        self.character_title = xml:InitStatic("title", self.character_panel)
-        self.character_title:TextControl():SetText(game.translate_string("st_netcoop_characters"))
-        self.character_buttons = {}
-        for slot = 1, 5 do
-            local id = slot
-            local button = xml:Init3tButton("slot_" .. id, self.character_panel)
-            self:Register(button, "character_" .. id)
-            self:AddCallback("character_" .. id, ui_events.BUTTON_CLICKED, function() self:SelectCharacter(id) end, self)
-            self.character_buttons[id] = button
+        local function caption(path, text)
+            local item = xml:InitStatic(path, self.character_panel); item:TextControl():SetText(text or ""); return item
         end
-        local back = xml:Init3tButton("back", self.character_panel)
-        back:TextControl():SetText(game.translate_string("st_netcoop_back"))
-        self:Register(back, "characters_back")
-        self:AddCallback("characters_back", ui_events.BUTTON_CLICKED, function() self.character_panel:Show(false) end, self)
+        caption("title", tr("characters"))
+        self.character_name = caption("name")
+        self.character_info = caption("info")
+        caption("hint", tr("character_hint"))
+        local function button(path, text, handler)
+            local b = xml:Init3tButton(path, self.character_panel); b:TextControl():SetText(text)
+            self:Register(b, "char_" .. path); self:AddCallback("char_" .. path, ui_events.BUTTON_CLICKED, handler, self); return b
+        end
+        button("previous", "<", function() self:ChangeSlot(-1) end)
+        button("next", ">", function() self:ChangeSlot(1) end)
+        self.enter = button("enter", tr("enter_zone"), function() self:SelectCharacter(self.slot) end)
+        button("back", tr("back"), self.OnBack)
+        button("poses", tr("rp_title"), function() self.poses_panel:Show(not self.poses_panel:IsShown()) end)
+        button("inventory", tr("inventory"), function() self.inventory_panel:Show(not self.inventory_panel:IsShown()) end)
+        self.poses_panel = xml:InitStatic("poses_panel", self.character_panel)
+        self.poses_scroll = xml:InitScrollView("poses_scroll", self.poses_panel)
+        local index = 0
+        for name, title in string.gmatch(netcoop_rp_list() or "", "([^=;]+)=([^;]*);") do
+            local pose = index; index = index + 1
+            local b = xml:Init3tButton("pose_button", nil)
+            self.poses_scroll:AddWindow(b, true); b:TextControl():SetText(game.translate_string(title))
+            self:Register(b, "preview_pose_" .. pose)
+            self:AddCallback("preview_pose_" .. pose, ui_events.BUTTON_CLICKED, function() self:SetPose(pose) end, self)
+        end
+        self.inventory_panel = xml:InitStatic("inventory_panel", self.character_panel)
+        self.inventory_scroll = xml:InitScrollView("inventory_scroll", self.inventory_panel)
+        self.poses_panel:Show(false); self.inventory_panel:Show(false)
     end
-    for slot = 1, 5 do
-        local name = self.names[slot]
-        self.character_buttons[slot]:TextControl():SetText(slot .. ". " .. ((name and name ~= "") and name or game.translate_string("st_netcoop_create_character")))
+    self.slot = self.slot or 1; self.character_panel:Show(true); self:ChangeSlot(0)
+end
+function netcoop_login_wnd:ChangeSlot(delta)
+    self.slot = ((self.slot - 1 + delta) % 5) + 1
+    local name = self.names[self.slot]
+    self.character_name:TextControl():SetText(name and name ~= "" and name or tr("create_character"))
+    local preview = self.previews[self.slot] or {visual = BASE_MODEL, faction = "stalker", items = ""}
+    self.character_info:TextControl():SetText(string.format("%d / 5   |   %s", self.slot, game.translate_string("st_faction_" .. preview.faction)))
+    self.enter:TextControl():SetText(tr(name and name ~= "" and "enter_zone" or "create_character"))
+    self:SetPose(-1); self:FillInventory(preview.items)
+end
+function netcoop_login_wnd:SetPose(pose)
+    local preview = self.previews[self.slot] or {visual = BASE_MODEL}
+    if not netcoop_preview_model(preview.visual ~= "" and preview.visual or BASE_MODEL, pose) then netcoop_preview_model(BASE_MODEL, pose) end
+end
+function netcoop_login_wnd:FillInventory(items)
+    self.inventory_scroll:Clear()
+    local counts, sections = {}, {}
+    for section in string.gmatch(items or "", "[^,]+") do
+        if not counts[section] then sections[#sections + 1] = section; counts[section] = 0 end
+        counts[section] = counts[section] + 1
     end
-    self.character_panel:Show(true)
+    table.sort(sections)
+    for _, section in ipairs(sections) do
+        if ini_sys:section_exist(section) then
+            local row = CUIStatic(); row:SetWndSize(vector2():set(230, 85)); row:SetAutoDelete(true)
+            local icon = CUIStatic(); row:AttachChild(icon); icon:SetAutoDelete(true)
+            icon:InitTexture(utils_xml.get_icons_texture(section))
+            icon:SetTextureRect(Frect():set(utils_xml.get_item_axis(section, nil, true)))
+            icon:SetStretchTexture(true)
+            local w, h = SYS_GetParam(2, section, "inv_grid_width", 1), SYS_GetParam(2, section, "inv_grid_height", 1)
+            local scale = math.min(180 / w, 52 / h)
+            icon:SetWndPos(vector2():set(8, 4)); icon:SetWndSize(vector2():set(w * scale, h * scale))
+            local text = CUIStatic(); row:AttachChild(text); text:SetAutoDelete(true)
+            text:SetWndPos(vector2():set(8, 60)); text:SetWndSize(vector2():set(220, 20))
+            text:TextControl():SetFont(GetFontLetterica16Russian()); text:TextControl():SetTextColor(GetARGB(255, 208, 208, 192))
+            text:TextControl():SetText(game.translate_string(SYS_GetParam(0, section, "inv_name", section)) .. "  x" .. counts[section])
+            self.inventory_scroll:AddWindow(row, true)
+        end
+    end
+end
+function netcoop_login_wnd:Show(flag)
+    CUIScriptWnd.Show(self, flag)
+    if flag and self.mode == "characters" then self:ChangeSlot(0) end
 end
 
 function netcoop_login_wnd:SelectCharacter(slot)
@@ -193,8 +289,10 @@ function netcoop_login_wnd:SelectCharacter(slot)
     for _, field in ipairs({"ck_story", "ck_warfare", "ck_hardcore", "ck_azazel_mode", "ck_survival", "ck_campfire", "ck_conditions", "ck_routes"}) do
         if self.creator[field] then self.creator[field]:SetCheck(false); self.creator[field]:Enable(false) end
     end
-    self.creator.list_map:Enable(false)
+    self.creator.scroll_options:Show(false)
+    self.creator.list_map:Show(false)
     self:HideDialog()
+    netcoop_preview_clear()
     self.creator:ShowDialog(true)
     self.creator:Show(true)
 end
@@ -221,7 +319,9 @@ function netcoop_login_wnd:OnLogin() self:Connect(false) end
 function netcoop_login_wnd:OnRegister() self:Connect(true) end
 
 function netcoop_login_wnd:OnBack()
+	netcoop_preview_clear()
 	self:HideDialog()
+	if netcoop_account_state() == 0 then exec_console_cmd("quit"); return end
 	if self.owner then
 		self.owner:ShowDialog(true)
 		self.owner:Show(true)
@@ -231,10 +331,16 @@ end
 function netcoop_login_wnd:OnKeyboard(dik, keyboard_action)
 	CUIScriptWnd.OnKeyboard(self, dik, keyboard_action)
 	if keyboard_action == ui_events.WINDOW_KEY_PRESSED then
+		if self.mode == "characters" then
+			if dik == DIK_keys.DIK_LEFT then self:ChangeSlot(-1); return true end
+			if dik == DIK_keys.DIK_RIGHT then self:ChangeSlot(1); return true end
+			if dik == bind_to_dik(key_bindings.kINVENTORY) then self.inventory_panel:Show(not self.inventory_panel:IsShown()); return true end
+		end
 		if dik == DIK_keys.DIK_ESCAPE then
 			self:OnBack()
 		elseif dik == DIK_keys.DIK_RETURN or dik == DIK_keys.DIK_NUMPADENTER then
-			self:OnLogin()
+			if self.mode == "characters" then self:SelectCharacter(self.slot)
+			elseif netcoop_account_state() == 0 then self:OnRegister() else self:OnLogin() end
 		end
 	end
 	return true
@@ -242,16 +348,51 @@ end
 
 local wnd = nil
 
-function show_login(menu)
+function show_login(menu, verified)
 	if not wnd then
 		wnd = netcoop_login_wnd(menu)
 	else
 		wnd.owner = menu
 	end
-	wnd:Reset()
-	wnd:ShowDialog(true)
 	if menu then
 		menu:HideDialog()
 		menu:Show(false)
 	end
+	if netcoop_account_state() == 2 and verified then
+		local login, addr = read_last()
+		local ip, port = parse_addr(addr or DEF_ADDR)
+		wnd.pending_login, wnd.pending_ip, wnd.pending_port = netcoop_account(), ip, port
+		wnd:ShowCharacters()
+	else
+		wnd:Reset()
+		if netcoop_account_state() == 2 and not verified then wnd:Connect(false); return end
+	end
+	wnd:ShowDialog(true)
+end
+
+function frontend_update(menu)
+    local admin = can_mcm()
+    if menu.netcoop_menu_role ~= nil and menu.netcoop_menu_role ~= admin then
+        menu.shniaga:ShowPage(CUIMMShniaga.epi_new_game)
+        menu.shniaga:SetPage(CUIMMShniaga.epi_main, "ui_mm_main.xml", level.present() and "menu_main_single" or "menu_main")
+        menu.shniaga:ShowPage(CUIMMShniaga.epi_main)
+    end
+    menu.netcoop_menu_role = admin
+    if level.present() then return false end
+    if auth_return then
+        local verified = auth_return == "characters"
+        auth_return = nil
+        menu.netcoop_first_screen = true
+        if verified then show_login(menu, true)
+        else
+            if not wnd then wnd = netcoop_login_wnd(menu) else wnd.owner = menu end
+            menu:HideDialog(); menu:Show(false); wnd:Reset(); wnd:ShowDialog(true)
+        end
+        return true
+    end
+    if not menu.netcoop_first_screen then
+        menu.netcoop_first_screen = true
+        if netcoop_account_state() ~= 2 then show_login(menu); return true end
+    end
+    return false
 end

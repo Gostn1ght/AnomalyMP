@@ -106,4 +106,24 @@
 	<string id="st_netcoop_characters"><text>Account characters</text></string>
 	<string id="st_netcoop_create_character"><text>Create character</text></string>
 	<string id="st_netcoop_back"><text>Back</text></string>
+	<string id="st_netcoop_register_title"><text>Register in the Zone</text></string>
+	<string id="st_netcoop_account_login"><text>Account</text></string>
+	<string id="st_netcoop_account_password"><text>Password</text></string>
+	<string id="st_netcoop_server"><text>Server</text></string>
+	<string id="st_netcoop_register_send"><text>Send registration</text></string>
+	<string id="st_netcoop_existing_account"><text>I already have an account</text></string>
+	<string id="st_netcoop_approval_title"><text>Awaiting approval</text></string>
+	<string id="st_netcoop_approval_help"><text>Your account is remembered on this computer. An administrator must approve it. Then check approval.</text></string>
+	<string id="st_netcoop_register_help"><text>Register once. After administrator approval you can create up to five characters. Your sign-in will be remembered on this computer.</text></string>
+	<string id="st_netcoop_check_approval"><text>Check approval</text></string>
+	<string id="st_netcoop_approval_rejected"><text>Registration was rejected. Contact the server administrator.</text></string>
+	<string id="st_netcoop_password_invalid"><text>Enter a password of 4 to 64 characters.</text></string>
+	<string id="st_netcoop_login_invalid"><text>Login: 3-20 letters, numbers, dots, hyphens or underscores.</text></string>
+	<string id="st_netcoop_server_invalid"><text>Server address: host:port, for example 127.0.0.1:1267.</text></string>
+	<string id="st_netcoop_key_failed"><text>Cannot prepare remembered sign-in. Check your password and the game log.</text></string>
+	<string id="st_netcoop_enter_zone"><text>Enter the Zone</text></string>
+	<string id="st_netcoop_inventory"><text>Inventory</text></string>
+	<string id="st_netcoop_character_hint"><text>Arrows: characters   |   Inventory: game key   |   Enter: join</text></string>
+	<string id="st_netcoop_registration_notice"><text>New registration: %s. Use /approve_registration LOGIN or /reject_registration LOGIN.</text></string>
+	<string id="st_netcoop_auth_failed"><text>The server did not confirm sign-in.</text></string>
 </string_table>

@@ -106,4 +106,24 @@
 	<string id="st_netcoop_characters"><text>Персонажи аккаунта</text></string>
 	<string id="st_netcoop_create_character"><text>Создать персонажа</text></string>
 	<string id="st_netcoop_back"><text>Назад</text></string>
+	<string id="st_netcoop_register_title"><text>Регистрация в Зоне</text></string>
+	<string id="st_netcoop_account_login"><text>Аккаунт</text></string>
+	<string id="st_netcoop_account_password"><text>Пароль</text></string>
+	<string id="st_netcoop_server"><text>Сервер</text></string>
+	<string id="st_netcoop_register_send"><text>Отправить заявку</text></string>
+	<string id="st_netcoop_existing_account"><text>У меня уже есть аккаунт</text></string>
+	<string id="st_netcoop_approval_title"><text>Ожидание допуска</text></string>
+	<string id="st_netcoop_approval_help"><text>Аккаунт сохранён на этом компьютере. Администратор должен принять заявку. Затем нажмите «Проверить допуск».</text></string>
+	<string id="st_netcoop_register_help"><text>Создайте аккаунт один раз. После допуска администратора на нём можно создать до пяти персонажей. Пароль и вход будут сохранены на этом компьютере.</text></string>
+	<string id="st_netcoop_check_approval"><text>Проверить допуск</text></string>
+	<string id="st_netcoop_approval_rejected"><text>Администратор отклонил регистрацию. Обратитесь к администрации сервера.</text></string>
+	<string id="st_netcoop_password_invalid"><text>Укажите пароль длиной от 4 до 64 символов.</text></string>
+	<string id="st_netcoop_login_invalid"><text>Логин: 3–20 символов. Используйте латинские буквы, цифры, точку, дефис или подчёркивание.</text></string>
+	<string id="st_netcoop_server_invalid"><text>Адрес сервера: имя или IP и порт, например 127.0.0.1:1267.</text></string>
+	<string id="st_netcoop_key_failed"><text>Не удалось сохранить вход. Проверьте пароль и журнал игры.</text></string>
+	<string id="st_netcoop_enter_zone"><text>Войти в Зону</text></string>
+	<string id="st_netcoop_inventory"><text>Снаряжение</text></string>
+	<string id="st_netcoop_character_hint"><text>Стрелки — персонажи   |   Инвентарь — игровая клавиша   |   Enter — войти</text></string>
+	<string id="st_netcoop_registration_notice"><text>Новая заявка: %s. Команда: /принять регистрацию НИК или /отклонить регистрацию НИК.</text></string>
+	<string id="st_netcoop_auth_failed"><text>Сервер не подтвердил вход.</text></string>
 </string_table>

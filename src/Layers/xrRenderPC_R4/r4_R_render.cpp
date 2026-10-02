@@ -5,6 +5,55 @@
 #include "../../xrEngine/xr_object.h"
 
 #include "../xrRender/QueryHelper.h"
+#include "../xrRender/SkeletonX.h"
+
+bool CRender::PrepareUIModel(IRenderVisual* visual)
+{
+    if (!visual) return false;
+    if (auto children = visual->get_children())
+    {
+        bool ready = false;
+        for (auto child : *children) ready = PrepareUIModel(child) || ready;
+        return ready;
+    }
+    auto geometry = fast_dynamic_cast<dxRender_Visual*>(visual);
+    if (!geometry || !geometry->shader) return false;
+    auto skin = fast_dynamic_cast<CSkeletonX*>(visual);
+    shader_option_skinning(skin ? skin->UISkinningMode() : -1);
+    // Each cloned mesh gets its own shader; the shared source model is intact.
+    ref_shader preview;
+    preview.create("netcoop_preview", visual->getDebugTexture());
+    shader_option_skinning(-1);
+    geometry->shader = preview;
+    return !!preview;
+}
+
+static void draw_ui_geometry(IRenderVisual* visual, const Fmatrix& world)
+{
+    if (auto children = visual->get_children())
+    {
+        for (auto child : *children) draw_ui_geometry(child, world);
+        return;
+    }
+    auto geometry = fast_dynamic_cast<dxRender_Visual*>(visual);
+    if (!geometry || !geometry->shader) return;
+    RCache.set_Shader(geometry->shader);
+    RCache.set_xform_world(world);
+    geometry->Render(1.f);
+}
+
+void CRender::DrawUIModel(IRenderVisual* visual, const Fmatrix& world)
+{
+    if (!visual || g_pGameLevel) return;
+    const Fmatrix old_world = RCache.xforms.m_w, old_view = RCache.xforms.m_v, old_projection = RCache.xforms.m_p;
+    Fmatrix view, projection;
+    view.build_camera(Fvector().set(0.f, .95f, -3.3f), Fvector().set(0.f, .95f, 0.f), Fvector().set(0.f, 1.f, 0.f));
+    projection.build_projection(deg2rad(40.f), float(Device.dwHeight) / float(Device.dwWidth), .1f, 20.f);
+    HW.pContext->ClearDepthStencilView(HW.pBaseZB, D3D_CLEAR_DEPTH, 1.f, 0);
+    RCache.set_xform_view(view); RCache.set_xform_project(projection);
+    draw_ui_geometry(visual, world);
+    RCache.set_xform_world(old_world); RCache.set_xform_view(old_view); RCache.set_xform_project(old_projection);
+}
 
 IC bool pred_sp_sort(ISpatial* _1, ISpatial* _2)
 {

@@ -138,7 +138,7 @@ void CSkeletonX::_Render(ref_geom& hGeom, u32 vCount, u32 iOffset, u32 pCount)
 				RCache.set_ca(&*array, id + 2, M._13, M._23, M._33, M._43);
 
 #ifdef USE_DX11
-				if (RImplementation.o.ssfx_motionvectors) 
+				if (RImplementation.o.ssfx_motionvectors && array_prev)
 				{
 					// Save previous transform
 					Fmatrix& Mprev = Parent->LL_GetBoneInstance(u16(mid)).mRenderTransform_prev;

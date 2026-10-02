@@ -12,7 +12,8 @@ local HELP_PLAYER = table.concat({
 
 local HELP_ADMIN = table.concat({
 	"~ commands: help, whoami, money",
-	"~ admin:   spawn <section> [count]           - into own inventory",
+	"~ admin:   approve_registration <login> / reject_registration <login>",
+	"~          spawn <section> [count]           - into own inventory",
 	"~          spawn_at <section> <x> <y> <z>    - in the world",
 	"~          give_money <amount>               - change own balance",
 	"~          find <text> [limit]               - search sections",
@@ -87,7 +88,8 @@ function on_client_command(cid, name, entity_id, text, role)
 	local admin = role == "admin"
 	text = string.gsub(text or "", "^%s*(.-)%s*$", "%1")
 	local cmd, args = string.match(text, "^(%S+)%s*(.*)$")
-	cmd = string.lower(cmd or "help")
+	-- Fold ASCII command names without changing bytes inside UTF-8 aliases.
+	cmd = string.gsub(cmd or "help", "[A-Z]", string.lower)
 	args = args or ""
 	printf("[NetAnomaly] command '%s' from %s (%s)", cmd, tostring(name), tostring(role))
 
@@ -112,6 +114,19 @@ function on_client_command(cid, name, entity_id, text, role)
 	if not admin then
 		return "! administrator account required"
 	end
+
+-- Registration moderation
+	if cmd == "approve_registration" or cmd == "reject_registration" or cmd == "\239\240\232\237\255\242\252" or cmd == "\208\191\209\128\208\184\208\189\209\143\209\130\209\140" or cmd == "\238\242\234\235\238\237\232\242\252" or cmd == "\208\190\209\130\208\186\208\187\208\190\208\189\208\184\209\130\209\140" then
+        local login = args
+        if cmd ~= "approve_registration" and cmd ~= "reject_registration" then
+            local kind, nick = string.match(args, "^(%S+)%s+([%w_.%-]+)$")
+            if not (kind == "\240\229\227\232\241\242\240\224\246\232\254" or kind == "\209\128\208\181\208\179\208\184\209\129\209\130\209\128\208\176\209\134\208\184\209\142") then return "! usage: /approve_registration LOGIN" end
+            login = nick
+        end
+        local approve = cmd == "approve_registration" or cmd == "\239\240\232\237\255\242\252" or cmd == "\208\191\209\128\208\184\208\189\209\143\209\130\209\140"
+        if netcoop_registration_decide(login, approve) then return "* registration " .. login .. (approve and " approved" or " rejected") end
+        return "! pending registration not found"
+    end
 
 	if cmd == "spawn" then
 		local section, count = string.match(args, "^([%w_%.%-]+)%s*(%d*)$")

@@ -24,7 +24,7 @@ Get-ChildItem -LiteralPath (Join-Path $runtime 'client\configs\ui') -Filter 'ui_
     $text = $latin1.GetString([System.IO.File]::ReadAllBytes($_.FullName))
     $newline = if ($text.Contains("`r`n")) { "`r`n" } else { "`n" }
     $lines = $text -split "`r?`n"
-    $kept = $lines | Where-Object { $_ -notmatch '<btn\s+name="btn_(lastsave|load|save)"' }
+    $kept = $lines | Where-Object { $_ -notmatch '<btn\s+name="btn_(lastsave|load|save|originals|logout|internet|localnet)"' }
     if ($kept.Count -ne $lines.Count) {
         [System.IO.File]::WriteAllBytes($_.FullName, $latin1.GetBytes(($kept -join $newline)))
         Write-Host "Removed save/load menu buttons from $($_.Name)"
@@ -63,6 +63,29 @@ Replace-Once (Join-Path $runtime 'client\scripts\ui_main_menu.script') `
 Replace-Once (Join-Path $runtime 'client\scripts\ui_main_menu.script') `
     "function main_menu:OnButton_new_game()`n`tdo return gamma_net_compat.unavailable() end" `
     "function main_menu:OnButton_new_game()`n`tdo return netcoop_login_ui.show_login(self) end"
+
+# Reuse GAMMA's inventory and point picker for new multiplayer characters.
+Replace-Once (Join-Path $runtime 'client\scripts\ui_main_menu.script') `
+    'function main_menu:Update()' `
+    "function main_menu:Update()`n`tif netcoop_login_ui.frontend_update(self) then return end"
+Replace-Once (Join-Path $runtime 'client\scripts\ui_main_menu.script') `
+    'function main_menu:OnButton_mcm_clicked()' `
+    "function main_menu:OnButton_mcm_clicked()`n`tif not netcoop_login_ui.can_mcm() then return end"
+Replace-Once (Join-Path $runtime 'client\scripts\ui_main_menu.script') `
+    'game.open_originals_link()' 'do return end' -Optional
+Replace-Once (Join-Path $runtime 'client\scripts\ui_mcm.script') `
+    'function open_to(path)' "function open_to(path)`n`tif not netcoop_login_ui.can_mcm() then return end"
+$mcmFile = Join-Path $runtime 'client\scripts\ui_mcm.script'
+$mcmText = $latin1.GetString([IO.File]::ReadAllBytes($mcmFile))
+if (-not $mcmText.Contains('-- NetAnomaly MCM access gate')) {
+    $mcmText += "`n-- NetAnomaly MCM access gate`nfunction UI_MCM:ShowDialog(flag)`n`tif not netcoop_login_ui.can_mcm() then return end`n`tCUIScriptWnd.ShowDialog(self, flag)`nend`n"
+    [IO.File]::WriteAllBytes($mcmFile, $latin1.GetBytes($mcmText))
+}
+$previewSource = Join-Path $PSScriptRoot 'netcoop-overlay\client\shaders\r3'
+$previewDestination = Join-Path $runtime 'gamedata\shaders\r3'
+foreach ($shader in Get-ChildItem -LiteralPath $previewSource -File) {
+    Copy-Item -LiteralPath $shader.FullName -Destination (Join-Path $previewDestination $shader.Name) -Force
+}
 
 # Reuse GAMMA's inventory and point picker for new multiplayer characters.
 Replace-Once (Join-Path $runtime 'client\scripts\ui_mm_faction_select.script') `

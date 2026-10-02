@@ -120,6 +120,11 @@ bool client_owns_hud_item(const CObject* item);
 bool script_login(LPCSTR login, LPCSTR password, bool register_account);
 int script_role();
 LPCSTR script_account();
+int script_account_state();
+bool script_registration_decide(LPCSTR login, bool accept);
+void script_preview_clear();
+bool script_preview_model(LPCSTR model, int pose);
+void script_preview_draw();
 void script_command(LPCSTR text);
 bool script_pure_client();
 

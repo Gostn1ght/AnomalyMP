@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "MainMenu.h"
+#include "netcoop.h"
 #include "UI/UIDialogWnd.h"
 #include "ui/UIMessageBoxEx.h"
 #include "../xrEngine/xr_IOConsole.h"
@@ -133,6 +134,7 @@ CMainMenu::CMainMenu()
 
 CMainMenu::~CMainMenu()
 {
+	netcoop::script_preview_clear();
 	Device.seqFrame.Remove(this);
 	xr_delete(g_btnHint);
 	xr_delete(g_statHint);
@@ -437,6 +439,7 @@ void CMainMenu::OnRender()
 	if (!OnRenderPPUI_query())
 	{
 		DoRenderDialogs();
+		netcoop::script_preview_draw();
 		UI().RenderFont();
 		draw_wnds_rects();
 	}
@@ -457,6 +460,7 @@ void CMainMenu::OnRenderPPUI_main()
 	if (OnRenderPPUI_query())
 	{
 		DoRenderDialogs();
+		netcoop::script_preview_draw();
 		UI().RenderFont();
 	}
 
