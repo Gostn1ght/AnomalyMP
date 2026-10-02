@@ -70,6 +70,11 @@ for _ in range(count):
         assert abs(dot(vertex[3:6],vertex[3:6])-1) < .002
         batch.append(vertex[:3])
     all_triangles.extend(tuple(batch[i:i+3]) for i in range(0,size,3))
+    if texture in {f['texture'].replace('/','\\') for f in manifest['concrete_shell']}:
+        for i in range(0,size,3):
+            vertex = struct.unpack_from('<3f3fI2f',data,offset+i*36)
+            geometric = cross(sub(batch[i+1],batch[i]),sub(batch[i+2],batch[i]))
+            assert dot(geometric,vertex[3:6]) > 0, ('shell face points away from room',texture)
     triangles += size//3; offset += size*36
 assert offset == len(data) and triangles < 10000
 shell = manifest['concrete_shell']

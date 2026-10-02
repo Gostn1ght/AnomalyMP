@@ -75,7 +75,13 @@ def main():
     for face in shell:
         texture = face['texture'].replace('/', '\\')
         assert any((b'/' + texture.encode() + b',') in mat for mat in level_materials), texture
-        for i in (0,1,2,0,2,3):
+        a, b, c, _ = face['corners']
+        u, v = tuple(b[k]-a[k] for k in range(3)), tuple(c[k]-a[k] for k in range(3))
+        geometric_normal = (u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])
+        # Shader states restore normal backface culling. Face each surface into
+        # the room rather than relying on a temporary CULL_NONE override.
+        order = (0,1,2,0,2,3) if sum(geometric_normal[k]*face['normal'][k] for k in range(3)) > 0 else (0,2,1,0,3,2)
+        for i in order:
             batches[texture].extend(struct.pack('<3f3fI2f', *face['corners'][i],
                 *face['normal'], 0xffffff, *face['uv'][i]))
     provenance = {}

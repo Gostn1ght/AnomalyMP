@@ -350,6 +350,13 @@ void CRender::render_menu()
 	// Main Render
 	{
 		Target->u_setrt(Target->rt_Generic_0, 0, 0, HW.pBaseZB); // LDR RT
+		if (!g_pGameLevel && strstr(Core.Params, "-netcoop"))
+		{
+			// The 3D room does not cover every pixel. Never keep the previous
+			// account screen or a closed dialog in the persistent menu target.
+			const FLOAT clear[4] = { .012f, .015f, .012f, 1.f };
+			HW.pContext->ClearRenderTargetView(Target->rt_Generic_0->pRT, clear);
+		}
 		g_pGamePersistent->OnRenderPPUI_main(); // PP-UI
 	}
 
@@ -413,6 +420,11 @@ void CRender::Render()
 		|| bMenu)
 	{
 		Target->u_setrt(Device.dwWidth, Device.dwHeight, HW.pBaseRT,NULL,NULL, HW.pBaseZB);
+		if (!g_pGameLevel && strstr(Core.Params, "-netcoop"))
+		{
+			const FLOAT clear[4] = { .012f, .015f, .012f, 1.f };
+			HW.pContext->ClearRenderTargetView(HW.pBaseRT, clear);
+		}
 		return;
 	}
 
