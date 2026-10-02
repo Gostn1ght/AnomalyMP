@@ -21,6 +21,7 @@
 
 namespace netcoop
 {
+void firebase_frame();
 namespace
 {
 const u32 bot_send_interval = 33; // ms, the player client's update rate
@@ -530,6 +531,7 @@ void bots_set(u32 count, LPCSTR address)
 
 void bots_frame()
 {
+	firebase_frame();
 	if (s_frontend_account && s_frontend_account->update())
 		xr_delete(s_frontend_account);
 	check_command_line();

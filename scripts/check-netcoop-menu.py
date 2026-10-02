@@ -112,4 +112,64 @@ assert(can_mcm()==false); role=2; assert(can_mcm()==true)
 ''')
 print('Actual menu Lua: first screen, saved-account bypass, empty-password rejection, account verification without world-start commands, pending account lock, slot/model mapping and RP selection PASS')
 
+lua.execute(r'''
+commands,characters,cloud_requests,drafts={},{},{},{}
+cloud_state,cloud_account=0,'cloud_user'
+function netcoop_firebase_state() return cloud_state end
+function netcoop_firebase_account() return cloud_account end
+function netcoop_firebase_email() return 'user@example.invalid' end
+function netcoop_firebase_request(action,email,password,username)
+ cloud_requests[#cloud_requests+1]={action=action,email=email,username=username}; return true
+end
+function netcoop_draft(slot,field) return drafts[slot] and drafts[slot][field] or '' end
+function netcoop_save_draft(slot,name,description,history,faction,economy,loadout)
+ drafts[slot]={name=name,description=description,history=history,faction=faction,economy=tostring(economy),loadout=loadout}; return true
+end
+function netcoop_character_profile(description,history) profile={description,history}; return true end
+''')
+lua.execute(menu_source.read_text(encoding='cp1251'))
+lua.execute(r'''
+local menu={HideDialog=function() end,Show=function() end,ShowDialog=function() end}
+assert(frontend_update(menu)==true)
+controls.input_email:SetText('user@example.invalid'); controls.input_login:SetText('cloud_user')
+controls.input_pass:SetText('tiny'); callbacks.btn_reg(); assert(#cloud_requests==0)
+controls.input_pass:SetText('test-password'); callbacks.btn_reg()
+assert(cloud_requests[1].action=='register' and #commands==0 and #characters==0)
+callbacks.btn_reg(); assert(#cloud_requests==1)
+cloud_state=1; on_cloud_result(true,'','cloud_user',false); last_window:Update()
+assert(not controls.input_pass.shown and controls.input_email.enabled==false)
+callbacks.btn_reg(); assert(cloud_requests[2].action=='resend')
+on_cloud_result(true,'','cloud_user',false); last_window:Update()
+callbacks.btn_enter(); assert(cloud_requests[3].action=='refresh')
+cloud_state=2; on_cloud_result(true,'','cloud_user',true); last_window:Update()
+assert(last_window.mode=='profile' and #commands==0)
+controls.input_name:SetText('Loner One'); controls.input_description:SetText('Brown jacket')
+controls.input_history:SetText('A separate character history')
+ui_mm_faction_select={UINewGame=function(owner)
+ local hidden={Show=function() end}
+ last_creator={owner=owner,SetAutoDelete=function() end,HideDialog=function() end,ShowDialog=function() end,Show=function() end,
+  character_name={SetText=function(s,v) s.name=v end,GetText=function(s) return s.name end},scroll_options=hidden,list_map=hidden}
+ return last_creator
+end}
+callbacks.profile_next(); assert(last_creator.character_name.name=='Loner One')
+assert(#commands==0 and #characters==0)
+last_creator.access=true; last_creator.points_left=10; last_creator.selected_economy='st_econ_1'; last_creator.selected_faction='stalker'
+last_creator.CC={inventory={cell={{section='medkit',IsShown=function() return true end,CountChilds=function() return 2 end}}}}
+netcoop_login_ui={finish_creation=finish_creation}
+finish_creation(last_creator)
+assert(drafts[1].loadout=='medkit,medkit,medkit')
+assert(drafts[1].history=='A separate character history')
+assert(last_window.mode=='characters' and controls.name.text=='Loner One' and #commands==0)
+last_window:OnKeyboard(23,ui_events.WINDOW_KEY_PRESSED); assert(controls.inventory_panel.shown)
+callbacks.char_enter(); assert(cloud_requests[#cloud_requests].action=='refresh' and #commands==0)
+on_cloud_result(false,'NETWORK_ERROR','cloud_user',true); assert(#commands==0)
+callbacks.char_enter(); on_cloud_result(true,'','cloud_user',true)
+assert(characters[#characters].name=='Loner One' and characters[#characters].slot==1)
+assert(profile[1]=='Brown jacket' and #commands==2)
+-- A remembered cloud account is refreshed before the frontend skips login.
+commands={}; local again={HideDialog=function() end,Show=function() end,ShowDialog=function() end}
+local before=#cloud_requests; assert(frontend_update(again)==true)
+assert(#cloud_requests==before+1 and cloud_requests[#cloud_requests].action=='refresh' and #commands==0)
+''')
+print('Firebase menu: separate account/character, verification gate, duplicate request lock, offline starter draft, stack counts, inventory key, refreshed world entry, remembered login PASS')
 temporary.cleanup()

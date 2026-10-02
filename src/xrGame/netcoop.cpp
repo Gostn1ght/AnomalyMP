@@ -3,6 +3,9 @@
 
 #include <bcrypt.h>
 #include <wincrypt.h>
+#include <winhttp.h>
+#include "../3rd party/nlohmann/json.hpp"
+#pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "bcrypt.lib")
 
@@ -197,6 +200,8 @@ static bool s_client_remembered = false;
 static u8 s_client_role = role_none;
 static u8 s_client_character_slot = 1;
 static xr_string s_client_character_name, s_client_character_faction = "stalker", s_client_character_loadout;
+static xr_string s_client_description, s_client_history;
+static bool firebase_enabled();
 static u8 s_client_character_economy = 1;
 
 static void client_credentials_path(string_path& path)
@@ -330,6 +335,7 @@ LPCSTR client_login()
 
 u8 client_role()
 {
+	if (firebase_enabled()) return s_client_role;
 	client_load_credentials();
 	return s_client_role;
 }
@@ -382,18 +388,22 @@ static xr_string client_device_key()
     return to_hex(digest, sizeof(digest));
 }
 
+#include "netcoop_firebase.inc"
+
 void client_write_auth(NET_Packet& P)
 {
 	client_load_credentials();
-	P.w_u8(s_client_register ? auth_register : auth_login);
-	P.w_stringZ(s_client_login.c_str());
-	P.w_stringZ(s_client_key.c_str());
+    const bool cloud = firebase_enabled() && !s_firebase_session.id.empty();
+	P.w_u8(cloud ? 3 : s_client_register ? auth_register : auth_login);
+	P.w_stringZ(cloud ? s_firebase_session.username.c_str() : s_client_login.c_str());
+	P.w_stringZ(cloud ? s_firebase_session.id.c_str() : s_client_key.c_str());
     P.w_u8(s_client_character_slot);
     P.w_stringZ(s_client_character_name.empty() ? s_client_login.c_str() : s_client_character_name.c_str());
     P.w_stringZ(s_client_character_faction.c_str());
     P.w_u8(s_client_character_economy);
     P.w_stringZ(s_client_character_name.empty() ? "device_pda_1" : s_client_character_loadout.c_str());
     P.w_stringZ(client_device_key().c_str());
+    if (cloud) { P.w_stringZ(s_client_description.c_str()); P.w_stringZ(s_client_history.c_str()); }
 	s_client_register = false;
 	s_client_role = role_none;
 }
@@ -408,10 +418,11 @@ void client_on_auth_result(NET_Packet& P)
 		xr_strcpy(message, "");
 
 	s_client_role = ok ? role : u8(role_none);
-	if (ok) { s_client_approved = true; client_store_credentials(); }
+    const bool cloud = firebase_enabled() && !s_firebase_session.id.empty();
+	if (ok) { s_client_approved = true; if (!cloud) client_store_credentials(); }
     else if (!xr_strcmp(message, "Registration pending administrator approval") || !xr_strcmp(message, "Registration rejected by administrator"))
-    { s_client_approved = false; client_store_credentials(); }
-    else if (!s_client_remembered)
+    { s_client_approved = false; if (!cloud) client_store_credentials(); }
+    else if (!cloud && !s_client_remembered)
     {
         s_client_login.clear(); s_client_key.clear();
         s_client_loaded = false; client_load_credentials();
@@ -582,6 +593,7 @@ bool script_pure_client() { return pure_client(); }
 // ---------------------------------------------------------------------------
 struct Account
 {
+    xr_string firebase_uid;
 	// 0: pending, 1: approved, 2: rejected. Old account files default to approved.
 	u8 approval = 1;
 	xr_string device;
@@ -625,10 +637,10 @@ static void accounts_load()
 			continue;
 
 		// login|role|salt|hash|money
-		char* fields[7] = {};
+		char* fields[8] = {};
 		u32 count = 0;
 		char* cursor = line;
-		while (count < 7)
+		while (count < 8)
 		{
 			fields[count++] = cursor;
 			char* sep = strchr(cursor, '|');
@@ -641,6 +653,7 @@ static void accounts_load()
 			continue;
 
 		Account a;
+        a.firebase_uid = count >= 8 ? fields[7] : "";
 		a.approval = count >= 7 ? (!xr_strcmp(fields[6], "pending") ? 0 : !xr_strcmp(fields[6], "rejected") ? 2 : 1) : 1;
 		a.login = fields[0];
 		a.device = count >= 6 && key_valid(fields[5]) ? fields[5] : "";
@@ -679,9 +692,9 @@ static void accounts_save()
 	{
 		const Account& a = it->second;
 		if (a.has_money)
-			fprintf(f, "%s|%s|%s|%s|%u|%s|%s\n", a.login.c_str(), role_name(a.role), a.salt.c_str(), a.hash.c_str(), a.money, a.device.c_str(), a.approval == 0 ? "pending" : a.approval == 2 ? "rejected" : "approved");
+			fprintf(f, "%s|%s|%s|%s|%u|%s|%s|%s\n", a.login.c_str(), role_name(a.role), a.salt.c_str(), a.hash.c_str(), a.money, a.device.c_str(), a.approval == 0 ? "pending" : a.approval == 2 ? "rejected" : "approved", a.firebase_uid.c_str());
 		else
-			fprintf(f, "%s|%s|%s|%s|-|%s|%s\n", a.login.c_str(), role_name(a.role), a.salt.c_str(), a.hash.c_str(), a.device.c_str(), a.approval == 0 ? "pending" : a.approval == 2 ? "rejected" : "approved");
+			fprintf(f, "%s|%s|%s|%s|-|%s|%s|%s\n", a.login.c_str(), role_name(a.role), a.salt.c_str(), a.hash.c_str(), a.device.c_str(), a.approval == 0 ? "pending" : a.approval == 2 ? "rejected" : "approved", a.firebase_uid.c_str());
 	}
 	fclose(f);
 	if (!MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
@@ -862,6 +875,8 @@ static void reject(xrServer* server, xrClientData* CL, LPCSTR message)
 // server_auth_update, and the client's player state waits for it.
 struct PendingAuth
 {
+    bool firebase = false;
+    xr_string firebase_api, firebase_uid, description, history;
 	xr_string device;
 	ClientID client;
 	xr_string login;
@@ -880,7 +895,15 @@ static xr_vector<PendingAuth*> s_pending_auth;
 static void auth_worker(void* data)
 {
 	PendingAuth* pending = static_cast<PendingAuth*>(data);
-	pending->hashed = server_hash(pending->key.c_str(), pending->salt, pending->hash);
+    if (pending->firebase)
+    {
+        FirebaseSession identity; std::string error;
+        pending->hashed = firebase_lookup(pending->key.c_str(), pending->firebase_api.c_str(), identity, error) &&
+            identity.verified && identity.username == pending->login.c_str() && identity.uid.size() <= 128 &&
+            identity.uid.find_first_of("|\r\n") == std::string::npos;
+        if (pending->hashed) pending->firebase_uid = identity.uid.c_str();
+    }
+    else pending->hashed = server_hash(pending->key.c_str(), pending->salt, pending->hash);
 	InterlockedExchange(&pending->done, 1);
 }
 
@@ -906,9 +929,9 @@ void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
 	}
 	const u8 mode = P.r_u8();
 	char login[64];
-	char key[96];
+	char key[4097];
 	if (!read_string(P, login, sizeof(login)) || !read_string(P, key, sizeof(key)) || !login_valid(login) ||
-		!key_valid(key))
+		(mode == 3 ? !firebase_enabled() || xr_strlen(key) < 100 : !key_valid(key)))
 	{
 		reject(server, CL, "Invalid login or password");
 		return;
@@ -925,6 +948,8 @@ void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
 	}
 
 	PendingAuth* pending = xr_new<PendingAuth>();
+    pending->firebase = mode == 3;
+    pending->firebase_api = s_firebase_api;
 	pending->client = CL->ID;
 	pending->login = login;
 	pending->key = key;
@@ -944,9 +969,17 @@ void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
         if (P.r_elapsed())
         {
             char device[65];
-            if (!read_string(P, device, sizeof(device)) || P.r_elapsed() || !key_valid(device))
+            if (!read_string(P, device, sizeof(device)) || !key_valid(device))
             { xr_delete(pending); reject(server, CL, "Device identity unavailable"); return; }
             pending->device = device;
+            if (pending->firebase)
+            {
+                char description[513], history[1537];
+                if (!read_string(P, description, sizeof(description)) || !read_string(P, history, sizeof(history)))
+                { xr_delete(pending); reject(server, CL, "Invalid character profile"); return; }
+                pending->description = description; pending->history = history;
+            }
+            if (P.r_elapsed()) { xr_delete(pending); reject(server, CL, "Unexpected authentication data"); return; }
         }
     }
     else
@@ -957,7 +990,7 @@ void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
     }
 
 	Account* a = account_find(login);
-	pending->create = mode == auth_register || (mode == auth_auto && !a);
+	pending->create = mode == auth_register || ((mode == auth_auto || pending->firebase) && !a);
 	if (pending->create)
 	{
 		if (a)
@@ -977,6 +1010,8 @@ void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
 	}
 	else
 	{
+		if (a && !pending->firebase && !a->firebase_uid.empty())
+        { xr_delete(pending); reject(server, CL, "Use Firebase sign-in for this account"); return; }
 		if (!a)
 		{
 			xr_delete(pending);
@@ -1013,7 +1048,7 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
 	}
 	if (!pending->hashed)
 	{
-		reject(server, CL, "Server error: cannot hash password");
+		reject(server, CL, pending->firebase ? "Firebase identity or verified email could not be confirmed" : "Server error: cannot hash password");
 		return;
 	}
 
@@ -1026,12 +1061,13 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
 			return;
 		}
 		Account created;
+        created.firebase_uid = pending->firebase_uid;
 		created.login = pending->login;
 		created.role = role_player; // only the server console grants admin
 		created.approval = 0;
 		created.device = pending->device;
 		created.salt = pending->salt;
-		created.hash = pending->hash;
+		created.hash = pending->firebase ? "firebase" : pending->hash;
 		created.has_money = false;
 		created.money = 0;
 		created.failures = 0;
@@ -1051,7 +1087,7 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
 			reject(server, CL, "Unknown account, use Register");
 			return;
 		}
-		if (!constant_time_equal(pending->hash, a->hash))
+		if (pending->firebase ? a->firebase_uid.empty() || a->firebase_uid != pending->firebase_uid : !constant_time_equal(pending->hash, a->hash))
 		{
 			if (++a->failures >= 5)
 			{
@@ -1092,6 +1128,9 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
         reject(server, CL, "Character unavailable or starting items exceed the point budget");
         return;
     }
+    if (Character* character = character_load(CL->netcoop_login.c_str(), pending->slot))
+        if (!character->initialized && pending->firebase)
+        { character->description = pending->description; character->history = pending->history; character_save(*character); }
 	CL->netcoop_role = a->role;
 	CL->name = a->login.c_str();
 

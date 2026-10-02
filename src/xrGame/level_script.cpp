@@ -69,6 +69,15 @@
 using namespace luabind;
 
 namespace netcoop { bool script_frontend_auth(LPCSTR options); }
+namespace netcoop {
+bool script_firebase_request(LPCSTR action, LPCSTR email, LPCSTR password, LPCSTR username);
+int script_firebase_state();
+LPCSTR script_firebase_email();
+LPCSTR script_firebase_account();
+bool script_save_draft(int slot, LPCSTR name, LPCSTR description, LPCSTR history, LPCSTR faction, int economy, LPCSTR loadout);
+LPCSTR script_draft(int slot, LPCSTR field);
+bool script_profile(LPCSTR description, LPCSTR history);
+}
 
 extern ENGINE_API float ps_r2_sun_shafts_min;
 extern ENGINE_API float ps_r2_sun_shafts_value;
@@ -2756,6 +2765,13 @@ void CLevel::script_register(lua_State* L)
 		def("netcoop_preview_clear", &netcoop::script_preview_clear),
 		def("netcoop_preview_model", &netcoop::script_preview_model),
 		def("netcoop_frontend_auth", &netcoop::script_frontend_auth),
+		def("netcoop_firebase_request", &netcoop::script_firebase_request),
+		def("netcoop_firebase_state", &netcoop::script_firebase_state),
+		def("netcoop_firebase_email", &netcoop::script_firebase_email),
+		def("netcoop_firebase_account", &netcoop::script_firebase_account),
+		def("netcoop_save_draft", &netcoop::script_save_draft),
+		def("netcoop_draft", &netcoop::script_draft),
+		def("netcoop_character_profile", &netcoop::script_profile),
 		def("netcoop_preview_draw", &netcoop::script_preview_draw),
 		def("netcoop_command", &netcoop::script_command),
 		def("netcoop_trade", &netcoop::script_trade),

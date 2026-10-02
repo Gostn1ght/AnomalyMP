@@ -2,7 +2,7 @@
 // connection; character slots own gameplay state. No client-supplied saves.
 struct Character
 {
-	xr_string account, name, faction, loadout;
+	xr_string account, name, faction, loadout, description, history;
 	u8 slot = 1, economy = 1;
 	bool initialized = false, respawn = false;
 	u32 last_save = 0;
@@ -92,11 +92,13 @@ static bool character_save(Character& character)
 	xr_sprintf(temp, "%s.tmp", path);
 	FILE* f = fopen(temp, "wb");
 	if (!f) return false;
-	const u32 magic = 0x3448434e; // NCH4; NCH3 remains readable
+	const u32 magic = 0x3548434e; // NCH5: profile; NCH3/4 remain readable
 	fwrite(&magic, 4, 1, f);
 	fwrite(character.name.c_str(), 1, character.name.size() + 1, f);
 	fwrite(character.faction.c_str(), 1, character.faction.size() + 1, f);
 	fwrite(character.loadout.c_str(), 1, character.loadout.size() + 1, f);
+	fwrite(character.description.c_str(), 1, character.description.size() + 1, f);
+	fwrite(character.history.c_str(), 1, character.history.size() + 1, f);
 	fputc(character.economy, f); fputc(character.initialized ? 1 : 0, f); fputc(character.respawn ? 1 : 0, f);
 	character_write_packet(f, character.actor);
 	const u32 count = u32(character.items.size());
@@ -130,9 +132,10 @@ static Character* character_load(LPCSTR account, u8 slot)
 	Character character;
 	character.account = account; character.slot = slot;
 	u32 magic = 0, count = 0;
-	bool ok = fread(&magic, 4, 1, f) == 1 && (magic == 0x3348434e || magic == 0x3448434e) &&
+	bool ok = fread(&magic, 4, 1, f) == 1 && (magic == 0x3348434e || magic == 0x3448434e || magic == 0x3548434e) &&
 		character_read_string(f, character.name, 63) && character_read_string(f, character.faction, 32) &&
 		character_read_string(f, character.loadout, 4096);
+	if (ok && magic == 0x3548434e) ok = character_read_string(f, character.description, 512) && character_read_string(f, character.history, 1536);
 	if (ok)
 	{
 		character.economy = u8(fgetc(f));
@@ -145,11 +148,11 @@ static Character* character_load(LPCSTR account, u8 slot)
 	{
 		Character::Item item;
 		ok = character_read_string(f, item.section, 128) && fread(&item.parent, 2, 1, f) == 1 &&
-			item.parent <= i && (magic != 0x3448434e || fread(&item.place, 2, 1, f) == 1) &&
+			item.parent <= i && (magic == 0x3348434e || fread(&item.place, 2, 1, f) == 1) &&
 			character_read_packet(f, item.spawn) && pSettings->section_exist(item.section.c_str());
 		if (ok) character.items.push_back(std::move(item));
 	}
-	if (ok && magic == 0x3448434e)
+	if (ok && magic != 0x3348434e)
 	{
 		u32 size = 0, crc = 0;
 		ok = fread(&size, 4, 1, f) == 1 && fread(&crc, 4, 1, f) == 1 && size <= 1048576;
@@ -227,6 +230,48 @@ static bool character_select(xrClientData* CL, u8 slot, LPCSTR name, LPCSTR fact
 	CL->netcoop_character_slot = slot;
 	CL->netcoop_character_name = character->name.c_str();
 	return true;
+}
+
+static CloudJson s_drafts = CloudJson::object();
+static xr_string s_drafts_owner, s_drafts_file;
+static void drafts_load()
+{
+    firebase_load();
+    if (s_drafts_owner == s_firebase_session.uid.c_str()) return;
+    s_drafts_owner = s_firebase_session.uid.c_str(); s_drafts = CloudJson::object();
+    u8 digest[32];
+    if (!pbkdf2(s_drafts_owner.data(), u32(s_drafts_owner.size()), "characters", 10, 1, digest, sizeof(digest))) return;
+    s_drafts_file = "netcoop_drafts_" + to_hex(digest, sizeof(digest)) + ".bin";
+    cloud_secret_file(s_drafts_file.c_str(), s_drafts, false);
+}
+bool script_save_draft(int slot, LPCSTR name, LPCSTR description, LPCSTR history, LPCSTR faction, int economy, LPCSTR loadout)
+{
+    drafts_load();
+    if (s_drafts_owner.empty() || slot < 1 || slot > 5 || !character_name_valid(name) || !description || !history ||
+        xr_strlen(description) > 512 || xr_strlen(history) > 1536 || !faction || !loadout ||
+        !character_validate_loadout(faction, u8(economy), loadout)) return false;
+    const auto key = std::to_string(slot);
+    CloudJson saved = s_drafts;
+    saved[key] = {{"name", cloud_convert(name, 1251, CP_UTF8)}, {"description", cloud_convert(description, 1251, CP_UTF8)},
+        {"history", cloud_convert(history, 1251, CP_UTF8)}, {"faction", faction}, {"economy", std::to_string(economy)}, {"loadout", loadout}};
+    if (!cloud_secret_file(s_drafts_file.c_str(), saved, true)) return false;
+    s_drafts = saved;
+    return true;
+}
+LPCSTR script_draft(int slot, LPCSTR field)
+{
+    static std::string result;
+    result.clear(); drafts_load();
+    const auto key = std::to_string(slot);
+    if (field && slot >= 1 && slot <= 5 && s_drafts.contains(key) && s_drafts[key].is_object())
+        result = cloud_convert(cloud_string(s_drafts[key], field), CP_UTF8, 1251);
+    return result.c_str();
+}
+bool script_profile(LPCSTR description, LPCSTR history)
+{
+    if (!description || !history || xr_strlen(description) > 512 || xr_strlen(history) > 1536) return false;
+    s_client_description = description; s_client_history = history;
+    return true;
 }
 
 bool server_character_load_actor(xrClientData* CL, CSE_Abstract* actor)
