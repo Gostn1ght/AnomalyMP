@@ -300,8 +300,11 @@ CUIMapList* CScriptXmlInit::InitMapList(LPCSTR path, CUIWindow* parent)
 
 CUIMMShniaga* CScriptXmlInit::InitMMShniaga(LPCSTR path, CUIWindow* parent)
 {
+	// Keep the Lua string owned while construction allocates UI/render objects.
+	const xr_string stable_path = path;
 	CUIMMShniaga* pWnd = xr_new<CUIMMShniaga>();
-	pWnd->InitShniaga(m_xml, path);
+	m_xml.SetLocalRoot(m_xml.GetRoot());
+	pWnd->InitShniaga(m_xml, stable_path.c_str());
 	_attach_child(pWnd, parent);
 	return pWnd;
 }

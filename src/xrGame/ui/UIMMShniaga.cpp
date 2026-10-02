@@ -61,6 +61,8 @@ extern CActor* g_actor;
 void CUIMMShniaga::InitShniaga(CUIXml& xml_doc, LPCSTR path)
 {
 	string256 _path;
+	// Main-menu paths are absolute in the layout document.
+	xml_doc.SetLocalRoot(xml_doc.GetRoot());
 
 	CUIXmlInit::InitWindow(xml_doc, path, 0, this);
 	strconcat(sizeof(_path), _path, path, ":shniaga:magnifire");
