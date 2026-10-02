@@ -1,0 +1,37 @@
+"""Compile menu shaders with the real Windows Direct3D compiler, without UI."""
+from pathlib import Path
+import ctypes as C
+import shutil
+root = Path(__file__).resolve().parents[1]
+fixtures = root.parent/'build-logs'/'menu-shader-check'
+shutil.copytree(root.parent/'gamma-runtime/gamedata/shaders/r3', fixtures, dirs_exist_ok=True)
+for source in (root/'scripts/netcoop-overlay/client/shaders/r3').iterdir():
+    shutil.copy2(source, fixtures/source.name)
+class Macro(C.Structure):
+    _fields_ = [('name', C.c_char_p), ('value', C.c_char_p)]
+compiler = C.WinDLL('d3dcompiler_47.dll').D3DCompileFromFile
+compiler.argtypes = [C.c_wchar_p, C.POINTER(Macro), C.c_void_p, C.c_char_p, C.c_char_p,
+                    C.c_uint, C.c_uint, C.POINTER(C.c_void_p), C.POINTER(C.c_void_p)]
+compiler.restype = C.c_long
+def take(blob):
+    methods = C.cast(blob, C.POINTER(C.POINTER(C.c_void_p))).contents
+    pointer = C.WINFUNCTYPE(C.c_void_p, C.c_void_p)(methods[3])(blob)
+    size = C.WINFUNCTYPE(C.c_size_t, C.c_void_p)(methods[4])(blob)
+    result = C.string_at(pointer, size)
+    C.WINFUNCTYPE(C.c_ulong, C.c_void_p)(methods[2])(blob)
+    return result
+for shader in ['netcoop_preview', 'netcoop_room']:
+    for stage in ['vs', 'ps']:
+        for skin in (['NONE', '0', '1', '2', '3', '4'] if stage == 'vs' and shader == 'netcoop_preview' else ['NONE']):
+            macros = (Macro*3)(Macro(('SKIN_'+skin).encode(), b'1'), Macro(b'USE_DX11', b'1'), Macro(None,None))
+            code, errors = C.c_void_p(), C.c_void_p()
+            result = compiler(str(fixtures/(shader+'.'+stage)), macros, C.c_void_p(1), b'main',
+                              (stage+'_5_0').encode(), 0, 0, C.byref(code), C.byref(errors))
+            if errors:
+                diagnostics = take(errors).decode(errors='replace')
+                if result < 0:
+                    print(diagnostics)
+            if result < 0:
+                raise SystemExit(f'Shader compile failed: {shader}.{stage} SKIN_{skin}')
+            binary = take(code)
+            print(f'{shader}.{stage} SKIN_{skin} PASS ({len(binary)} bytes)')

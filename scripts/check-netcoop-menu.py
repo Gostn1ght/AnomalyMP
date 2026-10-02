@@ -66,7 +66,7 @@ function netcoop_frontend_auth(options) auth_requests[#auth_requests+1]=options;
 function netcoop_character(slot,name,faction,economy,loadout) characters[#characters+1]={slot=slot,name=name,loadout=loadout}; return true end
 function netcoop_preview_clear() end
 function netcoop_preview_model(model,pose) previews[#previews+1]={model=model,pose=pose}; return true end
-function netcoop_rp_list() return 'sit=pose_sit;salute=pose_salute;' end
+function netcoop_rp_list() return 'bar_1=bar;hands_pockets=pockets;sit_1=sit1;sit_2=sit2;sit_3=sit3;hands_behind=behind;sleep=sleep;' end
 function exec_console_cmd(cmd) commands[#commands+1]=cmd end
 function printf() end
 game={translate_string=function(s) return s end}
@@ -75,7 +75,13 @@ level={present=function() return present end}
 ui_events={BUTTON_CLICKED=1,WINDOW_KEY_PRESSED=2}
 DIK_keys={DIK_ESCAPE=1,DIK_RETURN=28,DIK_NUMPADENTER=156,DIK_LEFT=203,DIK_RIGHT=205}
 key_bindings={kINVENTORY=9}
-function bind_to_dik() return 23 end
+function bind_to_dik(action,index) assert(type(index)=='number','native binding needs both arguments'); return index==0 and 23 or 24 end
+settings_created=0
+function Register_UI(id) assert(id=='UIOptions') end
+ui_options={UIOptions=function()
+ settings_created=settings_created+1
+ return setmetatable({background=widget()}, {__index=Widget})
+end}
 CUIMMShniaga={epi_main=0,epi_new_game=1}
 ''')
 menu_source = Path(sys.argv[1]) if len(sys.argv) > 1 else root/'scripts/netcoop-overlay/client/netcoop_login_ui.script'
@@ -105,6 +111,9 @@ assert(controls.name.text=='Alpha' and previews[#previews].model=='actors\\novic
 callbacks.char_next(); assert(controls.name.text=='Beta' and previews[#previews].model=='actors\\armor.ogf')
 callbacks.char_previous(); assert(controls.name.text=='Alpha')
 callbacks.preview_pose_1(); assert(previews[#previews].pose==1)
+assert(callbacks.preview_pose_0==nil and callbacks.preview_pose_6==nil)
+assert(#controls.poses_scroll.rows==6)
+callbacks.preview_neutral(); assert(previews[#previews].pose==-1)
 callbacks.char_previous(); assert(controls.info.text:find('5 / 5',1,true))
 callbacks.char_next(); callbacks.char_enter()
 assert(characters[#characters].slot==1 and characters[#characters].name=='Alpha')
@@ -118,14 +127,37 @@ cloud_state,cloud_account=0,'cloud_user'
 function netcoop_firebase_state() return cloud_state end
 function netcoop_firebase_account() return cloud_account end
 function netcoop_firebase_email() return 'user@example.invalid' end
+cloud_identity='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+function netcoop_firebase_identity() return cloud_identity end
 function netcoop_firebase_request(action,email,password,username)
- cloud_requests[#cloud_requests+1]={action=action,email=email,username=username}; return true
+ cloud_requests[#cloud_requests+1]={action=action,email=email,username=username,code=action=='verify' and password or nil}; return true
+end
+draft_stores={}; draft_scope='127.0.0.1:1267'; draft_stores[draft_scope]=drafts
+draft_owners={[cloud_identity]=draft_stores}; current_draft_owner=cloud_identity
+function netcoop_draft_server(address)
+ if current_draft_owner~=cloud_identity then
+  draft_stores=draft_owners[cloud_identity] or {};draft_owners[cloud_identity]=draft_stores;current_draft_owner=cloud_identity
+ end
+ draft_scope=address;draft_stores[address]=draft_stores[address] or {}; drafts=draft_stores[address];return true
 end
 function netcoop_draft(slot,field) return drafts[slot] and drafts[slot][field] or '' end
 function netcoop_save_draft(slot,name,description,history,faction,economy,loadout)
  drafts[slot]={name=name,description=description,history=history,faction=faction,economy=tostring(economy),loadout=loadout}; return true
 end
 function netcoop_character_profile(description,history) profile={description,history}; return true end
+ini_sys={section_exist=function(s,section) return section=='medkit' or section=='wpn_ak74' end}
+function SYS_GetParam(kind,section,key,fallback)
+ if key=='visual' and section=='wpn_ak74' then return 'rifle.ogf' end
+ if key=='slot' and section=='wpn_ak74' then return 2 end
+ if key=='inv_grid_width' then return section=='wpn_ak74' and 5 or 1 end
+ if key=='inv_grid_height' then return section=='wpn_ak74' and 2 or 1 end
+ return fallback
+end
+function GetFontLetterica16Russian() return {} end
+function GetARGB() return 0 end
+utils_xml={get_icons_texture=function() return 'icons' end,get_item_axis=function() return 0,0,50,50 end}
+function netcoop_preview_weapon(section) last_weapon=section;return true end
+function netcoop_preview_point(index) return {x=300+index*200,y=400+index*80} end
 ''')
 lua.execute(menu_source.read_text(encoding='cp1251'))
 lua.execute(r'''
@@ -137,10 +169,13 @@ controls.input_pass:SetText('test-password'); callbacks.btn_reg()
 assert(cloud_requests[1].action=='register' and #commands==0 and #characters==0)
 callbacks.btn_reg(); assert(#cloud_requests==1)
 cloud_state=1; on_cloud_result(true,'','cloud_user',false); last_window:Update()
-assert(not controls.input_pass.shown and controls.input_email.enabled==false)
+assert(not controls.input_pass.shown and controls.input_email.enabled==false and controls.input_code.shown)
 callbacks.btn_reg(); assert(cloud_requests[2].action=='resend')
 on_cloud_result(true,'','cloud_user',false); last_window:Update()
-callbacks.btn_enter(); assert(cloud_requests[3].action=='refresh')
+local before=#cloud_requests; controls.input_code:SetText('12345'); callbacks.btn_enter(); assert(#cloud_requests==before)
+controls.input_code:SetText('123456');callbacks.btn_enter();assert(cloud_requests[3].action=='verify' and cloud_requests[3].code=='123456')
+on_cloud_result(false,'INVALID_CODE','cloud_user',false); last_window:Update(); assert(last_window.mode=='account')
+controls.input_code:SetText('654321');callbacks.btn_enter();assert(cloud_requests[4].action=='verify')
 cloud_state=2; on_cloud_result(true,'','cloud_user',true); last_window:Update()
 assert(last_window.mode=='profile' and #commands==0)
 controls.input_name:SetText('Loner One'); controls.input_description:SetText('Brown jacket')
@@ -160,12 +195,36 @@ finish_creation(last_creator)
 assert(drafts[1].loadout=='medkit,medkit,medkit')
 assert(drafts[1].history=='A separate character history')
 assert(last_window.mode=='characters' and controls.name.text=='Loner One' and #commands==0)
+assert(not controls.input_email.shown and not controls.background.shown)
+assert(#controls.inventory_scroll.rows==1)
+drafts[1].loadout='medkit,medkit,medkit,wpn_ak74';last_window:ShowCharacters()
+assert(last_weapon=='wpn_ak74' and #controls.inventory_scroll.rows==2)
 last_window:OnKeyboard(23,ui_events.WINDOW_KEY_PRESSED); assert(controls.inventory_panel.shown)
+last_window:OnKeyboard(24,ui_events.WINDOW_KEY_PRESSED); assert(not controls.inventory_panel.shown)
+callbacks.char_inventory(); assert(controls.inventory_panel.shown)
+callbacks.char_settings();assert(settings_created==0);last_window:Update();assert(settings_created==1 and not last_window.shown)
+last_window:ShowDialog(true);last_window:Show(true)
+callbacks.char_settings();last_window:Update();assert(settings_created==1)
+last_window:ShowDialog(true);last_window:Show(true)
+local options_factory=ui_options.UIOptions;last_window.opt_dlg=nil
+ui_options.UIOptions=function() error('fixture options failure') end
+callbacks.char_settings();last_window:Update();assert(last_window.shown and controls.status.text=='st_netcoop_settings_error')
+ui_options.UIOptions=options_factory
+-- Changing servers must not expose or reuse another server's draft.
+controls.server_edit:SetText('Other-Server.example:1268');callbacks.server_save()
+assert(draft_scope=='other-server.example:1268' and (last_window.names[1] or '')=='' and last_weapon=='')
+assert(draft_stores['127.0.0.1:1267'][1].name=='Loner One')
+controls.server_edit:SetText('127.0.0.1:1267');callbacks.server_save();assert(last_window.names[1]=='Loner One' and last_weapon=='wpn_ak74')
 callbacks.char_enter(); assert(cloud_requests[#cloud_requests].action=='refresh' and #commands==0)
 on_cloud_result(false,'NETWORK_ERROR','cloud_user',true); assert(#commands==0)
 callbacks.char_enter(); on_cloud_result(true,'','cloud_user',true)
 assert(characters[#characters].name=='Loner One' and characters[#characters].slot==1)
 assert(profile[1]=='Brown jacket' and #commands==2)
+cache_characters('Server saved name||||');last_window:ShowCharacters();assert(last_window.names[1]=='Server saved name')
+cloud_identity='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';last_window:ShowCharacters();assert((last_window.names[1] or '')=='' and last_weapon=='')
+cloud_identity='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';last_window:ShowCharacters();assert(last_window.names[1]=='Server saved name')
+-- Network failure while refreshing a verified account does not ask for another email code.
+last_window:ResetCloud();assert(not controls.input_code.shown and not controls.btn_reg.shown)
 -- A remembered cloud account is refreshed before the frontend skips login.
 commands={}; local again={HideDialog=function() end,Show=function() end,ShowDialog=function() end}
 local before=#cloud_requests; assert(frontend_update(again)==true)

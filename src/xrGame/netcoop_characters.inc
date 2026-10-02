@@ -233,16 +233,36 @@ static bool character_select(xrClientData* CL, u8 slot, LPCSTR name, LPCSTR fact
 }
 
 static CloudJson s_drafts = CloudJson::object();
-static xr_string s_drafts_owner, s_drafts_file;
+static xr_string s_drafts_owner, s_drafts_file, s_drafts_server, s_drafts_loaded_key;
+bool script_draft_server(LPCSTR address)
+{
+    if (!address || !address[0] || xr_strlen(address) > 128) return false;
+    xr_string canonical = address; to_lower(canonical);
+    for (unsigned char c : canonical)
+        if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '-' || c == ':')) return false;
+    s_drafts_server = canonical; return true;
+}
 static void drafts_load()
 {
     firebase_load();
-    if (s_drafts_owner == s_firebase_session.uid.c_str()) return;
+    if (s_drafts_server.empty()) s_drafts_server = "127.0.0.1:1267";
+    const xr_string scope = xr_string(s_firebase_session.uid.c_str()) + "|" + s_drafts_server;
+    if (s_drafts_loaded_key == scope) return;
+    s_drafts_loaded_key = scope;
     s_drafts_owner = s_firebase_session.uid.c_str(); s_drafts = CloudJson::object();
     u8 digest[32];
-    if (!pbkdf2(s_drafts_owner.data(), u32(s_drafts_owner.size()), "characters", 10, 1, digest, sizeof(digest))) return;
+    if (!pbkdf2(scope.data(), u32(scope.size()), "characters", 10, 1, digest, sizeof(digest))) return;
     s_drafts_file = "netcoop_drafts_" + to_hex(digest, sizeof(digest)) + ".bin";
-    cloud_secret_file(s_drafts_file.c_str(), s_drafts, false);
+    if (!cloud_secret_file(s_drafts_file.c_str(), s_drafts, false) && s_drafts_server == "127.0.0.1:1267")
+    {
+        // Existing unscoped drafts belong to the original local server only.
+        u8 previous[32];
+        if (pbkdf2(s_drafts_owner.data(), u32(s_drafts_owner.size()), "characters", 10, 1, previous, sizeof(previous)))
+        {
+            const xr_string legacy = "netcoop_drafts_" + to_hex(previous, sizeof(previous)) + ".bin";
+            if (cloud_secret_file(legacy.c_str(), s_drafts, false)) cloud_secret_file(s_drafts_file.c_str(), s_drafts, true);
+        }
+    }
 }
 bool script_save_draft(int slot, LPCSTR name, LPCSTR description, LPCSTR history, LPCSTR faction, int economy, LPCSTR loadout)
 {

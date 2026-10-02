@@ -438,8 +438,8 @@ void CMainMenu::OnRender()
 
 	if (!OnRenderPPUI_query())
 	{
-		DoRenderDialogs();
 		netcoop::script_preview_draw();
+		DoRenderDialogs();
 		UI().RenderFont();
 		draw_wnds_rects();
 	}
@@ -459,8 +459,8 @@ void CMainMenu::OnRenderPPUI_main()
 
 	if (OnRenderPPUI_query())
 	{
-		DoRenderDialogs();
 		netcoop::script_preview_draw();
+		DoRenderDialogs();
 		UI().RenderFont();
 	}
 

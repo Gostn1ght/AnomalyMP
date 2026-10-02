@@ -502,12 +502,24 @@ int script_role() { return client_role(); }
 LPCSTR script_account() { return client_login(); }
 int script_account_state() { return !client_has_credentials() || !s_client_remembered ? 0 : s_client_approved ? 2 : 1; }
 static IRenderVisual* s_preview_visual = nullptr;
-static xr_string s_preview_name, s_preview_motion;
+static xr_string s_preview_name, s_preview_motion, s_preview_item_name;
+static IRenderVisual* s_preview_item = nullptr;
+static Fmatrix s_preview_item_offset;
+static bool s_preview_armed = false;
+static u32 s_preview_torso_restart = 0;
+static xr_string s_preview_torso_motion;
+static float s_preview_heading = 0.f;
+static int s_preview_facing_axis = 0;
+static bool s_preview_facing_ready = false;
 static u32 s_preview_restart = 0;
 
 void script_preview_clear()
 {
-    if (s_preview_visual) Render->model_Delete(s_preview_visual, TRUE);
+    // Input and Lua callbacks can occur during rendering. Defer through the pool.
+    if (s_preview_item) Render->model_Delete(s_preview_item, FALSE);
+    if (s_preview_visual) Render->model_Delete(s_preview_visual, FALSE);
+    s_preview_item_name.clear(); s_preview_armed = false;
+    s_preview_torso_motion.clear(); s_preview_torso_restart = 0; s_preview_facing_ready = false;
     s_preview_name.clear(); s_preview_motion.clear(); s_preview_restart = 0;
 }
 
@@ -524,15 +536,87 @@ bool script_preview_model(LPCSTR model, int pose)
     auto k = s_preview_visual->dcast_PKinematicsAnimated();
     if (!k) return true;
     LPCSTR motion = "norm_idle_0";
+
+    s_preview_armed = pose < 0 && s_preview_item;
     if (pose >= 0 && pose < int(rp_anims().size()))
         for (const auto& candidate : rp_anims()[pose].mid)
             if (k->ID_Cycle_Safe(candidate.c_str()).valid()) { motion = candidate.c_str(); break; }
     const MotionID id = k->ID_Cycle_Safe(motion);
     if (!id.valid()) return false;
+    // Cancel previous RP tracks before starting the selected preview.
+    k->PlayCycle("norm_idle_0", FALSE);
+    k->UpdateTracks();
+    auto bones = s_preview_visual->dcast_PKinematics();
+    if (bones && !s_preview_facing_ready)
+    {
+        bones->CalculateBones_Invalidate(); bones->CalculateBones(TRUE);
+        const u16 root = bones->LL_BoneID("bip01");
+        if (root != BI_NONE)
+        {
+            const auto& transform = bones->LL_GetTransform(root);
+            const Fvector axes[] = {transform.i,transform.j,transform.k};
+            float largest = 0.f;
+            for(int axis=0;axis<3;++axis)
+            {
+                const float length = axes[axis].x*axes[axis].x+axes[axis].z*axes[axis].z;
+                if(length>largest) { largest=length;s_preview_facing_axis=axis; }
+            }
+            const auto& forward=axes[s_preview_facing_axis];
+            s_preview_heading=atan2f(forward.x,forward.z);s_preview_facing_ready=true;
+        }
+    }
+    s_preview_torso_motion.clear(); s_preview_torso_restart=0;
     s_preview_motion = motion;
     CBlend* blend = k->PlayCycle(id, FALSE);
     if (blend) { blend->speed = _min(blend->speed, 1.f); s_preview_restart = Device.dwTimeGlobal + u32(blend->timeTotal / _max(.1f, blend->speed) * 1000.f); }
+    if (pose < 0)
+    {
+        LPCSTR torso = "norm_torso_0_aim_0";
+        string128 armed;
+        if (s_preview_item && pSettings->line_exist(s_preview_item_name.c_str(),"animation_slot"))
+        {
+            // Actor's slot zero uses animation set one.
+            xr_sprintf(armed,"norm_torso_%u_aim_1",pSettings->r_u32(s_preview_item_name.c_str(),"animation_slot")+1);
+            if(k->ID_Cycle_Safe(armed).valid()) torso=armed;
+        }
+        if(k->ID_Cycle_Safe(torso).valid())
+        {
+            s_preview_torso_motion=torso;
+            if(auto torsoBlend=k->PlayCycle(torso,FALSE))
+                s_preview_torso_restart=Device.dwTimeGlobal+u32(torsoBlend->timeTotal/_max(.1f,torsoBlend->speed)*1000.f);
+        }
+        if(k->ID_Cycle_Safe("head_idle_0").valid()) k->PlayCycle("head_idle_0",FALSE);
+    }
     return true;
+}
+
+bool script_preview_weapon(LPCSTR section)
+{
+    if (s_preview_item) Render->model_Delete(s_preview_item, FALSE);
+    s_preview_item_name.clear(); s_preview_armed = false;
+    if (!section || !section[0]) return true;
+    if (g_pGameLevel || !pSettings->section_exist(section) || !pSettings->line_exist(section, "visual")) return false;
+    LPCSTR model = pSettings->r_string(section, "visual");
+    if (!Render->models_Exists(model)) return false;
+    s_preview_item = Render->model_Create(model);
+    if (!Render->PrepareUIModel(s_preview_item)) { Render->model_Delete(s_preview_item, FALSE); return false; }
+    Fvector position, orientation; position.set(0, 0, 0); orientation.set(0, 0, 0);
+    if (pSettings->line_exist(section, "position")) position = pSettings->r_fvector3(section, "position");
+    if (pSettings->line_exist(section, "orientation")) orientation = pSettings->r_fvector3(section, "orientation");
+    orientation.mul(PI / 180.f); s_preview_item_offset.setHPB(orientation.x, orientation.y, orientation.z);
+    s_preview_item_offset.translate_over(position); s_preview_item_name = section;
+    return true;
+}
+// Project the actual room interaction points into the 1024 x 768 UI space.
+Fvector2 script_preview_point(int object)
+{
+    Fvector point; point.set(object == 0 ? -1.12f : object == 1 ? 1.1f : -1.25f,
+        object == 0 ? 1.5f : object == 1 ? .83f : .32f, object == 0 ? 1.77f : object == 1 ? .15f : -.35f);
+    Fmatrix view, projection, combined;
+    view.build_camera(Fvector().set(0.f, 1.1f, -3.8f), Fvector().set(0.f, 1.1f, 0.f), Fvector().set(0, 1, 0));
+    projection.build_projection(deg2rad(40.f), float(Device.dwHeight) / float(Device.dwWidth), .1f, 20.f);
+    combined.mul(projection, view); combined.transform(point);
+    Fvector2 result; result.set((point.x + 1.f) * 512.f, (1.f - point.y) * 384.f); return result;
 }
 
 void script_preview_draw()
@@ -545,11 +629,57 @@ void script_preview_draw()
             CBlend* blend = k->PlayCycle(s_preview_motion.c_str(), FALSE);
             if (blend) { blend->speed = _min(blend->speed, 1.f); s_preview_restart = Device.dwTimeGlobal + u32(blend->timeTotal / _max(.1f, blend->speed) * 1000.f); }
         }
+        if (s_preview_torso_restart && Device.dwTimeGlobal >= s_preview_torso_restart)
+            if (auto blend=k->PlayCycle(s_preview_torso_motion.c_str(),FALSE))
+                s_preview_torso_restart=Device.dwTimeGlobal+u32(blend->timeTotal/_max(.1f,blend->speed)*1000.f);
         k->UpdateTracks();
     }
-    if (auto k = s_preview_visual->dcast_PKinematics()) k->CalculateBones(TRUE);
-    Fmatrix world; world.rotateY(PI);
-    Render->DrawUIModel(s_preview_visual, world);
+    float heading=PI;
+    if (auto k = s_preview_visual->dcast_PKinematics())
+    {
+        k->CalculateBones(TRUE);
+        const u16 root=k->LL_BoneID("bip01");
+        if(s_preview_facing_ready && root!=BI_NONE)
+        {
+            const auto& transform=k->LL_GetTransform(root);
+            const Fvector axes[]={transform.i,transform.j,transform.k};
+            const auto& forward=axes[s_preview_facing_axis];
+            if(forward.x*forward.x+forward.z*forward.z>EPS_S)
+                heading+=s_preview_heading-atan2f(forward.x,forward.z);
+        }
+    }
+    Fmatrix world; world.rotateY(heading);
+    Fmatrix itemWorld;
+    IRenderVisual* item = nullptr;
+    if (s_preview_item && s_preview_armed)
+    {
+        auto skeleton = s_preview_visual->dcast_PKinematics();
+        const u16 right = skeleton ? skeleton->LL_BoneID("bip01_r_finger1") : BI_NONE;
+        const u16 left = skeleton ? skeleton->LL_BoneID("bip01_l_finger1") : BI_NONE;
+        if (right != BI_NONE && left != BI_NONE)
+        {
+            const Fmatrix& r = skeleton->LL_GetTransform(right);
+            const Fmatrix& l = skeleton->LL_GetTransform(left);
+            Fvector direction, axis, normal;
+            direction.sub(l.c, r.c);
+            Fmatrix grip = r;
+            if (direction.square_magnitude() > EPS_S)
+            {
+                direction.normalize(); axis.crossproduct(r.j, direction);
+                if (axis.square_magnitude() < EPS_S) axis.crossproduct(r.i, direction);
+                if (axis.square_magnitude() > EPS_S)
+                {
+                    axis.normalize(); normal.crossproduct(direction, axis); normal.normalize();
+                    grip.set(axis, normal, direction, r.c);
+                }
+            }
+            Fmatrix local; local.mul_43(grip, s_preview_item_offset); itemWorld.mul_43(world, local);
+            if (auto animated = s_preview_item->dcast_PKinematicsAnimated()) animated->UpdateTracks();
+            if (auto bones = s_preview_item->dcast_PKinematics()) bones->CalculateBones(TRUE);
+            item = s_preview_item;
+        }
+    }
+    Render->DrawUIModel(s_preview_visual, world, item, item ? &itemWorld : nullptr);
 }
 void script_command(LPCSTR text) { client_send_command(text); }
 

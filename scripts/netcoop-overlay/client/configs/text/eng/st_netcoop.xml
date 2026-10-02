@@ -123,7 +123,7 @@
 	<string id="st_netcoop_key_failed"><text>Cannot prepare remembered sign-in. Check your password and the game log.</text></string>
 	<string id="st_netcoop_enter_zone"><text>Enter the Zone</text></string>
 	<string id="st_netcoop_inventory"><text>Inventory</text></string>
-	<string id="st_netcoop_character_hint"><text>Left / Right: character     |     Inventory: your game key</text></string>
+	<string id="st_netcoop_character_hint"><text>Map: enter the Zone · PDA: settings · Crate: equipment · Characters are separate for each server</text></string>
 	<string id="st_netcoop_registration_notice"><text>New registration: %s. Use /approve_registration LOGIN or /reject_registration LOGIN.</text></string>
 	<string id="st_netcoop_auth_failed"><text>The server did not confirm sign-in.</text></string>
 	<string id="st_netcoop_connecting"><text>Please wait…</text></string>
@@ -133,8 +133,8 @@
  <string id="st_netcoop_register_tab"><text>Create an account</text></string>
  <string id="st_netcoop_login_action"><text>Sign in</text></string>
  <string id="st_netcoop_verify_title"><text>Verify email</text></string>
- <string id="st_netcoop_verify_help"><text>Open the Lost Zone verification email, follow its link, then press Email verified.</text></string>
- <string id="st_netcoop_verify_check"><text>Email verified</text></string>
+ <string id="st_netcoop_verify_help"><text>Enter the six-digit email code. Check Spam as well. The code expires in 10 minutes.</text></string>
+ <string id="st_netcoop_verify_check"><text>Continue</text></string>
  <string id="st_netcoop_resend_email"><text>Send email again</text></string>
  <string id="st_netcoop_reset_password"><text>Forgot password?</text></string>
  <string id="st_netcoop_reset_sent"><text>If this email is registered, it will receive password reset instructions.</text></string>
@@ -160,4 +160,14 @@
  <string id="st_netcoop_draft_failed"><text>Could not save the character. Check access to the game folder.</text></string>
  <string id="st_netcoop_character_name_invalid"><text>Name: 2–63 characters, without path separators or newlines.</text></string>
  <string id="st_netcoop_save_server"><text>Save server address</text></string>
+<string id="st_netcoop_email_code"><text>Email code</text></string>
+<string id="st_netcoop_code_invalid"><text>Enter the correct six-digit code.</text></string>
+<string id="st_netcoop_code_expired"><text>The code expired. Request a new email.</text></string>
+<string id="st_netcoop_code_attempts"><text>Too many wrong codes. Try again in an hour.</text></string>
+<string id="st_netcoop_code_limit"><text>The email limit has been reached. Try later.</text></string>
+<string id="st_netcoop_code_wait"><text>Wait a minute before resending.</text></string>
+<string id="st_netcoop_code_mail_error"><text>Email could not be sent. Try again in a minute.</text></string>
+<string id="st_netcoop_code_not_configured"><text>The code service is not connected yet. Configure Google Apps Script.</text></string>
+<string id="st_netcoop_neutral_pose"><text>Neutral stance</text></string>
+<string id="st_netcoop_settings_error"><text>Settings could not open. See the game log.</text></string>
 </string_table>

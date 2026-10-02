@@ -63,7 +63,7 @@ function netcoop_login_wnd:__init(owner) super()
 
 	local xml = CScriptXmlInit()
 	xml:ParseFile("ui_netcoop_login.xml")
-	xml:InitStatic("background", self)
+	self.account_background = xml:InitStatic("background", self)
 
 	local function cap(path, text)
 		local st = xml:InitStatic(path, self)
@@ -75,9 +75,12 @@ function netcoop_login_wnd:__init(owner) super()
 	self.cap_pass = cap("cap_pass", tr("account_password"))
 	self.cap_email = cap("cap_email", tr("email"))
 	self.cap_addr = cap("cap_addr", tr("server"))
-	cap("brand", "LOST ZONE")
-	cap("brand_help", tr("cloud_help"))
+	self.brand = cap("brand", "LOST ZONE")
+	self.brand_help = cap("brand_help", tr("cloud_help"))
 
+	self.cap_code = cap("cap_code", tr("email_code"))
+	self.ed_code = xml:InitEditBox("input_code", self)
+	self.ed_code:Show(false); self.cap_code:Show(false)
 	self.ed_email = xml:InitEditBox("input_email", self)
 	self.ed_login = xml:InitEditBox("input_login", self)
 	self.ed_pass = xml:InitEditBox("input_pass", self)
@@ -99,6 +102,25 @@ function netcoop_login_wnd:__init(owner) super()
 	self.reset_button = btn("btn_reset", tr("reset_password"), self.ResetPassword)
 end
 
+function netcoop_login_wnd:ShowAccountControls(show)
+    pcall(function() self.ed_email:CaptureFocus(false); self.ed_login:CaptureFocus(false); self.ed_pass:CaptureFocus(false); self.ed_code:CaptureFocus(false) end)
+    for _, item in ipairs({self.account_background,self.brand,self.brand_help,self.title,self.cap_login,self.cap_pass,self.cap_email,self.cap_addr,self.cap_code,
+        self.ed_login,self.ed_pass,self.ed_email,self.ed_addr,self.ed_code,self.msg,self.login_button,self.register_button,self.back_button,self.reset_button}) do
+        item:Show(show)
+    end
+end
+function netcoop_login_wnd:ToggleInventory()
+    self.inventory_panel:Show(not self.inventory_panel:IsShown())
+    self.poses_panel:Show(false); self.server_panel:Show(false)
+end
+function netcoop_login_wnd:PositionRoomControls()
+    if not netcoop_preview_point or not self.room_buttons then return end
+    for index, button in ipairs(self.room_buttons) do
+        local point = netcoop_preview_point(index-1)
+        button:SetWndPos(vector2():set(point.x-68, point.y-17))
+    end
+end
+
 function netcoop_login_wnd:SetMsg(text)
 	self.msg:TextControl():SetText(text or "")
     if self.character_msg then self.character_msg:TextControl():SetText(text or "") end
@@ -106,6 +128,7 @@ end
 
 function netcoop_login_wnd:Reset()
 	self.mode = "account"
+	self:ShowAccountControls(true)
 	if self.profile_panel then self.profile_panel:Show(false) end
 	if self.character_panel then self.character_panel:Show(false) end
 	netcoop_preview_clear()
@@ -164,6 +187,23 @@ end
 
 function netcoop_login_wnd:Update()
 	CUIScriptWnd.Update(self)
+    if self.settings_pending then
+        self.settings_pending = nil
+        local ok, error = pcall(function()
+            if not self.opt_dlg then self.opt_dlg = ui_options.UIOptions(); self.opt_dlg.owner = self end
+            self:HideDialog(); self:Show(false)
+            self.opt_dlg.background:Show(false)
+            Register_UI("UIOptions")
+            self.opt_dlg:ShowDialog(true)
+        end)
+        if not ok then
+            if self.opt_dlg then self.opt_dlg:HideDialog(); self.opt_dlg:Show(false) end
+            self:ShowDialog(true); self:Show(true); self:SetMsg(tr("settings_error"))
+            printf("[NetAnomaly] menu settings error: %s", tostring(error))
+        end
+        return
+    end
+    if self.mode == "characters" then self:PositionRoomControls() end
 	if auth_return and auth_return ~= "pending" then frontend_update(self.owner) end
 end
 
@@ -199,6 +239,8 @@ end
 
 
 local function character_cache_path(login, addr)
+    local identity = netcoop_firebase_identity and netcoop_firebase_identity() or ""
+    if identity ~= "" then login = "cloud_" .. identity end
     return app_path("netcoop_slots_" .. string.lower(login) .. "_" .. string.gsub(addr, "[^%w%-_.]", "_") .. ".txt")
 end
 
@@ -219,8 +261,10 @@ function cache_previews(data)
 end
 function netcoop_login_wnd:ShowCharacters()
     self.mode = "characters"
+    self:ShowAccountControls(false)
     if self.profile_panel then self.profile_panel:Show(false) end
-    local addr = self.pending_ip .. ":" .. self.pending_port
+    local addr = string.lower(self.pending_ip) .. ":" .. self.pending_port
+    if netcoop_draft_server then netcoop_draft_server(addr) end
     local f = io.open(character_cache_path(self.pending_login, addr), "r")
     local names = f and f:read("*a") or ""
     if f then f:close() end
@@ -269,7 +313,7 @@ function netcoop_login_wnd:ShowCharacters()
         button("next", ">", function() self:ChangeSlot(1) end)
         self.enter = button("enter", tr("enter_zone"), function() self:SelectCharacter(self.slot) end)
         button("back", tr("exit"), self.OnBack)
-        button("settings", tr("settings"), self.ShowSettings)
+        local settings = button("settings", tr("settings"), self.ShowSettings)
         button("server", tr("server"), self.ShowServer)
         self.slot_buttons = {}
         for i = 1, 5 do
@@ -277,16 +321,23 @@ function netcoop_login_wnd:ShowCharacters()
             self.slot_buttons[i] = button("slot" .. i, "", function() self.slot = slot; self:ChangeSlot(0) end)
         end
         button("poses", tr("rp_title"), function() self.poses_panel:Show(not self.poses_panel:IsShown()) end)
-        button("inventory", tr("inventory"), function() self.inventory_panel:Show(not self.inventory_panel:IsShown()) end)
+        local inventory = button("inventory", tr("inventory"), self.ToggleInventory)
+        self.room_buttons = {self.enter,settings,inventory}
         self.poses_panel = xml:InitStatic("poses_panel", self.character_panel)
         self.poses_scroll = xml:InitScrollView("poses_scroll", self.poses_panel)
+        local allowed = {hands_pockets=true,hands_behind=true,sit_1=true,sit_2=true,sit_3=true}
+        local neutral = xml:Init3tButton("pose_button", nil)
+        self.poses_scroll:AddWindow(neutral,true); neutral:TextControl():SetText(tr("neutral_pose"))
+        self:Register(neutral,"preview_neutral"); self:AddCallback("preview_neutral",ui_events.BUTTON_CLICKED,function() self:SetPose(-1) end,self)
         local index = 0
         for name, title in string.gmatch(netcoop_rp_list() or "", "([^=;]+)=([^;]*);") do
             local pose = index; index = index + 1
+            if allowed[name] then
             local b = xml:Init3tButton("pose_button", nil)
             self.poses_scroll:AddWindow(b, true); b:TextControl():SetText(game.translate_string(title))
             self:Register(b, "preview_pose_" .. pose)
             self:AddCallback("preview_pose_" .. pose, ui_events.BUTTON_CLICKED, function() self:SetPose(pose) end, self)
+            end
         end
         self.inventory_panel = xml:InitStatic("inventory_panel", self.character_panel)
         self.inventory_scroll = xml:InitScrollView("inventory_scroll", self.inventory_panel)
@@ -310,9 +361,20 @@ function netcoop_login_wnd:ChangeSlot(delta)
     local name = self.names[self.slot]
     self.character_name:TextControl():SetText(name and name ~= "" and name or tr("create_character"))
     local preview = self.previews[self.slot] or {visual = BASE_MODEL, faction = "stalker", items = ""}
-    self.character_info:TextControl():SetText(string.format("%d / 5   |   %s", self.slot, game.translate_string("st_faction_" .. preview.faction)))
+    self.character_info:TextControl():SetText(string.format("%d / 5   |   %s   |   %s:%s", self.slot, game.translate_string("st_faction_" .. preview.faction), self.pending_ip, self.pending_port))
     self.enter:TextControl():SetText(tr(name and name ~= "" and "enter_zone" or "create_character"))
-    self:SetPose(-1); self:FillInventory(preview.items)
+    self:SetPose(-1)
+    if netcoop_preview_weapon then
+        local weapon, priority = "", -1
+        for section in string.gmatch(preview.items or "", "[^,]+") do
+            if ini_sys:section_exist(section) and string.sub(section,1,4) == "wpn_" and SYS_GetParam(0,section,"visual","") ~= "" then
+                local slot = SYS_GetParam(2,section,"slot",0)
+                if (slot == 1 or slot == 2) and slot > priority then weapon, priority = section, slot end
+            end
+        end
+        netcoop_preview_weapon(weapon); self:SetPose(-1)
+    end
+    self:FillInventory(preview.items); self:PositionRoomControls()
 end
 function netcoop_login_wnd:SetPose(pose)
     local preview = self.previews[self.slot] or {visual = BASE_MODEL}
@@ -443,12 +505,11 @@ function netcoop_login_wnd:OnBack()
 end
 
 function netcoop_login_wnd:OnKeyboard(dik, keyboard_action)
-	CUIScriptWnd.OnKeyboard(self, dik, keyboard_action)
 	if keyboard_action == ui_events.WINDOW_KEY_PRESSED then
 		if self.mode == "characters" then
 			if dik == DIK_keys.DIK_LEFT then self:ChangeSlot(-1); return true end
 			if dik == DIK_keys.DIK_RIGHT then self:ChangeSlot(1); return true end
-			if dik == bind_to_dik(key_bindings.kINVENTORY) then self.inventory_panel:Show(not self.inventory_panel:IsShown()); return true end
+			if dik == bind_to_dik(key_bindings.kINVENTORY, 0) or dik == bind_to_dik(key_bindings.kINVENTORY, 1) then self:ToggleInventory(); return true end
 		end
 		if dik == DIK_keys.DIK_ESCAPE then
 			self:OnBack()
@@ -459,7 +520,7 @@ function netcoop_login_wnd:OnKeyboard(dik, keyboard_action)
             elseif account_state() == 0 then self:OnRegister() else self:OnLogin() end
 		end
 	end
-	return true
+	return CUIScriptWnd.OnKeyboard(self, dik, keyboard_action)
 end
 
 
@@ -535,12 +596,17 @@ local function cloud_error(error)
         EMAIL_NOT_FOUND="bad_credentials", INVALID_PASSWORD="bad_credentials", WEAK_PASSWORD="cloud_password_invalid",
         OPERATION_NOT_ALLOWED="provider_disabled", PASSWORD_LOGIN_DISABLED="provider_disabled", TOO_MANY_ATTEMPTS_TRY_LATER="rate_limited", QUOTA_EXCEEDED="rate_limited",
         TOKEN_EXPIRED="session_expired", INVALID_REFRESH_TOKEN="session_expired", USER_DISABLED="account_disabled",
-        ACCOUNT_NAME_REQUIRED="login_invalid", REMEMBER_FAILED="remember_failed"}
+        ACCOUNT_NAME_REQUIRED="login_invalid", REMEMBER_FAILED="remember_failed",
+        CODE_SERVICE_NOT_CONFIGURED="code_not_configured", INVALID_CODE="code_invalid", CODE_EXPIRED="code_expired",
+        CODE_ATTEMPTS_EXCEEDED="code_attempts", CODE_SEND_LIMIT="code_limit", CODE_RESEND_WAIT="code_wait",
+        MAIL_QUOTA_EXCEEDED="code_limit", MAIL_SEND_FAILED="code_mail_error", SERVICE_BUSY="rate_limited", SERVICE_ERROR="cloud_network_error", FIREBASE_ADMIN_PERMISSION_REQUIRED="code_not_configured"}
     return tr(errors[code] or "cloud_network_error")
 end
 function netcoop_login_wnd:ResetCloud()
+    self:ShowAccountControls(true)
     self.mode = "account"; self.form_mode = self.form_mode or "register"
     local remembered = account_state() ~= 0 and not self.force_login
+    local awaiting_code = remembered and account_state() == 1
     self.ed_addr:Show(false); self.cap_addr:Show(false)
     local _, addr = read_last(); self.ed_addr:SetText(addr or DEF_ADDR)
     self.ed_email:Show(true); self.cap_email:Show(true)
@@ -549,14 +615,16 @@ function netcoop_login_wnd:ResetCloud()
     self.ed_login:Show(not remembered and self.form_mode == "register"); self.cap_login:Show(not remembered and self.form_mode == "register")
     self.ed_login:Enable(not remembered); self.ed_pass:Enable(true)
     self.ed_pass:Show(not remembered); self.cap_pass:Show(not remembered); self.ed_pass:SetText("")
-    self.register_button:Show(true); self.register_button:Enable(true); self.login_button:Enable(true)
+    self.ed_code:Show(awaiting_code); self.cap_code:Show(awaiting_code); self.ed_code:Enable(true)
+    self.register_button:Show(not remembered or awaiting_code); self.register_button:Enable(true); self.login_button:Enable(true)
     self.reset_button:Show(not remembered and self.form_mode == "login")
     self.back_button:TextControl():SetText(tr("exit"))
-    self.title:TextControl():SetText(tr(remembered and "verify_title" or self.form_mode == "login" and "login_title" or "register_title"))
+    self.title:TextControl():SetText(tr(awaiting_code and "verify_title" or remembered and "login_title" or self.form_mode == "login" and "login_title" or "register_title"))
     self.register_button:TextControl():SetText(tr(remembered and "resend_email" or self.form_mode == "login" and "register_tab" or "register_send"))
     self.login_button:TextControl():SetText(tr(remembered and "verify_check" or self.form_mode == "login" and "login_action" or "existing_account"))
-    self:SetMsg(auth_message or tr(remembered and "verify_help" or "cloud_help"))
-    if not remembered then pcall(function() self.ed_email:CaptureFocus(true) end) end
+    self:SetMsg(auth_message or tr(awaiting_code and "verify_help" or "cloud_help"))
+    if awaiting_code then pcall(function() self.ed_code:CaptureFocus(true) end)
+    elseif not remembered then pcall(function() self.ed_email:CaptureFocus(true) end) end
 end
 function netcoop_login_wnd:CloudRequest(action, email, password, username)
     if auth_return == "pending" then return false end
@@ -565,11 +633,16 @@ function netcoop_login_wnd:CloudRequest(action, email, password, username)
     end
     self.cloud_action = action; auth_return = "pending"; auth_message = nil
     self.login_button:Enable(false); self.register_button:Enable(false); self.reset_button:Enable(false)
-    self.ed_email:Enable(false); self.ed_login:Enable(false); self.ed_pass:Enable(false)
+    self.ed_email:Enable(false); self.ed_login:Enable(false); self.ed_pass:Enable(false); self.ed_code:Enable(false)
     self.ed_pass:SetText(""); self:SetMsg(tr("connecting")); return true
 end
 function netcoop_login_wnd:ConnectCloud(register)
-    if account_state() ~= 0 and not self.force_login then return self:CloudRequest("refresh") end
+    if account_state() ~= 0 and not self.force_login then
+        if account_state() == 2 then return self:CloudRequest("refresh") end
+        local code = self.ed_code:GetText() or ""
+        if not string.match(code, "^%d%d%d%d%d%d$") then return self:SetMsg(tr("code_invalid")) end
+        return self:CloudRequest("verify", "", code)
+    end
     local email = string.match(self.ed_email:GetText() or "", "^%s*(.-)%s*$")
     if #email > 254 or not string.match(email, "^[^%s@]+@[^%s@]+%.[^%s@]+$") then return self:SetMsg(tr("email_invalid")) end
     local password = self.ed_pass:GetText() or ""
@@ -606,9 +679,8 @@ function on_cloud_result(ok, error, account, verified)
     auth_return = ok and verified and "characters" or "account"
 end
 function netcoop_login_wnd:ShowSettings()
-    if not self.opt_dlg then self.opt_dlg = ui_options.UIOptions(); self.opt_dlg.owner = self end
-    netcoop_preview_clear(); self:HideDialog(); self:Show(false)
-    self.opt_dlg:ShowDialog(true); self.opt_dlg:Reset_last_opt()
+    -- Build options after the button event finishes; constructor already resets it.
+    self.settings_pending = true
 end
 function netcoop_login_wnd:ShowServer()
     self.server_panel:Show(not self.server_panel:IsShown())
@@ -619,11 +691,13 @@ function netcoop_login_wnd:SaveServer()
     if not ip or tonumber(port) < 1 or tonumber(port) > 65535 then return self:SetMsg(tr("server_invalid")) end
     self.pending_ip, self.pending_port = ip, port
     write_last(self.pending_login, ip .. ":" .. port)
-    self.server_panel:Show(false); self:ShowCharacters(); self:SetMsg("")
+    self.server_panel:Show(false); self.inventory_panel:Show(false); self.poses_panel:Show(false)
+    self:ShowCharacters(); self:SetMsg("")
 end
 function netcoop_login_wnd:ShowProfile(slot)
     if self.profile_slot ~= slot then self.profile_data = nil end
     self.mode = "profile"; self.profile_slot = slot
+    self:ShowAccountControls(false)
     if self.character_panel then self.character_panel:Show(false) end
     netcoop_preview_clear()
     if not self.profile_panel then

@@ -42,16 +42,21 @@ static void draw_ui_geometry(IRenderVisual* visual, const Fmatrix& world)
     geometry->Render(1.f);
 }
 
-void CRender::DrawUIModel(IRenderVisual* visual, const Fmatrix& world)
+
+#include "netcoop_menu_room.inc"
+
+void CRender::DrawUIModel(IRenderVisual* visual, const Fmatrix& world, IRenderVisual* item, const Fmatrix* itemWorld)
 {
     if (!visual || g_pGameLevel) return;
     const Fmatrix old_world = RCache.xforms.m_w, old_view = RCache.xforms.m_v, old_projection = RCache.xforms.m_p;
     Fmatrix view, projection;
-    view.build_camera(Fvector().set(0.f, .95f, -3.3f), Fvector().set(0.f, .95f, 0.f), Fvector().set(0.f, 1.f, 0.f));
+    view.build_camera(Fvector().set(0.f, 1.1f, -3.8f), Fvector().set(0.f, 1.1f, 0.f), Fvector().set(0.f, 1.f, 0.f));
     projection.build_projection(deg2rad(40.f), float(Device.dwHeight) / float(Device.dwWidth), .1f, 20.f);
     HW.pContext->ClearDepthStencilView(HW.pBaseZB, D3D_CLEAR_DEPTH, 1.f, 0);
     RCache.set_xform_view(view); RCache.set_xform_project(projection);
+    draw_menu_room();
     draw_ui_geometry(visual, world);
+    if (item && itemWorld) draw_ui_geometry(item, *itemWorld);
     RCache.set_xform_world(old_world); RCache.set_xform_view(old_view); RCache.set_xform_project(old_projection);
 }
 

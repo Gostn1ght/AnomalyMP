@@ -123,7 +123,7 @@
 	<string id="st_netcoop_key_failed"><text>Не удалось сохранить вход. Проверьте пароль и журнал игры.</text></string>
 	<string id="st_netcoop_enter_zone"><text>Войти в Зону</text></string>
 	<string id="st_netcoop_inventory"><text>Снаряжение</text></string>
-	<string id="st_netcoop_character_hint"><text>&lt; &gt;  Персонаж     •     Инвентарь — на игровую клавишу</text></string>
+	<string id="st_netcoop_character_hint"><text>Карта — вход в Зону · КПК — настройки · Ящик — снаряжение · Персонажи сохраняются отдельно для каждого сервера</text></string>
 	<string id="st_netcoop_registration_notice"><text>Новая заявка: %s. Команда: /принять регистрацию НИК или /отклонить регистрацию НИК.</text></string>
 	<string id="st_netcoop_auth_failed"><text>Сервер не подтвердил вход.</text></string>
 	<string id="st_netcoop_connecting"><text>Подождите…</text></string>
@@ -133,8 +133,8 @@
  <string id="st_netcoop_register_tab"><text>Создать аккаунт</text></string>
  <string id="st_netcoop_login_action"><text>Войти</text></string>
  <string id="st_netcoop_verify_title"><text>Подтверждение почты</text></string>
- <string id="st_netcoop_verify_help"><text>Открой письмо от Lost Zone и подтверди почту. Затем нажми «Почта подтверждена».</text></string>
- <string id="st_netcoop_verify_check"><text>Почта подтверждена</text></string>
+ <string id="st_netcoop_verify_help"><text>Введите шестизначный код из письма. Проверьте также папку «Спам». Код действует 10 минут.</text></string>
+ <string id="st_netcoop_verify_check"><text>Продолжить</text></string>
  <string id="st_netcoop_resend_email"><text>Отправить письмо повторно</text></string>
  <string id="st_netcoop_reset_password"><text>Забыли пароль?</text></string>
  <string id="st_netcoop_reset_sent"><text>Если этот адрес зарегистрирован, на него придёт письмо для восстановления пароля.</text></string>
@@ -160,4 +160,14 @@
  <string id="st_netcoop_draft_failed"><text>Не удалось сохранить персонажа. Проверьте доступ к папке игры.</text></string>
  <string id="st_netcoop_character_name_invalid"><text>Ник: 2–63 символа, без разделителей и переносов строки.</text></string>
  <string id="st_netcoop_save_server"><text>Сохранить адрес</text></string>
+<string id="st_netcoop_email_code"><text>Код из письма</text></string>
+<string id="st_netcoop_code_invalid"><text>Введите правильный код из шести цифр.</text></string>
+<string id="st_netcoop_code_expired"><text>Код истёк. Запросите новое письмо.</text></string>
+<string id="st_netcoop_code_attempts"><text>Слишком много неверных кодов. Попробуйте через час.</text></string>
+<string id="st_netcoop_code_limit"><text>Лимит писем исчерпан. Попробуйте позже.</text></string>
+<string id="st_netcoop_code_wait"><text>Повторное письмо доступно через минуту.</text></string>
+<string id="st_netcoop_code_mail_error"><text>Не удалось отправить письмо. Попробуйте ещё раз через минуту.</text></string>
+<string id="st_netcoop_code_not_configured"><text>Сервис кодов ещё не подключён. Настройте Google Apps Script.</text></string>
+<string id="st_netcoop_neutral_pose"><text>Обычная стойка</text></string>
+<string id="st_netcoop_settings_error"><text>Не удалось открыть настройки. Подробности в журнале игры.</text></string>
 </string_table>

@@ -68,11 +68,12 @@
 
 using namespace luabind;
 
-namespace netcoop { bool script_frontend_auth(LPCSTR options); }
+namespace netcoop { bool script_frontend_auth(LPCSTR options); bool script_preview_weapon(LPCSTR section); Fvector2 script_preview_point(int object); bool script_draft_server(LPCSTR address); }
 namespace netcoop {
 bool script_firebase_request(LPCSTR action, LPCSTR email, LPCSTR password, LPCSTR username);
 int script_firebase_state();
 LPCSTR script_firebase_email();
+LPCSTR script_firebase_identity();
 LPCSTR script_firebase_account();
 bool script_save_draft(int slot, LPCSTR name, LPCSTR description, LPCSTR history, LPCSTR faction, int economy, LPCSTR loadout);
 LPCSTR script_draft(int slot, LPCSTR field);
@@ -2764,10 +2765,14 @@ void CLevel::script_register(lua_State* L)
 		def("netcoop_registration_decide", &netcoop::script_registration_decide),
 		def("netcoop_preview_clear", &netcoop::script_preview_clear),
 		def("netcoop_preview_model", &netcoop::script_preview_model),
+        def("netcoop_preview_weapon", &netcoop::script_preview_weapon),
+        def("netcoop_preview_point", &netcoop::script_preview_point),
+        def("netcoop_draft_server", &netcoop::script_draft_server),
 		def("netcoop_frontend_auth", &netcoop::script_frontend_auth),
 		def("netcoop_firebase_request", &netcoop::script_firebase_request),
 		def("netcoop_firebase_state", &netcoop::script_firebase_state),
 		def("netcoop_firebase_email", &netcoop::script_firebase_email),
+        def("netcoop_firebase_identity", &netcoop::script_firebase_identity),
 		def("netcoop_firebase_account", &netcoop::script_firebase_account),
 		def("netcoop_save_draft", &netcoop::script_save_draft),
 		def("netcoop_draft", &netcoop::script_draft),

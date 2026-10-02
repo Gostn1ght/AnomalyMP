@@ -360,7 +360,7 @@ public:
 	virtual void Render() = 0;
 	// Isolated front-end model: no level, Actor, HUD or world lighting required.
 	virtual bool PrepareUIModel(IRenderVisual* visual) { return false; }
-	virtual void DrawUIModel(IRenderVisual* visual, const Fmatrix& world) {}
+	virtual void DrawUIModel(IRenderVisual* visual, const Fmatrix& world, IRenderVisual* item = nullptr, const Fmatrix* itemWorld = nullptr) {}
 
 	virtual void Screenshot(ScreenshotMode mode = SM_NORMAL, LPCSTR name = 0) = 0;
 	virtual void Screenshot(ScreenshotMode mode, CMemoryWriter& memory_writer) = 0;

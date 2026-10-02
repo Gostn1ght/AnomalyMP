@@ -559,8 +559,10 @@ void CRender::create()
 	FluidManager.SetScreenSize(Device.dwWidth, Device.dwHeight);
 }
 
+void netcoop_menu_room_release();
 void CRender::destroy()
 {
+    netcoop_menu_room_release();
 	netcoop_pda_textures.clear();
 	m_bMakeAsyncSS = false;
 	FluidManager.Destroy();
@@ -580,6 +582,7 @@ void CRender::destroy()
 
 void CRender::reset_begin()
 {
+    netcoop_menu_room_release();
 	// Update incremental shadowmap-visibility solver
 	// BUG-ID: 10646
 	{

@@ -3,7 +3,7 @@ struct preview_vertex { float4 position : SV_Position; float2 uv : TEXCOORD0; fl
 float4 main(preview_vertex vertex) : SV_Target
 {
     float4 diffuse = s_base.Sample(smp_base, vertex.uv);
-    clip(diffuse.a - 0.1);
+    // Actor skin stores material data in alpha, not transparency.
     float3 normal = normalize(vertex.normal);
     float key = saturate(dot(normal, normalize(float3(-0.4, 0.7, -0.7))));
     float rim = saturate(dot(normal, normalize(float3(0.8, 0.3, 0.4))));

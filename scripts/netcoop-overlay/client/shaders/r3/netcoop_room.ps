@@ -1,0 +1,6 @@
+#include "common.h"
+struct room_output { float4 position : SV_Position; float4 color : COLOR0; float2 uv : TEXCOORD0; };
+float4 main(room_output vertex) : SV_Target
+{
+    return float4(s_base.Sample(smp_base, vertex.uv).rgb * vertex.color.rgb, 1);
+}
