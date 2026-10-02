@@ -1,4 +1,4 @@
-param(
+﻿param(
     [Parameter(Mandatory = $true)]
     [string]$RuntimeRoot
 )
@@ -85,6 +85,11 @@ Replace-Once (Join-Path $runtime 'client\scripts\ui_main_menu.script') `
 Replace-Once (Join-Path $runtime 'client\scripts\ui_main_menu.script') `
     "function main_menu:OnButton_new_game()`n`tdo return gamma_net_compat.unavailable() end" `
     "function main_menu:OnButton_new_game()`n`tdo return netcoop_login_ui.show_login(self) end"
+
+# Load our owned layout rather than the stock layout modified by legacy addons.
+Replace-Once (Join-Path $runtime 'client\scripts\ui_main_menu.script') `
+    '("ui_mm_main.xml")' `
+    '("ui_netcoop_main.xml")'
 
 # Reuse GAMMA's inventory and point picker for new multiplayer characters.
 Replace-Once (Join-Path $runtime 'client\scripts\ui_main_menu.script') `
@@ -262,3 +267,8 @@ foreach ($role in $roles) {
 }
 
 & (Join-Path $PSScriptRoot 'quarantine-incomplete-gamma-scripts.ps1') -RuntimeRoot $runtime
+
+# Restore the overview camera when the stock options dialog returns to our room.
+Replace-Once (Join-Path $runtime 'client\scripts\ui_options.script') `
+    "`tself.owner:ShowDialog(true)`n`tself:HideDialog()`n`tself.owner:Show(true)" `
+    "`tif self.owner.CloseRoomView then self.owner:CloseRoomView() end`n`tself.owner:ShowDialog(true)`n`tself:HideDialog()`n`tself.owner:Show(true)"

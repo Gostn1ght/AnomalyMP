@@ -1,6 +1,8 @@
 #include "common.h"
-struct room_output { float4 position : SV_Position; float4 color : COLOR0; float2 uv : TEXCOORD0; };
+#include "netcoop_menu_light.h"
+struct room_output { float4 position : SV_Position; float4 color : COLOR0; float2 uv : TEXCOORD0; float3 normal : TEXCOORD1; float3 world : TEXCOORD2; float4 shadow : TEXCOORD3; };
 float4 main(room_output vertex) : SV_Target
 {
-    return float4(s_base.Sample(smp_base, vertex.uv).rgb * vertex.color.rgb, 1);
+    float3 diffuse=s_base.Sample(smp_base,vertex.uv).rgb;
+    return float4(lerp(menu_light(diffuse,vertex.normal,vertex.world,vertex.shadow),diffuse*float3(1.5,1.3,.9),vertex.color.a),1);
 }

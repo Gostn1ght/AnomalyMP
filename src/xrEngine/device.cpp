@@ -985,3 +985,50 @@ bool CRenderDevice::CSecondVPParams::IsSVPFrame() //--#SM+#-- +SecondVP+
 {
 	return IsSVPActive() && Device.dwFrame % frameDelay == 0;
 }
+
+
+#include "netcoop_menu_camera.h"
+namespace menu_room
+{
+static Fvector camera = Fvector().set(0,1.35f,-4.6f);
+static Fvector target = Fvector().set(0,1.25f,.5f);
+static Fvector from_camera, from_target;
+static int destination = -1;
+static u32 start = 0;
+static bool moving = false;
+static void update()
+{
+    if (!moving) return;
+    const float t = _min(1.f, float(Device.dwTimeContinual-start)/650.f);
+    const float blend = t*t*(3.f-2.f*t);
+    const Fvector destinations[] = {
+        Fvector().set(-1.5f,1.6f,.9f), Fvector().set(1.4f,1.7f,.10f), Fvector().set(-1.6f,1.f,-.85f)
+    };
+    const Fvector to_camera = destination < 0 ? Fvector().set(0,1.35f,-4.6f) : destinations[destination];
+    const Fvector to_target = destination < 0 ? Fvector().set(0,1.25f,.5f) : interaction(destination);
+    camera.lerp(from_camera,to_camera,blend); target.lerp(from_target,to_target,blend);
+    if (t >= 1.f) moving = false;
+}
+void focus(int object)
+{
+    if (object < -1 || object > 2 || object == destination) return;
+    update(); from_camera=camera; from_target=target;
+    destination=object; start=Device.dwTimeContinual; moving=true;
+}
+void reset()
+{
+    destination=-1; moving=false; camera.set(0,1.35f,-4.6f); target.set(0,1.25f,.5f);
+}
+bool ready() { update(); return !moving; }
+void matrices(Fmatrix& view,Fmatrix& projection)
+{
+    update(); view.build_camera(camera,target,Fvector().set(0,1,0));
+    projection.build_projection(deg2rad(40.f),float(Device.dwHeight)/float(Device.dwWidth),.08f,24.f);
+}
+Fvector interaction(int object)
+{
+    if(object==0) return Fvector().set(-1.5f,1.65f,2.14f);
+    if(object==1) return Fvector().set(1.50f,.95f,1.10f);
+    return Fvector().set(-1.65f,.36f,.30f);
+}
+}

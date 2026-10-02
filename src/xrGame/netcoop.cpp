@@ -1,5 +1,6 @@
 #include "pch_script.h"
 #include "netcoop.h"
+#include "../xrEngine/netcoop_menu_camera.h"
 
 #include <bcrypt.h>
 #include <wincrypt.h>
@@ -515,6 +516,7 @@ static u32 s_preview_restart = 0;
 
 void script_preview_clear()
 {
+    menu_room::reset();
     // Input and Lua callbacks can occur during rendering. Defer through the pool.
     if (s_preview_item) Render->model_Delete(s_preview_item, FALSE);
     if (s_preview_visual) Render->model_Delete(s_preview_visual, FALSE);
@@ -610,14 +612,15 @@ bool script_preview_weapon(LPCSTR section)
 // Project the actual room interaction points into the 1024 x 768 UI space.
 Fvector2 script_preview_point(int object)
 {
-    Fvector point; point.set(object == 0 ? -1.30f : object == 1 ? 1.1f : -1.10f,
-        object == 0 ? 1.55f : object == 1 ? .60f : .30f, object == 0 ? .20f : object == 1 ? .28f : -.18f);
+    Fvector point=menu_room::interaction(object);
     Fmatrix view, projection, combined;
-    view.build_camera(Fvector().set(0.f, 1.1f, -3.8f), Fvector().set(0.f, 1.1f, 0.f), Fvector().set(0, 1, 0));
-    projection.build_projection(deg2rad(40.f), float(Device.dwHeight) / float(Device.dwWidth), .1f, 20.f);
+    menu_room::matrices(view,projection);
     combined.mul(projection, view); combined.transform(point);
     Fvector2 result; result.set((point.x + 1.f) * 512.f, (1.f - point.y) * 384.f); return result;
 }
+
+void script_preview_focus(int object) { menu_room::focus(object); }
+bool script_preview_ready() { return menu_room::ready(); }
 
 void script_preview_draw()
 {
@@ -649,6 +652,8 @@ void script_preview_draw()
         }
     }
     Fmatrix world; world.rotateY(heading);
+    // The preview's lowest bound rests on the room's y=0 floor.
+    world.c.y=_max(-.25f,_min(.25f,-s_preview_visual->getVisData().box.min.y));
     Fmatrix itemWorld;
     IRenderVisual* item = nullptr;
     if (s_preview_item && s_preview_armed)

@@ -1,0 +1,509 @@
+{
+  "objects": [
+    {
+      "name": "back wall",
+      "model": "wall",
+      "position": [
+        0,
+        0,
+        2.65
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.18,
+        1.16,
+        1
+      ]
+    },
+    {
+      "name": "side wall",
+      "model": "wall02",
+      "position": [
+        -2.95,
+        0,
+        -1.15
+      ],
+      "angles": [
+        -1.5707963267948966,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1.16,
+        1
+      ]
+    },
+    {
+      "name": "side wall",
+      "model": "wall02",
+      "position": [
+        -2.95,
+        0,
+        1.18
+      ],
+      "angles": [
+        -1.5707963267948966,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1.16,
+        1
+      ]
+    },
+    {
+      "name": "side wall",
+      "model": "wall02",
+      "position": [
+        2.95,
+        0,
+        -1.15
+      ],
+      "angles": [
+        1.5707963267948966,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1.16,
+        1
+      ]
+    },
+    {
+      "name": "side wall",
+      "model": "wall02",
+      "position": [
+        2.95,
+        0,
+        1.18
+      ],
+      "angles": [
+        1.5707963267948966,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1.16,
+        1
+      ]
+    },
+    {
+      "name": "floor",
+      "model": "wooden_board",
+      "position": [
+        -1.4,
+        -0.071,
+        -2.0
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.12,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "ceiling",
+      "model": "wooden_board",
+      "position": [
+        -1.4,
+        3.0,
+        -2.0
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.12,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "floor",
+      "model": "wooden_board",
+      "position": [
+        -1.4,
+        -0.071,
+        0
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.12,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "ceiling",
+      "model": "wooden_board",
+      "position": [
+        -1.4,
+        3.0,
+        0
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.12,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "floor",
+      "model": "wooden_board",
+      "position": [
+        -1.4,
+        -0.071,
+        2.0
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.12,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "ceiling",
+      "model": "wooden_board",
+      "position": [
+        -1.4,
+        3.0,
+        2.0
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.12,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "floor",
+      "model": "wooden_board",
+      "position": [
+        1.4,
+        -0.071,
+        -2.0
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.12,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "ceiling",
+      "model": "wooden_board",
+      "position": [
+        1.4,
+        3.0,
+        -2.0
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.12,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "floor",
+      "model": "wooden_board",
+      "position": [
+        1.4,
+        -0.071,
+        0
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.12,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "ceiling",
+      "model": "wooden_board",
+      "position": [
+        1.4,
+        3.0,
+        0
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.12,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "floor",
+      "model": "wooden_board",
+      "position": [
+        1.4,
+        -0.071,
+        2.0
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.12,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "ceiling",
+      "model": "wooden_board",
+      "position": [
+        1.4,
+        3.0,
+        2.0
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.12,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "map",
+      "model": "map1",
+      "position": [
+        -1.5,
+        1.65,
+        2.14
+      ],
+      "angles": [
+        0,
+        -1.5707963267948966,
+        0
+      ],
+      "scale": [
+        0.68,
+        0.68,
+        0.68
+      ]
+    },
+    {
+      "name": "table",
+      "model": "metal_table1",
+      "position": [
+        1.65,
+        0,
+        1.45
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.9,
+        1,
+        0.9
+      ]
+    },
+    {
+      "name": "PDA",
+      "model": "../../netcoop/dev_pda",
+      "position": [
+        1.5,
+        0.916,
+        1.1
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.8,
+        1.8,
+        1.8
+      ]
+    },
+    {
+      "name": "radio",
+      "model": "radiola",
+      "position": [
+        2.07,
+        0.9,
+        1.68
+      ],
+      "angles": [
+        3.141592653589793,
+        0,
+        0
+      ],
+      "scale": [
+        0.4,
+        0.4,
+        0.4
+      ]
+    },
+    {
+      "name": "chest",
+      "model": "Storage01",
+      "position": [
+        -1.65,
+        0.01,
+        0.3
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1.1,
+        1.1,
+        1.1
+      ]
+    },
+    {
+      "name": "seat",
+      "model": "stool",
+      "position": [
+        0.75,
+        0,
+        1.15
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "name": "ceiling lamp",
+      "model": "light/lightbulb_1",
+      "position": [
+        -1.4,
+        2.717,
+        -1.6
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.4,
+        0.4,
+        0.4
+      ]
+    },
+    {
+      "name": "rug",
+      "model": "rug",
+      "position": [
+        0,
+        -0.015,
+        0.2
+      ],
+      "angles": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.7,
+        0.7,
+        0.7
+      ]
+    }
+  ],
+  "source_sha256": {
+    "wall": "92f73a455a0e649c52a1769b75c9e929f3dcf7d8b4eb6e526a98bd55357e042d",
+    "wall02": "fcc1104424f0e56d1711522f68feb6eaa6b23f1389c17e868aad35480b225f1e",
+    "wooden_board": "08fe7e2a23752a24433fcc5571cff42bd7c5f6b073d1661a3221c1e93e68a5b3",
+    "map1": "2549017afccf0dcbfda9a33f629546ca924c90bd96a94a6478fb44076a248f7d",
+    "metal_table1": "b136a28d5cc61c354c6037e2e639a569b33d1103fb4aa8a10d2e44105f4d0ee3",
+    "../../netcoop/dev_pda": "592b2bf4c9011dbf2e0ea708c70f192e56f476a31889e3c0f0a50ca719d77aa3",
+    "radiola": "589f2ca0fbe2d224b4b1497e66cce7904479cc8d54151e78cafe41bf48a23082",
+    "Storage01": "056b2586909af0ee79524295119613ba7886899cbbe0990d12eeb9eec0629b7a",
+    "stool": "9f168a318b6f0528a6edbd19915b2a573ffa39e78147a8e24b087bdd03f636c8",
+    "light/lightbulb_1": "be38a70eb59bcf8c9dca99e7909593e6bc077ee89f423293a851e4250bf7e69d",
+    "rug": "6065659ce1e03c22310510859a3fd9cfbe5469a8388cf4e3bbc09e74ffe15a7d"
+  },
+  "triangles": 8184,
+  "materials": [
+    "dar_devices_soc\\dar_pda_2",
+    "mtl\\mtl_lampa_pod_01",
+    "mtl\\mtl_tubes3b",
+    "pda_screen\\fix_pda",
+    "prop\\prop_audio_video",
+    "prop\\prop_blind01",
+    "prop\\prop_carpet",
+    "prop\\prop_dangerbox",
+    "prop\\prop_lampa_g",
+    "prop\\prop_map_2",
+    "wood\\wood_board_01",
+    "wood\\wood_plank6",
+    "wood\\wood_plank6_bar_b",
+    "wood\\wood_table_02"
+  ]
+}

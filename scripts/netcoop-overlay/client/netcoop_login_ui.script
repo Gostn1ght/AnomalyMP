@@ -109,9 +109,24 @@ function netcoop_login_wnd:ShowAccountControls(show)
         item:Show(show)
     end
 end
+function netcoop_login_wnd:CloseRoomView()
+    self.room_view, self.room_pending = nil, nil
+    if netcoop_preview_focus then netcoop_preview_focus(-1) end
+    if self.inventory_panel then self.inventory_panel:Show(false) end
+    if self.server_panel then self.server_panel:Show(false) end
+    if self.room_back then self.room_back:Show(false) end
+    if self.character_panel and self.mode == "characters" then self.character_panel:Show(true) end
+end
+function netcoop_login_wnd:OpenRoomView(kind, object)
+    if self.room_view == kind then return self:CloseRoomView() end
+    self:CloseRoomView()
+    self.poses_panel:Show(false); self.character_panel:Show(false)
+    self.room_view, self.room_pending = kind, kind
+    self.room_back:Show(true)
+    if netcoop_preview_focus then netcoop_preview_focus(object) end
+end
 function netcoop_login_wnd:ToggleInventory()
-    self.inventory_panel:Show(not self.inventory_panel:IsShown())
-    self.poses_panel:Show(false); self.server_panel:Show(false)
+    self:OpenRoomView("inventory", 2)
 end
 function netcoop_login_wnd:PositionRoomControls()
     if not netcoop_preview_point or not self.room_buttons then return end
@@ -187,6 +202,14 @@ end
 
 function netcoop_login_wnd:Update()
 	CUIScriptWnd.Update(self)
+    if self.room_pending and (not netcoop_preview_ready or netcoop_preview_ready()) then
+        local kind = self.room_pending; self.room_pending = nil
+        if kind == "inventory" then self.inventory_panel:Show(true)
+        elseif kind == "server" then
+            self.server_edit:SetText(self.pending_ip .. ":" .. self.pending_port)
+            self.server_panel:Show(true)
+        elseif kind == "settings" then self.settings_pending = true end
+    end
     if self.settings_pending then
         self.settings_pending = nil
         local ok, error = pcall(function()
@@ -198,7 +221,7 @@ function netcoop_login_wnd:Update()
         end)
         if not ok then
             if self.opt_dlg then self.opt_dlg:HideDialog(); self.opt_dlg:Show(false) end
-            self:ShowDialog(true); self:Show(true); self:SetMsg(tr("settings_error"))
+            self:CloseRoomView(); self:ShowDialog(true); self:Show(true); self:SetMsg(tr("settings_error"))
             printf("[NetAnomaly] menu settings error: %s", tostring(error))
         end
         return
@@ -311,7 +334,7 @@ function netcoop_login_wnd:ShowCharacters()
         end
         button("previous", "<", function() self:ChangeSlot(-1) end)
         button("next", ">", function() self:ChangeSlot(1) end)
-        self.enter = button("enter", tr("enter_zone"), function() self:SelectCharacter(self.slot) end)
+        self.enter = button("enter", tr("enter_zone"), self.ShowServer)
         button("back", tr("exit"), self.OnBack)
         local settings = button("settings", tr("settings"), self.ShowSettings)
         button("server", tr("server"), self.ShowServer)
@@ -339,16 +362,23 @@ function netcoop_login_wnd:ShowCharacters()
             self:AddCallback("preview_pose_" .. pose, ui_events.BUTTON_CLICKED, function() self:SetPose(pose) end, self)
             end
         end
-        self.inventory_panel = xml:InitStatic("inventory_panel", self.character_panel)
+        self.inventory_panel = xml:InitStatic("inventory_panel", self)
         self.inventory_scroll = xml:InitScrollView("inventory_scroll", self.inventory_panel)
         self.poses_panel:Show(false); self.inventory_panel:Show(false)
-        self.server_panel = xml:InitStatic("server_panel", self.character_panel)
+        self.server_panel = xml:InitStatic("server_panel", self)
         self.server_edit = xml:InitEditBox("server_edit", self.server_panel)
         local save = xml:Init3tButton("server_save", self.server_panel)
         save:TextControl():SetText(tr("save_server")); self:Register(save, "server_save")
         self:AddCallback("server_save", ui_events.BUTTON_CLICKED, self.SaveServer, self)
-        self.server_panel:Show(false)
+        local connect = xml:Init3tButton("server_connect", self.server_panel)
+        connect:TextControl():SetText(tr("enter_zone")); self:Register(connect, "server_connect")
+        self:AddCallback("server_connect", ui_events.BUTTON_CLICKED, function() self:SelectCharacter(self.slot) end, self)
+        self.room_back = xml:Init3tButton("room_back", self)
+        self.room_back:TextControl():SetText(tr("back")); self:Register(self.room_back, "room_back")
+        self:AddCallback("room_back", ui_events.BUTTON_CLICKED, self.CloseRoomView, self)
+        self.room_back:Show(false); self.server_panel:Show(false)
     end
+    self:CloseRoomView()
     self.slot = self.slot or 1; self.character_panel:Show(true); self:ChangeSlot(0)
     self:SetMsg(auth_message or "")
     self.account_caption:TextControl():SetText(self.pending_login)
@@ -486,6 +516,7 @@ function netcoop_login_wnd:OnRegister()
 end
 
 function netcoop_login_wnd:OnBack()
+    if self.room_view then self:CloseRoomView(); return end
 	if auth_return == "pending" then return end
     if cloud_enabled() then
         if self.mode == "profile" then
@@ -507,14 +538,16 @@ end
 function netcoop_login_wnd:OnKeyboard(dik, keyboard_action)
 	if keyboard_action == ui_events.WINDOW_KEY_PRESSED then
 		if self.mode == "characters" then
-			if dik == DIK_keys.DIK_LEFT then self:ChangeSlot(-1); return true end
-			if dik == DIK_keys.DIK_RIGHT then self:ChangeSlot(1); return true end
+			if not self.room_view and dik == DIK_keys.DIK_LEFT then self:ChangeSlot(-1); return true end
+			if not self.room_view and dik == DIK_keys.DIK_RIGHT then self:ChangeSlot(1); return true end
 			if dik == bind_to_dik(key_bindings.kINVENTORY, 0) or dik == bind_to_dik(key_bindings.kINVENTORY, 1) then self:ToggleInventory(); return true end
 		end
 		if dik == DIK_keys.DIK_ESCAPE then
 			self:OnBack()
 		elseif dik == DIK_keys.DIK_RETURN or dik == DIK_keys.DIK_NUMPADENTER then
-			if self.mode == "characters" then self:SelectCharacter(self.slot)
+			if self.mode == "characters" then
+                if self.server_panel:IsShown() then self:SelectCharacter(self.slot)
+                elseif not self.room_view then self:ShowServer() end
 			elseif self.mode == "profile" then self:ContinueProfile()
             elseif cloud_enabled() and self.form_mode == "login" then self:OnLogin()
             elseif account_state() == 0 then self:OnRegister() else self:OnLogin() end
@@ -566,7 +599,7 @@ function frontend_update(menu)
     local admin = can_mcm()
     if menu.netcoop_menu_role ~= nil and menu.netcoop_menu_role ~= admin then
         menu.shniaga:ShowPage(CUIMMShniaga.epi_new_game)
-        menu.shniaga:SetPage(CUIMMShniaga.epi_main, "ui_mm_main.xml", level.present() and "menu_main_single" or "menu_main")
+        menu.shniaga:SetPage(CUIMMShniaga.epi_main, "ui_netcoop_main.xml", level.present() and "menu_main_single" or "menu_main")
         menu.shniaga:ShowPage(CUIMMShniaga.epi_main)
     end
     menu.netcoop_menu_role = admin
@@ -679,12 +712,10 @@ function on_cloud_result(ok, error, account, verified)
     auth_return = ok and verified and "characters" or "account"
 end
 function netcoop_login_wnd:ShowSettings()
-    -- Build options after the button event finishes; constructor already resets it.
-    self.settings_pending = true
+    self:OpenRoomView("settings", 1)
 end
 function netcoop_login_wnd:ShowServer()
-    self.server_panel:Show(not self.server_panel:IsShown())
-    self.server_edit:SetText(self.pending_ip .. ":" .. self.pending_port)
+    self:OpenRoomView("server", 0)
 end
 function netcoop_login_wnd:SaveServer()
     local ip, port = parse_addr(self.server_edit:GetText())

@@ -28,35 +28,142 @@ bool CRender::PrepareUIModel(IRenderVisual* visual)
     return !!preview;
 }
 
-static void draw_ui_geometry(IRenderVisual* visual, const Fmatrix& world)
+static ref_rt s_menu_shadow_depth;
+static ref_shader s_menu_depth_shaders[6];
+static Fmatrix s_menu_shadow_matrix;
+static u32 s_menu_shadow_time=0;
+static STextureList s_menu_no_textures;
+static ID3D11Query *s_menu_gpu_start=nullptr, *s_menu_gpu_end=nullptr, *s_menu_gpu_disjoint=nullptr;
+static bool s_menu_gpu_pending=false, s_menu_gpu_recording=false;
+static u32 s_menu_gpu_sample=0,s_menu_gpu_report=0,s_menu_gpu_count=0;
+static double s_menu_gpu_total=0,s_menu_gpu_max=0;
+static void menu_gpu_begin()
+{
+    if (!s_menu_gpu_start)
+    {
+        D3D11_QUERY_DESC desc={D3D11_QUERY_TIMESTAMP,0};
+        if(FAILED(HW.pDevice->CreateQuery(&desc,&s_menu_gpu_start))) return;
+        if(FAILED(HW.pDevice->CreateQuery(&desc,&s_menu_gpu_end))) { _RELEASE(s_menu_gpu_start); return; }
+        desc.Query=D3D11_QUERY_TIMESTAMP_DISJOINT;
+        if(FAILED(HW.pDevice->CreateQuery(&desc,&s_menu_gpu_disjoint)))
+        { _RELEASE(s_menu_gpu_start); _RELEASE(s_menu_gpu_end); return; }
+        s_menu_gpu_sample=s_menu_gpu_report=Device.dwTimeContinual;
+    }
+    if(s_menu_gpu_pending)
+    {
+        D3D11_QUERY_DATA_TIMESTAMP_DISJOINT data={}; UINT64 begin=0,end=0;
+        if(HW.pContext->GetData(s_menu_gpu_disjoint,&data,sizeof(data),D3D11_ASYNC_GETDATA_DONOTFLUSH)==S_OK &&
+           HW.pContext->GetData(s_menu_gpu_start,&begin,sizeof(begin),D3D11_ASYNC_GETDATA_DONOTFLUSH)==S_OK &&
+           HW.pContext->GetData(s_menu_gpu_end,&end,sizeof(end),D3D11_ASYNC_GETDATA_DONOTFLUSH)==S_OK)
+        {
+            s_menu_gpu_pending=false;
+            if(!data.Disjoint && data.Frequency && end>=begin)
+            {
+                const double ms=double(end-begin)*1000./double(data.Frequency);
+                s_menu_gpu_total+=ms; s_menu_gpu_max=_max(s_menu_gpu_max,ms); ++s_menu_gpu_count;
+                if(Device.dwTimeContinual-s_menu_gpu_report>=10000)
+                {
+                    Msg("[NetAnomaly] menu GPU: avg %.2f ms, max %.2f ms, %u samples (1024 shadow, 20 Hz)",
+                        s_menu_gpu_total/s_menu_gpu_count,s_menu_gpu_max,s_menu_gpu_count);
+                    s_menu_gpu_total=s_menu_gpu_max=0; s_menu_gpu_count=0; s_menu_gpu_report=Device.dwTimeContinual;
+                }
+            }
+        }
+    }
+    if(!s_menu_gpu_pending && Device.dwTimeContinual-s_menu_gpu_sample>=1000)
+    {
+        HW.pContext->Begin(s_menu_gpu_disjoint); HW.pContext->End(s_menu_gpu_start);
+        s_menu_gpu_recording=true; s_menu_gpu_sample=Device.dwTimeContinual;
+    }
+}
+static void menu_gpu_end()
+{
+    if(!s_menu_gpu_recording) return;
+    HW.pContext->End(s_menu_gpu_end); HW.pContext->End(s_menu_gpu_disjoint);
+    s_menu_gpu_recording=false; s_menu_gpu_pending=true;
+}
+static void release_menu_shadow()
+{
+    for(auto& shader:s_menu_depth_shaders) shader.destroy();
+    s_menu_shadow_depth.destroy(); s_menu_shadow_time=0;
+    _RELEASE(s_menu_gpu_start); _RELEASE(s_menu_gpu_end); _RELEASE(s_menu_gpu_disjoint);
+    s_menu_gpu_pending=s_menu_gpu_recording=false;
+    s_menu_gpu_count=0; s_menu_gpu_total=s_menu_gpu_max=0;
+}
+static void draw_ui_geometry(IRenderVisual* visual, const Fmatrix& world, bool depth=false)
 {
     if (auto children = visual->get_children())
     {
-        for (auto child : *children) draw_ui_geometry(child, world);
+        for (auto child : *children) draw_ui_geometry(child, world, depth);
         return;
     }
     auto geometry = fast_dynamic_cast<dxRender_Visual*>(visual);
     if (!geometry || !geometry->shader) return;
-    RCache.set_Shader(geometry->shader);
+    if (depth)
+    {
+        auto skin=fast_dynamic_cast<CSkeletonX*>(visual);
+        const int mode=skin ? skin->UISkinningMode() : -1;
+        auto& shader=s_menu_depth_shaders[_max(0,_min(5,mode+1))];
+        if(!shader)
+        {
+            RImplementation.shader_option_skinning(mode);
+            shader.create("netcoop_preview_depth");
+            RImplementation.shader_option_skinning(-1);
+        }
+        RCache.set_Shader(shader);
+    }
+    else RCache.set_Shader(geometry->shader);
+    RCache.set_c("m_menu_shadow",s_menu_shadow_matrix);
     RCache.set_xform_world(world);
     geometry->Render(1.f);
 }
 
 
+#include "../../xrEngine/netcoop_menu_camera.h"
 #include "netcoop_menu_room.inc"
 
 void CRender::DrawUIModel(IRenderVisual* visual, const Fmatrix& world, IRenderVisual* item, const Fmatrix* itemWorld)
 {
     if (!visual || g_pGameLevel) return;
+    menu_gpu_begin();
     const Fmatrix old_world = RCache.xforms.m_w, old_view = RCache.xforms.m_v, old_projection = RCache.xforms.m_p;
+    // One small shadow map for the private room, refreshed at most 20 Hz.
+    // The menu never submits a full game level, AI, or physics to the renderer.
+    if (!s_menu_shadow_depth || Device.dwTimeContinual-s_menu_shadow_time>=50)
+    {
+        if(!s_menu_shadow_depth) s_menu_shadow_depth.create("$user$menu_room_shadow",1024,1024,D3DFMT_D24S8);
+        ID3DRenderTargetView* targets[4]={RCache.get_RT(0),RCache.get_RT(1),RCache.get_RT(2),RCache.get_RT(3)};
+        auto depth=RCache.get_ZB();
+        D3D_VIEWPORT viewport; UINT count=1; HW.pContext->RSGetViewports(&count,&viewport);
+        RCache.set_Textures(&s_menu_no_textures);
+        for(u32 i=0;i<4;++i) RCache.set_RT(nullptr,i);
+        RCache.set_ZB(s_menu_shadow_depth->pZRT);
+        const D3D_VIEWPORT shadow_viewport={0,0,1024,1024,0,1}; HW.pContext->RSSetViewports(1,&shadow_viewport);
+        HW.pContext->ClearDepthStencilView(s_menu_shadow_depth->pZRT,D3D_CLEAR_DEPTH,1.f,0);
+        Fmatrix light_view,light_projection,bias,light_combined;
+        light_view.build_camera(Fvector().set(-1.4f,2.7f,-1.6f),Fvector().set(0,0,.5f),Fvector().set(0,0,1));
+        light_projection.build_projection(deg2rad(110.f),1.f,.1f,12.f);
+        light_combined.mul(light_projection,light_view);
+        bias.identity(); bias._11=.5f; bias._22=-.5f; bias._41=.5f; bias._42=.5f;
+        s_menu_shadow_matrix.mul(bias,light_combined);
+        RCache.set_xform_view(light_view); RCache.set_xform_project(light_projection);
+        RCache.set_Stencil(FALSE); RCache.set_CullMode(CULL_NONE);
+        draw_menu_room(true); draw_ui_geometry(visual,world,true);
+        if(item && itemWorld) draw_ui_geometry(item,*itemWorld,true);
+        RCache.set_Textures(&s_menu_no_textures);
+        for(u32 i=0;i<4;++i) RCache.set_RT(targets[i],i);
+        RCache.set_ZB(depth); HW.pContext->RSSetViewports(1,&viewport);
+        s_menu_shadow_time=Device.dwTimeContinual;
+    }
     Fmatrix view, projection;
-    view.build_camera(Fvector().set(0.f, 1.1f, -3.8f), Fvector().set(0.f, 1.1f, 0.f), Fvector().set(0.f, 1.f, 0.f));
-    projection.build_projection(deg2rad(40.f), float(Device.dwHeight) / float(Device.dwWidth), .1f, 20.f);
+    menu_room::matrices(view, projection);
     HW.pContext->ClearDepthStencilView(HW.pBaseZB, D3D_CLEAR_DEPTH, 1.f, 0);
     RCache.set_xform_view(view); RCache.set_xform_project(projection);
+    RCache.set_Stencil(FALSE); RCache.set_ColorWriteEnable();
     draw_menu_room();
     draw_ui_geometry(visual, world);
     if (item && itemWorld) draw_ui_geometry(item, *itemWorld);
+    menu_gpu_end();
     RCache.set_xform_world(old_world); RCache.set_xform_view(old_view); RCache.set_xform_project(old_projection);
 }
 

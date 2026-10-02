@@ -1,11 +1,9 @@
 #include "common.h"
-struct preview_vertex { float4 position : SV_Position; float2 uv : TEXCOORD0; float3 normal : TEXCOORD1; };
+#include "netcoop_menu_light.h"
+struct preview_vertex { float4 position : SV_Position; float2 uv : TEXCOORD0; float3 normal : TEXCOORD1; float3 world : TEXCOORD2; float4 shadow : TEXCOORD3; };
 float4 main(preview_vertex vertex) : SV_Target
 {
-    float4 diffuse = s_base.Sample(smp_base, vertex.uv);
-    // Actor skin stores material data in alpha, not transparency.
-    float3 normal = normalize(vertex.normal);
-    float key = saturate(dot(normal, normalize(float3(-0.4, 0.7, -0.7))));
-    float rim = saturate(dot(normal, normalize(float3(0.8, 0.3, 0.4))));
-    return float4(diffuse.rgb * (float3(0.32, 0.34, 0.30) + key * float3(0.9, 0.81, 0.62) + rim * float3(0.15, 0.21, 0.25)), 1);
+    // Actor texture alpha stores material data, not transparency.
+    float3 diffuse=s_base.Sample(smp_base,vertex.uv).rgb;
+    return float4(menu_light(diffuse,vertex.normal,vertex.world,vertex.shadow),1);
 }

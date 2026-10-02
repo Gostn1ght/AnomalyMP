@@ -115,7 +115,7 @@ assert(callbacks.preview_pose_0==nil and callbacks.preview_pose_6==nil)
 assert(#controls.poses_scroll.rows==6)
 callbacks.preview_neutral(); assert(previews[#previews].pose==-1)
 callbacks.char_previous(); assert(controls.info.text:find('5 / 5',1,true))
-callbacks.char_next(); callbacks.char_enter()
+callbacks.char_next(); callbacks.char_enter(); last_window:Update(); callbacks.server_connect()
 assert(characters[#characters].slot==1 and characters[#characters].name=='Alpha')
 assert(can_mcm()==false); role=2; assert(can_mcm()==true)
 ''')
@@ -158,6 +158,10 @@ function GetARGB() return 0 end
 utils_xml={get_icons_texture=function() return 'icons' end,get_item_axis=function() return 0,0,50,50 end}
 function netcoop_preview_weapon(section) last_weapon=section;return true end
 function netcoop_preview_point(index) return {x=300+index*200,y=400+index*80} end
+camera_done=true; camera_target=-1
+function netcoop_preview_focus(object) camera_target=object;camera_done=false end
+function netcoop_preview_ready() return camera_done end
+function finish_camera() camera_done=true;last_window:Update() end
 ''')
 lua.execute(menu_source.read_text(encoding='cp1251'))
 lua.execute(r'''
@@ -199,25 +203,32 @@ assert(not controls.input_email.shown and not controls.background.shown)
 assert(#controls.inventory_scroll.rows==1)
 drafts[1].loadout='medkit,medkit,medkit,wpn_ak74';last_window:ShowCharacters()
 assert(last_weapon=='wpn_ak74' and #controls.inventory_scroll.rows==2)
-last_window:OnKeyboard(23,ui_events.WINDOW_KEY_PRESSED); assert(controls.inventory_panel.shown)
+last_window:OnKeyboard(23,ui_events.WINDOW_KEY_PRESSED)
+assert(camera_target==2 and not controls.inventory_panel.shown and not controls.panel.shown)
+finish_camera(); assert(controls.inventory_panel.shown)
 last_window:OnKeyboard(24,ui_events.WINDOW_KEY_PRESSED); assert(not controls.inventory_panel.shown)
-callbacks.char_inventory(); assert(controls.inventory_panel.shown)
-callbacks.char_settings();assert(settings_created==0);last_window:Update();assert(settings_created==1 and not last_window.shown)
-last_window:ShowDialog(true);last_window:Show(true)
-callbacks.char_settings();last_window:Update();assert(settings_created==1)
-last_window:ShowDialog(true);last_window:Show(true)
+callbacks.char_inventory(); assert(not controls.inventory_panel.shown)
+finish_camera(); assert(controls.inventory_panel.shown)
+last_window:OnKeyboard(DIK_keys.DIK_ESCAPE,ui_events.WINDOW_KEY_PRESSED)
+assert(camera_target==-1 and not controls.inventory_panel.shown and last_window.character_panel.shown and #commands==0)
+callbacks.char_settings();assert(camera_target==1 and settings_created==0)
+last_window:Update();assert(settings_created==0)
+finish_camera();assert(settings_created==1 and not last_window.shown)
+last_window:CloseRoomView(); last_window:ShowDialog(true);last_window:Show(true)
+callbacks.char_settings();finish_camera();assert(settings_created==1)
+last_window:CloseRoomView(); last_window:ShowDialog(true);last_window:Show(true)
 local options_factory=ui_options.UIOptions;last_window.opt_dlg=nil
 ui_options.UIOptions=function() error('fixture options failure') end
-callbacks.char_settings();last_window:Update();assert(last_window.shown and controls.status.text=='st_netcoop_settings_error')
+callbacks.char_settings();finish_camera();assert(last_window.shown and controls.status.text=='st_netcoop_settings_error')
 ui_options.UIOptions=options_factory
 -- Changing servers must not expose or reuse another server's draft.
 controls.server_edit:SetText('Other-Server.example:1268');callbacks.server_save()
 assert(draft_scope=='other-server.example:1268' and (last_window.names[1] or '')=='' and last_weapon=='')
 assert(draft_stores['127.0.0.1:1267'][1].name=='Loner One')
 controls.server_edit:SetText('127.0.0.1:1267');callbacks.server_save();assert(last_window.names[1]=='Loner One' and last_weapon=='wpn_ak74')
-callbacks.char_enter(); assert(cloud_requests[#cloud_requests].action=='refresh' and #commands==0)
+callbacks.char_enter(); assert(camera_target==0 and not controls.server_panel.shown); finish_camera();callbacks.server_connect(); assert(cloud_requests[#cloud_requests].action=='refresh' and #commands==0)
 on_cloud_result(false,'NETWORK_ERROR','cloud_user',true); assert(#commands==0)
-callbacks.char_enter(); on_cloud_result(true,'','cloud_user',true)
+callbacks.server_connect(); on_cloud_result(true,'','cloud_user',true)
 assert(characters[#characters].name=='Loner One' and characters[#characters].slot==1)
 assert(profile[1]=='Brown jacket' and #commands==2)
 cache_characters('Server saved name||||');last_window:ShowCharacters();assert(last_window.names[1]=='Server saved name')
