@@ -279,10 +279,12 @@ void CPhysicsShellHolder::activate_physic_shell()
 	l_fw.mul(2.f);
 	l_p2.c.add(l_fw);
 
-	m_pPhysicsShell->Activate(l_p1, 0, l_p2);
+	// setMass changes the cached inertia. Activate builds the ODE bodies from
+	// that cache; changing it afterwards leaves the solver at the model mass.
 	if (netcoop::enabled() && !netcoop::pure_client())
 		if (CInventoryItem* item = smart_cast<CInventoryItem*>(this))
 			m_pPhysicsShell->setMass(_max(0.05f, item->Weight()));
+	m_pPhysicsShell->Activate(l_p1, 0, l_p2);
 	if (H_Parent() && H_Parent()->Visual())
 	{
 		smart_cast<IKinematics*>(H_Parent()->Visual())->CalculateBones_Invalidate();
@@ -331,10 +333,10 @@ void CPhysicsShellHolder::setup_physic_shell()
 	create_physic_shell();
 	if (netcoop::enabled() && !netcoop::pure_client() && smart_cast<CInventoryItem*>(this))
 		m_pPhysicsShell->add_ObjectContactCallback(netcoop_item_ground_contact);
-	m_pPhysicsShell->Activate(XFORM(), 0, XFORM());
 	if (netcoop::enabled() && !netcoop::pure_client())
 		if (CInventoryItem* item = smart_cast<CInventoryItem*>(this))
 			m_pPhysicsShell->setMass(_max(0.05f, item->Weight()));
+	m_pPhysicsShell->Activate(XFORM(), 0, XFORM());
 	smart_cast<IKinematics*>(Visual())->CalculateBones_Invalidate();
 	smart_cast<IKinematics*>(Visual())->CalculateBones(TRUE);
 
