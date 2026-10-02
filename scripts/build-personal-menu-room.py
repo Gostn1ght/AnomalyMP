@@ -41,26 +41,43 @@ def main():
     def add(name, model, pos, angles=(0, 0, 0), scale=(1, 1, 1)):
         objects.append(dict(name=name, model=model, position=pos, angles=angles, scale=scale))
 
-    # Clear 5.5 x 6 m floor, 3 m ceiling. The front stays open to the menu camera.
-    add('back wall', 'wall', (0, 0, 2.65), scale=(1.18, 1.16, 1))
-    for side in (-1, 1):
-        for z in (-1.15, 1.18):
-            add('side wall', 'wall02', (side * 2.95, 0, z),
-                (side * math.pi / 2, 0, 0), (1, 1.16, 1))
-    for x in (-1.4, 1.4):
-        for z in (-2.0, 0, 2.0):
-            add('floor', 'wooden_board', (x, -.071, z), scale=(1.12, 1, 1))
-            add('ceiling', 'wooden_board', (x, 3.0, z), scale=(1.12, 1, 1))
-    add('map', 'map1', (-1.5, 1.65, 2.14), (0, -math.pi / 2, 0), (.68, .68, .68))
+    # Continuous concrete shell; original materials from the Agroprom underground.
+    # No stretched wooden fences or overlapping floorboards. Front is open to camera.
+    shell = []
+    def plane(name, texture, corners, normal, metres_per_tile=2):
+        a, b, c, d = corners
+        u = math.dist(a, b) / metres_per_tile
+        v = math.dist(b, c) / metres_per_tile
+        shell.append(dict(name=name, texture=texture, corners=corners, normal=normal,
+                          uv=((0,0),(u,0),(u,v),(0,v))))
+    plane('floor', 'ston/ston_beton_pod_03',
+          ((-2.8,0,-3.4),(2.8,0,-3.4),(2.8,0,2.24),(-2.8,0,2.24)), (0,1,0))
+    plane('ceiling', 'ston/ston_beton_potolok2_iov',
+          ((-2.8,3,-3.4),(2.8,3,-3.4),(2.8,3,2.24),(-2.8,3,2.24)), (0,-1,0))
+    plane('back wall', 'crete/crete_beton_2',
+          ((-2.8,0,2.24),(2.8,0,2.24),(2.8,3,2.24),(-2.8,3,2.24)), (0,0,-1))
+    for x in (-2.8,2.8):
+        plane('side wall', 'crete/crete_beton_2',
+              ((x,0,-3.4),(x,0,2.24),(x,3,2.24),(x,3,-3.4)), (-1 if x>0 else 1,0,0))
+    add('map', 'map1', (-1.5, 1.65, 2.24), (0, -math.pi / 2, 0), (.68, .68, .68))
     add('table', 'metal_table1', (1.65, 0, 1.45), scale=(.9, 1, .9))
-    add('PDA', '../../netcoop/dev_pda', (1.50, .916, 1.10), (0, 0, 0), (1.8, 1.8, 1.8))
+    # Bottom of the real PDA model meets the 0.89925 m table top, within 0.1 mm.
+    add('PDA', '../../netcoop/dev_pda', (1.50, .88803, 1.10), (0, 0, 0), (1.8, 1.8, 1.8))
     add('radio', 'radiola', (2.07, .90, 1.68), (math.pi, 0, 0), (.40, .40, .40))
     add('chest', 'Storage01', (-1.65, .01, .3), (0, 0, 0), (1.1, 1.1, 1.1))
     add('seat', 'stool', (.75, 0, 1.15))
     add('ceiling lamp', 'light/lightbulb_1', (-1.4, 2.717, -1.6), scale=(.4, .4, .4))
-    add('rug', 'rug', (0, -.015, .20), scale=(.7, .7, .7))
 
     batches = collections.defaultdict(bytearray)
+    level_path = args.meshes.parent / 'levels/l03u_agr_underground/level'
+    level_bytes = level_path.read_bytes()
+    level_materials = dict(chunks(level_bytes))[2][4:].split(b'\0')
+    for face in shell:
+        texture = face['texture'].replace('/', '\\')
+        assert any((b'/' + texture.encode() + b',') in mat for mat in level_materials), texture
+        for i in (0,1,2,0,2,3):
+            batches[texture].extend(struct.pack('<3f3fI2f', *face['corners'][i],
+                *face['normal'], 0xffffff, *face['uv'][i]))
     provenance = {}
     for obj in objects:
         path = args.meshes / 'dynamics/Decor' / (obj['model'] + '.ogf')
@@ -86,7 +103,9 @@ def main():
                 v = struct.unpack_from('<14fI', vertices, 8 + 60 * i)
                 point = rotate(tuple(v[k] * obj['scale'][k] for k in range(3)), obj['angles'])
                 point = tuple(point[k] + obj['position'][k] for k in range(3))
-                normal = rotate(v[3:6], obj['angles'])
+                normal = rotate(tuple(v[k+3]/obj['scale'][k] for k in range(3)), obj['angles'])
+                length = math.sqrt(sum(n*n for n in normal))
+                normal = tuple(n/length for n in normal)
                 # Alpha marks luminous lamp glass. The room shader computes lighting.
                 color = 0xffffff | (0xff000000 if emissive else 0)
                 assert all(math.isfinite(x) for x in (*point, *v[12:14]))
@@ -100,7 +119,8 @@ def main():
         output.extend(struct.pack('<I', len(vertices) // 36))
         output.extend(vertices)
     args.output.write_bytes(output)
-    args.output.with_suffix('.json').write_text(json.dumps(dict(objects=objects,
+    args.output.with_suffix('.json').write_text(json.dumps(dict(objects=objects, concrete_shell=shell,
+        concrete_material_source='l03u_agr_underground', level_sha256=hashlib.sha256(level_bytes).hexdigest(),
         source_sha256=provenance, triangles=sum(len(v)//108 for v in batches.values()),
         materials=list(sorted(batches))), indent=2) + '\n')
     print(f'{len(objects)} original objects, {len(batches)} materials, {len(output)} bytes')

@@ -7,6 +7,15 @@
 #include "../xrRender/QueryHelper.h"
 #include "../xrRender/SkeletonX.h"
 
+static xr_string menu_material_textures(LPCSTR base)
+{
+    // Use the same THM material metadata as the game; don't guess bump filenames.
+    ref_texture texture; texture.create(base);
+    xr_string list = base;
+    if (texture.bump_exist()) { list += ","; list += texture.bump_get().c_str(); }
+    return list;
+}
+
 bool CRender::PrepareUIModel(IRenderVisual* visual)
 {
     if (!visual) return false;
@@ -22,7 +31,8 @@ bool CRender::PrepareUIModel(IRenderVisual* visual)
     shader_option_skinning(skin ? skin->UISkinningMode() : -1);
     // Each cloned mesh gets its own shader; the shared source model is intact.
     ref_shader preview;
-    preview.create("netcoop_preview", visual->getDebugTexture());
+    const xr_string textures = menu_material_textures(visual->getDebugTexture());
+    preview.create("netcoop_preview", textures.c_str());
     shader_option_skinning(-1);
     geometry->shader = preview;
     return !!preview;

@@ -1,335 +1,12 @@
 {
   "objects": [
     {
-      "name": "back wall",
-      "model": "wall",
-      "position": [
-        0,
-        0,
-        2.65
-      ],
-      "angles": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1.18,
-        1.16,
-        1
-      ]
-    },
-    {
-      "name": "side wall",
-      "model": "wall02",
-      "position": [
-        -2.95,
-        0,
-        -1.15
-      ],
-      "angles": [
-        -1.5707963267948966,
-        0,
-        0
-      ],
-      "scale": [
-        1,
-        1.16,
-        1
-      ]
-    },
-    {
-      "name": "side wall",
-      "model": "wall02",
-      "position": [
-        -2.95,
-        0,
-        1.18
-      ],
-      "angles": [
-        -1.5707963267948966,
-        0,
-        0
-      ],
-      "scale": [
-        1,
-        1.16,
-        1
-      ]
-    },
-    {
-      "name": "side wall",
-      "model": "wall02",
-      "position": [
-        2.95,
-        0,
-        -1.15
-      ],
-      "angles": [
-        1.5707963267948966,
-        0,
-        0
-      ],
-      "scale": [
-        1,
-        1.16,
-        1
-      ]
-    },
-    {
-      "name": "side wall",
-      "model": "wall02",
-      "position": [
-        2.95,
-        0,
-        1.18
-      ],
-      "angles": [
-        1.5707963267948966,
-        0,
-        0
-      ],
-      "scale": [
-        1,
-        1.16,
-        1
-      ]
-    },
-    {
-      "name": "floor",
-      "model": "wooden_board",
-      "position": [
-        -1.4,
-        -0.071,
-        -2.0
-      ],
-      "angles": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1.12,
-        1,
-        1
-      ]
-    },
-    {
-      "name": "ceiling",
-      "model": "wooden_board",
-      "position": [
-        -1.4,
-        3.0,
-        -2.0
-      ],
-      "angles": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1.12,
-        1,
-        1
-      ]
-    },
-    {
-      "name": "floor",
-      "model": "wooden_board",
-      "position": [
-        -1.4,
-        -0.071,
-        0
-      ],
-      "angles": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1.12,
-        1,
-        1
-      ]
-    },
-    {
-      "name": "ceiling",
-      "model": "wooden_board",
-      "position": [
-        -1.4,
-        3.0,
-        0
-      ],
-      "angles": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1.12,
-        1,
-        1
-      ]
-    },
-    {
-      "name": "floor",
-      "model": "wooden_board",
-      "position": [
-        -1.4,
-        -0.071,
-        2.0
-      ],
-      "angles": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1.12,
-        1,
-        1
-      ]
-    },
-    {
-      "name": "ceiling",
-      "model": "wooden_board",
-      "position": [
-        -1.4,
-        3.0,
-        2.0
-      ],
-      "angles": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1.12,
-        1,
-        1
-      ]
-    },
-    {
-      "name": "floor",
-      "model": "wooden_board",
-      "position": [
-        1.4,
-        -0.071,
-        -2.0
-      ],
-      "angles": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1.12,
-        1,
-        1
-      ]
-    },
-    {
-      "name": "ceiling",
-      "model": "wooden_board",
-      "position": [
-        1.4,
-        3.0,
-        -2.0
-      ],
-      "angles": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1.12,
-        1,
-        1
-      ]
-    },
-    {
-      "name": "floor",
-      "model": "wooden_board",
-      "position": [
-        1.4,
-        -0.071,
-        0
-      ],
-      "angles": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1.12,
-        1,
-        1
-      ]
-    },
-    {
-      "name": "ceiling",
-      "model": "wooden_board",
-      "position": [
-        1.4,
-        3.0,
-        0
-      ],
-      "angles": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1.12,
-        1,
-        1
-      ]
-    },
-    {
-      "name": "floor",
-      "model": "wooden_board",
-      "position": [
-        1.4,
-        -0.071,
-        2.0
-      ],
-      "angles": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1.12,
-        1,
-        1
-      ]
-    },
-    {
-      "name": "ceiling",
-      "model": "wooden_board",
-      "position": [
-        1.4,
-        3.0,
-        2.0
-      ],
-      "angles": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1.12,
-        1,
-        1
-      ]
-    },
-    {
       "name": "map",
       "model": "map1",
       "position": [
         -1.5,
         1.65,
-        2.14
+        2.24
       ],
       "angles": [
         0,
@@ -366,7 +43,7 @@
       "model": "../../netcoop/dev_pda",
       "position": [
         1.5,
-        0.916,
+        0.88803,
         1.1
       ],
       "angles": [
@@ -455,55 +132,280 @@
         0.4,
         0.4
       ]
+    }
+  ],
+  "concrete_shell": [
+    {
+      "name": "floor",
+      "texture": "ston/ston_beton_pod_03",
+      "corners": [
+        [
+          -2.8,
+          0,
+          -3.4
+        ],
+        [
+          2.8,
+          0,
+          -3.4
+        ],
+        [
+          2.8,
+          0,
+          2.24
+        ],
+        [
+          -2.8,
+          0,
+          2.24
+        ]
+      ],
+      "normal": [
+        0,
+        1,
+        0
+      ],
+      "uv": [
+        [
+          0,
+          0
+        ],
+        [
+          2.8,
+          0
+        ],
+        [
+          2.8,
+          2.8200000000000003
+        ],
+        [
+          0,
+          2.8200000000000003
+        ]
+      ]
     },
     {
-      "name": "rug",
-      "model": "rug",
-      "position": [
-        0,
-        -0.015,
-        0.2
+      "name": "ceiling",
+      "texture": "ston/ston_beton_potolok2_iov",
+      "corners": [
+        [
+          -2.8,
+          3,
+          -3.4
+        ],
+        [
+          2.8,
+          3,
+          -3.4
+        ],
+        [
+          2.8,
+          3,
+          2.24
+        ],
+        [
+          -2.8,
+          3,
+          2.24
+        ]
       ],
-      "angles": [
+      "normal": [
         0,
+        -1,
+        0
+      ],
+      "uv": [
+        [
+          0,
+          0
+        ],
+        [
+          2.8,
+          0
+        ],
+        [
+          2.8,
+          2.8200000000000003
+        ],
+        [
+          0,
+          2.8200000000000003
+        ]
+      ]
+    },
+    {
+      "name": "back wall",
+      "texture": "crete/crete_beton_2",
+      "corners": [
+        [
+          -2.8,
+          0,
+          2.24
+        ],
+        [
+          2.8,
+          0,
+          2.24
+        ],
+        [
+          2.8,
+          3,
+          2.24
+        ],
+        [
+          -2.8,
+          3,
+          2.24
+        ]
+      ],
+      "normal": [
+        0,
+        0,
+        -1
+      ],
+      "uv": [
+        [
+          0,
+          0
+        ],
+        [
+          2.8,
+          0
+        ],
+        [
+          2.8,
+          1.5
+        ],
+        [
+          0,
+          1.5
+        ]
+      ]
+    },
+    {
+      "name": "side wall",
+      "texture": "crete/crete_beton_2",
+      "corners": [
+        [
+          -2.8,
+          0,
+          -3.4
+        ],
+        [
+          -2.8,
+          0,
+          2.24
+        ],
+        [
+          -2.8,
+          3,
+          2.24
+        ],
+        [
+          -2.8,
+          3,
+          -3.4
+        ]
+      ],
+      "normal": [
+        1,
         0,
         0
       ],
-      "scale": [
-        0.7,
-        0.7,
-        0.7
+      "uv": [
+        [
+          0,
+          0
+        ],
+        [
+          2.8200000000000003,
+          0
+        ],
+        [
+          2.8200000000000003,
+          1.5
+        ],
+        [
+          0,
+          1.5
+        ]
+      ]
+    },
+    {
+      "name": "side wall",
+      "texture": "crete/crete_beton_2",
+      "corners": [
+        [
+          2.8,
+          0,
+          -3.4
+        ],
+        [
+          2.8,
+          0,
+          2.24
+        ],
+        [
+          2.8,
+          3,
+          2.24
+        ],
+        [
+          2.8,
+          3,
+          -3.4
+        ]
+      ],
+      "normal": [
+        -1,
+        0,
+        0
+      ],
+      "uv": [
+        [
+          0,
+          0
+        ],
+        [
+          2.8200000000000003,
+          0
+        ],
+        [
+          2.8200000000000003,
+          1.5
+        ],
+        [
+          0,
+          1.5
+        ]
       ]
     }
   ],
+  "concrete_material_source": "l03u_agr_underground",
+  "level_sha256": "ae1e3268aabc4d356ed3037975e8c19416e77c61cb39f6e41cb8551db8ec94e5",
   "source_sha256": {
-    "wall": "92f73a455a0e649c52a1769b75c9e929f3dcf7d8b4eb6e526a98bd55357e042d",
-    "wall02": "fcc1104424f0e56d1711522f68feb6eaa6b23f1389c17e868aad35480b225f1e",
-    "wooden_board": "08fe7e2a23752a24433fcc5571cff42bd7c5f6b073d1661a3221c1e93e68a5b3",
     "map1": "2549017afccf0dcbfda9a33f629546ca924c90bd96a94a6478fb44076a248f7d",
     "metal_table1": "b136a28d5cc61c354c6037e2e639a569b33d1103fb4aa8a10d2e44105f4d0ee3",
     "../../netcoop/dev_pda": "592b2bf4c9011dbf2e0ea708c70f192e56f476a31889e3c0f0a50ca719d77aa3",
     "radiola": "589f2ca0fbe2d224b4b1497e66cce7904479cc8d54151e78cafe41bf48a23082",
     "Storage01": "056b2586909af0ee79524295119613ba7886899cbbe0990d12eeb9eec0629b7a",
     "stool": "9f168a318b6f0528a6edbd19915b2a573ffa39e78147a8e24b087bdd03f636c8",
-    "light/lightbulb_1": "be38a70eb59bcf8c9dca99e7909593e6bc077ee89f423293a851e4250bf7e69d",
-    "rug": "6065659ce1e03c22310510859a3fd9cfbe5469a8388cf4e3bbc09e74ffe15a7d"
+    "light/lightbulb_1": "be38a70eb59bcf8c9dca99e7909593e6bc077ee89f423293a851e4250bf7e69d"
   },
-  "triangles": 8184,
+  "triangles": 5921,
   "materials": [
+    "crete\\crete_beton_2",
     "dar_devices_soc\\dar_pda_2",
     "mtl\\mtl_lampa_pod_01",
     "mtl\\mtl_tubes3b",
     "pda_screen\\fix_pda",
     "prop\\prop_audio_video",
     "prop\\prop_blind01",
-    "prop\\prop_carpet",
     "prop\\prop_dangerbox",
     "prop\\prop_lampa_g",
     "prop\\prop_map_2",
-    "wood\\wood_board_01",
-    "wood\\wood_plank6",
-    "wood\\wood_plank6_bar_b",
+    "ston\\ston_beton_pod_03",
+    "ston\\ston_beton_potolok2_iov",
     "wood\\wood_table_02"
   ]
 }

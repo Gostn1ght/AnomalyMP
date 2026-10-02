@@ -436,11 +436,8 @@ function netcoop_login_wnd:FillInventory(items)
         end
     end
 end
-function netcoop_login_wnd:Show(flag)
-    CUIScriptWnd.Show(self, flag)
-    if flag and self.mode == "characters" then self:ChangeSlot(0) end
-    if flag and self.mode == "profile" then self:ShowProfile(self.profile_slot) end
-end
+-- Keep the native Show method inherited. Lua virtual overrides have no
+-- default Show binding and calling CUIScriptWnd.Show raises pure virtual.
 
 function netcoop_login_wnd:SelectCharacter(slot)
     local name = self.names[slot]

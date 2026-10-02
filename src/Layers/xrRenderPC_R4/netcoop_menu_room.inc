@@ -59,7 +59,11 @@ static void draw_menu_room(bool depth=false)
     RCache.set_CullMode(CULL_NONE);
     for (auto& batch : s_room_batches)
     {
-        if (!batch.shader) batch.shader.create("netcoop_room", batch.texture.c_str());
+        if (!batch.shader)
+        {
+            const xr_string textures=menu_material_textures(batch.texture.c_str());
+            batch.shader.create("netcoop_room", textures.c_str());
+        }
         if (depth && !batch.depth_shader) batch.depth_shader.create("netcoop_room_depth",batch.texture.c_str());
         RCache.set_Shader(depth ? batch.depth_shader : batch.shader);
         RCache.set_c("m_menu_shadow",s_menu_shadow_matrix);

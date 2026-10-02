@@ -6,17 +6,45 @@ float menu_visibility(float4 coordinate, float ndotl)
     if(coordinate.w<=0 || any(p.xy<0) || any(p.xy>1) || p.z<0 || p.z>1) return 1;
     float bias=.0008+.002*(1-ndotl);
     float visible=0;
-    [unroll] for(int y=0;y<2;y++) [unroll] for(int x=0;x<2;x++)
-        visible += p.z-bias <= s_menu_shadow.SampleLevel(smp_nofilter,p.xy+(float2(x,y)-.5)/1024.,0) ? .25 : 0;
+    [unroll] for(int y=-1;y<=1;y++) [unroll] for(int x=-1;x<=1;x++)
+        visible += p.z-bias <= s_menu_shadow.SampleLevel(smp_nofilter,p.xy+float2(x,y)/1024.,0) ? 1./9. : 0;
     return visible;
 }
-float3 menu_light(float3 diffuse, float3 normal, float3 world, float4 shadow)
+float3 menu_surface_normal(float3 normal, float3 world, float2 uv, out float gloss)
+{
+    normal=normalize(normal); gloss=0;
+#ifdef MENU_BUMP
+    float4 packed=s_bump.Sample(smp_base,uv);
+    // Original X-Ray encoding: normal in WZY, gloss in X.
+    float3 tangentNormal=normalize(unpack_normal(packed.wzy));
+    float3 dx=ddx(world), dy=ddy(world);
+    float2 tx=ddx(uv), ty=ddy(uv);
+    float determinant=tx.x*ty.y-tx.y*ty.x;
+    if(abs(determinant)>1e-8)
+    {
+        float3 tangent=(dx*ty.y-dy*tx.y)/determinant;
+        float3 bitangent=(dy*tx.x-dx*ty.x)/determinant;
+        tangent=normalize(tangent-normal*dot(normal,tangent));
+        bitangent=normalize(bitangent-normal*dot(normal,bitangent));
+        normal=normalize(tangent*tangentNormal.x+bitangent*tangentNormal.y+normal*tangentNormal.z);
+    }
+    gloss=packed.x*packed.x;
+#endif
+    return normal;
+}
+float3 menu_light(float3 diffuse, float3 normal, float3 world, float4 shadow, float gloss)
 {
     float3 delta=float3(-1.4,2.7,-1.6)-world;
     float distance2=dot(delta,delta);
     float ndotl=saturate(dot(normalize(normal),normalize(delta)));
     float visibility=menu_visibility(shadow,ndotl);
     float attenuation=1/(1+.07*distance2);
-    float3 lighting=float3(.24,.25,.23)+float3(1.25,1.03,.74)*ndotl*attenuation*visibility;
-    return pow(max(0,pow(max(diffuse,0),2.2)*lighting),1/2.2);
+    float hemi=.10+.08*saturate(normal.y*.5+.5);
+    float3 lamp=float3(1.25,1.03,.74)*attenuation*visibility;
+    float3 lighting=float3(.93,.97,1.0)*hemi+lamp*ndotl;
+    float3 viewEye=-mul(m_V,float4(world,1)).xyz;
+    float3 viewDirection=normalize(mul(viewEye,(float3x3)m_V));
+    float3 halfDirection=normalize(normalize(delta)+viewDirection);
+    float specular=pow(saturate(dot(normal,halfDirection)),lerp(12,72,gloss))*gloss*.3*ndotl;
+    return pow(max(0,pow(max(diffuse,0),2.2)*lighting+lamp*specular),1/2.2);
 }

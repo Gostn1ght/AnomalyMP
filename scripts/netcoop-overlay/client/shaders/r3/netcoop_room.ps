@@ -4,5 +4,7 @@ struct room_output { float4 position : SV_Position; float4 color : COLOR0; float
 float4 main(room_output vertex) : SV_Target
 {
     float3 diffuse=s_base.Sample(smp_base,vertex.uv).rgb;
-    return float4(lerp(menu_light(diffuse,vertex.normal,vertex.world,vertex.shadow),diffuse*float3(1.5,1.3,.9),vertex.color.a),1);
+    float gloss;
+    float3 normal=menu_surface_normal(vertex.normal,vertex.world,vertex.uv,gloss);
+    return float4(lerp(menu_light(diffuse,normal,vertex.world,vertex.shadow,gloss),diffuse*float3(1.5,1.3,.9),vertex.color.a),1);
 }

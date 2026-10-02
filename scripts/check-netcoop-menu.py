@@ -86,6 +86,7 @@ CUIMMShniaga={epi_main=0,epi_new_game=1}
 ''')
 menu_source = Path(sys.argv[1]) if len(sys.argv) > 1 else root/'scripts/netcoop-overlay/client/netcoop_login_ui.script'
 lua.execute(menu_source.read_text(encoding='cp1251'))
+lua.execute("assert(rawget(netcoop_login_wnd, 'Show') == nil, 'native Show must stay inherited')")
 lua.execute(r'''
 local menu={HideDialog=function(s) s.hidden=true end,Show=function() end,ShowDialog=function() end}
 local approved_menu={}; state=2
