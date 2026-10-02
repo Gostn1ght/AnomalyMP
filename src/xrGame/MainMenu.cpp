@@ -495,6 +495,14 @@ void CMainMenu::StartStopMenu(CUIDialogWnd* pDialog, bool bDoHideIndicators)
 //pureFrame
 void CMainMenu::OnFrame()
 {
+    // No CLevel exists in the offline frontend to flush runtime diagnostics.
+    // Keep logs current here as well, using append rather than rewriting them.
+    if (netcoop::enabled() && IsActive() && !g_pGameLevel)
+    {
+        static u32 last_flush=0;
+        if(Device.dwTimeContinual-last_flush>=10000)
+        { last_flush=Device.dwTimeContinual; FlushLogAppend(); }
+    }
 	if (m_Flags.test(flNeedChangeCapture))
 	{
 		m_Flags.set(flNeedChangeCapture,FALSE);
