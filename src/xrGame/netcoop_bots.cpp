@@ -45,6 +45,83 @@ CTimer& bot_timer()
 
 u32 bot_now() { return bot_timer().GetElapsed_ms(); }
 
+// Account verification uses the game's transport, but never requests a world,
+// player state or Actor. No network clock thread is needed for this exchange.
+class FrontendAccountClient : public IPureClient
+{
+public:
+	FrontendAccountClient() : IPureClient(&bot_timer()) {}
+	bool start(LPCSTR options)
+	{
+		m_started = bot_now();
+		string64 user_name;
+		xr_strcpy(user_name, Core.UserName);
+		const bool connected = Connect(options);
+		xr_strcpy(Core.UserName, user_name);
+		if (!connected) fail("Cannot connect to the account server");
+		return connected;
+	}
+	bool update()
+	{
+		// Drain replies before checking disconnection: a successful slot-zero
+		// login ends with the server closing this temporary connection.
+		StartProcessQueue();
+		for (NET_Packet* P = net_msg_Retreive(); P; P = net_msg_Retreive())
+		{
+			if (!m_done && P->B.count >= 2)
+			{
+				u16 type; P->r_begin(type);
+				if (type == M_NETCOOP_AUTH_RESULT && P->r_elapsed() >= 3)
+				{
+					m_reply = *P;
+					m_done = true;
+				}
+				else if (type == M_CLIENT_CONNECT_RESULT && P->r_elapsed() >= 3)
+				{
+					const u8 accepted = P->r_u8(); P->r_u8();
+					string512 reason;
+					if (!read_string(*P, reason, sizeof(reason))) reason[0] = 0;
+					if (P->r_elapsed() >= sizeof(u32))
+					{
+						ClientID id; P->r_clientID(id); SetClientID(id);
+					}
+					if (!accepted) fail(reason[0] ? reason : "Account connection rejected");
+					else if (!m_auth_sent)
+					{
+						m_auth_sent = true;
+						NET_Packet auth; auth.w_begin(M_NETCOOP_AUTH);
+						client_write_auth(auth);
+						Send(auth, net_flags(TRUE, TRUE));
+					}
+				}
+			}
+			net_msg_Release();
+		}
+		EndProcessQueue();
+		if (!m_done && (net_isDisconnected() || net_isFails_Connect())) fail("Account server disconnected");
+		if (!m_done && bot_now() - m_started > bot_connect_timeout) fail("Account server did not respond");
+		if (!m_done) { Flush_Send_Buffer(); return false; }
+		Disconnect();
+		// Lua can create the character screen here; never call it under the
+		// receive queue lock or while the transport still owns callbacks.
+		client_on_auth_result(m_reply);
+		return true;
+	}
+private:
+	void fail(LPCSTR reason)
+	{
+		m_reply.w_begin(M_NETCOOP_AUTH_RESULT);
+		m_reply.w_u8(0); m_reply.w_u8(role_none); m_reply.w_stringZ(reason);
+		u16 type; m_reply.r_begin(type);
+		m_done = true;
+	}
+	u32 m_started = 0;
+	bool m_done = false, m_auth_sent = false;
+	NET_Packet m_reply;
+};
+
+FrontendAccountClient* s_frontend_account = nullptr;
+
 class NetcoopBot : public IPureClient
 {
 public:
@@ -426,6 +503,15 @@ void report(u32 now)
 }
 } // namespace
 
+bool script_frontend_auth(LPCSTR options)
+{
+	if (g_pGameLevel || s_frontend_account || !options || !options[0] || xr_strlen(options) >= 512)
+		return false;
+	s_frontend_account = xr_new<FrontendAccountClient>();
+	s_frontend_account->start(options);
+	return true; // even an immediate transport error is delivered next frame
+}
+
 void bots_set(u32 count, LPCSTR address)
 {
 	clamp(count, u32(0), u32(256));
@@ -444,6 +530,8 @@ void bots_set(u32 count, LPCSTR address)
 
 void bots_frame()
 {
+	if (s_frontend_account && s_frontend_account->update())
+		xr_delete(s_frontend_account);
 	check_command_line();
 	const u32 now = bot_now();
 

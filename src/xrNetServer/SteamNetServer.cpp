@@ -461,11 +461,14 @@ bool SteamNetServer::DisconnectClient(IClient* C, LPCSTR Reason)
 
 void SteamNetServer::CloseConnection(HSteamNetConnection connection, enmDisconnectReason nReason, LPCSTR sReason)
 {
+	// Authentication sends its final reliable reply immediately before closing.
+	// Preserve that reply in the transport queue, including the character list.
+	const bool flush_reply = sReason && sReason[0] == '@';
 	auto player_it = std::find(m_players.cbegin(), m_players.cend(), connection);
 	if (player_it != m_players.cend())
 	{
 		m_players.erase(player_it);
-		m_pInterface->CloseConnection(connection, nReason, sReason, false);
+		m_pInterface->CloseConnection(connection, nReason, sReason, flush_reply);
 	}
 
 	if (!m_pending_clients.empty())
@@ -478,7 +481,7 @@ void SteamNetServer::CloseConnection(HSteamNetConnection connection, enmDisconne
 		if (pending_client_it != m_pending_clients.cend())
 		{
 			m_pending_clients.erase(pending_client_it);
-			m_pInterface->CloseConnection(connection, nReason, sReason, false);
+			m_pInterface->CloseConnection(connection, nReason, sReason, flush_reply);
 		}
 	}
 }

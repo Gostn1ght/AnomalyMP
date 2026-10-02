@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="windows-1251"?>
 <w>
  <background x="0" y="0" width="1024" height="768" stretch="1">
-  <texture r="12" g="15" b="13" a="255">ui_icons_PDA_tooltips</texture>
-  <auto_static x="272" y="138" width="480" height="492" stretch="1"><texture r="24" g="28" b="21" a="255">ui_icons_PDA_tooltips</texture></auto_static>
-  <auto_static x="294" y="205" width="436" height="1" stretch="1"><texture r="172" g="150" b="96" a="255">ui_icons_PDA_tooltips</texture></auto_static>
+  <texture r="12" g="15" b="13" a="255">ui\netcoop_menu_solid</texture>
+  <auto_static x="272" y="138" width="480" height="492" stretch="1"><texture r="24" g="28" b="21" a="255">ui\netcoop_menu_solid</texture></auto_static>
+  <auto_static x="294" y="205" width="436" height="1" stretch="1"><texture r="172" g="150" b="96" a="255">ui\netcoop_menu_solid</texture></auto_static>
  </background>
  <cap_title x="292" y="154" width="440" height="40"><text r="221" g="202" b="144" font="letterica18" align="c" vert_align="c"/></cap_title>
  <cap_login x="292" y="238" width="125" height="32"><text r="197" g="202" b="186" font="letterica16" align="l" vert_align="c"/></cap_login>

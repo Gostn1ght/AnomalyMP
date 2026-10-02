@@ -68,6 +68,8 @@
 
 using namespace luabind;
 
+namespace netcoop { bool script_frontend_auth(LPCSTR options); }
+
 extern ENGINE_API float ps_r2_sun_shafts_min;
 extern ENGINE_API float ps_r2_sun_shafts_value;
 bool g_block_all_except_movement;
@@ -2753,6 +2755,7 @@ void CLevel::script_register(lua_State* L)
 		def("netcoop_registration_decide", &netcoop::script_registration_decide),
 		def("netcoop_preview_clear", &netcoop::script_preview_clear),
 		def("netcoop_preview_model", &netcoop::script_preview_model),
+		def("netcoop_frontend_auth", &netcoop::script_frontend_auth),
 		def("netcoop_preview_draw", &netcoop::script_preview_draw),
 		def("netcoop_command", &netcoop::script_command),
 		def("netcoop_trade", &netcoop::script_trade),

@@ -108,8 +108,9 @@ function netcoop_login_wnd:Reset()
 	self.ed_pass:SetText("")
 	self.ed_addr:SetText((addr and addr ~= "") and addr or DEF_ADDR)
 	local remembered = netcoop_account_state() ~= 0
-	self.ed_login:Enable(not remembered); self.ed_pass:Show(not remembered); self.cap_pass:Show(not remembered)
+	self.ed_login:Enable(not remembered); self.ed_pass:Enable(true); self.ed_pass:Show(not remembered); self.cap_pass:Show(not remembered)
 	self.register_button:Show(not remembered)
+	self.login_button:Enable(true); self.register_button:Enable(true); self.ed_addr:Enable(true)
 	self.login_button:TextControl():SetText(tr(remembered and "check_approval" or "existing_account"))
 	self.title:TextControl():SetText(tr(remembered and "approval_title" or "register_title"))
 	self:SetMsg(tr(remembered and "approval_help" or "register_help"))
@@ -121,6 +122,7 @@ function netcoop_login_wnd:Reset()
 end
 
 function netcoop_login_wnd:Connect(register)
+	if auth_return == "pending" then return end
 	if register and netcoop_account_state() ~= 0 then return end
 	local trim = function(s) return string.gsub(s or "", "^%s*(.-)%s*$", "%1") end
 	local login = trim(self.ed_login:GetText())
@@ -140,10 +142,19 @@ function netcoop_login_wnd:Connect(register)
 	self.pending_login, self.pending_ip, self.pending_port = login, ip, port
 	write_last(login, ip .. ":" .. port)
 	netcoop_character(0, "", "stalker", 1, "")
-	auth_return = "account"; auth_message = nil
-	self:HideDialog(); netcoop_preview_clear()
-	exec_console_cmd("main_menu off")
-	exec_console_cmd(string.format("start client(%s/name=%s/port=%s)", ip, login, port))
+	auth_return = "pending"; auth_message = nil
+	if not netcoop_frontend_auth(string.format("%s/name=%s/port=%s", ip, login, port)) then
+		auth_return = nil
+		return self:SetMsg(tr("auth_failed"))
+	end
+	self.login_button:Enable(false); self.register_button:Enable(false)
+	self.ed_login:Enable(false); self.ed_pass:Enable(false); self.ed_addr:Enable(false)
+	self:SetMsg(tr("connecting"))
+end
+
+function netcoop_login_wnd:Update()
+	CUIScriptWnd.Update(self)
+	if auth_return and auth_return ~= "pending" then frontend_update(self.owner) end
 end
 
 function netcoop_login_wnd:EnterCharacter(slot, name, faction, economy, loadout)
@@ -319,6 +330,7 @@ function netcoop_login_wnd:OnLogin() self:Connect(false) end
 function netcoop_login_wnd:OnRegister() self:Connect(true) end
 
 function netcoop_login_wnd:OnBack()
+	if auth_return == "pending" then return end
 	netcoop_preview_clear()
 	self:HideDialog()
 	if netcoop_account_state() == 0 then exec_console_cmd("quit"); return end
@@ -365,7 +377,7 @@ function show_login(menu, verified)
 		wnd:ShowCharacters()
 	else
 		wnd:Reset()
-		if netcoop_account_state() == 2 and not verified then wnd:Connect(false); return end
+		if netcoop_account_state() == 2 and not verified then wnd:Connect(false) end
 	end
 	wnd:ShowDialog(true)
 end
@@ -379,7 +391,7 @@ function frontend_update(menu)
     end
     menu.netcoop_menu_role = admin
     if level.present() then return false end
-    if auth_return then
+    if auth_return and auth_return ~= "pending" then
         local verified = auth_return == "characters"
         auth_return = nil
         menu.netcoop_first_screen = true

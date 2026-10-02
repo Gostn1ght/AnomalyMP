@@ -126,4 +126,5 @@
 	<string id="st_netcoop_character_hint"><text>Arrows: characters   |   Inventory: game key   |   Enter: join</text></string>
 	<string id="st_netcoop_registration_notice"><text>New registration: %s. Use /approve_registration LOGIN or /reject_registration LOGIN.</text></string>
 	<string id="st_netcoop_auth_failed"><text>The server did not confirm sign-in.</text></string>
+	<string id="st_netcoop_connecting"><text>Checking account with the server…</text></string>
 </string_table>

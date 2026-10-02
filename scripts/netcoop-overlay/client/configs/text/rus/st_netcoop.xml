@@ -126,4 +126,5 @@
 	<string id="st_netcoop_character_hint"><text>Стрелки — персонажи   |   Инвентарь — игровая клавиша   |   Enter — войти</text></string>
 	<string id="st_netcoop_registration_notice"><text>Новая заявка: %s. Команда: /принять регистрацию НИК или /отклонить регистрацию НИК.</text></string>
 	<string id="st_netcoop_auth_failed"><text>Сервер не подтвердил вход.</text></string>
+	<string id="st_netcoop_connecting"><text>Проверяем аккаунт на сервере…</text></string>
 </string_table>
