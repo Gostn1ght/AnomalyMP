@@ -366,10 +366,14 @@ bool CLevel::Connect2Server(const char* options)
 		FS.auth_generate(tmp_ignore, tmp_check);
 	}
 
-	if (!Connect(options)) return FALSE;
+	if (!Connect(options))
+	{
+		OnInvalidHost(); Disconnect(); return FALSE;
+	}
 	//---------------------------------------------------------------------------
 	if (psNET_direct_connect) m_bConnectResultReceived = true;
-	u32 EndTime = GetTickCount() + ConnectionTimeOut;
+	const u32 started = GetTickCount();
+	const u32 timeout = strstr(Core.Params, "-netcoop") ? 20000u : ConnectionTimeOut;
 	while (!m_bConnectResultReceived)
 	{
 		ClientReceive();
@@ -377,23 +381,15 @@ bool CLevel::Connect2Server(const char* options)
 		if (Server)
 			Server->Update();
 		//-----------------------------------------
-		u32 CurTime = GetTickCount();
-		if (CurTime > EndTime)
+		if (net_isFails_Connect() || net_isDisconnected() || GetTickCount()-started >= timeout)
 		{
-			NET_Packet P;
-			P.B.count = 0;
-			P.r_pos = 0;
-
-			P.w_u8(0);
-			P.w_u8(0);
-			P.w_stringZ("Data verification failed. Cheater?");
-
-			OnConnectResult(&P);
-		}
-		if (net_isFails_Connect())
-		{
+			// A local timeout is not a server packet. OnConnectResult also
+			// reads a ClientID, absent from the old synthetic rejection.
+			if (MainMenu()->GetErrorDialogType() == CMainMenu::ErrNoError) OnInvalidHost();
+			m_bConnectResult = false;
 			OnConnectRejected();
 			Disconnect();
+			Msg("! [NetAnomaly] connection unavailable; returning to menu");
 			return FALSE;
 		}
 		//-----------------------------------------

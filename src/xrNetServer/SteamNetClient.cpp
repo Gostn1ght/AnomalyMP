@@ -139,8 +139,11 @@ bool SteamNetClient::CreateConnection(ClientConnectionOptions & connectOpt)
 	Msg("[SteamNetClient] Connecting to server at %s", szAddr);
 
 
-	SteamNetworkingConfigValue_t opt;
-	opt.SetPtr(k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged, (void*)ClSteamNetConnectionStatusChangedCallback);
+	SteamNetworkingConfigValue_t options[2];
+	options[0].SetPtr(k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged,
+		(void*)ClSteamNetConnectionStatusChangedCallback);
+	// Limit the transport handshake, not level loading after connection.
+	options[1].SetInt32(k_ESteamNetworkingConfig_TimeoutInitial, 8000);
 
 	// Экземпляр для маршрутизации колбэков обязан существовать ДО создания
 	// соединения. На листен-сервере обе стороны делят один
@@ -151,7 +154,7 @@ bool SteamNetClient::CreateConnection(ClientConnectionOptions & connectOpt)
 	// MSYS_CLIENT_DATA, а сервер выжидал все 60 секунд таймаута.
 	s_pCallbackInstance = this;
 
-	m_hConnection = m_pInterface->ConnectByIPAddress(serverAddr, 1, &opt);
+	m_hConnection = m_pInterface->ConnectByIPAddress(serverAddr, 2, options);
 	if (m_hConnection == k_HSteamNetConnection_Invalid)
 	{
 		Msg("! [SteamNetClient] Failed to create connection");
@@ -340,7 +343,8 @@ void SteamNetClient::OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusC
 			OnSessionFull();
 			break;
 		default:
-			OnSessionTerminate(pInfo->m_info.m_szEndDebug);
+			if (!m_bWasConnected) OnInvalidHost();
+			else OnSessionTerminate(pInfo->m_info.m_szEndDebug);
 			break;
 		}
 	}

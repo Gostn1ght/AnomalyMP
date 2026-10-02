@@ -105,7 +105,9 @@ CMainMenu::CMainMenu()
 		for (u32 i = 0; i < u32(ErrMax); i++)
 		{
 			CUIMessageBoxEx* pNewErrDlg;
-			INIT_MSGBOX(pNewErrDlg, ErrMsgBoxTemplate[i]);
+			LPCSTR box = i == ErrInvalidHost && strstr(Core.Params, "-netcoop")
+				? "message_box_netcoop_server_unavailable" : ErrMsgBoxTemplate[i];
+			INIT_MSGBOX(pNewErrDlg, box);
 			m_pMB_ErrDlgs.push_back(pNewErrDlg);
 		}
 

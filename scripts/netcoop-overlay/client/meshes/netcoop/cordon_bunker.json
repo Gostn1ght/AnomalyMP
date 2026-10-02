@@ -1,0 +1,68 @@
+{
+  "source": "l01_escape trader bunker",
+  "source_origin": [
+    -245.8,
+    -24.8,
+    -134.4
+  ],
+  "source_bounds": [
+    [
+      -251.5,
+      -24.86,
+      -136.6
+    ],
+    [
+      -239.3,
+      -20.8,
+      -132.25
+    ]
+  ],
+  "triangles": 24766,
+  "materials": {
+    "corp\\corp_rat": 278,
+    "crete\\crete_beton_dirt_01": 32,
+    "crete\\crete_beton_lom": 96,
+    "crete\\crete_walls_old_01": 433,
+    "door\\door_trader": 1004,
+    "floor\\floor_tile_02": 39,
+    "item\\item_document_01": 72,
+    "item\\item_medkit": 192,
+    "item\\item_medkit_2": 132,
+    "item\\item_medkit_3": 120,
+    "mtl\\mtl_angar_a_b": 2,
+    "mtl\\mtl_arm_2": 3250,
+    "mtl\\mtl_bochka_01": 3666,
+    "mtl\\mtl_bochka_02": 223,
+    "mtl\\mtl_bochka_03_r": 1390,
+    "mtl\\mtl_luk_ch_01": 64,
+    "mtl\\mtl_pod_01": 658,
+    "mtl\\mtl_shkaf": 410,
+    "prop\\prop_blind01": 30,
+    "prop\\prop_box_3": 740,
+    "prop\\prop_brezent": 188,
+    "prop\\prop_dangerbox": 648,
+    "prop\\prop_dangerbox_2": 148,
+    "prop\\prop_el_shkaf_01": 6,
+    "prop\\prop_electricalunit3": 137,
+    "prop\\prop_kitchen_stuff": 100,
+    "prop\\prop_konserva": 1292,
+    "prop\\prop_lampa_g": 104,
+    "prop\\prop_lampa_g_red2": 90,
+    "prop\\prop_lampa_galogen": 312,
+    "prop\\prop_lock": 66,
+    "prop\\prop_musor_02": 216,
+    "prop\\prop_provod_01": 5390,
+    "tile\\tile_plitka_qllab": 23,
+    "wall\\wall_stucco_03": 193,
+    "wall\\wall_walls_paint_02": 4,
+    "wall\\wall_yellow_01": 103,
+    "wood\\wood_board_01": 46,
+    "wood\\wood_jasik": 912,
+    "wood\\wood_table_01": 767,
+    "wood\\wood_table_02": 218,
+    "wood\\wood_table_03": 4,
+    "wood\\wood_walls8": 968
+  },
+  "level_sha256": "1800a451d0bba9af1da69fae8683b36b6e6346709c0d6b9bf14385f4a48d19f7",
+  "geom_sha256": "a4552d34eec6f87ed7eb461327c8a331d1f7a3b9911a2b51342ca4d377f8d78a"
+}

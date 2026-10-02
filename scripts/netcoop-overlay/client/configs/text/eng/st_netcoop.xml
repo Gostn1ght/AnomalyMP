@@ -170,4 +170,5 @@
 <string id="st_netcoop_code_not_configured"><text>The code service is not connected yet. Configure Google Apps Script.</text></string>
 <string id="st_netcoop_neutral_pose"><text>Neutral stance</text></string>
 <string id="st_netcoop_settings_error"><text>Settings could not open. See the game log.</text></string>
+	<string id="st_netcoop_server_unavailable"><text>Server unavailable. It may be offline.\nPlease try again later.</text></string>
 </string_table>

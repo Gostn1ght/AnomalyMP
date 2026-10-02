@@ -31,6 +31,28 @@ Get-ChildItem -LiteralPath (Join-Path $runtime 'client\configs\ui') -Filter 'ui_
     }
 }
 
+# Preserve the stock dialog set; add a translucent modal with one OK button.
+$unavailableDialog = @'
+    <message_box_netcoop_server_unavailable type="ok" x="282" y="274" width="460" height="220" stretch="1">
+        <texture a="210" r="225" g="225" b="225">ui_inGame2_message_box</texture>
+        <message_text x="30" y="28" width="400" height="118" complex_mode="1">
+            <text r="230" g="225" b="210" align="c" vert_align="c" font="letterica18">st_netcoop_server_unavailable</text>
+        </message_text>
+        <button_ok x="166" y="162" width="128" height="28" check_mode="0">
+            <window_name>button_ok</window_name>
+            <text font="letterica18">Btn_OK</text>
+            <texture>ui_button_ordinary</texture>
+        </button_ok>
+    </message_box_netcoop_server_unavailable>
+'@
+Get-ChildItem -LiteralPath (Join-Path $runtime 'client\configs\ui') -Filter 'message_box*.xml' -File | ForEach-Object {
+    $text = $latin1.GetString([IO.File]::ReadAllBytes($_.FullName))
+    $text = [regex]::Replace($text, '(?s)\s*<message_box_netcoop_server_unavailable\b.*?</message_box_netcoop_server_unavailable>', '')
+    if (-not $text.Contains('</w>')) { throw "Message box root missing: $($_.FullName)" }
+    $text = $text.Replace('</w>', $unavailableDialog + "`r`n</w>")
+    [IO.File]::WriteAllBytes($_.FullName, $latin1.GetBytes($text))
+}
+
 function Replace-Once {
     param([string]$File, [string]$Old, [string]$New, [switch]$Optional)
     $text = $latin1.GetString([System.IO.File]::ReadAllBytes($File))

@@ -170,4 +170,5 @@
 <string id="st_netcoop_code_not_configured"><text>Сервис кодов ещё не подключён. Настройте Google Apps Script.</text></string>
 <string id="st_netcoop_neutral_pose"><text>Обычная стойка</text></string>
 <string id="st_netcoop_settings_error"><text>Не удалось открыть настройки. Подробности в журнале игры.</text></string>
+	<string id="st_netcoop_server_unavailable"><text>Сервер недоступен. Возможно, он выключен.\nПопробуйте подключиться позже.</text></string>
 </string_table>

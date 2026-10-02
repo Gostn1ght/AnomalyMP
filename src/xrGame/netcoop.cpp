@@ -610,8 +610,8 @@ bool script_preview_weapon(LPCSTR section)
 // Project the actual room interaction points into the 1024 x 768 UI space.
 Fvector2 script_preview_point(int object)
 {
-    Fvector point; point.set(object == 0 ? -1.12f : object == 1 ? 1.1f : -1.25f,
-        object == 0 ? 1.5f : object == 1 ? .83f : .32f, object == 0 ? 1.77f : object == 1 ? .15f : -.35f);
+    Fvector point; point.set(object == 0 ? -1.78f : object == 1 ? 1.1f : -1.10f,
+        object == 0 ? 1.55f : object == 1 ? .60f : .30f, object == 0 ? 1.2f : object == 1 ? .28f : -.18f);
     Fmatrix view, projection, combined;
     view.build_camera(Fvector().set(0.f, 1.1f, -3.8f), Fvector().set(0.f, 1.1f, 0.f), Fvector().set(0, 1, 0));
     projection.build_projection(deg2rad(40.f), float(Device.dwHeight) / float(Device.dwWidth), .1f, 20.f);

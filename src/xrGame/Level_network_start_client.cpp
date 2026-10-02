@@ -24,6 +24,7 @@ bool CLevel::net_Start_client(const char* options)
 }
 
 #include "string_table.h"
+#include "MainMenu.h"
 
 bool CLevel::net_start_client1()
 {
@@ -168,11 +169,26 @@ bool CLevel::net_start_client4()
 			// Waiting for connection/configuration completition
 			CTimer timer_sync;
 			timer_sync.Start();
-			while (!net_isCompleted_Connect()) Sleep(5);
+			while (!net_isCompleted_Connect())
+			{
+				if (net_isFails_Connect() || net_isDisconnected() || timer_sync.GetElapsed_ms() >= 20000)
+				{
+					if (MainMenu()->GetErrorDialogType() == CMainMenu::ErrNoError) OnInvalidHost();
+					connected_to_server = FALSE; net_start_result_total = FALSE;
+					Disconnect(); return true;
+				}
+				Sleep(5);
+			}
 			Msg("* connection sync: %d ms", timer_sync.GetElapsed_ms());
 			while (!net_isCompleted_Sync())
 			{
 				ClientReceive();
+				if (net_isFails_Connect() || net_isDisconnected() || timer_sync.GetElapsed_ms() >= 20000)
+				{
+					if (MainMenu()->GetErrorDialogType() == CMainMenu::ErrNoError) OnInvalidHost();
+					connected_to_server = FALSE; net_start_result_total = FALSE;
+					Disconnect(); return true;
+				}
 				Sleep(5);
 			}
 		}
@@ -235,6 +251,13 @@ bool CLevel::net_start_client5()
 
 bool CLevel::net_start_client6()
 {
+	// The server may disappear between loading the map and its configuration.
+	if (connected_to_server && (net_isFails_Connect() || net_isDisconnected()))
+	{
+		if (MainMenu()->GetErrorDialogType() == CMainMenu::ErrNoError) OnInvalidHost();
+		connected_to_server = FALSE; net_start_result_total = FALSE;
+		Disconnect();
+	}
 	if (connected_to_server)
 	{
 		// Sync
