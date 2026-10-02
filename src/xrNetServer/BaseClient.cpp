@@ -7,6 +7,26 @@
 
 static const int syncSamples = 0;
 
+// The clock worker continues after initial synchronization. Join it before
+// the connection or client is destroyed, including failed level startup.
+struct ClientSyncTask { BaseClient* client; HANDLE completed; };
+static xrCriticalSection s_sync_lock;
+static xr_map<BaseClient*, HANDLE> s_sync_tasks;
+static void join_client_sync(BaseClient* client)
+{
+	HANDLE completed = nullptr;
+	{
+		xrCriticalSection::raii lock(&s_sync_lock);
+		auto found = s_sync_tasks.find(client);
+		if (found == s_sync_tasks.end()) return;
+		completed = found->second; s_sync_tasks.erase(found);
+	}
+	// Sync_Thread checks net_Disconnected in every wait; its longest sleep
+	// is one second, and its transport operations are nonblocking.
+	WaitForSingleObject(completed, INFINITE);
+	CloseHandle(completed);
+}
+
 //------------------------------------------------------------------------------
 
 BaseClient::BaseClient(CTimer * timer) : net_Statistic(timer)
@@ -23,6 +43,8 @@ BaseClient::BaseClient(CTimer * timer) : net_Statistic(timer)
 
 BaseClient::~BaseClient()
 {
+	net_Disconnected = TRUE;
+	join_client_sync(this);
 	psNET_direct_connect = FALSE;
 }
 
@@ -129,6 +151,8 @@ bool BaseClient::Connect(LPCSTR options)
 
 void BaseClient::Disconnect()
 {
+	net_Disconnected = TRUE;
+	join_client_sync(this);
 	net_Connected = EnmConnectionWait;
 	net_Syncronised = FALSE;
 
@@ -200,15 +224,23 @@ void	BaseClient::timeServer_Correct(u32 sv_time, u32 cl_time)
 void client_sync_thread(void* P)
 {
 	SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
-	BaseClient*	C = (BaseClient*)P;
-	C->Sync_Thread();
+	ClientSyncTask* task = static_cast<ClientSyncTask*>(P);
+	task->client->Sync_Thread();
+	SetEvent(task->completed);
+	xr_delete(task);
 }
 
 void BaseClient::net_Syncronize()
 {
+	xrCriticalSection::raii lock(&s_sync_lock);
+	if (s_sync_tasks.find(this) != s_sync_tasks.end()) return;
+	HANDLE completed = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+	if (!completed) { net_Disconnected = TRUE; return; }
+	auto task = xr_new<ClientSyncTask>(); task->client = this; task->completed = completed;
+	s_sync_tasks[this] = completed;
 	net_Syncronised = FALSE;
 	net_DeltaArray.clear();
-	thread_spawn(client_sync_thread, "network-time-sync", 0, this);
+	thread_spawn(client_sync_thread, "network-time-sync", 0, task);
 }
 
 bool BaseClient::Sync_Thread()
@@ -217,7 +249,7 @@ bool BaseClient::Sync_Thread()
 
 	//***** Ping server
 	net_DeltaArray.clear();
-	R_ASSERT(IsConnectionInit());
+	if (!IsConnectionInit() || net_Disconnected) return false;
 
 	for (; IsConnectionInit() && !net_Disconnected; )
 	{
@@ -231,7 +263,7 @@ bool BaseClient::Sync_Thread()
 			do {
 				GetPendingMessagesCount(dwPending);
 				Sleep(1);
-			} while (dwPending);
+			} while (dwPending && !net_Disconnected);
 		}
 
 		// Construct message
@@ -258,7 +290,8 @@ bool BaseClient::Sync_Thread()
 		if (!net_Syncronised) {
 			u32	old_size = net_DeltaArray.size();
 			u32	timeBegin = TimerAsync(device_timer);
-			while ((net_DeltaArray.size() == old_size) && (TimerAsync(device_timer) - timeBegin < 5000))		Sleep(1);
+			while (!net_Disconnected && (net_DeltaArray.size() == old_size) &&
+				(TimerAsync(device_timer) - timeBegin < 5000)) Sleep(1);
 
 			if (net_DeltaArray.size() >= syncSamples) {
 				net_Syncronised = TRUE;

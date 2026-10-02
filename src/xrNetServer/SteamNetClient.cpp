@@ -66,7 +66,8 @@ SteamNetClient::SteamNetClient(CTimer* tm)
 
 SteamNetClient::~SteamNetClient()
 {
-
+	// Join the clock/network workers while the derived transport still exists.
+	if (m_pInterface) Disconnect();
 }
 
 // -----------------------------------------------------------------------------

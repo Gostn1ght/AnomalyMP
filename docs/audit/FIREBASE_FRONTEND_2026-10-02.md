@@ -35,7 +35,14 @@ Server addresses are the current namespace key. Use the same canonical hostname/
 
 Asset: `scripts/netcoop-overlay/client/textures/ui/netcoop_camp.dds`.
 Generated with the built-in imagegen tool, then converted to DDS for the engine.
-This background is used for account/profile screens. The character home uses procedural 3D room geometry with existing map/PDA textures, not the background image.
+This background is used for account/profile screens. The character home uses an extracted section of the original Cordon trader bunker: 24,766 original triangles and 43 original texture materials. Static walls, floor, arches, pipes and furnishings come from l01_escape; the map, table, crate, radio and PDA are original game/modpack meshes. No generated box furniture remains. The extraction script and source hashes are recorded in scripts/extract-menu-room.py and meshes/netcoop/cordon_bunker.json. The background image remains limited to account/profile screens.
 Prompt: grounded post-apocalyptic Eastern European stalker camp courtyard, worn shelters at the edges, crates, sparse trees and dim campfire, empty central ground for a separate actual 3D character; muted olive/charcoal/brown, diffuse warm overcast light; quiet dark side areas for UI; no people, interface, text, logos or watermarks.
 
 References: [Firebase Authentication REST](https://firebase.google.com/docs/reference/rest/auth), [Firebase password authentication setup](https://firebase.google.com/docs/auth/web/password-auth), [Apps Script web apps](https://developers.google.com/apps-script/guides/web), [ContentService redirects](https://developers.google.com/apps-script/guides/content), [Firebase administrative user update](https://docs.cloud.google.com/identity-platform/docs/reference/rest/v1/projects.accounts/update).
+
+## Menu startup and unavailable servers
+
+- The menu XML root/path lifetime was corrected in 7b6799b51; local-menu-root.log records zero errors (5m27s). Installed SHA256 was 656481E7EEB6E7BBA3F477F63310E61FD0E2956A30E44240E42918DB70F4A053. The s130 menu run contains no shniaga_wnd fatal or script error.
+- The prior Connect2Server timeout generated a rejection packet lacking ClientID, which OnConnectResult reads. A local timeout now directly rejects/disconnects and returns to the normal menu; it never calls the packet reader. GameNetworkingSockets limits the initial transport handshake to eight seconds; the overall connection-result wait is twenty seconds for netcoop. Post-load disconnects are checked during startup as well.
+- Netcoop uses a translucent standard CUIMessageBoxEx with one OK button for an unavailable server. It appears over the menu; standard MESSAGE_BOX_OK_CLICKED closes the box. It neither exits the application nor erases the saved account/character. Other rejection dialogs are preserved.
+- Room binary and locale XML validation passed. All menu/code Lua tests and Direct3D shader compilation passed again after the original room replacement. Geometry rays from the menu camera to eight actor/body sample points are unobstructed by the original bunker. This is a geometry check, not a visual screenshot check.

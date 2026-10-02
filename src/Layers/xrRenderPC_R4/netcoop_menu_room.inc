@@ -17,7 +17,7 @@ static xr_vector<MenuRoomBatch> s_room_batches;
 static bool s_room_loaded = false;
 static ref_geom s_room_geometry;
 static MenuRoomProp s_room_props[] = {
-    {"netcoop\\room_map", Fvector().set(-1.78f,1.55f,1.2f), Fvector().set(-PI/2,PI/2,0), .50f},
+    {"netcoop\\room_map", Fvector().set(-1.30f,1.55f,.20f), Fvector().set(-PI/2,PI/2,0), .50f},
     {"netcoop\\room_table", Fvector().set(1.25f,0.f,.62f), Fvector().set(0,0,0), .60f},
     {"netcoop\\dev_pda", Fvector().set(1.1f,.57f,.28f), Fvector().set(0,-.28f,.30f), 1.4f},
     {"netcoop\\room_crate", Fvector().set(-1.10f,0.f,-.18f), Fvector().set(.15f,0,0), .65f},
