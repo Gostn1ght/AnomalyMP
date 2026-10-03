@@ -243,7 +243,7 @@ void CScriptBinder::set_object(CScriptBinderObject* object)
 		if (!s_netcoop_bind_logged)
 		{
 			s_netcoop_bind_logged = true;
-			Msg("[NetAnomaly] script binders disabled on netcoop client");
+			Msg("[Lost Zone] script binders disabled on netcoop client");
 		}
 		xr_delete(object);
 		return;

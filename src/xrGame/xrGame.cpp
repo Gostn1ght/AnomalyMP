@@ -28,10 +28,8 @@ extern "C" {
 DLL_API DLL_Pure* __cdecl xrFactory_Create(CLASS_ID clsid)
 {
 	DLL_Pure* object = object_factory().client_object(clsid);
-#ifdef DEBUG
-		if (!object)
-			return			(0);
-#endif
+    // A failed script constructor must not become a null dereference in release builds.
+    if (!object) return nullptr;
 	object->CLS_ID = clsid;
 	return (object);
 }

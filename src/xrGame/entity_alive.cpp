@@ -285,7 +285,7 @@ void CEntityAlive::Hit(SHit* pHDS)
 		if (Device.dwTimeGlobal - last_log > 500)
 		{
 			last_log = Device.dwTimeGlobal;
-			Msg("[NetAnomaly][hit] %s -> %s power %.2f type %d", HDS.who->cName().c_str(), cName().c_str(),
+			Msg("[Lost Zone][hit] %s -> %s power %.2f type %d", HDS.who->cName().c_str(), cName().c_str(),
 			    HDS.damage(), int(HDS.hit_type));
 		}
 	}

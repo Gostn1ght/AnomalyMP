@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="ProfiledDX11|x64">
@@ -212,25 +212,25 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseR2|x64'">
     <OutDir>$(xrGameDir)bin_dbg\</OutDir>
-    <TargetName>AnomalyDX9</TargetName>
+    <TargetName>LostZoneDX9</TargetName>
     <IntDir>$(xrIntDir)$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseR2-AVX|x64'">
     <OutDir>$(xrGameDir)bin_dbg\</OutDir>
-    <TargetName>AnomalyDX9AVX</TargetName>
+    <TargetName>LostZoneDX9AVX</TargetName>
     <IntDir>$(xrIntDir)$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseR4|x64'">
     <OutDir>$(xrGameDir)bin_dbg\</OutDir>
-    <TargetName>AnomalyDX11</TargetName>
+    <TargetName>LostZoneDX11</TargetName>
     <IntDir>$(xrIntDir)$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ProfiledDX11|x64'">
     <OutDir>$(xrGameDir)bin_dbg\</OutDir>
-    <TargetName>AnomalyDX11</TargetName>
+    <TargetName>LostZoneDX11</TargetName>
     <IntDir>$(xrIntDir)$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
@@ -254,37 +254,37 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseR4-AVX|x64'">
     <OutDir>$(xrGameDir)bin_dbg\</OutDir>
-    <TargetName>AnomalyDX11AVX</TargetName>
+    <TargetName>LostZoneDX11AVX</TargetName>
     <IntDir>$(xrIntDir)$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseR3|x64'">
     <OutDir>$(xrGameDir)bin_dbg\</OutDir>
-    <TargetName>AnomalyDX10</TargetName>
+    <TargetName>LostZoneDX10</TargetName>
     <IntDir>$(xrIntDir)$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseR3-AVX|x64'">
     <OutDir>$(xrGameDir)bin_dbg\</OutDir>
-    <TargetName>AnomalyDX10AVX</TargetName>
+    <TargetName>LostZoneDX10AVX</TargetName>
     <IntDir>$(xrIntDir)$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseR1|x64'">
     <OutDir>$(xrGameDir)bin_dbg\</OutDir>
-    <TargetName>AnomalyDX8</TargetName>
+    <TargetName>LostZoneDX8</TargetName>
     <IntDir>$(xrIntDir)$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='VerifiedDX8|x64'">
     <OutDir>$(xrGameDir)bin_dbg\</OutDir>
-    <TargetName>AnomalyDX8</TargetName>
+    <TargetName>LostZoneDX8</TargetName>
     <IntDir>$(xrIntDir)$(ProjectName)\</IntDir>
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseR1-AVX|x64'">
     <OutDir>$(xrGameDir)bin_dbg\</OutDir>
-    <TargetName>AnomalyDX8AVX</TargetName>
+    <TargetName>LostZoneDX8AVX</TargetName>
     <IntDir>$(xrIntDir)$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>

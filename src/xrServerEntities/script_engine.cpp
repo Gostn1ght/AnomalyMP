@@ -237,7 +237,7 @@ void CScriptEngine::lua_error(lua_State* L)
 
 	if (netcoop_server_tolerant())
 	{
-		Msg("! [NetAnomaly] server script error ignored: %s", lua_error_line.c_str());
+		Msg("! [Lost Zone] server script error ignored: %s", lua_error_line.c_str());
 		lua_pop(L, 1);
 		lua_pushnil(L);
 		return;
@@ -313,7 +313,7 @@ void lua_cast_failed(lua_State* L, LUABIND_TYPE_INFO info)
 
 	if (netcoop_server_tolerant())
 	{
-		Msg("! [NetAnomaly] server script result ignored: cannot cast lua value to %s", info->name());
+		Msg("! [Lost Zone] server script result ignored: cannot cast lua value to %s", info->name());
 		return;
 	}
 	Debug.fatal(DEBUG_INFO, "LUA error: cannot cast lua value to %s", info->name());

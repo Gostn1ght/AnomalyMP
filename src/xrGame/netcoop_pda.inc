@@ -61,7 +61,7 @@ void client_capture_pda()
     if (!Render->CapturePdaPixels(pda_width, pda_height, pixels.data(), crop)) return;
     const u32 crc = crc32(pixels.data(), pda_bytes);
     if (device->ID() == previous_id && crc == previous_crc && now - unchanged < 2000) return;
-    if (previous_id != device->ID()) Msg("[NetAnomaly][PDA] owner frame device=%u", device->ID());
+    if (previous_id != device->ID()) Msg("[Lost Zone][PDA] owner frame device=%u", device->ID());
     previous_id = device->ID(); previous_crc = crc; unchanged = now;
     PdaFrame frame; frame.sequence = ++sequence;
     frame.data.resize(rtc_csize(pda_bytes));
@@ -92,7 +92,7 @@ void server_on_pda_screen(xrServer* server, xrClientData* client, NET_Packet& pa
     if (rtc_decompress_safe(pixels.data(), pda_bytes, frame.data.data(), u32(frame.data.size())) != pda_bytes) return;
     frame.valid = true;
     frame.relayed = 0;
-    if (first || frame.sequence == 1) Msg("[NetAnomaly][PDA] server accepted device=%u sequence=%u", id, frame.sequence);
+    if (first || frame.sequence == 1) Msg("[Lost Zone][PDA] server accepted device=%u sequence=%u", id, frame.sequence);
 }
 
 void client_on_pda_screen(NET_Packet& packet)
@@ -106,7 +106,7 @@ void client_on_pda_screen(NET_Packet& packet)
     xr_vector<u8> pixels(pda_bytes);
     if (rtc_decompress_safe(pixels.data(), pda_bytes, frame.data.data(), u32(frame.data.size())) != pda_bytes) return;
     device->netcoop_apply_screen(pixels.data(), pda_width, pda_height);
-    if (frame.sequence == 1) Msg("[NetAnomaly][PDA] observer applied device=%u", id);
+    if (frame.sequence == 1) Msg("[Lost Zone][PDA] observer applied device=%u", id);
 }
 
 void pda_forget(u16 id)

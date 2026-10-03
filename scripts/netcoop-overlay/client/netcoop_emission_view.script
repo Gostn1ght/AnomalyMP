@@ -1,4 +1,4 @@
--- The server owns phase/damage; GAMMA retains its emission effects and sounds.
+-- The server owns phase/damage; base-game retains its emission effects and sounds.
 local installed, active, sequence = false, false, -1
 local received_at, received_elapsed, duration = 0, 0, 222
 local engine_start, engine_update, engine_end

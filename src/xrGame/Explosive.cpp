@@ -634,7 +634,7 @@ void CExplosive::OnEvent(NET_Packet& P, u16 type)
 			// activation shape and takes the whole server down.
 			if (!_valid(pos))
 			{
-				Msg("! [NetAnomaly] explosive %u: invalid explosion position, using the object's",
+				Msg("! [Lost Zone] explosive %u: invalid explosion position, using the object's",
 				    cast_game_object()->ID());
 				pos.set(cast_game_object()->Position());
 			}

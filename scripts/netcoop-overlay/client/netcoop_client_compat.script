@@ -1,7 +1,7 @@
--- NetAnomaly: compatibility layer for a pure netcoop client.
+-- Lost Zone: compatibility layer for a pure netcoop client.
 --
 -- A remote client has no local ALife simulator: alife() returns nil and the
--- GAMMA Actor binder never runs, so db.actor is never assigned. GAMMA UI
+-- base-game Actor binder never runs, so db.actor is never assigned. base-game UI
 -- scripts (inventory, PDA, options) assume both exist and crash.
 --
 -- The dedicated server owns the simulation. This layer only lets client UI
@@ -18,7 +18,7 @@ local warned = {}
 local function warn_once(what)
 	if warned[what] then return end
 	warned[what] = true
-	printf("[NetAnomaly] client has no ALife: alife():%s ignored", what)
+	printf("[Lost Zone] client has no ALife: alife():%s ignored", what)
 end
 
 local controlled_actor = nil
@@ -49,7 +49,7 @@ local function in_game()
 	return local_actor() ~= nil
 end
 
--- GAMMA scripts use AC_ID (0, the story Actor) for "the player". On a client
+-- base-game scripts use AC_ID (0, the story Actor) for "the player". On a client
 -- the own Actor has another id: AC_ID becomes that id, and db.storage[0]
 -- (captured copies of the old constant) reads the own Actor's storage.
 use_own_actor_id = function(obj)
@@ -63,13 +63,13 @@ use_own_actor_id = function(obj)
 	end
 end
 
--- GAMMA's "Busy Hands" handler (callbacks_gameobject) pauses the game with a
+-- base-game's "Busy Hands" handler (callbacks_gameobject) pauses the game with a
 -- warning and saves on any failed engine call. A netcoop client has no saves,
 -- and such errors come from single-player scripts that do not apply to it;
 -- the engine already logs them.
 local function quiet_busy_hands()
 	_G.COnLuaBindFatalError = function(offender)
-		printf("[NetAnomaly] engine call failed in %s", tostring(offender))
+		printf("[Lost Zone] engine call failed in %s", tostring(offender))
 	end
 end
 
@@ -87,7 +87,7 @@ local function equip_pda()
 	end, a)
 	if pda then
 		a:move_to_slot(pda, PDA_SLOT)
-		printf("[NetAnomaly] %s equipped in the PDA slot", pda:section())
+		printf("[Lost Zone] %s equipped in the PDA slot", pda:section())
 	end
 	return true
 end
@@ -144,7 +144,7 @@ install_actor_lifecycle = function()
 		on_actor_destroyed(self.object)
 		if not ok then error(err) end
 	end
-	-- db.del_actor in GAMMA ignores its argument and dereferences db.actor.
+	-- db.del_actor in base-game ignores its argument and dereferences db.actor.
 	-- Use the valid binder object, then clear the fallback pointer as well.
 	db.del_actor = function(obj)
 		obj = obj or rawget(db, "actor")
@@ -222,7 +222,7 @@ local function request_create(section, pos, lvid, gvid, parent_id)
 		return nil
 	end
 	local a = db.actor
-	-- GAMMA spawners pass AC_ID (0, the story Actor) for "into my inventory".
+	-- base-game spawners pass AC_ID (0, the story Actor) for "into my inventory".
 	if parent_id and a and (parent_id == a:id() or parent_id == 0) then
 		netcoop_command(string.format("spawn %s 1", tostring(section)))
 	elseif pos then
@@ -304,7 +304,7 @@ end
 ----------------------------------------------------------------------
 local function no_saves(flags)
 	if flags then flags.ret = true end
-	printf("[NetAnomaly] saving and loading are disabled: the server owns the world")
+	printf("[Lost Zone] saving and loading are disabled: the server owns the world")
 end
 
 local function no_quick_load(dik, bind, flags)
@@ -323,7 +323,7 @@ end
 
 function on_auth_result(ok, role, message)
 	netcoop_login_ui.on_auth_result(ok, role, message)
-	printf("[NetAnomaly] login %s: role=%s %s", ok and "ok" or "failed", tostring(role), tostring(message))
+	printf("[Lost Zone] login %s: role=%s %s", ok and "ok" or "failed", tostring(role), tostring(message))
 	if ok and role == 2 then
 		-- The debug launcher registers its keys only in debug mode.
 		_G.DEV_DEBUG = true
@@ -340,7 +340,7 @@ function on_trade_result(ok, role, message)
 	if gui then gui.update_info = true end
 end
 
--- GAMMA's trade window (ui_inventory) moves items and money itself, which a
+-- base-game's trade window (ui_inventory) moves items and money itself, which a
 -- client cannot do: NPC inventories and money belong to the server. The
 -- deal is sent to the server, which prices, checks and executes it.
 local function install_server_trade()
@@ -357,7 +357,7 @@ local function install_server_trade()
 		end
 		if #ids == 0 then return end
 		if netcoop_trade(npc:id(), actor_sells, table.concat(ids, " ")) then
-			printf("[NetAnomaly] trade request: %s %d item(s) with %s", actor_sells and "sell" or "buy", #ids, npc:name())
+			printf("[Lost Zone] trade request: %s %d item(s) with %s", actor_sells and "sell" or "buy", #ids, npc:name())
 			if self.PlaySND and snd_trade then self:PlaySND(snd_trade) end
 		end
 		self.update_info = true
@@ -379,7 +379,7 @@ local applying_server_weather = false
 local engine_set_weather = nil
 
 -- The server chooses the weather; this client's weather manager (and the
--- GAMMA fixes that extend it) must never pick its own. Installed at game
+-- base-game fixes that extend it) must never pick its own. Installed at game
 -- start, after every script has patched WeatherManager.
 local function install_weather_follow()
 	local wm_class = level_weathers and level_weathers.WeatherManager
@@ -430,7 +430,7 @@ local function use_server_weather(data)
 	pcall(setter, name, first or forced == "1")
 	applying_server_weather = false
 	applied_actual = level.get_weather and level.get_weather() or name
-	printf("[NetAnomaly] server weather: %s%s", name, (first or forced == "1") and " (now)" or "")
+	printf("[Lost Zone] server weather: %s%s", name, (first or forced == "1") and " (now)" or "")
 end
 
 -- A server dialogue action opened an NPC window for this player.
@@ -459,7 +459,7 @@ local function use_trade_profile(data)
 			trade_manager.setup_buy_sell_conditions(npc, npc:id(), config)
 		end
 	end)
-	if not ok then printf("[NetAnomaly] trade profile %s failed: %s", cfg, tostring(err)) end
+	if not ok then printf("[Lost Zone] trade profile %s failed: %s", cfg, tostring(err)) end
 end
 
 -- A server NPC animation attached or detached a prop (guitar, harmonica,
@@ -512,7 +512,7 @@ function on_script_message(channel, data)
 		return
 	end
 	if channel ~= "weather" then
-		printf("[NetAnomaly] server message %s: %s", tostring(channel), tostring(data))
+		printf("[Lost Zone] server message %s: %s", tostring(channel), tostring(data))
 	end
 	if channel == "weather" then
 		use_server_weather(data)
@@ -524,10 +524,10 @@ end
 -- Engine (netcoop.cpp) when the task list from the server adds, completes or
 -- fails a task. The server's own task news arrive as PDA news.
 function on_task(task_id, kind)
-	printf("[NetAnomaly] task %s: %s", tostring(task_id), tostring(kind))
+	printf("[Lost Zone] task %s: %s", tostring(task_id), tostring(kind))
 end
 
--- The GAMMA debug menu runs locally for an admin; its world changes are
+-- The base-game debug menu runs locally for an admin; its world changes are
 -- routed to the server through alife():create above and admin commands.
 local function install_admin_menu()
 	local compat = gamma_net_compat
@@ -538,7 +538,7 @@ local function install_admin_menu()
 end
 
 -- axr_main calls on_game_start of every script after all scripts are loaded.
--- Admin debug/spawn menu: F7 (GAMMA default) and Num3.
+-- Admin debug/spawn menu: F7 (base-game default) and Num3.
 local function admin_menu_key(key)
 	if key ~= DIK_keys.DIK_NUMPAD3 or not is_admin() then return end
 	local a = db.actor
@@ -564,7 +564,7 @@ local function init_event_managers()
 				end
 				mgr._delta = 1000000000
 			end)
-			if not ok then printf("[NetAnomaly] %s init failed: %s", getter, tostring(err)) end
+			if not ok then printf("[Lost Zone] %s init failed: %s", getter, tostring(err)) end
 		end
 	end
 end
@@ -572,7 +572,7 @@ end
 function on_game_start()
 	install_actor_lifecycle()
 	install_weather_follow()
-	-- Keep the faction relations the engine read from the table: GAMMA's
+	-- Keep the faction relations the engine read from the table: base-game's
 	-- reset_all_relations (run when no faction select window marked a new
 	-- game) reads the table in a different column order (see server).
 	pcall(function()
@@ -590,7 +590,7 @@ function on_game_start()
 	-- server, so the client keeps an empty board.
 	if sim_board and sim_board.get_sim_board then
 		local ok, err = pcall(sim_board.get_sim_board)
-		if not ok then printf("[NetAnomaly] sim board init failed: %s", tostring(err)) end
+		if not ok then printf("[Lost Zone] sim board init failed: %s", tostring(err)) end
 	end
 	RegisterScriptCallback("on_before_save_input", no_saves)
 	RegisterScriptCallback("on_before_load_input", no_quick_load)
@@ -598,7 +598,7 @@ function on_game_start()
 end
 
 ----------------------------------------------------------------------
--- GAMMA callbacks: one failing handler must not skip the others
+-- base-game callbacks: one failing handler must not skip the others
 ----------------------------------------------------------------------
 -- axr_main.make_callback calls every handler of a callback in one loop, so a
 -- handler that failed (world setup scripts that belong to the other side of
@@ -632,7 +632,7 @@ local function isolate_callbacks()
 				end
 				if not ok and not failed_callbacks[wrapper] then
 					failed_callbacks[wrapper] = true
-					printf("[NetAnomaly] %s handler failed: %s", tostring(name), tostring(err))
+					printf("[Lost Zone] %s handler failed: %s", tostring(name), tostring(err))
 				end
 			end
 			by_name[handler] = wrapper
@@ -654,5 +654,5 @@ function install()
 	install_db_actor()
 	install_admin_menu()
 	RegisterScriptCallback("actor_on_update", show_registrations)
-	printf("[NetAnomaly] netcoop client compatibility layer installed")
+	printf("[Lost Zone] netcoop client compatibility layer installed")
 end

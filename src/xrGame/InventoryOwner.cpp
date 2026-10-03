@@ -661,7 +661,7 @@ void CInventoryOwner::set_money(u32 amount, bool bSendEvent)
 	// Money belongs to the netcoop server; a client only applies its events.
 	if (bSendEvent && netcoop::pure_client())
 	{
-		Msg("! [NetAnomaly] money change ignored on client: the server owns balances");
+		Msg("! [Lost Zone] money change ignored on client: the server owns balances");
 		return;
 	}
 

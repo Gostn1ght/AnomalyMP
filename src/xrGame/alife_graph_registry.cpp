@@ -102,7 +102,7 @@ void CALifeGraphRegistry::update(CSE_ALifeDynamicObject* object)
 				m_actor->m_tGraphID = static_cast<GameGraph::_GRAPH_ID>(graph_id);
 				m_actor->m_tNodeID = level_id;
 				m_actor->o_Position = position;
-				Msg("[NetAnomaly] Dedicated new game start: %s, graph=%u, level_vertex=%u, position=%.2f %.2f %.2f",
+				Msg("[Lost Zone] Dedicated new game start: %s, graph=%u, level_vertex=%u, position=%.2f %.2f %.2f",
 					section, graph_id, level_id, position.x, position.y, position.z);
 			}
 		}

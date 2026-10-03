@@ -122,7 +122,7 @@ IClient* xrServer::new_client(SClientConnectData* cl_data)
 
 	if (strstr(Core.Params, "-netcoop"))
 	{
-		Msg("[NetAnomaly] new_client 0x%08x pid %u name [%s]", CL->ID.value(), CL->process_id, cl_data->name);
+		Msg("[Lost Zone] new_client 0x%08x pid %u name [%s]", CL->ID.value(), CL->process_id, cl_data->name);
 		FlushLog();
 	}
 
@@ -137,7 +137,7 @@ void xrServer::AttachNewClient(IClient* CL)
 
 	if (strstr(Core.Params, "-netcoop"))
 	{
-		Msg("[NetAnomaly] AttachNewClient 0x%08x pid %u local=%d", CL->ID.value(), CL->process_id, int(CL->flags.bLocal));
+		Msg("[Lost Zone] AttachNewClient 0x%08x pid %u local=%d", CL->ID.value(), CL->process_id, int(CL->flags.bLocal));
 		FlushLog();
 	}
 

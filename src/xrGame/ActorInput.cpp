@@ -45,7 +45,7 @@ void CActor::IR_OnKeyboardPress(int cmd)
 {
 	if (m_rp_index >= 0) return;
 	if ((cmd == kACTIVE_JOBS || cmd == kUSE) && netcoop::pure_client())
-		Msg("[NetAnomaly] actor key %d: remote=%d talking=%d handler=%d alive=%d holder=%d", cmd, Remote() ? 1 : 0,
+		Msg("[Lost Zone] actor key %d: remote=%d talking=%d handler=%d alive=%d holder=%d", cmd, Remote() ? 1 : 0,
 			IsTalking() ? 1 : 0, m_input_external_handler ? 1 : 0, g_Alive() ? 1 : 0, m_holder ? 1 : 0);
 	if (hud_adj_mode && pInput->iGetAsyncKeyState(DIK_LSHIFT)) return;
 

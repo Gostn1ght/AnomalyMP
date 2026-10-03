@@ -184,7 +184,7 @@ void AddOne(const char* split)
 			if (LogFile.size() > 40000)
 			{
 				LogFile.erase(LogFile.begin(), LogFile.begin() + 20000);
-				last_str = shared_str("~ [NetAnomaly] log trimmed: 20000 oldest lines dropped");
+				last_str = shared_str("~ [Lost Zone] log trimmed: 20000 oldest lines dropped");
 				LogFile.push_back(xr_string(last_str.c_str()));
 				items_count = 0;
 			}

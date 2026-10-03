@@ -77,7 +77,7 @@ void CWeapon::FireTrace(const Fvector& P, const Fvector& D)
 			last_log = Device.dwTimeGlobal;
 			Fvector aim_pos, aim_dir;
 			const bool aim = netcoop_aim(aim_pos, aim_dir);
-			Msg("[NetAnomaly][shot] player %s %s from %.1f,%.1f,%.1f dir %.2f,%.2f,%.2f owner aim %s",
+			Msg("[Lost Zone][shot] player %s %s from %.1f,%.1f,%.1f dir %.2f,%.2f,%.2f owner aim %s",
 			    H_Parent()->cName().c_str(), cNameSect().c_str(), P.x, P.y, P.z, D.x, D.y, D.z, aim ? "used" : "missing");
 		}
 	}

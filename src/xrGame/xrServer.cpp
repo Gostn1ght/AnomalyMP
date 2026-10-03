@@ -917,7 +917,7 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
 			int na_eid = (na_cl && na_cl->owner) ? int(na_cl->owner->ID) : int(65535);
 			string64 na_cid;
 			xr_sprintf(na_cid, "%08x", sender.value());
-			Msg("[NetAnomaly] command from [%s] (%s) eid=%d", na_name, na_role, na_eid);
+			Msg("[Lost Zone] command from [%s] (%s) eid=%d", na_name, na_role, na_eid);
 			string4096 na_reply;
 			na_reply[0] = 0;
 			::luabind::functor<LPCSTR> na_f;
@@ -939,7 +939,7 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
 			}
 			if (xr_strlen(na_reply))
 			{
-				Msg("[NetAnomaly] cmd reply -> %s", na_reply);
+				Msg("[Lost Zone] cmd reply -> %s", na_reply);
 				NET_Packet na_p;
 				na_p.w_begin(M_NETANOMALY_MSG);
 				na_p.w_stringZ(na_reply);

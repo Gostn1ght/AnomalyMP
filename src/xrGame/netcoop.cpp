@@ -184,7 +184,7 @@ static void call_lua(LPCSTR function, bool ok, u8 role, LPCSTR message)
 		}
 		catch (...)
 		{
-			Msg("! [NetAnomaly] %s failed", function);
+			Msg("! [Lost Zone] %s failed", function);
 		}
 	}
 }
@@ -199,6 +199,7 @@ static bool s_client_loaded = false;
 static bool s_client_approved = false;
 static bool s_client_remembered = false;
 static u8 s_client_role = role_none;
+static bool s_client_role_verified = false;
 static u8 s_client_character_slot = 1;
 static xr_string s_client_character_name, s_client_character_faction = "stalker", s_client_character_loadout;
 static xr_string s_client_description, s_client_history;
@@ -294,20 +295,20 @@ bool client_set_credentials(LPCSTR login, LPCSTR password, bool register_account
 {
 	if (!login || !password || !login_valid(login))
 	{
-		Msg("! [NetAnomaly] login must be 3-20 characters: letters, digits, _ - .");
+		Msg("! [Lost Zone] login must be 3-20 characters: letters, digits, _ - .");
 		return false;
 	}
 	const u32 password_length = xr_strlen(password);
 	if (password_length < 4 || password_length > 64)
 	{
-		Msg("! [NetAnomaly] password must be 4-64 characters");
+		Msg("! [Lost Zone] password must be 4-64 characters");
 		return false;
 	}
 
 	xr_string key_hex;
 	if (!derive_client_key(login, password, key_hex))
 	{
-		Msg("! [NetAnomaly] cannot derive the account key");
+		Msg("! [Lost Zone] cannot derive the account key");
 		return false;
 	}
 
@@ -407,6 +408,7 @@ void client_write_auth(NET_Packet& P)
     if (cloud) { P.w_stringZ(s_client_description.c_str()); P.w_stringZ(s_client_history.c_str()); }
 	s_client_register = false;
 	s_client_role = role_none;
+    s_client_role_verified = false;
 }
 
 void client_on_auth_result(NET_Packet& P)
@@ -419,6 +421,7 @@ void client_on_auth_result(NET_Packet& P)
 		xr_strcpy(message, "");
 
 	s_client_role = ok ? role : u8(role_none);
+    s_client_role_verified = !!ok;
     const bool cloud = firebase_enabled() && !s_firebase_session.id.empty();
 	if (ok) { s_client_approved = true; if (!cloud) client_store_credentials(); }
     else if (!xr_strcmp(message, "Registration pending administrator approval") || !xr_strcmp(message, "Registration rejected by administrator"))
@@ -428,15 +431,15 @@ void client_on_auth_result(NET_Packet& P)
         s_client_login.clear(); s_client_key.clear();
         s_client_loaded = false; client_load_credentials();
     }
-	Msg("%s [NetAnomaly] %s", ok ? "*" : "!", message);
+	Msg("%s [Lost Zone] %s", ok ? "*" : "!", message);
     if (ok && P.r_elapsed())
     {
-        char names[512];
+        char names[1024];
         if (read_string(P, names, sizeof(names)))
         {
             ::luabind::functor<void> cache;
             if (ai().script_engine().functor("netcoop_login_ui.cache_characters", cache)) cache(names);
-            char previews[8192];
+            char previews[14336];
             if (P.r_elapsed() && read_string(P, previews, sizeof(previews)) && ai().script_engine().functor("netcoop_login_ui.cache_previews", cache)) cache(previews);
         }
     }
@@ -451,7 +454,7 @@ void client_on_trade_result(NET_Packet& P)
 	string512 message;
 	if (!read_string(P, message, sizeof(message)))
 		xr_strcpy(message, "");
-	Msg("%s [NetAnomaly] trade: %s", ok ? "*" : "!", message);
+	Msg("%s [Lost Zone] trade: %s", ok ? "*" : "!", message);
 	s_trade_refresh = true;
 	call_lua("netcoop_client_compat.on_trade_result", !!ok, s_client_role, message);
 }
@@ -499,6 +502,7 @@ bool script_login(LPCSTR login, LPCSTR password, bool register_account)
     return client_set_credentials(login, password, register_account);
 }
 
+bool client_admin_authorized() { return s_client_role_verified && s_client_role == role_admin; }
 int script_role() { return client_role(); }
 LPCSTR script_account() { return client_login(); }
 int script_account_state() { return !client_has_credentials() || !s_client_remembered ? 0 : s_client_approved ? 2 : 1; }
@@ -805,7 +809,7 @@ static void accounts_load()
 		s_accounts[key] = a;
 	}
 	fclose(f);
-	Msg("[NetAnomaly] loaded %u account(s) from %s", (u32)s_accounts.size(), path);
+	Msg("[Lost Zone] loaded %u account(s) from %s", (u32)s_accounts.size(), path);
 }
 
 static void accounts_save()
@@ -819,7 +823,7 @@ static void accounts_save()
 	FILE* f = fopen(temp, "wb");
 	if (!f)
 	{
-		Msg("! [NetAnomaly] cannot write %s", temp);
+		Msg("! [Lost Zone] cannot write %s", temp);
 		return;
 	}
 	fprintf(f, "# NetAnomaly accounts: login|role|salt|pbkdf2-sha256|money|device-digest|approval\n");
@@ -834,7 +838,7 @@ static void accounts_save()
 	fclose(f);
 	if (!MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
 	{
-		Msg("! [NetAnomaly] cannot replace %s", path);
+		Msg("! [Lost Zone] cannot replace %s", path);
 		return;
 	}
 	s_accounts_dirty = false;
@@ -864,7 +868,7 @@ bool script_registration_decide(LPCSTR login, bool accept)
     if (!account || account->approval != 0) return false;
     account->approval = accept ? 1 : 2;
     s_accounts_dirty = true; accounts_save();
-    Msg("[NetAnomaly] registration '%s' %s", login, accept ? "approved" : "rejected");
+    Msg("[Lost Zone] registration '%s' %s", login, accept ? "approved" : "rejected");
     return true;
 }
 
@@ -968,7 +972,7 @@ static void send_auth_result(xrServer* server, xrClientData* CL, bool ok, u8 rol
     if (ok)
     {
         xr_string names;
-        for (u8 slot = 1; slot <= 5; ++slot)
+        for (u8 slot = 1; slot <= (role == role_admin ? 10 : 1); ++slot)
         {
             Character* character = character_load(CL->netcoop_login.c_str(), slot);
             if (slot > 1) names += "|";
@@ -976,7 +980,7 @@ static void send_auth_result(xrServer* server, xrClientData* CL, bool ok, u8 rol
         }
         P.w_stringZ(names.c_str());
         xr_string previews;
-        for (u8 slot = 1; slot <= 5; ++slot)
+        for (u8 slot = 1; slot <= (role == role_admin ? 10 : 1); ++slot)
         {
             Character* character = character_load(CL->netcoop_login.c_str(), slot);
             xr_string visual = "actors\\stalker_neutral\\stalker_neutral_1.ogf", items;
@@ -997,7 +1001,7 @@ static void send_auth_result(xrServer* server, xrClientData* CL, bool ok, u8 rol
 
 static void reject(xrServer* server, xrClientData* CL, LPCSTR message)
 {
-	Msg("! [NetAnomaly] login rejected for 0x%08x: %s", CL->ID.value(), message);
+	Msg("! [Lost Zone] login rejected for 0x%08x: %s", CL->ID.value(), message);
 	send_auth_result(server, CL, false, role_none, message);
 	string512 reason;
 	xr_sprintf(reason, "@%s", message);
@@ -1211,7 +1215,7 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
 		s_accounts_dirty = true;
 		accounts_save();
 		a = &s_accounts[in_use.login];
-		Msg("[NetAnomaly] account '%s' registered", pending->login.c_str());
+		Msg("[Lost Zone] account '%s' registered", pending->login.c_str());
 		NotifyRegistration notice = {server, pending->login.c_str()};
 		server->ForEachClientDo(notice);
 	}
@@ -1249,6 +1253,7 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
 		return;
 	}
 	CL->netcoop_login = a->login.c_str();
+    CL->netcoop_role = a->role;
     // Slot zero authenticates the front-end and fetches slots without creating
     // an Actor or touching an existing character's inventory.
     if (pending->slot == 0)
@@ -1271,7 +1276,7 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
 
 	string256 message;
 	xr_sprintf(message, "Logged in as %s (%s)", a->login.c_str(), role_name(a->role));
-	Msg("[NetAnomaly] client 0x%08x %s", CL->ID.value(), message);
+	Msg("[Lost Zone] client 0x%08x %s", CL->ID.value(), message);
 	send_auth_result(server, CL, true, a->role, message);
     if (a->role == role_admin)
         for (const auto& entry : s_accounts)
@@ -1386,7 +1391,7 @@ static void destroy_pending_actors(xrServer* server)
             s_actor_character.erase(ids[i]);
 			give_to_server(server, server->game->get_entity_from_eid(ids[i]), 0);
             if (!smart_cast<CActor*>(actor_object)->g_Alive()) continue; // retain lootable corpse
-			Msg("[NetAnomaly] removing Actor %u of a disconnected player", ids[i]);
+			Msg("[Lost Zone] removing Actor %u of a disconnected player", ids[i]);
 			// An NPC still talking to this Actor would keep a dangling partner.
 			CActor* leaving = smart_cast<CActor*>(actor_object);
 			if (leaving && leaving->IsTalking())
@@ -1535,7 +1540,7 @@ static void prepare_trade(u16 partner_id)
 	if (ai().script_engine().functor("netcoop_server_compat.prepare_trade", prepare))
 	{
 		try { prepare(partner_id); }
-		catch (...) { Msg("! [NetAnomaly] trader %u profile preparation failed", partner_id); }
+		catch (...) { Msg("! [Lost Zone] trader %u profile preparation failed", partner_id); }
 	}
 }
 
@@ -1547,7 +1552,7 @@ static void send_trade_result(xrServer* server, xrClientData* CL, bool ok, LPCST
 	P.w_stringZ(message);
 	server->SendTo(CL->ID, P, net_flags(TRUE, TRUE));
 	if (!ok)
-		Msg("! [NetAnomaly] trade rejected for '%s': %s", CL->netcoop_login.c_str(), message);
+		Msg("! [Lost Zone] trade rejected for '%s': %s", CL->netcoop_login.c_str(), message);
 }
 
 void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
@@ -1662,7 +1667,7 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 
 	string256 message;
 	xr_sprintf(message, "%s %u item(s) for %u RU", partner_buys ? "sold" : "bought", (u32)items.size(), total);
-	Msg("[NetAnomaly] '%s' %s", CL->netcoop_login.c_str(), message);
+	Msg("[Lost Zone] '%s' %s", CL->netcoop_login.c_str(), message);
 	send_trade_result(server, CL, true, message);
 }
 } // namespace netcoop
@@ -1693,7 +1698,7 @@ static xr_deque<TalkState> s_talk_states;
 void client_talk_start(u16 npc_id)
 {
 	s_talk_states.clear();
-	Msg("[NetAnomaly] talk request to NPC %u", npc_id);
+	Msg("[Lost Zone] talk request to NPC %u", npc_id);
 	NET_Packet P;
 	P.w_begin(M_NETCOOP_TALK);
 	P.w_u8(talk_start);
@@ -1731,7 +1736,7 @@ void client_on_talk_state(NET_Packet& P)
 	const u8 flags = P.r_u8();
 	state.open = !!(flags & talk_flag_open);
 	state.trade = !!(flags & talk_flag_trade);
-	Msg("[NetAnomaly] talk state from server: NPC %u open=%d trade=%d", state.npc, state.open ? 1 : 0, state.trade ? 1 : 0);
+	Msg("[Lost Zone] talk state from server: NPC %u open=%d trade=%d", state.npc, state.open ? 1 : 0, state.trade ? 1 : 0);
 
 	string1024 text;
 	string256 id;
@@ -1911,7 +1916,7 @@ static void bind_script_actor(CActor* actor)
 	}
 	catch (...)
 	{
-		Msg("! [NetAnomaly] netcoop_server_compat.bind_actor failed");
+		Msg("! [Lost Zone] netcoop_server_compat.bind_actor failed");
 	}
 }
 
@@ -2066,7 +2071,7 @@ void server_on_talk(xrServer* server, xrClientData* CL, NET_Packet& P)
 		actor->Position().distance_to(npc_object->Position()) <= talk_max_distance;
 	if (!valid || (op == talk_choose && found == s_talk_sessions.end()) || op > talk_stop)
 	{
-		Msg("! [NetAnomaly] talk op %u with %u from '%s' rejected: npc=%d alive=%d distance=%.1f session=%d",
+		Msg("! [Lost Zone] talk op %u with %u from '%s' rejected: npc=%d alive=%d distance=%.1f session=%d",
 			op, npc_id, CL->netcoop_login.c_str(), npc ? 1 : 0, npc_alive && npc_alive->g_Alive() ? 1 : 0,
 			npc_object ? actor->Position().distance_to(npc_object->Position()) : -1.f,
 			found != s_talk_sessions.end() ? 1 : 0);
@@ -2086,7 +2091,7 @@ void server_on_talk(xrServer* server, xrClientData* CL, NET_Packet& P)
 		s_talk_sessions.erase(CL->ID.value());
 
 		const bool offered = npc->OfferTalk(actor);
-		Msg("[NetAnomaly] talk '%s' -> %s: offer=%d talk_enabled=%d", CL->netcoop_login.c_str(),
+		Msg("[Lost Zone] talk '%s' -> %s: offer=%d talk_enabled=%d", CL->netcoop_login.c_str(),
 			npc_object->cName().c_str(), offered ? 1 : 0, npc->IsTalkEnabled() ? 1 : 0);
 		if (offered)
 		{
@@ -2144,7 +2149,7 @@ void server_on_talk(xrServer* server, xrClientData* CL, NET_Packet& P)
 			}
 		}
 		if (!accepted)
-			Msg("! [NetAnomaly] rejected dialogue choice from '%s'", CL->netcoop_login.c_str());
+			Msg("! [Lost Zone] rejected dialogue choice from '%s'", CL->netcoop_login.c_str());
 		talk_build_choices(session, our, other, state);
 	}
 
@@ -2254,10 +2259,10 @@ static void character_capture_progress(Character& character, CActor* actor)
 	if (!ai().script_engine().functor("netcoop_server_compat.capture_character_state", capture)) return;
 	luabind::internal_string state;
 	try { state = capture(actor->lua_game_object()); }
-	catch (...) { Msg("! [NetAnomaly] cannot serialize character script state for %u", actor->ID()); return; }
+	catch (...) { Msg("! [Lost Zone] cannot serialize character script state for %u", actor->ID()); return; }
 	writer.w_u32(u32(state.size()));
 	if (!state.empty()) writer.w(state.data(), state.size());
-	if (writer.size() > 1048576) { Msg("! [NetAnomaly] character progress exceeds save limit for %u", actor->ID()); return; }
+	if (writer.size() > 1048576) { Msg("! [Lost Zone] character progress exceeds save limit for %u", actor->ID()); return; }
 	const u8* data = static_cast<const u8*>(writer.pointer());
 	character.progress.assign(data, data + writer.size());
 }
@@ -2280,7 +2285,7 @@ static void character_restore_progress(Character& character, CActor* actor)
 	::luabind::functor<void> restore;
 	if (ai().script_engine().functor("netcoop_server_compat.restore_character_state", restore))
 		try { restore(actor->lua_game_object(), state); }
-		catch (...) { Msg("! [NetAnomaly] cannot restore character script state for %u", actor->ID()); }
+		catch (...) { Msg("! [Lost Zone] cannot restore character script state for %u", actor->ID()); }
 	manager->MarkChanged();
 }
 // ---------------------------------------------------------------------------
@@ -2389,7 +2394,7 @@ void server_tasks_update(xrServer* server)
 				}
 				catch (...)
 				{
-					Msg("! [NetAnomaly] task update script failed for Actor %u", players[i].actor);
+					Msg("! [Lost Zone] task update script failed for Actor %u", players[i].actor);
 				}
 			}
 		}
@@ -2567,7 +2572,7 @@ void script_broadcast(LPCSTR channel, LPCSTR data)
 		data = "";
 	if (xr_strlen(channel) >= 64 || xr_strlen(data) >= 8000)
 	{
-		Msg("! [NetAnomaly] script message '%s' is too large", channel);
+		Msg("! [Lost Zone] script message '%s' is too large", channel);
 		return;
 	}
 	xr_vector<ClientID> ids;
@@ -2632,7 +2637,7 @@ bool server_open_ui(u16 actor_id, LPCSTR kind, u16 partner_id)
 	xr_sprintf(data, "%s %u", kind, partner_id);
 	const bool sent = script_send_to_actor(actor_id, "open_ui", data);
 	if (enabled() && g_pGameLevel && Level().Server)
-		Msg("[NetAnomaly] open %s with %u for Actor %u: %s", kind, partner_id, actor_id, sent ? "sent" : "no remote owner");
+		Msg("[Lost Zone] open %s with %u for Actor %u: %s", kind, partner_id, actor_id, sent ? "sent" : "no remote owner");
 	return sent;
 }
 
@@ -2665,13 +2670,13 @@ void wd_hook(lua_State* L, lua_Debug*)
 	if (!wd_logged)
 	{
 		wd_logged = true;
-		Msg("! [NetAnomaly] script hang: frame %u has run for %u s, Lua stack:", wd_frame, stuck / 1000);
+		Msg("! [Lost Zone] script hang: frame %u has run for %u s, Lua stack:", wd_frame, stuck / 1000);
 		lua_Debug ar;
 		for (int level = 0; level < 24 && lua_getstack(L, level, &ar); ++level)
 		{
 			if (!lua_getinfo(L, "nSl", &ar))
 				break;
-			Msg("! [NetAnomaly]   %2d: %s:%d %s", level, ar.short_src, ar.currentline, ar.name ? ar.name : "?");
+			Msg("! [Lost Zone]   %2d: %s:%d %s", level, ar.short_src, ar.currentline, ar.name ? ar.name : "?");
 		}
 		FlushLog();
 	}
@@ -2679,7 +2684,7 @@ void wd_hook(lua_State* L, lua_Debug*)
 	{
 		wd_disarm(L);
 		wd_frame = 0; // re-arm if the script catches the error and goes on
-		Msg("! [NetAnomaly] script hang: aborting the script call");
+		Msg("! [Lost Zone] script hang: aborting the script call");
 		FlushLog();
 		luaL_error(L, "netcoop: script hung for %u s", stuck / 1000);
 	}
@@ -2723,7 +2728,7 @@ u32 sample_main_stack(DWORD64* pcs, u32 max_pcs)
 void log_hitch(u32 frame, u32 ms, const DWORD64* pcs, u32 count)
 {
 	string4096 line;
-	xr_sprintf(line, "[NetAnomaly][hitch] frame %u at %u ms:", frame, ms);
+	xr_sprintf(line, "[Lost Zone][hitch] frame %u at %u ms:", frame, ms);
 	const HMODULE exe = GetModuleHandle(0);
 	for (u32 i = 0; i < count; ++i)
 	{
@@ -2777,7 +2782,7 @@ DWORD WINAPI wd_thread(void*)
 		wd_since = since;
 		wd_logged = false;
 		InterlockedExchange(&wd_armed, 1);
-		Msg("! [NetAnomaly] frame %u stuck for %u s, watching scripts", frame, (now - since) / 1000);
+		Msg("! [Lost Zone] frame %u stuck for %u s, watching scripts", frame, (now - since) / 1000);
 		lua_sethook(ai().script_engine().lua(), wd_hook, LUA_MASKCOUNT, 10000);
 	}
 }
@@ -3189,7 +3194,7 @@ void metric_remote_actor(u16 id, bool remote, bool alive, u32 net_size, s32 age_
 	for (auto& it : s_remote_actors)
 	{
 		if (it.second.frames)
-			Msg("[NetAnomaly][player] %u: %u frames, remote %d alive %d, %u snapshots, newest %d ms old", it.first,
+			Msg("[Lost Zone][player] %u: %u frames, remote %d alive %d, %u snapshots, newest %d ms old", it.first,
 			    it.second.frames, it.second.remote ? 1 : 0, it.second.alive ? 1 : 0, it.second.net_size, it.second.age);
 		it.second.frames = 0;
 	}
@@ -3242,7 +3247,7 @@ void metric_weapon_fire(CWeapon* weapon)
 			last = now;
 			Fvector pos, dir;
 			const bool aim = weapon->netcoop_aim(pos, dir);
-			Msg("[NetAnomaly][shot] player %s fires %s, owner aim %s", player->cName().c_str(),
+			Msg("[Lost Zone][shot] player %s fires %s, owner aim %s", player->cName().c_str(),
 			    weapon->cNameSect().c_str(), aim ? "fresh" : "missing");
 		}
 		return;
@@ -3255,12 +3260,12 @@ void metric_weapon_fire(CWeapon* weapon)
 	last = now;
 	if (pure_client())
 	{
-		Msg("[NetAnomaly][shot] client puppet %s (%u) started firing %s", stalker->cName().c_str(), stalker->ID(),
+		Msg("[Lost Zone][shot] client puppet %s (%u) started firing %s", stalker->cName().c_str(), stalker->ID(),
 		    weapon->cNameSect().c_str());
 		return;
 	}
 	const CEntityAlive* enemy = stalker->g_Alive() ? stalker->memory().enemy().selected() : 0;
-	Msg("[NetAnomaly][shot] %s (%u) fires %s at %s (%u) dist %.1f visible %d", stalker->cName().c_str(), stalker->ID(),
+	Msg("[Lost Zone][shot] %s (%u) fires %s at %s (%u) dist %.1f visible %d", stalker->cName().c_str(), stalker->ID(),
 	    weapon->cNameSect().c_str(), enemy ? enemy->cName().c_str() : "no enemy", enemy ? enemy->ID() : 0,
 	    enemy ? enemy->Position().distance_to(stalker->Position()) : 0.f,
 	    enemy ? int(stalker->memory().visual().visible_now(enemy)) : 0);
@@ -3280,7 +3285,7 @@ void client_on_own_death()
 	s_own_dead = true;
 	s_respawn_sent = false;
 	s_death_time = real_time_ms();
-	Msg("[NetAnomaly] player died, respawn in %u s", respawn_delay_ms / 1000);
+	Msg("[Lost Zone] player died, respawn in %u s", respawn_delay_ms / 1000);
 }
 
 void client_death_frame()
@@ -3355,7 +3360,7 @@ void metrics_update()
 	if (g_netcoop_metrics)
 	{
 		const float day_sec = g_pGameLevel ? Level().GetGameDayTimeSec() : 0.f;
-		Msg("[NetAnomaly][clock] %s game %02u:%02u factor %.1f | net delta %d ms ping %u ms | snapshot lead avg %d min %d max %d ms"
+		Msg("[Lost Zone][clock] %s game %02u:%02u factor %.1f | net delta %d ms ping %u ms | snapshot lead avg %d min %d max %d ms"
 		    " | players: frames %u extrap %.1f%% lead avg %d max %d ms, largest frame step %.2f m",
 		    pure_client() ? "client" : "server", u32(day_sec / 3600.f) % 24, u32(day_sec / 60.f) % 60,
 		    g_pGameLevel ? Level().GetGameTimeFactor() : 0.f, g_pGameLevel ? Level().timeServer_Delta() : 0,
@@ -3363,7 +3368,7 @@ void metrics_update()
 		    m.puppet_frames ? s32(m.lead_sum / s64(m.puppet_frames)) : 0, m.lead_min, m.lead_max,
 		    m.pl_frames, m.pl_frames ? 100.f * m.pl_extrap / m.pl_frames : 0.f,
 		    m.pl_frames ? s32(m.pl_lead_sum / s64(m.pl_frames)) : 0, m.pl_lead_max, m.pl_step_max);
-		Msg("[NetAnomaly][metrics] %s smooth=%d delay=%u | frame avg %.1f max %u >33ms %u >100ms %u"
+		Msg("[Lost Zone][metrics] %s smooth=%d delay=%u | frame avg %.1f max %u >33ms %u >100ms %u"
 		    " | snaps %u avg %.0f max %u >100ms %u dup %u | puppets %u extrap %.1f%% jumps %u max %.2f"
 		    " | actor acks %u fixes %u err avg %.2f max %.2f | owner rejects %u max %.1f | shots %u"
 		    " | sent %.1f KB/s objects %u blocked %u",
@@ -3405,7 +3410,7 @@ bool script_respawn(u16 actor_id)
 	give_to_server(server, CL->owner, 0);
 	CL->owner = NULL;
 	netcoop_respawn_spawn(CL->ID);
-	Msg("[NetAnomaly] respawn for client 0x%08x (body %u stays)", CL->ID.value(), actor_id);
+	Msg("[Lost Zone] respawn for client 0x%08x (body %u stays)", CL->ID.value(), actor_id);
 	return true;
 }
 } // namespace netcoop
@@ -3441,7 +3446,7 @@ const xr_vector<RpAnim>& rp_anims()
 	string_path path;
 	if (!FS.exist(path, "$game_config$", "netcoop\\rp_anims.ltx"))
 	{
-		Msg("~ [NetAnomaly] rp: configs\\netcoop\\rp_anims.ltx not found");
+		Msg("~ [Lost Zone] rp: configs\\netcoop\\rp_anims.ltx not found");
 		return anims;
 	}
 	CInifile ini(path, TRUE, TRUE, FALSE);
@@ -3463,7 +3468,7 @@ const xr_vector<RpAnim>& rp_anims()
 		a.loop = ini.line_exist(section, "loop") ? !!ini.r_bool(section, "loop") : true;
 		anims.push_back(a);
 	}
-	Msg("[NetAnomaly] rp: %u animations", u32(anims.size()));
+	Msg("[Lost Zone] rp: %u animations", u32(anims.size()));
 	return anims;
 }
 

@@ -237,7 +237,7 @@ private:
 	void fail(LPCSTR why)
 	{
 		if (m_state != st_failed)
-			Msg("! [NetAnomaly][bots] %s: %s", m_login, why);
+			Msg("! [Lost Zone][bots] %s: %s", m_login, why);
 		m_state = st_failed;
 	}
 
@@ -351,7 +351,7 @@ private:
 				m_phase = float(m_index) * 0.7f;
 				m_radius = 4.f + float(m_index % 12) * 2.5f;
 				m_last_move = now;
-				Msg("[NetAnomaly][bots] %s plays Actor %u", m_login, id);
+				Msg("[Lost Zone][bots] %s plays Actor %u", m_login, id);
 				set_state(st_playing, now);
 			}
 			break;
@@ -494,7 +494,7 @@ void report(u32 now)
 			++pinged;
 		}
 	}
-	Msg("[NetAnomaly][bots] %u wanted: %u playing, %u joining, %u connecting, %u failed; rx %.1f KB/s per playing bot, "
+	Msg("[Lost Zone][bots] %u wanted: %u playing, %u joining, %u connecting, %u failed; rx %.1f KB/s per playing bot, "
 	    "worst update gap avg %u ms max %u ms, ping avg %u ms",
 	    s_wanted, counts[NetcoopBot::st_playing], counts[NetcoopBot::st_joining] + counts[NetcoopBot::st_waiting_actor],
 	    counts[NetcoopBot::st_connecting], counts[NetcoopBot::st_failed],
@@ -526,7 +526,7 @@ void bots_set(u32 count, LPCSTR address)
 		b->stop();
 		s_dead.push_back({b, bot_now()});
 	}
-	Msg("[NetAnomaly][bots] target %u bot(s) on %s", s_wanted, s_address);
+	Msg("[Lost Zone][bots] target %u bot(s) on %s", s_wanted, s_address);
 }
 
 void bots_frame()

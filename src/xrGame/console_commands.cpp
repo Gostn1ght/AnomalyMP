@@ -2550,7 +2550,7 @@ public:
     void Execute(LPCSTR args) override
     {
         if (!args || !args[0] || !g_pGameLevel || !Level().Server) return;
-        Msg("%s [NetAnomaly] reset account device binding", netcoop::server_reset_device(args) ? "*" : "!");
+        Msg("%s [Lost Zone] reset account device binding", netcoop::server_reset_device(args) ? "*" : "!");
     }
 };
 

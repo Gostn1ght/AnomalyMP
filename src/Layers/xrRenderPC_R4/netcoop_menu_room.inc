@@ -22,7 +22,7 @@ static void load_menu_room()
     if (s_room_loaded) return;
     s_room_loaded = true;
     IReader* file = FS.r_open("$game_meshes$", "netcoop\\personal_room.room");
-    if (!file) { Msg("! [NetAnomaly] missing personal menu room"); return; }
+    if (!file) { Msg("! [Lost Zone] missing personal menu room"); return; }
     bool valid = file->length() >= 12;
     if (valid) valid = file->r_u32() == 0x4d52434e && file->r_u32() == 2;
     const u32 count = valid ? file->r_u32() : 0;
@@ -48,8 +48,8 @@ static void load_menu_room()
     }
     valid = valid && file->elapsed() == 0;
     FS.r_close(file);
-    if (!valid) { s_room_batches.clear(); Msg("! [NetAnomaly] invalid personal menu room"); }
-    else Msg("[NetAnomaly] personal room loaded: %u materials", count);
+    if (!valid) { s_room_batches.clear(); Msg("! [Lost Zone] invalid personal menu room"); }
+    else Msg("[Lost Zone] personal room loaded: %u materials", count);
 }
 static void draw_menu_room(bool depth=false)
 {

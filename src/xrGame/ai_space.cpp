@@ -281,7 +281,7 @@ bool CAI_Space::load_netcoop_client_graph(LPCSTR spawn_name)
 	m_game_graph = xr_new<CGameGraph>(*m_netcoop_graph_chunk);
 	xr_delete(m_graph_engine);
 	m_graph_engine = xr_new<CGraphEngine>(game_graph().header().vertex_count());
-	Msg("* [NetAnomaly] client AI graph loaded from %s.spawn", spawn_name);
+	Msg("* [Lost Zone] client AI graph loaded from %s.spawn", spawn_name);
 	return true;
 }
 

@@ -113,6 +113,7 @@ public:
 	virtual void PreStart(LPCSTR op);
 	virtual void Start(LPCSTR op);
 	virtual void Disconnect();
+	virtual bool CanUsePlayerConsole() const { return true; }
 #ifndef _EDITOR
 	IGame_ObjectPool ObjectPool;
 	CEnvironment* pEnvironment;

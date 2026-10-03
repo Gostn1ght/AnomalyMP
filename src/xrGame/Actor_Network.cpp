@@ -1159,7 +1159,7 @@ BOOL CActor::net_Spawn(CSE_Abstract* DC)
 		spatial.type &= ~STYPE_REACTTOSOUND;
 		setVisible(FALSE);
 		setEnabled(FALSE);
-		Msg("[NetAnomaly] ALife anchor Actor hidden and disabled");
+		Msg("[Lost Zone] ALife anchor Actor hidden and disabled");
 	}
 
 	return TRUE;

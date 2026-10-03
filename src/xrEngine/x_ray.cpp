@@ -386,160 +386,22 @@ void updateDiscordPresence()
 	if (!use_discord)
 		return;
 
-	static char details_buffer[128];
-	static char state_buffer[128];
-
-	// Main Menu
-	if (discord_gameinfo.mainmenu)
-	{
-		snprintf(state_buffer, 128, discord_strings.mainmenu);
-		discordPresence.GetAssets().SetLargeImage("gamelogo");
-		discordPresence.GetAssets().SetLargeText("");
-		discordPresence.GetAssets().SetSmallImage("");
-		discordPresence.GetAssets().SetSmallText("");
-			
-		// Pause Menu
-		if (discord_gameinfo.ingame)
-			snprintf(state_buffer, 128, discord_strings.paused);
-		else
-			discordPresence.SetDetails("");
-	}	
-
-	// Loading
-	else if (discord_gameinfo.loadscreen)
-	{
-		snprintf(state_buffer, 128, discord_strings.loading);
-		discordPresence.SetDetails("");
-		discordPresence.GetAssets().SetLargeImage("gamelogo");
-		discordPresence.GetAssets().SetLargeText("");
-		discordPresence.GetAssets().SetSmallImage("");
-		discordPresence.GetAssets().SetSmallText("");
-		discord_gameinfo.ex_update = true;
-	}
-
-	// In Game
-	else if (discord_gameinfo.ingame)
-	{
-		// Time + Level Name
-		char levelname_time[128];
-		if (discord_gameinfo.level_name && discord_gameinfo.currenttime)
-		{
-			snprintf(levelname_time, 128, "%s | %s", discord_gameinfo.level_name, discord_gameinfo.currenttime);
-			discordPresence.GetAssets().SetLargeText(levelname_time);
-		}
-		else if (discord_gameinfo.level_name)
-		{
-			snprintf(levelname_time, 128, discord_gameinfo.level_name);
-			discordPresence.GetAssets().SetLargeText(levelname_time);
-		}
-		else
-			discord_gameinfo.ex_update = true;
-
-		//Faction, Rank, Rep
-		if (discord_gameinfo.faction && discord_gameinfo.faction_name)
-		{
-			discordPresence.GetAssets().SetSmallImage(discord_gameinfo.faction);
-			char rank_faction_rep[128];
-			if (discord_gameinfo.rank_name && discord_gameinfo.reputation)
-				snprintf(rank_faction_rep, 128, "%s | %s", discord_gameinfo.rank_name, discord_gameinfo.reputation);
-			else
-				snprintf(rank_faction_rep, 128, discord_gameinfo.faction_name);
-			discordPresence.GetAssets().SetSmallText(rank_faction_rep);
-		}
-
-		// GameMode + Active Task
-		if (discord_gameinfo.gamemode)
-		{
-			if (discord_gameinfo.task_name && 0 != xr_strcmp(discord_gameinfo.task_name, ""))
-				snprintf(details_buffer, 128, "%s | %s", discord_gameinfo.gamemode, discord_gameinfo.task_name);
-			else
-				snprintf(details_buffer, 128, discord_gameinfo.gamemode);
-			discordPresence.SetDetails(details_buffer);
-		}
-
-		// God Mode
-		if (discord_gameinfo.godmode)
-			snprintf(state_buffer, 128, discord_strings.godmode);
-
-		// Health
-		else if (discord_gameinfo.health)
-		{
-			// Iron Man
-			if (discord_gameinfo.ironman && discord_gameinfo.lives_left)
-			{
-				if (discord_gameinfo.lives_left == 0 || discord_gameinfo.lives_left > 1)
-					snprintf(state_buffer, 128, "%s: %i | %i %s", discord_strings.health, discord_gameinfo.health,
-					        discord_gameinfo.lives_left, discord_strings.livesleft);
-				else
-					snprintf(state_buffer, 128, "%s: %i | %i %s", discord_strings.health, discord_gameinfo.health,
-					        discord_gameinfo.lives_left, discord_strings.livesleftsingle);
-			}
-
-			// Azazel
-			else if (discord_gameinfo.possessed_lives)
-			{
-				if (discord_gameinfo.possessed_lives == 0 || discord_gameinfo.possessed_lives > 1)
-					snprintf(state_buffer, 128, "%s: %i | %i %s", discord_strings.health, discord_gameinfo.health,
-					        discord_gameinfo.possessed_lives, discord_strings.livespossessed);
-				else
-					snprintf(state_buffer, 128, "%s: %i | %i %s", discord_strings.health, discord_gameinfo.health,
-					        discord_gameinfo.possessed_lives, discord_strings.livespossessedsingle);
-			}
-
-			// No Iron Man or Azazel
-			else
-				snprintf(state_buffer, 128, "%s: %i", discord_strings.health, discord_gameinfo.health);
-
-			discordPresence.SetState(state_buffer);
-		}
-		else
-		{
-			// Iron Man
-			if (discord_gameinfo.ironman && discord_gameinfo.lives_left)
-			{
-				int real_lives = discord_gameinfo.lives_left - 1;
-				if (real_lives == 0 || real_lives > 1)
-					snprintf(state_buffer, 128, "%s | %i %s", discord_strings.dead, real_lives, discord_strings.livesleft);
-				else
-					snprintf(state_buffer, 128, "%s | %i %s", discord_strings.dead, real_lives,
-						discord_strings.livesleftsingle);
-			}
-
-
-			// Azazel
-			else if (discord_gameinfo.possessed_lives)
-			{
-				if (discord_gameinfo.possessed_lives == 0 || discord_gameinfo.possessed_lives > 1)
-					snprintf(state_buffer, 128, "%s | %i %s", discord_strings.dead, discord_gameinfo.possessed_lives,
-						discord_strings.livespossessed);
-				else
-					snprintf(state_buffer, 128, "%s | %i %s", discord_strings.dead, discord_gameinfo.possessed_lives,
-						discord_strings.livespossessedsingle);
-			}
-
-			// No Iron Man or Azazel
-			else
-				snprintf(state_buffer, 128, "%s", discord_strings.dead);
-
-			discordPresence.SetState(state_buffer);
-		}
-
-		// Level Icon
-		if (discord_gameinfo.level && discord_gameinfo.level_icon_index)
-		{
-			char icon_buffer[32];
-			snprintf(icon_buffer, 32, "%s_%i", discord_gameinfo.level, discord_gameinfo.level_icon_index);
-			discordPresence.GetAssets().SetLargeImage(icon_buffer);
-		}
-	}
-
-	discordPresence.SetState(state_buffer);
-	discord_core->ActivityManager().UpdateActivity(discordPresence, [](discord::Result result) {});
+    discordPresence.SetName("Lost Zone");
+    discordPresence.GetAssets().SetLargeImage("lost_zone");
+    discordPresence.GetAssets().SetLargeText("Lost Zone");
+    discordPresence.GetAssets().SetSmallImage("logos");
+    discordPresence.GetAssets().SetSmallText("Lost Zone - Multiplayer");
+    discordPresence.SetDetails(discord_gameinfo.loadscreen ? "Connecting to the Zone" :
+        discord_gameinfo.ingame ? "Playing on server" : "Character selection");
+    discordPresence.SetState(discord_gameinfo.ingame && !discord_gameinfo.mainmenu && discord_gameinfo.level_name[0]
+        ? discord_gameinfo.level_name : discord_gameinfo.ingame ? "Paused" : "Main menu");
+    discord_core->ActivityManager().UpdateActivity(discordPresence, [](discord::Result result) {});
 }
 
 void Init_Discord()
 {
-	auto result = discord::Core::Create(477910171964801060, DiscordCreateFlags_NoRequireDiscord, &discord_core);
+    if (g_dedicated_server) { use_discord = false; return; }
+	auto result = discord::Core::Create(1512753456618668052, DiscordCreateFlags_NoRequireDiscord, &discord_core);
 	
 	if (result != discord::Result::Ok)
 	{
@@ -555,7 +417,7 @@ void Init_Discord()
 	StartTime = time(0);
 	discordPresence.SetType(discord::ActivityType::Playing);
 	discordPresence.GetTimestamps().SetStart(StartTime);
-	discordPresence.GetAssets().SetLargeImage("gamelogo");
+	discordPresence.GetAssets().SetLargeImage("lost_zone");
 	discord_core->ActivityManager().UpdateActivity(discordPresence, [](discord::Result result) {});
 }
 
@@ -1015,7 +877,7 @@ int APIENTRY WinMain_impl(HINSTANCE hInstance,
 
 	if (GetLastError() == ERROR_ALREADY_EXISTS)
 	{
-		// NetAnomaly: a coop client may share the install folder with the host,
+		// Lost Zone: a coop client may share the install folder with the host,
 		// so the single-instance guard is bypassed for networked launches.
 		// Core.Params is not initialized this early, use the raw command line.
 		LPCSTR na_cmd_line = GetCommandLineA();
@@ -1037,7 +899,7 @@ int APIENTRY WinMain_impl(HINSTANCE hInstance,
 	GetModuleFileNameA(nullptr, module_path, sizeof(module_path));
 	LPCSTR module_name = strrchr(module_path, '\\');
 	module_name = module_name ? module_name + 1 : module_path;
-	if (!_stricmp(module_name, "AnomalyGammaNetServerDX11.exe") ||
+	if (!_stricmp(module_name, "LostZoneServerDX11.exe") ||
 		strstr(GetCommandLineA(), "-dedicated"))
 	{
 		g_dedicated_server = true;
@@ -1101,7 +963,7 @@ int APIENTRY WinMain_impl(HINSTANCE hInstance,
 	// g_temporary_stuff = &trivial_encryptor::decode;
 
 	compute_build_id();
-	// NetAnomaly: -logname <suffix> keeps a second local instance from fighting
+	// Lost Zone: -logname <suffix> keeps a second local instance from fighting
 	// over xray_<user>.log and over the minidump file name.
 	string64 na_app_name;
 	xr_strcpy(na_app_name, "xray");
@@ -1119,6 +981,14 @@ int APIENTRY WinMain_impl(HINSTANCE hInstance,
 		}
 	}
 	Core._initialize(na_app_name, NULL, TRUE, fsgame[0] ? fsgame : NULL);
+    // Lost Zone is an online product: dropping a launcher flag cannot switch
+    // it to an unrestricted single-player console or disable authentication.
+    if (!strstr(Core.Params, "-netcoop"))
+    {
+        const u32 size = xr_strlen(Core.Params) + sizeof(" -netcoop");
+        Core.Params = (char*)xr_realloc(Core.Params, size);
+        xr_strcat(Core.Params, size, " -netcoop");
+    }
 
 	InitSettings();
 	Msg(XRAY_MONOLITH_VERSION);

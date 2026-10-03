@@ -31,7 +31,7 @@ void xrServer::Process_event(NET_Packet& P, ClientID sender)
 
 	if (!netcoop::server_remote_event_allowed(this, ID_to_client(sender), P, type, destination))
 	{
-		Msg("! [NetAnomaly] rejected event %u for entity %u from client 0x%08x", type, destination, sender.value());
+		Msg("! [Lost Zone] rejected event %u for entity %u from client 0x%08x", type, destination, sender.value());
 		return;
 	}
 

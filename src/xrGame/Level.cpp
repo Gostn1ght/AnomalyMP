@@ -259,7 +259,7 @@ CLevel::CLevel() :
         // game logic and corrupted the Lua state. Run them on the main thread.
         g_mt_config.zero();
         psLua_ParallelGC = FALSE;
-        Msg("[NetAnomaly] dedicated server: multithreaded game jobs disabled");
+        Msg("[Lost Zone] dedicated server: multithreaded game jobs disabled");
     }
     m_dwDeltaUpdate = u32(fixed_step * 1000);
     m_seniority_hierarchy_holder = xr_new<CSeniorityHierarchyHolder>();
@@ -1061,7 +1061,7 @@ void CLevel::OnFrame()
 		!net_isDisconnected() && strstr(Core.Params, "-netcoop") &&
 		GetTickCount() - g_netcoop_last_server_rx > 15000)
 	{
-		Msg("! [NetAnomaly] no data from the server for 15 s, leaving the session");
+		Msg("! [Lost Zone] no data from the server for 15 s, leaving the session");
 		g_netcoop_last_server_rx = 0;
 		OnSessionTerminate("@Connection to the server was lost");
 		Engine.Event.Defer("kernel:disconnect");

@@ -46,7 +46,7 @@ void xrServer::Process_event_destroy(NET_Packet& P, ClientID sender, u32 time, u
 	// not stop the server (it used to be an assertion).
 	if (!c_dest || c_dest != c_from)
 	{
-		Msg("! [NetAnomaly] GE_DESTROY for entity %u rejected: not owned by the sender", id_dest);
+		Msg("! [Lost Zone] GE_DESTROY for entity %u rejected: not owned by the sender", id_dest);
 		return;
 	}
 	u16 parent_id = e_dest->ID_Parent;

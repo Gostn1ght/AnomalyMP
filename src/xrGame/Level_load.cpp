@@ -39,7 +39,7 @@ bool CLevel::Load_GameSpecific_Before()
 			ai().load(name().c_str());
 		else
 		{
-			Msg("! [NetAnomaly] level %s is not in the client AI graph", name().c_str());
+			Msg("! [Lost Zone] level %s is not in the client AI graph", name().c_str());
 			ai().unload_netcoop_client_graph();
 		}
 	}

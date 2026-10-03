@@ -918,7 +918,7 @@ bool CActor::rp_play_motion(const shared_str& name)
 	const MotionID motion = k->ID_Cycle_Safe(name.c_str());
 	if (!motion.valid())
 	{
-		Msg("~ [NetAnomaly] rp: no motion '%s' on %s", name.c_str(), cName().c_str());
+		Msg("~ [Lost Zone] rp: no motion '%s' on %s", name.c_str(), cName().c_str());
 		return false;
 	}
 	CMotionDef* def = k->LL_GetMotionDef(motion);
@@ -949,7 +949,7 @@ void CActor::rp_start(int index, bool own)
 		rp_finish();
 	m_rp_index = index;
 	m_rp_started = Device.dwTimeGlobal;
-	Msg("[NetAnomaly] rp: %s starts %s on %s", netcoop::rp_anims()[index].name.c_str(), own ? "(own)" : "(remote)", cName().c_str());
+	Msg("[Lost Zone] rp: %s starts %s on %s", netcoop::rp_anims()[index].name.c_str(), own ? "(own)" : "(remote)", cName().c_str());
 	m_rp_phase = 0;
 	m_rp_step = 0;
 	m_rp_stopping = false;
@@ -987,7 +987,7 @@ void CActor::rp_finish()
 {
 	if (m_rp_index < 0)
 		return;
-	Msg("[NetAnomaly] rp: %s finished on %s", netcoop::rp_anims()[m_rp_index].name.c_str(), cName().c_str());
+	Msg("[Lost Zone] rp: %s finished on %s", netcoop::rp_anims()[m_rp_index].name.c_str(), cName().c_str());
 	m_rp_index = -1;
 	m_rp_stopping = false;
 	m_rp_motion_done = true;

@@ -230,7 +230,7 @@ void CTextConsole::Initialize()
 	inherited::Initialize();
 
 	m_pMainWnd = &Device.m_hWnd;
-	SetWindowTextA(*m_pMainWnd, "Lost Zone / AnomalyMP Dedicated Server");
+	SetWindowTextA(*m_pMainWnd, "Lost Zone / Dedicated Server");
 	m_dwLastUpdateTime = GetTickCount();
 	m_last_time = GetTickCount();
 
@@ -577,7 +577,7 @@ void CTextConsole::RefreshDisplay()
 		ShowWindow(m_hConsoleWnd, SW_SHOW);
 		ShowWindow(m_hLogWnd, SW_SHOW);
 		m_host_window_ready = true;
-		Msg("[NetAnomaly] Dedicated console host style: 0x%Ix", static_cast<size_t>(style | WS_CLIPCHILDREN));
+		Msg("[Lost Zone] Dedicated console host style: 0x%Ix", static_cast<size_t>(style | WS_CLIPCHILDREN));
 	}
 
 	RECT parent_rect, child_rect;

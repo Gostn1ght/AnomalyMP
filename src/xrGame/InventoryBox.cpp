@@ -36,7 +36,7 @@ void CInventoryBox::OnEvent(NET_Packet& P, u16 type)
 			VERIFY(itm);
 			if (!itm)
 			{
-				Msg("! [NetAnomaly] box %u: item %u to take is not spawned here", ID(), id);
+				Msg("! [Lost Zone] box %u: item %u to take is not spawned here", ID(), id);
 				break;
 			}
 			m_items.push_back(id);
@@ -71,7 +71,7 @@ void CInventoryBox::OnEvent(NET_Packet& P, u16 type)
 				m_items.erase(it);
 			if (!itm)
 			{
-				Msg("! [NetAnomaly] box %u: item %u to give out is not spawned here", ID(), id);
+				Msg("! [Lost Zone] box %u: item %u to give out is not spawned here", ID(), id);
 				break;
 			}
 

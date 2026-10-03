@@ -118,6 +118,7 @@ bool client_owns_hud_item(const CObject* item);
 // Lua: netcoop_login(login, password, register), netcoop_role(),
 // netcoop_account(), netcoop_command(text), netcoop_pure_client()
 bool script_login(LPCSTR login, LPCSTR password, bool register_account);
+bool client_admin_authorized();
 int script_role();
 LPCSTR script_account();
 int script_account_state();

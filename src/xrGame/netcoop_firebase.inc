@@ -37,8 +37,18 @@ static bool firebase_enabled()
         if (FS.exist(path, "$game_config$", "netcoop\\firebase.ltx"))
         {
             CInifile cfg(path, TRUE, TRUE, FALSE);
-            if (cfg.line_exist("firebase", "api_key")) s_firebase_api = cfg.r_string("firebase", "api_key");
-            if (cfg.line_exist("firebase", "code_endpoint")) s_email_code_endpoint = cfg.r_string("firebase", "code_endpoint");
+            if (cfg.line_exist("firebase", "api_key"))
+            {
+                LPCSTR value = cfg.r_string("firebase", "api_key");
+                if (value) s_firebase_api = value;
+            }
+            // An empty endpoint is valid while the mail service is being configured.
+            // CInifile returns nullptr for an empty value; assigning it to a string crashes.
+            if (cfg.line_exist("firebase", "code_endpoint"))
+            {
+                LPCSTR value = cfg.r_string("firebase", "code_endpoint");
+                if (value) s_email_code_endpoint = value;
+            }
         }
     }
     return s_firebase_api.size() > 20 && s_firebase_api.size() < 100;

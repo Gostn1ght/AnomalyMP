@@ -1,9 +1,9 @@
--- NetAnomaly: dedicated server guards for GAMMA single-player Actor callbacks.
+-- Lost Zone: dedicated server guards for base-game single-player Actor callbacks.
 --
 -- The dedicated server simulates remote co-op Actors but has no locally
 -- controlled Actor, so db.actor stays nil. The engine still reports jump,
 -- landing, eating, HUD animation and condition events for those Actors, and
--- GAMMA's handlers are client feedback (sounds, HUD, effects) written for
+-- base-game's handlers are client feedback (sounds, HUD, effects) written for
 -- db.actor. They belong to the owning client, so they are skipped here.
 --
 -- Installed from the end of _g.script by scripts/patch-gamma-netcoop-server.ps1.
@@ -18,7 +18,7 @@ local function no_local_actor()
 	return db.actor == nil
 end
 
--- netcoop.cpp runs NPC dialogues for a remote player on the server. GAMMA
+-- netcoop.cpp runs NPC dialogues for a remote player on the server. base-game
 -- dialogue conditions and actions use db.actor, so it points at that
 -- player's Actor for the duration of one dialogue step, then is restored.
 local bound = false
@@ -36,7 +36,7 @@ local function any_player()
 	return nil
 end
 
--- GAMMA scripts recognise "the player" by AC_ID (0, the story Actor) and keep
+-- base-game scripts recognise "the player" by AC_ID (0, the story Actor) and keep
 -- its state in db.storage[AC_ID]. While a player is served, AC_ID is that
 -- player's id and the player has a storage table.
 local STORY_AC_ID = AC_ID or 0
@@ -63,7 +63,7 @@ function bind_actor(obj)
 end
 
 ----------------------------------------------------------------------
--- GAMMA callbacks: one failing handler must not skip the others
+-- base-game callbacks: one failing handler must not skip the others
 ----------------------------------------------------------------------
 -- axr_main.make_callback calls every handler of a callback in one loop, so a
 -- handler that failed (world setup scripts that belong to the other side of
@@ -97,7 +97,7 @@ local function isolate_callbacks()
 				end
 				if not ok and not failed_callbacks[wrapper] then
 					failed_callbacks[wrapper] = true
-					printf("[NetAnomaly] %s handler failed: %s", tostring(name), tostring(err))
+					printf("[Lost Zone] %s handler failed: %s", tostring(name), tostring(err))
 				end
 			end
 			by_name[handler] = wrapper
@@ -115,7 +115,7 @@ function install()
 	installed = true
 	isolate_callbacks()
 
-	-- schemes_ai_gamma calls IsActor, which no GAMMA script defines. On a
+	-- schemes_ai_gamma calls IsActor, which no base-game script defines. On a
 	-- co-op server every player Actor is "the actor".
 	if rawget(_G, "IsActor") == nil then
 		_G.IsActor = function(o)
@@ -142,7 +142,7 @@ function install()
 		if type(name) == "string" and string.find(name, "^actor_on_") and not server_actor_callbacks[name] then
 			if not skipped[name] then
 				skipped[name] = true
-				printf("[NetAnomaly] dedicated: skipping client feedback callback %s", name)
+				printf("[Lost Zone] dedicated: skipping client feedback callback %s", name)
 			end
 			return
 		end
@@ -155,13 +155,13 @@ function install()
 	local before_hit = _G.CActor__BeforeHitCallback
 	_G.CActor__BeforeHitCallback = function(actor, shit, bone_id)
 		if actor and god_mode[actor:id()] then return false end
-		-- GAMMA's actor damage script zeroes the engine hit and takes health
+		-- base-game's actor damage script zeroes the engine hit and takes health
 		-- from db.actor itself; on the server that did not reach the player
 		-- who was hit. The engine applies the hit (with armour) here.
 		return true
 	end
 
-	printf("[NetAnomaly] dedicated server compatibility layer installed")
+	printf("[Lost Zone] dedicated server compatibility layer installed")
 end
 
 -- Diagnostic: every 10 s the log shows whether NPC logic is actually running
@@ -193,17 +193,17 @@ local function diag_tick(npc, st)
 		if (e.moved or 0) > 1 then moving = moving + 1 end
 		if shown < 6 and e.pos then
 			shown = shown + 1
-			printf(string.format("[NetAnomaly][npc] %s updates=%d moved=%.1f pos=%.1f,%.1f,%.1f scheme=%s",
+			printf(string.format("[Lost Zone][npc] %s updates=%d moved=%.1f pos=%.1f,%.1f,%.1f scheme=%s",
 				e.name, e.count, e.moved or 0, e.pos.x, e.pos.y, e.pos.z, tostring(e.scheme)))
 		end
 		e.count, e.moved = 0, 0
 	end
-	printf(string.format("[NetAnomaly][npc] %d NPCs updated, %d moved over 1 m in the last 10 s", total, moving))
+	printf(string.format("[Lost Zone][npc] %d NPCs updated, %d moved over 1 m in the last 10 s", total, moving))
 end
 
 local function install_npc_diagnostic()
 	RegisterScriptCallback("npc_on_update", diag_tick)
-	printf("[NetAnomaly][npc] NPC update diagnostic installed")
+	printf("[Lost Zone][npc] NPC update diagnostic installed")
 end
 
 -- A normal game processes time events (CreateTimeEvent) from a level call
@@ -217,14 +217,14 @@ local function server_event_queue()
 	if not ok then
 		event_errors = event_errors + 1
 		if event_errors <= 20 then
-			printf("[NetAnomaly] time event error: %s", tostring(done))
+			printf("[Lost Zone] time event error: %s", tostring(done))
 		end
 		return false
 	end
 	return done
 end
 
--- GAMMA keeps one task manager (task_manager.random_task). Each player gets
+-- base-game keeps one task manager (task_manager.random_task). Each player gets
 -- their own, chosen by db.actor, which the engine points at the player being
 -- served (dialogue, task updates, NPC scripts). A task another player is
 -- doing cannot be taken at the same time.
@@ -268,7 +268,7 @@ local function install_player_tasks()
 	tm.CRandomTask.give_task = function(self, task_id, giver_id)
 		local a = db.actor
 		if a and netcoop_task_taken(a:id(), tostring(task_id)) then
-			printf("[NetAnomaly] task %s is already taken by another player", tostring(task_id))
+			printf("[Lost Zone] task %s is already taken by another player", tostring(task_id))
 			pcall(function()
 				a:give_game_news(game.translate_string("st_tip"),
 					game.translate_string("st_netcoop_task_taken"), "ui_inGame2_PD_Lider", 0, 7000)
@@ -277,7 +277,7 @@ local function install_player_tasks()
 		end
 		return give(self, task_id, giver_id)
 	end
-	printf("[NetAnomaly] per-player task managers installed")
+	printf("[Lost Zone] per-player task managers installed")
 end
 
 -- Dialogue actions open trade/repair windows after hide_hud_inventory()
@@ -316,7 +316,7 @@ local function init_event_managers()
 				end
 				mgr._delta = 1000000000
 			end)
-			if not ok then printf("[NetAnomaly] %s init failed: %s", getter, tostring(err)) end
+			if not ok then printf("[Lost Zone] %s init failed: %s", getter, tostring(err)) end
 		end
 	end
 end
@@ -352,7 +352,7 @@ local function server_game_load()
 	-- Faction relations: in a single player new game the faction select
 	-- window sets them and marks new_game_relations; the server has no such
 	-- window, so game_relations.reset_all_relations ran and read the
-	-- relation table by its own faction order, which differs from GAMMA's
+	-- relation table by its own faction order, which differs from base-game's
 	-- column order - Clear Sky and loners became enemies of their own
 	-- (community relation -2000, s99-s101). The engine already loaded the
 	-- table correctly; keep it.
@@ -362,16 +362,16 @@ local function server_game_load()
 			state.new_game_relations = true
 		end
 	end)
-	if not sok then printf("[NetAnomaly] relations flag failed: %s", tostring(serr)) end
+	if not sok then printf("[Lost Zone] relations flag failed: %s", tostring(serr)) end
 	local wok, werr = pcall(function() level_weathers.get_weather_manager():reset() end)
-	if not wok then printf("[NetAnomaly] weather manager reset error: %s", tostring(werr)) end
+	if not wok then printf("[Lost Zone] weather manager reset error: %s", tostring(werr)) end
 	local ok, err = pcall(SendScriptCallback, "on_game_load")
-	if not ok then printf("[NetAnomaly] on_game_load error: %s", tostring(err)) end
-	printf("[NetAnomaly] server on_game_load sent")
+	if not ok then printf("[Lost Zone] on_game_load error: %s", tostring(err)) end
+	printf("[Lost Zone] server on_game_load sent")
 end
 
 -- World systems a normal game updates from the Actor binder: the server
--- chooses the weather with GAMMA's weather manager and sends it to clients.
+-- chooses the weather with base-game's weather manager and sends it to clients.
 local world_next = 0
 local server_debug_file
 local weather_sent, weather_next = nil, 0
@@ -399,7 +399,7 @@ local function server_world_tick()
 	local wm = level_weathers and level_weathers.get_weather_manager()
 	if not wm then return end
 	local ok, err = pcall(wm.update, wm)
-	if not ok then printf("[NetAnomaly] weather update error: %s", tostring(err)) end
+	if not ok then printf("[Lost Zone] weather update error: %s", tostring(err)) end
 	local weather = wm.weather_file or (level.get_weather and level.get_weather()) or ""
 	if weather ~= "" and (weather ~= weather_sent or now >= weather_next) then
 		weather_sent, weather_next = weather, now + 5000
@@ -422,13 +422,13 @@ server_debug_file = function()
 	local code = f:read("*a")
 	f:close()
 	if not code or code == "" then return end
-	-- os.remove is not available to GAMMA scripts: empty the file instead.
+	-- os.remove is not available to base-game scripts: empty the file instead.
 	local w = io.open("netcoop_debug.lua", "w")
 	if w then w:close() end
 	local chunk, err = loadstring(code)
-	if not chunk then printf("[NetAnomaly][debug] compile error: %s", tostring(err)) return end
+	if not chunk then printf("[Lost Zone][debug] compile error: %s", tostring(err)) return end
 	local ok, res = pcall(chunk)
-	printf("[NetAnomaly][debug] %s: %s", ok and "result" or "error", tostring(res))
+	printf("[Lost Zone][debug] %s: %s", ok and "result" or "error", tostring(res))
 	if get_console then get_console():execute("flush") end
 end
 
@@ -444,7 +444,7 @@ local function server_world_loop()
 	db.actor = previous
 	if not ok then
 		world_errors = world_errors + 1
-		if world_errors <= 20 then printf("[NetAnomaly] world update error: %s", tostring(err)) end
+		if world_errors <= 20 then printf("[Lost Zone] world update error: %s", tostring(err)) end
 	end
 	return false
 end
@@ -490,7 +490,7 @@ function on_squad_attacked(npc_id, attacker_id)
 	local npc, attacker = level.object_by_id(npc_id), level.object_by_id(attacker_id)
 	if not npc or not attacker or not npc:alive() or not attacker:alive() then return end
 	squad_attackers[npc_id] = {id = attacker_id, until_time = time_global() + 300000}
-	printf("[NetAnomaly][AI] squad witness %s confronts attacker %s", npc_id, attacker_id)
+	printf("[Lost Zone][AI] squad witness %s confronts attacker %s", npc_id, attacker_id)
 end
 
 local function on_camp_member_hit(victim, amount, direction, attacker)
@@ -547,7 +547,7 @@ function on_game_start()
 	-- voices. Camps and scripted NPC speech still need that initialization.
 	if sound_theme and sound_theme.load_sound then
 		sound_theme.load_sound()
-		printf("[NetAnomaly] server NPC sound themes loaded")
+		printf("[Lost Zone] server NPC sound themes loaded")
 	end
 	-- SMR reads its options through MCM; log what the server actually sees
 	-- (a civil war setting would turn every stalker against its own squad).
@@ -557,21 +557,21 @@ function on_game_start()
 			tostring(smr_stalkers_mcm and smr_stalkers_mcm.get_config("civil_war")),
 			tostring(ui_mcm ~= nil))
 	end)
-	printf("[NetAnomaly] server SMR options: %s", tostring(res))
+	printf("[Lost Zone] server SMR options: %s", tostring(res))
 	install_hide_hud()
 	install_trade_profiles()
 	install_player_tasks()
 	if death_manager and death_manager.init_drop_settings then
 		local ok, err = pcall(death_manager.init_drop_settings)
-		if not ok then printf("[NetAnomaly] death_manager init error: %s", tostring(err)) end
+		if not ok then printf("[Lost Zone] death_manager init error: %s", tostring(err)) end
 	end
 	install_npc_diagnostic()
 	if AddUniqueCall and ProcessEventQueue then
 		AddUniqueCall(server_event_queue)
 		AddUniqueCall(server_world_loop)
-		printf("[NetAnomaly] server time event queue installed")
+		printf("[Lost Zone] server time event queue installed")
 	end
-	-- GAMMA's NPC vision hook reads db.actor (torch, flashlight) for every
+	-- base-game's NPC vision hook reads db.actor (torch, flashlight) for every
 	-- observed object. Serve it with the observed player as db.actor, and use
 	-- the engine's own formula for NPC-to-NPC visibility.
 	local vmm = visual_memory_manager

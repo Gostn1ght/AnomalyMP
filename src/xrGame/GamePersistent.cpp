@@ -1116,3 +1116,9 @@ void CGamePersistent::OnAssetsChanged()
 	IGame_Persistent::OnAssetsChanged();
 	CStringTable().rescan();
 }
+
+// Console/editor access is granted only by a successful server authentication.
+bool CGamePersistent::CanUsePlayerConsole() const
+{
+    return g_dedicated_server || netcoop::client_admin_authorized();
+}

@@ -407,7 +407,7 @@ public:
 		strlwr(op_server);
         if (strstr(Core.Params, "-netcoop") && strstr(op_server, "/load"))
         {
-            Msg("! [GAMMA NetAnomaly] Starting from a single-player save is disabled");
+            Msg("! [Lost Zone] Starting from a single-player save is disabled");
             return;
         }
 		protect_Name_strlwr(op_client);

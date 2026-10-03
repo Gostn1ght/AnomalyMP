@@ -478,21 +478,21 @@ void game_sv_Single::netcoop_spawn_actor(ClientID id_who)
 	CSE_ALifeCreatureActor* host = netcoop_host_actor();
 	if (!host)
 	{
-		Msg("! [NetAnomaly] no host actor on server, cannot spawn co-op actor for 0x%08x", id_who.value());
+		Msg("! [Lost Zone] no host actor on server, cannot spawn co-op actor for 0x%08x", id_who.value());
 		return;
 	}
 
 	CSE_Abstract* E = spawn_begin("actor");
 	if (!E)
 	{
-		Msg("! [NetAnomaly] cannot create entity from section [actor]");
+		Msg("! [Lost Zone] cannot create entity from section [actor]");
 		return;
 	}
 
 	CSE_ALifeCreatureActor* A = smart_cast<CSE_ALifeCreatureActor*>(E);
 	if (!A)
 	{
-		Msg("! [NetAnomaly] section [actor] is not an actor entity");
+		Msg("! [Lost Zone] section [actor] is not an actor entity");
 		F_entity_Destroy(E);
 		return;
 	}
@@ -557,7 +557,7 @@ void game_sv_Single::netcoop_spawn_actor(ClientID id_who)
 
 	netcoop::server_character_spawn_items(CL);
 
-	Msg("[NetAnomaly] co-op actor '%s' spawned for client 0x%08x eid %u at (%3.2f, %3.2f, %3.2f)",
+	Msg("[Lost Zone] co-op actor '%s' spawned for client 0x%08x eid %u at (%3.2f, %3.2f, %3.2f)",
 		nick, id_who.value(), CL->owner ? CL->owner->ID : u16(0xffff),
 		pos.x, pos.y, pos.z);
 
@@ -587,10 +587,10 @@ void game_sv_Single::OnPlayerConnectFinished(ClientID id_who)
 
 	if (CL->owner)
 	{
-		Msg("[NetAnomaly] client 0x%08x already owns entity %u", id_who.value(), CL->owner->ID);
+		Msg("[Lost Zone] client 0x%08x already owns entity %u", id_who.value(), CL->owner->ID);
 		return;
 	}
 
-	Msg("[NetAnomaly] spawning co-op actor for client 0x%08x pid %u", id_who.value(), CL->process_id);
+	Msg("[Lost Zone] spawning co-op actor for client 0x%08x pid %u", id_who.value(), CL->process_id);
 	netcoop_spawn_actor(id_who);
 }

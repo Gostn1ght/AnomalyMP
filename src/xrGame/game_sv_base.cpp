@@ -824,7 +824,7 @@ void game_sv_GameState::OnEvent(NET_Packet& tNetPacket, u16 type, u32 time, Clie
 				break; // re-queued when the login check finishes
 			if (netcoop::server_requires_login(m_server, CL))
 			{
-				Msg("! [NetAnomaly] client 0x%08x did not log in, disconnecting", sender.value());
+				Msg("! [Lost Zone] client 0x%08x did not log in, disconnecting", sender.value());
 				m_server->DisconnectClient(CL, "@Login required: use the multiplayer login screen");
 				break;
 			}

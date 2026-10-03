@@ -1280,7 +1280,7 @@ void CWeapon::OnEvent(NET_Packet& P, u16 type)
 					count = 0;
 				}
 				if (++count <= 10)
-					Msg("[NetAnomaly][wpn] %s %s %s: event state %u sub %u, now state %u, ammo %u, working %d, valid %d, player copy %d, local %d",
+					Msg("[Lost Zone][wpn] %s %s %s: event state %u sub %u, now state %u, ammo %u, working %d, valid %d, player copy %d, local %d",
 					    OnServer() ? "server" : "client", H_Parent()->cName().c_str(), cNameSect().c_str(),
 					    u32(state), u32(m_sub_state), GetState(), u32(AmmoElapsed), IsWorking() ? 1 : 0, IsValid() ? 1 : 0,
 					    netcoop::server_player_copy(H_Parent()) ? 1 : 0, H_Parent()->Local() ? 1 : 0);

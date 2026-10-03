@@ -1,29 +1,143 @@
 <?xml version="1.0" encoding="windows-1251"?>
 <w>
-<panel x="0" y="0" width="1024" height="768" stretch="1"><auto_static x="20" y="22" width="233" height="117" stretch="1"><texture r="14" g="18" b="14" a="208">ui\netcoop_menu_solid</texture></auto_static><auto_static x="820" y="148" width="184" height="405" stretch="1"><texture r="14" g="18" b="14" a="228">ui\netcoop_menu_solid</texture></auto_static><auto_static x="322" y="690" width="380" height="50" stretch="1"><texture r="14" g="18" b="14" a="196">ui\netcoop_menu_solid</texture></auto_static></panel>
-<title x="36" y="38" width="207" height="50"><text r="215" g="212" b="195" font="graffiti32" align="l" vert_align="c" /></title>
-<account x="36" y="98" width="201" height="25"><text r="215" g="212" b="195" font="letterica16" align="l" vert_align="c" /></account>
-<slots_title x="832" y="156" width="160" height="25"><text r="215" g="212" b="195" font="letterica18" align="l" vert_align="c" /></slots_title>
-<name x="326" y="693" width="372" height="25"><text r="215" g="212" b="195" font="graffiti19" align="c" vert_align="c" /></name>
-<info x="326" y="718" width="372" height="22"><text r="215" g="212" b="195" font="letterica16" align="c" vert_align="c" /></info>
-<hint x="270" y="744" width="734" height="22"><text r="215" g="212" b="195" font="letterica16" align="c" vert_align="c" /></hint>
-<previous x="280" y="369" width="44" height="54"><text r="215" g="210" b="186" align="c" vert_align="c" font="graffiti32"/><texture>ui_button_ordinary</texture></previous>
-<next x="700" y="369" width="44" height="54"><text r="215" g="210" b="186" align="c" vert_align="c" font="graffiti32"/><texture>ui_button_ordinary</texture></next>
-<enter x="320" y="295" width="136" height="34"><text r="215" g="210" b="186" align="c" vert_align="c" font="letterica18"/><texture>ui_button_ordinary</texture></enter>
-<settings x="670" y="465" width="136" height="34"><text r="215" g="210" b="186" align="c" vert_align="c" font="letterica16"/><texture>ui_button_ordinary</texture></settings>
-<poses x="36" y="664" width="201" height="30"><text r="215" g="210" b="186" align="c" vert_align="c" font="letterica16"/><texture>ui_button_ordinary</texture></poses>
-<back x="36" y="706" width="201" height="32"><text r="215" g="210" b="186" align="c" vert_align="c" font="letterica16"/><texture>ui_button_ordinary</texture></back>
-<inventory x="240" y="580" width="136" height="34"><text r="215" g="210" b="186" align="c" vert_align="c" font="letterica16"/><texture>ui_button_ordinary</texture></inventory>
-<slot1 x="832" y="190" width="160" height="52"><text r="215" g="210" b="186" align="c" vert_align="c" font="letterica16"/><texture>ui_button_ordinary</texture></slot1>
-<slot2 x="832" y="254" width="160" height="52"><text r="215" g="210" b="186" align="c" vert_align="c" font="letterica16"/><texture>ui_button_ordinary</texture></slot2>
-<slot3 x="832" y="318" width="160" height="52"><text r="215" g="210" b="186" align="c" vert_align="c" font="letterica16"/><texture>ui_button_ordinary</texture></slot3>
-<slot4 x="832" y="382" width="160" height="52"><text r="215" g="210" b="186" align="c" vert_align="c" font="letterica16"/><texture>ui_button_ordinary</texture></slot4>
-<slot5 x="832" y="446" width="160" height="52"><text r="215" g="210" b="186" align="c" vert_align="c" font="letterica16"/><texture>ui_button_ordinary</texture></slot5>
-<poses_panel x="20" y="266" width="233" height="319" stretch="1"><texture r="14" g="18" b="14" a="250">ui\netcoop_menu_solid</texture></poses_panel>
-<poses_scroll x="8" y="8" width="225" height="303" always_show_scroll="0" vert_interval="2"/>
-<pose_button x="0" y="0" width="206" height="25"><text r="215" g="210" b="186" align="c" vert_align="c" font="letterica16"/><texture>ui_button_ordinary</texture></pose_button>
-<inventory_panel x="772" y="112" width="232" height="500" stretch="1"><texture r="14" g="18" b="14" a="250">ui\netcoop_menu_solid</texture></inventory_panel>
-<inventory_scroll x="0" y="8" width="232" height="482" always_show_scroll="0" vert_interval="3"/>
-<status x="36" y="304" width="201" height="115"><text font="letterica16" r="225" g="202" b="144" complex_mode="1"/></status><server x="36" y="267" width="201" height="30"><text font="letterica16" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></server><server_panel x="572" y="184" width="420" height="206" stretch="1"><texture r="14" g="18" b="14" a="252">ui\netcoop_menu_solid</texture></server_panel><server_edit x="18" y="26" width="384" height="34" max_symb_count="128"><text x="8" font="letterica16" vert_align="c"/><texture>ui_inGame2_edit_box_2</texture></server_edit><server_save x="18" y="78" width="384" height="32"><text font="letterica16" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></server_save><server_connect x="18" y="136" width="384" height="36"><text font="letterica18" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></server_connect>
-<room_back x="36" y="706" width="201" height="32"><text font="letterica16" align="c" vert_align="c"/><texture>ui_button_ordinary</texture></room_back>
+  <panel x="0" y="0" width="1024" height="768" stretch="1">
+    <texture x="0" y="0" width="1672" height="941">ui\lost_zone_background</texture>
+    <auto_static x="416" y="148" width="560" height="552" stretch="1">
+      <texture r="13" g="15" b="16" a="225">ui\netcoop_menu_solid</texture>
+    </auto_static>
+  </panel>
+  <title x="64" y="80" width="290" height="56">
+    <text r="221" g="204" b="177" font="graffiti32" align="l" vert_align="c" complex_mode="1" />
+  </title>
+  <account x="66" y="145" width="276" height="34">
+    <text r="221" g="204" b="177" font="letterica16" align="l" vert_align="c" complex_mode="1" />
+  </account>
+  <slots_title x="434" y="478" width="490" height="26">
+    <text r="221" g="204" b="177" font="letterica18" align="l" vert_align="c" complex_mode="1" />
+  </slots_title>
+  <name x="670" y="177" width="282" height="36">
+    <text r="221" g="204" b="177" font="letterica18" align="l" vert_align="c" complex_mode="1" />
+  </name>
+  <info x="670" y="224" width="282" height="44">
+    <text r="221" g="204" b="177" font="letterica16" align="l" vert_align="c" complex_mode="1" />
+  </info>
+  <description x="670" y="292" width="280" height="172">
+    <text r="221" g="204" b="177" font="letterica16" align="l" vert_align="c" complex_mode="1" />
+  </description>
+  <status x="64" y="560" width="266" height="112">
+    <text r="221" g="204" b="177" font="letterica16" align="l" vert_align="c" complex_mode="1" />
+  </status>
+  <hint x="64" y="718" width="894" height="30">
+    <text r="221" g="204" b="177" font="letterica16" align="l" vert_align="c" complex_mode="1" />
+  </hint>
+  <badge x="434" y="168" width="212" height="283" stretch="1">
+    <texture x="0" y="0" width="1086" height="1448">ui\lost_zone_portrait</texture>
+  </badge>
+  <enter x="64" y="294" width="246" height="34">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </enter>
+  <inventory x="64" y="342" width="246" height="34">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </inventory>
+  <server x="64" y="390" width="246" height="34">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </server>
+  <settings x="64" y="438" width="246" height="34">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </settings>
+  <back x="64" y="486" width="246" height="34">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </back>
+  <previous x="434" y="112" width="36" height="26">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </previous>
+  <next x="940" y="112" width="36" height="26">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </next>
+  <slot1 x="434" y="514" width="246" height="30">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </slot1>
+  <slot2 x="698" y="514" width="246" height="30">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </slot2>
+  <slot3 x="434" y="550" width="246" height="30">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </slot3>
+  <slot4 x="698" y="550" width="246" height="30">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </slot4>
+  <slot5 x="434" y="586" width="246" height="30">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </slot5>
+  <slot6 x="698" y="586" width="246" height="30">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </slot6>
+  <slot7 x="434" y="622" width="246" height="30">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </slot7>
+  <slot8 x="698" y="622" width="246" height="30">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </slot8>
+  <slot9 x="434" y="658" width="246" height="30">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </slot9>
+  <slot10 x="698" y="658" width="246" height="30">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </slot10>
+  <poses_panel x="0" y="0" width="1" height="1" stretch="1">
+    <texture r="15" g="17" b="18" a="0">ui\netcoop_menu_solid</texture>
+  </poses_panel>
+  <inventory_panel x="320" y="114" width="374" height="564" stretch="1">
+    <texture r="15" g="17" b="18" a="250">ui\netcoop_menu_solid</texture>
+    <auto_static x="18" y="12" width="328" height="32">
+      <text r="221" g="204" b="177" font="letterica18" align="l" vert_align="c" complex_mode="1">Снаряжение</text>
+    </auto_static>
+  </inventory_panel>
+  <inventory_scroll x="16" y="58" width="342" height="456" always_show_scroll="1" vert_interval="9" />
+  <server_panel x="318" y="248" width="376" height="286" stretch="1">
+    <texture r="15" g="17" b="18" a="251">ui\netcoop_menu_solid</texture>
+    <auto_static x="20" y="14" width="336" height="28">
+      <text r="221" g="204" b="177" font="letterica18" align="l" vert_align="c" complex_mode="1">Сервер</text>
+    </auto_static>
+    <auto_static x="20" y="47" width="336" height="26">
+      <text r="221" g="204" b="177" font="letterica16" align="l" vert_align="c" complex_mode="1">Адрес и порт</text>
+    </auto_static>
+  </server_panel>
+  <server_edit x="20" y="79" width="336" height="38" max_symb_count="128">
+    <text x="8" r="230" g="228" b="214" font="letterica16" vert_align="c" />
+    <texture>ui_inGame2_edit_box_2</texture>
+  </server_edit>
+  <server_save x="20" y="137" width="155" height="38">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </server_save>
+  <server_connect x="187" y="137" width="169" height="38">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </server_connect>
+  <room_back x="426" y="636" width="170" height="34">
+    <text r="221" g="204" b="177" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+    <texture>ui_button_ordinary</texture>
+  </room_back>
+  <server_check x="20" y="187" width="336" height="38">
+    <text r="221" g="204" b="177" align="c" vert_align="c" font="letterica16" />
+    <texture>ui_button_ordinary</texture>
+  </server_check>
 </w>

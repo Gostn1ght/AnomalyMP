@@ -25,7 +25,7 @@ void xrServer::OnProcessClientMapData(NET_Packet& P, ClientID const& clientID)
 	if (strstr(Core.Params, "-netcoop")) //netcoop: host runs a single-player level, skip map/crc validation
 	{
 		responseP.w_u8(static_cast<u8>(SuccessSync));
-		Msg("[NetAnomaly] map sync forced OK for client 0x%08x", clientID);
+		Msg("[Lost Zone] map sync forced OK for client 0x%08x", clientID);
 		SendTo(clientID, responseP, net_flags(TRUE, TRUE));
 		return;
 	}

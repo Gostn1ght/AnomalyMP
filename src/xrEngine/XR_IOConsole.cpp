@@ -589,8 +589,46 @@ void CConsole::DrawRect(Frect const& r, u32 color)
 	UIRender->PushPoint(r.x1, r.y2, 0.0f, color, 0.0f, 1.0f);
 }
 
+// Keep engine/menu settings functional while denying every player command
+// entry point: keyboard console, console binds, cfg files, Lua and deferred calls.
+static bool player_console_allowed()
+{
+    return g_dedicated_server ||
+        (g_pGamePersistent && g_pGamePersistent->CanUsePlayerConsole());
+}
+static bool player_internal_command(LPCSTR name, LPCSTR args)
+{
+    const char* safe[] = {"quit", "disconnect", "main_menu", "cfg_load", "cfg_save",
+        "default_controls", "unbindall", "bind", "bind_sec", "unbind", "unbind_sec",
+        "bind_console", "unbind_console", "renderer", "texture_lod", "mouse_sens",
+        "mouse_sens_scale", "mouse_invert", "input_exclusive", "g_language",
+        "g_always_run", "g_autopickup", "g_backrun", "g_crouch_toggle", "g_walk_toggle",
+        "g_sprint_toggle", "g_aim_toggle", "hud_fov", "hud_fov_aim", "fov", "cam_inert",
+        "_preset", "discord_status", "discord_update_rate", "g_dynamic_music",
+        "g_freelook_toggle", "g_lookout_toggle", "g_simple_pda", "g_3d_pda",
+        "cl_dynamiccrosshair", "wpn_aim_toggle", "show_actor_body",
+        "smooth_ads_transition", "pda_show_map_labels", "pda_map_zoom_in_to_mouse",
+        "pda_map_zoom_out_to_mouse", "use_separate_ubgl_keybind",
+        "use_english_text_for_missing_translations", "viewport_near", "vignette_control"};
+    for (const char* item : safe) if (!xr_strcmp(name, item)) return true;
+    if (!xr_strcmp(name, "start"))
+    {
+        if (_strnicmp(args, "client(", 7)) return false;
+        for (LPCSTR c = args; *c; ++c)
+            if (!_strnicmp(c, "server(", 7)) return false;
+        return true;
+    }
+    // Local rendering/sound controls have no authority over gameplay.
+    const char* prefixes[] = {"r1_", "r2_", "r3_", "r4_", "r__", "rs_", "vid_", "snd_", "hud_",
+        "ssfx_", "shader_param_", "scope_", "mouse_", "g_crosshair_", "first_person_death"};
+    for (const char* prefix : prefixes)
+        if (!strncmp(name, prefix, strlen(prefix))) return !strstr(name, "wireframe");
+    return false;
+}
+
 void CConsole::ExecuteCommand(LPCSTR cmd_str, bool record_cmd)
 {
+	if (!cmd_str || (record_cmd && !player_console_allowed())) return;
 	u32 str_size = xr_strlen(cmd_str);
 	PSTR edt = (PSTR)_alloca((str_size + 1) * sizeof(char));
 	PSTR first = (PSTR)_alloca((str_size + 1) * sizeof(char));
@@ -622,6 +660,8 @@ void CConsole::ExecuteCommand(LPCSTR cmd_str, bool record_cmd)
 		}
 	}
 	text_editor::split_cmd(first, last, edt);
+	if (!player_console_allowed() && !player_internal_command(first, last))
+	{ Msg("! [Lost Zone] command requires an administrator: %s", first); return; }
 
 	// search
 	vecCMD_IT it = Commands.find(first);
@@ -674,6 +714,7 @@ void CConsole::ExecuteCommand(LPCSTR cmd_str, bool record_cmd)
 
 void CConsole::Show()
 {
+	if (!player_console_allowed()) return;
 	//SECUROM_MARKER_HIGH_SECURITY_ON(11)
 
 	if (bVisible)

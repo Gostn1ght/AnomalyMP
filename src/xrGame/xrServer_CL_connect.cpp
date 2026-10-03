@@ -101,13 +101,13 @@ void xrServer::OnCL_Connected(IClient* _CL)
 	xrClientData* CL = (xrClientData*)_CL;
 	if (!CL->ps)
 	{
-		Msg("[NetAnomaly] waiting for player state before connection data for 0x%08x", CL->ID.value());
+		Msg("[Lost Zone] waiting for player state before connection data for 0x%08x", CL->ID.value());
 		return;
 	}
 	CL->net_Accepted = TRUE;
 	if (strstr(Core.Params, "-netcoop"))
 	{
-		Msg("[NetAnomaly] OnCL_Connected 0x%08x pid %u ps=%s", CL->ID.value(), CL->process_id, CL->ps ? "yes" : "no");
+		Msg("[Lost Zone] OnCL_Connected 0x%08x pid %u ps=%s", CL->ID.value(), CL->process_id, CL->ps ? "yes" : "no");
 		FlushLog();
 	}
 	/*if (Level().IsDemoPlay())
@@ -123,7 +123,7 @@ void xrServer::OnCL_Connected(IClient* _CL)
 	join_timer.Start();
 	SendConnectionData(CL);
 	if (strstr(Core.Params, "-netcoop"))
-		Msg("[NetAnomaly] connection data for 0x%08x: %u of %u objects in %u ms", CL->ID.value(),
+		Msg("[Lost Zone] connection data for 0x%08x: %u of %u objects in %u ms", CL->ID.value(),
 		    u32(conn_spawned_ids.size()), u32(entities.size()), join_timer.GetElapsed_ms());
 
 	VERIFY2(CL->ps, "Player state not created");
@@ -155,7 +155,7 @@ void xrServer::SendConnectResult(IClient* CL, u8 res, u8 res1, char* ResultStr)
 
 	if (strstr(Core.Params, "-netcoop"))
 	{
-		Msg("[NetAnomaly] connect result -> 0x%08x res=%d res1=%d [%s]", CL->ID.value(), int(res), int(res1), ResultStr);
+		Msg("[Lost Zone] connect result -> 0x%08x res=%d res1=%d [%s]", CL->ID.value(), int(res), int(res1), ResultStr);
 		FlushLog();
 	}
 
@@ -227,7 +227,7 @@ bool xrServer::NeedToCheckClient_BuildVersion(IClient* CL)
 	//"different versions". Skip the challenge for out-of-process clients.
 	if (strstr(Core.Params, "-netcoop") && CL->process_id != GetCurrentProcessId())
 	{
-		Msg("[NetAnomaly] auth challenge skipped for client 0x%08x (pid %u)", CL->ID.value(), CL->process_id);
+		Msg("[Lost Zone] auth challenge skipped for client 0x%08x (pid %u)", CL->ID.value(), CL->process_id);
 		FlushLog();
 		return false;
 	}

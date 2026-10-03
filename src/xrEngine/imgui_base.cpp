@@ -256,6 +256,8 @@ namespace xr_imgui
 
     void ide::Show(bool bShow)
     {
+        if (bShow && !g_dedicated_server &&
+            (!g_pGamePersistent || !g_pGamePersistent->CanUsePlayerConsole())) return;
         if (m_shown == bShow) return;
 
         m_shown = bShow;

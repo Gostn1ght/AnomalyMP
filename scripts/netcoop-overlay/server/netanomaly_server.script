@@ -1,4 +1,4 @@
--- NetAnomaly: server-side player/admin commands.
+-- Lost Zone: server-side player/admin commands.
 --
 -- Engine entry point (xrServer.cpp M_NETANOMALY_CMD, console "sv_cmd"):
 --   on_client_command(cid, name, entity_id, text, role) -> reply string
@@ -91,7 +91,7 @@ function on_client_command(cid, name, entity_id, text, role)
 	-- Fold ASCII command names without changing bytes inside UTF-8 aliases.
 	cmd = string.gsub(cmd or "help", "[A-Z]", string.lower)
 	args = args or ""
-	printf("[NetAnomaly] command '%s' from %s (%s)", cmd, tostring(name), tostring(role))
+	printf("[Lost Zone] command '%s' from %s (%s)", cmd, tostring(name), tostring(role))
 
 	if cmd == "help" or cmd == "?" then
 		return admin and HELP_ADMIN or HELP_PLAYER

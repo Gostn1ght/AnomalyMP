@@ -67,6 +67,7 @@ public:
 
 	virtual void Start(LPCSTR op);
 	virtual void Disconnect();
+	virtual bool CanUsePlayerConsole() const override;
 
 	virtual void OnAppActivate();
 	virtual void OnAppDeactivate();

@@ -47,7 +47,7 @@ static bool character_name_valid(LPCSTR name)
 
 bool script_character(int slot, LPCSTR name, LPCSTR faction, int economy, LPCSTR loadout)
 {
-	if (slot < 0 || slot > 5 || !name || !faction || !loadout || xr_strlen(loadout) > 4096) return false;
+	if (slot < 0 || slot > 10 || !name || !faction || !loadout || xr_strlen(loadout) > 4096) return false;
 	s_client_character_slot = u8(slot);
 	s_client_character_name = name;
 	s_client_character_faction = faction;
@@ -165,7 +165,7 @@ static Character* character_load(LPCSTR account, u8 slot)
 	fclose(f);
 	if (!ok || !character_name_valid(character.name.c_str()))
 	{
-		Msg("! [NetAnomaly] cannot read character slot %u for %s", slot, account);
+		Msg("! [Lost Zone] cannot read character slot %u for %s", slot, account);
 		return nullptr;
 	}
 	s_characters[key] = std::move(character);
@@ -210,7 +210,8 @@ static bool character_validate_loadout(LPCSTR faction, u8 economy, LPCSTR loadou
 
 static bool character_select(xrClientData* CL, u8 slot, LPCSTR name, LPCSTR faction, u8 economy, LPCSTR loadout)
 {
-	if (slot < 1 || slot > 5) return false;
+	// Enforce the allowance from the authenticated server account, never the UI or a cached role.
+	if (!CL || slot < 1 || slot > (CL->netcoop_role == role_admin ? 10 : 1)) return false;
 	Character* character = character_load(CL->netcoop_login.c_str(), slot);
 	if (!character)
 	{
@@ -267,7 +268,7 @@ static void drafts_load()
 bool script_save_draft(int slot, LPCSTR name, LPCSTR description, LPCSTR history, LPCSTR faction, int economy, LPCSTR loadout)
 {
     drafts_load();
-    if (s_drafts_owner.empty() || slot < 1 || slot > 5 || !character_name_valid(name) || !description || !history ||
+    if (s_drafts_owner.empty() || slot < 1 || slot > 10 || !character_name_valid(name) || !description || !history ||
         xr_strlen(description) > 512 || xr_strlen(history) > 1536 || !faction || !loadout ||
         !character_validate_loadout(faction, u8(economy), loadout)) return false;
     const auto key = std::to_string(slot);
@@ -283,7 +284,7 @@ LPCSTR script_draft(int slot, LPCSTR field)
     static std::string result;
     result.clear(); drafts_load();
     const auto key = std::to_string(slot);
-    if (field && slot >= 1 && slot <= 5 && s_drafts.contains(key) && s_drafts[key].is_object())
+    if (field && slot >= 1 && slot <= 10 && s_drafts.contains(key) && s_drafts[key].is_object())
         result = cloud_convert(cloud_string(s_drafts[key], field), CP_UTF8, 1251);
     return result.c_str();
 }
@@ -392,7 +393,7 @@ void server_character_spawn_items(xrClientData* CL)
         }
         character->initialized = true;
 	}
-	Msg("[NetAnomaly] character '%s' slot %u loaded for %s", character->name.c_str(), character->slot, character->account.c_str());
+	Msg("[Lost Zone] character '%s' slot %u loaded for %s", character->name.c_str(), character->slot, character->account.c_str());
 }
 
 static void character_capture_items(xrServer* server, Character& character, CSE_Abstract* parent, u16 parent_index, u32 depth)
@@ -448,7 +449,7 @@ void server_character_save_actor(u16 actor_id)
 	actor->Spawn_Write(character.actor, TRUE);
 	entity->set_health(health);
 	character.initialized = true;
-	if (!character_save(character)) Msg("! [NetAnomaly] character save failed for %s slot %u", character.account.c_str(), character.slot);
+	if (!character_save(character)) Msg("! [Lost Zone] character save failed for %s slot %u", character.account.c_str(), character.slot);
 }
 
 static void characters_update(xrServer* server)

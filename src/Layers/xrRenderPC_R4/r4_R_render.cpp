@@ -74,7 +74,7 @@ static void menu_gpu_begin()
                 s_menu_gpu_total+=ms; s_menu_gpu_max=_max(s_menu_gpu_max,ms); ++s_menu_gpu_count;
                 if(Device.dwTimeContinual-s_menu_gpu_report>=10000)
                 {
-                    Msg("[NetAnomaly] menu GPU: avg %.2f ms, max %.2f ms, %u samples (1024 shadow, 20 Hz)",
+                    Msg("[Lost Zone] menu GPU: avg %.2f ms, max %.2f ms, %u samples (1024 shadow, 20 Hz)",
                         s_menu_gpu_total/s_menu_gpu_count,s_menu_gpu_max,s_menu_gpu_count);
                     s_menu_gpu_total=s_menu_gpu_max=0; s_menu_gpu_count=0; s_menu_gpu_report=Device.dwTimeContinual;
                 }

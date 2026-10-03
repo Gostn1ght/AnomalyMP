@@ -1019,10 +1019,10 @@ static void load_config()
         for(int i=0;i<4;++i) valid=valid && values[i*2].distance_to_sqr(values[i*2+1])>=.01f;
     }
     FS.r_close(file);
-    if(!valid) { Msg("! [NetAnomaly] invalid room editor cameras; using defaults"); return; }
+    if(!valid) { Msg("! [Lost Zone] invalid room editor cameras; using defaults"); return; }
     for(int i=0;i<4;++i) { eyes[i]=values[i*2]; targets[i]=values[i*2+1]; }
     lamp=values[8]; camera=eyes[0]; target=targets[0];
-    Msg("[NetAnomaly] room editor cameras and lamp loaded");
+    Msg("[Lost Zone] room editor cameras and lamp loaded");
 }
 static void update()
 {

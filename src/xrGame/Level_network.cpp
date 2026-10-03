@@ -389,7 +389,7 @@ bool CLevel::Connect2Server(const char* options)
 			m_bConnectResult = false;
 			OnConnectRejected();
 			Disconnect();
-			Msg("! [NetAnomaly] connection unavailable; returning to menu");
+			Msg("! [Lost Zone] connection unavailable; returning to menu");
 			return FALSE;
 		}
 		//-----------------------------------------
@@ -472,7 +472,7 @@ void CLevel::OnConnectResult(NET_Packet* P)
 			Send(auth, net_flags(TRUE, TRUE));
 		}
 		else
-			Msg("! [NetAnomaly] no account: log in from the main menu first");
+			Msg("! [Lost Zone] no account: log in from the main menu first");
 		ClientSendProfileData();
 	}
 	if (!result)

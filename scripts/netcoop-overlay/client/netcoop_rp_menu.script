@@ -1,4 +1,4 @@
--- Fixed RP wheel. Plain Z is reserved before GAMMA's actor callbacks.
+-- Fixed RP wheel. Plain Z is reserved before base-game's actor callbacks.
 local MENU_KEY = DIK_keys.DIK_Z
 local CX, CY, RADIUS = 512, 384, 350
 local ORDER = {

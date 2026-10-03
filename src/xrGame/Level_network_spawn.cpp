@@ -29,10 +29,10 @@ static void netcoop_client_start_game(CLevel* level)
 	if (ai().script_engine().functor(callback, start_game))
 	{
 		start_game();
-		Msg("[NetAnomaly] client game start callback %s done", callback);
+		Msg("[Lost Zone] client game start callback %s done", callback);
 	}
 	else
-		Msg("! [NetAnomaly] client game start callback %s not found", callback);
+		Msg("! [Lost Zone] client game start callback %s not found", callback);
 }
 
 void CLevel::cl_Process_Spawn(NET_Packet& P)

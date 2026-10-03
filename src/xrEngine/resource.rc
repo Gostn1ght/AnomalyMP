@@ -31,7 +31,7 @@ LANGUAGE LANG_RUSSIAN, SUBLANG_DEFAULT
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-IDI_ICON1               ICON                    "stalker_cs.ico"
+IDI_ICON1               ICON                    "lost_zone.ico"
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -62,13 +62,13 @@ BEGIN
     BEGIN
         BLOCK "000004b0"
         BEGIN
-            VALUE "CompanyName", "Anomaly Team"
-            VALUE "FileDescription", "X-Ray Monolith Engine"
+            VALUE "CompanyName", "Lost Zone"
+            VALUE "FileDescription", "Lost Zone Multiplayer"
             VALUE "FileVersion", "1.0.5.6"
-            VALUE "InternalName", "Monolith Engine"
+            VALUE "InternalName", "Lost Zone"
             VALUE "LegalCopyright", "Copyright 2009 GSC Game World, 2018-2024 Anomaly Team"
-            VALUE "OriginalFilename", "Anomaly.exe"
-            VALUE "ProductName", "S.T.A.L.K.E.R.: Anomaly"
+            VALUE "OriginalFilename", "LostZone.exe"
+            VALUE "ProductName", "Lost Zone"
             VALUE "ProductVersion", "1.0.5.6"
         END
     END

@@ -1,5 +1,5 @@
 -- One authority for the emission clock, damage, quests and artefact respawn.
--- Visual/sound effects use GAMMA's manager on the clients.
+-- Visual/sound effects use base-game's manager on the clients.
 local installed = false
 local sequence, started_at, normal_factor = 0, nil, nil
 local next_send, players = 0, {}
@@ -36,7 +36,7 @@ function start()
     level.set_time_factor(10)
     SetEvent("surge", "state", true)
     SendScriptCallback("actor_on_interaction", "anomalies", nil, "emission_start")
-    printf("[NetAnomaly] emission started: " .. sequence)
+    printf("[Lost Zone] emission started: " .. sequence)
     return true
 end
 
@@ -57,7 +57,7 @@ function finish()
     SendScriptCallback("actor_on_interaction", "anomalies", nil, "emission_end")
     netcoop_broadcast("emission", payload())
     next_send = time_global() + 1000
-    printf("[NetAnomaly] emission finished: " .. sequence)
+    printf("[Lost Zone] emission finished: " .. sequence)
     return true
 end
 
