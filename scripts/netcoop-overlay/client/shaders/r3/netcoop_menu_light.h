@@ -1,5 +1,6 @@
 // One warm ceiling lamp. Small PCF shadow filter for the isolated room.
 Texture2D<float> s_menu_shadow;
+float4 menu_room_lamp;
 float menu_visibility(float4 coordinate, float ndotl)
 {
     float3 p=coordinate.xyz/coordinate.w;
@@ -34,7 +35,7 @@ float3 menu_surface_normal(float3 normal, float3 world, float2 uv, out float glo
 }
 float3 menu_light(float3 diffuse, float3 normal, float3 world, float4 shadow, float gloss)
 {
-    float3 delta=float3(-1.4,2.7,-1.6)-world;
+    float3 delta=menu_room_lamp.xyz-world;
     float distance2=dot(delta,delta);
     float ndotl=saturate(dot(normalize(normal),normalize(delta)));
     float visibility=menu_visibility(shadow,ndotl);

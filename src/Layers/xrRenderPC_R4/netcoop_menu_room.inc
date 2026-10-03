@@ -66,6 +66,8 @@ static void draw_menu_room(bool depth=false)
         }
         if (depth && !batch.depth_shader) batch.depth_shader.create("netcoop_room_depth",batch.texture.c_str());
         RCache.set_Shader(depth ? batch.depth_shader : batch.shader);
+        const Fvector lamp=menu_room::lamp_position();
+        RCache.set_c("menu_room_lamp",lamp.x,lamp.y,lamp.z,1.f);
         RCache.set_c("m_menu_shadow",s_menu_shadow_matrix);
         RCache.set_Geometry(s_room_geometry);
         // Keep each dynamic-buffer reservation below 192 KiB.

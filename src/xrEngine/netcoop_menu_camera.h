@@ -9,4 +9,5 @@ ENGINE_API void reset();
 ENGINE_API bool ready();
 ENGINE_API void matrices(Fmatrix& view, Fmatrix& projection);
 ENGINE_API Fvector interaction(int object);
+ENGINE_API Fvector lamp_position();
 }

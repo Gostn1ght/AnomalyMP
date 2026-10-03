@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lost Zone · Редактор комнаты</title><link rel="stylesheet" href="style.css">
+<script type="importmap">{"imports":{"three":"/vendor/three.module.js"}}</script></head>
+<body>
+<header><div class="brand">LOST <b>ZONE</b><span>РЕДАКТОР ЛИЧНОЙ КОМНАТЫ</span></div>
+<div class="top-actions"><button id="undo" title="Ctrl+Z">↶</button><button id="redo" title="Ctrl+Y">↷</button><button id="new">Сбросить комнату</button><button id="open">Открыть проект</button><button id="save">Сохранить проект</button><button id="export" class="accent">Установить в игру ↗</button></div></header>
+<main>
+<aside class="catalog"><div class="section-title">АРХИВ ОБЪЕКТОВ <span id="catalogCount">…</span></div>
+<input id="search" placeholder="Поиск: table, box, door, lamp…" autocomplete="off"><select id="category"><option value="dynamics/decor">Мебель и декор</option></select>
+<div class="preview"><canvas id="preview"></canvas><div id="previewName">Выберите объект в каталоге</div><div id="previewInfo">Оригинальные модели и текстуры игры</div><button id="add" disabled>+ Добавить в комнату</button></div>
+<div class="catalog-head"><span id="resultCount">Чтение ресурсов…</span><label><input type="checkbox" id="thumbs" checked> Превью</label></div>
+<div id="cards"></div><div class="pagination"><button id="prev">←</button><span id="page">1</span><button id="next">→</button></div>
+<div class="muted catalog-note">Модели из игры и архивов. Геометрия локаций — отдельные фрагменты, включая стены и пол.</div></aside>
+<section class="workspace"><div class="viewport-toolbar"><div class="group"><button data-mode="translate" class="active">W · двигать</button><button data-mode="rotate">E · вращать</button><button data-mode="scale">R · масштаб</button></div><div class="group"><label><input type="checkbox" id="snap" checked> Шаг</label><input id="step" type="number" value="0.05" min="0.001" max="5" step="0.01"><label><input type="checkbox" id="grid" checked> Сетка</label></div></div>
+<div id="viewport"><canvas id="scene"></canvas><div class="viewport-label"><span>ЛИЧНАЯ КОМНАТА</span><b id="sceneStats">Загрузка…</b></div><div id="loading">Чтение игровых ресурсов…</div><div class="view-buttons" id="views"></div></div>
+<footer><span>ЛКМ — выбрать · ПКМ — камера · колесо — приближение</span><span>F — объект · Del — удалить · Ctrl+D — копия</span></footer></section>
+<aside class="inspector"><div class="tabs"><button data-tab="objects" class="active">Объекты</button><button data-tab="room">Комната</button><button data-tab="camera">Камеры</button></div>
+<section id="tab-objects"><div class="section-title">В КОМНАТЕ <span id="objectCount">0</span></div><div id="objectList"></div>
+<div class="section-title">ВЫБРАННЫЙ ОБЪЕКТ</div><div id="selectionEmpty" class="muted">Выберите предмет в комнате или списке.</div><div id="properties" hidden>
+<input id="objectName" placeholder="Название"><div id="assetPath" class="muted path"></div>
+<div id="transformFields"></div><div class="small-actions"><button id="floor">На пол ↓</button><button id="duplicate">Копия</button><button id="delete" class="danger">Удалить</button></div>
+<label class="line"><input type="checkbox" id="hidden"> Исключить из комнаты</label></div>
+<div class="section-title">РОЛЬ В МЕНЮ</div><p class="muted">Для карты, КПК и сундука назначьте точку взаимодействия. Кнопки в игре и камеры будут привязаны к этим точкам.</p>
+<div class="role-actions"><button data-role="1">Карта / вход</button><button data-role="2">КПК / настройки</button><button data-role="3">Сундук / инвентарь</button><button id="lampRole">Источник света</button></div></section>
+<section id="tab-room" hidden><div class="section-title">БЕТОННАЯ КОМНАТА</div><button id="clearObjects" class="wide">Убрать все предметы</button><div id="roomFields"></div><label class="line"><input id="ceiling" type="checkbox" checked> Показать потолок в редакторе</label><div class="section-title">МАТЕРИАЛЫ ИЗ ИГРЫ</div><div id="materialFields"></div><input id="textureSearch" placeholder="Поиск текстур: beton, concrete…"><div id="textureResults"></div><p class="muted">Выберите поле материала, затем текстуру в результатах. Передняя стена открыта для камеры.</p></section>
+<section id="tab-camera" hidden><div class="section-title">ИГРОВЫЕ КАМЕРЫ</div><select id="cameraSlot"></select><p class="muted">Поставьте камеру мышью и нажмите «Запомнить вид». Переходы в игре сохраняют плавность.</p><button id="captureCamera" class="wide">Запомнить текущий вид</button><button id="goCamera" class="wide">Перейти к этому виду</button><div id="cameraFields"></div><label class="line"><input id="markers" type="checkbox"> Точки взаимодействия</label><div class="section-title">СВЕТ</div><div id="lampFields"></div></section>
+<div class="inspector-bottom"><span id="saveState">Проект готов к редактированию</span><span>Экспорт обновляется после перезапуска клиента.</span></div></aside></main>
+<div id="toast" role="status"></div><dialog id="dialog"><h2 id="dialogTitle"></h2><p id="dialogText"></p><div><button id="dialogCancel">Отмена</button><button id="dialogOk" class="accent">ОК</button></div></dialog>
+<input type="file" id="file" accept=".json" hidden><script type="module" src="app.js"></script>
+</body></html>

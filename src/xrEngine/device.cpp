@@ -996,16 +996,42 @@ static Fvector from_camera, from_target;
 static int destination = -1;
 static u32 start = 0;
 static bool moving = false;
+static Fvector eyes[] = {Fvector().set(0,1.35f,-4.6f),Fvector().set(-1.5f,1.6f,.9f),
+    Fvector().set(1.4f,1.7f,.1f),Fvector().set(-1.6f,1.f,-.85f)};
+static Fvector targets[] = {Fvector().set(0,1.25f,.5f),Fvector().set(-1.5f,1.65f,2.14f),
+    Fvector().set(1.5f,.95f,1.1f),Fvector().set(-1.65f,.36f,.3f)};
+static Fvector lamp = Fvector().set(-1.4f,2.7f,-1.6f);
+static void load_config()
+{
+    static bool loaded=false;
+    if(loaded) return;
+    loaded=true;
+    IReader* file=FS.r_open("$game_meshes$","netcoop\\personal_room.camera");
+    if(!file) return;
+    bool valid=file->length()==8+27*sizeof(float);
+    if(valid) valid=file->r_u32()==0x4352434e && file->r_u32()==1;
+    Fvector values[9];
+    if(valid)
+    {
+        file->r(values,sizeof(values));
+        for(const auto& value:values)
+            valid=valid && _valid(value) && _abs(value.x)<=1000.f && _abs(value.y)<=1000.f && _abs(value.z)<=1000.f;
+        for(int i=0;i<4;++i) valid=valid && values[i*2].distance_to_sqr(values[i*2+1])>=.01f;
+    }
+    FS.r_close(file);
+    if(!valid) { Msg("! [NetAnomaly] invalid room editor cameras; using defaults"); return; }
+    for(int i=0;i<4;++i) { eyes[i]=values[i*2]; targets[i]=values[i*2+1]; }
+    lamp=values[8]; camera=eyes[0]; target=targets[0];
+    Msg("[NetAnomaly] room editor cameras and lamp loaded");
+}
 static void update()
 {
+    load_config();
     if (!moving) return;
     const float t = _min(1.f, float(Device.dwTimeContinual-start)/650.f);
     const float blend = t*t*(3.f-2.f*t);
-    const Fvector destinations[] = {
-        Fvector().set(-1.5f,1.6f,.9f), Fvector().set(1.4f,1.7f,.10f), Fvector().set(-1.6f,1.f,-.85f)
-    };
-    const Fvector to_camera = destination < 0 ? Fvector().set(0,1.35f,-4.6f) : destinations[destination];
-    const Fvector to_target = destination < 0 ? Fvector().set(0,1.25f,.5f) : interaction(destination);
+    const Fvector to_camera = eyes[destination+1];
+    const Fvector to_target = targets[destination+1];
     camera.lerp(from_camera,to_camera,blend); target.lerp(from_target,to_target,blend);
     if (t >= 1.f) moving = false;
 }
@@ -1017,18 +1043,20 @@ void focus(int object)
 }
 void reset()
 {
-    destination=-1; moving=false; camera.set(0,1.35f,-4.6f); target.set(0,1.25f,.5f);
+    load_config(); destination=-1; moving=false; camera=eyes[0]; target=targets[0];
 }
 bool ready() { update(); return !moving; }
 void matrices(Fmatrix& view,Fmatrix& projection)
 {
-    update(); view.build_camera(camera,target,Fvector().set(0,1,0));
-    projection.build_projection(deg2rad(40.f),float(Device.dwHeight)/float(Device.dwWidth),.08f,24.f);
+    update();
+    Fvector direction; direction.sub(target,camera).normalize_safe();
+    const Fvector up=_abs(direction.y)>.99f ? Fvector().set(0,0,1) : Fvector().set(0,1,0);
+    view.build_camera(camera,target,up);
+    projection.build_projection(deg2rad(40.f),float(Device.dwHeight)/float(Device.dwWidth),.08f,100.f);
 }
 Fvector interaction(int object)
 {
-    if(object==0) return Fvector().set(-1.5f,1.65f,2.14f);
-    if(object==1) return Fvector().set(1.50f,.95f,1.10f);
-    return Fvector().set(-1.65f,.36f,.30f);
+    load_config(); return targets[_max(0,_min(2,object))+1];
 }
+Fvector lamp_position() { load_config(); return lamp; }
 }

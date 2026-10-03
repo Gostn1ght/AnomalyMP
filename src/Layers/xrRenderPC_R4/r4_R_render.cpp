@@ -6,6 +6,7 @@
 
 #include "../xrRender/QueryHelper.h"
 #include "../xrRender/SkeletonX.h"
+#include "../../xrEngine/netcoop_menu_camera.h"
 
 static xr_string menu_material_textures(LPCSTR base)
 {
@@ -123,6 +124,8 @@ static void draw_ui_geometry(IRenderVisual* visual, const Fmatrix& world, bool d
         RCache.set_Shader(shader);
     }
     else RCache.set_Shader(geometry->shader);
+    const Fvector lamp=menu_room::lamp_position();
+    RCache.set_c("menu_room_lamp",lamp.x,lamp.y,lamp.z,1.f);
     RCache.set_c("m_menu_shadow",s_menu_shadow_matrix);
     RCache.set_xform_world(world);
     geometry->Render(1.f);
@@ -151,7 +154,9 @@ void CRender::DrawUIModel(IRenderVisual* visual, const Fmatrix& world, IRenderVi
         const D3D_VIEWPORT shadow_viewport={0,0,1024,1024,0,1}; HW.pContext->RSSetViewports(1,&shadow_viewport);
         HW.pContext->ClearDepthStencilView(s_menu_shadow_depth->pZRT,D3D_CLEAR_DEPTH,1.f,0);
         Fmatrix light_view,light_projection,bias,light_combined;
-        light_view.build_camera(Fvector().set(-1.4f,2.7f,-1.6f),Fvector().set(0,0,.5f),Fvector().set(0,0,1));
+        Fvector light_eye=menu_room::lamp_position();
+        Fvector light_target=Fvector().set(light_eye.x,light_eye.y-1.f,light_eye.z+.01f);
+        light_view.build_camera(light_eye,light_target,Fvector().set(0,0,1));
         light_projection.build_projection(deg2rad(110.f),1.f,.1f,12.f);
         light_combined.mul(light_projection,light_view);
         bias.identity(); bias._11=.5f; bias._22=-.5f; bias._41=.5f; bias._42=.5f;
