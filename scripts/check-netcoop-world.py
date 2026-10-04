@@ -79,6 +79,7 @@ assert a != b and group(g.member, g.squad_a, smart) == a
 g.objects[111] = None
 assert group(g.member, lua.table_from({'id': 113}), smart) == a
 lua.execute('''
+game={translate_string=function(id) return id end};function printf() end
 CUIScriptWnd={}; function class(name) _G[name]={}; return function() end end
 ''')
 lua.execute((runtime/'client/scripts/netcoop_login_ui.script').read_text())
@@ -86,13 +87,14 @@ lua.execute('''
 submitted=nil
 owner={EnterCharacter=function(_,...) submitted={...} end}
 function cell(section,count,shown) return {section=section,CountChilds=function() return count-1 end,IsShown=function() return shown end} end
-menu={netcoop_status={TextControl=function(s) return s end,SetText=function() end},access=true,points_left=0,character_name={GetText=function() return 'Tester' end},
+menu={netcoop_status={TextControl=function(s) return s end,SetText=function(s,v) s.text=v end},access=true,points_left=0,character_name={GetText=function() return 'Tester' end},
  selected_economy='st_econ_2',selected_faction='stalker',netcoop_creation_slot=4,netcoop_creation_owner=owner,
  CC={inventory={cell={cell('bandage',3,true),cell('wpn_pm',1,true),cell('hidden',1,false)}}},HideDialog=function() end,Show=function() end}
 finish_creation(menu)
 assert(submitted[1]==4 and submitted[2]=='Tester' and submitted[4]==2)
 assert(submitted[5]=='bandage,bandage,bandage,wpn_pm')
 submitted=nil; menu.points_left=-1; finish_creation(menu); assert(submitted==nil)
+assert(menu.netcoop_status.text=='st_netcoop_loadout_points_invalid')
 ''')
 assert 'netcoop_login_ui.finish_creation(self)' in (runtime/'client/scripts/ui_mm_faction_select.script').read_text(encoding='cp1251')
 assert 'netcoop_world.regional_squad' in (runtime/'server/scripts/sim_board.script').read_text(encoding='cp1251')
