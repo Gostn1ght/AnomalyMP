@@ -360,4 +360,16 @@
   <string id="st_netcoop_storage_worn">
     <text>надето</text>
   </string>
+	<string id="st_netcoop_obj_door">
+		<text>Войти в Зону</text>
+	</string>
+	<string id="st_netcoop_obj_pda">
+		<text>КПК · сервер</text>
+	</string>
+	<string id="st_netcoop_obj_character">
+		<text>Персонажи</text>
+	</string>
+	<string id="st_netcoop_obj_radio">
+		<text>Радио · настройки</text>
+	</string>
 </string_table>

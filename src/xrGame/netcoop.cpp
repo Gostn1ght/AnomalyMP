@@ -701,6 +701,9 @@ Fvector2 script_preview_point(int object)
 }
 
 void script_preview_focus(int object) { menu_room::focus(object); }
+// Room object under a UI point (1024 x 768), -1 when none; hover(-1) clears.
+int script_preview_pick(float x, float y) { return menu_room::pick(x, y); }
+void script_preview_hover(int object) { menu_room::hover(object); }
 bool script_preview_ready() { return menu_room::ready(); }
 
 void script_preview_draw()
@@ -732,7 +735,7 @@ void script_preview_draw()
                 s_preview_torso_restart=Device.dwTimeGlobal+u32(blend->timeTotal/_max(.1f,blend->speed)*1000.f);
         if(!s_preview_seated) k->UpdateTracks();
     }
-    float heading=PI;
+    float heading=menu_room::seat_heading();
     if (auto k = s_preview_visual->dcast_PKinematics())
     {
         k->CalculateBones(TRUE);

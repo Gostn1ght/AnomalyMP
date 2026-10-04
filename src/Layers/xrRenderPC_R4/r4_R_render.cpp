@@ -126,6 +126,8 @@ static void draw_ui_geometry(IRenderVisual* visual, const Fmatrix& world, bool d
     else RCache.set_Shader(geometry->shader);
     const Fvector lamp=menu_room::lamp_position();
     RCache.set_c("menu_room_lamp",lamp.x,lamp.y,lamp.z,1.f);
+    const Fvector2 hover=menu_room::hover_state();
+    RCache.set_c("menu_room_hover",hover.x,hover.y,0.f,0.f);
     RCache.set_c("m_menu_shadow",s_menu_shadow_matrix);
     RCache.set_xform_world(world);
     geometry->Render(1.f);

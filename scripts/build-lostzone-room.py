@@ -6,8 +6,10 @@ concrete walls and ceiling, dark wood wainscot and floor. Every furnishing is
 dropped onto its support (floor, table top, stool) by its lowest vertex and
 checked against the walls; the support report is printed and stored.
 
-Outputs (same formats as before): personal_room.room (NCRM v2),
-personal_room.camera (NCRC v2: 6 views, lamp, seat), personal_room.json, and
+Outputs: personal_room.room (NCRM v2; vertex colour RGB holds the
+interactive object id 1..5, 255 elsewhere), personal_room.camera (NCRC v3:
+6 views, lamp, seat, seat heading), personal_room.pick (NCRP v1: one box per
+interactive object for cursor picking), personal_room.json, and
 build-logs/lostzone-room.json for scripts/check-room.py.
 
 View indices used by the menu (menu_room::focus / interaction = view + 1):
@@ -74,7 +76,7 @@ def bounds(asset, rot, scale):
     return m, [min(v[k] for v in pts) for k in range(3)], [max(v[k] for v in pts) for k in range(3)]
 
 
-def place(name, asset, x, z, support=0.0, rot=(0, 0, 0), scale=(1, 1, 1), y=None):
+def place(name, asset, x, z, support=0.0, rot=(0, 0, 0), scale=(1, 1, 1), y=None, pick=None):
     """Put the object's lowest vertex on `support` (or at explicit y for wall
     decor); record its world bounds for the support/wall report."""
     m, lo, hi = bounds(asset, rot, scale)
@@ -90,7 +92,7 @@ def place(name, asset, x, z, support=0.0, rot=(0, 0, 0), scale=(1, 1, 1), y=None
                        gap=None if y is not None else round(world_lo[1] - support, 4),
                        lo=[round(v, 3) for v in world_lo], hi=[round(v, 3) for v in world_hi]))
     for p in m['parts']:
-        q = dict(p); q['position'] = []; q['normal'] = []; q['owner'] = name
+        q = dict(p); q['position'] = []; q['normal'] = []; q['owner'] = name; q['pick'] = pick
         for i in range(0, len(p['position']), 3):
             point = rotate([p['position'][i + k] * scale[k] for k in range(3)], rot)
             normal = rotate([p['normal'][i + k] / scale[k] for k in range(3)], rot)
@@ -98,31 +100,34 @@ def place(name, asset, x, z, support=0.0, rot=(0, 0, 0), scale=(1, 1, 1), y=None
             q['position'].extend(point[k] + pos[k] for k in range(3))
             q['normal'].extend(v / length for v in normal)
         parts.append(q)
+    if pick is not None:
+        picks[pick] = (world_lo, world_hi)
     return world_lo, world_hi
 
 
+picks = {}
 HALF_PI = math.pi / 2
-SOFA_X = 1.00
 DOOR_Z = 1.30
-# Sofa against the back wall (right half), table in front of it.
-place('sofa', 'dynamics/efp_props/prop_couch_1.ogf', SOFA_X, 2.45, rot=(0, HALF_PI, 0))
-_, table_hi = place('table', 'dynamics/efp_props/prop_table_2.ogf', SOFA_X, 1.25, rot=(0, HALF_PI, 0))
+SOFA_Z = 1.35
+# Sofa against the right wall, facing the door across the room; table in front.
+_, sofa_hi = place('sofa', 'dynamics/efp_props/prop_couch_1.ogf', X1 - 0.54, SOFA_Z, rot=(0, math.pi, 0))
+_, table_hi = place('table', 'dynamics/efp_props/prop_table_2.ogf', 0.50, SOFA_Z)
 TOP = table_hi[1]
-place('lamp', 'dynamics/el_tehnika/table_lamp_01.ogf', SOFA_X + 0.40, 1.47, TOP, rot=(0, 2.6, 0))
-place('PDA', 'netcoop/dev_pda.ogf', SOFA_X - 0.28, 1.04, TOP, rot=(0, 0.35, 0), scale=(1.6, 1.6, 1.6))
-place('journal', 'dynamics/decor/notes_writing_book.ogf', SOFA_X - 0.05, 1.44, TOP, rot=(0, 0.3, 0), scale=(0.7, 0.7, 0.7))
-place('tin', 'dynamics/devices/dev_conserv/dev_conserv.ogf', SOFA_X + 0.42, 1.02, TOP)
-# Radio set on a low crate against the right wall, facing into the room.
-_, crate_hi = place('radio crate', 'dynamics/box/box_wood_02.ogf', X1 - 0.34, 0.25, rot=(0, HALF_PI, 0))
-place('radio', 'dynamics/decor/radiola.ogf', X1 - 0.30, 0.25, crate_hi[1], rot=(0, HALF_PI, 0))
-# Heavy bunker door on the left wall, across the room from the sofa, facing in.
-place('door', 'dynamics/door/door_trader.ogf', X0 + 0.14, DOOR_Z + 0.705, rot=(0, HALF_PI, 0))
+LAMP = (0.58, 1.80)
+place('lamp', 'dynamics/el_tehnika/table_lamp_01.ogf', LAMP[0], LAMP[1], TOP, rot=(0, 2.6, 0))
+place('PDA', 'netcoop/dev_pda.ogf', 0.36, 0.95, TOP, rot=(0, 0.35, 0), scale=(1.6, 1.6, 1.6), pick=0)
+place('journal', 'dynamics/decor/notes_writing_book.ogf', 0.62, 1.30, TOP, rot=(0, 1.2, 0), scale=(0.7, 0.7, 0.7))
+place('tin', 'dynamics/devices/dev_conserv/dev_conserv.ogf', 0.26, 1.55, TOP)
+# Floor-standing radio set against the back wall, facing the camera.
+place('radio', 'dynamics/el_tehnika/radiola.ogf', 0.00, Z1 - 0.28, pick=1)
+# Heavy bunker door on the left wall, straight across from the sofa.
+place('door', 'dynamics/door/door_trader.ogf', X0 + 0.14, DOOR_Z + 0.705, rot=(0, HALF_PI, 0), pick=4)
 # Decor.
-place('stove', 'dynamics/efp_props/prop_stove2.ogf', X0 + 0.50, Z1 - 0.40, rot=(0, math.pi, 0))
-place('gas cylinder', 'dynamics/decor/gaz_balon.ogf', X0 + 1.15, Z1 - 0.28)
-place('backpack', 'dynamics/equipments/sumka3.ogf', -0.30, 2.62, rot=(0, 0.4, 0), scale=(1.2, 1.2, 1.2))
-place('poster', 'dynamics/decor/poster2.ogf', SOFA_X + 0.25, Z1 - 0.02, rot=(-HALF_PI, 0, 0), scale=(0.55, 0.55, 0.55), y=1.85)
-place('map', 'dynamics/decor/map1.ogf', X1 - 0.02, 2.05, rot=(-HALF_PI, HALF_PI, 0), scale=(0.55, 0.55, 0.55), y=1.85)
+place('stove', 'dynamics/efp_props/prop_stove2.ogf', X0 + 0.50, Z1 - 0.40)
+place('gas cylinder', 'dynamics/decor/gaz_balon.ogf', -1.00, Z1 - 0.28)
+place('backpack', 'dynamics/equipments/sumka3.ogf', 0.90, Z1 - 0.40, rot=(0, 0.4, 0), scale=(1.2, 1.2, 1.2))
+place('poster', 'dynamics/decor/poster2.ogf', 0.00, Z1 - 0.02, rot=(-HALF_PI, 0, 0), scale=(0.55, 0.55, 0.55), y=1.80)
+place('map', 'dynamics/decor/map1.ogf', X1 - 0.02, SOFA_Z, rot=(-HALF_PI, HALF_PI, 0), scale=(0.55, 0.55, 0.55), y=1.85)
 
 # Wall containment: nothing may pass through the shell.
 problems = []
@@ -137,9 +142,11 @@ for r in report:
 batches = collections.defaultdict(bytearray)
 for p in parts:
     a.read('textures/' + p['texture'] + '.dds')
+    # Vertex colour RGB = interactive object id (pick index + 1); 255 = none.
+    ident = p['pick'] + 1 if p.get('pick') is not None else 255
     for i in p['index']:
         batches[p['texture'].replace('/', '\\')].extend(struct.pack('<3f3fI2f', *p['position'][i * 3:i * 3 + 3],
-                                                                    *p['normal'][i * 3:i * 3 + 3], 0xffffff,
+                                                                    *p['normal'][i * 3:i * 3 + 3], ident * 0x010101,
                                                                     *p['uv'][i * 2:i * 2 + 2]))
 triangles = sum(len(v) // 108 for v in batches.values())
 assert triangles < 100000 and len(batches) <= 128
@@ -147,21 +154,33 @@ binary = bytearray(b'NCRM' + struct.pack('<II', 2, len(batches)))
 for texture, vertices in sorted(batches.items()):
     binary.extend(texture.encode('cp1251') + b'\0' + struct.pack('<I', len(vertices) // 36) + vertices)
 
-seat = [SOFA_X - 0.30, 0.61, 2.32]
-lamp = [SOFA_X + 0.36, 0.99, 1.38]
-views = [dict(name='overview', eye=[0.10, 1.62, -2.30], target=[0.20, 0.95, 1.80]),
-         dict(name='pda', eye=[SOFA_X - 0.10, 1.28, 0.40], target=[SOFA_X - 0.28, TOP + 0.02, 1.04]),
-         dict(name='radio', eye=[0.85, 1.35, -0.55], target=[X1 - 0.30, crate_hi[1] + 0.25, 0.25]),
-         dict(name='character', eye=[SOFA_X - 0.45, 1.62, 0.55], target=[SOFA_X - 0.30, 0.95, 2.30]),
-         dict(name='character', eye=[SOFA_X - 0.45, 1.62, 0.55], target=[SOFA_X - 0.30, 0.95, 2.30]),
-         dict(name='door', eye=[-0.10, 1.55, 0.95], target=[X0, 1.30, DOOR_Z + 0.10])]
+# Seated character: pelvis just above the 0.34 m cushion (0.61 left it
+# hovering), on the seat half of the sofa, facing the door (-X).
+SEAT_HEADING = -HALF_PI
+seat = [sofa_hi[0] - 0.62, 0.49, SOFA_Z + 0.20]
+picks[2] = ([seat[0] - 0.70, 0.0, seat[2] - 0.35], [seat[0] + 0.35, 1.45, seat[2] + 0.35])
+lamp = [LAMP[0] - 0.04, TOP + 0.35, LAMP[1] - 0.09]
+views = [dict(name='overview', eye=[0.00, 1.62, -2.30], target=[0.10, 0.95, 1.60]),
+         dict(name='pda', eye=[0.15, 1.30, 0.25], target=[0.36, TOP + 0.02, 0.95]),
+         dict(name='radio', eye=[0.00, 1.35, 1.40], target=[0.00, 0.50, Z1 - 0.28]),
+         dict(name='character', eye=[0.20, 1.45, 1.00], target=[seat[0], 1.00, seat[2]]),
+         dict(name='character', eye=[0.20, 1.45, 1.00], target=[seat[0], 1.00, seat[2]]),
+         dict(name='door', eye=[-0.30, 1.55, 1.00], target=[X0, 1.30, DOOR_Z])]
 out.mkdir(parents=True, exist_ok=True)
 (out / 'personal_room.room').write_bytes(binary)
-values = sum((v['eye'] + v['target'] for v in views), []) + lamp + seat
-(out / 'personal_room.camera').write_bytes(b'NCRC' + struct.pack('<I', 2) + struct.pack('<42f', *values))
+values = sum((v['eye'] + v['target'] for v in views), []) + lamp + seat + [SEAT_HEADING]
+(out / 'personal_room.camera').write_bytes(b'NCRC' + struct.pack('<I', 3) + struct.pack('<43f', *values))
+# Cursor picking boxes, padded so the small PDA is easy to hit; slot 3 empty.
+pick_data = bytearray(b'NCRP' + struct.pack('<II', 1, 5))
+for index in range(5):
+    lo, hi = picks.get(index, ([1, 1, 1], [0, 0, 0]))
+    pad = 0.06 if index == 0 else 0.02
+    pick_data.extend(struct.pack('<6f', *(v - pad for v in lo), *(v + pad for v in hi)) if index in picks
+                     else struct.pack('<6f', 1, 1, 1, 0, 0, 0))
+(out / 'personal_room.pick').write_bytes(pick_data)
 manifest = dict(version=3, source='Lost Zone closed bunker box', room=dict(x=[X0, X1], z=[Z0, Z1], height=H),
                 materials_set=dict(wall=WALL, lower=LOWER, floor=FLOOR, ceiling=CEILING, tile_m=TILE),
-                objects=objects, views=views, lamp=lamp, seat=seat, triangles=triangles, materials=sorted(batches),
+                objects=objects, views=views, lamp=lamp, seat=seat, seat_heading=SEAT_HEADING, picks={str(k): v for k, v in picks.items()}, triangles=triangles, materials=sorted(batches),
                 support=report, problems=problems, source_sha256=provenance)
 (out / 'personal_room.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding='utf-8')
 (root.parent / 'build-logs').mkdir(exist_ok=True)

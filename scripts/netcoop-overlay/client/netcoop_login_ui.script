@@ -42,6 +42,23 @@ local function log_error(element, trace)
 	end
 	pcall(function() get_console():execute("flush") end)
 end
+-- Interactive room objects (menu_room object index -> label and action).
+-- The objects themselves are the buttons: hover highlights, click activates.
+local ROOM_OBJECTS = {
+	[0] = {label = "obj_pda", action = "ShowServer"},
+	[1] = {label = "obj_radio", action = "ShowSettings"},
+	[2] = {label = "obj_character", action = "ShowCharacterView"},
+	[4] = {label = "obj_door", action = "EnterDoor"},
+}
+-- Keyboard order, left to right as seen from the room overview.
+local KEY_ORDER = {4, 0, 2, 1}
+local click_sound
+local function play_click()
+	pcall(function()
+		click_sound = click_sound or sound_object("interface\\inv_button")
+		click_sound:play(nil, 0, sound_object.s2d)
+	end)
+end
 local function guard(element, fn)
 	return function(...)
 		local args = {...}
@@ -154,6 +171,8 @@ function netcoop_login_wnd:OpenRoomView(kind, object)
     self:CloseRoomView()
     self.room_view, self.room_pending = kind, kind
     self.view_index = object
+    self.hovered = -1
+    if netcoop_preview_hover then netcoop_preview_hover(-1) end
     netcoop_preview_focus(object)
     self.room_back:Show(true)
 end
@@ -185,12 +204,63 @@ function netcoop_login_wnd:AskQuit()
 end
 function netcoop_login_wnd:PositionRoomControls()
     if not self.room_buttons then return end
-    for _,entry in ipairs(self.room_buttons) do
-        local point=netcoop_preview_point(entry.object)
-        entry.button:SetWndPos(vector2():set(point.x-58,point.y-14))
-        entry.button:Show(not self.room_view and point.x>65 and point.x<959 and point.y>110 and point.y<650)
+    -- The room objects are the buttons now; the old floating labels stay hidden.
+    for _,entry in ipairs(self.room_buttons) do entry.button:Show(false) end
+end
+-- A translucent label just above the object's point on screen.
+local function place_label(label, object)
+    local text = tr(ROOM_OBJECTS[object].label)
+    local point = netcoop_preview_point(object)
+    local width = math.min(320, 24 + 8.5 * string.len(text))
+    label:TextControl():SetText(text)
+    label:SetWndSize(vector2():set(width, 30))
+    label:SetWndPos(vector2():set(math.max(8, math.min(1016 - width, point.x - width / 2)), math.max(8, math.min(730, point.y - 56))))
+    label:Show(point.x > -1000)
+end
+-- Hovered object: the one under the cursor, or the one chosen with the arrows
+-- until the mouse moves. Nothing is hovered while busy or in a close-up view.
+function netcoop_login_wnd:UpdateHover()
+    local object = -1
+    local active = self.mode == "characters" and not self.room_view and not self:Busy() and self:IsShown()
+    if active and netcoop_preview_pick then
+        local cursor = GetCursorPosition()
+        if self.last_cursor and (math.abs(cursor.x - self.last_cursor.x) > 2 or math.abs(cursor.y - self.last_cursor.y) > 2) then
+            self.key_focus = nil
+        end
+        self.last_cursor = {x = cursor.x, y = cursor.y}
+        object = self.key_focus or netcoop_preview_pick(cursor.x, cursor.y)
+        if not ROOM_OBJECTS[object] then object = -1 end
+    end
+    if object ~= (self.hovered or -1) then
+        self.hovered = object
+        if netcoop_preview_hover then netcoop_preview_hover(object) end
+        if object >= 0 then play_click() end
+    end
+    if self.hover_label then
+        if object >= 0 and not self.show_all then place_label(self.hover_label, object) else self.hover_label:Show(false) end
+        for index, label in pairs(self.tab_labels) do
+            if active and self.show_all then place_label(label, index) else label:Show(false) end
+        end
     end
 end
+-- Arrows move the selection between objects in screen order.
+function netcoop_login_wnd:FocusStep(delta)
+    local current = self.key_focus or self.hovered or -1
+    local position = 0
+    for i, object in ipairs(KEY_ORDER) do if object == current then position = i end end
+    if position == 0 then position = delta > 0 and 0 or #KEY_ORDER + 1 end
+    position = (position - 1 + delta) % #KEY_ORDER + 1
+    self.key_focus = KEY_ORDER[position]
+end
+function netcoop_login_wnd:ActivateObject(object)
+    local entry = ROOM_OBJECTS[object]
+    if not entry or self:Busy() then return end
+    printf("[Lost Zone][menu] object %s", entry.label)
+    self.key_focus = nil
+    self[entry.action](self)
+end
+function netcoop_login_wnd:ShowCharacterView() self:OpenRoomView("character", 2) end
+function netcoop_login_wnd:EnterDoor() self:SelectCharacter(self.slot) end
 function netcoop_login_wnd:SetMsg(text)
 	self.msg:TextControl():SetText(text or "")
     if self.character_msg then self.character_msg:TextControl():SetText(text or "") end
@@ -288,6 +358,7 @@ function netcoop_login_wnd:UpdateMenu()
 
 	if self.settings_open and self:IsShown() then self.settings_open=nil; self:CloseRoomView() end
     if self.mode=="characters" then self:PositionRoomControls() end
+    self:UpdateHover()
     if auth_return and auth_return ~= "pending" then frontend_update(self.owner) end
 end
 
@@ -425,6 +496,11 @@ function netcoop_login_wnd:ShowCharacters()
         self.room_back:TextControl():SetText(tr("back")); self:Register(self.room_back, "room_back")
         self:Bind("room_back", self.CloseRoomView, true)
         self.room_back:Show(false); self.server_panel:Show(false)
+        self.hover_label = xml:InitStatic("hover_label", self); self.hover_label:Show(false)
+        self.tab_labels = {}
+        for object in pairs(ROOM_OBJECTS) do
+            self.tab_labels[object] = xml:InitStatic("hover_label", self); self.tab_labels[object]:Show(false)
+        end
     end
     self:CloseRoomView()
     self.slot = self.slot or 1; self.character_panel:Show(true); self:ChangeSlot(0)
@@ -567,7 +643,26 @@ function netcoop_login_wnd:OnBack()
 end
 
 function netcoop_login_wnd:OnKeyboard(dik, keyboard_action)
+	if keyboard_action == ui_events.WINDOW_KEY_RELEASED and dik == DIK_keys.DIK_TAB then
+		self.show_all = false
+		return true
+	end
 	if keyboard_action == ui_events.WINDOW_KEY_PRESSED then
+		local room = self.mode == "characters" and not self.room_view
+		if room and dik == DIK_keys.DIK_TAB then
+			self.show_all = true
+			return true
+		elseif room and (dik == DIK_keys.DIK_LEFT or dik == DIK_keys.DIK_UP) then
+			self:FocusStep(-1)
+			return true
+		elseif room and (dik == DIK_keys.DIK_RIGHT or dik == DIK_keys.DIK_DOWN) then
+			self:FocusStep(1)
+			return true
+		elseif room and dik == DIK_keys.MOUSE_1 and (self.hovered or -1) >= 0 then
+			printf("[Lost Zone][menu] click object")
+			guard("object click", self.ActivateObject)(self, self.hovered)
+			return true
+		end
 		if dik == DIK_keys.DIK_ESCAPE then
 			printf("[Lost Zone][menu] key Esc")
 			guard("key Esc", self.OnBack)(self)
@@ -577,7 +672,8 @@ function netcoop_login_wnd:OnKeyboard(dik, keyboard_action)
 			printf("[Lost Zone][menu] key Enter")
 			guard("key Enter", function()
 				if self.mode == "characters" then
-					if self.server_panel:IsShown() or not self.room_view then self:SelectCharacter(self.slot) end
+					if self.server_panel:IsShown() then self:SelectCharacter(self.slot)
+					elseif not self.room_view and (self.hovered or -1) >= 0 then self:ActivateObject(self.hovered) end
 				elseif self.mode == "profile" then self:ContinueProfile()
 				elseif cloud_enabled() and self.form_mode == "login" then self:OnLogin()
 				elseif account_state() == 0 then self:OnRegister() else self:OnLogin() end

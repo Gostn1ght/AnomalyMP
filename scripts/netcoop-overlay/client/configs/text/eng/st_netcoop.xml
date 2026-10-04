@@ -360,4 +360,16 @@
   <string id="st_netcoop_storage_worn">
     <text>equipped</text>
   </string>
+	<string id="st_netcoop_obj_door">
+		<text>Enter the Zone</text>
+	</string>
+	<string id="st_netcoop_obj_pda">
+		<text>PDA · server</text>
+	</string>
+	<string id="st_netcoop_obj_character">
+		<text>Characters</text>
+	</string>
+	<string id="st_netcoop_obj_radio">
+		<text>Radio · settings</text>
+	</string>
 </string_table>

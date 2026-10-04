@@ -153,4 +153,8 @@
     <text r="221" g="204" b="177" font="letterica16" align="l" vert_align="c" complex_mode="1" x="65" width="223" />
     <texture>ui_button_ordinary</texture>
   </storage_row>
+  <hover_label x="0" y="0" width="190" height="30" stretch="1">
+    <texture r="14" g="15" b="16" a="215">ui_icons_PDA_tooltips</texture>
+    <text r="216" g="210" b="196" font="letterica16" align="c" vert_align="c" complex_mode="0" />
+  </hover_label>
 </w>

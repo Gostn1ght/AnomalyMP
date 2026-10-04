@@ -7,5 +7,7 @@ float4 main(preview_vertex vertex) : SV_Target
     float3 diffuse=s_base.Sample(smp_base,vertex.uv).rgb;
     float gloss;
     float3 normal=menu_surface_normal(vertex.normal,vertex.world,vertex.uv,gloss);
-    return float4(menu_light(diffuse,normal,vertex.world,vertex.shadow,gloss),1);
+    // The seated character is interactive object 3.
+    float3 lit=menu_highlight(menu_light(diffuse,normal,vertex.world,vertex.shadow,gloss),normal,vertex.world,3);
+    return float4(lit*menu_vignette(vertex.position),1);
 }

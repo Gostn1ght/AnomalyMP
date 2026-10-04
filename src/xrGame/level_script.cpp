@@ -68,7 +68,7 @@
 
 using namespace luabind;
 
-namespace netcoop { bool script_storage_prepare(int op,int slot,int index,int revision); bool script_frontend_auth(LPCSTR options); bool script_preview_weapon(LPCSTR section); Fvector2 script_preview_point(int object); void script_preview_focus(int object); bool script_preview_ready(); bool script_draft_server(LPCSTR address); }
+namespace netcoop { bool script_storage_prepare(int op,int slot,int index,int revision); bool script_frontend_auth(LPCSTR options); bool script_preview_weapon(LPCSTR section); Fvector2 script_preview_point(int object); void script_preview_focus(int object); bool script_preview_ready(); int script_preview_pick(float x, float y); void script_preview_hover(int object); bool script_draft_server(LPCSTR address); }
 namespace netcoop {
 bool script_firebase_request(LPCSTR action, LPCSTR email, LPCSTR password, LPCSTR username);
 int script_firebase_state();
@@ -2769,6 +2769,8 @@ void CLevel::script_register(lua_State* L)
         def("netcoop_preview_point", &netcoop::script_preview_point),
         def("netcoop_preview_focus", &netcoop::script_preview_focus),
         def("netcoop_preview_ready", &netcoop::script_preview_ready),
+        def("netcoop_preview_pick", &netcoop::script_preview_pick),
+        def("netcoop_preview_hover", &netcoop::script_preview_hover),
         def("netcoop_draft_server", &netcoop::script_draft_server),
 		def("netcoop_frontend_auth", &netcoop::script_frontend_auth),
         def("netcoop_storage_prepare", &netcoop::script_storage_prepare),

@@ -1002,6 +1002,29 @@ static Fvector targets[] = {Fvector().set(0,1.25f,.5f),Fvector().set(-1.5f,1.65f
     Fvector().set(1.5f,.95f,1.1f),Fvector().set(-1.65f,.36f,.3f),Fvector().set(-1.55f,.65f,1.15f),Fvector().set(-1.9f,1.f,-1.2f)};
 static Fvector lamp = Fvector().set(-1.4f,2.7f,-1.6f);
 static Fvector seat=Fvector().set(.45f,.61f,2.37f);
+static float seat_yaw=PI;
+static Fbox pick_boxes[5];
+static bool pick_valid[5]={false,false,false,false,false};
+static int hover_target=-1, hover_shown=-1;
+static float hover_strength=0.f;
+static u32 hover_time=0;
+// Cursor picking boxes written by scripts/build-lostzone-room.py.
+static void load_picks()
+{
+    IReader* file=FS.r_open("$game_meshes$","netcoop\\personal_room.pick");
+    if(!file) { Msg("~ [Lost Zone] room has no pick boxes; objects are not clickable"); return; }
+    bool valid=file->length()==12+5*6*sizeof(float) && file->r_u32()==0x5052434e && file->r_u32()==1 && file->r_u32()==5;
+    float values[30];
+    if(valid) file->r(values,sizeof(values));
+    FS.r_close(file);
+    for(int i=0;valid && i<30;++i) valid=_valid(values[i]) && _abs(values[i])<=1000.f;
+    if(!valid) { Msg("! [Lost Zone] invalid room pick boxes; objects are not clickable"); return; }
+    for(int i=0;i<5;++i)
+    {
+        pick_boxes[i].set(values[i*6],values[i*6+1],values[i*6+2],values[i*6+3],values[i*6+4],values[i*6+5]);
+        pick_valid[i]=pick_boxes[i].min.x<=pick_boxes[i].max.x && pick_boxes[i].min.y<=pick_boxes[i].max.y && pick_boxes[i].min.z<=pick_boxes[i].max.z;
+    }
+}
 static void load_config()
 {
     static bool loaded=false;
@@ -1010,23 +1033,29 @@ static void load_config()
     IReader* file=FS.r_open("$game_meshes$","netcoop\\personal_room.camera");
     if(!file) return;
     const u32 bytes=file->length();
-    bool valid=bytes==8+27*sizeof(float) || bytes==8+42*sizeof(float);
+    // v1: 4 views + lamp; v2: 6 views + lamp + seat; v3: v2 + seat heading.
+    bool valid=bytes==8+27*sizeof(float) || bytes==8+42*sizeof(float) || bytes==8+43*sizeof(float);
     u32 version=0;
     if(valid) { valid=file->r_u32()==0x4352434e; version=file->r_u32(); }
-    valid=valid && ((version==1 && bytes==8+27*sizeof(float)) || (version==2 && bytes==8+42*sizeof(float)));
-    const int cameras=version==2 ? 6 : 4;
+    valid=valid && ((version==1 && bytes==8+27*sizeof(float)) || (version==2 && bytes==8+42*sizeof(float)) ||
+        (version==3 && bytes==8+43*sizeof(float)));
+    const int cameras=version>=2 ? 6 : 4;
     Fvector values[14];
+    float heading=PI;
     if(valid)
     {
-        file->r(values,(cameras*2+(version==2 ? 2 : 1))*sizeof(Fvector));
-        for(int i=0;i<cameras*2+(version==2 ? 2 : 1);++i)
+        file->r(values,(cameras*2+(version>=2 ? 2 : 1))*sizeof(Fvector));
+        if(version==3) heading=file->r_float();
+        for(int i=0;i<cameras*2+(version>=2 ? 2 : 1);++i)
             valid=valid && _valid(values[i]) && _abs(values[i].x)<=1000.f && _abs(values[i].y)<=1000.f && _abs(values[i].z)<=1000.f;
         for(int i=0;i<cameras;++i) valid=valid && values[i*2].distance_to_sqr(values[i*2+1])>=.01f;
+        valid=valid && _valid(heading) && _abs(heading)<=10.f;
     }
     FS.r_close(file);
+    load_picks();
     if(!valid) { Msg("! [Lost Zone] invalid room editor cameras; using defaults"); return; }
     for(int i=0;i<cameras;++i) { eyes[i]=values[i*2]; targets[i]=values[i*2+1]; }
-    lamp=values[cameras*2]; if(version==2) seat=values[13]; camera=eyes[0]; target=targets[0];
+    lamp=values[cameras*2]; if(version>=2) seat=values[13]; seat_yaw=heading; camera=eyes[0]; target=targets[0];
     Msg("[Lost Zone] room editor cameras and lamp loaded");
 }
 static void update()
@@ -1065,4 +1094,50 @@ Fvector interaction(int object)
 }
 Fvector lamp_position() { load_config(); return lamp; }
 Fvector seat_position() { load_config(); return seat; }
+float seat_heading() { load_config(); return seat_yaw; }
+int pick(float x, float y)
+{
+    load_config();
+    Fmatrix view, projection;
+    matrices(view,projection);
+    if(_abs(projection._11)<EPS_S || _abs(projection._22)<EPS_S) return -1;
+    // UI space spans the whole screen; NDC -> view ray -> world ray.
+    const float nx=x/512.f-1.f, ny=1.f-y/384.f;
+    Fvector local=Fvector().set(nx/projection._11,ny/projection._22,1.f);
+    Fmatrix inverse; inverse.invert(view);
+    Fvector origin=inverse.c, direction;
+    inverse.transform_dir(direction,local); direction.normalize_safe();
+    int best=-1; float nearest=flt_max;
+    for(int i=0;i<5;++i)
+    {
+        if(!pick_valid[i]) continue;
+        float t0=0.f, t1=flt_max; bool hit=true;
+        for(int axis=0;axis<3 && hit;++axis)
+        {
+            const float o=origin[axis], d=direction[axis];
+            const float lo=pick_boxes[i].min[axis], hi=pick_boxes[i].max[axis];
+            if(_abs(d)<1e-6f) { if(o<lo || o>hi) hit=false; continue; }
+            float a=(lo-o)/d, b=(hi-o)/d;
+            if(a>b) { const float swap=a; a=b; b=swap; }
+            t0=_max(t0,a); t1=_min(t1,b);
+            if(t0>t1) hit=false;
+        }
+        if(hit && t0<nearest) { nearest=t0; best=i; }
+    }
+    return best;
+}
+void hover(int object)
+{
+    hover_target=object>=0 && object<5 ? object : -1;
+}
+Fvector2 hover_state()
+{
+    const u32 now=Device.dwTimeContinual;
+    const float dt=hover_time ? _min(.1f,float(now-hover_time)/1000.f) : 0.f;
+    hover_time=now;
+    if(hover_target>=0 && hover_target!=hover_shown) { hover_shown=hover_target; hover_strength=0.f; }
+    hover_strength=hover_target>=0 ? _min(1.f,hover_strength+dt*8.f) : _max(0.f,hover_strength-dt*8.f);
+    if(hover_strength<=0.f && hover_target<0) hover_shown=-1;
+    return Fvector2().set(float(hover_shown+1),hover_strength);
+}
 }

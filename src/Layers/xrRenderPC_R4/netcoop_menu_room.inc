@@ -57,6 +57,7 @@ static void draw_menu_room(bool depth=false)
     if (!s_room_geometry) s_room_geometry.create(D3DFVF_XYZ|D3DFVF_NORMAL|D3DFVF_DIFFUSE|D3DFVF_TEX1, RCache.Vertex.Buffer(), nullptr);
     Fmatrix identity; identity.identity(); RCache.set_xform_world(identity);
     RCache.set_CullMode(CULL_NONE);
+    const Fvector2 hover=menu_room::hover_state();
     for (auto& batch : s_room_batches)
     {
         if (!batch.shader)
@@ -68,6 +69,7 @@ static void draw_menu_room(bool depth=false)
         RCache.set_Shader(depth ? batch.depth_shader : batch.shader);
         const Fvector lamp=menu_room::lamp_position();
         RCache.set_c("menu_room_lamp",lamp.x,lamp.y,lamp.z,1.f);
+        RCache.set_c("menu_room_hover",hover.x,hover.y,0.f,0.f);
         RCache.set_c("m_menu_shadow",s_menu_shadow_matrix);
         RCache.set_Geometry(s_room_geometry);
         // Keep each dynamic-buffer reservation below 192 KiB.

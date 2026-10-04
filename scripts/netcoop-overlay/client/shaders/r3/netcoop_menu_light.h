@@ -40,11 +40,12 @@ float3 menu_light(float3 diffuse, float3 normal, float3 world, float4 shadow, fl
     float ndotl=saturate(dot(normalize(normal),normalize(delta)));
     float visibility=menu_visibility(shadow,ndotl);
     float attenuation=1/(1+.55*distance2);
-    float hemi=.055+.045*saturate(normal.y*.5+.5);
-    float3 lamp=float3(3.7,2.15,.95)*attenuation*visibility;
+    // Dim bunker: one warm lamp, very little ambient (owner: "too bright").
+    float hemi=.026+.020*saturate(normal.y*.5+.5);
+    float3 lamp=float3(2.7,1.55,.68)*attenuation*visibility;
     float3 doorway=float3(-1.8,1.85,-1.8)-world;
     float fill=saturate(dot(normalize(normal),normalize(doorway)))/(1+.16*dot(doorway,doorway));
-    float3 lighting=float3(.70,.79,1.0)*(hemi+.16*fill)+lamp*ndotl;
+    float3 lighting=float3(.70,.79,1.0)*(hemi+.07*fill)+lamp*ndotl;
     float3 viewEye=-mul(m_V,float4(world,1)).xyz;
     float3 viewDirection=normalize(mul(viewEye,(float3x3)m_V));
     float3 halfDirection=normalize(normalize(delta)+viewDirection);
@@ -53,4 +54,23 @@ float3 menu_light(float3 diffuse, float3 normal, float3 world, float4 shadow, fl
     // Filmic shoulder keeps lantern-lit plaster and metal from clipping.
     radiance=saturate((radiance*(2.51*radiance+.03))/(radiance*(2.43*radiance+.59)+.14));
     return pow(radiance,1/2.2);
+}
+// Hovered interactive object: x = object id (1..5, 0 none), y = strength 0..1.
+float4 menu_room_hover;
+// Bronze (#B08D57) rim along the silhouette plus a slight lift, so the object
+// under the cursor reads as outlined.
+float3 menu_highlight(float3 color, float3 normal, float3 world, float id)
+{
+    if (menu_room_hover.y <= 0 || abs(id-menu_room_hover.x) > .5) return color;
+    float3 viewEye=-mul(m_V,float4(world,1)).xyz;
+    float3 viewDirection=normalize(mul(viewEye,(float3x3)m_V));
+    float rim=pow(1-saturate(abs(dot(normalize(normal),viewDirection))),2.2);
+    const float3 bronze=float3(.690,.553,.341);
+    return color+bronze*(rim*1.35+.10)*menu_room_hover.y;
+}
+// Soft vignette: corners fall to ~45 %.
+float menu_vignette(float4 position)
+{
+    float2 uv=position.xy/screen_res.xy-.5;
+    return 1-.55*smoothstep(.30,.80,length(uv*float2(1,.85)));
 }

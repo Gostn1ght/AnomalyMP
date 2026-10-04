@@ -22,6 +22,7 @@ renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.0;do
 const scene=new T.Scene();scene.background=VOID;
 const camera=new T.PerspectiveCamera(52,innerWidth/innerHeight,.08,100);
 const loader=new T.TextureLoader(),materials=new Map();
+const toThreeEarly=v=>new T.Vector3(-v[0],v[1],v[2]);
 for(const part of parts){
  if(!materials.has(part.texture)){
   let map=null;try{map=await loader.loadAsync('/texture?id='+encodeURIComponent(part.texture));map.colorSpace=T.SRGBColorSpace;map.wrapS=map.wrapT=T.RepeatWrapping;map.anisotropy=8;}catch(e){}
@@ -29,6 +30,18 @@ for(const part of parts){
  }
  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(part.position,3));g.setAttribute('normal',new T.Float32BufferAttribute(part.normal,3));g.setAttribute('uv',new T.Float32BufferAttribute(part.uv,2));g.setIndex(part.index);
  const m=new T.Mesh(g,materials.get(part.texture));m.castShadow=part.owner!=='shell';m.receiveShadow=true;m.scale.x=-1;m.userData.owner=part.owner;scene.add(m);
+}
+// Seated character stand-in (the game draws the real one): torso box over the
+// pelvis point and a thigh box pointing where the character faces.
+if(manifest.seat){
+ const mat=new T.MeshStandardMaterial({color:0x6b5a46,roughness:.8});
+ const s=toThreeEarly(manifest.seat),h=manifest.seat_heading??Math.PI;
+ const group=new T.Group();group.position.copy(s);group.rotation.y=-h;
+ const torso=new T.Mesh(new T.BoxGeometry(.38,.62,.24),mat);torso.position.set(0,.38,-.06);group.add(torso);
+ const head=new T.Mesh(new T.SphereGeometry(.11,16,12),mat);head.position.set(0,.82,-.04);group.add(head);
+ const thighs=new T.Mesh(new T.BoxGeometry(.34,.14,.46),mat);thighs.position.set(0,0,.22);group.add(thighs);
+ const shins=new T.Mesh(new T.BoxGeometry(.30,.48,.12),mat);shins.position.set(0,-.22,.45);group.add(shins);
+ group.traverse(o=>{o.castShadow=o.receiveShadow=true});scene.add(group);
 }
 // One warm lamp, faint cold fill so shadows are not pure black.
 scene.add(new T.HemisphereLight(0x5a6270,0x2a2018,.12));

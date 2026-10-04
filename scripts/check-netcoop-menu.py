@@ -73,6 +73,11 @@ function finish_camera() camera_done=true;last_window:Update() end
 function netcoop_preview_point(object) return {x=300,y=400} end
 function netcoop_preview_weapon(section) last_weapon=section;return true end
 function CUIMessageBoxEx() return CUIStatic() end
+cursor={x=0,y=0}; pick_result=-1; last_hover=-1; clicks_played=0
+function GetCursorPosition() return {x=cursor.x,y=cursor.y} end
+function netcoop_preview_pick(x,y) return pick_result end
+function netcoop_preview_hover(object) last_hover=object end
+sound_object=setmetatable({s2d=1},{__call=function() return {play=function() clicks_played=clicks_played+1 end} end})
 function netcoop_preview_model(model,pose) previews[#previews+1]={model=model,pose=pose}; return true end
 function netcoop_rp_list() return 'bar_1=bar;hands_pockets=pockets;sit_1=sit1;sit_2=sit2;sit_3=sit3;hands_behind=behind;sleep=sleep;' end
 function exec_console_cmd(cmd) commands[#commands+1]=cmd end
@@ -80,8 +85,8 @@ function printf() end
 game={translate_string=function(s) return s end}
 ini_sys={section_exist=function() return false end}
 level={present=function() return present end}
-ui_events={BUTTON_CLICKED=1,WINDOW_KEY_PRESSED=2,MESSAGE_BOX_QUIT_WIN_CLICKED=3}
-DIK_keys={DIK_ESCAPE=1,DIK_RETURN=28,DIK_NUMPADENTER=156,DIK_LEFT=203,DIK_RIGHT=205}
+ui_events={BUTTON_CLICKED=1,WINDOW_KEY_PRESSED=2,MESSAGE_BOX_QUIT_WIN_CLICKED=3,WINDOW_KEY_RELEASED=4}
+DIK_keys={DIK_ESCAPE=1,DIK_RETURN=28,DIK_NUMPADENTER=156,DIK_LEFT=203,DIK_RIGHT=205,DIK_UP=200,DIK_DOWN=208,DIK_TAB=15,MOUSE_1=337}
 key_bindings={kINVENTORY=9}
 function bind_to_dik(action,index) assert(type(index)=='number','native binding needs both arguments'); return index==0 and 23 or 24 end
 settings_created=0
@@ -290,6 +295,42 @@ callbacks.char_slot1(); assert(controls.name.text~=nil)
 local saved=cloud_error; assert(on_cloud_result(true,'','cloud_user',true)~=nil)
 """)
 print('Stage 0: no arrows/backpack/safe, Esc asks to quit, double click ignored while the camera moves, camera returns on close, logged guarded errors PASS')
+lua.execute(r"""
+-- Stage 2: the room objects are the buttons.
+finish_camera(); last_window:CloseRoomView(); finish_camera()
+assert(not controls.enter.shown and not controls.server.shown and not controls.settings.shown, 'floating labels hidden')
+-- Hover over the door: highlight, label, one click sound.
+local sounds=clicks_played
+pick_result=4; cursor={x=100,y=300}; last_window:Update()
+assert(last_hover==4 and last_window.hover_label.shown and last_window.hover_label.text=='st_netcoop_obj_door')
+assert(clicks_played==sounds+1); last_window:Update(); assert(clicks_played==sounds+1, 'sound only on change')
+-- Off every object: no highlight, no label.
+pick_result=-1; cursor={x=110,y=310}; last_window:Update()
+assert(last_hover==-1 and not last_window.hover_label.shown)
+-- Arrows move the selection left to right: door, PDA, character, radio.
+last_window:OnKeyboard(DIK_keys.DIK_RIGHT,ui_events.WINDOW_KEY_PRESSED); last_window:Update(); assert(last_hover==4)
+last_window:OnKeyboard(DIK_keys.DIK_RIGHT,ui_events.WINDOW_KEY_PRESSED); last_window:Update(); assert(last_hover==0)
+last_window:OnKeyboard(DIK_keys.DIK_LEFT,ui_events.WINDOW_KEY_PRESSED); last_window:Update(); assert(last_hover==4)
+-- Tab shows every label while held.
+last_window:OnKeyboard(DIK_keys.DIK_TAB,ui_events.WINDOW_KEY_PRESSED); last_window:Update()
+local shown=0; for _,label in pairs(last_window.tab_labels) do if label.shown then shown=shown+1 end end
+assert(shown==4 and not last_window.hover_label.shown)
+last_window:OnKeyboard(DIK_keys.DIK_TAB,ui_events.WINDOW_KEY_RELEASED); last_window:Update()
+for _,label in pairs(last_window.tab_labels) do assert(not label.shown) end
+-- Moving the mouse takes over from the keyboard; a click on the PDA opens the server view.
+cursor={x=500,y=320}; pick_result=0; last_window:Update(); assert(last_hover==0)
+last_window:OnKeyboard(DIK_keys.MOUSE_1,ui_events.WINDOW_KEY_PRESSED)
+assert(last_window.room_view=='server' and last_hover==-1)
+-- No highlight and no clicks on objects while the camera moves.
+last_window:Update(); assert(last_hover==-1)
+finish_camera(); assert(controls.server_panel.shown)
+callbacks.room_back(); finish_camera(); assert(last_window.room_view==nil)
+-- Enter on the selected door enters the Zone with the current slot.
+commands={}; pick_result=-1; cursor={x=520,y=330}; last_window:Update()
+last_window:OnKeyboard(DIK_keys.DIK_LEFT,ui_events.WINDOW_KEY_PRESSED); last_window:Update()
+assert(last_hover==1)
+""")
+print('Stage 2: hidden floating labels, hover highlight + label + click sound, arrows, Tab labels, mouse click, no hover while the camera moves PASS')
 
 temporary.cleanup()
 
