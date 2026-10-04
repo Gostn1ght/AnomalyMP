@@ -1,29 +1,32 @@
 {
-  "version": 2,
-  "source": "l01_escape rear trader bunker structural geometry",
-  "origin": [
-    -248.5,
-    -24.8,
-    -134.4
-  ],
-  "shell_materials": {
-    "wall/wall_stucco_03": 130,
-    "crete/crete_beton_lom": 66,
-    "floor/floor_tile_02": 42,
-    "mtl/mtl_angar_a_b": 2,
-    "wall/wall_walls_paint_02": 3,
-    "tile/tile_plitka_qllab": 6,
-    "wood/wood_walls8": 20,
-    "wall/wall_yellow_01": 96
+  "version": 3,
+  "source": "Lost Zone closed bunker box",
+  "room": {
+    "x": [
+      -2.2,
+      2.2
+    ],
+    "z": [
+      -2.6,
+      3.0
+    ],
+    "height": 3.0
+  },
+  "materials_set": {
+    "wall": "crete/crete_beton_lom",
+    "lower": "wood/wood_walls8",
+    "floor": "wood/wood_plank6_bar",
+    "ceiling": "crete/crete_beton_lom",
+    "tile_m": 2.0
   },
   "objects": [
     {
       "name": "sofa",
       "asset": "dynamics/efp_props/prop_couch_1.ogf",
       "position": [
-        0.75,
-        0.009012470245361328,
-        2.5
+        1.0,
+        -0.0009875297546386719,
+        2.45
       ],
       "rotation": [
         0,
@@ -42,9 +45,9 @@
       "name": "table",
       "asset": "dynamics/efp_props/prop_table_2.ogf",
       "position": [
-        0.25,
-        0.009507665634155274,
-        0.65
+        1.0,
+        -0.0004923343658447266,
+        1.25
       ],
       "rotation": [
         0,
@@ -60,37 +63,16 @@
       "uid": "2"
     },
     {
-      "name": "lantern",
-      "asset": "dynamics/equipments/item_lantern.ogf",
+      "name": "lamp",
+      "asset": "dynamics/el_tehnika/table_lamp_01.ogf",
       "position": [
-        -0.1,
-        0.8792615341758727,
-        0.85
+        1.4,
+        0.6441116982678068,
+        1.47
       ],
       "rotation": [
         0,
-        0,
-        0
-      ],
-      "scale": [
-        1.2,
-        1.2,
-        1.2
-      ],
-      "hidden": false,
-      "uid": "3"
-    },
-    {
-      "name": "stove",
-      "asset": "dynamics/efp_props/prop_stove2.ogf",
-      "position": [
-        -1.4,
-        0.0081582909822464,
-        2.65
-      ],
-      "rotation": [
-        0,
-        3.141592653589793,
+        2.6,
         0
       ],
       "scale": [
@@ -99,36 +81,57 @@
         1
       ],
       "hidden": false,
-      "uid": "4"
+      "uid": "3"
     },
     {
-      "name": "safe",
-      "asset": "level:jupiter:29717",
+      "name": "PDA",
+      "asset": "netcoop/dev_pda.ogf",
       "position": [
-        -1.55,
-        0.45,
-        1.15
+        0.72,
+        0.6342316582798958,
+        1.04
       ],
       "rotation": [
         0,
-        0,
+        0.35,
         0
       ],
       "scale": [
-        0.5,
-        0.5,
-        0.5
+        1.6,
+        1.6,
+        1.6
+      ],
+      "hidden": false,
+      "uid": "4"
+    },
+    {
+      "name": "journal",
+      "asset": "dynamics/decor/notes_writing_book.ogf",
+      "position": [
+        0.95,
+        0.6442108179330825,
+        1.44
+      ],
+      "rotation": [
+        0,
+        0.3,
+        0
+      ],
+      "scale": [
+        0.7,
+        0.7,
+        0.7
       ],
       "hidden": false,
       "uid": "5"
     },
     {
-      "name": "safe stand",
-      "asset": "dynamics/decor/stool.ogf",
+      "name": "tin",
+      "asset": "dynamics/devices/dev_conserv/dev_conserv.ogf",
       "position": [
-        -1.55,
-        0.009900892813457176,
-        1.15
+        1.42,
+        0.6436552703380585,
+        1.02
       ],
       "rotation": [
         0,
@@ -144,75 +147,12 @@
       "uid": "6"
     },
     {
-      "name": "map",
-      "asset": "dynamics/decor/map1.ogf",
+      "name": "radio crate",
+      "asset": "dynamics/box/box_wood_02.ogf",
       "position": [
-        0.55,
-        1.7,
-        3.12
-      ],
-      "rotation": [
-        -1.5707963267948966,
-        0,
-        0
-      ],
-      "scale": [
-        0.6,
-        0.6,
-        0.6
-      ],
-      "hidden": false,
-      "uid": "7"
-    },
-    {
-      "name": "PDA",
-      "asset": "netcoop/dev_pda.ogf",
-      "position": [
-        1.5,
-        1.4,
-        2.9
-      ],
-      "rotation": [
-        -1.5707963267948966,
-        0,
-        0
-      ],
-      "scale": [
-        1.8,
-        1.8,
-        1.8
-      ],
-      "hidden": false,
-      "uid": "8"
-    },
-    {
-      "name": "backpack",
-      "asset": "dynamics/equipments/sumka3.ogf",
-      "position": [
-        1.52,
-        0.422813423871994,
-        2.22
-      ],
-      "rotation": [
-        0,
-        3.141592653589793,
-        0
-      ],
-      "scale": [
-        1.2,
-        1.2,
-        1.2
-      ],
-      "hidden": false,
-      "uid": "9"
-    },
-    {
-      "name": "door",
-      "asset": "dynamics/decor/door_wood_100x190.ogf",
-      "position": [
-        -1.96,
-        0.05,
-        -1.2
+        1.86,
+        -0.0021925000473856926,
+        0.25
       ],
       "rotation": [
         0,
@@ -225,15 +165,120 @@
         1
       ],
       "hidden": false,
+      "uid": "7"
+    },
+    {
+      "name": "radio",
+      "asset": "dynamics/decor/radiola.ogf",
+      "position": [
+        1.9000000000000001,
+        0.5012310803682851,
+        0.25
+      ],
+      "rotation": [
+        0,
+        1.5707963267948966,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "8"
+    },
+    {
+      "name": "door",
+      "asset": "dynamics/door/door_trader.ogf",
+      "position": [
+        -2.06,
+        0.0,
+        2.005
+      ],
+      "rotation": [
+        0,
+        1.5707963267948966,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "9"
+    },
+    {
+      "name": "stove",
+      "asset": "dynamics/efp_props/prop_stove2.ogf",
+      "position": [
+        -1.7000000000000002,
+        -0.001841709017753601,
+        2.6
+      ],
+      "rotation": [
+        0,
+        3.141592653589793,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
       "uid": "10"
+    },
+    {
+      "name": "gas cylinder",
+      "asset": "dynamics/decor/gaz_balon.ogf",
+      "position": [
+        -1.0500000000000003,
+        0.0,
+        2.7199999999999998
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "11"
+    },
+    {
+      "name": "backpack",
+      "asset": "dynamics/equipments/sumka3.ogf",
+      "position": [
+        -0.3,
+        -0.01718657612800598,
+        2.62
+      ],
+      "rotation": [
+        0,
+        0.4,
+        0
+      ],
+      "scale": [
+        1.2,
+        1.2,
+        1.2
+      ],
+      "hidden": false,
+      "uid": "12"
     },
     {
       "name": "poster",
       "asset": "dynamics/decor/poster2.ogf",
       "position": [
-        -0.95,
-        1.8,
-        3.12
+        1.25,
+        1.85,
+        2.98
       ],
       "rotation": [
         -1.5707963267948966,
@@ -246,232 +291,383 @@
         0.55
       ],
       "hidden": false,
-      "uid": "11"
-    },
-    {
-      "name": "gas cylinder",
-      "asset": "dynamics/decor/gaz_balon.ogf",
-      "position": [
-        -1.75,
-        0.01,
-        2.85
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1,
-        1,
-        1
-      ],
-      "hidden": false,
-      "uid": "12"
-    },
-    {
-      "name": "pot",
-      "asset": "dynamics/decor/pot.ogf",
-      "position": [
-        -1.4,
-        1.3001835152506829,
-        2.65
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        0.5,
-        0.5,
-        0.5
-      ],
-      "hidden": false,
       "uid": "13"
     },
     {
-      "name": "journal",
-      "asset": "dynamics/decor/notes_writing_book.ogf",
+      "name": "map",
+      "asset": "dynamics/decor/map1.ogf",
       "position": [
-        0.05,
-        0.654210002503395,
-        0.4
+        2.18,
+        1.85,
+        2.05
       ],
       "rotation": [
-        0,
-        0,
+        -1.5707963267948966,
+        1.5707963267948966,
         0
       ],
       "scale": [
-        0.7,
-        0.7,
-        0.7
+        0.55,
+        0.55,
+        0.55
       ],
       "hidden": false,
       "uid": "14"
-    },
-    {
-      "name": "tin",
-      "asset": "dynamics/devices/dev_conserv/dev_conserv.ogf",
-      "position": [
-        -0.1,
-        0.6536544549083709,
-        0.48
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "scale": [
-        1,
-        1,
-        1
-      ],
-      "hidden": false,
-      "uid": "15"
     }
   ],
   "views": [
     {
-      "name": "Комната",
+      "name": "overview",
       "eye": [
-        -0.7,
-        1.25,
-        -1.95
+        0.1,
+        1.62,
+        -2.3
       ],
       "target": [
-        0.35,
-        1.0,
-        1.9
-      ]
-    },
-    {
-      "name": "Карта",
-      "eye": [
         0.2,
-        1.65,
-        1.25
-      ],
-      "target": [
-        0.55,
-        1.7,
-        3.05
+        0.95,
+        1.8
       ]
     },
     {
-      "name": "КПК",
-      "eye": [
-        1.35,
-        1.5,
-        1.45
-      ],
-      "target": [
-        1.5,
-        1.4,
-        3.05
-      ]
-    },
-    {
-      "name": "Рюкзак",
+      "name": "pda",
       "eye": [
         0.9,
-        1.1,
-        0.9
+        1.28,
+        0.4
       ],
       "target": [
-        1.52,
-        0.73,
-        2.22
+        0.72,
+        0.6642108154296875,
+        1.04
       ]
     },
     {
-      "name": "Сейф",
+      "name": "radio",
       "eye": [
-        -0.75,
-        1.1,
-        -0.1
+        0.85,
+        1.35,
+        -0.55
       ],
       "target": [
-        -1.55,
-        0.65,
-        1.15
+        1.9000000000000001,
+        0.7512314887717366,
+        0.25
       ]
     },
     {
-      "name": "Дверь",
+      "name": "character",
       "eye": [
-        -0.75,
-        1.45,
-        0.1
+        0.55,
+        1.62,
+        0.55
       ],
       "target": [
-        -1.9,
-        1.0,
-        -1.2
+        0.7,
+        0.95,
+        2.3
+      ]
+    },
+    {
+      "name": "character",
+      "eye": [
+        0.55,
+        1.62,
+        0.55
+      ],
+      "target": [
+        0.7,
+        0.95,
+        2.3
+      ]
+    },
+    {
+      "name": "door",
+      "eye": [
+        -0.1,
+        1.55,
+        0.95
+      ],
+      "target": [
+        -2.2,
+        1.3,
+        1.4000000000000001
       ]
     }
   ],
   "lamp": [
-    -0.1,
-    1.05,
-    0.85
+    1.3599999999999999,
+    0.99,
+    1.38
   ],
   "seat": [
-    0.45,
+    0.7,
     0.61,
-    2.37
+    2.32
   ],
-  "triangles": 14821,
+  "triangles": 8994,
   "materials": [
     "crete\\crete_beton_lom",
     "dar_devices_soc\\dar_pda_2",
-    "door\\door_brown",
-    "floor\\floor_tile_02",
+    "door\\door_trader",
     "item\\item_block_notes",
     "item\\item_conserva",
     "items\\poster2",
-    "mtl\\mtl_angar_a_b",
     "mtl\\mtl_barrel_05",
-    "mtl\\mtl_trub_z_01",
     "pda_screen\\fix_pda",
+    "prop\\prop_audio_video",
     "prop\\prop_bed2",
-    "prop\\prop_blind01",
-    "prop\\prop_kastrula",
-    "prop\\prop_led_01",
-    "prop\\prop_led_02",
-    "prop\\prop_led_03",
-    "prop\\prop_led_04",
+    "prop\\prop_iten4",
     "prop\\prop_map_2",
     "prop\\prop_plita",
-    "prop\\prop_safe_1",
     "sgm\\sumka_3",
-    "tile\\tile_plitka_qllab",
-    "wall\\wall_stucco_03",
-    "wall\\wall_walls_paint_02",
-    "wall\\wall_yellow_01",
+    "wood\\wood_box",
     "wood\\wood_plank6_bar",
     "wood\\wood_table_01",
     "wood\\wood_table_02",
     "wood\\wood_walls8"
   ],
+  "support": [
+    {
+      "name": "sofa",
+      "bottom": 0.0,
+      "support": 0.0,
+      "gap": 0.0,
+      "lo": [
+        -0.106,
+        0.0,
+        1.825
+      ],
+      "hi": [
+        2.106,
+        1.012,
+        2.957
+      ]
+    },
+    {
+      "name": "table",
+      "bottom": 0.0,
+      "support": 0.0,
+      "gap": 0.0,
+      "lo": [
+        0.433,
+        0.0,
+        0.825
+      ],
+      "hi": [
+        1.567,
+        0.644,
+        1.645
+      ]
+    },
+    {
+      "name": "lamp",
+      "bottom": 0.6442,
+      "support": 0.6442108154296875,
+      "gap": 0.0,
+      "lo": [
+        1.26,
+        0.644,
+        1.393
+      ],
+      "hi": [
+        1.466,
+        1.076,
+        1.655
+      ]
+    },
+    {
+      "name": "PDA",
+      "bottom": 0.6442,
+      "support": 0.6442108154296875,
+      "gap": 0.0,
+      "lo": [
+        0.616,
+        0.644,
+        0.908
+      ],
+      "hi": [
+        0.829,
+        0.669,
+        1.17
+      ]
+    },
+    {
+      "name": "journal",
+      "bottom": 0.6442,
+      "support": 0.6442108154296875,
+      "gap": 0.0,
+      "lo": [
+        0.814,
+        0.644,
+        1.261
+      ],
+      "hi": [
+        1.086,
+        0.666,
+        1.619
+      ]
+    },
+    {
+      "name": "tin",
+      "bottom": 0.6442,
+      "support": 0.6442108154296875,
+      "gap": 0.0,
+      "lo": [
+        1.35,
+        0.644,
+        0.952
+      ],
+      "hi": [
+        1.489,
+        0.704,
+        1.089
+      ]
+    },
+    {
+      "name": "radio crate",
+      "bottom": 0.0,
+      "support": 0.0,
+      "gap": 0.0,
+      "lo": [
+        1.54,
+        0.0,
+        -0.207
+      ],
+      "hi": [
+        2.18,
+        0.501,
+        0.705
+      ]
+    },
+    {
+      "name": "radio",
+      "bottom": 0.5012,
+      "support": 0.5012314887717366,
+      "gap": 0.0,
+      "lo": [
+        1.723,
+        0.501,
+        -0.149
+      ],
+      "hi": [
+        2.087,
+        1.021,
+        0.659
+      ]
+    },
+    {
+      "name": "door",
+      "bottom": 0.0,
+      "support": 0.0,
+      "gap": 0.0,
+      "lo": [
+        -2.197,
+        0.0,
+        0.59
+      ],
+      "hi": [
+        -1.838,
+        2.735,
+        2.043
+      ]
+    },
+    {
+      "name": "stove",
+      "bottom": 0.0,
+      "support": 0.0,
+      "gap": 0.0,
+      "lo": [
+        -2.061,
+        0.0,
+        2.224
+      ],
+      "hi": [
+        -1.232,
+        1.292,
+        2.973
+      ]
+    },
+    {
+      "name": "gas cylinder",
+      "bottom": 0.0,
+      "support": 0.0,
+      "gap": 0.0,
+      "lo": [
+        -1.303,
+        0.0,
+        2.467
+      ],
+      "hi": [
+        -0.797,
+        0.784,
+        2.973
+      ]
+    },
+    {
+      "name": "backpack",
+      "bottom": 0.0,
+      "support": 0.0,
+      "gap": 0.0,
+      "lo": [
+        -0.621,
+        0.0,
+        2.227
+      ],
+      "hi": [
+        0.033,
+        0.293,
+        2.958
+      ]
+    },
+    {
+      "name": "poster",
+      "bottom": 1.6418,
+      "support": null,
+      "gap": null,
+      "lo": [
+        1.081,
+        1.642,
+        2.968
+      ],
+      "hi": [
+        1.395,
+        2.053,
+        2.978
+      ]
+    },
+    {
+      "name": "map",
+      "bottom": 1.3087,
+      "support": null,
+      "gap": null,
+      "lo": [
+        2.101,
+        1.309,
+        1.529
+      ],
+      "hi": [
+        2.179,
+        2.391,
+        2.612
+      ]
+    }
+  ],
+  "problems": [],
   "source_sha256": {
     "dynamics/efp_props/prop_couch_1.ogf": "cfe13821632b928c9b8fcf8b71b29f2752229a4beb8a5ae081ba3849853a2547",
     "dynamics/efp_props/prop_table_2.ogf": "9ebf4207c12925c8b756d8cf15fa8e70443baa584bde0c0d65c888be40f91fa9",
-    "dynamics/equipments/item_lantern.ogf": "c8cc53537113e1088bb0af224bb2b7e0b663ca9e0f43f33e3511b033c80b9ea3",
-    "dynamics/efp_props/prop_stove2.ogf": "b1a65798b588515ad6accd0b90dc2d0f2da6a528497a7058f28e37a300756ac8",
-    "level:jupiter:29717": "631037396a5b952be688944c5576e88591d9c2cf5b52ac07bb36703b51610a4a",
-    "dynamics/decor/stool.ogf": "9f168a318b6f0528a6edbd19915b2a573ffa39e78147a8e24b087bdd03f636c8",
-    "dynamics/decor/map1.ogf": "2549017afccf0dcbfda9a33f629546ca924c90bd96a94a6478fb44076a248f7d",
+    "dynamics/el_tehnika/table_lamp_01.ogf": "8b4c0e35a96b9669e55551cfaab93ff0797dd95c53c85b14a78fd3b8d89e48a7",
     "netcoop/dev_pda.ogf": "592b2bf4c9011dbf2e0ea708c70f192e56f476a31889e3c0f0a50ca719d77aa3",
-    "dynamics/equipments/sumka3.ogf": "41e6b5cbd2da84ef0d8de5f6bea84062c30eaa80029c7aadcc59b925e17f1d2a",
-    "dynamics/decor/door_wood_100x190.ogf": "643ccaa6a45f693aa9bbf59e915aebe332baeaa8de28c502a40021fde0e2a498",
-    "dynamics/decor/poster2.ogf": "8647122d51e15614496b447ebf9229dd3d8d1081a9249fffc6b7ce6e4d566122",
-    "dynamics/decor/gaz_balon.ogf": "318c016e8ad487801895efccc7f6d755e41811d088c63b392f23b98cfa673431",
-    "dynamics/decor/pot.ogf": "851b89399d2fe06be6c37d0d36b0619d0ef464e9a6ec5c255c3dd85e69e32d5d",
     "dynamics/decor/notes_writing_book.ogf": "c4eab68f2eb14601004439cba6e60e396d17b18b1830682ae8905f2bbc3a064d",
-    "dynamics/devices/dev_conserv/dev_conserv.ogf": "6ac7f2fc2217af3d19c8a055805c467c84d321cf94e5365c0d8f7286979265ae"
-  },
-  "level_sha256": "1800a451d0bba9af1da69fae8683b36b6e6346709c0d6b9bf14385f4a48d19f7"
+    "dynamics/devices/dev_conserv/dev_conserv.ogf": "6ac7f2fc2217af3d19c8a055805c467c84d321cf94e5365c0d8f7286979265ae",
+    "dynamics/box/box_wood_02.ogf": "c4c423d25a4ada5c4e4ec22e83c37828ba28e72166983b2e770093e5a561c4af",
+    "dynamics/decor/radiola.ogf": "589f2ca0fbe2d224b4b1497e66cce7904479cc8d54151e78cafe41bf48a23082",
+    "dynamics/door/door_trader.ogf": "ff16805e9ab2c14ca4a7c0a1838243a23153bb1203635ac930c93d7d695d5db3",
+    "dynamics/efp_props/prop_stove2.ogf": "b1a65798b588515ad6accd0b90dc2d0f2da6a528497a7058f28e37a300756ac8",
+    "dynamics/decor/gaz_balon.ogf": "318c016e8ad487801895efccc7f6d755e41811d088c63b392f23b98cfa673431",
+    "dynamics/equipments/sumka3.ogf": "41e6b5cbd2da84ef0d8de5f6bea84062c30eaa80029c7aadcc59b925e17f1d2a",
+    "dynamics/decor/poster2.ogf": "8647122d51e15614496b447ebf9229dd3d8d1081a9249fffc6b7ce6e4d566122",
+    "dynamics/decor/map1.ogf": "2549017afccf0dcbfda9a33f629546ca924c90bd96a94a6478fb44076a248f7d"
+  }
 }

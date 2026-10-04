@@ -215,7 +215,7 @@ assert(drafts[1].history=='A separate character history')
 assert(last_window.mode=='characters' and controls.name.text=='Loner One' and #commands==0)
 assert(not controls.input_email.shown and not controls.background.shown)
 drafts[1].loadout='medkit,medkit,medkit,wpn_ak74';last_window:ShowCharacters()
-assert(last_weapon=='wpn_ak74' and controls.inventory_scroll==nil and controls.safe==nil and callbacks.char_inventory==nil)
+assert(last_weapon=='' and controls.inventory_scroll==nil and controls.safe==nil and callbacks.char_inventory==nil)
 finish_camera()
 -- The inventory key no longer opens anything in the menu.
 last_window:OnKeyboard(23,ui_events.WINDOW_KEY_PRESSED)

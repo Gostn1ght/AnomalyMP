@@ -1,4 +1,6 @@
-param([string]$Destination='')
+# -ClientBinary/-ServerBinary: executables from a CI artifact (package\bin and
+# package\dedicated); without them the local DX11 build is used for both.
+param([string]$Destination='',[string]$ClientBinary='',[string]$ServerBinary='')
 $ErrorActionPreference='Stop'
 $repo=Split-Path $PSScriptRoot -Parent
 $workspace=Split-Path $repo -Parent
@@ -7,7 +9,9 @@ if (-not $Destination) { $Destination=Join-Path $workspace 'LostZone-3D-Hideout'
 $target=[IO.Path]::GetFullPath($Destination)
 if ($target -eq [IO.Path]::GetFullPath($base)) { throw 'Use a separate preview directory' }
 $binary=Join-Path $repo '_build\_game\bin_dbg\LostZoneDX11.exe'
-if (-not (Test-Path -LiteralPath $binary)) { throw 'Build DX11 first' }
+if (-not $ClientBinary) { $ClientBinary=$binary }
+if (-not $ServerBinary) { $ServerBinary=$binary }
+foreach ($file in @($ClientBinary,$ServerBinary)) { if (-not (Test-Path -LiteralPath $file)) { throw "Missing executable: $file" } }
 New-Item -ItemType Directory -Path $target -Force | Out-Null
 function Copy-Tree([string]$Source,[string]$To) {
     New-Item -ItemType Directory -Path $To -Force | Out-Null
@@ -27,7 +31,8 @@ foreach ($dir in @('bin','dedicated')) {
     $to=Join-Path $target $dir; New-Item -ItemType Directory -Path $to -Force | Out-Null
     Get-ChildItem -LiteralPath (Join-Path $base $dir) -File | Where-Object Extension -eq '.dll' | Copy-Item -Destination $to -Force
     $name=if ($dir -eq 'bin') {'LostZoneClientDX11.exe'} else {'LostZoneServerDX11.exe'}
-    Copy-Item -LiteralPath $binary -Destination (Join-Path $to $name) -Force
+    $source=if ($dir -eq 'bin') {$ClientBinary} else {$ServerBinary}
+    Copy-Item -LiteralPath $source -Destination (Join-Path $to $name) -Force
 }
 Copy-Tree (Join-Path $base 'gamedata\shaders') (Join-Path $target 'shaders')
 Copy-Tree (Join-Path $PSScriptRoot 'netcoop-overlay\client\shaders') (Join-Path $target 'shaders')

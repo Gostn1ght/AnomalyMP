@@ -1,0 +1,66 @@
+<!DOCTYPE html><meta charset="utf-8"><title>Lost Zone room check</title>
+<style>
+body{margin:0;background:#0e0f10;color:#d8d2c4;font:13px Arial;overflow:hidden}
+canvas{display:block}
+#bar{position:absolute;left:12px;top:10px;display:flex;gap:6px;flex-wrap:wrap;max-width:96vw}
+button{background:#141516;color:#d8d2c4;border:1px solid #b08d57;padding:6px 10px;cursor:pointer}
+#state{position:absolute;left:12px;bottom:10px;background:#0e0f10e6;padding:6px 10px;white-space:pre}
+#vignette{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(0,0,0,.55) 100%)}
+</style>
+<div id="vignette"></div>
+<div id="bar"></div><div id="state">Загрузка…</div>
+<script type="importmap">{"imports":{"three":"/vendor/three.module.js"}}</script>
+<script type="module">
+// Geometry is the exact room the game loads. Faces are one-sided and empty space
+// is magenta, so holes, gaps and inside-out faces are visible and countable.
+import * as T from 'three';
+const {parts,manifest}=await (await fetch('/scene')).json();
+const VOID=new T.Color('#ff00ff');
+const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
+renderer.setSize(innerWidth,innerHeight);renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;
+renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.0;document.body.prepend(renderer.domElement);
+const scene=new T.Scene();scene.background=VOID;
+const camera=new T.PerspectiveCamera(52,innerWidth/innerHeight,.08,100);
+const loader=new T.TextureLoader(),materials=new Map();
+for(const part of parts){
+ if(!materials.has(part.texture)){
+  let map=null;try{map=await loader.loadAsync('/texture?id='+encodeURIComponent(part.texture));map.colorSpace=T.SRGBColorSpace;map.wrapS=map.wrapT=T.RepeatWrapping;map.anisotropy=8;}catch(e){}
+  materials.set(part.texture,new T.MeshStandardMaterial({map,color:map?0xffffff:0x808080,roughness:.9,side:T.FrontSide,metalness:part.texture.startsWith('mtl')?.3:0}));
+ }
+ const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(part.position,3));g.setAttribute('normal',new T.Float32BufferAttribute(part.normal,3));g.setAttribute('uv',new T.Float32BufferAttribute(part.uv,2));g.setIndex(part.index);
+ const m=new T.Mesh(g,materials.get(part.texture));m.castShadow=part.owner!=='shell';m.receiveShadow=true;m.scale.x=-1;m.userData.owner=part.owner;scene.add(m);
+}
+// One warm lamp, faint cold fill so shadows are not pure black.
+scene.add(new T.HemisphereLight(0x5a6270,0x2a2018,.12));
+const lamp=new T.PointLight(0xffb060,9,9,2);lamp.position.fromArray(manifest.lamp);lamp.position.x*=-1;lamp.castShadow=true;lamp.shadow.mapSize.set(2048,2048);lamp.shadow.bias=-.0004;lamp.shadow.normalBias=.02;scene.add(lamp);
+const toThree=v=>new T.Vector3(-v[0],v[1],v[2]);
+function show(v){camera.position.copy(toThree(v.eye));camera.lookAt(toThree(v.target));renderer.render(scene,camera);}
+const bar=document.querySelector('#bar'),state=document.querySelector('#state');
+manifest.views.forEach((v,i)=>{const b=document.createElement('button');b.textContent=i+' '+v.name;b.onclick=()=>{show(v);state.textContent=v.name};bar.appendChild(b);});
+// Void scan: many cameras inside the room, six axes plus diagonals each.
+function voidRatio(){
+ const gl=renderer.getContext();const w=gl.drawingBufferWidth,h=gl.drawingBufferHeight;const px=new Uint8Array(w*h*4);
+ gl.readPixels(0,0,w,h,gl.RGBA,gl.UNSIGNED_BYTE,px);let n=0;
+ for(let i=0;i<px.length;i+=16){const r=px[i],g=px[i+1],b=px[i+2];if(r>200&&g<60&&b>200)n++;}
+ return n/(px.length/16);
+}
+async function scan(){
+ const room=manifest.room;const results=[];const saveTone=renderer.toneMapping;renderer.toneMapping=T.NoToneMapping;
+ renderer.shadowMap.enabled=false;let shots=0;
+ const dirs=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1],[1,.3,1],[-1,.3,1],[1,.3,-1],[-1,.3,-1],[1,-.4,1],[-1,-.4,-1]];
+ for(let x=room.x[0]+.3;x<=room.x[1]-.3;x+=.6)for(let z=room.z[0]+.3;z<=room.z[1]-.3;z+=.6)for(const y of [.35,1.2,2.2,2.8]){
+  for(const d of dirs){const eye=[x,y,z];camera.position.copy(toThree(eye));camera.lookAt(toThree([x+d[0],y+d[1],z+d[2]]));
+   renderer.render(scene,camera);const r=voidRatio();shots++;if(r>0)results.push({eye:eye.map(v=>+v.toFixed(2)),dir:d,ratio:+r.toFixed(4)});
+   if(shots%60===0){state.textContent='scan '+shots;await new Promise(f=>setTimeout(f,0));}}
+ }
+ for(const v of manifest.views){show(v);const r=voidRatio();if(r>0)results.push({view:v.name,ratio:+r.toFixed(4)});}
+ renderer.toneMapping=saveTone;renderer.shadowMap.enabled=true;results.sort((a,b)=>b.ratio-a.ratio);window.scanResult=results;window.scanShots=shots;
+ state.textContent=results.length?('VOID visible from '+results.length+' cameras; worst '+JSON.stringify(results[0])):'Void scan: no empty space visible from any of '+shots+' cameras';
+ show(manifest.views[0]);return results;
+}
+const sb=document.createElement('button');sb.textContent='Проверить пустоту';sb.onclick=scan;bar.appendChild(sb);
+window.scan=scan;window.look=(eye,target)=>show({eye,target});window.showView=i=>show(manifest.views[i]);
+const q=new URLSearchParams(location.search);show(manifest.views[+(q.get('view')||0)]);
+state.textContent=manifest.views[+(q.get('view')||0)].name+' · '+manifest.triangles+' треугольников · свет WebGL (приближение к игре)';
+addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();show(manifest.views[0])});
+</script>

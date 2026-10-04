@@ -462,7 +462,8 @@ function netcoop_login_wnd:ChangeSlot(delta)
     for section in string.gmatch(preview.items or "","[^,]+") do
         if ini_sys:section_exist(section) and string.sub(section,1,4)=="wpn_" and SYS_GetParam(2,section,"slot",0)==2 then weapon=section; break end
     end
-    if netcoop_preview_weapon then netcoop_preview_weapon(weapon) end
+    -- The seated pose holds no weapon: a rifle floated in front of the sofa.
+    if netcoop_preview_weapon then netcoop_preview_weapon("") end
     self:PositionRoomControls()
 end
 function netcoop_login_wnd:SetPose(pose)
