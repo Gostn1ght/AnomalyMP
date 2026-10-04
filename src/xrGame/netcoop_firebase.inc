@@ -415,6 +415,7 @@ LPCSTR script_firebase_identity()
     return result.c_str();
 }
 LPCSTR script_firebase_email() { firebase_load(); return s_firebase_session.pending_email.empty() ? s_firebase_session.email.c_str() : s_firebase_session.pending_email.c_str(); }
+LPCSTR script_firebase_login_email() { firebase_load(); return s_firebase_session.email.c_str(); }
 LPCSTR script_firebase_account() { firebase_load(); return s_firebase_session.username.c_str(); }
 void firebase_frame()
 {

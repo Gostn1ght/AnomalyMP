@@ -458,7 +458,10 @@ void CHW::CreateDevice(HWND hwnd, bool move_window)
 
 #if defined(USE_DX11)
     selectResolution(sd.Width, sd.Height, bWindowed);
-    sd_fullscreen.Windowed = bWindowed;
+    // Create flip-model buffers windowed, then enter fullscreen through Reset.
+    // Creating an exclusive swap chain against an unseen startup window can
+    // leave presentation unavailable until the first Alt+Tab transition.
+    sd_fullscreen.Windowed = TRUE;
 #elif defined(USE_DX10)
     selectResolution(sd.BufferDesc.Width, sd.BufferDesc.Height, bWindowed);
 #endif
@@ -686,7 +689,7 @@ void CHW::CreateDevice(HWND hwnd, bool move_window)
     // probably the sequence ResizeTarget, ResizeBuffers, and UpdateViews is important
     
     // u32	memory									= pDevice->GetAvailableTextureMem	();
-    if (strstr(Core.Params, dxgiOld)) {
+    if (strstr(Core.Params, dxgiOld) && bWindowed) {
         Msg("* %s enabled", dxgiOld);
         UpdateViews();
         size_t memory = Desc.DedicatedVideoMemory;
@@ -803,7 +806,7 @@ void CHW::Reset(HWND hwnd)
         SetForegroundWindow(hwnd);
     }
 
-    m_pSwapChain->SetFullscreenState(!bWindowed, bWindowed ? NULL : m_pOutput);
+    CHK_DX(m_pSwapChain->SetFullscreenState(!bWindowed, bWindowed ? NULL : m_pOutput));
 
 #if defined(USE_DX11)
     selectResolution(cd.Width, cd.Height, bWindowed);

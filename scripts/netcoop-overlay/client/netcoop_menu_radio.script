@@ -1,4 +1,4 @@
--- One menu player, shared by the account screen, room and options dialog.
+-- One menu player for the visible 3D room and its options dialog.
 -- Uses only existing local GAMMA sounds and the native sound_object API.
 local current_station, current_track, gain, enabled = 2, 1, 0.25, true
 local sound, loaded, next_attempt = nil, false, 0
@@ -26,9 +26,12 @@ end
 function stop()
     if sound then sound:stop(); sound = nil end
 end
+local function room_visible()
+    return not level.present() and netcoop_preview_visible ~= nil and netcoop_preview_visible()
+end
 local function play()
     stop()
-    if not enabled or gain == 0 or level.present() then return end
+    if not enabled or gain == 0 or not room_visible() then return end
     local track = catalog()[current_station].tracks[current_track]
     next_attempt = device():time_continual() + 5000
     local ok, reason = pcall(function()
@@ -40,7 +43,7 @@ local function play()
 end
 function update()
     load()
-    if level.present() then stop(); return end
+    if not room_visible() then stop(); next_attempt = 0; return end
     if not enabled or gain == 0 then return end
     if sound and sound:playing() then return end
     if device():time_continual() < next_attempt then return end

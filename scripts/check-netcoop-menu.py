@@ -67,10 +67,12 @@ function netcoop_login(login,pass,register) account=login; return true end
 auth_requests={}
 function netcoop_frontend_auth(options) auth_requests[#auth_requests+1]=options; return true end
 function netcoop_character(slot,name,faction,economy,loadout) characters[#characters+1]={slot=slot,name=name,loadout=loadout}; return true end
-function netcoop_preview_clear() end
+room_model=false;room_presented=false
+function netcoop_preview_clear() room_model=false;room_presented=false end
+function netcoop_preview_visible() return room_model and room_presented end
 function netcoop_preview_focus(object) camera_target=object;camera_done=false end
 function netcoop_preview_ready() return camera_done~=false end
-function finish_camera() camera_done=true;last_window:Update() end
+function finish_camera() camera_done=true;if room_model then room_presented=true end;last_window:Update() end
 function netcoop_preview_point(object) return {x=300,y=400} end
 function netcoop_preview_weapon(section) last_weapon=section;return true end
 function CUIMessageBoxEx() return CUIStatic() end
@@ -91,7 +93,7 @@ sound_object=setmetatable({s2d=1},{__call=function(_,path)
  function sound:playing() return self.active end
  return sound
 end})
-function netcoop_preview_model(model,pose) previews[#previews+1]={model=model,pose=pose}; return true end
+function netcoop_preview_model(model,pose) room_model=true;previews[#previews+1]={model=model,pose=pose}; return true end
 function netcoop_rp_list() return 'bar_1=bar;hands_pockets=pockets;sit_1=sit1;sit_2=sit2;sit_3=sit3;hands_behind=behind;sleep=sleep;' end
 function exec_console_cmd(cmd) commands[#commands+1]=cmd end
 function printf() end
@@ -163,6 +165,7 @@ cloud_state,cloud_account=0,'cloud_user'
 function netcoop_firebase_state() return cloud_state end
 function netcoop_firebase_account() return cloud_account end
 function netcoop_firebase_email() return 'user@example.invalid' end
+function netcoop_firebase_login_email() return 'original@example.invalid' end
 cloud_identity='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 function netcoop_firebase_identity() return cloud_identity end
 function netcoop_firebase_request(action,email,password,username)
@@ -198,12 +201,15 @@ function netcoop_preview_point(index) return {x=300+index*200,y=400+index*80} en
 camera_done=true; camera_target=-1
 function netcoop_preview_focus(object) camera_target=object;camera_done=false end
 function netcoop_preview_ready() return camera_done end
-function finish_camera() camera_done=true;last_window:Update() end
+function finish_camera() camera_done=true;if room_model then room_presented=true end;last_window:Update() end
 ''')
 lua.execute(menu_source.read_text(encoding='cp1251'))
 lua.execute(r'''
 local menu={HideDialog=function() end,Show=function() end,ShowDialog=function() end}
 assert(frontend_update(menu)==true)
+local account_music=music_started
+last_window:Update();netcoop_menu_radio.track(1);netcoop_menu_radio.toggle();netcoop_menu_radio.toggle()
+assert(music_started==account_music, 'account screen must remain silent, including direct radio controls')
 assert(controls.input_login.shown and controls.input_login.enabled)
 assert(not controls.input_code.shown and not controls.input_code.enabled, 'hidden verification code must not steal account-name input')
 assert(not controls.input_addr.shown and not controls.input_addr.enabled)
@@ -248,6 +254,7 @@ assert(not last_window.correct_email and not controls.input_email.enabled)
 now=10000;last_window:Update();assert(cloud_requests[7].action=='verify')
 cloud_state=2;on_cloud_result(true,'','cloud_user',true);last_window:Update()
 assert(last_window.mode=='profile' and #commands==0)
+last_window:Update();assert(music_started==account_music, 'profile creation must remain silent')
 controls.input_name:SetText('Loner One'); controls.input_description:SetText('Brown jacket')
 controls.input_history:SetText('A separate character history')
 ui_mm_faction_select={UINewGame=function(owner)
@@ -266,6 +273,7 @@ assert(drafts[1].loadout=='medkit,medkit,medkit')
 assert(drafts[1].history=='A separate character history')
 assert(last_window.mode=='characters' and controls.name.text=='Loner One' and #commands==0)
 assert(not controls.input_email.shown and not controls.background.shown)
+last_window:Update();assert(music_started==account_music, 'loaded room must wait for a successfully presented frame')
 drafts[1].loadout='medkit,medkit,medkit,wpn_ak74';last_window:ShowCharacters()
 assert(last_weapon=='' and controls.inventory_scroll==nil and controls.safe==nil and callbacks.char_inventory==nil)
 finish_camera()
@@ -452,3 +460,32 @@ test_menu(false,false,3);test_menu(false,true,3)
 test_menu(true,false,4);test_menu(true,true,4)
 ''')
 print('Actual base-menu controls: no nested account-class load, player/admin buttons and show/hide PASS')
+
+lua.execute(r"""
+-- An expired correction session must never trap the user behind a hidden password.
+present=false;cloud_state=1;last_window.force_login=false;last_window.correct_email=nil
+last_window:ResetCloud();callbacks.btn_enter();controls.input_email:SetText('corrected@example.invalid')
+callbacks.btn_reg();on_cloud_result(false,'CREDENTIAL_TOO_OLD_LOGIN_AGAIN','cloud_user',false);last_window:Update()
+assert(last_window.force_login and not last_window.correct_email and last_window.form_mode=='login')
+assert(controls.input_pass.shown and controls.input_pass.enabled and controls.input_email.enabled)
+assert(controls.input_email.text=='original@example.invalid' and last_window.retry_email=='corrected@example.invalid')
+controls.input_pass:SetText('test-password');callbacks.btn_enter()
+assert(cloud_requests[#cloud_requests].action=='login')
+on_cloud_result(true,'','cloud_user',false);last_window:Update()
+assert(last_window.correct_email and not last_window.force_login and controls.input_email.text=='corrected@example.invalid')
+assert(not controls.input_pass.shown)
+callbacks.btn_reg();assert(cloud_requests[#cloud_requests].action=='change_email')
+on_cloud_result(true,'','cloud_user',false);last_window:Update()
+if last_window.verify_poll then on_cloud_result(false,'EMAIL_NOT_VERIFIED','cloud_user',false) end
+for _,code in ipairs({'INVALID_REFRESH_TOKEN','TOKEN_EXPIRED','USER_NOT_FOUND','INVALID_ID_TOKEN'}) do
+ last_window.force_login=false;last_window.correct_email=true;last_window:ResetCloud()
+ controls.input_email:SetText('corrected@example.invalid');callbacks.btn_reg()
+ on_cloud_result(false,code,'cloud_user',false);last_window:Update()
+ assert(last_window.force_login and not last_window.correct_email and controls.input_pass.enabled and controls.input_pass.shown)
+end
+-- Leaving the room stops playback; account/profile updates cannot restart it.
+netcoop_preview_clear();local before=music_started;netcoop_menu_radio.update()
+netcoop_menu_radio.volume(0.05);netcoop_menu_radio.station(1);netcoop_menu_radio.track(1)
+assert(music_started==before and not music_sounds[#music_sounds].active)
+""")
+print('Session recovery exposes login, preserves corrected address, and radio waits for presented room PASS')

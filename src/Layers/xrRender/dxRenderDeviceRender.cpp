@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "../../xrEngine/netcoop_menu_camera.h"
 #include "dxRenderDeviceRender.h"
 
 #include "ResourceManager.h"
@@ -402,7 +403,17 @@ void dxRenderDeviceRender::End()
 # endif
 
 	if (!Device.m_SecondViewport.IsSVPFrame() && !Device.m_SecondViewport.isCamReady) {
-		HW.m_pSwapChain->Present(present_interval, present_flags);
+		const HRESULT result = HW.m_pSwapChain->Present(present_interval, present_flags);
+        static HRESULT last_result = S_OK;
+        static bool first_present = true;
+        if (result != last_result)
+            Msg("[Lost Zone] DXGI present status: 0x%08x", result);
+        last_result = result;
+        if (result == S_OK)
+        {
+            if (first_present) { Msg("[Lost Zone] first window frame presented"); first_present=false; }
+            menu_room::presented();
+        }
 	}
 #else //!USE_DX10 || USE_DX11
 	CHK_DX(HW.pDevice->EndScene());

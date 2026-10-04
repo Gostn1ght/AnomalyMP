@@ -7,6 +7,9 @@ namespace menu_room
 ENGINE_API void focus(int object); // -1 overview, 0 PDA, 1 radio, 2 character, 3 spare, 4 door
 ENGINE_API void reset();
 ENGINE_API bool ready();
+ENGINE_API bool visible(); // true after a room frame has reached the swap chain
+ENGINE_API void drawn();
+ENGINE_API void presented();
 ENGINE_API void matrices(Fmatrix& view, Fmatrix& projection);
 ENGINE_API Fvector interaction(int object);
 ENGINE_API Fvector lamp_position();

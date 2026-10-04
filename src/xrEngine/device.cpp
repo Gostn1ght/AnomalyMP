@@ -678,6 +678,11 @@ void CRenderDevice::Run()
 	seqAppStart.Process(rp_AppStart);
 	m_pRender->ClearTarget();
 	SetForegroundWindow(m_hWnd);
+    // Startup activation can precede device/input initialization. Synchronize
+    // from the real window state; do not wait for another WM_ACTIVATE (Alt+Tab).
+    OnWM_Activate(MAKEWPARAM(GetForegroundWindow() == m_hWnd ? WA_ACTIVE : WA_INACTIVE,
+        IsIconic(m_hWnd)), 0);
+    Msg("[Lost Zone] startup window: visible=%d active=%d", IsWindowVisible(m_hWnd), b_is_Active);
 	message_loop();
 	seqAppEnd.Process(rp_AppEnd);
 	// Stop Balance-Thread
@@ -996,6 +1001,8 @@ static Fvector from_camera, from_target;
 static int destination = -1;
 static u32 start = 0;
 static bool moving = false;
+static bool room_presented = false;
+static u32 room_draw_frame = u32(-1);
 static Fvector eyes[] = {Fvector().set(0,1.35f,-4.6f),Fvector().set(-1.5f,1.6f,.9f),
     Fvector().set(1.4f,1.7f,.1f),Fvector().set(-1.6f,1.f,-.85f),Fvector().set(-.75f,1.1f,-.1f),Fvector().set(-.75f,1.45f,.1f)};
 static Fvector targets[] = {Fvector().set(0,1.25f,.5f),Fvector().set(-1.5f,1.65f,2.14f),
@@ -1078,8 +1085,19 @@ void focus(int object)
 void reset()
 {
     load_config(); destination=-1; moving=false; camera=eyes[0]; target=targets[0];
+    room_presented=false; room_draw_frame=u32(-1);
 }
 bool ready() { update(); return !moving; }
+bool visible() { return room_presented && Device.b_is_Active; }
+void drawn() { room_draw_frame=Device.dwFrame; }
+void presented()
+{
+    if (!room_presented && room_draw_frame==Device.dwFrame)
+    {
+        room_presented=true;
+        Msg("[Lost Zone] first 3D menu frame presented");
+    }
+}
 void matrices(Fmatrix& view,Fmatrix& projection)
 {
     update();

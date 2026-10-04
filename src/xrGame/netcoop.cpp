@@ -707,6 +707,7 @@ void script_preview_focus(int object) { menu_room::focus(object); }
 int script_preview_pick(float x, float y) { return menu_room::pick(x, y); }
 void script_preview_hover(int object) { menu_room::hover(object); }
 bool script_preview_ready() { return menu_room::ready(); }
+bool script_preview_visible() { return s_preview_visual && menu_room::visible(); }
 
 void script_preview_draw()
 {

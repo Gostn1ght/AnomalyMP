@@ -844,6 +844,14 @@ function frontend_update(menu)
 end
 
 -- Cloud callbacks contain only status and account name. Tokens remain native.
+local function session_expired(error)
+    return error == "INVALID_REFRESH_TOKEN" or error == "TOKEN_EXPIRED" or error == "USER_NOT_FOUND" or error == "INVALID_ID_TOKEN" or error == "CREDENTIAL_TOO_OLD_LOGIN_AGAIN"
+end
+function netcoop_login_wnd:RequireLogin()
+    if self.correct_email then self.retry_email = self.ed_email:GetText() end
+    self.correct_email = nil; self.force_login = true; self.form_mode = "login"
+    if netcoop_firebase_login_email then self.ed_email:SetText(netcoop_firebase_login_email()) end
+end
 local function cloud_error(error)
     local code = string.match(error or "", "^[%w_]+") or "NETWORK_ERROR"
     local errors = {EMAIL_EXISTS="email_exists", INVALID_EMAIL="email_invalid", EMAIL_DOMAIN_NOT_FOUND="email_domain_invalid", INVALID_LOGIN_CREDENTIALS="bad_credentials",
@@ -861,6 +869,7 @@ function netcoop_login_wnd:ResetCloud()
     self.mode = "account"; self.form_mode = self.form_mode or "register"
     local remembered = account_state() ~= 0 and not self.force_login
     local awaiting_link = remembered and account_state() == 1
+    if not awaiting_link then self.correct_email = nil end
     local correcting = awaiting_link and self.correct_email == true
     self.ed_addr:Show(false); self.cap_addr:Show(false)
     local _, addr = read_last(); self.ed_addr:SetText(addr or DEF_ADDR)
@@ -929,17 +938,23 @@ function on_cloud_result(ok, error, account, verified)
             return
         end
         if ok and verified then auth_message = ""; auth_return = "characters"
-        elseif error == "INVALID_REFRESH_TOKEN" or error == "TOKEN_EXPIRED" or error == "USER_NOT_FOUND" or error == "INVALID_ID_TOKEN" then
-            wnd.force_login = true; wnd.form_mode = "login"; auth_message = cloud_error(error); auth_return = "account"
+        elseif session_expired(error) then
+            wnd:RequireLogin(); auth_message = cloud_error(error); auth_return = "account"
         elseif error ~= "EMAIL_NOT_VERIFIED" then wnd:SetMsg(cloud_error(error)) end
         return
     end
     if auth_return ~= "pending" then return end
     if wnd.cloud_action == "change_email" and ok then wnd.correct_email = nil end
     wnd.reset_button:Enable(true)
-    if ok then wnd.force_login = false
-    elseif error == "INVALID_REFRESH_TOKEN" or error == "TOKEN_EXPIRED" or error == "USER_NOT_FOUND" or error == "INVALID_ID_TOKEN" then
-        wnd.force_login = true; wnd.form_mode = "login"
+    if ok then
+        wnd.force_login = false
+        if wnd.cloud_action == "login" and wnd.retry_email and not verified then
+            wnd.correct_email = true; wnd.ed_email:SetText(wnd.retry_email)
+        end
+        if wnd.cloud_action == "login" or verified then wnd.retry_email = nil end
+        if verified then wnd.correct_email = nil end
+    elseif session_expired(error) then
+        wnd:RequireLogin()
     end
     if wnd.role_probe then
         auth_return = nil

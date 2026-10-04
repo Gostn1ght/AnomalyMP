@@ -68,11 +68,12 @@
 
 using namespace luabind;
 
-namespace netcoop { bool script_storage_prepare(int op,int slot,int index,int revision); bool script_frontend_auth(LPCSTR options); bool script_preview_weapon(LPCSTR section); Fvector2 script_preview_point(int object); void script_preview_focus(int object); bool script_preview_ready(); int script_preview_pick(float x, float y); void script_preview_hover(int object); bool script_draft_server(LPCSTR address); }
+namespace netcoop { bool script_storage_prepare(int op,int slot,int index,int revision); bool script_frontend_auth(LPCSTR options); bool script_preview_weapon(LPCSTR section); Fvector2 script_preview_point(int object); void script_preview_focus(int object); bool script_preview_ready(); bool script_preview_visible(); int script_preview_pick(float x, float y); void script_preview_hover(int object); bool script_draft_server(LPCSTR address); }
 namespace netcoop {
 bool script_firebase_request(LPCSTR action, LPCSTR email, LPCSTR password, LPCSTR username);
 int script_firebase_state();
 LPCSTR script_firebase_email();
+LPCSTR script_firebase_login_email();
 LPCSTR script_firebase_identity();
 LPCSTR script_firebase_account();
 bool script_save_draft(int slot, LPCSTR name, LPCSTR description, LPCSTR history, LPCSTR faction, int economy, LPCSTR loadout);
@@ -2769,6 +2770,7 @@ void CLevel::script_register(lua_State* L)
         def("netcoop_preview_point", &netcoop::script_preview_point),
         def("netcoop_preview_focus", &netcoop::script_preview_focus),
         def("netcoop_preview_ready", &netcoop::script_preview_ready),
+        def("netcoop_preview_visible", &netcoop::script_preview_visible),
         def("netcoop_preview_pick", &netcoop::script_preview_pick),
         def("netcoop_preview_hover", &netcoop::script_preview_hover),
         def("netcoop_draft_server", &netcoop::script_draft_server),
@@ -2777,6 +2779,7 @@ void CLevel::script_register(lua_State* L)
 		def("netcoop_firebase_request", &netcoop::script_firebase_request),
 		def("netcoop_firebase_state", &netcoop::script_firebase_state),
 		def("netcoop_firebase_email", &netcoop::script_firebase_email),
+        def("netcoop_firebase_login_email", &netcoop::script_firebase_login_email),
         def("netcoop_firebase_identity", &netcoop::script_firebase_identity),
 		def("netcoop_firebase_account", &netcoop::script_firebase_account),
 		def("netcoop_save_draft", &netcoop::script_save_draft),

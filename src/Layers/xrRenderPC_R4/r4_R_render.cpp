@@ -190,6 +190,7 @@ void CRender::DrawUIModel(IRenderVisual* visual, const Fmatrix& world, IRenderVi
     RCache.set_Stencil(FALSE); RCache.set_ColorWriteEnable();
     draw_menu_room();
     draw_ui_geometry(visual, world);
+    if (!s_room_batches.empty()) menu_room::drawn();
     if (item && itemWorld) draw_ui_geometry(item, *itemWorld);
     menu_gpu_end();
     RCache.set_xform_world(old_world); RCache.set_xform_view(old_view); RCache.set_xform_project(old_projection);
