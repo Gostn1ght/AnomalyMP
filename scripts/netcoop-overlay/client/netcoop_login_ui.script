@@ -715,8 +715,9 @@ function netcoop_login_wnd:OnRegister()
 end
 
 function netcoop_login_wnd:OnBack()
-    if self.room_view then self:CloseRoomView(); return end
 	if auth_return == "pending" then return end
+    if cloud_enabled() and self.mode == "account" and self.correct_email then self:OnLogin(); return end
+    if self.room_view then self:CloseRoomView(); return end
     if cloud_enabled() then
         if self.mode == "profile" then
             local populated = false
@@ -776,6 +777,7 @@ function netcoop_login_wnd:OnKeyboard(dik, keyboard_action)
                     elseif self.room_view == "door" then self:AskQuit()
 					elseif not self.room_view and (self.hovered or -1) >= 0 then self:ActivateObject(self.hovered) end
 				elseif self.mode == "profile" then self:ContinueProfile()
+                elseif cloud_enabled() and self.correct_email then self:OnRegister()
 				elseif cloud_enabled() and self.form_mode == "login" then self:OnLogin()
 				elseif account_state() == 0 then self:OnRegister() else self:OnLogin() end
 			end)()
