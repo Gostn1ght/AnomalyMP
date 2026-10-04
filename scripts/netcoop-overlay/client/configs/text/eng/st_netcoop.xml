@@ -1,174 +1,363 @@
-<?xml version="1.0" encoding="windows-1251"?>
+<?xml version='1.0' encoding='windows-1251'?>
 <string_table>
-	<string id="ui_mm_netcoop_play">
-		<text>Multiplayer</text>
-	</string>
-	<string id="st_netcoop_respawn_in">
-		<text>Respawn in</text>
-	</string>
-	<string id="st_netcoop_respawn_press">
-		<text>Press SPACE to respawn</text>
-	</string>
-	<string id="st_netcoop_rp_hands_pockets">
-		<text>Hands in pockets</text>
-	</string>
-	<string id="st_netcoop_rp_salute">
-		<text>Salute</text>
-	</string>
-	<string id="st_netcoop_rp_greet">
-		<text>Greet</text>
-	</string>
-	<string id="st_netcoop_rp_refuse">
-		<text>Refuse</text>
-	</string>
-	<string id="st_netcoop_rp_hands_behind">
-		<text>Hands behind back</text>
-	</string>
-	<string id="st_netcoop_rp_look_around">
-		<text>Look around</text>
-	</string>
-	<string id="st_netcoop_rp_listen">
-		<text>Listen</text>
-	</string>
-	<string id="st_netcoop_rp_hands_up">
-		<text>Hands up</text>
-	</string>
-	<string id="st_netcoop_rp_guard">
-		<text>Sentry</text>
-	</string>
-	<string id="st_netcoop_rp_sit_1">
-		<text>Sit 1</text>
-	</string>
-	<string id="st_netcoop_rp_sit_2">
-		<text>Sit 2</text>
-	</string>
-	<string id="st_netcoop_rp_sit_3">
-		<text>Sit 3</text>
-	</string>
-	<string id="st_netcoop_rp_sleep">
-		<text>Sleep</text>
-	</string>
-	<string id="st_netcoop_rp_pushups">
-		<text>Push-ups</text>
-	</string>
-	<string id="st_netcoop_rp_bar_1">
-		<text>At the bar 1</text>
-	</string>
-	<string id="st_netcoop_rp_bar_2">
-		<text>At the bar 2</text>
-	</string>
-	<string id="st_netcoop_rp_bar_3">
-		<text>At the bar 3</text>
-	</string>
-	<string id="st_netcoop_rp_bar_4">
-		<text>At the bar 4</text>
-	</string>
-	<string id="st_netcoop_rp_bar_5">
-		<text>At the bar 5</text>
-	</string>
-	<string id="st_netcoop_rp_bar_6">
-		<text>At the bar 6</text>
-	</string>
-	<string id="st_netcoop_rp_trance_1">
-		<text>Trance 1</text>
-	</string>
-	<string id="st_netcoop_rp_trance_2">
-		<text>Trance 2</text>
-	</string>
-	<string id="st_netcoop_rp_wounded_1">
-		<text>Wounded 1</text>
-	</string>
-	<string id="st_netcoop_rp_wounded_2">
-		<text>Wounded 2</text>
-	</string>
-	<string id="st_netcoop_rp_prisoner">
-		<text>Hostage</text>
-	</string>
-	<string id="st_netcoop_rp_psy">
-		<text>Psy attack</text>
-	</string>
-	<string id="st_netcoop_rp_gop_stop">
-		<text>Stick-up</text>
-	</string>
-	<string id="st_netcoop_rp_loot">
-		<text>Search</text>
-	</string>
-	<string id="st_netcoop_rp_title">
-		<text>Animations</text>
-	</string>
-	<string id="st_netcoop_rp_stop">
-		<text>Exit animation</text>
-	</string>
-	<string id="st_netcoop_rp_hint">
-		<text>LMB — select\nZ / Esc — close menu</text>
-	</string>
-	<string id="st_netcoop_rp_select"><text>Select a pose on the wheel</text></string>
-	<string id="st_netcoop_characters"><text>Account characters</text></string>
-	<string id="st_netcoop_create_character"><text>Create character</text></string>
-	<string id="st_netcoop_back"><text>Back</text></string>
-	<string id="st_netcoop_register_title"><text>Create an account</text></string>
-	<string id="st_netcoop_account_login"><text>Account username</text></string>
-	<string id="st_netcoop_account_password"><text>Password</text></string>
-	<string id="st_netcoop_server"><text>Server</text></string>
-	<string id="st_netcoop_register_send"><text>Register</text></string>
-	<string id="st_netcoop_existing_account"><text>Already registered? Sign in</text></string>
-	<string id="st_netcoop_approval_title"><text>Awaiting approval</text></string>
-	<string id="st_netcoop_approval_help"><text>Your account is remembered on this computer. An administrator must approve it. Then check approval.</text></string>
-	<string id="st_netcoop_register_help"><text>Register once. After administrator approval you can create up to five characters. Your sign-in will be remembered on this computer.</text></string>
-	<string id="st_netcoop_check_approval"><text>Check approval</text></string>
-	<string id="st_netcoop_approval_rejected"><text>Registration was rejected. Contact the server administrator.</text></string>
-	<string id="st_netcoop_password_invalid"><text>Enter a password of 4 to 64 characters.</text></string>
-	<string id="st_netcoop_login_invalid"><text>Login: 3-20 letters, numbers, dots, hyphens or underscores.</text></string>
-	<string id="st_netcoop_server_invalid"><text>Server address: host:port, for example 127.0.0.1:1267.</text></string>
-	<string id="st_netcoop_key_failed"><text>Cannot prepare remembered sign-in. Check your password and the game log.</text></string>
-	<string id="st_netcoop_enter_zone"><text>Enter the Zone</text></string>
-	<string id="st_netcoop_inventory"><text>Inventory</text></string>
-	<string id="st_netcoop_character_hint"><text>Map: enter the Zone · PDA: settings · Crate: equipment · Characters are separate for each server</text></string>
-	<string id="st_netcoop_registration_notice"><text>New registration: %s. Use /approve_registration LOGIN or /reject_registration LOGIN.</text></string>
-	<string id="st_netcoop_auth_failed"><text>The server did not confirm sign-in.</text></string>
-	<string id="st_netcoop_connecting"><text>Please wait…</text></string>
- <string id="st_netcoop_email"><text>Email</text></string>
- <string id="st_netcoop_cloud_help"><text>One account, up to five characters. Email and password belong to your account. Each stalker has a separate name and story.</text></string>
- <string id="st_netcoop_login_title"><text>Sign in</text></string>
- <string id="st_netcoop_register_tab"><text>Create an account</text></string>
- <string id="st_netcoop_login_action"><text>Sign in</text></string>
- <string id="st_netcoop_verify_title"><text>Verify email</text></string>
- <string id="st_netcoop_verify_help"><text>Enter the six-digit email code. Check Spam as well. The code expires in 10 minutes.</text></string>
- <string id="st_netcoop_verify_check"><text>Continue</text></string>
- <string id="st_netcoop_resend_email"><text>Send email again</text></string>
- <string id="st_netcoop_reset_password"><text>Forgot password?</text></string>
- <string id="st_netcoop_reset_sent"><text>If this email is registered, it will receive password reset instructions.</text></string>
- <string id="st_netcoop_email_invalid"><text>Enter a valid email address.</text></string>
- <string id="st_netcoop_email_exists"><text>This email is already registered. Choose Sign in.</text></string>
- <string id="st_netcoop_cloud_password_invalid"><text>Password: 6 to 128 characters.</text></string>
- <string id="st_netcoop_bad_credentials"><text>Sign in failed. Check your email and password.</text></string>
- <string id="st_netcoop_provider_disabled"><text>Enable Authentication &gt; Email/Password in Firebase.</text></string>
- <string id="st_netcoop_rate_limited"><text>Too many requests. Try again later.</text></string>
- <string id="st_netcoop_session_expired"><text>Session expired. Sign in again.</text></string>
- <string id="st_netcoop_account_disabled"><text>This account is disabled.</text></string>
- <string id="st_netcoop_remember_failed"><text>Signed in, but this computer could not save the account.</text></string>
- <string id="st_netcoop_cloud_network_error"><text>Could not reach Google. Check your connection and try again.</text></string>
- <string id="st_netcoop_exit"><text>Exit game</text></string>
- <string id="st_netcoop_settings"><text>Settings</text></string>
- <string id="st_netcoop_empty_slot"><text>New character</text></string>
- <string id="st_netcoop_profile_title"><text>Create your stalker</text></string>
- <string id="st_netcoop_character_nick"><text>Character name</text></string>
- <string id="st_netcoop_description"><text>Appearance</text></string>
- <string id="st_netcoop_history"><text>Character story</text></string>
- <string id="st_netcoop_profile_help"><text>This is your character identity, separate from your account. Next, choose starter equipment using points.</text></string>
- <string id="st_netcoop_choose_equipment"><text>Choose equipment</text></string>
- <string id="st_netcoop_draft_failed"><text>Could not save the character. Check access to the game folder.</text></string>
- <string id="st_netcoop_character_name_invalid"><text>Name: 2–63 characters, without path separators or newlines.</text></string>
- <string id="st_netcoop_save_server"><text>Save server address</text></string>
-<string id="st_netcoop_email_code"><text>Email code</text></string>
-<string id="st_netcoop_code_invalid"><text>Enter the correct six-digit code.</text></string>
-<string id="st_netcoop_code_expired"><text>The code expired. Request a new email.</text></string>
-<string id="st_netcoop_code_attempts"><text>Too many wrong codes. Try again in an hour.</text></string>
-<string id="st_netcoop_code_limit"><text>The email limit has been reached. Try later.</text></string>
-<string id="st_netcoop_code_wait"><text>Wait a minute before resending.</text></string>
-<string id="st_netcoop_code_mail_error"><text>Email could not be sent. Try again in a minute.</text></string>
-<string id="st_netcoop_code_not_configured"><text>The code service is not connected yet. Configure Google Apps Script.</text></string>
-<string id="st_netcoop_neutral_pose"><text>Neutral stance</text></string>
-<string id="st_netcoop_settings_error"><text>Settings could not open. See the game log.</text></string>
-	<string id="st_netcoop_server_unavailable"><text>Server unavailable. It may be offline.\nPlease try again later.</text></string>
+  <string id="ui_mm_netcoop_play">
+    <text>Multiplayer</text>
+  </string>
+  <string id="st_netcoop_respawn_in">
+    <text>Respawn in</text>
+  </string>
+  <string id="st_netcoop_respawn_press">
+    <text>Press SPACE to respawn</text>
+  </string>
+  <string id="st_netcoop_rp_hands_pockets">
+    <text>Hands in pockets</text>
+  </string>
+  <string id="st_netcoop_rp_salute">
+    <text>Salute</text>
+  </string>
+  <string id="st_netcoop_rp_greet">
+    <text>Greet</text>
+  </string>
+  <string id="st_netcoop_rp_refuse">
+    <text>Refuse</text>
+  </string>
+  <string id="st_netcoop_rp_hands_behind">
+    <text>Hands behind back</text>
+  </string>
+  <string id="st_netcoop_rp_look_around">
+    <text>Look around</text>
+  </string>
+  <string id="st_netcoop_rp_listen">
+    <text>Listen</text>
+  </string>
+  <string id="st_netcoop_rp_hands_up">
+    <text>Hands up</text>
+  </string>
+  <string id="st_netcoop_rp_guard">
+    <text>Sentry</text>
+  </string>
+  <string id="st_netcoop_rp_sit_1">
+    <text>Sit 1</text>
+  </string>
+  <string id="st_netcoop_rp_sit_2">
+    <text>Sit 2</text>
+  </string>
+  <string id="st_netcoop_rp_sit_3">
+    <text>Sit 3</text>
+  </string>
+  <string id="st_netcoop_rp_sleep">
+    <text>Sleep</text>
+  </string>
+  <string id="st_netcoop_rp_pushups">
+    <text>Push-ups</text>
+  </string>
+  <string id="st_netcoop_rp_bar_1">
+    <text>At the bar 1</text>
+  </string>
+  <string id="st_netcoop_rp_bar_2">
+    <text>At the bar 2</text>
+  </string>
+  <string id="st_netcoop_rp_bar_3">
+    <text>At the bar 3</text>
+  </string>
+  <string id="st_netcoop_rp_bar_4">
+    <text>At the bar 4</text>
+  </string>
+  <string id="st_netcoop_rp_bar_5">
+    <text>At the bar 5</text>
+  </string>
+  <string id="st_netcoop_rp_bar_6">
+    <text>At the bar 6</text>
+  </string>
+  <string id="st_netcoop_rp_trance_1">
+    <text>Trance 1</text>
+  </string>
+  <string id="st_netcoop_rp_trance_2">
+    <text>Trance 2</text>
+  </string>
+  <string id="st_netcoop_rp_wounded_1">
+    <text>Wounded 1</text>
+  </string>
+  <string id="st_netcoop_rp_wounded_2">
+    <text>Wounded 2</text>
+  </string>
+  <string id="st_netcoop_rp_prisoner">
+    <text>Hostage</text>
+  </string>
+  <string id="st_netcoop_rp_psy">
+    <text>Psy attack</text>
+  </string>
+  <string id="st_netcoop_rp_gop_stop">
+    <text>Stick-up</text>
+  </string>
+  <string id="st_netcoop_rp_loot">
+    <text>Search</text>
+  </string>
+  <string id="st_netcoop_rp_title">
+    <text>Animations</text>
+  </string>
+  <string id="st_netcoop_rp_stop">
+    <text>Exit animation</text>
+  </string>
+  <string id="st_netcoop_rp_hint">
+    <text>LMB — select\nZ / Esc — close menu</text>
+  </string>
+  <string id="st_netcoop_rp_select">
+    <text>Select a pose on the wheel</text>
+  </string>
+  <string id="st_netcoop_characters">
+    <text>Account characters</text>
+  </string>
+  <string id="st_netcoop_create_character">
+    <text>Create character</text>
+  </string>
+  <string id="st_netcoop_back">
+    <text>Back</text>
+  </string>
+  <string id="st_netcoop_register_title">
+    <text>Create an account</text>
+  </string>
+  <string id="st_netcoop_account_login">
+    <text>Account username</text>
+  </string>
+  <string id="st_netcoop_account_password">
+    <text>Password</text>
+  </string>
+  <string id="st_netcoop_server">
+    <text>Server</text>
+  </string>
+  <string id="st_netcoop_register_send">
+    <text>Register</text>
+  </string>
+  <string id="st_netcoop_existing_account">
+    <text>Already registered? Sign in</text>
+  </string>
+  <string id="st_netcoop_approval_title">
+    <text>Awaiting approval</text>
+  </string>
+  <string id="st_netcoop_approval_help">
+    <text>Your account is remembered on this computer. An administrator must approve it. Then check approval.</text>
+  </string>
+  <string id="st_netcoop_register_help">
+    <text>Register once. After administrator approval you can create up to five characters. Your sign-in will be remembered on this computer.</text>
+  </string>
+  <string id="st_netcoop_check_approval">
+    <text>Check approval</text>
+  </string>
+  <string id="st_netcoop_approval_rejected">
+    <text>Registration was rejected. Contact the server administrator.</text>
+  </string>
+  <string id="st_netcoop_password_invalid">
+    <text>Enter a password of 4 to 64 characters.</text>
+  </string>
+  <string id="st_netcoop_login_invalid">
+    <text>Login: 3-20 letters, numbers, dots, hyphens or underscores.</text>
+  </string>
+  <string id="st_netcoop_server_invalid">
+    <text>Server address: host:port, for example 127.0.0.1:1267.</text>
+  </string>
+  <string id="st_netcoop_key_failed">
+    <text>Cannot prepare remembered sign-in. Check your password and the game log.</text>
+  </string>
+  <string id="st_netcoop_enter_zone">
+    <text>Enter the Zone</text>
+  </string>
+  <string id="st_netcoop_inventory">
+    <text>Inventory</text>
+  </string>
+  <string id="st_netcoop_character_hint">
+    <text>Map: enter the Zone · PDA: settings · Crate: equipment · Characters are separate for each server</text>
+  </string>
+  <string id="st_netcoop_registration_notice">
+    <text>New registration: %s. Use /approve_registration LOGIN or /reject_registration LOGIN.</text>
+  </string>
+  <string id="st_netcoop_auth_failed">
+    <text>The server did not confirm sign-in.</text>
+  </string>
+  <string id="st_netcoop_connecting">
+    <text>Please wait…</text>
+  </string>
+  <string id="st_netcoop_email">
+    <text>Email</text>
+  </string>
+  <string id="st_netcoop_cloud_help">
+    <text>One account, up to five characters. Email and password belong to your account. Each stalker has a separate name and story.</text>
+  </string>
+  <string id="st_netcoop_login_title">
+    <text>Sign in</text>
+  </string>
+  <string id="st_netcoop_register_tab">
+    <text>Create an account</text>
+  </string>
+  <string id="st_netcoop_login_action">
+    <text>Sign in</text>
+  </string>
+  <string id="st_netcoop_verify_title">
+    <text>Verify email</text>
+  </string>
+  <string id="st_netcoop_verify_help">
+    <text>Enter the six-digit email code. Check Spam as well. The code expires in 10 minutes.</text>
+  </string>
+  <string id="st_netcoop_verify_check">
+    <text>Continue</text>
+  </string>
+  <string id="st_netcoop_resend_email">
+    <text>Send email again</text>
+  </string>
+  <string id="st_netcoop_reset_password">
+    <text>Forgot password?</text>
+  </string>
+  <string id="st_netcoop_reset_sent">
+    <text>If this email is registered, it will receive password reset instructions.</text>
+  </string>
+  <string id="st_netcoop_email_invalid">
+    <text>Enter a valid email address.</text>
+  </string>
+  <string id="st_netcoop_email_exists">
+    <text>This email is already registered. Choose Sign in.</text>
+  </string>
+  <string id="st_netcoop_cloud_password_invalid">
+    <text>Password: 6 to 128 characters.</text>
+  </string>
+  <string id="st_netcoop_bad_credentials">
+    <text>Sign in failed. Check your email and password.</text>
+  </string>
+  <string id="st_netcoop_provider_disabled">
+    <text>Enable Authentication &gt; Email/Password in Firebase.</text>
+  </string>
+  <string id="st_netcoop_rate_limited">
+    <text>Too many requests. Try again later.</text>
+  </string>
+  <string id="st_netcoop_session_expired">
+    <text>Session expired. Sign in again.</text>
+  </string>
+  <string id="st_netcoop_account_disabled">
+    <text>This account is disabled.</text>
+  </string>
+  <string id="st_netcoop_remember_failed">
+    <text>Signed in, but this computer could not save the account.</text>
+  </string>
+  <string id="st_netcoop_cloud_network_error">
+    <text>Could not reach Google. Check your connection and try again.</text>
+  </string>
+  <string id="st_netcoop_exit">
+    <text>Exit game</text>
+  </string>
+  <string id="st_netcoop_settings">
+    <text>Settings</text>
+  </string>
+  <string id="st_netcoop_empty_slot">
+    <text>New character</text>
+  </string>
+  <string id="st_netcoop_profile_title">
+    <text>Create your stalker</text>
+  </string>
+  <string id="st_netcoop_character_nick">
+    <text>Character name</text>
+  </string>
+  <string id="st_netcoop_description">
+    <text>Appearance</text>
+  </string>
+  <string id="st_netcoop_history">
+    <text>Character story</text>
+  </string>
+  <string id="st_netcoop_profile_help">
+    <text>This is your character identity, separate from your account. Next, choose starter equipment using points.</text>
+  </string>
+  <string id="st_netcoop_choose_equipment">
+    <text>Choose equipment</text>
+  </string>
+  <string id="st_netcoop_draft_failed">
+    <text>Could not save the character. Check access to the game folder.</text>
+  </string>
+  <string id="st_netcoop_character_name_invalid">
+    <text>Name: 2–63 characters, without path separators or newlines.</text>
+  </string>
+  <string id="st_netcoop_save_server">
+    <text>Save server address</text>
+  </string>
+  <string id="st_netcoop_email_code">
+    <text>Email code</text>
+  </string>
+  <string id="st_netcoop_code_invalid">
+    <text>Enter the correct six-digit code.</text>
+  </string>
+  <string id="st_netcoop_code_expired">
+    <text>The code expired. Request a new email.</text>
+  </string>
+  <string id="st_netcoop_code_attempts">
+    <text>Too many wrong codes. Try again in an hour.</text>
+  </string>
+  <string id="st_netcoop_code_limit">
+    <text>The email limit has been reached. Try later.</text>
+  </string>
+  <string id="st_netcoop_code_wait">
+    <text>Wait a minute before resending.</text>
+  </string>
+  <string id="st_netcoop_code_mail_error">
+    <text>Email could not be sent. Try again in a minute.</text>
+  </string>
+  <string id="st_netcoop_code_not_configured">
+    <text>The code service is not connected yet. Configure Google Apps Script.</text>
+  </string>
+  <string id="st_netcoop_neutral_pose">
+    <text>Neutral stance</text>
+  </string>
+  <string id="st_netcoop_settings_error">
+    <text>Settings could not open. See the game log.</text>
+  </string>
+  <string id="st_netcoop_server_unavailable">
+    <text>Server unavailable. It may be offline.\nPlease try again later.</text>
+  </string>
+  <string id="st_netcoop_room_overview">
+    <text>Personal room</text>
+  </string>
+  <string id="st_netcoop_room_map">
+    <text>Map · server</text>
+  </string>
+  <string id="st_netcoop_room_pda">
+    <text>PDA · settings</text>
+  </string>
+  <string id="st_netcoop_room_backpack">
+    <text>Backpack</text>
+  </string>
+  <string id="st_netcoop_room_safe">
+    <text>Personal safe</text>
+  </string>
+  <string id="st_netcoop_room_door">
+    <text>Door · enter Zone</text>
+  </string>
+  <string id="st_netcoop_storage_saved">
+    <text>Saved. Click an item to move it to the other container.</text>
+  </string>
+  <string id="st_netcoop_storage_denied">
+    <text>Character access denied.</text>
+  </string>
+  <string id="st_netcoop_storage_online">
+    <text>Character is still online. Wait for server logout to finish.</text>
+  </string>
+  <string id="st_netcoop_storage_first_join">
+    <text>Equipment becomes available after the first server join.</text>
+  </string>
+  <string id="st_netcoop_storage_stale">
+    <text>Inventory changed. Review the refreshed items before retrying.</text>
+  </string>
+  <string id="st_netcoop_storage_equipped">
+    <text>Unequip this item in game first.</text>
+  </string>
+  <string id="st_netcoop_storage_full">
+    <text>The container has insufficient free cells.</text>
+  </string>
+  <string id="st_netcoop_storage_save_failed">
+    <text>Server could not save the transfer. Items remain in their original containers.</text>
+  </string>
+  <string id="st_netcoop_storage_readonly">
+    <text>Preview. Item transfers require an available game server.</text>
+  </string>
+  <string id="st_netcoop_storage_cells">
+    <text>cells</text>
+  </string>
+  <string id="st_netcoop_storage_worn">
+    <text>equipped</text>
+  </string>
 </string_table>

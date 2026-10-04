@@ -155,9 +155,9 @@ void CRender::DrawUIModel(IRenderVisual* visual, const Fmatrix& world, IRenderVi
         HW.pContext->ClearDepthStencilView(s_menu_shadow_depth->pZRT,D3D_CLEAR_DEPTH,1.f,0);
         Fmatrix light_view,light_projection,bias,light_combined;
         Fvector light_eye=menu_room::lamp_position();
-        Fvector light_target=Fvector().set(light_eye.x,light_eye.y-1.f,light_eye.z+.01f);
-        light_view.build_camera(light_eye,light_target,Fvector().set(0,0,1));
-        light_projection.build_projection(deg2rad(110.f),1.f,.1f,12.f);
+        Fvector light_target=Fvector().set(.15f,.35f,2.05f);
+        light_view.build_camera(light_eye,light_target,Fvector().set(0,1,0));
+        light_projection.build_projection(deg2rad(145.f),1.f,.04f,12.f);
         light_combined.mul(light_projection,light_view);
         bias.identity(); bias._11=.5f; bias._22=-.5f; bias._41=.5f; bias._42=.5f;
         s_menu_shadow_matrix.mul(bias,light_combined);

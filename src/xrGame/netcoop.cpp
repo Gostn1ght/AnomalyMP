@@ -3,6 +3,8 @@
 #include "../xrEngine/netcoop_menu_camera.h"
 
 #include <bcrypt.h>
+#include <io.h>
+#include "netcoop_storage_policy.h"
 #include <wincrypt.h>
 #include <winhttp.h>
 #include "../3rd party/nlohmann/json.hpp"
@@ -392,6 +394,26 @@ static xr_string client_device_key()
 
 #include "netcoop_firebase.inc"
 
+struct StorageRequest
+{
+    bool active=false; u8 op=0,slot=1; u16 index=0; u32 revision=0; xr_string id;
+};
+static StorageRequest s_storage_request;
+void storage_write_auth(NET_Packet& P)
+{
+    if (!s_storage_request.active || s_client_character_slot) return;
+    P.w_u32(0x54535a4c); P.w_u8(s_storage_request.op); P.w_u8(s_storage_request.slot);
+    P.w_u16(s_storage_request.index); P.w_u32(s_storage_request.revision); P.w_stringZ(s_storage_request.id.c_str());
+    s_storage_request.active=false;
+}
+bool script_storage_prepare(int op,int slot,int index,int revision)
+{
+    if (g_pGameLevel || op<0 || op>2 || slot<1 || slot>10 || index<0 || index>511) return false;
+    u8 nonce[16]; if (BCryptGenRandom(nullptr,nonce,sizeof(nonce),BCRYPT_USE_SYSTEM_PREFERRED_RNG)!=0) return false;
+    s_storage_request.active=true; s_storage_request.op=u8(op); s_storage_request.slot=u8(slot);
+    s_storage_request.index=u16(index); s_storage_request.revision=u32(revision); s_storage_request.id=to_hex(nonce,sizeof(nonce));
+    return true;
+}
 void client_write_auth(NET_Packet& P)
 {
 	client_load_credentials();
@@ -406,6 +428,7 @@ void client_write_auth(NET_Packet& P)
     P.w_stringZ(s_client_character_name.empty() ? "device_pda_1" : s_client_character_loadout.c_str());
     P.w_stringZ(client_device_key().c_str());
     if (cloud) { P.w_stringZ(s_client_description.c_str()); P.w_stringZ(s_client_history.c_str()); }
+	storage_write_auth(P);
 	s_client_register = false;
 	s_client_role = role_none;
     s_client_role_verified = false;
@@ -440,10 +463,18 @@ void client_on_auth_result(NET_Packet& P)
             ::luabind::functor<void> cache;
             if (ai().script_engine().functor("netcoop_login_ui.cache_characters", cache)) cache(names);
             char previews[14336];
-            if (P.r_elapsed() && read_string(P, previews, sizeof(previews)) && ai().script_engine().functor("netcoop_login_ui.cache_previews", cache)) cache(previews);
+            if (P.r_elapsed() && read_string(P, previews, sizeof(previews)) && previews[0] && ai().script_engine().functor("netcoop_login_ui.cache_previews", cache)) cache(previews);
         }
     }
+    xr_string storage_reply;
+    char storage[14336];
+    if (ok && P.r_elapsed() && read_string(P,storage,sizeof(storage))) storage_reply=storage;
 	call_lua("netcoop_client_compat.on_auth_result", !!ok, s_client_role, message);
+    if (!storage_reply.empty())
+    {
+        ::luabind::functor<void> callback;
+        if (ai().script_engine().functor("netcoop_login_ui.on_storage_result",callback)) callback(storage_reply.c_str());
+    }
 }
 
 static bool s_trade_refresh = false;
@@ -517,6 +548,32 @@ static float s_preview_heading = 0.f;
 static int s_preview_facing_axis = 0;
 static bool s_preview_facing_ready = false;
 static u32 s_preview_restart = 0;
+static bool s_preview_seated=false;
+static u32 s_preview_idle_change=0,s_preview_frame=0;
+static xr_vector<shared_str> s_preview_seated_motions;
+static u32 s_preview_idle_seed=0x31415926;
+static u32 preview_random() { s_preview_idle_seed=1664525u*s_preview_idle_seed+1013904223u; return s_preview_idle_seed; }
+// Preview tracks are advanced by the continual menu clock in draw(), once.
+// CalculateBones must not advance them again using the world clock.
+static struct PreviewTracks : IUpdateTracksCallback
+{
+    bool operator()(float,IKinematicsAnimated&) override { return true; }
+} s_preview_tracks;
+static void preview_loop(IKinematicsAnimated* skeleton,MotionID motion,float speed)
+{
+    struct Loop : IterateBlendsCallback
+    {
+        MotionID id; float rate;
+        Loop(MotionID motion,float speed):id(motion),rate(speed) {}
+        void operator()(CBlend& blend) override
+        {
+            if (blend.motionID.slot!=id.slot || blend.motionID.idx!=id.idx) return;
+            blend.stop_at_end=FALSE; blend.fall_at_end=FALSE;
+            blend.stop_at_end_callback=FALSE; blend.playing=TRUE; blend.speed=rate;
+        }
+    } callback(motion,speed);
+    skeleton->LL_IterateBlends(callback);
+}
 
 void script_preview_clear()
 {
@@ -527,6 +584,7 @@ void script_preview_clear()
     s_preview_item_name.clear(); s_preview_armed = false;
     s_preview_torso_motion.clear(); s_preview_torso_restart = 0; s_preview_facing_ready = false;
     s_preview_name.clear(); s_preview_motion.clear(); s_preview_restart = 0;
+    s_preview_seated=false; s_preview_idle_change=s_preview_frame=0; s_preview_seated_motions.clear();
 }
 
 bool script_preview_model(LPCSTR model, int pose)
@@ -543,7 +601,22 @@ bool script_preview_model(LPCSTR model, int pose)
     if (!k) return true;
     LPCSTR motion = "norm_idle_0";
 
-    s_preview_armed = pose < 0 && s_preview_item;
+    s_preview_seated=pose==-2;
+    k->SetUpdateTracksCalback(s_preview_seated ? &s_preview_tracks : nullptr);
+    s_preview_armed = pose == -1 && s_preview_item;
+    if (s_preview_seated)
+    {
+        s_preview_seated_motions.clear();
+        for (LPCSTR candidate:{"animpoint_sit_low_idle_1","animpoint_sit_low_idle_rnd_1","animpoint_sit_low_idle_rnd_2","animpoint_sit_low_idle_rnd_3","animpoint_sit_low_idle_rnd_4"})
+            if (k->ID_Cycle_Safe(candidate).valid()) s_preview_seated_motions.push_back(candidate);
+        if (s_preview_seated_motions.empty())
+            for (LPCSTR candidate:{"animpoint_sit_high_idle_1","jup_b15_zulus_sit_idle"})
+                if(k->ID_Cycle_Safe(candidate).valid()) { s_preview_seated_motions.push_back(candidate); break; }
+        if(s_preview_seated_motions.empty()) { script_preview_clear(); return false; }
+        motion=s_preview_seated_motions.front().c_str();
+        s_preview_idle_seed=Device.dwTimeContinual|1; s_preview_idle_change=Device.dwTimeContinual+12000;
+        Msg("[Lost Zone] sofa preview: %s, %u available idle motions",motion,u32(s_preview_seated_motions.size()));
+    }
     if (pose >= 0 && pose < int(rp_anims().size()))
         for (const auto& candidate : rp_anims()[pose].mid)
             if (k->ID_Cycle_Safe(candidate.c_str()).valid()) { motion = candidate.c_str(); break; }
@@ -574,8 +647,9 @@ bool script_preview_model(LPCSTR model, int pose)
     s_preview_torso_motion.clear(); s_preview_torso_restart=0;
     s_preview_motion = motion;
     CBlend* blend = k->PlayCycle(id, FALSE);
+    if (s_preview_seated) preview_loop(k,id,.94f);
     if (blend) { blend->speed = _min(blend->speed, 1.f); s_preview_restart = Device.dwTimeGlobal + u32(blend->timeTotal / _max(.1f, blend->speed) * 1000.f); }
-    if (pose < 0)
+    if (pose == -1)
     {
         LPCSTR torso = "norm_torso_0_aim_0";
         string128 armed;
@@ -619,8 +693,11 @@ Fvector2 script_preview_point(int object)
     Fvector point=menu_room::interaction(object);
     Fmatrix view, projection, combined;
     menu_room::matrices(view,projection);
+    Fvector local; view.transform_tiny(local,point);
+    Fvector2 result; result.set(-10000,-10000);
+    if (local.z<=.08f) return result;
     combined.mul(projection, view); combined.transform(point);
-    Fvector2 result; result.set((point.x + 1.f) * 512.f, (1.f - point.y) * 384.f); return result;
+    result.set((point.x + 1.f) * 512.f, (1.f - point.y) * 384.f); return result;
 }
 
 void script_preview_focus(int object) { menu_room::focus(object); }
@@ -631,7 +708,21 @@ void script_preview_draw()
     if (!s_preview_visual || g_pGameLevel) return;
     if (auto k = s_preview_visual->dcast_PKinematicsAnimated())
     {
-        if (s_preview_restart && Device.dwTimeGlobal >= s_preview_restart)
+        if (s_preview_seated)
+        {
+            const u32 now=Device.dwTimeContinual;
+            if(now>=s_preview_idle_change)
+            {
+                s_preview_motion=s_preview_seated_motions[preview_random()%s_preview_seated_motions.size()].c_str();
+                const MotionID id=k->ID_Cycle_Safe(s_preview_motion.c_str());
+                if (k->PlayCycle(id,TRUE)) preview_loop(k,id,.90f+float(preview_random()%15)*.01f);
+                s_preview_idle_change=now+12000+preview_random()%10000;
+            }
+            // The menu runs on a continual clock, independently of a paused game.
+            k->LL_UpdateTracks(s_preview_frame ? _min(.066f,float(now-s_preview_frame)/1000.f) : 0.f,true,false);
+            s_preview_frame=now;
+        }
+        if (!s_preview_seated && s_preview_restart && Device.dwTimeGlobal >= s_preview_restart)
         {
             CBlend* blend = k->PlayCycle(s_preview_motion.c_str(), FALSE);
             if (blend) { blend->speed = _min(blend->speed, 1.f); s_preview_restart = Device.dwTimeGlobal + u32(blend->timeTotal / _max(.1f, blend->speed) * 1000.f); }
@@ -639,7 +730,7 @@ void script_preview_draw()
         if (s_preview_torso_restart && Device.dwTimeGlobal >= s_preview_torso_restart)
             if (auto blend=k->PlayCycle(s_preview_torso_motion.c_str(),FALSE))
                 s_preview_torso_restart=Device.dwTimeGlobal+u32(blend->timeTotal/_max(.1f,blend->speed)*1000.f);
-        k->UpdateTracks();
+        if(!s_preview_seated) k->UpdateTracks();
     }
     float heading=PI;
     if (auto k = s_preview_visual->dcast_PKinematics())
@@ -658,6 +749,18 @@ void script_preview_draw()
     Fmatrix world; world.rotateY(heading);
     // The preview's lowest bound rests on the room's y=0 floor.
     world.c.y=_max(-.25f,_min(.25f,-s_preview_visual->getVisData().box.min.y));
+    if(s_preview_seated)
+    {
+        if(auto skeleton=s_preview_visual->dcast_PKinematics())
+        {
+            const u16 pelvis=skeleton->LL_BoneID("bip01_pelvis");
+            if(pelvis!=BI_NONE)
+            {
+                Fvector local; world.transform_dir(local,skeleton->LL_GetTransform(pelvis).c);
+                world.c.sub(menu_room::seat_position(),local);
+            }
+        }
+    }
     Fmatrix itemWorld;
     IRenderVisual* item = nullptr;
     if (s_preview_item && s_preview_armed)
@@ -687,6 +790,13 @@ void script_preview_draw()
             if (auto bones = s_preview_item->dcast_PKinematics()) bones->CalculateBones(TRUE);
             item = s_preview_item;
         }
+    }
+    if(s_preview_seated && s_preview_item)
+    {
+        item=s_preview_item; itemWorld.setHPB(PI*.6f,0,PI*.5f);
+        itemWorld.c.set(.3f,.70f,.57f);
+        if (auto k=item->dcast_PKinematicsAnimated()) k->UpdateTracks();
+        if (auto k=item->dcast_PKinematics()) k->CalculateBones(TRUE);
     }
     Render->DrawUIModel(s_preview_visual, world, item, item ? &itemWorld : nullptr);
 }
@@ -940,7 +1050,10 @@ void server_list_accounts(xr_string& out)
 	}
 }
 
+static u32 storage_capacity(bool safe);
+static u32 storage_section_cost(LPCSTR section);
 #include "netcoop_characters.inc"
+#include "netcoop_storage.inc"
 #include "netcoop_pda.inc"
 #include "netcoop_marks.inc"
 
@@ -962,7 +1075,7 @@ struct LoginInUse
 	}
 };
 
-static void send_auth_result(xrServer* server, xrClientData* CL, bool ok, u8 role, LPCSTR message)
+static void send_auth_result(xrServer* server, xrClientData* CL, bool ok, u8 role, LPCSTR message, LPCSTR storage=nullptr)
 {
 	NET_Packet P;
 	P.w_begin(M_NETCOOP_AUTH_RESULT);
@@ -994,7 +1107,10 @@ static void send_auth_result(xrServer* server, xrClientData* CL, bool ok, u8 rol
                 }
             previews += visual + "|" + (character ? character->faction : "stalker") + "|" + items + "\n";
         }
-        P.w_stringZ(previews.c_str());
+        // Storage snapshots occupy a separate bounded payload. Full account
+        // previews can approach the packet limit and are omitted in that case.
+        P.w_stringZ(storage ? "" : previews.c_str());
+        if (storage) P.w_stringZ(storage);
     }
 	server->SendTo(CL->ID, P, net_flags(TRUE, TRUE));
 }
@@ -1022,6 +1138,7 @@ struct PendingAuth
 	xr_string key;
 	xr_string salt;
 	bool create;
+    StorageRequest storage;
 	u8 slot = 1, economy = 1;
 	xr_string character_name, faction = "stalker", loadout;
 	xr_string hash;
@@ -1118,7 +1235,17 @@ void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
                 { xr_delete(pending); reject(server, CL, "Invalid character profile"); return; }
                 pending->description = description; pending->history = history;
             }
-            if (P.r_elapsed()) { xr_delete(pending); reject(server, CL, "Unexpected authentication data"); return; }
+            if (P.r_elapsed())
+            {
+                char id[33];
+                if (pending->slot!=0 || P.r_elapsed()<13 || P.r_u32()!=0x54535a4c)
+                { xr_delete(pending); reject(server,CL,"Invalid storage request"); return; }
+                pending->storage.active=true; pending->storage.op=P.r_u8(); pending->storage.slot=P.r_u8();
+                pending->storage.index=P.r_u16(); pending->storage.revision=P.r_u32();
+                if (!read_string(P,id,sizeof(id)) || xr_strlen(id)!=32 || P.r_elapsed() || pending->storage.op>2)
+                { xr_delete(pending); reject(server,CL,"Invalid storage request"); return; }
+                pending->storage.id=id;
+            }
         }
     }
     else
@@ -1258,7 +1385,12 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
     // an Actor or touching an existing character's inventory.
     if (pending->slot == 0)
     {
-        send_auth_result(server, CL, true, a->role, "Account verified");
+        if (pending->storage.active)
+        {
+            const xr_string result=storage_execute(server,CL,pending->storage);
+            send_auth_result(server,CL,true,a->role,"Account verified",result.c_str());
+        }
+        else send_auth_result(server, CL, true, a->role, "Account verified");
         server->DisconnectClient(CL, "@Account verified");
         return;
     }
@@ -1621,6 +1753,15 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 		return;
 	}
 	trade->StartTradeEx(actor);
+	if (!partner_buys)
+	{
+		u32 cells=storage_live_cells(server,CL->owner);
+		for (auto item:items) cells+=storage_section_cost(item->object().cNameSect().c_str());
+		if (cells>storage_capacity(false))
+		{
+			trade->StopTrade(); send_trade_result(server,CL,false,"No free inventory slots"); return;
+		}
+	}
 
 	u32 total = 0;
 	for (u32 i = 0; i < items.size(); ++i)

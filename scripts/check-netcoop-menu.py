@@ -65,6 +65,11 @@ auth_requests={}
 function netcoop_frontend_auth(options) auth_requests[#auth_requests+1]=options; return true end
 function netcoop_character(slot,name,faction,economy,loadout) characters[#characters+1]={slot=slot,name=name,loadout=loadout}; return true end
 function netcoop_preview_clear() end
+function netcoop_preview_focus(object) camera_target=object;camera_done=false end
+function netcoop_preview_ready() return camera_done~=false end
+function netcoop_preview_point(object) return {x=300,y=400} end
+function netcoop_preview_weapon(section) last_weapon=section;return true end
+function netcoop_storage_prepare(op,slot,index,revision) storage_requests=storage_requests or {};storage_requests[#storage_requests+1]={op=op,slot=slot,index=index,revision=revision};return true end
 function netcoop_preview_model(model,pose) previews[#previews+1]={model=model,pose=pose}; return true end
 function netcoop_rp_list() return 'bar_1=bar;hands_pockets=pockets;sit_1=sit1;sit_2=sit2;sit_3=sit3;hands_behind=behind;sleep=sleep;' end
 function exec_console_cmd(cmd) commands[#commands+1]=cmd end
@@ -108,7 +113,7 @@ callbacks.btn_enter(); assert(characters[#characters].slot==0)
 state=2; cache_characters('Alpha|Beta|||'); cache_previews('actors\\novice.ogf|stalker|\nactors\\armor.ogf|dolg|\n')
 on_auth_result(true,1,'Account verified'); last_window:Update()
 assert(#commands==0)
-assert(controls.name.text=='Alpha' and #previews==0)
+assert(controls.name.text=='Alpha' and previews[#previews].pose==-2)
 callbacks.char_next(); assert(controls.name.text=='Alpha')
 assert(last_window:CharacterLimit()==1 and not controls.slot2.shown and not controls.slot10.shown)
 local n=#characters; last_window:SelectCharacter(2); assert(#characters==n)
@@ -116,14 +121,15 @@ local previous=last_window.mode; last_window:ShowProfile(2); assert(last_window.
 assert(callbacks.preview_pose_1==nil and callbacks.char_poses==nil)
 role=2; cache_characters('Alpha|Beta||||||||');last_window:ShowCharacters()
 assert(last_window:CharacterLimit()==10 and controls.slot10.shown)
-callbacks.char_next(); assert(controls.name.text=='Beta')
-callbacks.char_previous();assert(controls.name.text=='Alpha')
-callbacks.char_previous(); assert(controls.info.text:find('10 / 10',1,true))
-callbacks.char_next(); callbacks.char_server(); last_window:Update(); callbacks.server_connect()
+callbacks.char_next(); assert(controls.name.text=='Alpha' and camera_target==0)
+callbacks.char_slot2();assert(controls.name.text=='Beta')
+callbacks.char_slot1();assert(controls.name.text=='Alpha')
+callbacks.char_slot10(); assert(controls.info.text:find('10 / 10',1,true))
+callbacks.char_slot1(); callbacks.char_server(); camera_done=true;last_window:Update(); callbacks.server_connect()
 assert(characters[#characters].slot==1 and characters[#characters].name=='Alpha')
 assert(can_mcm()==true);role=0;assert(can_mcm()==false)
 ''')
-print('Actual menu Lua: first screen, saved-account bypass, empty-password rejection, account verification without world-start commands, pending account lock, one/ten character allowance, admin slot 10 and no 3D preview PASS')
+print('Actual menu Lua: first screen, saved-account bypass, empty-password rejection, account verification without world-start commands, pending account lock, one/ten character allowance, admin slot 10 and seated 3D preview PASS')
 
 lua.execute(r'''
 commands,characters,cloud_requests,drafts={},{},{},{}
@@ -207,13 +213,15 @@ assert(last_window.mode=='characters' and controls.name.text=='Loner One' and #c
 assert(not controls.input_email.shown and not controls.background.shown)
 assert(#controls.inventory_scroll.rows==1)
 drafts[1].loadout='medkit,medkit,medkit,wpn_ak74';last_window:ShowCharacters()
-assert(last_weapon==nil and #controls.inventory_scroll.rows==2)
+assert(last_weapon=='wpn_ak74' and #controls.inventory_scroll.rows==2)
 last_window:OnKeyboard(23,ui_events.WINDOW_KEY_PRESSED)
-assert(controls.inventory_panel.shown and last_window.character_panel.shown and #previews==0)
+assert(not controls.inventory_panel.shown and last_window.character_panel.shown and previews[#previews].pose==-2)
 finish_camera(); assert(controls.inventory_panel.shown)
+on_cloud_result(false,'NETWORK_ERROR','cloud_user',true)
 last_window:OnKeyboard(24,ui_events.WINDOW_KEY_PRESSED); assert(not controls.inventory_panel.shown)
-callbacks.char_inventory(); assert(controls.inventory_panel.shown)
+callbacks.char_inventory(); assert(not controls.inventory_panel.shown)
 finish_camera(); assert(controls.inventory_panel.shown)
+on_cloud_result(false,'NETWORK_ERROR','cloud_user',true)
 last_window:OnKeyboard(DIK_keys.DIK_ESCAPE,ui_events.WINDOW_KEY_PRESSED)
 assert(not controls.inventory_panel.shown and last_window.character_panel.shown and #commands==0)
 callbacks.char_settings();assert(settings_created==0)
@@ -227,16 +235,16 @@ callbacks.char_settings();finish_camera();assert(last_window.shown and controls.
 ui_options.UIOptions=options_factory
 -- Changing servers must not expose or reuse another server's draft.
 controls.server_edit:SetText('Other-Server.example:1268');callbacks.server_save()
-assert(draft_scope=='other-server.example:1268' and (last_window.names[1] or '')=='' and #previews==0)
+assert(draft_scope=='other-server.example:1268' and (last_window.names[1] or '')=='' and previews[#previews].pose==-2)
 assert(draft_stores['127.0.0.1:1267'][1].name=='Loner One')
-controls.server_edit:SetText('127.0.0.1:1267');callbacks.server_save();assert(last_window.names[1]=='Loner One' and #previews==0)
-callbacks.char_server(); assert(controls.server_panel.shown); finish_camera();callbacks.server_connect(); assert(cloud_requests[#cloud_requests].action=='refresh' and #commands==0)
+controls.server_edit:SetText('127.0.0.1:1267');callbacks.server_save();assert(last_window.names[1]=='Loner One' and previews[#previews].pose==-2)
+callbacks.char_server(); finish_camera();assert(controls.server_panel.shown,'server panel');callbacks.server_connect(); assert(cloud_requests[#cloud_requests].action=='refresh' and #commands==0,'server refresh')
 on_cloud_result(false,'NETWORK_ERROR','cloud_user',true); assert(#commands==0)
 callbacks.server_connect(); on_cloud_result(true,'','cloud_user',true)
 assert(characters[#characters].name=='Loner One' and characters[#characters].slot==1)
 assert(profile[1]=='Brown jacket' and #commands==2)
 cache_characters('Server saved name||||');last_window:ShowCharacters();assert(last_window.names[1]=='Server saved name')
-cloud_identity='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';last_window:ShowCharacters();assert((last_window.names[1] or '')=='' and #previews==0)
+cloud_identity='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';last_window:ShowCharacters();assert((last_window.names[1] or '')=='' and previews[#previews].pose==-2)
 cloud_identity='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';last_window:ShowCharacters();assert(last_window.names[1]=='Server saved name')
 -- Network failure while refreshing a verified account does not ask for another email code.
 last_window:ResetCloud();assert(not controls.input_code.shown and not controls.btn_reg.shown)
@@ -262,6 +270,35 @@ controls.server_edit:SetText('another-role-server.example:1267');callbacks.serve
 assert(last_window:CharacterLimit()==1 and not controls.slot10.shown)
 """)
 print('Firebase menu: separate account/character, verification gate, duplicate request lock, offline starter draft, stack counts, inventory key, refreshed world entry, remembered login PASS')
+lua.execute(r"""
+role=1;cache_characters('Bag Owner||||||||||');last_window:ShowCharacters()
+assert(controls.previous.shown and controls.next.shown)
+local name=controls.name.text
+callbacks.char_next();assert(camera_target==0 and controls.name.text==name)
+callbacks.char_previous();assert(camera_target==-1 and controls.name.text==name)
+callbacks.char_safe();finish_camera();assert(controls.inventory_panel.shown)
+local count=#cloud_requests;callbacks.char_inventory();assert(#cloud_requests==count)
+on_cloud_result(true,'','cloud_user',true)
+assert(storage_requests[#storage_requests].op==0 and characters[#characters].slot==0)
+on_auth_result(true,1,'Account verified')
+assert(last_window.storage_pending~=nil)
+on_storage_result('OK\n7|12|60|1|120\nI|0|wpn_ak74|10|0\nI|1|medkit|1|1\nS|0|medkit|1|0\n')
+assert(#controls.inventory_scroll.rows==2 and #controls.safe_scroll.rows==1)
+assert(last_window.storage_revision==7)
+local count=#cloud_requests;callbacks.storage_I1();assert(#cloud_requests==count)
+callbacks.storage_I0();assert(#cloud_requests==count+1)
+callbacks.storage_I0();assert(#cloud_requests==count+1)
+callbacks.char_slot2();assert(last_window.slot==1)
+on_cloud_result(true,'','cloud_user',true)
+assert(storage_requests[#storage_requests].op==1 and storage_requests[#storage_requests].index==0 and storage_requests[#storage_requests].revision==7)
+on_auth_result(true,1,'Account verified')
+on_storage_result('STALE\n8|1|60|11|120\nI|0|medkit|1|0\nS|0|wpn_ak74|10|0\nS|1|medkit|1|0\n')
+assert(last_window.storage_revision==8 and #controls.inventory_scroll.rows==1)
+callbacks.storage_S0();on_cloud_result(false,'NETWORK_ERROR','cloud_user',true)
+assert(last_window.storage_pending==nil and last_window.mode=='characters')
+""")
+print('Storage frontend: authenticated snapshot, item rows, equipped lock, duplicate click lock, camera/slot isolation, stale refresh and failure recovery PASS')
+
 temporary.cleanup()
 
 # The base menu must not load another Lua class during its native constructor.

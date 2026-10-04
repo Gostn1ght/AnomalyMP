@@ -39,13 +39,18 @@ float3 menu_light(float3 diffuse, float3 normal, float3 world, float4 shadow, fl
     float distance2=dot(delta,delta);
     float ndotl=saturate(dot(normalize(normal),normalize(delta)));
     float visibility=menu_visibility(shadow,ndotl);
-    float attenuation=1/(1+.07*distance2);
-    float hemi=.10+.08*saturate(normal.y*.5+.5);
-    float3 lamp=float3(1.25,1.03,.74)*attenuation*visibility;
-    float3 lighting=float3(.93,.97,1.0)*hemi+lamp*ndotl;
+    float attenuation=1/(1+.55*distance2);
+    float hemi=.055+.045*saturate(normal.y*.5+.5);
+    float3 lamp=float3(3.7,2.15,.95)*attenuation*visibility;
+    float3 doorway=float3(-1.8,1.85,-1.8)-world;
+    float fill=saturate(dot(normalize(normal),normalize(doorway)))/(1+.16*dot(doorway,doorway));
+    float3 lighting=float3(.70,.79,1.0)*(hemi+.16*fill)+lamp*ndotl;
     float3 viewEye=-mul(m_V,float4(world,1)).xyz;
     float3 viewDirection=normalize(mul(viewEye,(float3x3)m_V));
     float3 halfDirection=normalize(normalize(delta)+viewDirection);
     float specular=pow(saturate(dot(normal,halfDirection)),lerp(12,72,gloss))*gloss*.3*ndotl;
-    return pow(max(0,pow(max(diffuse,0),2.2)*lighting+lamp*specular),1/2.2);
+    float3 radiance=max(0,pow(max(diffuse,0),2.2)*lighting+lamp*specular);
+    // Filmic shoulder keeps lantern-lit plaster and metal from clipping.
+    radiance=saturate((radiance*(2.51*radiance+.03))/(radiance*(2.43*radiance+.59)+.14));
+    return pow(radiance,1/2.2);
 }

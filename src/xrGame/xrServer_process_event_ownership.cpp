@@ -3,6 +3,7 @@
 #include "xrserver_objects.h"
 #include "xrserver_objects_alife_monsters.h"
 #include "xrServer_svclient_validation.h"
+#include "netcoop.h"
 
 void ReplaceOwnershipHeader(NET_Packet& P)
 {
@@ -56,6 +57,7 @@ void xrServer::Process_event_ownership(NET_Packet& P, ClientID sender, u32 time,
 	}
 
 	if (0xffff != e_entity->ID_Parent) return;
+	if (!netcoop::server_inventory_can_take(this,id_parent,id_entity)) return;
 
 	xrClientData* c_parent = e_parent->owner;
 	xrClientData* c_entity = e_entity->owner;

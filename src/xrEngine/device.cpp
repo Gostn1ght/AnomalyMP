@@ -997,10 +997,11 @@ static int destination = -1;
 static u32 start = 0;
 static bool moving = false;
 static Fvector eyes[] = {Fvector().set(0,1.35f,-4.6f),Fvector().set(-1.5f,1.6f,.9f),
-    Fvector().set(1.4f,1.7f,.1f),Fvector().set(-1.6f,1.f,-.85f)};
+    Fvector().set(1.4f,1.7f,.1f),Fvector().set(-1.6f,1.f,-.85f),Fvector().set(-.75f,1.1f,-.1f),Fvector().set(-.75f,1.45f,.1f)};
 static Fvector targets[] = {Fvector().set(0,1.25f,.5f),Fvector().set(-1.5f,1.65f,2.14f),
-    Fvector().set(1.5f,.95f,1.1f),Fvector().set(-1.65f,.36f,.3f)};
+    Fvector().set(1.5f,.95f,1.1f),Fvector().set(-1.65f,.36f,.3f),Fvector().set(-1.55f,.65f,1.15f),Fvector().set(-1.9f,1.f,-1.2f)};
 static Fvector lamp = Fvector().set(-1.4f,2.7f,-1.6f);
+static Fvector seat=Fvector().set(.45f,.61f,2.37f);
 static void load_config()
 {
     static bool loaded=false;
@@ -1008,27 +1009,31 @@ static void load_config()
     loaded=true;
     IReader* file=FS.r_open("$game_meshes$","netcoop\\personal_room.camera");
     if(!file) return;
-    bool valid=file->length()==8+27*sizeof(float);
-    if(valid) valid=file->r_u32()==0x4352434e && file->r_u32()==1;
-    Fvector values[9];
+    const u32 bytes=file->length();
+    bool valid=bytes==8+27*sizeof(float) || bytes==8+42*sizeof(float);
+    u32 version=0;
+    if(valid) { valid=file->r_u32()==0x4352434e; version=file->r_u32(); }
+    valid=valid && ((version==1 && bytes==8+27*sizeof(float)) || (version==2 && bytes==8+42*sizeof(float)));
+    const int cameras=version==2 ? 6 : 4;
+    Fvector values[14];
     if(valid)
     {
-        file->r(values,sizeof(values));
-        for(const auto& value:values)
-            valid=valid && _valid(value) && _abs(value.x)<=1000.f && _abs(value.y)<=1000.f && _abs(value.z)<=1000.f;
-        for(int i=0;i<4;++i) valid=valid && values[i*2].distance_to_sqr(values[i*2+1])>=.01f;
+        file->r(values,(cameras*2+(version==2 ? 2 : 1))*sizeof(Fvector));
+        for(int i=0;i<cameras*2+(version==2 ? 2 : 1);++i)
+            valid=valid && _valid(values[i]) && _abs(values[i].x)<=1000.f && _abs(values[i].y)<=1000.f && _abs(values[i].z)<=1000.f;
+        for(int i=0;i<cameras;++i) valid=valid && values[i*2].distance_to_sqr(values[i*2+1])>=.01f;
     }
     FS.r_close(file);
     if(!valid) { Msg("! [Lost Zone] invalid room editor cameras; using defaults"); return; }
-    for(int i=0;i<4;++i) { eyes[i]=values[i*2]; targets[i]=values[i*2+1]; }
-    lamp=values[8]; camera=eyes[0]; target=targets[0];
+    for(int i=0;i<cameras;++i) { eyes[i]=values[i*2]; targets[i]=values[i*2+1]; }
+    lamp=values[cameras*2]; if(version==2) seat=values[13]; camera=eyes[0]; target=targets[0];
     Msg("[Lost Zone] room editor cameras and lamp loaded");
 }
 static void update()
 {
     load_config();
     if (!moving) return;
-    const float t = _min(1.f, float(Device.dwTimeContinual-start)/650.f);
+    const float t = _min(1.f, float(Device.dwTimeContinual-start)/850.f);
     const float blend = t*t*(3.f-2.f*t);
     const Fvector to_camera = eyes[destination+1];
     const Fvector to_target = targets[destination+1];
@@ -1037,7 +1042,7 @@ static void update()
 }
 void focus(int object)
 {
-    if (object < -1 || object > 2 || object == destination) return;
+    if (object < -1 || object > 4 || object == destination) return;
     update(); from_camera=camera; from_target=target;
     destination=object; start=Device.dwTimeContinual; moving=true;
 }
@@ -1052,11 +1057,12 @@ void matrices(Fmatrix& view,Fmatrix& projection)
     Fvector direction; direction.sub(target,camera).normalize_safe();
     const Fvector up=_abs(direction.y)>.99f ? Fvector().set(0,0,1) : Fvector().set(0,1,0);
     view.build_camera(camera,target,up);
-    projection.build_projection(deg2rad(40.f),float(Device.dwHeight)/float(Device.dwWidth),.08f,100.f);
+    projection.build_projection(deg2rad(52.f),float(Device.dwHeight)/float(Device.dwWidth),.08f,100.f);
 }
 Fvector interaction(int object)
 {
-    load_config(); return targets[_max(0,_min(2,object))+1];
+    load_config(); return targets[_max(0,_min(4,object))+1];
 }
 Fvector lamp_position() { load_config(); return lamp; }
+Fvector seat_position() { load_config(); return seat; }
 }

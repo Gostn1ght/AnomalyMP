@@ -1,174 +1,363 @@
-<?xml version="1.0" encoding="windows-1251"?>
+<?xml version='1.0' encoding='windows-1251'?>
 <string_table>
-	<string id="ui_mm_netcoop_play">
-		<text>Сетевая игра</text>
-	</string>
-	<string id="st_netcoop_respawn_in">
-		<text>Возрождение через</text>
-	</string>
-	<string id="st_netcoop_respawn_press">
-		<text>Нажмите ПРОБЕЛ для возрождения</text>
-	</string>
-	<string id="st_netcoop_rp_hands_pockets">
-		<text>Руки в карманах</text>
-	</string>
-	<string id="st_netcoop_rp_salute">
-		<text>Отдать честь</text>
-	</string>
-	<string id="st_netcoop_rp_greet">
-		<text>Поприветствовать</text>
-	</string>
-	<string id="st_netcoop_rp_refuse">
-		<text>Отказ</text>
-	</string>
-	<string id="st_netcoop_rp_hands_behind">
-		<text>Руки за спиной</text>
-	</string>
-	<string id="st_netcoop_rp_look_around">
-		<text>Осмотреться</text>
-	</string>
-	<string id="st_netcoop_rp_listen">
-		<text>Прислушаться</text>
-	</string>
-	<string id="st_netcoop_rp_hands_up">
-		<text>Руки вверх</text>
-	</string>
-	<string id="st_netcoop_rp_guard">
-		<text>Часовой</text>
-	</string>
-	<string id="st_netcoop_rp_sit_1">
-		<text>Сидеть 1</text>
-	</string>
-	<string id="st_netcoop_rp_sit_2">
-		<text>Сидеть 2</text>
-	</string>
-	<string id="st_netcoop_rp_sit_3">
-		<text>Сидеть 3</text>
-	</string>
-	<string id="st_netcoop_rp_sleep">
-		<text>Спать</text>
-	</string>
-	<string id="st_netcoop_rp_pushups">
-		<text>Отжимания</text>
-	</string>
-	<string id="st_netcoop_rp_bar_1">
-		<text>У стойки 1</text>
-	</string>
-	<string id="st_netcoop_rp_bar_2">
-		<text>У стойки 2</text>
-	</string>
-	<string id="st_netcoop_rp_bar_3">
-		<text>У стойки 3</text>
-	</string>
-	<string id="st_netcoop_rp_bar_4">
-		<text>У стойки 4</text>
-	</string>
-	<string id="st_netcoop_rp_bar_5">
-		<text>У стойки 5</text>
-	</string>
-	<string id="st_netcoop_rp_bar_6">
-		<text>У стойки 6</text>
-	</string>
-	<string id="st_netcoop_rp_trance_1">
-		<text>Транс 1</text>
-	</string>
-	<string id="st_netcoop_rp_trance_2">
-		<text>Транс 2</text>
-	</string>
-	<string id="st_netcoop_rp_wounded_1">
-		<text>Ранен 1</text>
-	</string>
-	<string id="st_netcoop_rp_wounded_2">
-		<text>Ранен 2</text>
-	</string>
-	<string id="st_netcoop_rp_prisoner">
-		<text>Заложник</text>
-	</string>
-	<string id="st_netcoop_rp_psy">
-		<text>Пси-удар</text>
-	</string>
-	<string id="st_netcoop_rp_gop_stop">
-		<text>Гоп-стоп</text>
-	</string>
-	<string id="st_netcoop_rp_loot">
-		<text>Обыскать</text>
-	</string>
-	<string id="st_netcoop_rp_title">
-		<text>Анимации</text>
-	</string>
-	<string id="st_netcoop_rp_stop">
-		<text>Выйти из анимации</text>
-	</string>
-	<string id="st_netcoop_rp_hint">
-		<text>ЛКМ — выбрать\nZ / Esc — закрыть меню</text>
-	</string>
-	<string id="st_netcoop_rp_select"><text>Выберите позу на круге</text></string>
-	<string id="st_netcoop_characters"><text>Персонажи аккаунта</text></string>
-	<string id="st_netcoop_create_character"><text>Создать персонажа</text></string>
-	<string id="st_netcoop_back"><text>Назад</text></string>
-	<string id="st_netcoop_register_title"><text>Регистрация аккаунта</text></string>
-	<string id="st_netcoop_account_login"><text>Имя аккаунта</text></string>
-	<string id="st_netcoop_account_password"><text>Пароль</text></string>
-	<string id="st_netcoop_server"><text>Сервер</text></string>
-	<string id="st_netcoop_register_send"><text>Зарегистрироваться</text></string>
-	<string id="st_netcoop_existing_account"><text>Уже есть аккаунт? Войти</text></string>
-	<string id="st_netcoop_approval_title"><text>Ожидание допуска</text></string>
-	<string id="st_netcoop_approval_help"><text>Аккаунт сохранён на этом компьютере. Администратор должен принять заявку. Затем нажмите «Проверить допуск».</text></string>
-	<string id="st_netcoop_register_help"><text>Создайте аккаунт один раз. После допуска администратора на нём можно создать до пяти персонажей. Пароль и вход будут сохранены на этом компьютере.</text></string>
-	<string id="st_netcoop_check_approval"><text>Проверить допуск</text></string>
-	<string id="st_netcoop_approval_rejected"><text>Администратор отклонил регистрацию. Обратитесь к администрации сервера.</text></string>
-	<string id="st_netcoop_password_invalid"><text>Укажите пароль длиной от 4 до 64 символов.</text></string>
-	<string id="st_netcoop_login_invalid"><text>Логин: 3–20 символов. Используйте латинские буквы, цифры, точку, дефис или подчёркивание.</text></string>
-	<string id="st_netcoop_server_invalid"><text>Адрес сервера: имя или IP и порт, например 127.0.0.1:1267.</text></string>
-	<string id="st_netcoop_key_failed"><text>Не удалось сохранить вход. Проверьте пароль и журнал игры.</text></string>
-	<string id="st_netcoop_enter_zone"><text>Войти в Зону</text></string>
-	<string id="st_netcoop_inventory"><text>Снаряжение</text></string>
-	<string id="st_netcoop_character_hint"><text>Карта — вход в Зону · КПК — настройки · Ящик — снаряжение · Персонажи сохраняются отдельно для каждого сервера</text></string>
-	<string id="st_netcoop_registration_notice"><text>Новая заявка: %s. Команда: /принять регистрацию НИК или /отклонить регистрацию НИК.</text></string>
-	<string id="st_netcoop_auth_failed"><text>Сервер не подтвердил вход.</text></string>
-	<string id="st_netcoop_connecting"><text>Подождите…</text></string>
- <string id="st_netcoop_email"><text>Электронная почта</text></string>
- <string id="st_netcoop_cloud_help"><text>Один аккаунт — до пяти персонажей. Почта и пароль относятся к аккаунту. Ник и история выбираются для каждого сталкера отдельно.</text></string>
- <string id="st_netcoop_login_title"><text>Вход в аккаунт</text></string>
- <string id="st_netcoop_register_tab"><text>Создать аккаунт</text></string>
- <string id="st_netcoop_login_action"><text>Войти</text></string>
- <string id="st_netcoop_verify_title"><text>Подтверждение почты</text></string>
- <string id="st_netcoop_verify_help"><text>Введите шестизначный код из письма. Проверьте также папку «Спам». Код действует 10 минут.</text></string>
- <string id="st_netcoop_verify_check"><text>Продолжить</text></string>
- <string id="st_netcoop_resend_email"><text>Отправить письмо повторно</text></string>
- <string id="st_netcoop_reset_password"><text>Забыли пароль?</text></string>
- <string id="st_netcoop_reset_sent"><text>Если этот адрес зарегистрирован, на него придёт письмо для восстановления пароля.</text></string>
- <string id="st_netcoop_email_invalid"><text>Введите действующий адрес электронной почты.</text></string>
- <string id="st_netcoop_email_exists"><text>Эта почта уже зарегистрирована. Выберите «Войти».</text></string>
- <string id="st_netcoop_cloud_password_invalid"><text>Пароль: от 6 до 128 символов.</text></string>
- <string id="st_netcoop_bad_credentials"><text>Не удалось войти. Проверьте почту и пароль.</text></string>
- <string id="st_netcoop_provider_disabled"><text>В Firebase нужно включить Authentication &gt; Email/Password.</text></string>
- <string id="st_netcoop_rate_limited"><text>Слишком много запросов. Попробуйте позже.</text></string>
- <string id="st_netcoop_session_expired"><text>Сессия истекла. Войдите снова.</text></string>
- <string id="st_netcoop_account_disabled"><text>Этот аккаунт отключён.</text></string>
- <string id="st_netcoop_remember_failed"><text>Вход выполнен, но сохранить аккаунт на этом компьютере не удалось.</text></string>
- <string id="st_netcoop_cloud_network_error"><text>Не удалось связаться с Google. Проверьте подключение и повторите попытку.</text></string>
- <string id="st_netcoop_exit"><text>Выйти из игры</text></string>
- <string id="st_netcoop_settings"><text>Настройки</text></string>
- <string id="st_netcoop_empty_slot"><text>Новый персонаж</text></string>
- <string id="st_netcoop_profile_title"><text>Создание сталкера</text></string>
- <string id="st_netcoop_character_nick"><text>Ник персонажа</text></string>
- <string id="st_netcoop_description"><text>Описание внешности</text></string>
- <string id="st_netcoop_history"><text>История персонажа</text></string>
- <string id="st_netcoop_profile_help"><text>Это личность персонажа, а не имя аккаунта. После заполнения выберите стартовое снаряжение за очки.</text></string>
- <string id="st_netcoop_choose_equipment"><text>Выбрать снаряжение</text></string>
- <string id="st_netcoop_draft_failed"><text>Не удалось сохранить персонажа. Проверьте доступ к папке игры.</text></string>
- <string id="st_netcoop_character_name_invalid"><text>Ник: 2–63 символа, без разделителей и переносов строки.</text></string>
- <string id="st_netcoop_save_server"><text>Сохранить адрес</text></string>
-<string id="st_netcoop_email_code"><text>Код из письма</text></string>
-<string id="st_netcoop_code_invalid"><text>Введите правильный код из шести цифр.</text></string>
-<string id="st_netcoop_code_expired"><text>Код истёк. Запросите новое письмо.</text></string>
-<string id="st_netcoop_code_attempts"><text>Слишком много неверных кодов. Попробуйте через час.</text></string>
-<string id="st_netcoop_code_limit"><text>Лимит писем исчерпан. Попробуйте позже.</text></string>
-<string id="st_netcoop_code_wait"><text>Повторное письмо доступно через минуту.</text></string>
-<string id="st_netcoop_code_mail_error"><text>Не удалось отправить письмо. Попробуйте ещё раз через минуту.</text></string>
-<string id="st_netcoop_code_not_configured"><text>Сервис кодов ещё не подключён. Настройте Google Apps Script.</text></string>
-<string id="st_netcoop_neutral_pose"><text>Обычная стойка</text></string>
-<string id="st_netcoop_settings_error"><text>Не удалось открыть настройки. Подробности в журнале игры.</text></string>
-	<string id="st_netcoop_server_unavailable"><text>Сервер недоступен. Возможно, он выключен.\nПопробуйте подключиться позже.</text></string>
+  <string id="ui_mm_netcoop_play">
+    <text>Сетевая игра</text>
+  </string>
+  <string id="st_netcoop_respawn_in">
+    <text>Возрождение через</text>
+  </string>
+  <string id="st_netcoop_respawn_press">
+    <text>Нажмите ПРОБЕЛ для возрождения</text>
+  </string>
+  <string id="st_netcoop_rp_hands_pockets">
+    <text>Руки в карманах</text>
+  </string>
+  <string id="st_netcoop_rp_salute">
+    <text>Отдать честь</text>
+  </string>
+  <string id="st_netcoop_rp_greet">
+    <text>Поприветствовать</text>
+  </string>
+  <string id="st_netcoop_rp_refuse">
+    <text>Отказ</text>
+  </string>
+  <string id="st_netcoop_rp_hands_behind">
+    <text>Руки за спиной</text>
+  </string>
+  <string id="st_netcoop_rp_look_around">
+    <text>Осмотреться</text>
+  </string>
+  <string id="st_netcoop_rp_listen">
+    <text>Прислушаться</text>
+  </string>
+  <string id="st_netcoop_rp_hands_up">
+    <text>Руки вверх</text>
+  </string>
+  <string id="st_netcoop_rp_guard">
+    <text>Часовой</text>
+  </string>
+  <string id="st_netcoop_rp_sit_1">
+    <text>Сидеть 1</text>
+  </string>
+  <string id="st_netcoop_rp_sit_2">
+    <text>Сидеть 2</text>
+  </string>
+  <string id="st_netcoop_rp_sit_3">
+    <text>Сидеть 3</text>
+  </string>
+  <string id="st_netcoop_rp_sleep">
+    <text>Спать</text>
+  </string>
+  <string id="st_netcoop_rp_pushups">
+    <text>Отжимания</text>
+  </string>
+  <string id="st_netcoop_rp_bar_1">
+    <text>У стойки 1</text>
+  </string>
+  <string id="st_netcoop_rp_bar_2">
+    <text>У стойки 2</text>
+  </string>
+  <string id="st_netcoop_rp_bar_3">
+    <text>У стойки 3</text>
+  </string>
+  <string id="st_netcoop_rp_bar_4">
+    <text>У стойки 4</text>
+  </string>
+  <string id="st_netcoop_rp_bar_5">
+    <text>У стойки 5</text>
+  </string>
+  <string id="st_netcoop_rp_bar_6">
+    <text>У стойки 6</text>
+  </string>
+  <string id="st_netcoop_rp_trance_1">
+    <text>Транс 1</text>
+  </string>
+  <string id="st_netcoop_rp_trance_2">
+    <text>Транс 2</text>
+  </string>
+  <string id="st_netcoop_rp_wounded_1">
+    <text>Ранен 1</text>
+  </string>
+  <string id="st_netcoop_rp_wounded_2">
+    <text>Ранен 2</text>
+  </string>
+  <string id="st_netcoop_rp_prisoner">
+    <text>Заложник</text>
+  </string>
+  <string id="st_netcoop_rp_psy">
+    <text>Пси-удар</text>
+  </string>
+  <string id="st_netcoop_rp_gop_stop">
+    <text>Гоп-стоп</text>
+  </string>
+  <string id="st_netcoop_rp_loot">
+    <text>Обыскать</text>
+  </string>
+  <string id="st_netcoop_rp_title">
+    <text>Анимации</text>
+  </string>
+  <string id="st_netcoop_rp_stop">
+    <text>Выйти из анимации</text>
+  </string>
+  <string id="st_netcoop_rp_hint">
+    <text>ЛКМ — выбрать\nZ / Esc — закрыть меню</text>
+  </string>
+  <string id="st_netcoop_rp_select">
+    <text>Выберите позу на круге</text>
+  </string>
+  <string id="st_netcoop_characters">
+    <text>Персонажи аккаунта</text>
+  </string>
+  <string id="st_netcoop_create_character">
+    <text>Создать персонажа</text>
+  </string>
+  <string id="st_netcoop_back">
+    <text>Назад</text>
+  </string>
+  <string id="st_netcoop_register_title">
+    <text>Регистрация аккаунта</text>
+  </string>
+  <string id="st_netcoop_account_login">
+    <text>Имя аккаунта</text>
+  </string>
+  <string id="st_netcoop_account_password">
+    <text>Пароль</text>
+  </string>
+  <string id="st_netcoop_server">
+    <text>Сервер</text>
+  </string>
+  <string id="st_netcoop_register_send">
+    <text>Зарегистрироваться</text>
+  </string>
+  <string id="st_netcoop_existing_account">
+    <text>Уже есть аккаунт? Войти</text>
+  </string>
+  <string id="st_netcoop_approval_title">
+    <text>Ожидание допуска</text>
+  </string>
+  <string id="st_netcoop_approval_help">
+    <text>Аккаунт сохранён на этом компьютере. Администратор должен принять заявку. Затем нажмите «Проверить допуск».</text>
+  </string>
+  <string id="st_netcoop_register_help">
+    <text>Создайте аккаунт один раз. После допуска администратора на нём можно создать до пяти персонажей. Пароль и вход будут сохранены на этом компьютере.</text>
+  </string>
+  <string id="st_netcoop_check_approval">
+    <text>Проверить допуск</text>
+  </string>
+  <string id="st_netcoop_approval_rejected">
+    <text>Администратор отклонил регистрацию. Обратитесь к администрации сервера.</text>
+  </string>
+  <string id="st_netcoop_password_invalid">
+    <text>Укажите пароль длиной от 4 до 64 символов.</text>
+  </string>
+  <string id="st_netcoop_login_invalid">
+    <text>Логин: 3–20 символов. Используйте латинские буквы, цифры, точку, дефис или подчёркивание.</text>
+  </string>
+  <string id="st_netcoop_server_invalid">
+    <text>Адрес сервера: имя или IP и порт, например 127.0.0.1:1267.</text>
+  </string>
+  <string id="st_netcoop_key_failed">
+    <text>Не удалось сохранить вход. Проверьте пароль и журнал игры.</text>
+  </string>
+  <string id="st_netcoop_enter_zone">
+    <text>Войти в Зону</text>
+  </string>
+  <string id="st_netcoop_inventory">
+    <text>Снаряжение</text>
+  </string>
+  <string id="st_netcoop_character_hint">
+    <text>Карта — вход в Зону · КПК — настройки · Ящик — снаряжение · Персонажи сохраняются отдельно для каждого сервера</text>
+  </string>
+  <string id="st_netcoop_registration_notice">
+    <text>Новая заявка: %s. Команда: /принять регистрацию НИК или /отклонить регистрацию НИК.</text>
+  </string>
+  <string id="st_netcoop_auth_failed">
+    <text>Сервер не подтвердил вход.</text>
+  </string>
+  <string id="st_netcoop_connecting">
+    <text>Подождите…</text>
+  </string>
+  <string id="st_netcoop_email">
+    <text>Электронная почта</text>
+  </string>
+  <string id="st_netcoop_cloud_help">
+    <text>Один аккаунт — до пяти персонажей. Почта и пароль относятся к аккаунту. Ник и история выбираются для каждого сталкера отдельно.</text>
+  </string>
+  <string id="st_netcoop_login_title">
+    <text>Вход в аккаунт</text>
+  </string>
+  <string id="st_netcoop_register_tab">
+    <text>Создать аккаунт</text>
+  </string>
+  <string id="st_netcoop_login_action">
+    <text>Войти</text>
+  </string>
+  <string id="st_netcoop_verify_title">
+    <text>Подтверждение почты</text>
+  </string>
+  <string id="st_netcoop_verify_help">
+    <text>Введите шестизначный код из письма. Проверьте также папку «Спам». Код действует 10 минут.</text>
+  </string>
+  <string id="st_netcoop_verify_check">
+    <text>Продолжить</text>
+  </string>
+  <string id="st_netcoop_resend_email">
+    <text>Отправить письмо повторно</text>
+  </string>
+  <string id="st_netcoop_reset_password">
+    <text>Забыли пароль?</text>
+  </string>
+  <string id="st_netcoop_reset_sent">
+    <text>Если этот адрес зарегистрирован, на него придёт письмо для восстановления пароля.</text>
+  </string>
+  <string id="st_netcoop_email_invalid">
+    <text>Введите действующий адрес электронной почты.</text>
+  </string>
+  <string id="st_netcoop_email_exists">
+    <text>Эта почта уже зарегистрирована. Выберите «Войти».</text>
+  </string>
+  <string id="st_netcoop_cloud_password_invalid">
+    <text>Пароль: от 6 до 128 символов.</text>
+  </string>
+  <string id="st_netcoop_bad_credentials">
+    <text>Не удалось войти. Проверьте почту и пароль.</text>
+  </string>
+  <string id="st_netcoop_provider_disabled">
+    <text>В Firebase нужно включить Authentication &gt; Email/Password.</text>
+  </string>
+  <string id="st_netcoop_rate_limited">
+    <text>Слишком много запросов. Попробуйте позже.</text>
+  </string>
+  <string id="st_netcoop_session_expired">
+    <text>Сессия истекла. Войдите снова.</text>
+  </string>
+  <string id="st_netcoop_account_disabled">
+    <text>Этот аккаунт отключён.</text>
+  </string>
+  <string id="st_netcoop_remember_failed">
+    <text>Вход выполнен, но сохранить аккаунт на этом компьютере не удалось.</text>
+  </string>
+  <string id="st_netcoop_cloud_network_error">
+    <text>Не удалось связаться с Google. Проверьте подключение и повторите попытку.</text>
+  </string>
+  <string id="st_netcoop_exit">
+    <text>Выйти из игры</text>
+  </string>
+  <string id="st_netcoop_settings">
+    <text>Настройки</text>
+  </string>
+  <string id="st_netcoop_empty_slot">
+    <text>Новый персонаж</text>
+  </string>
+  <string id="st_netcoop_profile_title">
+    <text>Создание сталкера</text>
+  </string>
+  <string id="st_netcoop_character_nick">
+    <text>Ник персонажа</text>
+  </string>
+  <string id="st_netcoop_description">
+    <text>Описание внешности</text>
+  </string>
+  <string id="st_netcoop_history">
+    <text>История персонажа</text>
+  </string>
+  <string id="st_netcoop_profile_help">
+    <text>Это личность персонажа, а не имя аккаунта. После заполнения выберите стартовое снаряжение за очки.</text>
+  </string>
+  <string id="st_netcoop_choose_equipment">
+    <text>Выбрать снаряжение</text>
+  </string>
+  <string id="st_netcoop_draft_failed">
+    <text>Не удалось сохранить персонажа. Проверьте доступ к папке игры.</text>
+  </string>
+  <string id="st_netcoop_character_name_invalid">
+    <text>Ник: 2–63 символа, без разделителей и переносов строки.</text>
+  </string>
+  <string id="st_netcoop_save_server">
+    <text>Сохранить адрес</text>
+  </string>
+  <string id="st_netcoop_email_code">
+    <text>Код из письма</text>
+  </string>
+  <string id="st_netcoop_code_invalid">
+    <text>Введите правильный код из шести цифр.</text>
+  </string>
+  <string id="st_netcoop_code_expired">
+    <text>Код истёк. Запросите новое письмо.</text>
+  </string>
+  <string id="st_netcoop_code_attempts">
+    <text>Слишком много неверных кодов. Попробуйте через час.</text>
+  </string>
+  <string id="st_netcoop_code_limit">
+    <text>Лимит писем исчерпан. Попробуйте позже.</text>
+  </string>
+  <string id="st_netcoop_code_wait">
+    <text>Повторное письмо доступно через минуту.</text>
+  </string>
+  <string id="st_netcoop_code_mail_error">
+    <text>Не удалось отправить письмо. Попробуйте ещё раз через минуту.</text>
+  </string>
+  <string id="st_netcoop_code_not_configured">
+    <text>Сервис кодов ещё не подключён. Настройте Google Apps Script.</text>
+  </string>
+  <string id="st_netcoop_neutral_pose">
+    <text>Обычная стойка</text>
+  </string>
+  <string id="st_netcoop_settings_error">
+    <text>Не удалось открыть настройки. Подробности в журнале игры.</text>
+  </string>
+  <string id="st_netcoop_server_unavailable">
+    <text>Сервер недоступен. Возможно, он выключен.\nПопробуйте подключиться позже.</text>
+  </string>
+  <string id="st_netcoop_room_overview">
+    <text>Личная комната</text>
+  </string>
+  <string id="st_netcoop_room_map">
+    <text>Карта · сервер</text>
+  </string>
+  <string id="st_netcoop_room_pda">
+    <text>КПК · настройки</text>
+  </string>
+  <string id="st_netcoop_room_backpack">
+    <text>Рюкзак</text>
+  </string>
+  <string id="st_netcoop_room_safe">
+    <text>Личный сейф</text>
+  </string>
+  <string id="st_netcoop_room_door">
+    <text>Дверь · в Зону</text>
+  </string>
+  <string id="st_netcoop_storage_saved">
+    <text>Сохранено. Нажмите предмет, чтобы перенести его в соседний контейнер.</text>
+  </string>
+  <string id="st_netcoop_storage_denied">
+    <text>Нет доступа к этому персонажу.</text>
+  </string>
+  <string id="st_netcoop_storage_online">
+    <text>Персонаж ещё в игре. Дождитесь завершения выхода с сервера.</text>
+  </string>
+  <string id="st_netcoop_storage_first_join">
+    <text>Снаряжение доступно после первого входа персонажа на сервер.</text>
+  </string>
+  <string id="st_netcoop_storage_stale">
+    <text>Список изменился. Проверьте обновлённое снаряжение и повторите перенос.</text>
+  </string>
+  <string id="st_netcoop_storage_equipped">
+    <text>Сначала снимите предмет с персонажа в игре.</text>
+  </string>
+  <string id="st_netcoop_storage_full">
+    <text>В контейнере не хватает свободных ячеек.</text>
+  </string>
+  <string id="st_netcoop_storage_save_failed">
+    <text>Сервер не смог сохранить перенос. Вещи остались на своих местах.</text>
+  </string>
+  <string id="st_netcoop_storage_readonly">
+    <text>Предпросмотр. Для переноса вещей нужен доступный игровой сервер.</text>
+  </string>
+  <string id="st_netcoop_storage_cells">
+    <text>ячеек</text>
+  </string>
+  <string id="st_netcoop_storage_worn">
+    <text>надето</text>
+  </string>
 </string_table>

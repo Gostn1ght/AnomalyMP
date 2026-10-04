@@ -9,7 +9,9 @@ struct Character
 	NET_Packet actor;
 	xr_vector<u8> progress;
 	struct Item { xr_string section; u16 parent, place = 0; NET_Packet spawn; };
-	xr_vector<Item> items;
+	xr_vector<Item> items, safe;
+	u32 storage_revision = 1;
+	xr_string storage_request, storage_signature;
 };
 static xr_map<xr_string, Character> s_characters;
 static xr_map<u16, xr_string> s_actor_character;
@@ -92,7 +94,7 @@ static bool character_save(Character& character)
 	xr_sprintf(temp, "%s.tmp", path);
 	FILE* f = fopen(temp, "wb");
 	if (!f) return false;
-	const u32 magic = 0x3548434e; // NCH5: profile; NCH3/4 remain readable
+	const u32 magic = 0x3648434e; // NCH6: atomic inventory + private safe; NCH3/4/5 remain readable
 	fwrite(&magic, 4, 1, f);
 	fwrite(character.name.c_str(), 1, character.name.size() + 1, f);
 	fwrite(character.faction.c_str(), 1, character.faction.size() + 1, f);
@@ -113,7 +115,17 @@ static bool character_save(Character& character)
 	const u32 size = u32(character.progress.size()), crc = crc32(character.progress.data(), size);
 	fwrite(&size, 4, 1, f); fwrite(&crc, 4, 1, f);
 	if (size) fwrite(character.progress.data(), 1, size, f);
-	const bool ok = !ferror(f);
+	fwrite(&character.storage_revision,4,1,f);
+    fwrite(character.storage_request.c_str(),1,character.storage_request.size()+1,f);
+    fwrite(character.storage_signature.c_str(),1,character.storage_signature.size()+1,f);
+    const u32 safe_count=u32(character.safe.size()); fwrite(&safe_count,4,1,f);
+    for (const auto& item:character.safe)
+    {
+        fwrite(item.section.c_str(),1,item.section.size()+1,f);
+        fwrite(&item.parent,2,1,f); fwrite(&item.place,2,1,f);
+        character_write_packet(f,item.spawn);
+    }
+    const bool ok = !ferror(f) && fflush(f)==0 && _commit(_fileno(f))==0;
 	const bool closed = fclose(f) == 0;
 	if (!ok || !closed || !MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) return false;
 	character.last_save = real_time_ms();
@@ -132,10 +144,10 @@ static Character* character_load(LPCSTR account, u8 slot)
 	Character character;
 	character.account = account; character.slot = slot;
 	u32 magic = 0, count = 0;
-	bool ok = fread(&magic, 4, 1, f) == 1 && (magic == 0x3348434e || magic == 0x3448434e || magic == 0x3548434e) &&
+	bool ok = fread(&magic, 4, 1, f) == 1 && (magic == 0x3348434e || magic == 0x3448434e || magic == 0x3548434e || magic == 0x3648434e) &&
 		character_read_string(f, character.name, 63) && character_read_string(f, character.faction, 32) &&
 		character_read_string(f, character.loadout, 4096);
-	if (ok && magic == 0x3548434e) ok = character_read_string(f, character.description, 512) && character_read_string(f, character.history, 1536);
+	if (ok && magic >= 0x3548434e) ok = character_read_string(f, character.description, 512) && character_read_string(f, character.history, 1536);
 	if (ok)
 	{
 		character.economy = u8(fgetc(f));
@@ -162,6 +174,20 @@ static Character* character_load(LPCSTR account, u8 slot)
 			ok = (!size || fread(character.progress.data(), 1, size, f) == size) && crc32(character.progress.data(), size) == crc;
 		}
 	}
+    if (ok && magic==0x3648434e)
+    {
+        ok=fread(&character.storage_revision,4,1,f)==1 && character.storage_revision &&
+            character_read_string(f,character.storage_request,32) && character_read_string(f,character.storage_signature,80) &&
+            fread(&count,4,1,f)==1 && count<=512;
+        for (u32 i=0;ok && i<count;++i)
+        {
+            Character::Item item;
+            ok=character_read_string(f,item.section,128) && fread(&item.parent,2,1,f)==1 && item.parent<=i &&
+                fread(&item.place,2,1,f)==1 && character_read_packet(f,item.spawn) && pSettings->section_exist(item.section.c_str());
+            if (ok) character.safe.push_back(std::move(item));
+        }
+    }
+    ok=ok && fgetc(f)==EOF && !ferror(f);
 	fclose(f);
 	if (!ok || !character_name_valid(character.name.c_str()))
 	{
@@ -184,6 +210,7 @@ static bool character_validate_loadout(LPCSTR faction, u8 economy, LPCSTR loadou
 	xr_sprintf(budget_key, "total_points_eco_%u", economy);
 	const float budget = ini.r_float("points", budget_key);
 	float used = 0.f;
+	u32 cells=0;
 	xr_map<xr_string, u32> selected;
 	const u32 count = _GetItemCount(loadout);
 	if (count > 256) return false;
@@ -193,6 +220,8 @@ static bool character_validate_loadout(LPCSTR faction, u8 economy, LPCSTR loadou
 		_GetItem(loadout, i, item);
 		_Trim(item);
 		if (!pSettings->section_exist(item) || !ini.line_exist(section.c_str(), item)) return false;
+		cells+=storage_section_cost(item);
+		if (cells>storage_capacity(false)) return false;
 		LPCSTR values = ini.r_string(section.c_str(), item);
 		_GetItem(values, 1, field); const u32 available = u32(atoi(field));
 		_GetItem(values, 2, field); const float price = float(atof(field));
@@ -215,6 +244,9 @@ static bool character_select(xrClientData* CL, u8 slot, LPCSTR name, LPCSTR fact
 	Character* character = character_load(CL->netcoop_login.c_str(), slot);
 	if (!character)
 	{
+		// A damaged existing save must not be replaced by a new empty character.
+		string_path existing; character_path(CL->netcoop_login.c_str(),slot,existing);
+		if (GetFileAttributesA(existing)!=INVALID_FILE_ATTRIBUTES) return false;
 		// A damaged save must never be silently replaced by a fresh character.
 		string_path path; character_path(CL->netcoop_login.c_str(), slot, path);
 		if (GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES) return false;
@@ -356,9 +388,11 @@ void server_character_spawn_items(xrClientData* CL)
 	else
 	{
 		const u32 count = _GetItemCount(character->loadout.c_str());
+		u32 starter_cells=0;
 		for (u32 i = 0; character->loadout.size() && i < count; ++i)
 		{
 			string128 section; _GetItem(character->loadout.c_str(), i, section); _Trim(section);
+			starter_cells+=storage_section_cost(section);
 			CSE_Abstract* item = server->game->spawn_begin(section);
 			item->ID_Parent = CL->owner->ID;
 			item->s_flags.assign(M_SPAWN_OBJECT_LOCAL);
@@ -382,6 +416,9 @@ void server_character_spawn_items(xrClientData* CL)
                 u32 remaining = ini.line_exist("ammo_count", ammo) ? ini.r_u32("ammo_count", ammo) : (box < 30 ? box * 2 : box);
                 while (remaining && box)
                 {
+                    const u32 ammo_cells=storage_section_cost(ammo);
+                    if (starter_cells+ammo_cells>storage_capacity(false)) break;
+                    starter_cells+=ammo_cells;
                     CSE_Abstract* item = server->game->spawn_begin(ammo);
                     CSE_ALifeItemAmmo* bullets = smart_cast<CSE_ALifeItemAmmo*>(item);
                     if (!bullets) { F_entity_Destroy(item); break; }
@@ -449,6 +486,7 @@ void server_character_save_actor(u16 actor_id)
 	actor->Spawn_Write(character.actor, TRUE);
 	entity->set_health(health);
 	character.initialized = true;
+    if (character.storage_revision!=0xffffffffu) ++character.storage_revision;
 	if (!character_save(character)) Msg("! [Lost Zone] character save failed for %s slot %u", character.account.c_str(), character.slot);
 }
 
