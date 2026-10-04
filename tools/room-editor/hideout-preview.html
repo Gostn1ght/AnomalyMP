@@ -1,0 +1,26 @@
+<!DOCTYPE html><meta charset="utf-8"><title>Lost Zone — room geometry preview</title>
+<style>body{margin:0;background:#100e0b;color:#c9bda4;font:14px Arial}canvas{display:block}nav{position:absolute;bottom:24px;left:24px;right:24px;display:flex;justify-content:space-between}button{background:#201e18;color:#d8cdb6;border:1px solid #574c39;padding:12px}#state{position:absolute;top:16px;left:24px}</style>
+<div id="state">Загрузка игровых материалов…</div><nav><button id="prev">←</button><span id="view"></span><button id="next">→</button></nav>
+<script type="importmap">{"imports":{"three":"/vendor/three.module.js"}}</script>
+<script type="module">
+import * as T from 'three';
+const {parts,manifest}=await (await fetch('/scene')).json();
+const renderer=new T.WebGLRenderer({antialias:true});renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.1;document.body.appendChild(renderer.domElement);
+const scene=new T.Scene();scene.background=new T.Color('#100e0b');const camera=new T.PerspectiveCamera(52,innerWidth/innerHeight,.08,100);
+const loader=new T.TextureLoader(),materials=new Map();
+for(const part of parts){
+ if(!materials.has(part.texture)){
+  const map=await loader.loadAsync('/texture?id='+encodeURIComponent(part.texture));map.colorSpace=T.SRGBColorSpace;map.wrapS=map.wrapT=T.RepeatWrapping;map.anisotropy=8;
+  materials.set(part.texture,new T.MeshStandardMaterial({map,roughness:.87,side:T.DoubleSide,metalness:part.texture.startsWith('mtl')?.25:0}));
+ }
+ const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(part.position,3));geometry.setAttribute('normal',new T.Float32BufferAttribute(part.normal,3));geometry.setAttribute('uv',new T.Float32BufferAttribute(part.uv,2));geometry.setIndex(part.index);
+ const mesh=new T.Mesh(geometry,materials.get(part.texture));mesh.castShadow=mesh.receiveShadow=true;scene.add(mesh);mesh.scale.x=-1;
+}
+scene.add(new T.HemisphereLight(0x7d8da3,0x59452c,.20));
+const lamp=new T.PointLight(0xffb65e,20,12,2);lamp.position.fromArray(manifest.lamp);lamp.position.x*=-1;lamp.castShadow=true;lamp.shadow.mapSize.set(1024,1024);lamp.shadow.bias=-.0005;lamp.shadow.normalBias=.025;scene.add(lamp);
+const fill=new T.PointLight(0x9bb6e9,5,10,2);fill.position.set(1.8,1.85,-1.8);scene.add(fill);
+let index=0;function view(){const v=manifest.views[index];camera.position.fromArray(v.eye);camera.position.x*=-1;const target=new T.Vector3().fromArray(v.target);target.x*=-1;camera.lookAt(target);document.querySelector('#view').textContent=v.name;renderer.render(scene,camera);}
+document.querySelector('#prev').onclick=()=>{index=(index+5)%6;view()};document.querySelector('#next').onclick=()=>{index=(index+1)%6;view()};
+view();document.querySelector('#state').textContent='Исходная геометрия комнаты · предварительный свет WebGL';
+addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();view()});
+</script>
