@@ -444,16 +444,34 @@
   <string id="st_netcoop_change_email_title">
     <text>Correct email address</text>
   </string>
-  <string id="st_netcoop_change_email_send">
+<string id="st_netcoop_change_email_send">
     <text>Send to new address</text>
   </string>
   <string id="st_netcoop_change_email_cancel">
     <text>Cancel</text>
   </string>
   <string id="st_netcoop_change_email_help">
-    <text>Enter the correct address. Your account will be kept; registration will continue automatically after you open the new link.</text>
+    <text>Enter the correct email and the password you chose at registration. We will send a verification link to the new address.</text>
   </string>
-  <string id="st_netcoop_email_domain_invalid">
+<string id="st_netcoop_email_domain_invalid">
     <text>This email domain does not exist or does not accept mail. Correct the address.</text>
+  </string>
+  <string id="st_netcoop_change_email_send">
+    <text>Save and send email</text>
+  </string>
+  <string id="st_netcoop_change_email_address">
+    <text>Correct email address</text>
+  </string>
+  <string id="st_netcoop_change_email_password">
+    <text>Password chosen at registration</text>
+  </string>
+  <string id="st_netcoop_change_email_password_help">
+    <text>Enter your registration password to confirm the email correction. Your new address remains in this form.</text>
+  </string>
+  <string id="st_netcoop_change_email_password_invalid">
+    <text>Incorrect password. Enter the password you chose at registration.</text>
+  </string>
+  <string id="st_netcoop_change_email_account_error">
+    <text>Could not confirm this account. Sign in again using the email entered at registration.</text>
   </string>
 </string_table>

@@ -293,19 +293,28 @@ struct FirebaseTask
     volatile LONG done = 0;
 };
 static FirebaseTask* s_firebase_task = nullptr;
+static void firebase_finish(FirebaseTask* task, bool ok)
+{
+    if (!task->password.empty()) SecureZeroMemory(&task->password[0],task->password.size());
+    task->password.clear(); task->ok=ok;
+    // Publish completion only after credentials have been erased.
+    InterlockedExchange(&task->done,1);
+}
 static void firebase_worker(void* argument)
 {
     FirebaseTask* task = static_cast<FirebaseTask*>(argument);
     CloudJson response; bool ok = false;
     if ((task->action == "register" || task->action == "change_email") && !firebase_email_domain(task->email, task->error))
     {
-        if (!task->password.empty()) SecureZeroMemory(&task->password[0],task->password.size());
-        task->password.clear(); InterlockedExchange(&task->done,1); return;
+        firebase_finish(task,false); return;
     }
-    if (task->action == "register" || task->action == "login")
+    const bool reauthenticate = task->action == "change_email" && !task->password.empty();
+    if (task->action == "register" || task->action == "login" || reauthenticate)
     {
+        // The corrected address is only a mail target. Reauthenticate with the
+        // existing account address, even when it was mistyped at registration.
         ok = firebase_call(task->action == "register" ? "signUp" : "signInWithPassword",
-            {{"email",task->email},{"password",task->password},{"returnSecureToken",true}},response,task->error,task->api);
+            {{"email",reauthenticate ? task->session.email : task->email},{"password",task->password},{"returnSecureToken",true}},response,task->error,task->api);
         if (ok)
         {
             task->session.id = cloud_string(response,"idToken"); task->session.refresh = cloud_string(response,"refreshToken");
@@ -323,8 +332,8 @@ static void firebase_worker(void* argument)
     }
     else if (task->action == "reset")
     {
-        task->ok = firebase_call("sendOobCode",{{"requestType","PASSWORD_RESET"},{"email",task->email}},response,task->error,task->api);
-        InterlockedExchange(&task->done,1); return;
+        ok = firebase_call("sendOobCode",{{"requestType","PASSWORD_RESET"},{"email",task->email}},response,task->error,task->api);
+        firebase_finish(task,ok); return;
     }
     else if (!task->session.refresh.empty())
     {
@@ -339,6 +348,8 @@ static void firebase_worker(void* argument)
     }
     const auto previous_uid = task->session.uid;
     if (ok) ok = firebase_lookup(task->session.id,task->api,task->session,task->error);
+    if (ok && reauthenticate && (previous_uid.empty() || task->session.uid != previous_uid))
+    { ok=false; task->error="ACCOUNT_MISMATCH"; }
     if (ok && (task->action == "register" || task->action == "login") && task->session.uid != previous_uid) task->session.pending_email.clear();
     if (ok && !task->session.pending_email.empty())
     {
@@ -347,7 +358,7 @@ static void firebase_worker(void* argument)
     }
     if (ok && !login_valid(task->session.username.c_str())) { ok = false; task->error = "ACCOUNT_NAME_REQUIRED"; }
     task->session_ready = ok;
-    if (ok && task->action == "change_email" && !task->session.verified)
+    if (ok && task->action == "change_email")
     {
         // Verify the new address before changing it; supported with email
         // enumeration protection, unlike a direct accounts:update email.
@@ -357,7 +368,7 @@ static void firebase_worker(void* argument)
         {
             task->session.pending_email = task->email; task->session.verified = false;
         }
-        task->ok = ok; InterlockedExchange(&task->done,1); return;
+        firebase_finish(task,ok); return;
     }
     if (ok && !task->session.verified)
     {
@@ -379,8 +390,7 @@ static void firebase_worker(void* argument)
             if (task->action == "resend") ok = sent;
         }
     }
-    if (!task->password.empty()) SecureZeroMemory(&task->password[0],task->password.size());
-    task->password.clear(); task->ok=ok; InterlockedExchange(&task->done,1);
+    firebase_finish(task,ok);
 }
 bool script_firebase_request(LPCSTR action, LPCSTR email, LPCSTR password, LPCSTR username)
 {
@@ -393,7 +403,11 @@ bool script_firebase_request(LPCSTR action, LPCSTR email, LPCSTR password, LPCST
     if (operation == "register" && !login_valid(username)) return false;
     if (xr_strlen(email) > 254) return false;
     if ((operation == "register" || operation == "login" || operation == "reset" || operation == "change_email") && !firebase_email_valid(email)) return false;
-    if (operation == "change_email" && (s_firebase_session.refresh.empty() || *password)) return false;
+    if (operation == "change_email")
+    {
+        if (s_firebase_session.refresh.empty()) return false;
+        if (*password && (xr_strlen(password) < 6 || xr_strlen(password) > 128 || s_firebase_session.email.empty() || s_firebase_session.uid.empty())) return false;
+    }
     auto task = xr_new<FirebaseTask>();
     task->action = operation; task->email = email; task->password = cloud_convert(password, 1251, CP_UTF8); task->username = username;
     task->api = s_firebase_api.c_str(); task->endpoint = s_email_code_endpoint.c_str(); task->session = s_firebase_session;

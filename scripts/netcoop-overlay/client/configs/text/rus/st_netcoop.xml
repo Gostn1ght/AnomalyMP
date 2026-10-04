@@ -442,18 +442,36 @@
     <text>Ввёл не ту почту</text>
   </string>
   <string id="st_netcoop_change_email_title">
-    <text>Исправить адрес почты</text>
+    <text>Исправить почту</text>
   </string>
-  <string id="st_netcoop_change_email_send">
+<string id="st_netcoop_change_email_send">
     <text>Отправить на новый адрес</text>
   </string>
   <string id="st_netcoop_change_email_cancel">
     <text>Отмена</text>
   </string>
   <string id="st_netcoop_change_email_help">
-    <text>Введите правильный адрес. Аккаунт сохранится; после перехода по новой ссылке регистрация продолжится автоматически.</text>
+    <text>Укажите правильную почту и пароль, который задали при регистрации. Мы отправим письмо на новый адрес.</text>
   </string>
-  <string id="st_netcoop_email_domain_invalid">
+<string id="st_netcoop_email_domain_invalid">
     <text>Домен этой почты не существует или не принимает письма. Исправьте адрес.</text>
+  </string>
+  <string id="st_netcoop_change_email_send">
+    <text>Сохранить и отправить письмо</text>
+  </string>
+  <string id="st_netcoop_change_email_address">
+    <text>Правильная электронная почта</text>
+  </string>
+  <string id="st_netcoop_change_email_password">
+    <text>Пароль, указанный при регистрации</text>
+  </string>
+  <string id="st_netcoop_change_email_password_help">
+    <text>Введите пароль регистрации, чтобы подтвердить смену почты. Новый адрес уже сохранён в этой форме.</text>
+  </string>
+  <string id="st_netcoop_change_email_password_invalid">
+    <text>Неверный пароль. Введите пароль, который указали при регистрации.</text>
+  </string>
+  <string id="st_netcoop_change_email_account_error">
+    <text>Не удалось подтвердить этот аккаунт. Войдите заново с почтой, указанной при регистрации.</text>
   </string>
 </string_table>

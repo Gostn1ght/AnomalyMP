@@ -51,12 +51,14 @@ void SecureZeroMemory(void* value, size_t count) { std::memset(value, 0, count);
 bool login_valid(LPCSTR value) { size_t n=std::strlen(value); return n>=3 && n<=20; }
 struct Call { std::string action; CloudJson payload; };
 std::vector<Call> calls;
-bool fresh_verified=false, send_ok=true, refresh_ok=true, lookup_ok=true;
+bool fresh_verified=false, send_ok=true, refresh_ok=true, lookup_ok=true, auth_ok=true;
+std::string fresh_uid="uid-one";
 std::string send_error="TOO_MANY_ATTEMPTS_TRY_LATER";
 std::string fresh_email="registered@example.invalid";
 bool firebase_call(const char* action, const CloudJson& payload, CloudJson& response, std::string& error, const std::string&) {
     calls.push_back({action,payload}); error.clear();
     response={{"idToken","fresh-id"},{"refreshToken","fresh-refresh"}};
+    if (std::string(action)=="signInWithPassword" && !auth_ok) { error="INVALID_LOGIN_CREDENTIALS"; return false; }
     if (std::string(action)=="sendOobCode") {
         if (payload["requestType"]=="VERIFY_EMAIL" || payload["requestType"]=="VERIFY_AND_CHANGE_EMAIL") {
             assert(payload["idToken"]=="fresh-id" && !payload.contains("email"));
@@ -79,7 +81,7 @@ fixture += r'''
 bool firebase_lookup(const std::string& token, const std::string&, FirebaseSession& session, std::string& error) {
     calls.push_back({"lookup",{{"idToken",token}}}); assert(token=="fresh-id");
     if (!lookup_ok) { error="NETWORK_ERROR"; return false; }
-    session.uid="uid-one"; session.email=fresh_email; session.username="account-one";
+    session.uid=fresh_uid; session.email=fresh_email; session.username="account-one";
     session.verified=fresh_verified; error.clear(); return true;
 }
 void firebase_load() {}
@@ -94,7 +96,7 @@ void thread_spawn(void(*)(void*), LPCSTR, int, void*) { ++spawned; }
 '''
 fixture += section('static bool firebase_email_valid', 'int script_firebase_state()')
 fixture += r'''
-void reset() { calls.clear(); dns_calls.clear(); fresh_email="registered@example.invalid"; fresh_verified=false; send_ok=refresh_ok=lookup_ok=true; mx_status=ERROR_SUCCESS; a_status=aaaa_status=DNS_INFO_NO_RECORDS; null_mx=false; }
+void reset() { calls.clear(); dns_calls.clear(); fresh_email="registered@example.invalid"; fresh_verified=false;fresh_uid="uid-one"; send_ok=refresh_ok=lookup_ok=auth_ok=true; mx_status=ERROR_SUCCESS; a_status=aaaa_status=DNS_INFO_NO_RECORDS; null_mx=false; }
 FirebaseTask task(const char* action) {
     FirebaseTask t; t.action=action; t.api="test-public-api"; t.email="registered@example.invalid";
     t.username="account-one"; t.session.refresh="cached-refresh"; t.session.id="cached-id";
@@ -157,6 +159,28 @@ int main() {
     assert(t.ok && t.session.verified && t.session.pending_email.empty());
     reset();send_ok=false;t=task("change_email");t.email="correct@example.invalid";firebase_worker(&t);
     assert(!t.ok && t.session_ready && t.session.pending_email.empty() && t.error==send_error);
+    // Mistyped original mail is the login identity; the corrected mail is only a target.
+    reset(); t=task("change_email");t.session.uid="uid-one";t.session.email="typo@example.invalid";
+    t.email="correct@example.invalid";t.password="test-password";refresh_ok=false;firebase_worker(&t);
+    assert(t.ok && t.session_ready && t.session.pending_email=="correct@example.invalid" && t.password.empty());
+    assert(count("signInWithPassword")==1 && count("refresh-token")==0 && count("signUp")==0);
+    assert(calls[0].payload["email"]=="typo@example.invalid" && calls[0].payload["password"]=="test-password");
+    assert(calls.back().payload["newEmail"]=="correct@example.invalid");
+    // Bad credentials cannot send a mail or replace the saved identity.
+    reset();auth_ok=false;t=task("change_email");t.session.uid="uid-one";t.session.email="typo@example.invalid";
+    t.email="correct@example.invalid";t.password="wrong-password";firebase_worker(&t);
+    assert(!t.ok && !t.session_ready && t.password.empty() && count("sendOobCode")==0 && t.error=="INVALID_LOGIN_CREDENTIALS");
+    reset();fresh_uid="other-uid";t=task("change_email");t.session.uid="uid-one";t.session.email="typo@example.invalid";
+    t.email="correct@example.invalid";t.password="test-password";firebase_worker(&t);
+    assert(!t.ok && !t.session_ready && t.password.empty() && count("sendOobCode")==0 && t.error=="ACCOUNT_MISMATCH");
+    // All delivery/domain/lookup failures erase the reauthentication password.
+    reset();send_ok=false;t=task("change_email");t.session.uid="uid-one";t.session.email="typo@example.invalid";
+    t.email="correct@example.invalid";t.password="test-password";firebase_worker(&t);
+    assert(!t.ok && t.session_ready && t.password.empty() && t.session.pending_email.empty());
+    reset();mx_status=DNS_ERROR_RCODE_NAME_ERROR;t=task("change_email");t.password="test-password";firebase_worker(&t);
+    assert(!t.ok && t.password.empty() && calls.empty());
+    reset();lookup_ok=false;t=task("change_email");t.session.uid="uid-one";t.password="test-password";firebase_worker(&t);
+    assert(!t.ok && !t.session_ready && t.password.empty() && count("sendOobCode")==0);
     // The actual public request entrypoint rejects obsolete code submission and duplicate requests.
     assert(!script_firebase_request("verify","","123456",""));
     assert(!script_firebase_request("register","a@example.invalid","short","account-one"));
@@ -165,7 +189,12 @@ int main() {
     assert(!script_firebase_request("change_email","correct@example.invalid","",""));
     assert(script_firebase_request("verify","","",""));
     assert(spawned==1 && !script_firebase_request("verify","","",""));
-    delete s_firebase_task;
+    delete s_firebase_task;s_firebase_task=nullptr;
+    s_firebase_session.uid="uid-one";s_firebase_session.email="typo@example.invalid";s_firebase_session.refresh="expired-refresh";
+    assert(!script_firebase_request("change_email","correct@example.invalid","tiny",""));
+    assert(script_firebase_request("change_email","correct@example.invalid","test-password",""));
+    assert(s_firebase_task->session.email=="typo@example.invalid" && s_firebase_task->email=="correct@example.invalid");
+    delete s_firebase_task;s_firebase_task=nullptr;
 }
 '''
 with TemporaryDirectory(prefix='firebase-links-') as tmp:

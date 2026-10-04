@@ -169,7 +169,7 @@ function netcoop_firebase_login_email() return 'original@example.invalid' end
 cloud_identity='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 function netcoop_firebase_identity() return cloud_identity end
 function netcoop_firebase_request(action,email,password,username)
- cloud_requests[#cloud_requests+1]={action=action,email=email,username=username,code=action=='verify' and password or nil}; return true
+ cloud_requests[#cloud_requests+1]={action=action,email=email,password=password,username=username,code=action=='verify' and password or nil}; return true
 end
 draft_stores={}; draft_scope='127.0.0.1:1267'; draft_stores[draft_scope]=drafts
 draft_owners={[cloud_identity]=draft_stores}; current_draft_owner=cloud_identity
@@ -239,16 +239,16 @@ assert(cloud_requests[4].action=='resend','queued resend follows the poll')
 on_cloud_result(true,'','cloud_user',false);last_window:Update()
 assert(last_window.mode=='account' and #commands==0 and not controls.input_code.enabled)
 assert(controls.btn_enter.text=='st_netcoop_wrong_email')
-callbacks.btn_enter();assert(last_window.correct_email and controls.input_email.enabled and not controls.input_pass.shown)
+callbacks.btn_enter();assert(last_window.correct_email and controls.input_email.enabled and controls.input_pass.shown and controls.input_pass.enabled)
 assert(controls.btn_enter.text=='st_netcoop_change_email_cancel')
 callbacks.btn_enter();assert(not last_window.correct_email and not controls.input_email.enabled)
 callbacks.btn_enter();controls.input_email:SetText('bad@@example.invalid');callbacks.btn_reg()
 assert(#cloud_requests==4 and last_window.msg.text=='st_netcoop_email_invalid')
-controls.input_email:SetText('correct@example.invalid');callbacks.btn_reg()
+controls.input_email:SetText('correct@example.invalid');controls.input_pass:SetText('test-password');callbacks.btn_reg()
 assert(cloud_requests[5].action=='change_email' and cloud_requests[5].email=='correct@example.invalid')
 on_cloud_result(false,'EMAIL_DOMAIN_NOT_FOUND','cloud_user',false);last_window:Update()
 assert(last_window.correct_email and controls.input_email.enabled and last_window.msg.text=='st_netcoop_email_domain_invalid')
-callbacks.btn_reg();assert(cloud_requests[6].action=='change_email')
+controls.input_pass:SetText('test-password');callbacks.btn_reg();assert(cloud_requests[6].action=='change_email')
 on_cloud_result(true,'','cloud_user',false);last_window:Update()
 assert(not last_window.correct_email and not controls.input_email.enabled)
 now=10000;last_window:Update();assert(cloud_requests[7].action=='verify')
@@ -462,30 +462,46 @@ test_menu(true,false,4);test_menu(true,true,4)
 print('Actual base-menu controls: no nested account-class load, player/admin buttons and show/hide PASS')
 
 lua.execute(r"""
--- An expired correction session must never trap the user behind a hidden password.
+-- Correction is one operation: reauthenticate and send to the new address.
 present=false;cloud_state=1;last_window.force_login=false;last_window.correct_email=nil
 last_window:ResetCloud();callbacks.btn_enter();controls.input_email:SetText('corrected@example.invalid')
-callbacks.btn_reg();on_cloud_result(false,'CREDENTIAL_TOO_OLD_LOGIN_AGAIN','cloud_user',false);last_window:Update()
-assert(last_window.force_login and not last_window.correct_email and last_window.form_mode=='login')
-assert(controls.input_pass.shown and controls.input_pass.enabled and controls.input_email.enabled)
-assert(controls.input_email.text=='original@example.invalid' and last_window.retry_email=='corrected@example.invalid')
-controls.input_pass:SetText('test-password');callbacks.btn_enter()
-assert(cloud_requests[#cloud_requests].action=='login')
-on_cloud_result(true,'','cloud_user',false);last_window:Update()
-assert(last_window.correct_email and not last_window.force_login and controls.input_email.text=='corrected@example.invalid')
-assert(not controls.input_pass.shown)
-callbacks.btn_reg();assert(cloud_requests[#cloud_requests].action=='change_email')
-on_cloud_result(true,'','cloud_user',false);last_window:Update()
-if last_window.verify_poll then on_cloud_result(false,'EMAIL_NOT_VERIFIED','cloud_user',false) end
+local before=#cloud_requests;callbacks.btn_reg()
+assert(#cloud_requests==before and last_window.msg.text=='st_netcoop_change_email_password_help')
+assert(controls.input_pass.shown and controls.input_pass.enabled and not controls.input_login.shown)
+assert(last_window.ed_pass.position.y==318 and last_window.msg.position.y==367 and last_window.register_button.position.y==447)
+controls.input_pass:SetText('test-password');callbacks.btn_reg()
+assert(cloud_requests[#cloud_requests].action=='change_email' and cloud_requests[#cloud_requests].password=='test-password')
+assert(controls.input_pass.text=='', 'clear the visible password during requests')
+on_cloud_result(false,'CREDENTIAL_TOO_OLD_LOGIN_AGAIN : Please log in again','cloud_user',false);last_window:Update()
+assert(not last_window.force_login and last_window.correct_email and controls.input_pass.enabled)
+assert(controls.input_email.text=='corrected@example.invalid' and last_window.msg.text=='st_netcoop_change_email_password_help')
+controls.input_pass:SetText('wrong-password');callbacks.btn_reg()
+on_cloud_result(false,'INVALID_LOGIN_CREDENTIALS','cloud_user',false);last_window:Update()
+assert(last_window.correct_email and controls.input_email.text=='corrected@example.invalid')
+assert(last_window.msg.text=='st_netcoop_change_email_password_invalid')
 for _,code in ipairs({'INVALID_REFRESH_TOKEN','TOKEN_EXPIRED','USER_NOT_FOUND','INVALID_ID_TOKEN'}) do
- last_window.force_login=false;last_window.correct_email=true;last_window:ResetCloud()
- controls.input_email:SetText('corrected@example.invalid');callbacks.btn_reg()
+ controls.input_pass:SetText('test-password');callbacks.btn_reg()
  on_cloud_result(false,code,'cloud_user',false);last_window:Update()
- assert(last_window.force_login and not last_window.correct_email and controls.input_pass.enabled and controls.input_pass.shown)
+ assert(not last_window.force_login and last_window.correct_email and controls.input_pass.enabled and controls.input_pass.shown)
+ assert(controls.input_email.text=='corrected@example.invalid')
 end
+controls.input_pass:SetText('test-password');callbacks.btn_reg()
+on_cloud_result(true,'','cloud_user',false);last_window:Update()
+assert(not last_window.correct_email and not controls.input_pass.shown and not controls.input_email.enabled)
+assert(last_window.msg.text=='st_netcoop_verify_help', 'successful delivery must not display a network error')
+if last_window.verify_poll then on_cloud_result(false,'EMAIL_NOT_VERIFIED','cloud_user',false) end
+-- A poll already running when correction opens must not replace its target/password.
+now=now+6000;last_window:Update();assert(last_window.verify_poll)
+callbacks.btn_enter();controls.input_email:SetText('another@example.invalid');controls.input_pass:SetText('test-password')
+on_cloud_result(false,'TOKEN_EXPIRED : old token','cloud_user',false)
+assert(last_window.correct_email and not last_window.force_login and controls.input_email.text=='another@example.invalid')
+assert(controls.input_pass.text=='test-password')
+-- Cancelling restores normal form positions and hides the password.
+callbacks.btn_enter();assert(not last_window.correct_email and not controls.input_pass.shown)
+assert(last_window.ed_pass.position.y==383 and last_window.msg.position.y==433 and last_window.register_button.position.y==505)
 -- Leaving the room stops playback; account/profile updates cannot restart it.
 netcoop_preview_clear();local before=music_started;netcoop_menu_radio.update()
 netcoop_menu_radio.volume(0.05);netcoop_menu_radio.station(1);netcoop_menu_radio.track(1)
 assert(music_started==before and not music_sounds[#music_sounds].active)
 """)
-print('Session recovery exposes login, preserves corrected address, and radio waits for presented room PASS')
+print('Email correction reauthenticates in one form, preserves the target on errors/poll races, restores layout on cancel, and clears passwords PASS')

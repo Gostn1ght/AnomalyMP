@@ -691,6 +691,7 @@ function netcoop_login_wnd:OnLogin()
     if cloud_enabled() and account_state() == 1 and not self.force_login then
         if auth_return == "pending" then return end
         self.correct_email = not self.correct_email
+        self.force_login = false; self.retry_email = nil
         auth_message = nil; self:ResetCloud(); return
     end
     if cloud_enabled() and account_state() == 0 and self.form_mode ~= "login" then
@@ -703,7 +704,9 @@ function netcoop_login_wnd:OnRegister()
         if self.correct_email then
             local email = string.match(self.ed_email:GetText() or "", "^%s*(.-)%s*$")
             if not email_valid(email) then return self:SetMsg(tr("email_invalid")) end
-            return self:CloudRequest("change_email", email)
+            local password = self.ed_pass:GetText() or ""
+            if #password < 6 or #password > 128 then return self:SetMsg(tr("change_email_password_help")) end
+            return self:CloudRequest("change_email", email, password)
         end
         if account_state() ~= 0 and not self.force_login then return self:CloudRequest("resend") end
         if self.form_mode == "login" then self.form_mode = "register"; self:ResetCloud(); return end
@@ -844,7 +847,11 @@ function frontend_update(menu)
 end
 
 -- Cloud callbacks contain only status and account name. Tokens remain native.
+local function cloud_error_code(error)
+    return string.match(error or "", "^[%w_]+") or "NETWORK_ERROR"
+end
 local function session_expired(error)
+    error = cloud_error_code(error)
     return error == "INVALID_REFRESH_TOKEN" or error == "TOKEN_EXPIRED" or error == "USER_NOT_FOUND" or error == "INVALID_ID_TOKEN" or error == "CREDENTIAL_TOO_OLD_LOGIN_AGAIN"
 end
 function netcoop_login_wnd:RequireLogin()
@@ -853,12 +860,12 @@ function netcoop_login_wnd:RequireLogin()
     if netcoop_firebase_login_email then self.ed_email:SetText(netcoop_firebase_login_email()) end
 end
 local function cloud_error(error)
-    local code = string.match(error or "", "^[%w_]+") or "NETWORK_ERROR"
+    local code = cloud_error_code(error)
     local errors = {EMAIL_EXISTS="email_exists", INVALID_EMAIL="email_invalid", EMAIL_DOMAIN_NOT_FOUND="email_domain_invalid", INVALID_LOGIN_CREDENTIALS="bad_credentials",
         EMAIL_NOT_FOUND="bad_credentials", INVALID_PASSWORD="bad_credentials", WEAK_PASSWORD="cloud_password_invalid",
         OPERATION_NOT_ALLOWED="provider_disabled", PASSWORD_LOGIN_DISABLED="provider_disabled", TOO_MANY_ATTEMPTS_TRY_LATER="rate_limited", QUOTA_EXCEEDED="rate_limited",
         TOKEN_EXPIRED="session_expired", INVALID_REFRESH_TOKEN="session_expired", CREDENTIAL_TOO_OLD_LOGIN_AGAIN="session_expired", USER_DISABLED="account_disabled",
-        ACCOUNT_NAME_REQUIRED="login_invalid", REMEMBER_FAILED="remember_failed", EMAIL_NOT_VERIFIED="verify_help",
+        CHANGE_EMAIL_REAUTH_REQUIRED="change_email_password_help", CHANGE_EMAIL_PASSWORD_INVALID="change_email_password_invalid", ACCOUNT_MISMATCH="change_email_account_error", ACCOUNT_NAME_REQUIRED="login_invalid", REMEMBER_FAILED="remember_failed", EMAIL_NOT_VERIFIED="verify_help",
         CODE_SERVICE_NOT_CONFIGURED="code_not_configured", INVALID_CODE="code_invalid", CODE_EXPIRED="code_expired",
         CODE_ATTEMPTS_EXCEEDED="code_attempts", CODE_SEND_LIMIT="code_limit", CODE_RESEND_WAIT="code_wait",
         MAIL_QUOTA_EXCEEDED="code_limit", MAIL_SEND_FAILED="code_mail_error", SERVICE_BUSY="rate_limited", SERVICE_ERROR="cloud_network_error", FIREBASE_ADMIN_PERMISSION_REQUIRED="code_not_configured"}
@@ -877,8 +884,16 @@ function netcoop_login_wnd:ResetCloud()
     if remembered and not correcting then self.ed_email:SetText(netcoop_firebase_email()) end
     local email = self.ed_email:GetText(); self.ed_email:Enable(not remembered or correcting)
     self.ed_login:Show(not remembered and self.form_mode == "register"); self.cap_login:Show(not remembered and self.form_mode == "register")
-    self.ed_login:Enable(not remembered and self.form_mode == "register"); self.ed_pass:Enable(not remembered)
-    self.ed_pass:Show(not remembered); self.cap_pass:Show(not remembered); self.ed_pass:SetText("")
+    self.ed_login:Enable(not remembered and self.form_mode == "register"); self.ed_pass:Enable(not remembered or correcting)
+    self.ed_pass:Show(not remembered or correcting); self.cap_pass:Show(not remembered or correcting); self.ed_pass:SetText("")
+    self.cap_email:TextControl():SetText(tr(correcting and "change_email_address" or "email"))
+    self.cap_pass:TextControl():SetText(tr(correcting and "change_email_password" or "account_password"))
+    self.cap_pass:SetWndPos(vector2():set(442, correcting and 294 or 359))
+    self.ed_pass:SetWndPos(vector2():set(442, correcting and 318 or 383))
+    self.msg:SetWndPos(vector2():set(442, correcting and 367 or 433))
+    self.register_button:SetWndPos(vector2():set(442, correcting and 447 or 505))
+    self.login_button:SetWndPos(vector2():set(442, correcting and 491 or 549))
+    self.back_button:SetWndPos(vector2():set(717, correcting and 491 or 549))
     self.ed_code:Show(false); self.cap_code:Show(false); self.ed_code:Enable(false)
     self.register_button:Show(not remembered or awaiting_link); self.register_button:Enable(true); self.login_button:Enable(true)
     self.reset_button:Show(not remembered and self.form_mode == "login")
@@ -929,6 +944,7 @@ function netcoop_login_wnd:PollVerification()
 end
 function on_cloud_result(ok, error, account, verified)
     if not wnd then return end
+    if error and error ~= "" then error = cloud_error_code(error) else error = "" end
     if wnd.verify_poll then
         wnd.verify_poll = nil
         wnd.next_verify_poll = device():time_continual() + ((not ok and error ~= "EMAIL_NOT_VERIFIED") and 20000 or 5000)
@@ -937,6 +953,7 @@ function on_cloud_result(ok, error, account, verified)
             if not wnd:CloudRequest(unpack(request)) then wnd:ResetCloud() end
             return
         end
+        if wnd.correct_email then return end -- a poll started before editing must not replace the form
         if ok and verified then auth_message = ""; auth_return = "characters"
         elseif session_expired(error) then
             wnd:RequireLogin(); auth_message = cloud_error(error); auth_return = "account"
@@ -953,6 +970,11 @@ function on_cloud_result(ok, error, account, verified)
         end
         if wnd.cloud_action == "login" or verified then wnd.retry_email = nil end
         if verified then wnd.correct_email = nil end
+    elseif wnd.cloud_action == "change_email" then
+        -- Keep the target address and editable password on this screen.
+        wnd.correct_email = true; wnd.force_login = false
+        if session_expired(error) then error = "CHANGE_EMAIL_REAUTH_REQUIRED" end
+        if error == "INVALID_LOGIN_CREDENTIALS" or error == "INVALID_PASSWORD" then error = "CHANGE_EMAIL_PASSWORD_INVALID" end
     elseif session_expired(error) then
         wnd:RequireLogin()
     end
