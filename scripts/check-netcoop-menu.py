@@ -18,7 +18,7 @@ local Widget={}
 function Widget:SetText(v) self.text=v end
 function Widget:GetText() return self.text or '' end
 function Widget:TextControl() return self end
-function Widget:Show(v) self.shown=v end
+function Widget:Show(v) self.shown=v; self.enabled=v end
 function Widget:IsShown() return self.shown or false end
 function Widget:Enable(v) self.enabled=v end
 function Widget:CaptureFocus() end
@@ -203,6 +203,14 @@ lua.execute(menu_source.read_text(encoding='cp1251'))
 lua.execute(r'''
 local menu={HideDialog=function() end,Show=function() end,ShowDialog=function() end}
 assert(frontend_update(menu)==true)
+assert(controls.input_login.shown and controls.input_login.enabled)
+assert(not controls.input_code.shown and not controls.input_code.enabled, 'hidden verification code must not steal account-name input')
+assert(not controls.input_addr.shown and not controls.input_addr.enabled)
+last_window.form_mode='login'; last_window:ResetCloud()
+assert(not controls.input_login.shown and not controls.input_login.enabled)
+assert(not controls.input_code.enabled and controls.input_email.enabled and controls.input_pass.enabled)
+last_window.form_mode='register'; last_window:ResetCloud()
+assert(controls.input_login.shown and controls.input_login.enabled and not controls.input_code.enabled)
 controls.input_email:SetText('user@example.invalid'); controls.input_login:SetText('cloud_user')
 controls.input_pass:SetText('tiny'); callbacks.btn_reg(); assert(#cloud_requests==0)
 controls.input_pass:SetText('test-password'); callbacks.btn_reg()
@@ -210,6 +218,7 @@ assert(cloud_requests[1].action=='register' and #commands==0 and #characters==0)
 callbacks.btn_reg(); assert(#cloud_requests==1)
 cloud_state=1; on_cloud_result(true,'','cloud_user',false); last_window:Update()
 assert(not controls.input_pass.shown and controls.input_email.enabled==false and controls.input_code.shown)
+assert(controls.input_code.enabled and not controls.input_login.enabled and not controls.input_pass.enabled)
 callbacks.btn_reg(); assert(cloud_requests[2].action=='resend')
 on_cloud_result(true,'','cloud_user',false); last_window:Update()
 local before=#cloud_requests; controls.input_code:SetText('12345'); callbacks.btn_enter(); assert(#cloud_requests==before)
