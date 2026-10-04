@@ -128,7 +128,10 @@ int main() {
  has_unicode=true;lock_ok=false;os_clipboard::paste_from_clipboard(buffer,sizeof(buffer));assert(buffer[0]==0 && !is_open);lock_ok=true;
  open_ok=false;os_clipboard::paste_from_clipboard(buffer,sizeof(buffer));assert(buffer[0]==0 && !is_open);open_ok=true;
  has_unicode=false;has_ansi=true;ansi_clip="legacy text";os_clipboard::paste_from_clipboard(buffer,sizeof(buffer));assert(std::string(buffer)==ansi_clip);
- has_unicode=true;wide_clip=L"xyz123";receiver.edit.m_buffer_size=8;receiver.edit.set_edit("abcdef");receiver.edit.m_cur_pos=3;receiver.edit.m_select_start=3;
+ has_unicode=true;wide_clip=L"1234567";receiver.edit.m_buffer_size=8;receiver.edit.set_edit("");
+ keyboard.events={{DIK_LCONTROL,128},{DIK_V,128},{DIK_V,0},{DIK_LCONTROL,0}};input.KeyUpdate();
+ assert(std::string(receiver.edit.m_edit_str)=="1234567");
+ wide_clip=L"xyz123";receiver.edit.set_edit("abcdef");receiver.edit.m_cur_pos=3;receiver.edit.m_select_start=3;
  keyboard.events={{DIK_LCONTROL,128},{DIK_V,128},{DIK_V,0},{DIK_LCONTROL,0}};input.KeyUpdate();
  assert(std::string(receiver.edit.m_edit_str)=="abcxyz1");
  Device.dwPrecacheFrame=1;keyboard.events={{DIK_RCONTROL,128},{DIK_RCONTROL,0}};input.KeyUpdate();assert(!input.KBState[DIK_RCONTROL]);Device.dwPrecacheFrame=0;

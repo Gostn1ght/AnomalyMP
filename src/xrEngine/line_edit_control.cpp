@@ -647,7 +647,7 @@ namespace text_editor
 
 	void line_edit_control::paste_from_clipboard()
 	{
-		os_clipboard::paste_from_clipboard(m_inserted, m_buffer_size - 1);
+		os_clipboard::paste_from_clipboard(m_inserted, m_buffer_size);
 	}
 
 	void line_edit_control::cut_to_clipboard()
