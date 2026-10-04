@@ -299,6 +299,7 @@ end
 function netcoop_login_wnd:Reset()
 	self.mode = "account"
 	self:ShowAccountControls(true)
+	self.ed_code:Show(false); self.cap_code:Show(false)
 	if self.profile_panel then self.profile_panel:Show(false) end
 	if self.character_panel then self.character_panel:Show(false) end
 	netcoop_preview_clear()
@@ -827,7 +828,7 @@ local function cloud_error(error)
         EMAIL_NOT_FOUND="bad_credentials", INVALID_PASSWORD="bad_credentials", WEAK_PASSWORD="cloud_password_invalid",
         OPERATION_NOT_ALLOWED="provider_disabled", PASSWORD_LOGIN_DISABLED="provider_disabled", TOO_MANY_ATTEMPTS_TRY_LATER="rate_limited", QUOTA_EXCEEDED="rate_limited",
         TOKEN_EXPIRED="session_expired", INVALID_REFRESH_TOKEN="session_expired", USER_DISABLED="account_disabled",
-        ACCOUNT_NAME_REQUIRED="login_invalid", REMEMBER_FAILED="remember_failed",
+        ACCOUNT_NAME_REQUIRED="login_invalid", REMEMBER_FAILED="remember_failed", EMAIL_NOT_VERIFIED="verify_help",
         CODE_SERVICE_NOT_CONFIGURED="code_not_configured", INVALID_CODE="code_invalid", CODE_EXPIRED="code_expired",
         CODE_ATTEMPTS_EXCEEDED="code_attempts", CODE_SEND_LIMIT="code_limit", CODE_RESEND_WAIT="code_wait",
         MAIL_QUOTA_EXCEEDED="code_limit", MAIL_SEND_FAILED="code_mail_error", SERVICE_BUSY="rate_limited", SERVICE_ERROR="cloud_network_error", FIREBASE_ADMIN_PERMISSION_REQUIRED="code_not_configured"}
@@ -837,7 +838,7 @@ function netcoop_login_wnd:ResetCloud()
     self:ShowAccountControls(true)
     self.mode = "account"; self.form_mode = self.form_mode or "register"
     local remembered = account_state() ~= 0 and not self.force_login
-    local awaiting_code = remembered and account_state() == 1
+    local awaiting_link = remembered and account_state() == 1
     self.ed_addr:Show(false); self.cap_addr:Show(false)
     local _, addr = read_last(); self.ed_addr:SetText(addr or DEF_ADDR)
     self.ed_email:Show(true); self.cap_email:Show(true)
@@ -846,16 +847,15 @@ function netcoop_login_wnd:ResetCloud()
     self.ed_login:Show(not remembered and self.form_mode == "register"); self.cap_login:Show(not remembered and self.form_mode == "register")
     self.ed_login:Enable(not remembered and self.form_mode == "register"); self.ed_pass:Enable(not remembered)
     self.ed_pass:Show(not remembered); self.cap_pass:Show(not remembered); self.ed_pass:SetText("")
-    self.ed_code:Show(awaiting_code); self.cap_code:Show(awaiting_code); self.ed_code:Enable(awaiting_code)
-    self.register_button:Show(not remembered or awaiting_code); self.register_button:Enable(true); self.login_button:Enable(true)
+    self.ed_code:Show(false); self.cap_code:Show(false); self.ed_code:Enable(false)
+    self.register_button:Show(not remembered or awaiting_link); self.register_button:Enable(true); self.login_button:Enable(true)
     self.reset_button:Show(not remembered and self.form_mode == "login")
     self.back_button:TextControl():SetText(tr("exit"))
-    self.title:TextControl():SetText(tr(awaiting_code and "verify_title" or remembered and "login_title" or self.form_mode == "login" and "login_title" or "register_title"))
+    self.title:TextControl():SetText(tr(awaiting_link and "verify_title" or remembered and "login_title" or self.form_mode == "login" and "login_title" or "register_title"))
     self.register_button:TextControl():SetText(tr(remembered and "resend_email" or self.form_mode == "login" and "register_tab" or "register_send"))
     self.login_button:TextControl():SetText(tr(remembered and "verify_check" or self.form_mode == "login" and "login_action" or "existing_account"))
-    self:SetMsg(auth_message or tr(awaiting_code and "verify_help" or "cloud_help"))
-    if awaiting_code then pcall(function() self.ed_code:CaptureFocus(true) end)
-    elseif not remembered then pcall(function() self.ed_email:CaptureFocus(true) end) end
+    self:SetMsg(auth_message or tr(awaiting_link and "verify_help" or "cloud_help"))
+    if not remembered then pcall(function() self.ed_email:CaptureFocus(true) end) end
 end
 function netcoop_login_wnd:CloudRequest(action, email, password, username)
     if auth_return == "pending" then return false end
@@ -870,9 +870,7 @@ end
 function netcoop_login_wnd:ConnectCloud(register)
     if account_state() ~= 0 and not self.force_login then
         if account_state() == 2 then return self:CloudRequest("refresh") end
-        local code = self.ed_code:GetText() or ""
-        if not string.match(code, "^%d%d%d%d%d%d$") then return self:SetMsg(tr("code_invalid")) end
-        return self:CloudRequest("verify", "", code)
+        return self:CloudRequest("verify")
     end
     local email = string.match(self.ed_email:GetText() or "", "^%s*(.-)%s*$")
     if #email > 254 or not string.match(email, "^[^%s@]+@[^%s@]+%.[^%s@]+$") then return self:SetMsg(tr("email_invalid")) end

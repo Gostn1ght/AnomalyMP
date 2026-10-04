@@ -196,10 +196,10 @@
     <text>Verify email</text>
   </string>
   <string id="st_netcoop_verify_help">
-    <text>Enter the six-digit email code. Check Spam as well. The code expires in 10 minutes.</text>
+    <text>A verification email has been sent. Open its confirmation link, then click "I verified my email". Check Spam or resend the email if needed.</text>
   </string>
   <string id="st_netcoop_verify_check">
-    <text>Continue</text>
+    <text>I verified my email</text>
   </string>
   <string id="st_netcoop_resend_email">
     <text>Send email again</text>

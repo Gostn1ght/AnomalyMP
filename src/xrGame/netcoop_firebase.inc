@@ -42,7 +42,7 @@ static bool firebase_enabled()
                 LPCSTR value = cfg.r_string("firebase", "api_key");
                 if (value) s_firebase_api = value;
             }
-            // An empty endpoint is valid while the mail service is being configured.
+            // Legacy configurations can contain an empty code endpoint.
             // CInifile returns nullptr for an empty value; assigning it to a string crashes.
             if (cfg.line_exist("firebase", "code_endpoint"))
             {
@@ -228,10 +228,7 @@ static void firebase_worker(void* argument)
 {
     FirebaseTask* task = static_cast<FirebaseTask*>(argument);
     CloudJson response; bool ok = false;
-    std::wstring configured;
-    if (task->action == "register" && !email_code_path(task->endpoint, configured))
-        task->error = "CODE_SERVICE_NOT_CONFIGURED";
-    else if (task->action == "register" || task->action == "login")
+    if (task->action == "register" || task->action == "login")
     {
         ok = firebase_call(task->action == "register" ? "signUp" : "signInWithPassword",
             {{"email",task->email},{"password",task->password},{"returnSecureToken",true}},response,task->error,task->api);
@@ -273,13 +270,15 @@ static void firebase_worker(void* argument)
     {
         if (task->action == "verify")
         {
-            ok = email_code_call(task->endpoint,"verify",task->session.id,task->password,task->error);
-            if (ok) ok = firebase_lookup(task->session.id,task->api,task->session,task->error);
-            if (ok && !task->session.verified) { ok=false; task->error="INVALID_RESPONSE"; }
+            // The link is applied by Firebase's hosted email action page.
+            // Only the fresh lookup above can establish verified ownership.
+            ok = false; task->error = "EMAIL_NOT_VERIFIED";
         }
         else if (task->action == "register" || task->action == "login" || task->action == "resend")
         {
-            const bool sent = email_code_call(task->endpoint,"send",task->session.id,"",task->error);
+            const bool sent = firebase_call("sendOobCode",
+                {{"requestType","VERIFY_EMAIL"},{"idToken",task->session.id}},
+                response,task->error,task->api);
             // Account creation/login remains saved if delivery fails: users can resend.
             if (task->action == "resend") ok = sent;
         }
@@ -294,11 +293,7 @@ bool script_firebase_request(LPCSTR action, LPCSTR email, LPCSTR password, LPCST
     const std::string operation = action;
     if (operation != "register" && operation != "login" && operation != "refresh" && operation != "resend" && operation != "reset" && operation != "verify") return false;
     if ((operation == "register" || operation == "login") && (xr_strlen(password) < 6 || xr_strlen(password) > 128)) return false;
-    if (operation == "verify")
-    {
-        if (xr_strlen(password) != 6) return false;
-        for (LPCSTR c = password; *c; ++c) if (*c < '0' || *c > '9') return false;
-    }
+    if (operation == "verify" && *password) return false;
     if (operation == "register" && !login_valid(username)) return false;
     if (xr_strlen(email) > 254) return false;
     auto task = xr_new<FirebaseTask>();
