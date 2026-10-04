@@ -181,7 +181,7 @@
     <text>Email</text>
   </string>
   <string id="st_netcoop_cloud_help">
-    <text>One account, up to five characters. Email and password belong to your account. Each stalker has a separate name and story.</text>
+    <text>Your Lost Zone account and characters.</text>
   </string>
   <string id="st_netcoop_login_title">
     <text>Sign in</text>
@@ -196,7 +196,7 @@
     <text>Verify email</text>
   </string>
   <string id="st_netcoop_verify_help">
-    <text>Open the link in the email. Registration will continue automatically after confirmation. Check Spam, resend the email or correct the address if needed.</text>
+    <text>Open the link in your email; the game continues automatically. For an incorrect address, return using the button below or Register.</text>
   </string>
   <string id="st_netcoop_verify_check">
     <text>I verified my email</text>
@@ -439,7 +439,7 @@
     <text>Stay</text>
   </string>
   <string id="st_netcoop_wrong_email">
-    <text>I entered the wrong email</text>
+    <text>Back to registration</text>
   </string>
   <string id="st_netcoop_change_email_title">
     <text>Correct email address</text>
@@ -453,10 +453,9 @@
   <string id="st_netcoop_change_email_help">
     <text>Enter the correct email and the password you chose at registration. We will send a verification link to the new address.</text>
   </string>
-<string id="st_netcoop_email_domain_invalid">
+  <string id="st_netcoop_email_domain_invalid">
     <text>This email domain does not exist or does not accept mail. Correct the address.</text>
   </string>
-
   <string id="st_netcoop_change_email_address">
     <text>Correct email address</text>
   </string>
@@ -471,5 +470,29 @@
   </string>
   <string id="st_netcoop_change_email_account_error">
     <text>Could not confirm this account. Sign in again using the email entered at registration.</text>
+  </string>
+  <string id="st_netcoop_registration_tab">
+    <text>Register</text>
+  </string>
+  <string id="st_netcoop_login_tab">
+    <text>Sign in</text>
+  </string>
+  <string id="st_netcoop_registration_help">
+    <text>Enter your email, account name and password. Then follow the email verification link.</text>
+  </string>
+  <string id="st_netcoop_login_help">
+    <text>Enter your account email and password. To create an account, open Register.</text>
+  </string>
+  <string id="st_netcoop_loadout_continue">
+    <text>Continue</text>
+  </string>
+  <string id="st_netcoop_loadout_points_invalid">
+    <text>Not enough points. Remove some selected equipment.</text>
+  </string>
+  <string id="st_netcoop_loadout_save_failed">
+    <text>Equipment could not be saved. Check backpack capacity and write access. Your selection remains here.</text>
+  </string>
+  <string id="st_netcoop_loadout_error">
+    <text>Equipment selection could not be completed. Try again; details were written to the log.</text>
   </string>
 </string_table>

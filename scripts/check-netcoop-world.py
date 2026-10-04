@@ -86,7 +86,7 @@ lua.execute('''
 submitted=nil
 owner={EnterCharacter=function(_,...) submitted={...} end}
 function cell(section,count,shown) return {section=section,CountChilds=function() return count-1 end,IsShown=function() return shown end} end
-menu={access=true,points_left=0,character_name={GetText=function() return 'Tester' end},
+menu={netcoop_status={TextControl=function(s) return s end,SetText=function() end},access=true,points_left=0,character_name={GetText=function() return 'Tester' end},
  selected_economy='st_econ_2',selected_faction='stalker',netcoop_creation_slot=4,netcoop_creation_owner=owner,
  CC={inventory={cell={cell('bandage',3,true),cell('wpn_pm',1,true),cell('hidden',1,false)}}},HideDialog=function() end,Show=function() end}
 finish_creation(menu)

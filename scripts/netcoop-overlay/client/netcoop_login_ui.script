@@ -165,12 +165,14 @@ function netcoop_login_wnd:__init(owner) super()
 	self.register_button = btn("btn_reg", tr("register_send"), self.OnRegister)
 	self.back_button = btn("btn_back", tr("back"), self.OnBack)
 	self.reset_button = btn("btn_reset", tr("reset_password"), self.ResetPassword)
+    self.register_tab = btn("tab_register", tr("registration_tab"), self.OpenRegistration)
+    self.login_tab = btn("tab_login", tr("login_tab"), self.OpenLogin)
 end
 
 function netcoop_login_wnd:ShowAccountControls(show)
     pcall(function() self.ed_email:CaptureFocus(false); self.ed_login:CaptureFocus(false); self.ed_pass:CaptureFocus(false); self.ed_code:CaptureFocus(false) end)
     for _, item in ipairs({self.account_background,self.brand,self.brand_help,self.title,self.cap_login,self.cap_pass,self.cap_email,self.cap_addr,self.cap_code,
-        self.ed_login,self.ed_pass,self.ed_email,self.ed_addr,self.ed_code,self.msg,self.login_button,self.register_button,self.back_button,self.reset_button}) do
+        self.ed_login,self.ed_pass,self.ed_email,self.ed_addr,self.ed_code,self.msg,self.login_button,self.register_button,self.back_button,self.reset_button,self.register_tab,self.login_tab}) do
         item:Show(show)
     end
 end
@@ -308,6 +310,7 @@ function netcoop_login_wnd:SetMsg(text)
 end
 
 function netcoop_login_wnd:Reset()
+    if self.room_view or self.room_pending then self:CloseRoomView() end
 	self.mode = "account"
 	self:ShowAccountControls(true)
 	self.ed_code:Show(false); self.cap_code:Show(false)
@@ -316,6 +319,7 @@ function netcoop_login_wnd:Reset()
 	netcoop_preview_clear()
 	if cloud_enabled() then return self:ResetCloud() end
 	self.ed_email:Show(false); self.cap_email:Show(false); self.reset_button:Show(false)
+    self.register_tab:Show(false); self.login_tab:Show(false)
 	local login, addr = read_last()
 	if netcoop_account() ~= "" then login = netcoop_account() end
 	self.ed_login:SetText(login or "")
@@ -639,13 +643,31 @@ function netcoop_login_wnd:ShowLoadout(slot)
     if not ui_mm_faction_select or not ui_mm_faction_select.UINewGame then
         return self:SetMsg("! Character creation menu is unavailable")
     end
+    local rebuild = not self.creator or self.creator.netcoop_creation_slot ~= slot
+    local picker = ui_mm_faction_select.UINewGame
+    local injector = new_game_loadout_injector_mcm
+    if injector and injector._LoadLoadout and not picker.netcoop_loadout_hook then
+        local original = picker.LoadLoadout
+        picker.LoadLoadout = function(menu, random)
+            if menu.netcoop_creation_owner then return injector._LoadLoadout(menu, random) end
+            return original(menu, random)
+        end
+        picker.netcoop_loadout_hook = true
+    end
     if not self.creator then
-        self.creator = ui_mm_faction_select.UINewGame(self)
+        self.creator = picker(self)
         self.creator:SetAutoDelete(false)
+        self.creator:AddCallback("btn_start", ui_events.BUTTON_CLICKED, finish_creation, self.creator)
+        self.creator:AddCallback("btn_back", ui_events.BUTTON_CLICKED, cancel_creation, self.creator)
+        self.creator.OnStartGame = finish_creation; self.creator.OnQuit = cancel_creation
+        local xml = CScriptXmlInit(); xml:ParseFile("ui_mm_faction_select.xml")
+        self.creator.netcoop_status = xml:InitStatic("main_dialog:netcoop_status", self.creator.dialog)
     end
     if self.profile_data then self.creator.character_name:SetText(self.profile_data.name) end
     self.creator.netcoop_creation_slot = slot
     self.creator.netcoop_creation_owner = self
+    self.creator.netcoop_status:TextControl():SetText("")
+    if rebuild then self.creator:LoadLoadout(false) end
     for _, field in ipairs({"ck_story", "ck_warfare", "ck_hardcore", "ck_azazel_mode", "ck_survival", "ck_campfire", "ck_conditions", "ck_routes"}) do
         if self.creator[field] then self.creator[field]:SetCheck(false); self.creator[field]:Enable(false) end
     end
@@ -658,10 +680,13 @@ function netcoop_login_wnd:ShowLoadout(slot)
 end
 
 -- Called before the freeplay menu writes any global new-game settings.
-function finish_creation(menu)
+local function finish_creation_impl(menu)
     if not menu.access then return end
     local name = menu.character_name:GetText()
-    if not name or name == "" or menu.points_left < 0 then return end
+    if not name or #name < 2 or #name > 63 or string.find(name, "[|\r\n/\\]") then
+        menu.netcoop_status:TextControl():SetText(tr("character_name_invalid")); return
+    end
+    if menu.points_left < 0 then menu.netcoop_status:TextControl():SetText(tr("loadout_points_invalid")); return end
     local items = {}
     for _, cell in pairs(menu.CC.inventory.cell) do
         if cell:IsShown() then
@@ -674,8 +699,8 @@ function finish_creation(menu)
         local owner = menu.netcoop_creation_owner
         local profile = owner.profile_data or {}
         if not netcoop_save_draft(menu.netcoop_creation_slot, name, profile.description or "", profile.history or "", menu.selected_faction, economy, table.concat(items, ",")) then
-            owner:ShowProfile(menu.netcoop_creation_slot); owner.profile_msg:TextControl():SetText(tr("draft_failed"))
-            menu:HideDialog(); menu:Show(false); owner:ShowDialog(true); return
+            printf("[Lost Zone][menu] loadout rejected: slot=%s faction=%s economy=%s count=%s", tostring(menu.netcoop_creation_slot), tostring(menu.selected_faction), tostring(economy), tostring(#items))
+            menu.netcoop_status:TextControl():SetText(tr("loadout_save_failed")); return
         end
         menu:HideDialog(); menu:Show(false)
         owner.slot = menu.netcoop_creation_slot
@@ -687,11 +712,33 @@ function finish_creation(menu)
     menu.netcoop_creation_owner:EnterCharacter(menu.netcoop_creation_slot, name, menu.selected_faction, economy, table.concat(items, ","))
 end
 
+function finish_creation(menu)
+    local ok, trace = xpcall(function() finish_creation_impl(menu) end, function(err) return debug.traceback(tostring(err), 2) end)
+    if not ok then
+        log_error("continue loadout", trace)
+        if menu.netcoop_status then menu.netcoop_status:TextControl():SetText(tr("loadout_error")) end
+    end
+end
+function cancel_creation(menu)
+    if not menu.access then return end
+    local owner = menu.netcoop_creation_owner
+    menu:HideDialog(); menu:Show(false)
+    if cloud_enabled() then owner:ShowProfile(menu.netcoop_creation_slot) else owner:ShowCharacters() end
+    owner:ShowDialog(true); owner:Show(true)
+end
+function netcoop_login_wnd:OpenAccountForm(mode)
+    if auth_return == "pending" then return end
+    self.force_login = true; self.form_mode = mode; auth_message = nil
+    if self.ed_email:GetText() == "" and netcoop_firebase_login_email then self.ed_email:SetText(netcoop_firebase_login_email()) end
+    if mode == "register" and self.ed_login:GetText() == "" and netcoop_firebase_account then self.ed_login:SetText(netcoop_firebase_account()) end
+    self:Reset(); self:ShowDialog(true); self:Show(true)
+end
+function netcoop_login_wnd:OpenRegistration() self:OpenAccountForm("register") end
+function netcoop_login_wnd:OpenLogin() self:OpenAccountForm("login") end
 function netcoop_login_wnd:OnLogin()
     if cloud_enabled() and account_state() == 1 and not self.force_login then
         if auth_return == "pending" then return end
-        self:RequireLogin()
-        auth_message = nil; self:ResetCloud(); return
+        self:OpenRegistration(); return
     end
     if cloud_enabled() and (account_state() == 0 or self.force_login) and self.form_mode ~= "login" then
         self.form_mode = "login"; self:ResetCloud(); return
@@ -701,7 +748,7 @@ end
 function netcoop_login_wnd:OnRegister()
     if cloud_enabled() then
         if account_state() ~= 0 and not self.force_login then return self:CloudRequest("resend") end
-        if self.form_mode == "login" then self.form_mode = "register"; self:ResetCloud(); return end
+        if self.form_mode == "login" then self:OpenRegistration(); return end
     end
     self:Connect(true)
 end
@@ -712,8 +759,9 @@ function netcoop_login_wnd:OnBack()
     if cloud_enabled() then
         if self.mode == "profile" then
             local populated = false
-            for i = 1, self:CharacterLimit() do if netcoop_draft(i, "name") ~= "" then populated = true end end
+            for i = 1, self:CharacterLimit() do if netcoop_draft(i, "name") ~= "" or (self.names and self.names[i] and self.names[i] ~= "") then populated = true end end
             if populated then self:ShowCharacters(); return end
+            self:OpenRegistration(); return
         end
         self:AskQuit(); return
     end
@@ -877,20 +925,30 @@ function netcoop_login_wnd:ResetCloud()
     self.ed_pass:Show(not remembered); self.cap_pass:Show(not remembered); self.ed_pass:SetText("")
     self.cap_email:TextControl():SetText(tr("email"))
     self.cap_pass:TextControl():SetText(tr("account_password"))
-    self.cap_pass:SetWndPos(vector2():set(442, 359))
-    self.ed_pass:SetWndPos(vector2():set(442, 383))
-    self.msg:SetWndPos(vector2():set(442, 433))
-    self.register_button:SetWndPos(vector2():set(442, 505))
-    self.login_button:SetWndPos(vector2():set(442, 549))
-    self.back_button:SetWndPos(vector2():set(717, 549))
+    local registering = not remembered and self.form_mode == "register"
+    self.cap_pass:SetWndPos(vector2():set(282, registering and 404 or 338))
+    self.ed_pass:SetWndPos(vector2():set(282, registering and 428 or 362))
+    self.msg:SetWndPos(vector2():set(282, awaiting_link and 337 or registering and 470 or 405))
+    self.msg:SetWndSize(vector2():set(460, awaiting_link and 172 or registering and 56 or 101))
+    self.register_button:SetWndPos(vector2():set(282, 536))
+    self.login_button:SetWndPos(vector2():set(282, awaiting_link and 582 or 536))
+    self.login_button:SetWndSize(vector2():set(460, 36))
+    self.back_button:SetWndPos(vector2():set(632, awaiting_link and 634 or 590))
+    self.reset_button:SetWndPos(vector2():set(282, 590))
     self.ed_code:Show(false); self.cap_code:Show(false); self.ed_code:Enable(false)
-    self.register_button:Show(not remembered or awaiting_link); self.register_button:Enable(true); self.login_button:Enable(true)
-    self.reset_button:Show(not remembered and self.form_mode == "login")
+    self.register_button:Show(registering or awaiting_link)
+    self.login_button:Show(awaiting_link or not registering)
+    self.register_button:Enable(true); self.login_button:Enable(true)
+    self.register_tab:Show(true); self.login_tab:Show(true)
+    self.register_tab:Enable(true); self.login_tab:Enable(true)
+    self.register_tab:TextControl():SetTextColor(GetARGB(255, registering and 231 or 150, registering and 213 or 153, registering and 181 or 151))
+    self.login_tab:TextControl():SetTextColor(GetARGB(255, not remembered and not registering and 231 or 150, not remembered and not registering and 213 or 153, not remembered and not registering and 181 or 151))
+    self.reset_button:Show(not remembered and not registering)
     self.back_button:TextControl():SetText(tr("exit"))
-    self.title:TextControl():SetText(tr(awaiting_link and "verify_title" or remembered and "login_title" or self.form_mode == "login" and "login_title" or "register_title"))
-    self.register_button:TextControl():SetText(tr(remembered and "resend_email" or self.form_mode == "login" and "register_tab" or "register_send"))
-    self.login_button:TextControl():SetText(tr(awaiting_link and "wrong_email" or remembered and "login_action" or self.form_mode == "login" and "login_action" or "existing_account"))
-    self:SetMsg(auth_message or tr(awaiting_link and "verify_help" or "cloud_help"))
+    self.title:TextControl():SetText(tr(awaiting_link and "verify_title" or remembered and "login_title" or registering and "register_title" or "login_title"))
+    self.register_button:TextControl():SetText(tr(awaiting_link and "resend_email" or "register_send"))
+    self.login_button:TextControl():SetText(tr(awaiting_link and "wrong_email" or "login_action"))
+    self:SetMsg(auth_message or tr(awaiting_link and "verify_help" or registering and "registration_help" or "login_help"))
     self.next_verify_poll = self.next_verify_poll or (device():time_continual() + 5000)
     if not remembered then pcall(function() self.ed_email:CaptureFocus(true) end) end
 end
@@ -903,6 +961,7 @@ function netcoop_login_wnd:CloudRequest(action, email, password, username)
     end
     self.cloud_action = action; auth_return = "pending"; auth_message = nil
     self.login_button:Enable(false); self.register_button:Enable(false); self.reset_button:Enable(false)
+    self.register_tab:Enable(false); self.login_tab:Enable(false)
     self.ed_email:Enable(false); self.ed_login:Enable(false); self.ed_pass:Enable(false); self.ed_code:Enable(false)
     self.ed_pass:SetText(""); self:SetMsg(tr("connecting")); return true
 end
@@ -952,7 +1011,7 @@ function on_cloud_result(ok, error, account, verified)
     if auth_return ~= "pending" then return end
     wnd.reset_button:Enable(true)
     if ok then
-        wnd.force_login = false
+        if wnd.cloud_action ~= "reset" then wnd.force_login = false end
     elseif session_expired(error) then
         wnd:RequireLogin()
     end
@@ -1020,6 +1079,7 @@ end
 function netcoop_login_wnd:ShowProfile(slot)
     if slot < 1 or slot > self:CharacterLimit() then return end
     if self.profile_slot ~= slot then self.profile_data = nil end
+    if self.room_view or self.room_pending then self:CloseRoomView() end
     self.mode = "profile"; self.profile_slot = slot
     self:ShowAccountControls(false)
     if self.character_panel then self.character_panel:Show(false) end

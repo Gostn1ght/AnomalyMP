@@ -223,6 +223,8 @@ controls.input_pass:SetText('tiny'); callbacks.btn_reg(); assert(#cloud_requests
 controls.input_pass:SetText('test-password'); callbacks.btn_reg()
 assert(cloud_requests[1].action=='register' and #commands==0 and #characters==0)
 callbacks.btn_reg(); assert(#cloud_requests==1)
+assert(not controls.tab_register.enabled and not controls.tab_login.enabled)
+callbacks.tab_login();assert(last_window.form_mode=='register', 'form tabs must not interrupt an account request')
 cloud_state=1; on_cloud_result(true,'','cloud_user',false); last_window:Update()
 assert(not controls.input_pass.shown and controls.input_email.enabled==false and not controls.input_code.shown)
 assert(not controls.input_code.enabled and not controls.input_login.enabled and not controls.input_pass.enabled)
@@ -239,10 +241,11 @@ assert(cloud_requests[4].action=='resend','queued resend follows the poll')
 on_cloud_result(true,'','cloud_user',false);last_window:Update()
 assert(last_window.mode=='account' and #commands==0 and not controls.input_code.enabled)
 assert(controls.btn_enter.text=='st_netcoop_wrong_email')
-callbacks.btn_enter();assert(last_window.force_login and last_window.form_mode=='login')
+callbacks.btn_enter();assert(last_window.force_login and last_window.form_mode=='register' and controls.input_login.shown)
+callbacks.tab_login();assert(last_window.form_mode=='login')
 assert(controls.input_email.enabled and controls.input_pass.shown and controls.input_pass.enabled)
 assert(not controls.input_login.shown and controls.btn_enter.text=='st_netcoop_login_action')
-assert(controls.btn_reg.text=='st_netcoop_register_tab' and controls.btn_reset.shown)
+assert(not controls.btn_reg.shown and controls.btn_enter.shown and controls.btn_reset.shown)
 controls.input_email:SetText('bad@@example.invalid');callbacks.btn_enter()
 assert(#cloud_requests==4 and last_window.msg.text=='st_netcoop_email_invalid')
 controls.input_email:SetText('correct@example.invalid');controls.input_pass:SetText('test-password');callbacks.btn_enter()
@@ -259,18 +262,38 @@ assert(last_window.mode=='profile' and #commands==0)
 last_window:Update();assert(music_started==account_music, 'profile creation must remain silent')
 controls.input_name:SetText('Loner One'); controls.input_description:SetText('Brown jacket')
 controls.input_history:SetText('A separate character history')
-ui_mm_faction_select={UINewGame=function(owner)
+canonical_loads, injected_loads=0,0
+new_game_loadout_injector_mcm={_LoadLoadout=function(menu) canonical_loads=canonical_loads+1;menu.canonical=true end}
+local picker={LoadLoadout=function(menu) injected_loads=injected_loads+1;menu.canonical=false end}
+ui_mm_faction_select={UINewGame=setmetatable(picker,{__call=function(class,owner)
  local hidden={Show=function() end}
- last_creator={owner=owner,SetAutoDelete=function() end,HideDialog=function() end,ShowDialog=function() end,Show=function() end,
+ last_creator={owner=owner,actions={},SetAutoDelete=function() end,HideDialog=function(s) s.shown=false end,ShowDialog=function(s) s.shown=true end,Show=function(s,v) s.shown=v end,
+  AddCallback=function(s,id,event,fn,selfref) s.actions[id]=function() return fn(selfref) end end,
   character_name={SetText=function(s,v) s.name=v end,GetText=function(s) return s.name end},scroll_options=hidden,list_map=hidden}
+ last_creator.actions.btn_start=function() error('Legacy start callback must be replaced') end
+ class.LoadLoadout(last_creator,false)
+ setmetatable(last_creator,{__index=class})
  return last_creator
-end}
-callbacks.profile_next(); assert(last_creator.character_name.name=='Loner One')
+end})}
+callbacks.profile_next(); assert(last_creator.character_name.name=='Loner One' and last_creator.canonical and canonical_loads==1)
 assert(#commands==0 and #characters==0)
 last_creator.access=true; last_creator.points_left=10; last_creator.selected_economy='st_econ_1'; last_creator.selected_faction='stalker'
 last_creator.CC={inventory={cell={{section='medkit',IsShown=function() return true end,CountChilds=function() return 2 end}}}}
 netcoop_login_ui={finish_creation=finish_creation}
-finish_creation(last_creator)
+local original_save=netcoop_save_draft
+netcoop_save_draft=function() return false end
+last_creator.actions.btn_start()
+assert(last_creator.shown and last_window.mode=='profile' and last_creator.netcoop_status.text=='st_netcoop_loadout_save_failed')
+assert(last_creator.CC.inventory.cell[1]:CountChilds()==2 and last_window.profile_data.history=='A separate character history')
+netcoop_save_draft=function() error('fixture write error') end
+last_creator.actions.btn_start()
+assert(last_creator.shown and last_creator.netcoop_status.text=='st_netcoop_loadout_error')
+netcoop_save_draft=original_save
+last_creator.actions.btn_back()
+assert(last_window.mode=='profile' and not last_creator.shown and controls.input_history.text=='A separate character history')
+local loads=canonical_loads
+callbacks.profile_next();assert(canonical_loads==loads and last_creator.CC.inventory.cell[1]:CountChilds()==2, 'back must preserve selected equipment')
+last_creator.actions.btn_start()
 assert(drafts[1].loadout=='medkit,medkit,medkit')
 assert(drafts[1].history=='A separate character history')
 assert(last_window.mode=='characters' and controls.name.text=='Loner One' and #commands==0)
@@ -464,13 +487,15 @@ test_menu(true,false,4);test_menu(true,true,4)
 print('Actual base-menu controls: no nested account-class load, player/admin buttons and show/hide PASS')
 
 lua.execute(r"""
--- Wrong email opens the regular login form, including ordinary registration navigation.
+-- Back from verification opens all registration fields and explicit tabs navigate to login.
 present=false;cloud_state=1;last_window.force_login=false
 last_window:ResetCloud();callbacks.btn_enter()
-assert(last_window.force_login and last_window.form_mode=='login')
+assert(last_window.force_login and last_window.form_mode=='register' and controls.input_login.shown)
+assert(controls.btn_reg.shown and not controls.btn_enter.shown)
+callbacks.tab_login();assert(last_window.form_mode=='login')
 assert(last_window.title.text=='st_netcoop_login_title')
 assert(controls.input_email.enabled and controls.input_pass.shown and controls.input_pass.enabled and not controls.input_login.shown)
-assert(last_window.ed_pass.position.y==383 and last_window.msg.position.y==433 and last_window.register_button.position.y==505)
+assert(last_window.ed_pass.position.y==362 and last_window.msg.position.y==405 and last_window.register_button.position.y==536)
 local before=#cloud_requests
 controls.input_email:SetText('corrected@example.invalid');last_window:OnKeyboard(DIK_keys.DIK_RETURN,ui_events.WINDOW_KEY_PRESSED)
 assert(#cloud_requests==before and last_window.msg.text=='st_netcoop_cloud_password_invalid')
@@ -480,25 +505,38 @@ assert(controls.input_pass.text=='', 'clear the visible password during requests
 on_cloud_result(false,'INVALID_LOGIN_CREDENTIALS : wrong credentials','cloud_user',false);last_window:Update()
 assert(last_window.force_login and controls.input_email.text=='corrected@example.invalid' and controls.input_pass.enabled)
 assert(last_window.msg.text=='st_netcoop_bad_credentials')
-callbacks.btn_reg();assert(last_window.form_mode=='register' and controls.input_login.shown and last_window.force_login)
+callbacks.btn_reset();assert(cloud_requests[#cloud_requests].action=='reset')
+on_cloud_result(true,'','cloud_user',false);last_window:Update()
+assert(last_window.force_login and last_window.form_mode=='login' and controls.input_pass.shown)
+callbacks.tab_register();assert(last_window.form_mode=='register' and controls.input_login.shown and last_window.force_login)
 controls.input_pass:SetText('tiny');last_window:OnKeyboard(DIK_keys.DIK_RETURN,ui_events.WINDOW_KEY_PRESSED)
 assert(last_window.form_mode=='register' and last_window.msg.text=='st_netcoop_cloud_password_invalid')
-callbacks.btn_enter();assert(last_window.form_mode=='login' and not controls.input_login.shown)
+callbacks.tab_login();assert(last_window.form_mode=='login' and not controls.input_login.shown)
 -- A poll already running when login opens must not reset its fields or navigate onward.
 last_window.force_login=false;last_window:ResetCloud()
 if last_window.verify_poll then on_cloud_result(false,'EMAIL_NOT_VERIFIED','cloud_user',false) end
 now=now+6000;last_window:Update();assert(last_window.verify_poll)
-callbacks.btn_enter();controls.input_email:SetText('another@example.invalid');controls.input_pass:SetText('test-password')
+callbacks.tab_login();controls.input_email:SetText('another@example.invalid');controls.input_pass:SetText('test-password')
 on_cloud_result(true,'','cloud_user',true)
 assert(last_window.force_login and controls.input_email.text=='another@example.invalid' and controls.input_pass.text=='test-password')
 now=now+6000;last_window:Update();assert(not last_window.verify_poll)
 last_window.force_login=false;last_window:ResetCloud();now=now+6000;last_window:Update();assert(last_window.verify_poll)
-callbacks.btn_enter();controls.input_email:SetText('another@example.invalid');controls.input_pass:SetText('test-password')
+callbacks.tab_login();controls.input_email:SetText('another@example.invalid');controls.input_pass:SetText('test-password')
 on_cloud_result(false,'TOKEN_EXPIRED : old token','cloud_user',false)
 assert(last_window.force_login and controls.input_email.text=='another@example.invalid' and controls.input_pass.text=='test-password')
+-- Profile Back with no characters returns to the editable registration form.
+last_window.names={};drafts={};last_window:ShowProfile(1);last_window:OnBack()
+assert(last_window.mode=='account' and last_window.form_mode=='register' and last_window.force_login)
+assert(controls.input_email.enabled and controls.input_login.enabled and controls.input_pass.enabled)
+controls.input_email:SetText('new@example.invalid');controls.input_login:SetText('new_user');controls.input_pass:SetText('test-password')
+last_window:OnKeyboard(DIK_keys.DIK_RETURN,ui_events.WINDOW_KEY_PRESSED)
+assert(cloud_requests[#cloud_requests].action=='register' and cloud_requests[#cloud_requests].email=='new@example.invalid')
+cloud_state=1;on_cloud_result(true,'','new_user',false);last_window:Update()
+assert(not last_window.force_login and not controls.input_pass.shown and last_window.title.text=='st_netcoop_verify_title')
+callbacks.tab_register();assert(controls.input_email.enabled and controls.input_login.enabled and controls.input_pass.enabled)
 -- Leaving the room stops playback; account/profile updates cannot restart it.
 netcoop_preview_clear();local before=music_started;netcoop_menu_radio.update()
 netcoop_menu_radio.volume(0.05);netcoop_menu_radio.station(1);netcoop_menu_radio.track(1)
 assert(music_started==before and not music_sounds[#music_sounds].active)
 """)
-print('Wrong email opens regular login, supports registration navigation, preserves fields on poll races/errors, and clears passwords PASS')
+print('Explicit registration/login tabs, return from verification, primary actions and poll/error field preservation PASS')

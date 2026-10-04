@@ -181,7 +181,7 @@
     <text>Электронная почта</text>
   </string>
   <string id="st_netcoop_cloud_help">
-    <text>Один аккаунт — до пяти персонажей. Почта и пароль относятся к аккаунту. Ник и история выбираются для каждого сталкера отдельно.</text>
+    <text>Ваш аккаунт и персонажи Lost Zone.</text>
   </string>
   <string id="st_netcoop_login_title">
     <text>Вход в аккаунт</text>
@@ -196,7 +196,7 @@
     <text>Подтверждение почты</text>
   </string>
   <string id="st_netcoop_verify_help">
-    <text>Откройте ссылку из письма. После подтверждения игра автоматически продолжит регистрацию. Если письма нет, проверьте «Спам», повторите отправку или исправьте адрес.</text>
+    <text>Откройте ссылку из письма. После подтверждения игра продолжит автоматически. Если адрес неверный, вернитесь к регистрации кнопкой ниже или вкладкой «Регистрация».</text>
   </string>
   <string id="st_netcoop_verify_check">
     <text>Я подтвердил почту</text>
@@ -439,7 +439,7 @@
     <text>Остаться</text>
   </string>
   <string id="st_netcoop_wrong_email">
-    <text>Ввёл не ту почту</text>
+    <text>Назад к регистрации</text>
   </string>
   <string id="st_netcoop_change_email_title">
     <text>Исправить почту</text>
@@ -453,10 +453,9 @@
   <string id="st_netcoop_change_email_help">
     <text>Укажите правильную почту и пароль, который задали при регистрации. Мы отправим письмо на новый адрес.</text>
   </string>
-<string id="st_netcoop_email_domain_invalid">
+  <string id="st_netcoop_email_domain_invalid">
     <text>Домен этой почты не существует или не принимает письма. Исправьте адрес.</text>
   </string>
-
   <string id="st_netcoop_change_email_address">
     <text>Правильная электронная почта</text>
   </string>
@@ -471,5 +470,29 @@
   </string>
   <string id="st_netcoop_change_email_account_error">
     <text>Не удалось подтвердить этот аккаунт. Войдите заново с почтой, указанной при регистрации.</text>
+  </string>
+  <string id="st_netcoop_registration_tab">
+    <text>Регистрация</text>
+  </string>
+  <string id="st_netcoop_login_tab">
+    <text>Вход</text>
+  </string>
+  <string id="st_netcoop_registration_help">
+    <text>Введите почту, имя аккаунта и пароль. Затем подтвердите почту по ссылке из письма.</text>
+  </string>
+  <string id="st_netcoop_login_help">
+    <text>Введите почту и пароль своего аккаунта. Для нового аккаунта откройте вкладку «Регистрация».</text>
+  </string>
+  <string id="st_netcoop_loadout_continue">
+    <text>Продолжить</text>
+  </string>
+  <string id="st_netcoop_loadout_points_invalid">
+    <text>Недостаточно очков. Уберите часть выбранного снаряжения.</text>
+  </string>
+  <string id="st_netcoop_loadout_save_failed">
+    <text>Не удалось сохранить снаряжение. Проверьте лимит рюкзака и доступ к папке игры. Выбор сохранён на экране.</text>
+  </string>
+  <string id="st_netcoop_loadout_error">
+    <text>Не удалось завершить выбор снаряжения. Попробуйте ещё раз; подробности записаны в журнал.</text>
   </string>
 </string_table>

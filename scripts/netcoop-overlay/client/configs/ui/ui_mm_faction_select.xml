@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="windows-1251"?>
+<?xml version='1.0' encoding='windows-1251'?>
 <w>
   <background width="1024" height="768">
     <auto_static x="0" y="0" width="1024" height="768" stretch="1">
@@ -90,7 +90,7 @@
       <texture>ui_inGame2_button</texture>
     </btn_random>
     <btn_start x="525" y="591" width="136" height="27" stretch="1">
-      <text r="150" g="150" b="150" font="letterica18" align="c">Сохранить персонажа</text>
+      <text r="150" g="150" b="150" font="letterica18" align="c">st_netcoop_loadout_continue</text>
       <texture>ui_inGame2_button</texture>
     </btn_start>
     <box_map x="2" y="2" width="438" height="270" />
@@ -280,5 +280,8 @@
         <texture>ui_new_game_btn_icon</texture>
       </btn_icon>
     </popup_icon>
+    <netcoop_status x="236" y="538" width="646" height="44">
+      <text r="231" g="185" b="146" font="letterica16" align="l" vert_align="c" complex_mode="1" />
+    </netcoop_status>
   </main_dialog>
 </w>
