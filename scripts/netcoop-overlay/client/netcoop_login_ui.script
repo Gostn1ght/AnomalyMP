@@ -11,11 +11,6 @@ local function account_state() return cloud_enabled() and netcoop_firebase_state
 local function tr(id) return game.translate_string("st_netcoop_" .. id) end
 function can_mcm() return netcoop_role and netcoop_role() == 2 end
 function on_auth_result(ok, role, message)
-    if wnd and wnd.storage_pending then
-        auth_return = nil
-        if not ok then wnd.storage_pending=nil; wnd:StorageMessage(tr("auth_failed") .. " " .. (message or "")) end
-        return
-    end
     if wnd and wnd.role_probe then
         wnd.role_probe = nil; auth_return = nil
         if ok then auth_message = nil; wnd:ShowCharacters()
@@ -28,6 +23,33 @@ end
 local function app_path(name)
 	local ok, p = pcall(function() return getFS():update_path("$app_data_root$", name) end)
 	return ok and p or name
+end
+
+-- Menu actions run through guard(): an error goes to the game log and to
+-- appdata\logs\lostzone_menu_errors.log with the element name and the Lua
+-- stack, and the menu keeps working. Repeats of one error are written once.
+local last_error
+local function log_error(element, trace)
+	trace = tostring(trace)
+	if last_error == element .. trace then return end
+	last_error = element .. trace
+	printf("! [Lost Zone][menu] %s failed: %s", element, trace)
+	local f = io.open(app_path("logs\\lostzone_menu_errors.log"), "a")
+	if f then
+		local ok, stamp = pcall(os.date, "%Y-%m-%d %H:%M:%S")
+		f:write(string.format("[%s] %s\n%s\n\n", ok and stamp or "?", element, trace))
+		f:close()
+	end
+	pcall(function() get_console():execute("flush") end)
+end
+local function guard(element, fn)
+	return function(...)
+		local args = {...}
+		local ok, trace = xpcall(function() return fn(unpack(args)) end,
+			function(err) return debug.traceback(tostring(err), 2) end)
+		if not ok then log_error(element, trace) end
+		return ok
+	end
 end
 
 local function read_last()
@@ -104,7 +126,7 @@ function netcoop_login_wnd:__init(owner) super()
 		local b = xml:Init3tButton(path, self)
 		b:TextControl():SetText(text)
 		self:Register(b, path)
-		self:AddCallback(path, ui_events.BUTTON_CLICKED, handler, self)
+		self:Bind(path, handler, path == "btn_back")
 		return b
 	end
 	self.login_button = btn("btn_enter", tr("existing_account"), self.OnLogin)
@@ -122,8 +144,8 @@ function netcoop_login_wnd:ShowAccountControls(show)
 end
 function netcoop_login_wnd:CloseRoomView()
     self.room_view, self.room_pending = nil, nil
+    if self.view_index ~= -1 then self.view_index = -1; netcoop_preview_focus(-1) end
     self.settings_pending, self.settings_open = nil, nil
-    if self.inventory_panel then self.inventory_panel:Show(false) end
     if self.server_panel then self.server_panel:Show(false) end
     if self.room_back then self.room_back:Show(false) end
 end
@@ -134,16 +156,32 @@ function netcoop_login_wnd:OpenRoomView(kind, object)
     self.view_index = object
     netcoop_preview_focus(object)
     self.room_back:Show(true)
-    if kind == "inventory" or kind == "safe" then self:RequestStorage(0,0) end
 end
-function netcoop_login_wnd:ToggleInventory() self:OpenRoomView("inventory",2) end
-function netcoop_login_wnd:ChangeView(delta)
-    if self.storage_pending or self.settings_pending then return end
-    self:CloseRoomView()
-    self.view_index=((self.view_index or -1)+1+delta)%6-1
-    netcoop_preview_focus(self.view_index)
-    local labels={"room_overview","room_map","room_pda","room_backpack","room_safe","room_door"}
-    self.camera_caption:TextControl():SetText(tr(labels[self.view_index+2]))
+-- One action at a time: no clicks while a request runs, a view opens or the
+-- room camera moves.
+function netcoop_login_wnd:Busy()
+    if auth_return == "pending" or self.settings_pending or self.room_pending then return true end
+    return self.mode == "characters" and netcoop_preview_ready ~= nil and not netcoop_preview_ready()
+end
+-- Every click is logged, ignored while busy (unless always) and guarded.
+function netcoop_login_wnd:Bind(id, handler, always)
+    self:AddCallback(id, ui_events.BUTTON_CLICKED, guard(id, function()
+        if not always and self:Busy() then printf("[Lost Zone][menu] %s ignored: busy", id); return end
+        printf("[Lost Zone][menu] click %s", id)
+        handler(self)
+    end), self)
+end
+-- Leaving the game always asks first.
+function netcoop_login_wnd:AskQuit()
+    if not self.quit_box then
+        self.quit_box = CUIMessageBoxEx()
+        self:Register(self.quit_box, "quit_box")
+        self:AddCallback("quit_box", ui_events.MESSAGE_BOX_QUIT_WIN_CLICKED, guard("quit_box", function()
+            netcoop_preview_clear(); exec_console_cmd("quit")
+        end), self)
+    end
+    self.quit_box:InitMessageBox("message_box_quit_windows")
+    self.quit_box:ShowDialog(true)
 end
 function netcoop_login_wnd:PositionRoomControls()
     if not self.room_buttons then return end
@@ -153,70 +191,6 @@ function netcoop_login_wnd:PositionRoomControls()
         entry.button:Show(not self.room_view and point.x>65 and point.x<959 and point.y>110 and point.y<650)
     end
 end
-function netcoop_login_wnd:StorageMessage(message)
-    self.storage_status:TextControl():SetText(message or "")
-    self:SetMsg(message)
-end
-function netcoop_login_wnd:RequestStorage(op,index)
-    if self.storage_pending or auth_return=="pending" then return end
-    self.storage_pending={op=op,index=index,slot=self.slot,revision=self.storage_revision or 0}
-    self:StorageMessage(tr("connecting"))
-    if cloud_enabled() then
-        if not self:CloudRequest("refresh") then self.storage_pending=nil end
-    else self:StartStorageRequest() end
-end
-function netcoop_login_wnd:StartStorageRequest()
-    local request=self.storage_pending
-    if not request then return end
-    netcoop_character(0,"","stalker",1,"")
-    if not netcoop_storage_prepare(request.op,request.slot,request.index,request.revision) or
-        not netcoop_frontend_auth(string.format("%s/name=%s/port=%s",self.pending_ip,self.pending_login,self.pending_port)) then
-        self.storage_pending=nil; auth_return=nil; self:StorageMessage(tr("auth_failed")); return
-    end
-    auth_return="pending"
-end
-function on_storage_result(data)
-    if not wnd or not wnd.storage_pending then return end
-    local request=wnd.storage_pending; wnd.storage_pending=nil; auth_return=nil
-    if request.slot~=wnd.slot then return end
-    local code,rest=string.match(data or "","^([^\n]+)\n(.*)$")
-    local errors={DENIED="storage_denied",CHARACTER_ONLINE="storage_online",CHARACTER_NOT_READY="storage_first_join",
-        CHARACTER_NOT_SAVED="storage_first_join",STALE="storage_stale",UNEQUIP_FIRST="storage_equipped",
-        NO_FREE_SLOTS="storage_full",ITEM_UNAVAILABLE="storage_stale",SAVE_FAILED="storage_save_failed",INVENTORY_TOO_LARGE="storage_full"}
-    wnd:StorageMessage(code=="OK" and tr("storage_saved") or tr(errors[code] or "auth_failed"))
-    local revision,used,capacity,safe_used,safe_capacity=string.match(rest or "","^(%d+)|(%d+)|(%d+)|(%d+)|(%d+)\n")
-    if not revision then return end
-    wnd.storage_revision=tonumber(revision)
-    wnd.backpack_capacity:TextControl():SetText(tr("room_backpack") .. "  " .. used .. " / " .. capacity)
-    wnd.safe_capacity:TextControl():SetText(tr("room_safe") .. "  " .. safe_used .. " / " .. safe_capacity)
-    local items={}
-    for section in string.gmatch(rest,"I|%d+|([^|\n]+)|%d+|%d+\n") do items[#items+1]=section end
-    local preview=wnd.previews[wnd.slot] or {visual="actors\\stalker_neutral\\stalker_neutral_1.ogf",faction="stalker"}
-    preview.items=table.concat(items,",");wnd.previews[wnd.slot]=preview
-    wnd.inventory_scroll:Clear(); wnd.safe_scroll:Clear()
-    for container,index,section,cost,equipped in string.gmatch(rest,"([IS])|(%d+)|([^|\n]+)|(%d+)|(%d+)\n") do
-        wnd:AddStorageRow(container,tonumber(index),section,tonumber(cost),equipped=="1")
-    end
-end
-function netcoop_login_wnd:AddStorageRow(container,index,section,cost,equipped)
-    if not ini_sys:section_exist(section) then return end
-    local xml=CScriptXmlInit(); xml:ParseFile("ui_netcoop_characters.xml")
-    local row=xml:Init3tButton("storage_row",nil)
-    local name=game.translate_string(SYS_GetParam(0,section,"inv_name",section))
-    row:TextControl():SetText(name .. "\n" .. cost .. " " .. tr("storage_cells") .. (equipped and "  " .. tr("storage_worn") or ""))
-    local icon=CUIStatic(); row:AttachChild(icon); icon:SetAutoDelete(true)
-    icon:InitTexture(utils_xml.get_icons_texture(section)); icon:SetTextureRect(Frect():set(utils_xml.get_item_axis(section,nil,true)))
-    icon:SetStretchTexture(true); icon:SetWndPos(vector2():set(8,8)); icon:SetWndSize(vector2():set(50,45))
-    local id="storage_" .. container .. index
-    self:Register(row,id)
-    self:AddCallback(id,ui_events.BUTTON_CLICKED,function()
-        if equipped then self:StorageMessage(tr("storage_equipped")); return end
-        self:RequestStorage(container=="I" and 1 or 2,index)
-    end,self)
-    local scroll=container=="I" and self.inventory_scroll or self.safe_scroll
-    scroll:AddWindow(row,true)
-end
-
 function netcoop_login_wnd:SetMsg(text)
 	self.msg:TextControl():SetText(text or "")
     if self.character_msg then self.character_msg:TextControl():SetText(text or "") end
@@ -283,10 +257,13 @@ end
 
 function netcoop_login_wnd:Update()
 	CUIScriptWnd.Update(self)
+	if not self.update_guard then self.update_guard = guard("menu update", self.UpdateMenu) end
+	self.update_guard(self)
+end
+function netcoop_login_wnd:UpdateMenu()
     if self.room_pending and (not netcoop_preview_ready or netcoop_preview_ready()) then
         local kind = self.room_pending; self.room_pending = nil
-        if kind == "inventory" or kind == "safe" then self.inventory_panel:Show(true)
-        elseif kind == "server" then
+        if kind == "server" then
             self.server_edit:SetText(self.pending_ip .. ":" .. self.pending_port)
             self.server_panel:Show(true)
         elseif kind == "settings" then self.settings_pending = true end
@@ -419,10 +396,8 @@ function netcoop_login_wnd:ShowCharacters()
         self.character_badge = xml:InitStatic("badge", self.character_panel)
         local function button(path, text, handler)
             local b = xml:Init3tButton(path, self.character_panel); b:TextControl():SetText(text)
-            self:Register(b, "char_" .. path); self:AddCallback("char_" .. path, ui_events.BUTTON_CLICKED, handler, self); return b
+            self:Register(b, "char_" .. path); self:Bind("char_" .. path, handler, path == "back"); return b
         end
-        self.previous_slot = button("previous", "<", function() self:ChangeView(-1) end)
-        self.next_slot = button("next", ">", function() self:ChangeView(1) end)
         self.enter = button("enter", tr("enter_zone"), function() self:OpenRoomView("server",4) end)
         button("back", tr("exit"), self.OnBack)
         local settings = button("settings", tr("settings"), self.ShowSettings)
@@ -430,45 +405,31 @@ function netcoop_login_wnd:ShowCharacters()
         self.slot_buttons = {}
         for i = 1, 10 do
             local slot = i
-            self.slot_buttons[i] = button("slot" .. i, "", function() if self.storage_pending then return end; self.slot = slot; self:ChangeSlot(0) end)
+            self.slot_buttons[i] = button("slot" .. i, "", function() self.slot = slot; self:ChangeSlot(0) end)
         end
-        local inventory=button("inventory",tr("room_backpack"),self.ToggleInventory)
-        local safe=button("safe",tr("room_safe"),function() self:OpenRoomView("safe",3) end)
-        self.room_buttons={{button=server,object=0},{button=settings,object=1},{button=inventory,object=2},{button=safe,object=3},{button=self.enter,object=4}}
-        self.camera_caption=caption("camera_caption",tr("room_overview"))
+        self.room_buttons={{button=server,object=0},{button=settings,object=1},{button=self.enter,object=4}}
         self.character_badge:Show(false)
         self.character_description:Show(false)
-        self.poses_panel = xml:InitStatic("poses_panel", self.character_panel)
-        self.inventory_panel = xml:InitStatic("inventory_panel", self)
-        self.inventory_scroll = xml:InitScrollView("inventory_scroll", self.inventory_panel)
-        self.safe_scroll=xml:InitScrollView("safe_scroll",self.inventory_panel)
-        self.storage_status=xml:InitStatic("storage_status",self.inventory_panel)
-        self.backpack_capacity=xml:InitStatic("backpack_capacity",self.inventory_panel)
-        self.safe_capacity=xml:InitStatic("safe_capacity",self.inventory_panel)
-        self.backpack_capacity:TextControl():SetText(tr("room_backpack"))
-        self.safe_capacity:TextControl():SetText(tr("room_safe"))
-        self.poses_panel:Show(false); self.inventory_panel:Show(false)
         self.server_panel = xml:InitStatic("server_panel", self)
         self.server_edit = xml:InitEditBox("server_edit", self.server_panel)
         local save = xml:Init3tButton("server_save", self.server_panel)
         save:TextControl():SetText(tr("save_server")); self:Register(save, "server_save")
-        self:AddCallback("server_save", ui_events.BUTTON_CLICKED, self.SaveServer, self)
+        self:Bind("server_save", self.SaveServer)
         local connect = xml:Init3tButton("server_connect", self.server_panel)
         connect:TextControl():SetText(tr("enter_zone")); self:Register(connect, "server_connect")
-        self:AddCallback("server_connect", ui_events.BUTTON_CLICKED, function() self:SelectCharacter(self.slot) end, self)
+        self:Bind("server_connect", function() self:SelectCharacter(self.slot) end)
         local check = xml:Init3tButton("server_check", self.server_panel)
         check:TextControl():SetText("Обновить персонажей и доступ")
-        self:Register(check, "server_check"); self:AddCallback("server_check", ui_events.BUTTON_CLICKED, self.CheckServer, self)
+        self:Register(check, "server_check"); self:Bind("server_check", self.CheckServer)
         self.room_back = xml:Init3tButton("room_back", self)
         self.room_back:TextControl():SetText(tr("back")); self:Register(self.room_back, "room_back")
-        self:AddCallback("room_back", ui_events.BUTTON_CLICKED, self.CloseRoomView, self)
+        self:Bind("room_back", self.CloseRoomView, true)
         self.room_back:Show(false); self.server_panel:Show(false)
     end
     self:CloseRoomView()
     self.slot = self.slot or 1; self.character_panel:Show(true); self:ChangeSlot(0)
     self:SetMsg(auth_message or "")
     self.account_caption:TextControl():SetText(self.pending_login .. (self:CharacterLimit() == 10 and "  /  Администратор" or "  /  Сталкер"))
-    self.previous_slot:Show(true); self.next_slot:Show(true)
     for i = 1, 10 do self.slot_buttons[i]:Show(i <= self:CharacterLimit()) end
     for i = 1, self:CharacterLimit() do
         self.slot_buttons[i]:TextControl():SetText(string.format("%d   %s", i, self.names[i] and self.names[i] ~= "" and self.names[i] or tr("empty_slot")))
@@ -483,7 +444,6 @@ function netcoop_login_wnd:CharacterLimit()
 end
 function netcoop_login_wnd:ChangeSlot(delta)
     local limit = self:CharacterLimit()
-    if self.storage_pending then return end
     self.slot = ((self.slot - 1 + delta) % limit) + 1
     local name = self.names[self.slot]
     self.character_name:TextControl():SetText(name and name ~= "" and name or tr("create_character"))
@@ -495,7 +455,7 @@ function netcoop_login_wnd:ChangeSlot(delta)
     self.character_description:TextControl():SetText((description ~= "" and description .. "\n\n" or "") .. (history ~= "" and history or "Личное дело сталкера. Снаряжение и прогресс сохраняются на выбранном сервере."))
     for i = 1, 10 do self.slot_buttons[i]:Enable(i ~= self.slot) end
     self.storage_revision=nil
-    self.view_index=-1; netcoop_preview_focus(-1)
+    if self.view_index ~= -1 then self.view_index=-1; netcoop_preview_focus(-1) end
     local model=preview.visual and preview.visual~="" and preview.visual or BASE_MODEL
     if not netcoop_preview_model(model,-2) then netcoop_preview_model(BASE_MODEL,-2) end
     local weapon=""
@@ -503,37 +463,10 @@ function netcoop_login_wnd:ChangeSlot(delta)
         if ini_sys:section_exist(section) and string.sub(section,1,4)=="wpn_" and SYS_GetParam(2,section,"slot",0)==2 then weapon=section; break end
     end
     if netcoop_preview_weapon then netcoop_preview_weapon(weapon) end
-    self:FillInventory(preview.items); self:PositionRoomControls()
+    self:PositionRoomControls()
 end
 function netcoop_login_wnd:SetPose(pose)
     local preview=self.previews[self.slot] or {}; netcoop_preview_model(preview.visual or BASE_MODEL,-2)
-end
-function netcoop_login_wnd:FillInventory(items)
-    self.inventory_scroll:Clear()
-    self.safe_scroll:Clear(); self:StorageMessage(tr("storage_readonly"))
-    local counts, sections = {}, {}
-    for section in string.gmatch(items or "", "[^,]+") do
-        if not counts[section] then sections[#sections + 1] = section; counts[section] = 0 end
-        counts[section] = counts[section] + 1
-    end
-    table.sort(sections)
-    for _, section in ipairs(sections) do
-        if ini_sys:section_exist(section) then
-            local row = CUIStatic(); row:SetWndSize(vector2():set(230, 85)); row:SetAutoDelete(true)
-            local icon = CUIStatic(); row:AttachChild(icon); icon:SetAutoDelete(true)
-            icon:InitTexture(utils_xml.get_icons_texture(section))
-            icon:SetTextureRect(Frect():set(utils_xml.get_item_axis(section, nil, true)))
-            icon:SetStretchTexture(true)
-            local w, h = SYS_GetParam(2, section, "inv_grid_width", 1), SYS_GetParam(2, section, "inv_grid_height", 1)
-            local scale = math.min(180 / w, 52 / h)
-            icon:SetWndPos(vector2():set(8, 4)); icon:SetWndSize(vector2():set(w * scale, h * scale))
-            local text = CUIStatic(); row:AttachChild(text); text:SetAutoDelete(true)
-            text:SetWndPos(vector2():set(8, 60)); text:SetWndSize(vector2():set(220, 20))
-            text:TextControl():SetFont(GetFontLetterica16Russian()); text:TextControl():SetTextColor(GetARGB(255, 208, 208, 192))
-            text:TextControl():SetText(game.translate_string(SYS_GetParam(0, section, "inv_name", section)) .. "  x" .. counts[section])
-            self.inventory_scroll:AddWindow(row, true)
-        end
-    end
 end
 -- Keep the native Show method inherited. Lua virtual overrides have no
 -- default Show binding and calling CUIScriptWnd.Show raises pure virtual.
@@ -621,11 +554,11 @@ function netcoop_login_wnd:OnBack()
             for i = 1, self:CharacterLimit() do if netcoop_draft(i, "name") ~= "" then populated = true end end
             if populated then self:ShowCharacters(); return end
         end
-        netcoop_preview_clear(); exec_console_cmd("quit"); return
+        self:AskQuit(); return
     end
+	if netcoop_account_state() == 0 then self:AskQuit(); return end
 	netcoop_preview_clear()
 	self:HideDialog()
-	if netcoop_account_state() == 0 then exec_console_cmd("quit"); return end
 	if self.owner then
 		self.owner:ShowDialog(true)
 		self.owner:Show(true)
@@ -634,20 +567,21 @@ end
 
 function netcoop_login_wnd:OnKeyboard(dik, keyboard_action)
 	if keyboard_action == ui_events.WINDOW_KEY_PRESSED then
-		if self.mode == "characters" then
-			if not self.room_view and dik == DIK_keys.DIK_LEFT then self:ChangeView(-1); return true end
-			if not self.room_view and dik == DIK_keys.DIK_RIGHT then self:ChangeView(1); return true end
-			if dik == bind_to_dik(key_bindings.kINVENTORY, 0) or dik == bind_to_dik(key_bindings.kINVENTORY, 1) then self:ToggleInventory(); return true end
-		end
 		if dik == DIK_keys.DIK_ESCAPE then
-			self:OnBack()
+			printf("[Lost Zone][menu] key Esc")
+			guard("key Esc", self.OnBack)(self)
+			return true
 		elseif dik == DIK_keys.DIK_RETURN or dik == DIK_keys.DIK_NUMPADENTER then
-			if self.mode == "characters" then
-                if self.server_panel:IsShown() then self:SelectCharacter(self.slot)
-                elseif not self.room_view then self:SelectCharacter(self.slot) end
-			elseif self.mode == "profile" then self:ContinueProfile()
-            elseif cloud_enabled() and self.form_mode == "login" then self:OnLogin()
-            elseif account_state() == 0 then self:OnRegister() else self:OnLogin() end
+			if self:Busy() then return true end
+			printf("[Lost Zone][menu] key Enter")
+			guard("key Enter", function()
+				if self.mode == "characters" then
+					if self.server_panel:IsShown() or not self.room_view then self:SelectCharacter(self.slot) end
+				elseif self.mode == "profile" then self:ContinueProfile()
+				elseif cloud_enabled() and self.form_mode == "login" then self:OnLogin()
+				elseif account_state() == 0 then self:OnRegister() else self:OnLogin() end
+			end)()
+			return true
 		end
 	end
 	return CUIScriptWnd.OnKeyboard(self, dik, keyboard_action)
@@ -788,12 +722,6 @@ function on_cloud_result(ok, error, account, verified)
     elseif error == "INVALID_REFRESH_TOKEN" or error == "TOKEN_EXPIRED" or error == "USER_NOT_FOUND" or error == "INVALID_ID_TOKEN" then
         wnd.force_login = true; wnd.form_mode = "login"
     end
-    if wnd.storage_pending then
-        auth_return=nil
-        if ok and verified then wnd:StartStorageRequest()
-        else wnd.storage_pending=nil; wnd:StorageMessage(ok and tr("verify_help") or cloud_error(error)) end
-        return
-    end
     if wnd.role_probe then
         auth_return = nil
         if ok and verified then wnd:StartServerProbe()
@@ -844,7 +772,7 @@ function netcoop_login_wnd:SaveServer()
     if not ip or tonumber(port) < 1 or tonumber(port) > 65535 then return self:SetMsg(tr("server_invalid")) end
     self.pending_ip, self.pending_port = ip, port
     write_last(self.pending_login, ip .. ":" .. port)
-    self.server_panel:Show(false); self.inventory_panel:Show(false); self.poses_panel:Show(false)
+    self.server_panel:Show(false)
     self:ShowCharacters(); self:SetMsg("")
 end
 function netcoop_login_wnd:ShowProfile(slot)
@@ -865,9 +793,9 @@ function netcoop_login_wnd:ShowProfile(slot)
         self.profile_history = xml:InitEditBox("input_history", self.profile_panel)
         self.profile_msg = xml:InitStatic("msg", self.profile_panel)
         local next = xml:Init3tButton("next", self.profile_panel); next:TextControl():SetText(tr("choose_equipment"))
-        self:Register(next, "profile_next"); self:AddCallback("profile_next", ui_events.BUTTON_CLICKED, self.ContinueProfile, self)
+        self:Register(next, "profile_next"); self:Bind("profile_next", self.ContinueProfile)
         local back = xml:Init3tButton("back", self.profile_panel); back:TextControl():SetText(tr("back"))
-        self:Register(back, "profile_back"); self:AddCallback("profile_back", ui_events.BUTTON_CLICKED, self.OnBack, self)
+        self:Register(back, "profile_back"); self:Bind("profile_back", self.OnBack, true)
     end
     local profile = self.profile_data or {}
     self.profile_name:SetText(profile.name or "")
@@ -888,3 +816,7 @@ function netcoop_login_wnd:ContinueProfile()
     self.profile_data = {name=name, description=self.profile_description:GetText(), history=self.profile_history:GetText()}
     self.profile_panel:Show(false); self:ShowLoadout(self.profile_slot)
 end
+
+-- Native layer callbacks: an error is logged instead of breaking the menu.
+on_auth_result = guard("auth result", on_auth_result)
+on_cloud_result = guard("cloud result", on_cloud_result)

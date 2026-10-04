@@ -8,6 +8,7 @@ from lupa.lua51 import LuaRuntime
 root=Path(__file__).resolve().parents[1]
 temporary = TemporaryDirectory(prefix='netcoop-menu-')
 cache = Path(temporary.name)
+(cache/'logs').mkdir()
 lua=LuaRuntime(unpack_returned_tuples=True)
 lua.globals().test_path=cache.as_posix()+'/'
 lua.execute(r'''
@@ -39,6 +40,7 @@ function Widget:SetTextureRect() end
 function Widget:SetStretchTexture() end
 function Widget:SetFont() end
 function Widget:SetTextColor() end
+function Widget:InitMessageBox(template) self.template=template end
 local function widget(id) local w=setmetatable({shown=true}, {__index=Widget}); if id then controls[id]=w end; return w end
 CUIScriptWnd=Widget
 function class(name)
@@ -67,9 +69,10 @@ function netcoop_character(slot,name,faction,economy,loadout) characters[#charac
 function netcoop_preview_clear() end
 function netcoop_preview_focus(object) camera_target=object;camera_done=false end
 function netcoop_preview_ready() return camera_done~=false end
+function finish_camera() camera_done=true;last_window:Update() end
 function netcoop_preview_point(object) return {x=300,y=400} end
 function netcoop_preview_weapon(section) last_weapon=section;return true end
-function netcoop_storage_prepare(op,slot,index,revision) storage_requests=storage_requests or {};storage_requests[#storage_requests+1]={op=op,slot=slot,index=index,revision=revision};return true end
+function CUIMessageBoxEx() return CUIStatic() end
 function netcoop_preview_model(model,pose) previews[#previews+1]={model=model,pose=pose}; return true end
 function netcoop_rp_list() return 'bar_1=bar;hands_pockets=pockets;sit_1=sit1;sit_2=sit2;sit_3=sit3;hands_behind=behind;sleep=sleep;' end
 function exec_console_cmd(cmd) commands[#commands+1]=cmd end
@@ -77,7 +80,7 @@ function printf() end
 game={translate_string=function(s) return s end}
 ini_sys={section_exist=function() return false end}
 level={present=function() return present end}
-ui_events={BUTTON_CLICKED=1,WINDOW_KEY_PRESSED=2}
+ui_events={BUTTON_CLICKED=1,WINDOW_KEY_PRESSED=2,MESSAGE_BOX_QUIT_WIN_CLICKED=3}
 DIK_keys={DIK_ESCAPE=1,DIK_RETURN=28,DIK_NUMPADENTER=156,DIK_LEFT=203,DIK_RIGHT=205}
 key_bindings={kINVENTORY=9}
 function bind_to_dik(action,index) assert(type(index)=='number','native binding needs both arguments'); return index==0 and 23 or 24 end
@@ -114,14 +117,14 @@ state=2; cache_characters('Alpha|Beta|||'); cache_previews('actors\\novice.ogf|s
 on_auth_result(true,1,'Account verified'); last_window:Update()
 assert(#commands==0)
 assert(controls.name.text=='Alpha' and previews[#previews].pose==-2)
-callbacks.char_next(); assert(controls.name.text=='Alpha')
+finish_camera()
+assert(callbacks.char_next==nil and callbacks.char_previous==nil, 'room arrows are gone')
 assert(last_window:CharacterLimit()==1 and not controls.slot2.shown and not controls.slot10.shown)
 local n=#characters; last_window:SelectCharacter(2); assert(#characters==n)
 local previous=last_window.mode; last_window:ShowProfile(2); assert(last_window.mode==previous)
 assert(callbacks.preview_pose_1==nil and callbacks.char_poses==nil)
 role=2; cache_characters('Alpha|Beta||||||||');last_window:ShowCharacters()
 assert(last_window:CharacterLimit()==10 and controls.slot10.shown)
-callbacks.char_next(); assert(controls.name.text=='Alpha' and camera_target==0)
 callbacks.char_slot2();assert(controls.name.text=='Beta')
 callbacks.char_slot1();assert(controls.name.text=='Alpha')
 callbacks.char_slot10(); assert(controls.info.text:find('10 / 10',1,true))
@@ -211,20 +214,19 @@ assert(drafts[1].loadout=='medkit,medkit,medkit')
 assert(drafts[1].history=='A separate character history')
 assert(last_window.mode=='characters' and controls.name.text=='Loner One' and #commands==0)
 assert(not controls.input_email.shown and not controls.background.shown)
-assert(#controls.inventory_scroll.rows==1)
 drafts[1].loadout='medkit,medkit,medkit,wpn_ak74';last_window:ShowCharacters()
-assert(last_weapon=='wpn_ak74' and #controls.inventory_scroll.rows==2)
+assert(last_weapon=='wpn_ak74' and controls.inventory_scroll==nil and controls.safe==nil and callbacks.char_inventory==nil)
+finish_camera()
+-- The inventory key no longer opens anything in the menu.
 last_window:OnKeyboard(23,ui_events.WINDOW_KEY_PRESSED)
-assert(not controls.inventory_panel.shown and last_window.character_panel.shown and previews[#previews].pose==-2)
-finish_camera(); assert(controls.inventory_panel.shown)
-on_cloud_result(false,'NETWORK_ERROR','cloud_user',true)
-last_window:OnKeyboard(24,ui_events.WINDOW_KEY_PRESSED); assert(not controls.inventory_panel.shown)
-callbacks.char_inventory(); assert(not controls.inventory_panel.shown)
-finish_camera(); assert(controls.inventory_panel.shown)
-on_cloud_result(false,'NETWORK_ERROR','cloud_user',true)
+assert(last_window.room_view==nil and last_window.character_panel.shown and previews[#previews].pose==-2)
+-- Esc on the character screen asks before quitting; nothing runs until confirmed.
 last_window:OnKeyboard(DIK_keys.DIK_ESCAPE,ui_events.WINDOW_KEY_PRESSED)
-assert(not controls.inventory_panel.shown and last_window.character_panel.shown and #commands==0)
-callbacks.char_settings();assert(settings_created==0)
+assert(last_window.quit_box.shown and last_window.quit_box.template=='message_box_quit_windows' and #commands==0)
+callbacks.quit_box(); assert(commands[#commands]=='quit'); commands={}
+-- A second click while the camera is still moving is ignored.
+callbacks.char_settings();assert(settings_created==0 and last_window.room_view=='settings')
+callbacks.char_settings();assert(last_window.room_view=='settings','double click toggled the view')
 finish_camera();assert(settings_created==1 and not last_window.shown)
 last_window:CloseRoomView(); last_window:ShowDialog(true);last_window:Show(true)
 callbacks.char_settings();finish_camera();assert(settings_created==1)
@@ -234,6 +236,7 @@ ui_options.UIOptions=function() error('fixture options failure') end
 callbacks.char_settings();finish_camera();assert(last_window.shown and controls.status.text=='st_netcoop_settings_error')
 ui_options.UIOptions=options_factory
 -- Changing servers must not expose or reuse another server's draft.
+finish_camera()
 controls.server_edit:SetText('Other-Server.example:1268');callbacks.server_save()
 assert(draft_scope=='other-server.example:1268' and (last_window.names[1] or '')=='' and previews[#previews].pose==-2)
 assert(draft_stores['127.0.0.1:1267'][1].name=='Loner One')
@@ -256,6 +259,7 @@ assert(#cloud_requests==before+1 and cloud_requests[#cloud_requests].action=='re
 lua.execute(r"""
 on_cloud_result(true,'','cloud_user',true);last_window:Update()
 assert(last_window.mode=='characters')
+finish_camera()
 commands={};controls.server_edit:SetText('role-test.example:1267');callbacks.server_check()
 assert(cloud_requests[#cloud_requests].action=='refresh')
 on_cloud_result(true,'','cloud_user',true)
@@ -271,33 +275,21 @@ assert(last_window:CharacterLimit()==1 and not controls.slot10.shown)
 """)
 print('Firebase menu: separate account/character, verification gate, duplicate request lock, offline starter draft, stack counts, inventory key, refreshed world entry, remembered login PASS')
 lua.execute(r"""
-role=1;cache_characters('Bag Owner||||||||||');last_window:ShowCharacters()
-assert(controls.previous.shown and controls.next.shown)
-local name=controls.name.text
-callbacks.char_next();assert(camera_target==0 and controls.name.text==name)
-callbacks.char_previous();assert(camera_target==-1 and controls.name.text==name)
-callbacks.char_safe();finish_camera();assert(controls.inventory_panel.shown)
-local count=#cloud_requests;callbacks.char_inventory();assert(#cloud_requests==count)
-on_cloud_result(true,'','cloud_user',true)
-assert(storage_requests[#storage_requests].op==0 and characters[#characters].slot==0)
-on_auth_result(true,1,'Account verified')
-assert(last_window.storage_pending~=nil)
-on_storage_result('OK\n7|12|60|1|120\nI|0|wpn_ak74|10|0\nI|1|medkit|1|1\nS|0|medkit|1|0\n')
-assert(#controls.inventory_scroll.rows==2 and #controls.safe_scroll.rows==1)
-assert(last_window.storage_revision==7)
-local count=#cloud_requests;callbacks.storage_I1();assert(#cloud_requests==count)
-callbacks.storage_I0();assert(#cloud_requests==count+1)
-callbacks.storage_I0();assert(#cloud_requests==count+1)
-callbacks.char_slot2();assert(last_window.slot==1)
-on_cloud_result(true,'','cloud_user',true)
-assert(storage_requests[#storage_requests].op==1 and storage_requests[#storage_requests].index==0 and storage_requests[#storage_requests].revision==7)
-on_auth_result(true,1,'Account verified')
-on_storage_result('STALE\n8|1|60|11|120\nI|0|medkit|1|0\nS|0|wpn_ak74|10|0\nS|1|medkit|1|0\n')
-assert(last_window.storage_revision==8 and #controls.inventory_scroll.rows==1)
-callbacks.storage_S0();on_cloud_result(false,'NETWORK_ERROR','cloud_user',true)
-assert(last_window.storage_pending==nil and last_window.mode=='characters')
+-- Closing a room view brings the camera back to the overview.
+finish_camera(); callbacks.char_server(); finish_camera(); assert(camera_target==0 and controls.server_panel.shown)
+callbacks.room_back(); assert(camera_target==-1 and last_window.room_view==nil and not controls.server_panel.shown)
+finish_camera()
+-- A failing action is logged with its element name and stack; the menu keeps working.
+last_window:Bind('fixture_fail', function() error('fixture failure') end)
+assert(callbacks.fixture_fail()==false)
+local f=assert(io.open(test_path..'logs\\lostzone_menu_errors.log'))
+local text=f:read('*a'); f:close()
+assert(text:find('fixture_fail',1,true) and text:find('fixture failure',1,true) and text:find('traceback',1,true))
+callbacks.char_slot1(); assert(controls.name.text~=nil)
+-- A native callback error is caught the same way.
+local saved=cloud_error; assert(on_cloud_result(true,'','cloud_user',true)~=nil)
 """)
-print('Storage frontend: authenticated snapshot, item rows, equipped lock, duplicate click lock, camera/slot isolation, stale refresh and failure recovery PASS')
+print('Stage 0: no arrows/backpack/safe, Esc asks to quit, double click ignored while the camera moves, camera returns on close, logged guarded errors PASS')
 
 temporary.cleanup()
 

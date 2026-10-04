@@ -27,10 +27,14 @@ dxRainRender::dxRainRender()
 {
 	current_items = 0;
 
+	// A missing drop model used to crash release builds inside the detail
+	// loader (VERIFY is debug only); without it the rain is simply not drawn.
 	IReader* F = FS.r_open("$game_meshes$", "dm\\rain.dm");
-	VERIFY3(F, "Can't open file.", "dm\\rain.dm");
-
-	DM_Drop = ::RImplementation.model_CreateDM(F);
+	DM_Drop = nullptr;
+	if (F)
+		DM_Drop = ::RImplementation.model_CreateDM(F);
+	else
+		Msg("! [Lost Zone] missing meshes\\dm\\rain.dm: rain is not drawn");
 
 	//
 	SH_Rain.create("effects\\rain", "fx\\fx_rain");
@@ -42,12 +46,14 @@ dxRainRender::dxRainRender()
 		SH_Splash.create("effects\\rain_splash", "fx\\fx_rain");
 #endif
 
-	FS.r_close(F);
+	if (F)
+		FS.r_close(F);
 }
 
 dxRainRender::~dxRainRender()
 {
-	::RImplementation.model_Delete(DM_Drop);
+	if (DM_Drop)
+		::RImplementation.model_Delete(DM_Drop);
 }
 
 void dxRainRender::Copy(IRainRender& _in)
@@ -59,6 +65,8 @@ void dxRainRender::Copy(IRainRender& _in)
 
 void dxRainRender::Render(CEffect_Rain& owner)
 {
+	if (!DM_Drop)
+		return;
 	float factor = g_pGamePersistent->Environment().CurrentEnv->rain_density;
 	if (factor < EPS_L) return;
 
@@ -336,5 +344,6 @@ void dxRainRender::Render(CEffect_Rain& owner)
 
 const Fsphere& dxRainRender::GetDropBounds() const
 {
-	return DM_Drop->bv_sphere;
+	static Fsphere none = {{0.f, 0.f, 0.f}, 0.f};
+	return DM_Drop ? DM_Drop->bv_sphere : none;
 }
