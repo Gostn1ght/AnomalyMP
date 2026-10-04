@@ -43,11 +43,15 @@ if(manifest.seat){
  const shins=new T.Mesh(new T.BoxGeometry(.30,.48,.12),mat);shins.position.set(0,-.22,.45);group.add(shins);
  group.traverse(o=>{o.castShadow=o.receiveShadow=true});scene.add(group);
 }
-// One warm lamp, faint cold fill so shadows are not pure black.
-scene.add(new T.HemisphereLight(0x5a6270,0x2a2018,.12));
-const lamp=new T.PointLight(0xffb060,9,9,2);lamp.position.fromArray(manifest.lamp);lamp.position.x*=-1;lamp.castShadow=true;lamp.shadow.mapSize.set(2048,2048);lamp.shadow.bias=-.0004;lamp.shadow.normalBias=.02;scene.add(lamp);
+// Same lights as the game shader (manifest.lights, generated with the room):
+// warm table lamp with shadows, dim bulb over the door, faint hemisphere fill.
+const L=manifest.lights;
+scene.add(new T.HemisphereLight(L.hemisphere.sky,L.hemisphere.ground,L.hemisphere.intensity));
+const lamp=new T.PointLight(L.lamp.color,L.lamp.intensity,L.lamp.range,2);lamp.position.copy(toThreeEarly(L.lamp.position));lamp.castShadow=true;lamp.shadow.mapSize.set(2048,2048);lamp.shadow.bias=-.0004;lamp.shadow.normalBias=.02;scene.add(lamp);
+const bulb=new T.PointLight(L.bulb.color,L.bulb.intensity,L.bulb.range,2);bulb.position.copy(toThreeEarly(L.bulb.position));scene.add(bulb);
 const toThree=v=>new T.Vector3(-v[0],v[1],v[2]);
-function show(v){camera.position.copy(toThree(v.eye));camera.lookAt(toThree(v.target));renderer.render(scene,camera);}
+let current=null;
+function show(v){current=v;camera.position.copy(toThree(v.eye));camera.lookAt(toThree(v.target));renderer.render(scene,camera);}
 const bar=document.querySelector('#bar'),state=document.querySelector('#state');
 manifest.views.forEach((v,i)=>{const b=document.createElement('button');b.textContent=i+' '+v.name;b.onclick=()=>{show(v);state.textContent=v.name};bar.appendChild(b);});
 // Void scan: many cameras inside the room, six axes plus diagonals each.
@@ -75,5 +79,5 @@ const sb=document.createElement('button');sb.textContent='Проверить п�
 window.scan=scan;window.look=(eye,target)=>show({eye,target});window.showView=i=>show(manifest.views[i]);
 const q=new URLSearchParams(location.search);show(manifest.views[+(q.get('view')||0)]);
 state.textContent=manifest.views[+(q.get('view')||0)].name+' · '+manifest.triangles+' треугольников · свет WebGL (приближение к игре)';
-addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();show(manifest.views[0])});
+addEventListener('resize',()=>{renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();show(current||manifest.views[0])});
 </script>

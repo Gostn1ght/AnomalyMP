@@ -3,8 +3,8 @@
   "source": "Lost Zone closed bunker box",
   "room": {
     "x": [
-      -2.2,
-      2.2
+      -2.5,
+      2.5
     ],
     "z": [
       -2.6,
@@ -24,7 +24,7 @@
       "name": "sofa",
       "asset": "dynamics/efp_props/prop_couch_1.ogf",
       "position": [
-        -0.55,
+        -0.15,
         -0.0009875297546386719,
         2.45
       ],
@@ -42,10 +42,31 @@
       "uid": "1"
     },
     {
+      "name": "rug",
+      "asset": "dynamics/decor/rug.ogf",
+      "position": [
+        -0.3999999999999999,
+        -0.003035688959062099,
+        1.4000000000000001
+      ],
+      "rotation": [
+        0,
+        1.5707963267948966,
+        0
+      ],
+      "scale": [
+        0.6,
+        0.3,
+        0.48
+      ],
+      "hidden": false,
+      "uid": "2"
+    },
+    {
       "name": "table",
       "asset": "dynamics/efp_props/prop_table_2.ogf",
       "position": [
-        -0.55,
+        -0.5499999999999999,
         -0.0004923343658447266,
         1.2500000000000002
       ],
@@ -60,13 +81,13 @@
         1
       ],
       "hidden": false,
-      "uid": "2"
+      "uid": "3"
     },
     {
       "name": "lamp",
       "asset": "dynamics/el_tehnika/table_lamp_01.ogf",
       "position": [
-        -0.13000000000000006,
+        -0.12999999999999995,
         0.6441116982678068,
         1.4300000000000002
       ],
@@ -81,15 +102,15 @@
         1
       ],
       "hidden": false,
-      "uid": "3"
+      "uid": "4"
     },
     {
       "name": "PDA",
       "asset": "netcoop/dev_pda.ogf",
       "position": [
-        -0.8300000000000001,
+        -0.7899999999999999,
         0.6342316582798958,
-        1.0500000000000003
+        1.0700000000000003
       ],
       "rotation": [
         0,
@@ -102,15 +123,15 @@
         1.6
       ],
       "hidden": false,
-      "uid": "4"
+      "uid": "5"
     },
     {
       "name": "journal",
       "asset": "dynamics/decor/notes_writing_book.ogf",
       "position": [
-        -0.5,
+        -0.5299999999999999,
         0.6442108179330825,
-        1.4000000000000001
+        1.37
       ],
       "rotation": [
         0,
@@ -123,13 +144,13 @@
         0.7
       ],
       "hidden": false,
-      "uid": "5"
+      "uid": "6"
     },
     {
       "name": "tin",
       "asset": "dynamics/devices/dev_conserv/dev_conserv.ogf",
       "position": [
-        -0.17000000000000004,
+        -0.18999999999999995,
         0.6436552703380585,
         1.0300000000000002
       ],
@@ -144,13 +165,76 @@
         1
       ],
       "hidden": false,
-      "uid": "6"
+      "uid": "7"
+    },
+    {
+      "name": "mug",
+      "asset": "dynamics/kitchen_room/kitchen_krujka.ogf",
+      "position": [
+        -0.36999999999999994,
+        0.6442108154296875,
+        1.2000000000000002
+      ],
+      "rotation": [
+        0,
+        1.1,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "8"
+    },
+    {
+      "name": "ashtray",
+      "asset": "dynamics/decor/ashtray.ogf",
+      "position": [
+        -0.97,
+        0.6452450841665268,
+        1.4500000000000002
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.8,
+        0.8,
+        0.8
+      ],
+      "hidden": false,
+      "uid": "9"
+    },
+    {
+      "name": "backpack",
+      "asset": "dynamics/equipments/sumka3.ogf",
+      "position": [
+        0.4,
+        0.3223393282857181,
+        2.25
+      ],
+      "rotation": [
+        0,
+        1.8207963267948966,
+        0
+      ],
+      "scale": [
+        1.15,
+        1.15,
+        1.15
+      ],
+      "hidden": false,
+      "uid": "10"
     },
     {
       "name": "shelf",
       "asset": "dynamics/efp_props/prop_shelf_1.ogf",
       "position": [
-        1.4200000000000002,
+        1.76,
         -0.0036280155181884766,
         2.75
       ],
@@ -165,14 +249,14 @@
         1
       ],
       "hidden": false,
-      "uid": "7"
+      "uid": "11"
     },
     {
       "name": "radio",
       "asset": "dynamics/el_tehnika/priemnik_gorizont.ogf",
       "position": [
-        1.32,
-        0.8815895057404896,
+        1.61,
+        0.881595749129842,
         2.73
       ],
       "rotation": [
@@ -186,7 +270,637 @@
         1.3
       ],
       "hidden": false,
-      "uid": "8"
+      "uid": "12"
+    },
+    {
+      "name": "jar",
+      "asset": "dynamics/kitchen_room/bottle_3l.ogf",
+      "position": [
+        2.16,
+        0.8814346780742668,
+        2.73
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.75,
+        0.75,
+        0.75
+      ],
+      "hidden": false,
+      "uid": "13"
+    },
+    {
+      "name": "shelf mug",
+      "asset": "dynamics/efp_props/prop_mug.ogf",
+      "position": [
+        1.9,
+        0.8812034062653107,
+        2.69
+      ],
+      "rotation": [
+        0,
+        2.2,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "14"
+    },
+    {
+      "name": "bottle 1",
+      "asset": "dynamics/vanilla/drink/dev_vodka.ogf",
+      "position": [
+        1.28,
+        0.5397560530900956,
+        2.72
+      ],
+      "rotation": [
+        0,
+        0.0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "15"
+    },
+    {
+      "name": "bottle 2",
+      "asset": "dynamics/vanilla/drink/dev_vodka2.ogf",
+      "position": [
+        1.38,
+        0.5397560530900956,
+        2.75
+      ],
+      "rotation": [
+        0,
+        0.8,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "16"
+    },
+    {
+      "name": "bottle 3",
+      "asset": "dynamics/vanilla/drink/dev_vodka.ogf",
+      "position": [
+        1.47,
+        0.5397560530900956,
+        2.72
+      ],
+      "rotation": [
+        0,
+        2.0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "17"
+    },
+    {
+      "name": "bottle 4",
+      "asset": "dynamics/vanilla/drink/dev_beer2.ogf",
+      "position": [
+        1.6400000000000001,
+        0.5399948852064336,
+        2.75
+      ],
+      "rotation": [
+        0,
+        0.4,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "18"
+    },
+    {
+      "name": "bottle 5",
+      "asset": "dynamics/vanilla/drink/dev_beer2.ogf",
+      "position": [
+        1.73,
+        0.5399948852064336,
+        2.72
+      ],
+      "rotation": [
+        0,
+        1.9,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "19"
+    },
+    {
+      "name": "bottle 6",
+      "asset": "dynamics/vanilla/drink/dev_mineral_water2.ogf",
+      "position": [
+        1.86,
+        0.5397569201514125,
+        2.75
+      ],
+      "rotation": [
+        0,
+        0.3,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "20"
+    },
+    {
+      "name": "ration",
+      "asset": "dynamics/vanilla/food/ration_ru2.ogf",
+      "position": [
+        2.14,
+        0.5186753728985787,
+        2.73
+      ],
+      "rotation": [
+        0,
+        1.5707963267948966,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "21"
+    },
+    {
+      "name": "tin 1",
+      "asset": "dynamics/vanilla/food/dev_tushonka2.ogf",
+      "position": [
+        1.26,
+        0.1986690429504961,
+        2.71
+      ],
+      "rotation": [
+        0,
+        0.0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "22"
+    },
+    {
+      "name": "tin 2",
+      "asset": "dynamics/vanilla/food/dev_tushonka2.ogf",
+      "position": [
+        1.35,
+        0.1986690429504961,
+        2.71
+      ],
+      "rotation": [
+        0,
+        0.9,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "23"
+    },
+    {
+      "name": "tin 3",
+      "asset": "dynamics/vanilla/food/dev_tushonka2.ogf",
+      "position": [
+        1.44,
+        0.1986690429504961,
+        2.71
+      ],
+      "rotation": [
+        0,
+        1.8,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "24"
+    },
+    {
+      "name": "tin 4",
+      "asset": "dynamics/vanilla/food/dev_beans2.ogf",
+      "position": [
+        1.6,
+        0.19817300122231246,
+        2.71
+      ],
+      "rotation": [
+        0,
+        2.7,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "25"
+    },
+    {
+      "name": "tin 5",
+      "asset": "dynamics/vanilla/food/dev_corn2.ogf",
+      "position": [
+        1.7,
+        0.1979199948720634,
+        2.71
+      ],
+      "rotation": [
+        0,
+        3.6,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "26"
+    },
+    {
+      "name": "tin 6",
+      "asset": "dynamics/vanilla/food/dev_beans2.ogf",
+      "position": [
+        1.8,
+        0.19817300122231246,
+        2.71
+      ],
+      "rotation": [
+        0,
+        4.5,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "27"
+    },
+    {
+      "name": "conserve 1",
+      "asset": "dynamics/vanilla/food/dev_conserv2.ogf",
+      "position": [
+        2.06,
+        0.19808659625705333,
+        2.71
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "28"
+    },
+    {
+      "name": "conserve 2",
+      "asset": "dynamics/vanilla/food/dev_conserv2.ogf",
+      "position": [
+        2.0,
+        0.19808659625705333,
+        2.81
+      ],
+      "rotation": [
+        0,
+        0.7,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "29"
+    },
+    {
+      "name": "book",
+      "asset": "dynamics/equipments/trade/book2.ogf",
+      "position": [
+        2.24,
+        0.21728082848712804,
+        2.71
+      ],
+      "rotation": [
+        0,
+        0.2,
+        0
+      ],
+      "scale": [
+        1.3,
+        1.3,
+        1.3
+      ],
+      "hidden": false,
+      "uid": "30"
+    },
+    {
+      "name": "clock",
+      "asset": "dynamics/efp_props/prop_clock.ogf",
+      "position": [
+        1.71,
+        1.55,
+        2.995
+      ],
+      "rotation": [
+        -1.5707963267948966,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "31"
+    },
+    {
+      "name": "stove",
+      "asset": "dynamics/efp_props/prop_stove2.ogf",
+      "position": [
+        -2.1,
+        -0.001841709017753601,
+        2.52
+      ],
+      "rotation": [
+        0,
+        1.5707963267948966,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "32"
+    },
+    {
+      "name": "kettle",
+      "asset": "dynamics/kitchen_room/teapot_1.ogf",
+      "position": [
+        -1.98,
+        1.0653792301076463,
+        2.47
+      ],
+      "rotation": [
+        0,
+        2.4,
+        0
+      ],
+      "scale": [
+        0.8,
+        0.8,
+        0.8
+      ],
+      "hidden": false,
+      "uid": "33"
+    },
+    {
+      "name": "gas cylinder",
+      "asset": "dynamics/decor/gaz_balon.ogf",
+      "position": [
+        -1.48,
+        0.0,
+        2.7
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        0.85,
+        0.85,
+        0.85
+      ],
+      "hidden": false,
+      "uid": "34"
+    },
+    {
+      "name": "bucket",
+      "asset": "dynamics/workshop_room/vedro_01.ogf",
+      "position": [
+        -2.2199999999999998,
+        -0.0014289971441030502,
+        1.35
+      ],
+      "rotation": [
+        0,
+        0.6,
+        0
+      ],
+      "scale": [
+        0.75,
+        0.75,
+        0.75
+      ],
+      "hidden": false,
+      "uid": "35"
+    },
+    {
+      "name": "poster left",
+      "asset": "dynamics/decor/poster6.ogf",
+      "position": [
+        -2.495,
+        1.8,
+        1.1
+      ],
+      "rotation": [
+        -1.5707963267948966,
+        -1.5707963267948966,
+        0
+      ],
+      "scale": [
+        0.75,
+        0.75,
+        0.75
+      ],
+      "hidden": false,
+      "uid": "36"
+    },
+    {
+      "name": "map",
+      "asset": "dynamics/decor/map2.ogf",
+      "position": [
+        -0.15,
+        1.8,
+        2.995
+      ],
+      "rotation": [
+        -1.5707963267948966,
+        0,
+        0
+      ],
+      "scale": [
+        0.55,
+        0.55,
+        0.55
+      ],
+      "hidden": false,
+      "uid": "37"
+    },
+    {
+      "name": "crate",
+      "asset": "dynamics/box/box_wood_01.ogf",
+      "position": [
+        2.04,
+        3.0517577442878974e-07,
+        0.75
+      ],
+      "rotation": [
+        0,
+        0.06,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "38"
+    },
+    {
+      "name": "toolbox",
+      "asset": "dynamics/devices/dev_instrument_1/dev_instrument_1.ogf",
+      "position": [
+        2.02,
+        0.7962546096636051,
+        0.7
+      ],
+      "rotation": [
+        0,
+        1.9207963267948966,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "39"
+    },
+    {
+      "name": "ammo box",
+      "asset": "dynamics/efp_props/prop_ammo_box.ogf",
+      "position": [
+        2.19,
+        -0.0010685324668884277,
+        1.86
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ],
+      "hidden": false,
+      "uid": "40"
+    },
+    {
+      "name": "poster right",
+      "asset": "dynamics/decor/poster2.ogf",
+      "position": [
+        2.495,
+        1.75,
+        0.75
+      ],
+      "rotation": [
+        -1.5707963267948966,
+        1.5707963267948966,
+        0
+      ],
+      "scale": [
+        0.55,
+        0.55,
+        0.55
+      ],
+      "hidden": false,
+      "uid": "41"
+    },
+    {
+      "name": "painting",
+      "asset": "dynamics/decor/kartina03.ogf",
+      "position": [
+        2.495,
+        1.55,
+        1.9
+      ],
+      "rotation": [
+        -1.5707963267948966,
+        1.5707963267948966,
+        0
+      ],
+      "scale": [
+        0.9,
+        0.9,
+        0.9
+      ],
+      "hidden": false,
+      "uid": "42"
     },
     {
       "name": "door",
@@ -207,15 +921,15 @@
         1
       ],
       "hidden": false,
-      "uid": "9"
+      "uid": "43"
     },
     {
-      "name": "stove",
-      "asset": "dynamics/efp_props/prop_stove2.ogf",
+      "name": "door lamp",
+      "asset": "dynamics/light/light_uglovaya_1_glass.ogf",
       "position": [
-        -1.8000000000000003,
-        -0.001841709017753601,
-        0.1
+        0.0,
+        2.8,
+        -2.65
       ],
       "rotation": [
         0,
@@ -228,19 +942,19 @@
         1
       ],
       "hidden": false,
-      "uid": "10"
+      "uid": "44"
     },
     {
-      "name": "gas cylinder",
-      "asset": "dynamics/decor/gaz_balon.ogf",
+      "name": "canister",
+      "asset": "dynamics/balon/kanistra.ogf",
       "position": [
-        -1.9000000000000001,
-        0.0,
-        0.85
+        -1.2,
+        5.373727617552504e-06,
+        -2.38
       ],
       "rotation": [
         0,
-        0,
+        1.5707963267948966,
         0
       ],
       "scale": [
@@ -249,70 +963,49 @@
         1
       ],
       "hidden": false,
-      "uid": "11"
+      "uid": "45"
     },
     {
-      "name": "backpack",
-      "asset": "dynamics/equipments/sumka3.ogf",
+      "name": "boots",
+      "asset": "dynamics/equipments/trade/boots.ogf",
       "position": [
-        1.2200000000000002,
-        -0.01718657612800598,
-        2.05
+        1.0,
+        0.0013444484211504462,
+        -2.3000000000000003
       ],
       "rotation": [
         0,
-        0.4,
+        0.3,
         0
       ],
       "scale": [
-        1.2,
-        1.2,
-        1.2
+        1.1,
+        1.1,
+        1.1
       ],
       "hidden": false,
-      "uid": "12"
+      "uid": "46"
     },
     {
-      "name": "poster",
-      "asset": "dynamics/decor/poster2.ogf",
+      "name": "poster door",
+      "asset": "dynamics/decor/poster5.ogf",
       "position": [
-        0.0,
-        1.8,
-        2.98
+        1.45,
+        1.65,
+        -2.595
       ],
       "rotation": [
         -1.5707963267948966,
-        0,
+        3.141592653589793,
         0
       ],
       "scale": [
-        0.55,
-        0.55,
-        0.55
+        0.9,
+        0.9,
+        0.9
       ],
       "hidden": false,
-      "uid": "13"
-    },
-    {
-      "name": "map",
-      "asset": "dynamics/decor/map1.ogf",
-      "position": [
-        -2.18,
-        1.75,
-        0.45
-      ],
-      "rotation": [
-        -1.5707963267948966,
-        -1.5707963267948966,
-        0
-      ],
-      "scale": [
-        0.55,
-        0.55,
-        0.55
-      ],
-      "hidden": false,
-      "uid": "14"
+      "uid": "47"
     }
   ],
   "views": [
@@ -332,76 +1025,103 @@
     {
       "name": "pda",
       "eye": [
-        -0.6300000000000001,
-        1.3,
-        0.3500000000000003
+        -0.36999999999999994,
+        1.22,
+        0.4500000000000003
       ],
       "target": [
-        -0.8300000000000001,
+        -0.5299999999999999,
         0.6642108154296875,
-        1.0500000000000003
+        1.0900000000000003
       ]
     },
     {
       "name": "radio",
       "eye": [
-        0.9700000000000002,
-        1.55,
-        1.7
+        0.8600000000000001,
+        1.4,
+        1.43
       ],
       "target": [
-        1.32,
-        1.0315895057404896,
+        1.1900000000000002,
+        1.001595749129842,
         2.73
       ]
     },
     {
       "name": "character",
       "eye": [
-        -0.3500000000000001,
-        1.45,
-        0.5800000000000001
+        0.020000000000000018,
+        1.4,
+        0.43000000000000016
       ],
       "target": [
-        -0.6000000000000001,
-        1.0,
+        -0.09999999999999998,
+        0.95,
         2.33
       ]
     },
     {
-      "name": "character",
+      "name": "settings",
       "eye": [
-        -0.3500000000000001,
+        0.8200000000000001,
         1.45,
-        0.5800000000000001
+        0.0
       ],
       "target": [
-        -0.6000000000000001,
-        1.0,
-        2.33
+        2.02,
+        0.95,
+        0.7
       ]
     },
     {
       "name": "door",
       "eye": [
-        0.8,
+        1.2,
         1.55,
-        -0.6
+        0.5
       ],
       "target": [
-        0.0,
+        -0.1,
         1.3,
         -2.6
       ]
     }
   ],
   "lamp": [
-    -0.17000000000000007,
+    -0.16999999999999996,
     0.9942108154296875,
     1.34
   ],
+  "lights": {
+    "lamp": {
+      "color": "#ffb060",
+      "intensity": 9.0,
+      "range": 9.0,
+      "position": [
+        -0.16999999999999996,
+        0.9942108154296875,
+        1.34
+      ]
+    },
+    "bulb": {
+      "color": "#ffc890",
+      "intensity": 3.0,
+      "range": 6.0,
+      "position": [
+        0.0,
+        2.84,
+        -2.44
+      ]
+    },
+    "hemisphere": {
+      "sky": "#5a6270",
+      "ground": "#2a2018",
+      "intensity": 0.12
+    }
+  },
   "seat": [
-    -0.6000000000000001,
+    -0.6,
     0.49,
     2.33
   ],
@@ -409,26 +1129,38 @@
   "picks": {
     "0": [
       [
-        -0.934481523761543,
+        -0.8944815237615429,
         0.6442108154296875,
-        0.918286747350686
+        0.9382867473506861
       ],
       [
-        -0.7211468812170476,
+        -0.6811468812170475,
         0.6685001835227012,
-        1.180245063335617
+        1.200245063335617
       ]
     ],
     "1": [
       [
-        1.0912336108088494,
-        0.8815895057404896,
+        1.3812336108088494,
+        0.881595749129842,
         2.6638891591876743
       ],
       [
-        1.5487663891911507,
-        1.2183105475390812,
+        1.8387663891911508,
+        1.2183167909284336,
         2.806028588786721
+      ]
+    ],
+    "3": [
+      [
+        1.8210227575228692,
+        0.7962546096636051,
+        0.46090890816673513
+      ],
+      [
+        2.2189772424771306,
+        1.0691924737287755,
+        0.9390910918332648
       ]
     ],
     "4": [
@@ -445,32 +1177,60 @@
     ],
     "2": [
       [
-        -0.9500000000000001,
+        -0.95,
         0.0,
         1.6300000000000001
       ],
       [
-        -0.2500000000000001,
+        -0.25,
         1.45,
         2.68
       ]
     ]
   },
-  "triangles": 9230,
+  "triangles": 29730,
   "materials": [
     "crete\\crete_beton_lom",
     "dar_devices_soc\\dar_pda_2",
     "door\\door_trader",
+    "glas\\glas_dirt",
+    "item\\can_inside",
+    "item\\efp\\clock\\clock",
+    "item\\item_beans",
     "item\\item_block_notes",
+    "item\\item_book2",
+    "item\\item_boots",
     "item\\item_conserva",
+    "item\\item_corn",
+    "item\\item_mineral_water",
+    "item\\item_ration_ru",
+    "item\\item_tushonka",
+    "items\\frame",
     "items\\poster2",
+    "items\\poster5",
+    "items\\poster6",
     "mtl\\mtl_barrel_05",
+    "mtl\\mtl_lampa_pod_01",
     "pda_screen\\fix_pda",
     "prop\\prop_bed2",
+    "prop\\prop_carpet",
+    "prop\\prop_chair1a",
+    "prop\\prop_dangerbox",
+    "prop\\prop_instrument_2",
     "prop\\prop_iten4",
-    "prop\\prop_map_2",
+    "prop\\prop_kanistra",
+    "prop\\prop_kitchen_krujka",
+    "prop\\prop_kitchen_stuff",
+    "prop\\prop_map",
     "prop\\prop_plita",
+    "prop\\prop_spade",
+    "prop\\prop_teapot_1",
+    "prop\\prop_voda1",
+    "prop\\prop_voda2",
     "sgm\\sumka_3",
+    "usable_items\\butilki_steklo\\slavutich\\slavutich_diffuse",
+    "wood\\wood_box",
+    "wood\\wood_jasik",
     "wood\\wood_plank6_bar",
     "wood\\wood_table_01",
     "wood\\wood_table_02",
@@ -483,14 +1243,30 @@
       "support": 0.0,
       "gap": 0.0,
       "lo": [
-        -1.656,
+        -1.256,
         0.0,
         1.825
       ],
       "hi": [
-        0.556,
+        0.956,
         1.012,
         2.957
+      ]
+    },
+    {
+      "name": "rug",
+      "bottom": 0.0,
+      "support": 0.0,
+      "gap": 0.0,
+      "lo": [
+        -1.358,
+        0.0,
+        0.496
+      ],
+      "hi": [
+        0.565,
+        0.014,
+        2.301
       ]
     },
     {
@@ -531,14 +1307,14 @@
       "support": 0.6442108154296875,
       "gap": 0.0,
       "lo": [
-        -0.934,
+        -0.894,
         0.644,
-        0.918
+        0.938
       ],
       "hi": [
-        -0.721,
+        -0.681,
         0.669,
-        1.18
+        1.2
       ]
     },
     {
@@ -547,14 +1323,14 @@
       "support": 0.6442108154296875,
       "gap": 0.0,
       "lo": [
-        -0.636,
+        -0.666,
         0.644,
-        1.221
+        1.191
       ],
       "hi": [
-        -0.364,
+        -0.394,
         0.666,
-        1.579
+        1.549
       ]
     },
     {
@@ -563,14 +1339,62 @@
       "support": 0.6442108154296875,
       "gap": 0.0,
       "lo": [
-        -0.24,
+        -0.26,
         0.644,
         0.962
       ],
       "hi": [
-        -0.101,
+        -0.121,
         0.704,
         1.099
+      ]
+    },
+    {
+      "name": "mug",
+      "bottom": 0.6442,
+      "support": 0.6442108154296875,
+      "gap": 0.0,
+      "lo": [
+        -0.419,
+        0.644,
+        1.15
+      ],
+      "hi": [
+        -0.287,
+        0.765,
+        1.25
+      ]
+    },
+    {
+      "name": "ashtray",
+      "bottom": 0.6442,
+      "support": 0.6442108154296875,
+      "gap": 0.0,
+      "lo": [
+        -1.044,
+        0.644,
+        1.376
+      ],
+      "hi": [
+        -0.896,
+        0.686,
+        1.524
+      ]
+    },
+    {
+      "name": "backpack",
+      "bottom": 0.3388,
+      "support": 0.33880979707505715,
+      "gap": 0.0,
+      "lo": [
+        0.031,
+        0.339,
+        1.944
+      ],
+      "hi": [
+        0.71,
+        0.62,
+        2.529
       ]
     },
     {
@@ -579,12 +1403,12 @@
       "support": 0.0,
       "gap": 0.0,
       "lo": [
-        0.721,
+        1.061,
         0.0,
         2.512
       ],
       "hi": [
-        2.096,
+        2.436,
         1.135,
         2.962
       ]
@@ -592,17 +1416,497 @@
     {
       "name": "radio",
       "bottom": 0.8816,
-      "support": 0.8815895057404896,
+      "support": 0.881595749129842,
       "gap": 0.0,
       "lo": [
-        1.091,
+        1.381,
         0.882,
         2.664
       ],
       "hi": [
-        1.549,
+        1.839,
         1.218,
         2.806
+      ]
+    },
+    {
+      "name": "jar",
+      "bottom": 0.8814,
+      "support": 0.8814346780742668,
+      "gap": 0.0,
+      "lo": [
+        2.073,
+        0.881,
+        2.643
+      ],
+      "hi": [
+        2.247,
+        1.149,
+        2.817
+      ]
+    },
+    {
+      "name": "shelf mug",
+      "bottom": 0.8815,
+      "support": 0.8815316788464111,
+      "gap": 0.0,
+      "lo": [
+        1.811,
+        0.882,
+        2.62
+      ],
+      "hi": [
+        1.988,
+        1.033,
+        2.746
+      ]
+    },
+    {
+      "name": "bottle 1",
+      "bottom": 0.54,
+      "support": 0.54,
+      "gap": 0.0,
+      "lo": [
+        1.247,
+        0.54,
+        2.688
+      ],
+      "hi": [
+        1.313,
+        0.79,
+        2.752
+      ]
+    },
+    {
+      "name": "bottle 2",
+      "bottom": 0.54,
+      "support": 0.54,
+      "gap": 0.0,
+      "lo": [
+        1.347,
+        0.54,
+        2.717
+      ],
+      "hi": [
+        1.413,
+        0.79,
+        2.783
+      ]
+    },
+    {
+      "name": "bottle 3",
+      "bottom": 0.54,
+      "support": 0.54,
+      "gap": 0.0,
+      "lo": [
+        1.437,
+        0.54,
+        2.687
+      ],
+      "hi": [
+        1.503,
+        0.79,
+        2.753
+      ]
+    },
+    {
+      "name": "bottle 4",
+      "bottom": 0.54,
+      "support": 0.54,
+      "gap": 0.0,
+      "lo": [
+        1.604,
+        0.54,
+        2.714
+      ],
+      "hi": [
+        1.676,
+        0.796,
+        2.786
+      ]
+    },
+    {
+      "name": "bottle 5",
+      "bottom": 0.54,
+      "support": 0.54,
+      "gap": 0.0,
+      "lo": [
+        1.694,
+        0.54,
+        2.684
+      ],
+      "hi": [
+        1.766,
+        0.796,
+        2.756
+      ]
+    },
+    {
+      "name": "bottle 6",
+      "bottom": 0.54,
+      "support": 0.54,
+      "gap": 0.0,
+      "lo": [
+        1.83,
+        0.54,
+        2.721
+      ],
+      "hi": [
+        1.89,
+        0.748,
+        2.779
+      ]
+    },
+    {
+      "name": "ration",
+      "bottom": 0.54,
+      "support": 0.54,
+      "gap": 0.0,
+      "lo": [
+        1.986,
+        0.54,
+        2.603
+      ],
+      "hi": [
+        2.359,
+        0.616,
+        2.837
+      ]
+    },
+    {
+      "name": "tin 1",
+      "bottom": 0.2,
+      "support": 0.2,
+      "gap": 0.0,
+      "lo": [
+        1.222,
+        0.2,
+        2.673
+      ],
+      "hi": [
+        1.298,
+        0.296,
+        2.747
+      ]
+    },
+    {
+      "name": "tin 2",
+      "bottom": 0.2,
+      "support": 0.2,
+      "gap": 0.0,
+      "lo": [
+        1.313,
+        0.2,
+        2.672
+      ],
+      "hi": [
+        1.387,
+        0.296,
+        2.747
+      ]
+    },
+    {
+      "name": "tin 3",
+      "bottom": 0.2,
+      "support": 0.2,
+      "gap": 0.0,
+      "lo": [
+        1.402,
+        0.2,
+        2.673
+      ],
+      "hi": [
+        1.477,
+        0.296,
+        2.747
+      ]
+    },
+    {
+      "name": "tin 4",
+      "bottom": 0.2,
+      "support": 0.2,
+      "gap": 0.0,
+      "lo": [
+        1.562,
+        0.2,
+        2.672
+      ],
+      "hi": [
+        1.638,
+        0.309,
+        2.748
+      ]
+    },
+    {
+      "name": "tin 5",
+      "bottom": 0.2,
+      "support": 0.2,
+      "gap": 0.0,
+      "lo": [
+        1.657,
+        0.2,
+        2.667
+      ],
+      "hi": [
+        1.743,
+        0.296,
+        2.753
+      ]
+    },
+    {
+      "name": "tin 6",
+      "bottom": 0.2,
+      "support": 0.2,
+      "gap": 0.0,
+      "lo": [
+        1.762,
+        0.2,
+        2.672
+      ],
+      "hi": [
+        1.838,
+        0.309,
+        2.748
+      ]
+    },
+    {
+      "name": "conserve 1",
+      "bottom": 0.2,
+      "support": 0.2,
+      "gap": 0.0,
+      "lo": [
+        1.99,
+        0.2,
+        2.642
+      ],
+      "hi": [
+        2.129,
+        0.26,
+        2.779
+      ]
+    },
+    {
+      "name": "conserve 2",
+      "bottom": 0.2,
+      "support": 0.2,
+      "gap": 0.0,
+      "lo": [
+        1.93,
+        0.2,
+        2.742
+      ],
+      "hi": [
+        2.069,
+        0.26,
+        2.879
+      ]
+    },
+    {
+      "name": "book",
+      "bottom": 0.2,
+      "support": 0.2,
+      "gap": 0.0,
+      "lo": [
+        2.124,
+        0.2,
+        2.591
+      ],
+      "hi": [
+        2.337,
+        0.222,
+        2.848
+      ]
+    },
+    {
+      "name": "clock",
+      "bottom": 1.31,
+      "support": null,
+      "gap": null,
+      "lo": [
+        1.568,
+        1.31,
+        2.867
+      ],
+      "hi": [
+        1.852,
+        1.79,
+        2.994
+      ]
+    },
+    {
+      "name": "stove",
+      "bottom": 0.0,
+      "support": 0.0,
+      "gap": 0.0,
+      "lo": [
+        -2.473,
+        0.0,
+        2.159
+      ],
+      "hi": [
+        -1.724,
+        1.292,
+        2.988
+      ]
+    },
+    {
+      "name": "kettle",
+      "bottom": 1.0652,
+      "support": 1.0652322322130203,
+      "gap": 0.0,
+      "lo": [
+        -2.139,
+        1.065,
+        2.34
+      ],
+      "hi": [
+        -1.86,
+        1.289,
+        2.628
+      ]
+    },
+    {
+      "name": "gas cylinder",
+      "bottom": 0.0,
+      "support": 0.0,
+      "gap": 0.0,
+      "lo": [
+        -1.695,
+        0.0,
+        2.485
+      ],
+      "hi": [
+        -1.265,
+        0.666,
+        2.915
+      ]
+    },
+    {
+      "name": "bucket",
+      "bottom": 0.0,
+      "support": 0.0,
+      "gap": 0.0,
+      "lo": [
+        -2.369,
+        0.0,
+        1.201
+      ],
+      "hi": [
+        -2.071,
+        0.497,
+        1.499
+      ]
+    },
+    {
+      "name": "poster left",
+      "bottom": 1.5161,
+      "support": null,
+      "gap": null,
+      "lo": [
+        -2.492,
+        1.516,
+        0.87
+      ],
+      "hi": [
+        -2.48,
+        2.076,
+        1.338
+      ]
+    },
+    {
+      "name": "map",
+      "bottom": 1.4523,
+      "support": null,
+      "gap": null,
+      "lo": [
+        -0.844,
+        1.452,
+        2.988
+      ],
+      "hi": [
+        0.544,
+        2.148,
+        2.989
+      ]
+    },
+    {
+      "name": "crate",
+      "bottom": 0.0,
+      "support": 0.0,
+      "gap": 0.0,
+      "lo": [
+        1.594,
+        0.0,
+        0.29
+      ],
+      "hi": [
+        2.486,
+        0.806,
+        1.209
+      ]
+    },
+    {
+      "name": "toolbox",
+      "bottom": 0.7963,
+      "support": 0.7962546096636051,
+      "gap": 0.0,
+      "lo": [
+        1.821,
+        0.796,
+        0.461
+      ],
+      "hi": [
+        2.219,
+        1.069,
+        0.939
+      ]
+    },
+    {
+      "name": "ammo box",
+      "bottom": 0.0,
+      "support": 0.0,
+      "gap": 0.0,
+      "lo": [
+        1.908,
+        0.0,
+        1.31
+      ],
+      "hi": [
+        2.477,
+        0.3,
+        2.41
+      ]
+    },
+    {
+      "name": "poster right",
+      "bottom": 1.5418,
+      "support": null,
+      "gap": null,
+      "lo": [
+        2.483,
+        1.542,
+        0.605
+      ],
+      "hi": [
+        2.493,
+        1.953,
+        0.919
+      ]
+    },
+    {
+      "name": "painting",
+      "bottom": 1.3158,
+      "support": null,
+      "gap": null,
+      "lo": [
+        2.468,
+        1.316,
+        1.583
+      ],
+      "hi": [
+        2.495,
+        1.784,
+        2.234
       ]
     },
     {
@@ -622,101 +1926,112 @@
       ]
     },
     {
-      "name": "stove",
-      "bottom": 0.0,
-      "support": 0.0,
-      "gap": 0.0,
-      "lo": [
-        -2.176,
-        0.0,
-        -0.368
-      ],
-      "hi": [
-        -1.427,
-        1.292,
-        0.461
-      ]
-    },
-    {
-      "name": "gas cylinder",
-      "bottom": 0.0,
-      "support": 0.0,
-      "gap": 0.0,
-      "lo": [
-        -2.153,
-        0.0,
-        0.597
-      ],
-      "hi": [
-        -1.647,
-        0.784,
-        1.103
-      ]
-    },
-    {
-      "name": "backpack",
-      "bottom": 0.0,
-      "support": 0.0,
-      "gap": 0.0,
-      "lo": [
-        0.899,
-        0.0,
-        1.657
-      ],
-      "hi": [
-        1.553,
-        0.293,
-        2.388
-      ]
-    },
-    {
-      "name": "poster",
-      "bottom": 1.5918,
+      "name": "door lamp",
+      "bottom": 2.817,
       "support": null,
       "gap": null,
       "lo": [
-        -0.169,
-        1.592,
-        2.968
+        -0.112,
+        2.817,
+        -2.581
       ],
       "hi": [
-        0.145,
-        2.003,
-        2.978
+        0.112,
+        2.956,
+        -2.416
       ]
     },
     {
-      "name": "map",
-      "bottom": 1.2087,
+      "name": "canister",
+      "bottom": 0.0,
+      "support": 0.0,
+      "gap": 0.0,
+      "lo": [
+        -1.394,
+        0.0,
+        -2.468
+      ],
+      "hi": [
+        -1.004,
+        0.599,
+        -2.293
+      ]
+    },
+    {
+      "name": "boots",
+      "bottom": 0.0,
+      "support": 0.0,
+      "gap": 0.0,
+      "lo": [
+        0.804,
+        0.0,
+        -2.493
+      ],
+      "hi": [
+        1.19,
+        0.295,
+        -2.103
+      ]
+    },
+    {
+      "name": "poster door",
+      "bottom": 1.3093,
       "support": null,
       "gap": null,
       "lo": [
-        -2.179,
-        1.209,
-        -0.112
+        1.164,
+        1.309,
+        -2.592
       ],
       "hi": [
-        -2.101,
-        2.291,
-        0.971
+        1.726,
+        1.982,
+        -2.577
       ]
     }
   ],
   "problems": [],
   "source_sha256": {
     "dynamics/efp_props/prop_couch_1.ogf": "cfe13821632b928c9b8fcf8b71b29f2752229a4beb8a5ae081ba3849853a2547",
+    "dynamics/decor/rug.ogf": "6065659ce1e03c22310510859a3fd9cfbe5469a8388cf4e3bbc09e74ffe15a7d",
     "dynamics/efp_props/prop_table_2.ogf": "9ebf4207c12925c8b756d8cf15fa8e70443baa584bde0c0d65c888be40f91fa9",
     "dynamics/el_tehnika/table_lamp_01.ogf": "8b4c0e35a96b9669e55551cfaab93ff0797dd95c53c85b14a78fd3b8d89e48a7",
     "netcoop/dev_pda.ogf": "592b2bf4c9011dbf2e0ea708c70f192e56f476a31889e3c0f0a50ca719d77aa3",
     "dynamics/decor/notes_writing_book.ogf": "c4eab68f2eb14601004439cba6e60e396d17b18b1830682ae8905f2bbc3a064d",
     "dynamics/devices/dev_conserv/dev_conserv.ogf": "6ac7f2fc2217af3d19c8a055805c467c84d321cf94e5365c0d8f7286979265ae",
+    "dynamics/kitchen_room/kitchen_krujka.ogf": "d9d7745cd04ccf61092e25d51226820ad27040687aaf4561c700a94a94e8ea0c",
+    "dynamics/decor/ashtray.ogf": "bcc229104c516747b148bdacba6deda53b22dd496b2b68b53219dca0ab4712b9",
+    "dynamics/equipments/sumka3.ogf": "41e6b5cbd2da84ef0d8de5f6bea84062c30eaa80029c7aadcc59b925e17f1d2a",
     "dynamics/efp_props/prop_shelf_1.ogf": "4aabc1d956376ac6aadfe4c3c409834c1a97ca5254ac2bd7bd594f496295fac9",
     "dynamics/el_tehnika/priemnik_gorizont.ogf": "6b54ec2dda1e8b2dd4beace4d4ed794a504e143729105eef4e5dcffff07b2e16",
-    "dynamics/door/door_trader.ogf": "ff16805e9ab2c14ca4a7c0a1838243a23153bb1203635ac930c93d7d695d5db3",
+    "dynamics/kitchen_room/bottle_3l.ogf": "77f96e50a9aed4da63c2d4c1945340c8efc37d055c762a117124d0877b4c7b6f",
+    "dynamics/efp_props/prop_mug.ogf": "876d60d5de3423ab76b820ebe7f9f2451705ca92ad9245fc0c6d87c37b8a6d2b",
+    "dynamics/vanilla/drink/dev_vodka.ogf": "e51f289540053a4068352fc2202080e4bcfa547dac35f10e27d26a557b1be99a",
+    "dynamics/vanilla/drink/dev_vodka2.ogf": "75c69e8fbbde77338b57b13d7a60b51d3c30b722ddecc8b486587b224331b2fd",
+    "dynamics/vanilla/drink/dev_beer2.ogf": "7adc311d329b7e8e2de349464fe707f69da4469d484ad4cffd3186bb465fa50c",
+    "dynamics/vanilla/drink/dev_mineral_water2.ogf": "b683e1c4e25af521e0caac47cd1503ab7209aeaa28fd1508564befe7721295ee",
+    "dynamics/vanilla/food/ration_ru2.ogf": "8c3b7ece70c7f30d92531463a4a4910102d0ab54c6d086e1e02ed7fea307d5cc",
+    "dynamics/vanilla/food/dev_tushonka2.ogf": "3e49d48c71df9878bb21b0cc21e61498455a6eeda69d7617ab2080c58fea78e3",
+    "dynamics/vanilla/food/dev_beans2.ogf": "550de17972c6100cb7e0a06bfe73dbfab436088c2b47836526ddf0c47d0211ad",
+    "dynamics/vanilla/food/dev_corn2.ogf": "46411551d13eb0811e244397abc65f32673520efbc3bb6722403788427aa651d",
+    "dynamics/vanilla/food/dev_conserv2.ogf": "9c204fc7b891df97e9b5877a0d9700d86103a82c7c6e8e196a6a17cd7ee7a6a1",
+    "dynamics/equipments/trade/book2.ogf": "00484ff4e7693f21a15236a71fe82d52fdb155028bd6f18fbfd47c65dea82983",
+    "dynamics/efp_props/prop_clock.ogf": "a6fabfc97cf6bb828021d52f6a96ce46e3a87993aee2bb7e00e15553507b5156",
     "dynamics/efp_props/prop_stove2.ogf": "b1a65798b588515ad6accd0b90dc2d0f2da6a528497a7058f28e37a300756ac8",
+    "dynamics/kitchen_room/teapot_1.ogf": "554782d4a05ea5615ded6237c3d81e5dd4bbe5c96a480f8237fb85843f49bd8e",
     "dynamics/decor/gaz_balon.ogf": "318c016e8ad487801895efccc7f6d755e41811d088c63b392f23b98cfa673431",
-    "dynamics/equipments/sumka3.ogf": "41e6b5cbd2da84ef0d8de5f6bea84062c30eaa80029c7aadcc59b925e17f1d2a",
+    "dynamics/workshop_room/vedro_01.ogf": "cc5df5542266595ab5a046a2a1d613a087aff068bf75a18432fff6cd17342bd8",
+    "dynamics/decor/poster6.ogf": "57b6a8a175e878f3bda5e70917ea3786134a9c75f8ee9b92cffc250ed60187c5",
+    "dynamics/decor/map2.ogf": "f04917cdcba5d6154ac351237cb63622bf98139ddb825d34b4eb96e10d0f50e0",
+    "dynamics/box/box_wood_01.ogf": "dec2fe5fd24432fd9846b88d0c9960e3a09a5a2d50167f0983ee6225c41969c4",
+    "dynamics/devices/dev_instrument_1/dev_instrument_1.ogf": "12c6c7560eb3db8d56494e660452258fee15ad13daa8f00a28e070869ffdf5bd",
+    "dynamics/efp_props/prop_ammo_box.ogf": "cde7c42069652023bbb060dfa1ac4fb1d2d6102a4565daeb8559599959cece38",
     "dynamics/decor/poster2.ogf": "8647122d51e15614496b447ebf9229dd3d8d1081a9249fffc6b7ce6e4d566122",
-    "dynamics/decor/map1.ogf": "2549017afccf0dcbfda9a33f629546ca924c90bd96a94a6478fb44076a248f7d"
+    "dynamics/decor/kartina03.ogf": "d87873ae4958c2a64419d82cd7bec02372e9b77234bb0e4fb4a8b9cca04b3da2",
+    "dynamics/door/door_trader.ogf": "ff16805e9ab2c14ca4a7c0a1838243a23153bb1203635ac930c93d7d695d5db3",
+    "dynamics/light/light_uglovaya_1_glass.ogf": "e10440c6e86f41af89d87162e49610cac3e95996f81b2e14e0c59d2f2d29f61e",
+    "dynamics/balon/kanistra.ogf": "57f31c9e5762e81335fa01e1a1ac6d4d0fb9b080a572dba07d6a71ac1c59acf7",
+    "dynamics/equipments/trade/boots.ogf": "b98a94be487b838513f9a2bcd041e94de73a84aafd61a89d56e39c3fb40a049a",
+    "dynamics/decor/poster5.ogf": "1bbfa290b605bee66722752638aa5d63bda17c621f32156a2be1b3ded9c0cfaf"
   }
 }
