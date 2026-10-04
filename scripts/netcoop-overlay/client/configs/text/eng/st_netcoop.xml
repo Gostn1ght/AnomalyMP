@@ -444,7 +444,7 @@
   <string id="st_netcoop_change_email_title">
     <text>Correct email address</text>
   </string>
-<string id="st_netcoop_change_email_send">
+  <string id="st_netcoop_change_email_send">
     <text>Send to new address</text>
   </string>
   <string id="st_netcoop_change_email_cancel">
@@ -456,9 +456,7 @@
 <string id="st_netcoop_email_domain_invalid">
     <text>This email domain does not exist or does not accept mail. Correct the address.</text>
   </string>
-  <string id="st_netcoop_change_email_send">
-    <text>Save and send email</text>
-  </string>
+
   <string id="st_netcoop_change_email_address">
     <text>Correct email address</text>
   </string>

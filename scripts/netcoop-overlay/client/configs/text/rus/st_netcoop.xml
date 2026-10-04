@@ -444,7 +444,7 @@
   <string id="st_netcoop_change_email_title">
     <text>Исправить почту</text>
   </string>
-<string id="st_netcoop_change_email_send">
+  <string id="st_netcoop_change_email_send">
     <text>Отправить на новый адрес</text>
   </string>
   <string id="st_netcoop_change_email_cancel">
@@ -456,9 +456,7 @@
 <string id="st_netcoop_email_domain_invalid">
     <text>Домен этой почты не существует или не принимает письма. Исправьте адрес.</text>
   </string>
-  <string id="st_netcoop_change_email_send">
-    <text>Сохранить и отправить письмо</text>
-  </string>
+
   <string id="st_netcoop_change_email_address">
     <text>Правильная электронная почта</text>
   </string>
