@@ -1,0 +1,74 @@
+name: Lost Zone DX11
+
+on:
+  push:
+    branches: [menu-3d-hideout]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lostzone-dx11-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Check actual Lua menu and trade code
+        run: |
+          python -m pip install lupa==2.8
+          python scripts/check-netcoop-menu.py
+          python scripts/check-netcoop-trade.py
+      - name: Check actual item interpolation
+        run: python scripts/check-netcoop-physics.py
+
+  engine:
+    needs: checks
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: microsoft/setup-msbuild@v2
+        with:
+          msbuild-architecture: x64
+      - name: Check actor packet compatibility
+        shell: pwsh
+        run: ./scripts/check-actor-packet.ps1
+      - name: Build DX11 on GitHub Actions
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_ACTIONS -ne 'true') { throw 'Build must run on GitHub Actions' }
+          msbuild src/engine-vs2022.sln /m:2 /p:Configuration=DX11 /p:Platform=x64 /p:MultiProcessorCompilation=false /bl:lostzone-build.binlog /fl /flp:logfile=lostzone-build.log /v:minimal
+          if ($LASTEXITCODE -ne 0) { throw "MSBuild failed: $LASTEXITCODE" }
+      - name: Package matching client, server and overlays
+        shell: pwsh
+        run: |
+          ./scripts/package-m1-dx11.ps1 -BuildBin ./_build/_game/bin_dbg -DestinationRoot ./lostzone-package
+          Copy-Item -LiteralPath scripts/netcoop-overlay -Destination lostzone-package/overlay -Recurse
+          Copy-Item -LiteralPath _build/_game/bin_dbg/LostZoneDX11.pdb -Destination lostzone-package/bin/LostZoneClientDX11.pdb
+          Copy-Item -LiteralPath _build/_game/bin_dbg/LostZoneDX11.pdb -Destination lostzone-package/dedicated/LostZoneServerDX11.pdb
+          Set-Content -LiteralPath lostzone-package/built-from.txt -Value $env:GITHUB_SHA
+          Get-FileHash lostzone-package/bin/LostZoneClientDX11.exe,lostzone-package/dedicated/LostZoneServerDX11.exe | Format-List | Out-File lostzone-package/sha256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LostZone-DX11-client-server
+          path: lostzone-package
+          if-no-files-found: error
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LostZone-DX11-build-log
+          path: |
+            lostzone-build.log
+            lostzone-build.binlog
+          if-no-files-found: ignore
