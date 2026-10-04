@@ -360,16 +360,82 @@
   <string id="st_netcoop_storage_worn">
     <text>equipped</text>
   </string>
-	<string id="st_netcoop_obj_door">
-		<text>Enter the Zone</text>
-	</string>
-	<string id="st_netcoop_obj_pda">
-		<text>PDA · server</text>
-	</string>
-	<string id="st_netcoop_obj_character">
-		<text>Characters</text>
-	</string>
-	<string id="st_netcoop_obj_radio">
-		<text>Radio · settings</text>
-	</string>
+  <string id="st_netcoop_obj_door">
+    <text>Door — quit game</text>
+  </string>
+  <string id="st_netcoop_obj_pda">
+    <text>PDA — server and enter the Zone</text>
+  </string>
+  <string id="st_netcoop_obj_character">
+    <text>Character — account characters</text>
+  </string>
+  <string id="st_netcoop_obj_radio">
+    <text>Radio — music</text>
+  </string>
+  <string id="st_netcoop_obj_settings">
+    <text>Tools — settings</text>
+  </string>
+  <string id="st_netcoop_previous_station">
+    <text>‹ Station</text>
+  </string>
+  <string id="st_netcoop_next_station">
+    <text>Station ›</text>
+  </string>
+  <string id="st_netcoop_previous_track">
+    <text>‹ Track</text>
+  </string>
+  <string id="st_netcoop_next_track">
+    <text>Track ›</text>
+  </string>
+  <string id="st_netcoop_volume_down">
+    <text>Volume &#8722;</text>
+  </string>
+  <string id="st_netcoop_volume_up">
+    <text>Volume +</text>
+  </string>
+  <string id="st_netcoop_music_toggle">
+    <text>On / off</text>
+  </string>
+  <string id="st_netcoop_music_volume">
+    <text>Volume</text>
+  </string>
+  <string id="st_netcoop_music_on">
+    <text>Playing</text>
+  </string>
+  <string id="st_netcoop_music_off">
+    <text>Off</text>
+  </string>
+  <string id="st_netcoop_station_menu">
+    <text>Zone music</text>
+  </string>
+  <string id="st_netcoop_station_stalker">
+    <text>Stalker · 95.6 FM</text>
+  </string>
+  <string id="st_netcoop_station_bandit">
+    <text>Bandit · 89.5 FM</text>
+  </string>
+  <string id="st_netcoop_station_clear_sky">
+    <text>Clear Sky · 92.4 FM</text>
+  </string>
+  <string id="st_netcoop_station_forester">
+    <text>Forester · 104.6 FM</text>
+  </string>
+  <string id="st_netcoop_station_barman">
+    <text>Bar</text>
+  </string>
+  <string id="st_netcoop_station_yantar">
+    <text>Yantar · 105 FM</text>
+  </string>
+  <string id="st_netcoop_station_guitar">
+    <text>Campfire guitar</text>
+  </string>
+  <string id="st_netcoop_quit_confirm">
+    <text>Quit the game?</text>
+  </string>
+  <string id="st_netcoop_quit_action">
+    <text>Quit</text>
+  </string>
+  <string id="st_netcoop_quit_stay">
+    <text>Stay</text>
+  </string>
 </string_table>

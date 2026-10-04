@@ -39,7 +39,11 @@ static void netcoop_item_ground_contact(bool& collide, bool, dContact& contact, 
 {
 	if (!collide || (dGeomGetBody(contact.geom.g1) && dGeomGetBody(contact.geom.g2)) ||
 		_abs(contact.geom.normal[1]) < 0.5f) return;
-	contact.surface.mu = _max(contact.surface.mu, 0.45f);
+	contact.surface.mu = _max(contact.surface.mu, 0.8f);
+    contact.surface.mu2 = _max(contact.surface.mu2, 0.8f);
+    contact.surface.mode &= ~(dContactSlip1 | dContactSlip2);
+    contact.surface.mode |= dContactApprox1;
+    contact.surface.slip1 = contact.surface.slip2 = 0.f;
 	contact.surface.bounce = _min(contact.surface.bounce, 0.08f);
 	contact.surface.bounce_vel = _max(contact.surface.bounce_vel, 1.5f);
 }
@@ -514,6 +518,22 @@ u32 CPhysicsShellHolder::netcoop_interpolation_time(u32 interval)
     return m_netcoop_render_time;
 }
 
+static float netcoop_physics_coordinate(float a, float b, float va, float vb, float seconds, float t)
+{
+    const float distance = b - a;
+    if (seconds <= 0.f || _abs(distance) < EPS_S) return a + distance * t;
+    float ta = va * seconds, tb = vb * seconds;
+    if (ta * distance < 0.f) ta = 0.f;
+    if (tb * distance < 0.f) tb = 0.f;
+    const float limit = 3.f * _abs(distance);
+    clamp(ta, -limit, limit); clamp(tb, -limit, limit);
+    const float alpha = ta / distance, beta = tb / distance;
+    const float length = alpha * alpha + beta * beta;
+    if (length > 9.f) { const float scale = 3.f / _sqrt(length); ta *= scale; tb *= scale; }
+    const float t2 = t * t, t3 = t2 * t;
+    return (2.f*t3-3.f*t2+1.f)*a + (t3-2.f*t2+t)*ta + (-2.f*t3+3.f*t2)*b + (t3-t2)*tb;
+}
+
 void CPhysicsShellHolder::netcoop_physics_update()
 {
 	if (!netcoop::pure_client() || m_netcoop_physics.empty()) return;
@@ -559,7 +579,12 @@ void CPhysicsShellHolder::netcoop_physics_update()
 	for (u16 i = 0; i < first.states.size(); ++i)
 	{
 		SPHNetState state = first.states[i];
-		state.position.lerp(first.states[i].position, last.states[i].position, factor);
+		const auto& a = first.states[i]; const auto& b = last.states[i];
+		const float seconds = _max(0.f, float(span) / 1000.f);
+		state.position.set(
+		    netcoop_physics_coordinate(a.position.x,b.position.x,a.linear_vel.x,b.linear_vel.x,seconds,factor),
+		    netcoop_physics_coordinate(a.position.y,b.position.y,a.linear_vel.y,b.linear_vel.y,seconds,factor),
+		    netcoop_physics_coordinate(a.position.z,b.position.z,a.linear_vel.z,b.linear_vel.z,seconds,factor));
 		state.quaternion.slerp(first.states[i].quaternion, last.states[i].quaternion, factor);
 		state.previous_position = state.position;
 		state.previous_quaternion = state.quaternion;

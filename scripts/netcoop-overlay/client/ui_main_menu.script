@@ -106,6 +106,7 @@ function main_menu:InitCallBacks()
 end
 
 function main_menu:Update()
+    if level.present() then netcoop_menu_radio.stop() else netcoop_menu_radio.update() end
 	if netcoop_login_ui.frontend_update(self) then return end
     if netcoop_login_ui.can_mcm() and not self.mcm_button then
         local xml = CScriptXmlInit(); xml:ParseFile("ui_netcoop_main.xml")

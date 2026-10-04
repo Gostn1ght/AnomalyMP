@@ -11,6 +11,8 @@
 #include "ai_monster_squad_manager.h"
 #include "../../Actor.h"
 #include "../../actor_memory.h"
+#include "../../netcoop.h"
+#include "../../Level.h"
 
 CMonsterEnemyMemory::CMonsterEnemyMemory()
 {
@@ -61,8 +63,8 @@ void CMonsterEnemyMemory::update()
 		}
 	}
 
-	if (monster->SoundMemory.IsRememberSound() && g_actor
-		&& g_actor->memory().visual().visible_now(monster))
+	if (monster->SoundMemory.IsRememberSound() &&
+		(netcoop::enabled() || (g_actor && g_actor->memory().visual().visible_now(monster))))
 	{
 		SoundElem sound;
 		bool dangerous;
@@ -105,7 +107,19 @@ void CMonsterEnemyMemory::update()
 	}
 
 	float const feel_enemy_max_distance = monster->get_feel_enemy_max_distance();
-	if (g_actor)
+	if (netcoop::enabled() && !netcoop::pure_client())
+	{
+		for (u32 index = 0; index < Level().Objects.o_count(); ++index)
+		{
+			CActor* player = smart_cast<CActor*>(Level().Objects.o_get_by_iterator(index));
+			if (!player || player->ID() == 0 || !player->g_Alive() || player->getDestroy()) continue;
+			if (monster->Position().distance_to_xz(player->Position()) < feel_enemy_max_distance &&
+				_abs(monster->Position().y - player->Position().y) < 10.f &&
+				monster->memory().enemy().is_useful(player))
+				add_enemy(player);
+		}
+	}
+	else if (g_actor)
 	{
 		float const xz_dist = monster->Position().distance_to_xz(g_actor->Position());
 		float const y_dist = _abs(monster->Position().y - g_actor->Position().y);

@@ -489,8 +489,22 @@ local squad_attackers = {}
 function on_squad_attacked(npc_id, attacker_id)
 	local npc, attacker = level.object_by_id(npc_id), level.object_by_id(attacker_id)
 	if not npc or not attacker or not npc:alive() or not attacker:alive() then return end
+	local previous = squad_attackers[npc_id]
 	squad_attackers[npc_id] = {id = attacker_id, until_time = time_global() + 300000}
-	printf("[Lost Zone][AI] squad witness %s confronts attacker %s", npc_id, attacker_id)
+	if not previous or previous.id ~= attacker_id or previous.until_time < time_global() then
+		printf("[Lost Zone][AI] squad witness %s confronts attacker %s", npc_id, attacker_id)
+	end
+end
+
+function before_npc_hit(npc_id, attacker_id)
+	local npc = level.object_by_id(npc_id)
+	if not npc or not npc:alive() then return end
+	on_squad_attacked(npc_id, attacker_id)
+	-- Re-evaluate the live freeplay protection policy rather than retaining
+	-- the last scheduled value while the NPC changes camp/combat state.
+	if stalker_generic and stalker_generic.update_invulnerability then
+		stalker_generic.update_invulnerability(npc)
+	end
 end
 
 local function on_camp_member_hit(victim, amount, direction, attacker)
@@ -521,6 +535,23 @@ local function witnessed_enemy(npc, enemy)
 end
 
 local function install_squad_witnesses()
+	if stalker_generic then
+		local protection = stalker_generic.is_need_invulnerability
+		stalker_generic.is_need_invulnerability = function(npc)
+			local attacked = npc and squad_attackers[npc:id()]
+			local storage = npc and db.storage[npc:id()]
+			-- Generic simulation camp jobs use safe_restr protection. Once
+			-- attacked, that generated safe-zone guard must not make the
+			-- fighting squad immortal. Keep explicit story protection.
+			if attacked and attacked.until_time >= time_global() and storage and storage.ini
+				and not get_object_story_id(npc:id()) then
+				local rule = storage.ini:r_string_to_condlist(storage.section_logic, "invulnerable")
+					or storage.active_section and storage.ini:r_string_to_condlist(storage.active_section, "invulnerable")
+				if rule and npc:section():find("^sim_default") then return false end
+			end
+			return protection(npc)
+		end
+	end
 	if not xr_combat_ignore then return end
 	local is_enemy = xr_combat_ignore.is_enemy
 	xr_combat_ignore.is_enemy = function(npc, enemy, ...)

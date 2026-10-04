@@ -970,12 +970,14 @@ void CAI_Stalker::net_Export(NET_Packet& P)
 	}
 	P.w_u8(anim_mode);
 	for (int i = 0; i < 3; ++i)
-		P.w_u32(anims[i].valid() ? anims[i].val : 0);
+		P.w_u32(anims[i].valid() ? anims[i].val : u32(-1));
 
 	u8 hands_flags = 0;
 	CWeapon* weapon = smart_cast<CWeapon*>(inventory().ActiveItem());
 	if (weapon && weapon->strapped_mode())
 		hands_flags |= 1;
+	if (!am.script_animations().empty() && am.script_animations().front().hand_usage()) hands_flags |= 4;
+	if (weapon && weapon->getVisible()) hands_flags |= 8;
 	P.w_u16(inventory().GetActiveSlot());
 	P.w_u8(hands_flags);
 }
@@ -1077,6 +1079,7 @@ void CAI_Stalker::net_Import(NET_Packet& P)
 
 void CAI_Stalker::update_object_handler()
 {
+	netcoop::ServerActorScope netcoop_scope(this);
 	if (!g_Alive())
 		return;
 
@@ -1142,7 +1145,7 @@ void CAI_Stalker::UpdateCL()
 
 			if (g_Alive() && !(Remote() && netcoop::pure_client()))
 			{
-				if (g_mt_config.test(mtObjectHandler) && CObjectHandler::planner().initialized())
+				if (!netcoop::enabled() && g_mt_config.test(mtObjectHandler) && CObjectHandler::planner().initialized())
 				{
 					fastdelegate::FastDelegate0<> f = fastdelegate::FastDelegate0<>(
 						this, &CAI_Stalker::update_object_handler);
@@ -1207,7 +1210,10 @@ void CAI_Stalker::UpdateCL()
                     if (slot == NO_ACTIVE_SLOT || (slot <= inventory().LastSlot() && inventory().ItemFromSlot(slot)))
                         inventory().SetActiveSlot(slot);
                     if (CWeapon* weapon = smart_cast<CWeapon*>(inventory().ActiveItem()))
+                        {
                         weapon->strapped_mode(!!(NET_Last.hands_flags & 1));
+                        weapon->setVisible(!!(NET_Last.hands_flags & 8));
+                    }
                 }
 				START_PROFILE("stalker/client_update/sight_manager")
 					VERIFY(!m_pPhysicsShell);
@@ -1290,7 +1296,7 @@ void CAI_Stalker::shedule_Update(u32 DT)
 			// Queue shrink
 			VERIFY(_valid(Position()));
 			const u32 last_interval = NET.size() >= 2 ? NET.back().dwTimeStamp - NET[NET.size() - 2].dwTimeStamp : 0;
-			u32 dwTimeCL = netcoop::snapshot_now() - netcoop::remote_interp_delay(last_interval);
+			u32 dwTimeCL = netcoop_puppet() ? netcoop_interpolation_time(last_interval) : Level().timeServer();
 			VERIFY(!NET.empty());
 			while ((NET.size() > 2) && (NET[1].dwTimeStamp < dwTimeCL)) NET.pop_front();
 

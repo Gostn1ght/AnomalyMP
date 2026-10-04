@@ -46,15 +46,16 @@ end
 -- The objects themselves are the buttons: hover highlights, click activates.
 local ROOM_OBJECTS = {
 	[0] = {label = "obj_pda", action = "ShowServer"},
-	[1] = {label = "obj_radio", action = "ShowSettings"},
+	[1] = {label = "obj_radio", action = "ShowRadio"},
 	[2] = {label = "obj_character", action = "ShowCharacterView"},
+	[3] = {label = "obj_settings", action = "ShowSettings"},
 	[4] = {label = "obj_door", action = "DoorAction"},
 }
 -- The close-up in which one object stays clickable (the door is behind the
 -- overview camera and is used from its own view).
 local VIEW_OBJECT = {door = 4}
 -- Keyboard order, left to right as seen from the room overview.
-local KEY_ORDER = {0, 2, 1}
+local KEY_ORDER = {0, 2, 1, 3}
 local click_sound
 local function play_click()
 	pcall(function()
@@ -167,6 +168,8 @@ function netcoop_login_wnd:CloseRoomView()
     if self.view_index ~= -1 then self.view_index = -1; netcoop_preview_focus(-1) end
     self.settings_pending, self.settings_open = nil, nil
     if self.server_panel then self.server_panel:Show(false) end
+    if self.details_panel then self.details_panel:Show(false) end
+    if self.radio_panel then self.radio_panel:Show(false) end
     if self.room_back then self.room_back:Show(false) end
 end
 function netcoop_login_wnd:OpenRoomView(kind, object)
@@ -177,7 +180,7 @@ function netcoop_login_wnd:OpenRoomView(kind, object)
     self.hovered = -1
     if netcoop_preview_hover then netcoop_preview_hover(-1) end
     netcoop_preview_focus(object)
-    self.room_back:Show(true)
+    self.room_back:Show(kind ~= "door")
 end
 -- One action at a time: no clicks while a request runs, a view opens or the
 -- room camera moves.
@@ -199,26 +202,38 @@ function netcoop_login_wnd:AskQuit()
         self.quit_box = CUIMessageBoxEx()
         self:Register(self.quit_box, "quit_box")
         self:AddCallback("quit_box", ui_events.MESSAGE_BOX_QUIT_WIN_CLICKED, guard("quit_box", function()
-            netcoop_preview_clear(); exec_console_cmd("quit")
+            netcoop_menu_radio.stop(); netcoop_preview_clear(); exec_console_cmd("quit")
         end), self)
     end
-    self.quit_box:InitMessageBox("message_box_quit_windows")
+    self.quit_box:InitMessageBox("message_box_lostzone_quit")
     self.quit_box:ShowDialog(true)
 end
 function netcoop_login_wnd:PositionRoomControls()
-    if not self.room_buttons then return end
-    -- The room objects are the buttons now; the old floating labels stay hidden.
-    for _,entry in ipairs(self.room_buttons) do entry.button:Show(false) end
+    local shown = self.mode == "characters" and (not self.room_view or self.room_view == "door")
+    for _, arrow in ipairs(self.room_arrows or {}) do arrow:Show(shown); arrow:Enable(not self:Busy()) end
 end
--- A translucent label just above the object's point on screen.
-local function place_label(label, object)
+-- Both edge arrows turn between the room overview and the door behind us.
+function netcoop_login_wnd:TurnRoom()
+    if self:Busy() then return end
+    if self.room_view == "door" then self:CloseRoomView()
+    else self:OpenRoomView("door", 4) end
+end
+-- A straight leader keeps the translucent caption above the object.
+local function place_label(label, leader, object)
     local text = tr(ROOM_OBJECTS[object].label)
     local point = netcoop_preview_point(object)
     local width = math.min(320, 24 + 8.5 * string.len(text))
     label:TextControl():SetText(text)
     label:SetWndSize(vector2():set(width, 30))
-    label:SetWndPos(vector2():set(math.max(8, math.min(1016 - width, point.x - width / 2)), math.max(8, math.min(730, point.y - 56))))
-    label:Show(point.x > -1000)
+    label:SetWndPos(vector2():set(math.max(8, math.min(1016 - width, point.x - width / 2)), math.max(8, math.min(730, point.y - (object == 2 and 170 or 112)))))
+    local visible = point.x > -1000
+    label:Show(visible)
+    if leader then
+        local top = label:GetWndPos().y + 30
+        leader:SetWndPos(vector2():set(point.x, top))
+        leader:SetWndSize(vector2():set(1, math.max(1, point.y - top - 8)))
+        leader:Show(visible)
+    end
 end
 -- Hovered object: the one under the cursor, or the one chosen with the arrows
 -- until the mouse moves. Nothing is hovered while busy or in a close-up view.
@@ -229,12 +244,15 @@ function netcoop_login_wnd:UpdateHover()
     if self.room_view and not only then active = false end
     if active and netcoop_preview_pick then
         local cursor = GetCursorPosition()
+        local over_arrow = not self.room_view or self.room_view == "door"
+        over_arrow = over_arrow and cursor.y >= 344 and cursor.y <= 412 and
+            ((cursor.x >= 12 and cursor.x <= 56) or (cursor.x >= 968 and cursor.x <= 1012))
         if self.last_cursor and (math.abs(cursor.x - self.last_cursor.x) > 2 or math.abs(cursor.y - self.last_cursor.y) > 2) then
             self.key_focus = nil
         end
         self.last_cursor = {x = cursor.x, y = cursor.y}
         object = self.key_focus or netcoop_preview_pick(cursor.x, cursor.y)
-        if not ROOM_OBJECTS[object] or (only and object ~= only) or (not only and object == 4) then object = -1 end
+        if over_arrow or not ROOM_OBJECTS[object] or (only and object ~= only) or (not only and object == 4) then object = -1 end
         active = not only
     end
     if object ~= (self.hovered or -1) then
@@ -243,9 +261,9 @@ function netcoop_login_wnd:UpdateHover()
         if object >= 0 then play_click() end
     end
     if self.hover_label then
-        if object >= 0 and not self.show_all then place_label(self.hover_label, object) else self.hover_label:Show(false) end
+        if object >= 0 and not self.show_all then place_label(self.hover_label, self.hover_leader, object) else self.hover_label:Show(false); self.hover_leader:Show(false) end
         for index, label in pairs(self.tab_labels) do
-            if active and self.show_all then place_label(label, index) else label:Show(false) end
+            if active and self.show_all then place_label(label, self.tab_leaders[index], index) else label:Show(false); self.tab_leaders[index]:Show(false) end
         end
     end
 end
@@ -266,8 +284,8 @@ function netcoop_login_wnd:ActivateObject(object)
     self[entry.action](self)
 end
 function netcoop_login_wnd:ShowCharacterView() self:OpenRoomView("character", 2) end
-function netcoop_login_wnd:EnterDoor() self:SelectCharacter(self.slot) end
--- The door is behind the camera: first turn to it, then enter.
+function netcoop_login_wnd:EnterDoor() if not self:Busy() then self:AskQuit() end end
+-- The door is behind the camera: first turn to it, then confirm quitting.
 function netcoop_login_wnd:DoorAction()
     if self.room_view == "door" then return self:EnterDoor() end
     self:OpenRoomView("door", 4)
@@ -275,6 +293,7 @@ end
 function netcoop_login_wnd:SetMsg(text)
 	self.msg:TextControl():SetText(text or "")
     if self.character_msg then self.character_msg:TextControl():SetText(text or "") end
+    if self.server_msg then self.server_msg:TextControl():SetText(text or "") end
 end
 
 function netcoop_login_wnd:Reset()
@@ -347,6 +366,8 @@ function netcoop_login_wnd:UpdateMenu()
         if kind == "server" then
             self.server_edit:SetText(self.pending_ip .. ":" .. self.pending_port)
             self.server_panel:Show(true)
+        elseif kind == "character" then self.details_panel:Show(true)
+        elseif kind == "radio" then self.radio_panel:Show(true); self:RefreshRadio()
         elseif kind == "settings" then self.settings_pending = true end
     end
     if self.settings_pending then
@@ -368,6 +389,9 @@ function netcoop_login_wnd:UpdateMenu()
     end
 
 	if self.settings_open and self:IsShown() then self.settings_open=nil; self:CloseRoomView() end
+    if level.present() then netcoop_menu_radio.stop()
+    else netcoop_menu_radio.update() end
+    if self.radio_panel and self.radio_panel:IsShown() then self:RefreshRadio() end
     if self.mode=="characters" then self:PositionRoomControls() end
     self:UpdateHover()
     if auth_return and auth_return ~= "pending" then frontend_update(self.owner) end
@@ -398,6 +422,7 @@ function netcoop_login_wnd:EnterWorld(slot, name, faction, economy, loadout)
 
 	printf("[Lost Zone] connecting as %s to %s:%s", login, ip, port)
 	self:HideDialog()
+	netcoop_menu_radio.stop()
 	netcoop_preview_clear()
 	exec_console_cmd("main_menu off")
 	exec_console_cmd(string.format("start client(%s/name=%s/port=%s)", ip, login, port))
@@ -464,8 +489,9 @@ function netcoop_login_wnd:ShowCharacters()
     if not self.character_panel then
         local xml = CScriptXmlInit(); xml:ParseFile("ui_netcoop_characters.xml")
         self.character_panel = xml:InitStatic("panel", self)
+        self.details_panel = xml:InitStatic("details_panel", self.character_panel)
         local function caption(path, text)
-            local item = xml:InitStatic(path, self.character_panel); item:TextControl():SetText(text or ""); return item
+            local item = xml:InitStatic(path, self.details_panel); item:TextControl():SetText(text or ""); return item
         end
         caption("title", "LOST ZONE")
         self.account_caption = caption("account")
@@ -473,32 +499,39 @@ function netcoop_login_wnd:ShowCharacters()
         self.character_name = caption("name")
         self.character_info = caption("info")
         self.character_msg = caption("status")
-        caption("hint", "Персонажи сохраняются отдельно для каждого сервера")
+        caption("hint", "")
         self.character_description = caption("description")
-        self.character_badge = xml:InitStatic("badge", self.character_panel)
+        self.character_badge = xml:InitStatic("badge", self.details_panel)
         local function button(path, text, handler)
-            local b = xml:Init3tButton(path, self.character_panel); b:TextControl():SetText(text)
+            local b = xml:Init3tButton(path, self.details_panel); b:TextControl():SetText(text)
             self:Register(b, "char_" .. path); self:Bind("char_" .. path, handler, path == "back"); return b
         end
-        self.enter = button("enter", tr("enter_zone"), self.DoorAction)
-        self.enter:SetWndPos(vector2():set(432, 692)); self.enter:SetWndSize(vector2():set(160, 34))
-        button("back", tr("exit"), self.OnBack)
-        local settings = button("settings", tr("settings"), self.ShowSettings)
-        local server=button("server",tr("room_map"),self.ShowServer)
+        self.create_button = button("character_create", tr("create_character"), function()
+            if cloud_enabled() then self:ShowProfile(self.slot) else self:ShowLoadout(self.slot) end
+        end)
+        self.room_arrows = {}
+        for _, path in ipairs({"previous", "next"}) do
+            local b = xml:Init3tButton(path, self.character_panel)
+            b:TextControl():SetText(path == "previous" and "<" or ">")
+            self:Register(b, "room_" .. path); self:Bind("room_" .. path, self.TurnRoom)
+            self.room_arrows[#self.room_arrows + 1] = b
+        end
         self.slot_buttons = {}
         for i = 1, 10 do
             local slot = i
             self.slot_buttons[i] = button("slot" .. i, "", function() self.slot = slot; self:ChangeSlot(0) end)
         end
-        self.room_buttons={{button=server,object=0},{button=settings,object=1}}
+        self.room_buttons = {}
         self.character_badge:Show(false)
         self.character_description:Show(false)
         self.server_panel = xml:InitStatic("server_panel", self)
+        self.server_msg = xml:InitStatic("server_status", self.server_panel)
         self.server_edit = xml:InitEditBox("server_edit", self.server_panel)
         local save = xml:Init3tButton("server_save", self.server_panel)
         save:TextControl():SetText(tr("save_server")); self:Register(save, "server_save")
         self:Bind("server_save", self.SaveServer)
         local connect = xml:Init3tButton("server_connect", self.server_panel)
+        self.enter = connect
         connect:TextControl():SetText(tr("enter_zone")); self:Register(connect, "server_connect")
         self:Bind("server_connect", function() self:SelectCharacter(self.slot) end)
         local check = xml:Init3tButton("server_check", self.server_panel)
@@ -508,14 +541,33 @@ function netcoop_login_wnd:ShowCharacters()
         self.room_back:TextControl():SetText(tr("back")); self:Register(self.room_back, "room_back")
         self:Bind("room_back", self.CloseRoomView, true)
         self.room_back:Show(false); self.server_panel:Show(false)
+        self.radio_panel = xml:InitStatic("radio_panel", self)
+        self.radio_station = xml:InitStatic("radio_station", self.radio_panel)
+        self.radio_track = xml:InitStatic("radio_track", self.radio_panel)
+        self.radio_volume = xml:InitStatic("radio_volume", self.radio_panel)
+        local function radio_button(path, label, handler)
+            local b = xml:Init3tButton(path, self.radio_panel); b:TextControl():SetText(tr(label))
+            self:Register(b, path); self:Bind(path, function() handler(); self:RefreshRadio() end)
+        end
+        radio_button("radio_station_prev", "previous_station", function() netcoop_menu_radio.station(-1) end)
+        radio_button("radio_station_next", "next_station", function() netcoop_menu_radio.station(1) end)
+        radio_button("radio_track_prev", "previous_track", function() netcoop_menu_radio.track(-1) end)
+        radio_button("radio_track_next", "next_track", function() netcoop_menu_radio.track(1) end)
+        radio_button("radio_volume_down", "volume_down", function() netcoop_menu_radio.volume(-0.05) end)
+        radio_button("radio_volume_up", "volume_up", function() netcoop_menu_radio.volume(0.05) end)
+        radio_button("radio_toggle", "music_toggle", function() netcoop_menu_radio.toggle() end)
+        self.radio_panel:Show(false); self.details_panel:Show(false)
         self.hover_label = xml:InitStatic("hover_label", self); self.hover_label:Show(false)
-        self.tab_labels = {}
+        self.hover_leader = xml:InitStatic("hover_leader", self); self.hover_leader:Show(false)
+        self.tab_labels, self.tab_leaders = {}, {}
         for object in pairs(ROOM_OBJECTS) do
             self.tab_labels[object] = xml:InitStatic("hover_label", self); self.tab_labels[object]:Show(false)
+            self.tab_leaders[object] = xml:InitStatic("hover_leader", self); self.tab_leaders[object]:Show(false)
         end
     end
     self:CloseRoomView()
     self.slot = self.slot or 1; self.character_panel:Show(true); self:ChangeSlot(0)
+    self.details_panel:Show(false)
     self:SetMsg(auth_message or "")
     self.account_caption:TextControl():SetText(self.pending_login .. (self:CharacterLimit() == 10 and "  /  Администратор" or "  /  Сталкер"))
     for i = 1, 10 do self.slot_buttons[i]:Show(i <= self:CharacterLimit()) end
@@ -534,6 +586,7 @@ function netcoop_login_wnd:ChangeSlot(delta)
     local limit = self:CharacterLimit()
     self.slot = ((self.slot - 1 + delta) % limit) + 1
     local name = self.names[self.slot]
+    self.create_button:Show(not name or name == "")
     self.character_name:TextControl():SetText(name and name ~= "" and name or tr("create_character"))
     local preview = self.previews[self.slot] or {faction = "stalker", items = ""}
     self.character_info:TextControl():SetText(string.format("%d / %d   |   %s", self.slot, limit, game.translate_string("st_faction_" .. preview.faction)))
@@ -543,7 +596,8 @@ function netcoop_login_wnd:ChangeSlot(delta)
     self.character_description:TextControl():SetText((description ~= "" and description .. "\n\n" or "") .. (history ~= "" and history or "Личное дело сталкера. Снаряжение и прогресс сохраняются на выбранном сервере."))
     for i = 1, 10 do self.slot_buttons[i]:Enable(i ~= self.slot) end
     self.storage_revision=nil
-    if self.view_index ~= -1 then self.view_index=-1; netcoop_preview_focus(-1) end
+    if self.room_view == "character" then self.view_index=2; netcoop_preview_focus(2)
+    elseif self.view_index ~= -1 then self.view_index=-1; netcoop_preview_focus(-1) end
     local model=preview.visual and preview.visual~="" and preview.visual or BASE_MODEL
     if not netcoop_preview_model(model,-2) then netcoop_preview_model(BASE_MODEL,-2) end
     local weapon=""
@@ -668,10 +722,14 @@ function netcoop_login_wnd:OnKeyboard(dik, keyboard_action)
 		if room and dik == DIK_keys.DIK_TAB then
 			self.show_all = true
 			return true
-		elseif room and (dik == DIK_keys.DIK_LEFT or dik == DIK_keys.DIK_UP) then
+		elseif self.mode == "characters" and (not self.room_view or self.room_view == "door") and
+            (dik == DIK_keys.DIK_LEFT or dik == DIK_keys.DIK_RIGHT) then
+            guard("camera turn", self.TurnRoom)(self)
+            return true
+        elseif room and dik == DIK_keys.DIK_UP then
 			self:FocusStep(-1)
 			return true
-		elseif room and (dik == DIK_keys.DIK_RIGHT or dik == DIK_keys.DIK_DOWN) then
+		elseif room and dik == DIK_keys.DIK_DOWN then
 			self:FocusStep(1)
 			return true
 		elseif room and dik == DIK_keys.MOUSE_1 and (self.hovered or -1) >= 0 then
@@ -688,7 +746,8 @@ function netcoop_login_wnd:OnKeyboard(dik, keyboard_action)
 			printf("[Lost Zone][menu] key Enter")
 			guard("key Enter", function()
 				if self.mode == "characters" then
-					if self.server_panel:IsShown() or self.room_view == "door" then self:SelectCharacter(self.slot)
+					if self.server_panel:IsShown() then self:SelectCharacter(self.slot)
+                    elseif self.room_view == "door" then self:AskQuit()
 					elseif not self.room_view and (self.hovered or -1) >= 0 then self:ActivateObject(self.hovered) end
 				elseif self.mode == "profile" then self:ContinueProfile()
 				elseif cloud_enabled() and self.form_mode == "login" then self:OnLogin()
@@ -857,7 +916,15 @@ function on_cloud_result(ok, error, account, verified)
     auth_return = ok and verified and "characters" or "account"
 end
 function netcoop_login_wnd:ShowSettings()
-    self:OpenRoomView("settings", 1)
+    self:OpenRoomView("settings", 3)
+end
+function netcoop_login_wnd:ShowRadio() self:OpenRoomView("radio", 1) end
+function netcoop_login_wnd:RefreshRadio()
+    local station, track, volume, enabled = netcoop_menu_radio.info()
+    self.radio_station:TextControl():SetText(tr(station))
+    self.radio_track:TextControl():SetText(track)
+    self.radio_volume:TextControl():SetText(string.format("%s: %d%%  |  %s", tr("music_volume"), volume * 100,
+        tr(enabled and "music_on" or "music_off")))
 end
 function netcoop_login_wnd:ShowServer()
     self:OpenRoomView("server", 0)

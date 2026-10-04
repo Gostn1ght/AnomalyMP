@@ -439,6 +439,15 @@ void CCustomMonster::net_update::lerp(CCustomMonster::net_update& A, CCustomMons
 	o_torso.pitch = angle_lerp(A.o_torso.pitch, B.o_torso.pitch, f);
 	p_pos.lerp(A.p_pos, B.p_pos, f);
 	fHealth = A.fHealth * (1.f - f) + B.fHealth * f;
+	speed = A.speed * (1.f - f) + B.speed * f;
+	if (A.monster_motion == B.monster_motion && A.monster_motion != u32(-1))
+	{
+		monster_motion_speed = A.monster_motion_speed * (1.f - f) + B.monster_motion_speed * f;
+		if (B.monster_motion_phase >= A.monster_motion_phase)
+			monster_motion_phase = A.monster_motion_phase * (1.f - f) + B.monster_motion_phase * f;
+		else
+			monster_motion_phase = A.monster_motion_phase + monster_motion_speed * f * float(B.dwTimeStamp-A.dwTimeStamp)/1000.f;
+	}
 }
 
 void CCustomMonster::update_sound_player()

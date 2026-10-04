@@ -167,9 +167,10 @@ bool CObjectHandler::goal_reached()
 void CObjectHandler::weapon_bones(int& b0, int& b1, int& b2) const
 {
 	CWeapon* weapon = smart_cast<CWeapon*>(inventory().ActiveItem());
-	if (!weapon || !planner().m_storage.property(ObjectHandlerSpace::eWorldPropertyStrapped))
+	const bool puppet = planner().object().netcoop_puppet();
+	if (!weapon || !(puppet ? weapon->strapped_mode() : planner().m_storage.property(ObjectHandlerSpace::eWorldPropertyStrapped)))
 	{
-		if (weapon)
+		if (weapon && !puppet)
 			weapon->strapped_mode(false);
 		b0 = m_r_hand;
 		b1 = m_r_finger2;
@@ -205,6 +206,7 @@ bool CObjectHandler::weapon_strapped() const
 void CObjectHandler::actualize_strap_mode(CWeapon* weapon) const
 {
 	VERIFY(weapon);
+	if (planner().object().netcoop_puppet()) return;
 
 	if (!planner().m_storage.property(ObjectHandlerSpace::eWorldPropertyStrapped))
 	{

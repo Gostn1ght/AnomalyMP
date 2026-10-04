@@ -1,0 +1,80 @@
+-- One menu player, shared by the account screen, room and options dialog.
+-- Uses only existing local GAMMA sounds and the native sound_object API.
+local current_station, current_track, gain, enabled = 2, 1, 0.25, true
+local sound, loaded, next_attempt = nil, false, 0
+local function path() return getFS():update_path("$app_data_root$", "netcoop_menu_radio.txt") end
+local function catalog() return netcoop_menu_stations.stations end
+local function load()
+    if loaded then return end
+    loaded = true
+    local f = io.open(path(), "r")
+    if f then
+        local a, b, c, d = string.match(f:read("*a"), "^(%d+)|(%d+)|([%d.]+)|([01])")
+        f:close()
+        if a then
+            current_station = math.max(1, math.min(#catalog(), tonumber(a)))
+            current_track = math.max(1, math.min(#catalog()[current_station].tracks, tonumber(b)))
+            gain = math.max(0, math.min(1, tonumber(c) or 0.25))
+            enabled = d == "1"
+        end
+    end
+end
+local function save()
+    local f = io.open(path(), "w")
+    if f then f:write(string.format("%d|%d|%.2f|%d", current_station, current_track, gain, enabled and 1 or 0)); f:close() end
+end
+function stop()
+    if sound then sound:stop(); sound = nil end
+end
+local function play()
+    stop()
+    if not enabled or gain == 0 or level.present() then return end
+    local track = catalog()[current_station].tracks[current_track]
+    next_attempt = device():time_continual() + 5000
+    local ok, reason = pcall(function()
+        sound = sound_object(track)
+        sound:play(nil, 0, sound_object.s2d)
+        sound.volume = gain
+    end)
+    if not ok then stop(); printf("! [Lost Zone][radio] %s: %s", track, tostring(reason)) end
+end
+function update()
+    load()
+    if level.present() then stop(); return end
+    if not enabled or gain == 0 then return end
+    if sound and sound:playing() then return end
+    if device():time_continual() < next_attempt then return end
+    if sound then
+        current_track = current_track % #catalog()[current_station].tracks + 1
+    end
+    play()
+end
+function station(delta)
+    load()
+    current_station = (current_station - 1 + delta) % #catalog() + 1
+    current_track = 1
+    save(); play()
+end
+function track(delta)
+    load()
+    current_track = (current_track - 1 + delta) % #catalog()[current_station].tracks + 1
+    save(); play()
+end
+function volume(delta)
+    load()
+    gain = math.max(0, math.min(1, math.floor((gain + delta) * 100 + 0.5) / 100))
+    save()
+    if gain == 0 then stop()
+    elseif sound then sound.volume = gain
+    else next_attempt = 0; play() end
+end
+function toggle()
+    load(); enabled = not enabled
+    save(); play()
+end
+function info()
+    load()
+    local station = catalog()[current_station]
+    local name = string.match(station.tracks[current_track], "[^\\]+$") or ""
+    return station.name, string.format("%d / %d\n%s", current_track, #station.tracks, name), gain, enabled
+end

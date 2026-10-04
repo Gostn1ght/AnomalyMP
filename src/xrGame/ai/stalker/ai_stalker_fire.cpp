@@ -260,7 +260,7 @@ void CAI_Stalker::g_WeaponBones(int& L, int& R1, int& R2)
 	CObjectHandler::weapon_bones(r_hand, r_finger2, l_finger1);
 	R1 = r_hand;
 	R2 = r_finger2;
-	if (!animation().script_animations().empty() && animation().script_animations().front().hand_usage())
+	if (netcoop_puppet() ? !!(NET_Last.hands_flags & 4) : (!animation().script_animations().empty() && animation().script_animations().front().hand_usage()))
 		L = R2;
 	else
 		L = l_finger1;
@@ -268,6 +268,15 @@ void CAI_Stalker::g_WeaponBones(int& L, int& R1, int& R2)
 
 void CAI_Stalker::Hit(SHit* pHDS)
 {
+	netcoop::ServerActorScope netcoop_scope(this);
+	CActor* player_attacker = smart_cast<CActor*>(pHDS->who);
+	netcoop::ServerVictimScope hit_player_scope(player_attacker);
+	if (netcoop::enabled() && !netcoop::pure_client() && player_attacker && pHDS->power > 0.f)
+	{
+		::luabind::functor<void> before_hit;
+		if (ai().script_engine().functor("netcoop_server_compat.before_npc_hit", before_hit))
+			before_hit(ID(), player_attacker->ID());
+	}
 	//хит может меняться в зависимости от ранга (новички получают больше хита, чем ветераны)
 	SHit HDS = *pHDS;
 	HDS.add_wound = true;
@@ -429,6 +438,23 @@ void CAI_Stalker::Hit(SHit* pHDS)
 
 	//conditions().health()			= 1.f;
 
+if (netcoop::enabled() && !netcoop::pure_client() && player_attacker && HDS.damage() > 0.f)
+	{
+		for (u32 index = 0; index < Level().Objects.o_count(); ++index)
+		{
+			CAI_Stalker* witness = smart_cast<CAI_Stalker*>(Level().Objects.o_get_by_iterator(index));
+			if (!witness || witness == this || !witness->g_Alive() || witness->getDestroy() ||
+				witness->g_Team() != g_Team() || witness->g_Squad() != g_Squad() || witness->g_Group() != g_Group()) continue;
+			const float range = witness->Position().distance_to(Position());
+			if (range > 30.f || (range > 8.f && !witness->memory().visual().visible_now(this) &&
+				!witness->memory().visual().visible_now(player_attacker))) continue;
+			RELATION_REGISTRY().ForceSetGoodwill(witness->ID(), player_attacker->ID(), -1000);
+			::luabind::functor<void> notify;
+			if (ai().script_engine().functor("netcoop_server_compat.on_squad_attacked", notify))
+				notify(witness->ID(), player_attacker->ID());
+			witness->memory().hit().add(player_attacker);
+		}
+	}
 	inherited::Hit(&HDS);
 }
 

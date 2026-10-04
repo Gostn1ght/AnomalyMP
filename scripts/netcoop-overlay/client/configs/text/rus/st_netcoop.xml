@@ -360,16 +360,82 @@
   <string id="st_netcoop_storage_worn">
     <text>надето</text>
   </string>
-	<string id="st_netcoop_obj_door">
-		<text>Войти в Зону</text>
-	</string>
-	<string id="st_netcoop_obj_pda">
-		<text>КПК · сервер</text>
-	</string>
-	<string id="st_netcoop_obj_character">
-		<text>Персонажи</text>
-	</string>
-	<string id="st_netcoop_obj_radio">
-		<text>Радио · настройки</text>
-	</string>
+  <string id="st_netcoop_obj_door">
+    <text>Дверь — выйти из игры</text>
+  </string>
+  <string id="st_netcoop_obj_pda">
+    <text>КПК — сервер и вход в Зону</text>
+  </string>
+  <string id="st_netcoop_obj_character">
+    <text>Персонаж — персонажи аккаунта</text>
+  </string>
+  <string id="st_netcoop_obj_radio">
+    <text>Радио — музыка</text>
+  </string>
+  <string id="st_netcoop_obj_settings">
+    <text>Инструменты — настройки</text>
+  </string>
+  <string id="st_netcoop_previous_station">
+    <text>‹ Станция</text>
+  </string>
+  <string id="st_netcoop_next_station">
+    <text>Станция ›</text>
+  </string>
+  <string id="st_netcoop_previous_track">
+    <text>‹ Трек</text>
+  </string>
+  <string id="st_netcoop_next_track">
+    <text>Трек ›</text>
+  </string>
+  <string id="st_netcoop_volume_down">
+    <text>Тише &#8722;</text>
+  </string>
+  <string id="st_netcoop_volume_up">
+    <text>Громче +</text>
+  </string>
+  <string id="st_netcoop_music_toggle">
+    <text>Вкл. / выкл.</text>
+  </string>
+  <string id="st_netcoop_music_volume">
+    <text>Громкость</text>
+  </string>
+  <string id="st_netcoop_music_on">
+    <text>Играет</text>
+  </string>
+  <string id="st_netcoop_music_off">
+    <text>Выключено</text>
+  </string>
+  <string id="st_netcoop_station_menu">
+    <text>Музыка Зоны</text>
+  </string>
+  <string id="st_netcoop_station_stalker">
+    <text>Сталкерская · 95.6 FM</text>
+  </string>
+  <string id="st_netcoop_station_bandit">
+    <text>Бандитская · 89.5 FM</text>
+  </string>
+  <string id="st_netcoop_station_clear_sky">
+    <text>Чистое небо · 92.4 FM</text>
+  </string>
+  <string id="st_netcoop_station_forester">
+    <text>Лесник · 104.6 FM</text>
+  </string>
+  <string id="st_netcoop_station_barman">
+    <text>Бар</text>
+  </string>
+  <string id="st_netcoop_station_yantar">
+    <text>Янтарь · 105 FM</text>
+  </string>
+  <string id="st_netcoop_station_guitar">
+    <text>Гитара у костра</text>
+  </string>
+  <string id="st_netcoop_quit_confirm">
+    <text>Выйти из игры?</text>
+  </string>
+  <string id="st_netcoop_quit_action">
+    <text>Выйти</text>
+  </string>
+  <string id="st_netcoop_quit_stay">
+    <text>Остаться</text>
+  </string>
 </string_table>

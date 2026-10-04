@@ -225,7 +225,7 @@ bool CStalkerAnimationManager::play_netcoop_puppet()
 
 	MotionID anims[3];
 	for (int i = 0; i < 3; ++i)
-		if (stalker.m_netcoop_anim[i])
+		if (stalker.m_netcoop_anim[i] != u32(-1))
 			anims[i].val = stalker.m_netcoop_anim[i];
 
 	switch (stalker.m_netcoop_anim_mode)
@@ -240,6 +240,7 @@ bool CStalkerAnimationManager::play_netcoop_puppet()
 		if (!anims[1] || !anims[2])
 			return false;
 		global().reset();
+		script().reset();
 		if (anims[0])
 		{
 			head().animation(anims[0]);

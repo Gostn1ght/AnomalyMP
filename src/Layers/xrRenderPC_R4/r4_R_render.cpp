@@ -39,10 +39,10 @@ bool CRender::PrepareUIModel(IRenderVisual* visual)
     return !!preview;
 }
 
-static ref_rt s_menu_shadow_depth;
+static ref_rt s_menu_shadow_depth, s_menu_static_shadow_depth;
 static ref_shader s_menu_depth_shaders[6];
 static Fmatrix s_menu_shadow_matrix;
-static u32 s_menu_shadow_time=0;
+static bool s_menu_static_shadow_ready=false;
 static STextureList s_menu_no_textures;
 static ID3D11Query *s_menu_gpu_start=nullptr, *s_menu_gpu_end=nullptr, *s_menu_gpu_disjoint=nullptr;
 static bool s_menu_gpu_pending=false, s_menu_gpu_recording=false;
@@ -74,7 +74,7 @@ static void menu_gpu_begin()
                 s_menu_gpu_total+=ms; s_menu_gpu_max=_max(s_menu_gpu_max,ms); ++s_menu_gpu_count;
                 if(Device.dwTimeContinual-s_menu_gpu_report>=10000)
                 {
-                    Msg("[Lost Zone] menu GPU: avg %.2f ms, max %.2f ms, %u samples (1024 shadow, 20 Hz)",
+                    Msg("[Lost Zone] menu GPU: avg %.2f ms, max %.2f ms, %u samples (1024 shadow, current animation pose)",
                         s_menu_gpu_total/s_menu_gpu_count,s_menu_gpu_max,s_menu_gpu_count);
                     s_menu_gpu_total=s_menu_gpu_max=0; s_menu_gpu_count=0; s_menu_gpu_report=Device.dwTimeContinual;
                 }
@@ -96,7 +96,7 @@ static void menu_gpu_end()
 static void release_menu_shadow()
 {
     for(auto& shader:s_menu_depth_shaders) shader.destroy();
-    s_menu_shadow_depth.destroy(); s_menu_shadow_time=0;
+    s_menu_shadow_depth.destroy(); s_menu_static_shadow_depth.destroy(); s_menu_static_shadow_ready=false;
     _RELEASE(s_menu_gpu_start); _RELEASE(s_menu_gpu_end); _RELEASE(s_menu_gpu_disjoint);
     s_menu_gpu_pending=s_menu_gpu_recording=false;
     s_menu_gpu_count=0; s_menu_gpu_total=s_menu_gpu_max=0;
@@ -142,11 +142,12 @@ void CRender::DrawUIModel(IRenderVisual* visual, const Fmatrix& world, IRenderVi
     if (!visual || g_pGameLevel) return;
     menu_gpu_begin();
     const Fmatrix old_world = RCache.xforms.m_w, old_view = RCache.xforms.m_v, old_projection = RCache.xforms.m_p;
-    // One small shadow map for the private room, refreshed at most 20 Hz.
+    // Cache the static room once; animate its occupants and their shadows together.
     // The menu never submits a full game level, AI, or physics to the renderer.
-    if (!s_menu_shadow_depth || Device.dwTimeContinual-s_menu_shadow_time>=50)
+    load_menu_room();
     {
         if(!s_menu_shadow_depth) s_menu_shadow_depth.create("$user$menu_room_shadow",1024,1024,D3DFMT_D24S8);
+        if(!s_menu_static_shadow_depth) s_menu_static_shadow_depth.create("$user$menu_room_static_shadow",1024,1024,D3DFMT_D24S8);
         ID3DRenderTargetView* targets[4]={RCache.get_RT(0),RCache.get_RT(1),RCache.get_RT(2),RCache.get_RT(3)};
         auto depth=RCache.get_ZB();
         D3D_VIEWPORT viewport; UINT count=1; HW.pContext->RSGetViewports(&count,&viewport);
@@ -165,12 +166,22 @@ void CRender::DrawUIModel(IRenderVisual* visual, const Fmatrix& world, IRenderVi
         s_menu_shadow_matrix.mul(bias,light_combined);
         RCache.set_xform_view(light_view); RCache.set_xform_project(light_projection);
         RCache.set_Stencil(FALSE); RCache.set_CullMode(CULL_NONE);
-        draw_menu_room(true); draw_ui_geometry(visual,world,true);
+        if (!s_menu_static_shadow_ready)
+        {
+            RCache.set_ZB(s_menu_static_shadow_depth->pZRT);
+            HW.pContext->ClearDepthStencilView(s_menu_static_shadow_depth->pZRT,D3D_CLEAR_DEPTH,1.f,0);
+            draw_menu_room(true);
+            s_menu_static_shadow_ready=true;
+        }
+        RCache.set_Textures(&s_menu_no_textures);
+        RCache.set_ZB(nullptr);
+        HW.pContext->CopyResource(s_menu_shadow_depth->pSurface,s_menu_static_shadow_depth->pSurface);
+        RCache.set_ZB(s_menu_shadow_depth->pZRT);
+        draw_ui_geometry(visual,world,true);
         if(item && itemWorld) draw_ui_geometry(item,*itemWorld,true);
         RCache.set_Textures(&s_menu_no_textures);
         for(u32 i=0;i<4;++i) RCache.set_RT(targets[i],i);
         RCache.set_ZB(depth); HW.pContext->RSSetViewports(1,&viewport);
-        s_menu_shadow_time=Device.dwTimeContinual;
     }
     Fmatrix view, projection;
     menu_room::matrices(view, projection);

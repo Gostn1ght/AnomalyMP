@@ -738,6 +738,7 @@ void script_preview_draw()
     float heading=menu_room::seat_heading();
     if (auto k = s_preview_visual->dcast_PKinematics())
     {
+        k->CalculateBones_Invalidate();
         k->CalculateBones(TRUE);
         const u16 root=k->LL_BoneID("bip01");
         if(s_preview_facing_ready && root!=BI_NONE)
@@ -1723,7 +1724,7 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 	}
 
 	// The partner's CTrade: bBuying == true means the partner buys (actor sells).
-	ServerActorScope trade_actor_scope(actor);
+	ServerVictimScope trade_actor_scope(actor);
 	prepare_trade(partner_id);
 	if (!partner->IsTradeEnabled())
 	{
@@ -2989,10 +2990,11 @@ void server_physics_update(xrServer* server)
 		const u32 move = actor->MovingState();
 		if (!(move & (mcFwd | mcBack | mcLStrafe | mcRStrafe)) || (move & (mcJump | mcClimb))) continue;
 		FootContact contact; contact.position = actor->Position(); contact.direction.set(0.f, 0.f, 0.f);
-		if (move & mcFwd) contact.direction.add(actor->XFORM().k);
-		if (move & mcBack) contact.direction.sub(actor->XFORM().k);
-		if (move & mcRStrafe) contact.direction.add(actor->XFORM().i);
-		if (move & mcLStrafe) contact.direction.sub(actor->XFORM().i);
+		Fmatrix facing; facing.rotateY(-actor->netcoop_model_yaw());
+		if (move & mcFwd) contact.direction.add(facing.k);
+		if (move & mcBack) contact.direction.sub(facing.k);
+		if (move & mcRStrafe) contact.direction.add(facing.i);
+		if (move & mcLStrafe) contact.direction.sub(facing.i);
 		contact.direction.y = 0.f;
 		if (contact.direction.square_magnitude() < EPS_S) continue;
 		contact.direction.normalize(); feet.push_back(contact);
@@ -3018,13 +3020,15 @@ void server_physics_update(xrServer* server)
 				if (gap.y < -0.2f || gap.y > 0.8f) continue;
 				gap.y = 0.f;
 				if (gap.square_magnitude() > 0.36f || gap.dotproduct(foot.direction) < -0.05f) continue;
-				const float target = creature ? 0.16f : 0.5f;
+				const float target = creature ? 0.28f : 0.5f;
 				const float gain = _max(0.f, target - body.linear_vel.dotproduct(foot.direction));
 				if (gain > 0.f)
 				{
 					holder->PPhysicsShell()->Enable();
-					holder->PPhysicsShell()->applyImpulse(foot.direction,
-						_min(holder->PPhysicsShell()->getMass(), 120.f) * _min(gain, target));
+					// Push the contacted limb instead of distributing the impulse over
+					// every bone. The joints and ground friction retain the body's weight.
+					CPhysicsElement* element = holder->PPhysicsShell()->get_ElementByStoreOrder(i);
+					element->applyImpulse(foot.direction, _min(element->getMass(), 30.f) * _min(gain, target));
 				}
 				break;
 			}

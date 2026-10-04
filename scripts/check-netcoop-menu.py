@@ -23,7 +23,8 @@ function Widget:IsShown() return self.shown or false end
 function Widget:Enable(v) self.enabled=v end
 function Widget:CaptureFocus() end
 function Widget:SetWndRect() end
-function Widget:SetWndPos() end
+function Widget:SetWndPos(v) self.position=v end
+function Widget:GetWndPos() return self.position or {x=0,y=0} end
 function Widget:SetWndSize() end
 function Widget:SetAutoDelete() end
 function Widget:HideDialog() self.shown=false end
@@ -53,7 +54,7 @@ function class(name)
 end
 function super() end
 function Frect() return {set=function(s) return s end} end
-function vector2() return {set=function(s) return s end} end
+function vector2() return {set=function(s,x,y) s.x=x;s.y=y;return s end} end
 function CUIStatic() return widget() end
 function CScriptXmlInit() return {ParseFile=function() end,InitStatic=function(s,id) return widget(id) end,
  InitEditBox=function(s,id) return widget(id) end,Init3tButton=function(s,id) return widget(id) end,
@@ -77,7 +78,19 @@ cursor={x=0,y=0}; pick_result=-1; last_hover=-1; clicks_played=0
 function GetCursorPosition() return {x=cursor.x,y=cursor.y} end
 function netcoop_preview_pick(x,y) return pick_result end
 function netcoop_preview_hover(object) last_hover=object end
-sound_object=setmetatable({s2d=1},{__call=function() return {play=function() clicks_played=clicks_played+1 end} end})
+now=0; music_started=0; music_stopped=0; music_sounds={}
+function device() return {time_continual=function() return now end} end
+sound_object=setmetatable({s2d=1},{__call=function(_,path)
+ local sound={path=path,active=false,volume=1}
+ function sound:play()
+  self.active=true
+  if self.path=='interface\\inv_button' then clicks_played=clicks_played+1
+  else music_started=music_started+1;music_sounds[#music_sounds+1]=self end
+ end
+ function sound:stop() self.active=false;music_stopped=music_stopped+1 end
+ function sound:playing() return self.active end
+ return sound
+end})
 function netcoop_preview_model(model,pose) previews[#previews+1]={model=model,pose=pose}; return true end
 function netcoop_rp_list() return 'bar_1=bar;hands_pockets=pockets;sit_1=sit1;sit_2=sit2;sit_3=sit3;hands_behind=behind;sleep=sleep;' end
 function exec_console_cmd(cmd) commands[#commands+1]=cmd end
@@ -97,6 +110,10 @@ ui_options={UIOptions=function()
 end}
 CUIMMShniaga={epi_main=0,epi_new_game=1}
 ''')
+radio_root = root/'scripts/netcoop-overlay/client'
+lua.execute("netcoop_menu_stations={}; netcoop_menu_radio={}")
+lua.execute("local f=assert(loadstring(...)); setfenv(f,netcoop_menu_stations); f()", (radio_root/'netcoop_menu_stations.script').read_text())
+lua.execute("setmetatable(netcoop_menu_radio,{__index=_G}); local f=assert(loadstring(...)); setfenv(f,netcoop_menu_radio); f()", (radio_root/'netcoop_menu_radio.script').read_text())
 menu_source = Path(sys.argv[1]) if len(sys.argv) > 1 else root/'scripts/netcoop-overlay/client/netcoop_login_ui.script'
 lua.execute(menu_source.read_text(encoding='cp1251'))
 lua.execute("assert(rawget(netcoop_login_wnd, 'Show') == nil, 'native Show must stay inherited')")
@@ -123,7 +140,7 @@ on_auth_result(true,1,'Account verified'); last_window:Update()
 assert(#commands==0)
 assert(controls.name.text=='Alpha' and previews[#previews].pose==-2)
 finish_camera()
-assert(callbacks.char_next==nil and callbacks.char_previous==nil, 'room arrows are gone')
+assert(callbacks.room_next~=nil and callbacks.room_previous~=nil and not controls.details_panel.shown, 'camera arrows and hidden character list')
 assert(last_window:CharacterLimit()==1 and not controls.slot2.shown and not controls.slot10.shown)
 local n=#characters; last_window:SelectCharacter(2); assert(#characters==n)
 local previous=last_window.mode; last_window:ShowProfile(2); assert(last_window.mode==previous)
@@ -133,7 +150,7 @@ assert(last_window:CharacterLimit()==10 and controls.slot10.shown)
 callbacks.char_slot2();assert(controls.name.text=='Beta')
 callbacks.char_slot1();assert(controls.name.text=='Alpha')
 callbacks.char_slot10(); assert(controls.info.text:find('10 / 10',1,true))
-callbacks.char_slot1(); callbacks.char_server(); camera_done=true;last_window:Update(); callbacks.server_connect()
+callbacks.char_slot1(); last_window:ActivateObject(0); camera_done=true;last_window:Update(); callbacks.server_connect()
 assert(characters[#characters].slot==1 and characters[#characters].name=='Alpha')
 assert(can_mcm()==true);role=0;assert(can_mcm()==false)
 ''')
@@ -227,18 +244,18 @@ last_window:OnKeyboard(23,ui_events.WINDOW_KEY_PRESSED)
 assert(last_window.room_view==nil and last_window.character_panel.shown and previews[#previews].pose==-2)
 -- Esc on the character screen asks before quitting; nothing runs until confirmed.
 last_window:OnKeyboard(DIK_keys.DIK_ESCAPE,ui_events.WINDOW_KEY_PRESSED)
-assert(last_window.quit_box.shown and last_window.quit_box.template=='message_box_quit_windows' and #commands==0)
+assert(last_window.quit_box.shown and last_window.quit_box.template=='message_box_lostzone_quit' and #commands==0)
 callbacks.quit_box(); assert(commands[#commands]=='quit'); commands={}
 -- A second click while the camera is still moving is ignored.
-callbacks.char_settings();assert(settings_created==0 and last_window.room_view=='settings')
-callbacks.char_settings();assert(last_window.room_view=='settings','double click toggled the view')
+last_window:ActivateObject(3);assert(settings_created==0 and last_window.room_view=='settings')
+last_window:ActivateObject(3);assert(last_window.room_view=='settings','double click toggled the view')
 finish_camera();assert(settings_created==1 and not last_window.shown)
 last_window:CloseRoomView(); last_window:ShowDialog(true);last_window:Show(true)
-callbacks.char_settings();finish_camera();assert(settings_created==1)
+last_window:ActivateObject(3);finish_camera();assert(settings_created==1)
 last_window:CloseRoomView(); last_window:ShowDialog(true);last_window:Show(true)
 local options_factory=ui_options.UIOptions;last_window.opt_dlg=nil
 ui_options.UIOptions=function() error('fixture options failure') end
-callbacks.char_settings();finish_camera();assert(last_window.shown and controls.status.text=='st_netcoop_settings_error')
+last_window:ActivateObject(3);finish_camera();assert(last_window.shown and controls.status.text=='st_netcoop_settings_error')
 ui_options.UIOptions=options_factory
 -- Changing servers must not expose or reuse another server's draft.
 finish_camera()
@@ -246,7 +263,7 @@ controls.server_edit:SetText('Other-Server.example:1268');callbacks.server_save(
 assert(draft_scope=='other-server.example:1268' and (last_window.names[1] or '')=='' and previews[#previews].pose==-2)
 assert(draft_stores['127.0.0.1:1267'][1].name=='Loner One')
 controls.server_edit:SetText('127.0.0.1:1267');callbacks.server_save();assert(last_window.names[1]=='Loner One' and previews[#previews].pose==-2)
-callbacks.char_server(); finish_camera();assert(controls.server_panel.shown,'server panel');callbacks.server_connect(); assert(cloud_requests[#cloud_requests].action=='refresh' and #commands==0,'server refresh')
+last_window:ActivateObject(0); finish_camera();assert(controls.server_panel.shown,'server panel');callbacks.server_connect(); assert(cloud_requests[#cloud_requests].action=='refresh' and #commands==0,'server refresh')
 on_cloud_result(false,'NETWORK_ERROR','cloud_user',true); assert(#commands==0)
 callbacks.server_connect(); on_cloud_result(true,'','cloud_user',true)
 assert(characters[#characters].name=='Loner One' and characters[#characters].slot==1)
@@ -281,7 +298,7 @@ assert(last_window:CharacterLimit()==1 and not controls.slot10.shown)
 print('Firebase menu: separate account/character, verification gate, duplicate request lock, offline starter draft, stack counts, inventory key, refreshed world entry, remembered login PASS')
 lua.execute(r"""
 -- Closing a room view brings the camera back to the overview.
-finish_camera(); callbacks.char_server(); finish_camera(); assert(camera_target==0 and controls.server_panel.shown)
+finish_camera(); last_window:ActivateObject(0); finish_camera(); assert(camera_target==0 and controls.server_panel.shown)
 callbacks.room_back(); assert(camera_target==-1 and last_window.room_view==nil and not controls.server_panel.shown)
 finish_camera()
 -- A failing action is logged with its element name and stack; the menu keeps working.
@@ -294,11 +311,11 @@ callbacks.char_slot1(); assert(controls.name.text~=nil)
 -- A native callback error is caught the same way.
 local saved=cloud_error; assert(on_cloud_result(true,'','cloud_user',true)~=nil)
 """)
-print('Stage 0: no arrows/backpack/safe, Esc asks to quit, double click ignored while the camera moves, camera returns on close, logged guarded errors PASS')
+print('Stage 0: camera arrows, no backpack/safe, Esc asks to quit, double click ignored while the camera moves, camera returns on close, logged guarded errors PASS')
 lua.execute(r"""
 -- Stage 2: the room objects are the buttons.
 finish_camera(); last_window:CloseRoomView(); finish_camera()
-assert(not controls.server.shown and not controls.settings.shown, 'floating labels hidden')
+assert(callbacks.char_enter==nil and callbacks.char_back==nil and not controls.details_panel.shown, 'old floating controls removed')
 -- Hover over the PDA: highlight, label, one click sound.
 local sounds=clicks_played
 pick_result=0; cursor={x=300,y=330}; last_window:Update()
@@ -310,13 +327,13 @@ pick_result=4; cursor={x=310,y=340}; last_window:Update(); assert(last_hover==-1
 pick_result=-1; cursor={x=320,y=350}; last_window:Update()
 assert(last_hover==-1 and not last_window.hover_label.shown)
 -- Arrows move the selection left to right: PDA, character, radio.
-last_window:OnKeyboard(DIK_keys.DIK_RIGHT,ui_events.WINDOW_KEY_PRESSED); last_window:Update(); assert(last_hover==0)
-last_window:OnKeyboard(DIK_keys.DIK_RIGHT,ui_events.WINDOW_KEY_PRESSED); last_window:Update(); assert(last_hover==2)
-last_window:OnKeyboard(DIK_keys.DIK_LEFT,ui_events.WINDOW_KEY_PRESSED); last_window:Update(); assert(last_hover==0)
+last_window:OnKeyboard(DIK_keys.DIK_DOWN,ui_events.WINDOW_KEY_PRESSED); last_window:Update(); assert(last_hover==0)
+last_window:OnKeyboard(DIK_keys.DIK_DOWN,ui_events.WINDOW_KEY_PRESSED); last_window:Update(); assert(last_hover==2)
+last_window:OnKeyboard(DIK_keys.DIK_UP,ui_events.WINDOW_KEY_PRESSED); last_window:Update(); assert(last_hover==0)
 -- Tab shows every label while held (the door's too, it is off screen).
 last_window:OnKeyboard(DIK_keys.DIK_TAB,ui_events.WINDOW_KEY_PRESSED); last_window:Update()
 local shown=0; for _,label in pairs(last_window.tab_labels) do if label.shown then shown=shown+1 end end
-assert(shown==4 and not last_window.hover_label.shown)
+assert(shown==5 and not last_window.hover_label.shown)
 last_window:OnKeyboard(DIK_keys.DIK_TAB,ui_events.WINDOW_KEY_RELEASED); last_window:Update()
 for _,label in pairs(last_window.tab_labels) do assert(not label.shown) end
 -- Moving the mouse takes over from the keyboard; a click on the PDA opens the server view.
@@ -327,18 +344,52 @@ assert(last_window.room_view=='server' and last_hover==-1)
 last_window:Update(); assert(last_hover==-1)
 finish_camera(); assert(controls.server_panel.shown)
 callbacks.room_back(); finish_camera(); assert(last_window.room_view==nil)
--- "Enter the Zone" turns the camera to the door; the door is clickable there and enters.
+-- Edge arrows and left/right keys turn to the door. Clicking asks to quit only.
 cache_characters('Door Tester||||||||||'); last_window:ShowCharacters(); finish_camera()
-assert(last_window.names[1]=='Door Tester' and controls.enter.shown~=false)
-callbacks.char_enter(); assert(last_window.room_view=='door' and camera_target==4)
+commands={}; local requests=#cloud_requests; local joins=#characters
+callbacks.room_next(); assert(last_window.room_view=='door' and camera_target==4)
+callbacks.room_next(); assert(last_window.room_view=='door','ignore rapid camera turn')
 finish_camera(); pick_result=4; cursor={x=512,y=380}; last_window:Update(); assert(last_hover==4)
-local requests=#cloud_requests
 last_window:OnKeyboard(DIK_keys.MOUSE_1,ui_events.WINDOW_KEY_PRESSED)
-assert(#cloud_requests==requests+1 and cloud_requests[#cloud_requests].action=='refresh', 'door click enters')
-on_cloud_result(false,'NETWORK_ERROR','cloud_user',true)
-callbacks.room_back(); finish_camera(); assert(last_window.room_view==nil)
+assert(last_window.quit_box.shown and #cloud_requests==requests and #characters==joins and #commands==0)
+last_window.quit_box:HideDialog() -- stay in the game
+last_window:OnKeyboard(DIK_keys.DIK_LEFT,ui_events.WINDOW_KEY_PRESSED)
+assert(camera_target==-1 and last_window.room_view==nil); finish_camera()
+-- Character list appears only after clicking the character, and closes with Back.
+last_window:ActivateObject(2); assert(not controls.details_panel.shown)
+finish_camera(); assert(controls.details_panel.shown and camera_target==2)
+callbacks.char_slot1(); finish_camera(); assert(camera_target==2 and controls.details_panel.shown)
+callbacks.room_back(); finish_camera(); assert(not controls.details_panel.shown)
+-- Radio is distinct from the toolbox and leaves the menu music running on close.
+local options=settings_created
+last_window:ActivateObject(1); finish_camera()
+assert(controls.radio_panel.shown and settings_created==options and camera_target==1)
+local station=netcoop_menu_radio.info(); callbacks.radio_station_next()
+assert(netcoop_menu_radio.info()~=station)
+callbacks.radio_track_next(); local _,track=netcoop_menu_radio.info(); assert(track:find('2 /',1,true))
+callbacks.radio_volume_up(); local _,_,gain=netcoop_menu_radio.info(); assert(gain==0.30)
+callbacks.radio_toggle(); local _,_,_,enabled=netcoop_menu_radio.info(); assert(not enabled)
+callbacks.radio_toggle(); callbacks.room_back(); finish_camera()
+assert(not controls.radio_panel.shown and music_sounds[#music_sounds].active)
+-- Volume bounds, auto advance, no overlapping tracks, stop on world entry.
+for i=1,40 do netcoop_menu_radio.volume(0.05) end
+local _,_,gain=netcoop_menu_radio.info(); assert(gain==1)
+for i=1,40 do netcoop_menu_radio.volume(-0.05) end
+local _,_,gain=netcoop_menu_radio.info(); assert(gain==0 and not music_sounds[#music_sounds].active)
+netcoop_menu_radio.volume(0.25); local old=music_sounds[#music_sounds]; old.active=false
+now=now+6000; netcoop_menu_radio.update()
+local _,track=netcoop_menu_radio.info(); assert(track:find('3 /',1,true))
+local active=0; for _,sound in ipairs(music_sounds) do if sound.active then active=active+1 end end
+assert(active==1)
+present=true; netcoop_menu_radio.update(); assert(not music_sounds[#music_sounds].active);present=false
+-- Enter from the PDA refreshes credentials, then stops the music before world start.
+last_window:ActivateObject(0); finish_camera(); callbacks.server_connect()
+assert(cloud_requests[#cloud_requests].action=='refresh' and #commands==0)
+on_cloud_result(true,'','cloud_user',true)
+assert(#commands==2 and not music_sounds[#music_sounds].active)
+
 """)
-print('Stage 2: hidden floating labels, hover highlight + label + click sound, arrows, Tab labels, mouse click, no hover while the camera moves PASS')
+print('Room interactions: camera arrows, quit confirmation, PDA entry, character dialog, toolbox settings, radio controls and audio lifecycle PASS')
 
 temporary.cleanup()
 

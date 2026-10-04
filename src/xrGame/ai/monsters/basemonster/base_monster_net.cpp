@@ -94,25 +94,50 @@ void CBaseMonster::net_Export(NET_Packet& P)
 
 void CBaseMonster::netcoop_play_motion()
 {
-	IKinematicsAnimated* K = smart_cast<IKinematicsAnimated*>(Visual());
-	if (!K)
-		return;
-	if (m_netcoop_motion != u32(-1) && (m_netcoop_motion != m_netcoop_motion_played ||
-		m_netcoop_phase + 0.05f < m_netcoop_phase_played))
-	{
-		MotionID m;
-		m.val = m_netcoop_motion;
-		u16 part = K->LL_GetMotionDef(m)->bone_or_part;
-		if (part == u16(-1))
-			part = K->LL_PartID("default");
-		CBlend* blend = K->LL_PlayCycle(part, m, TRUE, 0, 0);
-		if (blend && m_netcoop_motion_speed > 0.f)
-			blend->speed = m_netcoop_motion_speed;
-		m_netcoop_motion_played = m_netcoop_motion;
-		if (blend) blend->timeCurrent = _max(0.f, _min(m_netcoop_phase, blend->timeTotal));
-	}
-	m_netcoop_phase_played = m_netcoop_phase;
-	K->UpdateTracks();
+    IKinematicsAnimated* K = smart_cast<IKinematicsAnimated*>(Visual());
+    if (!K || m_netcoop_motion == u32(-1)) return;
+    MotionID motion; motion.val = m_netcoop_motion;
+    struct Synchronize : IterateBlendsCallback
+    {
+        MotionID motion; float phase, speed; bool restart, found = false;
+        Synchronize(MotionID m, float p, float s, bool r) : motion(m), phase(p), speed(s), restart(r) {}
+        void operator()(CBlend& blend) override
+        {
+            if (blend.motionID.val != motion.val || blend.blend_state() == CBlend::eFalloff) return;
+            found = true;
+            const float duration = _max(EPS, blend.timeTotal - SAMPLE_SPF - EPS);
+            const float target = _max(0.f, _min(phase, duration));
+            float difference = target - blend.timeCurrent;
+            if (!blend.stop_at_end)
+            {
+                if (difference > duration * .5f) difference -= duration;
+                if (difference < -duration * .5f) difference += duration;
+            }
+            else if (restart)
+            {
+                blend.timeCurrent = target;
+                blend.playing = TRUE;
+                difference = 0.f;
+            }
+            // Continuous rate correction retains smooth motion across snapshot boundaries.
+            blend.speed = _max(.01f, speed + _max(-.2f, _min(.2f, difference * 2.f)));
+        }
+    } sync(motion, m_netcoop_phase, m_netcoop_motion_speed,
+        m_netcoop_phase + .05f < m_netcoop_phase_played);
+    if (m_netcoop_motion == m_netcoop_motion_played) K->LL_IterateBlends(sync);
+    if (!sync.found)
+    {
+        u16 part = K->LL_GetMotionDef(motion)->bone_or_part;
+        if (part == u16(-1)) part = K->LL_PartID("default");
+        if (CBlend* blend = K->LL_PlayCycle(part, motion, TRUE, 0, 0))
+        {
+            blend->speed = _max(.01f, m_netcoop_motion_speed);
+            blend->timeCurrent = _max(0.f, _min(m_netcoop_phase, _max(0.f, blend->timeTotal - SAMPLE_SPF - EPS)));
+        }
+        m_netcoop_motion_played = m_netcoop_motion;
+    }
+    m_netcoop_phase_played = m_netcoop_phase;
+    K->UpdateTracks();
 }
 
 void CBaseMonster::net_Import(NET_Packet& P)
