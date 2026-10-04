@@ -105,6 +105,39 @@ def place(name, asset, x, z, support=0.0, rot=(0, 0, 0), scale=(1, 1, 1), y=None
     return world_lo, world_hi
 
 
+def surface_y(owner, x, z):
+    """Highest surface of `owner`'s triangles straight below (x, z), or None:
+    the real shelf board under an object, not the top of the posts."""
+    best = None
+    for p in parts:
+        if p.get('owner') != owner:
+            continue
+        P, I = p['position'], p['index']
+        for t in range(0, len(I), 3):
+            a_, b_, c_ = (P[I[t + k] * 3:I[t + k] * 3 + 3] for k in range(3))
+            d = (b_[2] - c_[2]) * (a_[0] - c_[0]) + (c_[0] - b_[0]) * (a_[2] - c_[2])
+            if abs(d) < 1e-12:
+                continue
+            l1 = ((b_[2] - c_[2]) * (x - c_[0]) + (c_[0] - b_[0]) * (z - c_[2])) / d
+            l2 = ((c_[2] - a_[2]) * (x - c_[0]) + (a_[0] - c_[0]) * (z - c_[2])) / d
+            l3 = 1 - l1 - l2
+            if min(l1, l2, l3) < -1e-6:
+                continue
+            y = l1 * a_[1] + l2 * b_[1] + l3 * c_[1]
+            best = y if best is None else max(best, y)
+    return best
+
+
+def surface_under(owner, x, z, half_x, half_z):
+    """Support height for an object centred at (x, z): highest surface of
+    `owner` sampled at the centre and four inner points of the footprint."""
+    samples = [surface_y(owner, x + dx * half_x * 0.5, z + dz * half_z * 0.5)
+               for dx, dz in ((0, 0), (-1, -1), (1, -1), (-1, 1), (1, 1))]
+    samples = [v for v in samples if v is not None]
+    assert samples, f'no {owner} surface under ({x}, {z})'
+    return max(samples)
+
+
 picks = {}
 HALF_PI = math.pi / 2
 SOFA_X = -0.55
@@ -122,8 +155,11 @@ place('tin', 'dynamics/devices/dev_conserv/dev_conserv.ogf', SOFA_X + 0.38, SOFA
 # Small radio on a wooden shelf unit against the back wall, right of the sofa.
 SHELF_X = X1 - 0.78
 _, shelf_hi = place('shelf', 'dynamics/efp_props/prop_shelf_1.ogf', SHELF_X, Z1 - 0.25, rot=(0, HALF_PI, 0))
-place('radio', 'dynamics/el_tehnika/priemnik_gorizont.ogf', SHELF_X - 0.10, Z1 - 0.27, shelf_hi[1], rot=(0, math.pi, 0),
+RADIO = (SHELF_X - 0.10, Z1 - 0.27)
+SHELF_TOP = surface_under('shelf', RADIO[0], RADIO[1], 0.23, 0.07)
+place('radio', 'dynamics/el_tehnika/priemnik_gorizont.ogf', RADIO[0], RADIO[1], SHELF_TOP, rot=(0, math.pi, 0),
       scale=(1.3, 1.3, 1.3), pick=1)
+print(f'shelf posts top {shelf_hi[1]:.3f} m, board under the radio {SHELF_TOP:.3f} m')
 # Heavy bunker door in the wall behind the camera; the camera turns to it.
 place('door', 'dynamics/door/door_trader.ogf', -0.705, Z0 + 0.14, pick=4)
 # Decor.
@@ -166,7 +202,7 @@ picks[2] = ([seat[0] - 0.35, 0.0, seat[2] - 0.70], [seat[0] + 0.35, 1.45, seat[2
 lamp = [LAMP[0] - 0.04, TOP + 0.35, LAMP[1] - 0.09]
 views = [dict(name='overview', eye=[0.00, 1.62, -2.20], target=[0.00, 0.95, 1.80]),
          dict(name='pda', eye=[PDA[0] + 0.20, 1.30, PDA[1] - 0.70], target=[PDA[0], TOP + 0.02, PDA[1]]),
-         dict(name='radio', eye=[SHELF_X - 0.45, 1.55, Z1 - 1.30], target=[SHELF_X - 0.10, shelf_hi[1] + 0.15, Z1 - 0.27]),
+         dict(name='radio', eye=[SHELF_X - 0.45, 1.55, Z1 - 1.30], target=[RADIO[0], SHELF_TOP + 0.15, RADIO[1]]),
          dict(name='character', eye=[seat[0] + 0.25, 1.45, seat[2] - 1.75], target=[seat[0], 1.00, seat[2]]),
          dict(name='character', eye=[seat[0] + 0.25, 1.45, seat[2] - 1.75], target=[seat[0], 1.00, seat[2]]),
          # Swing to the door behind the camera from the side, so the look
