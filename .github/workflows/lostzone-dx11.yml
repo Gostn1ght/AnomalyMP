@@ -45,6 +45,11 @@ jobs:
       - uses: microsoft/setup-msbuild@v2
         with:
           msbuild-architecture: x64
+      - name: Check Windows mail and clipboard API types
+        shell: cmd
+        run: |
+          call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          python scripts/check-windows-auth-api.py
       - name: Check actor packet compatibility
         shell: pwsh
         run: ./scripts/check-actor-packet.ps1

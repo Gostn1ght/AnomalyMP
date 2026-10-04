@@ -254,7 +254,8 @@ static bool firebase_email_domain(const std::string& email, std::string& error)
     const std::wstring name(domain.begin(), domain.end());
     PDNS_RECORDW records = nullptr;
     const DWORD options = DNS_QUERY_STANDARD | DNS_QUERY_TREAT_AS_FQDN;
-    DNS_STATUS status = DnsQuery_W(name.c_str(), DNS_TYPE_MX, options, nullptr, &records, nullptr);
+    DNS_STATUS status = DnsQuery_W(name.c_str(), DNS_TYPE_MX, options, nullptr,
+        reinterpret_cast<PDNS_RECORD*>(&records), nullptr);
     bool mx = false, null_mx = false;
     for (auto record = records; record; record = record->pNext)
     {
@@ -273,7 +274,8 @@ static bool firebase_email_domain(const std::string& email, std::string& error)
     for (WORD type : {WORD(DNS_TYPE_A), WORD(DNS_TYPE_AAAA)})
     {
         records = nullptr;
-        status = DnsQuery_W(name.c_str(), type, options, nullptr, &records, nullptr);
+        status = DnsQuery_W(name.c_str(), type, options, nullptr,
+            reinterpret_cast<PDNS_RECORD*>(&records), nullptr);
         bool address = false;
         for (auto record = records; record; record = record->pNext) if (record->wType == type) address = true;
         if (records) DnsRecordListFree(reinterpret_cast<PDNS_RECORD>(records), DnsFreeRecordList);
