@@ -196,7 +196,7 @@
     <text>Подтверждение почты</text>
   </string>
   <string id="st_netcoop_verify_help">
-    <text>На вашу почту отправлено письмо. Откройте ссылку подтверждения и нажмите «Я подтвердил почту». Если письма нет, проверьте «Спам» или отправьте его повторно.</text>
+    <text>Откройте ссылку из письма. После подтверждения игра автоматически продолжит регистрацию. Если письма нет, проверьте «Спам», повторите отправку или исправьте адрес.</text>
   </string>
   <string id="st_netcoop_verify_check">
     <text>Я подтвердил почту</text>
@@ -437,5 +437,23 @@
   </string>
   <string id="st_netcoop_quit_stay">
     <text>Остаться</text>
+  </string>
+  <string id="st_netcoop_wrong_email">
+    <text>Ввёл не ту почту</text>
+  </string>
+  <string id="st_netcoop_change_email_title">
+    <text>Исправить адрес почты</text>
+  </string>
+  <string id="st_netcoop_change_email_send">
+    <text>Отправить на новый адрес</text>
+  </string>
+  <string id="st_netcoop_change_email_cancel">
+    <text>Отмена</text>
+  </string>
+  <string id="st_netcoop_change_email_help">
+    <text>Введите правильный адрес. Аккаунт сохранится; после перехода по новой ссылке регистрация продолжится автоматически.</text>
+  </string>
+  <string id="st_netcoop_email_domain_invalid">
+    <text>Домен этой почты не существует или не принимает письма. Исправьте адрес.</text>
   </string>
 </string_table>

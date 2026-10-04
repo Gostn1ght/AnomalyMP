@@ -5,7 +5,7 @@ static xr_string s_firebase_api, s_email_code_endpoint;
 static bool s_firebase_config_loaded = false;
 struct FirebaseSession
 {
-    std::string uid, email, username, refresh, id;
+    std::string uid, email, username, refresh, id, pending_email;
     bool verified = false;
 };
 static FirebaseSession s_firebase_session;
@@ -214,7 +214,74 @@ static void firebase_load()
     if (cloud_string(data, "project") != "lostzoneapi") return;
     s_firebase_session.uid = cloud_string(data, "uid"); s_firebase_session.email = cloud_string(data, "email");
     s_firebase_session.username = cloud_string(data, "username"); s_firebase_session.refresh = cloud_string(data, "refresh");
+    s_firebase_session.pending_email = cloud_string(data, "pending_email");
     s_firebase_session.verified = data.contains("verified") && data["verified"].is_boolean() && data["verified"].get<bool>();
+    if (!s_firebase_session.pending_email.empty()) s_firebase_session.verified = false;
+}
+static bool firebase_email_valid(const std::string& email)
+{
+    if (email.size() > 254) return false;
+    const auto at = email.find('@');
+    if (at == std::string::npos || at == 0 || at > 64 || email.find('@', at + 1) != std::string::npos) return false;
+    if (email.front() == '.' || email[at - 1] == '.' || email.substr(0, at).find("..") != std::string::npos) return false;
+    for (size_t i = 0; i < at; ++i)
+    {
+        const unsigned char c = email[i];
+        const bool alnum = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
+        if (!alnum && std::string(".!#$%&'*+-/=?^_`{|}~").find(char(c)) == std::string::npos) return false;
+    }
+    const std::string domain = email.substr(at + 1);
+    if (domain.empty() || domain.find('.') == std::string::npos) return false;
+    size_t start = 0;
+    while (start < domain.size())
+    {
+        auto end = domain.find('.', start); if (end == std::string::npos) end = domain.size();
+        if (end == start || end - start > 63 || domain[start] == '-' || domain[end - 1] == '-') return false;
+        for (size_t i = start; i < end; ++i)
+        {
+            const unsigned char c = domain[i];
+            if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-')) return false;
+        }
+        if (end == domain.size()) return true;
+        start = end + 1;
+    }
+    return false;
+}
+static bool firebase_email_domain(const std::string& email, std::string& error)
+{
+    if (!firebase_email_valid(email)) { error = "INVALID_EMAIL"; return false; }
+    const auto domain = email.substr(email.find('@') + 1);
+    const std::wstring name(domain.begin(), domain.end());
+    PDNS_RECORDW records = nullptr;
+    const DWORD options = DNS_QUERY_STANDARD | DNS_QUERY_TREAT_AS_FQDN;
+    DNS_STATUS status = DnsQuery_W(name.c_str(), DNS_TYPE_MX, options, nullptr, &records, nullptr);
+    bool mx = false, null_mx = false;
+    for (auto record = records; record; record = record->pNext)
+    {
+        if (record->wType != DNS_TYPE_MX) continue;
+        const auto exchange = record->Data.MX.pNameExchange;
+        if (exchange && *exchange && wcscmp(exchange, L".") != 0) mx = true;
+        else null_mx = true;
+    }
+    if (records) DnsRecordListFree(reinterpret_cast<PDNS_RECORD>(records), DnsFreeRecordList);
+    if (status == ERROR_SUCCESS && mx) return true;
+    if (status == DNS_ERROR_RCODE_NAME_ERROR || (status == ERROR_SUCCESS && null_mx))
+    { error = "EMAIL_DOMAIN_NOT_FOUND"; return false; }
+    if (status != ERROR_SUCCESS && status != DNS_INFO_NO_RECORDS) { error = "NETWORK_ERROR"; return false; }
+    // RFC 5321 permits A/AAAA delivery when the domain has no MX records.
+    bool temporary_failure = false;
+    for (WORD type : {WORD(DNS_TYPE_A), WORD(DNS_TYPE_AAAA)})
+    {
+        records = nullptr;
+        status = DnsQuery_W(name.c_str(), type, options, nullptr, &records, nullptr);
+        bool address = false;
+        for (auto record = records; record; record = record->pNext) if (record->wType == type) address = true;
+        if (records) DnsRecordListFree(reinterpret_cast<PDNS_RECORD>(records), DnsFreeRecordList);
+        if (status == ERROR_SUCCESS && address) return true;
+        if (status != ERROR_SUCCESS && status != DNS_INFO_NO_RECORDS && status != DNS_ERROR_RCODE_NAME_ERROR) temporary_failure = true;
+    }
+    error = temporary_failure ? "NETWORK_ERROR" : "EMAIL_DOMAIN_NOT_FOUND";
+    return false;
 }
 struct FirebaseTask
 {
@@ -228,6 +295,11 @@ static void firebase_worker(void* argument)
 {
     FirebaseTask* task = static_cast<FirebaseTask*>(argument);
     CloudJson response; bool ok = false;
+    if ((task->action == "register" || task->action == "change_email") && !firebase_email_domain(task->email, task->error))
+    {
+        if (!task->password.empty()) SecureZeroMemory(&task->password[0],task->password.size());
+        task->password.clear(); InterlockedExchange(&task->done,1); return;
+    }
     if (task->action == "register" || task->action == "login")
     {
         ok = firebase_call(task->action == "register" ? "signUp" : "signInWithPassword",
@@ -263,9 +335,28 @@ static void firebase_worker(void* argument)
             const auto refresh = cloud_string(response,"refresh_token"); if(!refresh.empty()) task->session.refresh = refresh;
         }
     }
+    const auto previous_uid = task->session.uid;
     if (ok) ok = firebase_lookup(task->session.id,task->api,task->session,task->error);
+    if (ok && (task->action == "register" || task->action == "login") && task->session.uid != previous_uid) task->session.pending_email.clear();
+    if (ok && !task->session.pending_email.empty())
+    {
+        if (task->session.verified && _stricmp(task->session.email.c_str(),task->session.pending_email.c_str()) == 0) task->session.pending_email.clear();
+        else task->session.verified = false;
+    }
     if (ok && !login_valid(task->session.username.c_str())) { ok = false; task->error = "ACCOUNT_NAME_REQUIRED"; }
     task->session_ready = ok;
+    if (ok && task->action == "change_email" && !task->session.verified)
+    {
+        // Verify the new address before changing it; supported with email
+        // enumeration protection, unlike a direct accounts:update email.
+        ok = firebase_call("sendOobCode", {{"requestType","VERIFY_AND_CHANGE_EMAIL"},
+            {"idToken",task->session.id},{"newEmail",task->email}}, response,task->error,task->api);
+        if (ok)
+        {
+            task->session.pending_email = task->email; task->session.verified = false;
+        }
+        task->ok = ok; InterlockedExchange(&task->done,1); return;
+    }
     if (ok && !task->session.verified)
     {
         if (task->action == "verify")
@@ -276,8 +367,11 @@ static void firebase_worker(void* argument)
         }
         else if (task->action == "register" || task->action == "login" || task->action == "resend")
         {
+            CloudJson mail = {{"requestType","VERIFY_EMAIL"},{"idToken",task->session.id}};
+            if (!task->session.pending_email.empty())
+            { mail["requestType"] = "VERIFY_AND_CHANGE_EMAIL"; mail["newEmail"] = task->session.pending_email; }
             const bool sent = firebase_call("sendOobCode",
-                {{"requestType","VERIFY_EMAIL"},{"idToken",task->session.id}},
+                mail,
                 response,task->error,task->api);
             // Account creation/login remains saved if delivery fails: users can resend.
             if (task->action == "resend") ok = sent;
@@ -291,11 +385,13 @@ bool script_firebase_request(LPCSTR action, LPCSTR email, LPCSTR password, LPCST
     firebase_load();
     if (!firebase_enabled() || s_firebase_task || !action || !email || !password || !username) return false;
     const std::string operation = action;
-    if (operation != "register" && operation != "login" && operation != "refresh" && operation != "resend" && operation != "reset" && operation != "verify") return false;
+    if (operation != "register" && operation != "login" && operation != "refresh" && operation != "resend" && operation != "reset" && operation != "verify" && operation != "change_email") return false;
     if ((operation == "register" || operation == "login") && (xr_strlen(password) < 6 || xr_strlen(password) > 128)) return false;
     if (operation == "verify" && *password) return false;
     if (operation == "register" && !login_valid(username)) return false;
     if (xr_strlen(email) > 254) return false;
+    if ((operation == "register" || operation == "login" || operation == "reset" || operation == "change_email") && !firebase_email_valid(email)) return false;
+    if (operation == "change_email" && (s_firebase_session.refresh.empty() || *password)) return false;
     auto task = xr_new<FirebaseTask>();
     task->action = operation; task->email = email; task->password = cloud_convert(password, 1251, CP_UTF8); task->username = username;
     task->api = s_firebase_api.c_str(); task->endpoint = s_email_code_endpoint.c_str(); task->session = s_firebase_session;
@@ -316,7 +412,7 @@ LPCSTR script_firebase_identity()
         result=to_hex(digest,sizeof(digest));
     return result.c_str();
 }
-LPCSTR script_firebase_email() { firebase_load(); return s_firebase_session.email.c_str(); }
+LPCSTR script_firebase_email() { firebase_load(); return s_firebase_session.pending_email.empty() ? s_firebase_session.email.c_str() : s_firebase_session.pending_email.c_str(); }
 LPCSTR script_firebase_account() { firebase_load(); return s_firebase_session.username.c_str(); }
 void firebase_frame()
 {
@@ -327,7 +423,7 @@ void firebase_frame()
         if (s_firebase_session.uid != task->session.uid) s_client_role = role_none;
         s_firebase_session = task->session;
         CloudJson stored = {{"project", "lostzoneapi"}, {"uid", task->session.uid}, {"email", task->session.email},
-            {"username", task->session.username}, {"refresh", task->session.refresh}, {"verified", task->session.verified}};
+            {"username", task->session.username}, {"refresh", task->session.refresh}, {"verified", task->session.verified}, {"pending_email",task->session.pending_email}};
         if (!cloud_secret_file("netcoop_firebase.bin", stored, true) && task->error.empty()) task->error = "REMEMBER_FAILED";
     }
     ::luabind::functor<void> callback;

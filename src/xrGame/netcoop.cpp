@@ -7,10 +7,12 @@
 #include "netcoop_storage_policy.h"
 #include <wincrypt.h>
 #include <winhttp.h>
+#include <windns.h>
 #include "../3rd party/nlohmann/json.hpp"
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "bcrypt.lib")
+#pragma comment(lib, "dnsapi.lib")
 
 #include "xrServer.h"
 #include "game_sv_base.h"

@@ -31,6 +31,8 @@ jobs:
         run: python scripts/check-netcoop-physics.py
       - name: Check actual Firebase verification links
         run: python scripts/check-firebase-links.py
+      - name: Check actual keyboard and clipboard paste
+        run: python scripts/check-edit-input.py
 
   engine:
     needs: checks

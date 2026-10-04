@@ -210,6 +210,8 @@ void CInput::KeyUpdate()
 			return;
 	}
 
+	BOOL state_before_events[COUNT_KB_BUTTONS];
+	memcpy(state_before_events, KBState, sizeof(KBState));
 	bool b_dik_pause_was_pressed = false;
 	for (u32 idx = 0; idx < dwElements; idx++)
 	{
@@ -245,12 +247,16 @@ void CInput::KeyUpdate()
 	if (Device.dwPrecacheFrame == 0)
 #endif
 	{
+		// Replay buffered events with their own modifier state. A quick Ctrl+V
+		// can include both Ctrl down and Ctrl up in the same input frame.
+		memcpy(KBState, state_before_events, sizeof(KBState));
 		for (u32 i = 0; i < dwElements; i++)
 		{
 			if (od[i].uAppData == 666) //ignored action
 				continue;
 
 			key = od[i].dwOfs;
+			KBState[key] = od[i].dwData & 0x80;
 			if (od[i].dwData & 0x80)
 				cbStack.back()->IR_OnKeyboardPress(key);
 			else

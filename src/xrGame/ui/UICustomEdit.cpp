@@ -74,7 +74,7 @@ void CUICustomEdit::Init(u32 max_char_count, bool number_only_mode, bool read_mo
 		{
 			m_editor_control->init(max_char_count);
 		}
-		m_editor_control->set_selected_mode(false);
+		m_editor_control->set_selected_mode(true);
 		m_read_mode = false;
 	}
 

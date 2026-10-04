@@ -196,7 +196,7 @@
     <text>Verify email</text>
   </string>
   <string id="st_netcoop_verify_help">
-    <text>A verification email has been sent. Open its confirmation link, then click "I verified my email". Check Spam or resend the email if needed.</text>
+    <text>Open the link in the email. Registration will continue automatically after confirmation. Check Spam, resend the email or correct the address if needed.</text>
   </string>
   <string id="st_netcoop_verify_check">
     <text>I verified my email</text>
@@ -437,5 +437,23 @@
   </string>
   <string id="st_netcoop_quit_stay">
     <text>Stay</text>
+  </string>
+  <string id="st_netcoop_wrong_email">
+    <text>I entered the wrong email</text>
+  </string>
+  <string id="st_netcoop_change_email_title">
+    <text>Correct email address</text>
+  </string>
+  <string id="st_netcoop_change_email_send">
+    <text>Send to new address</text>
+  </string>
+  <string id="st_netcoop_change_email_cancel">
+    <text>Cancel</text>
+  </string>
+  <string id="st_netcoop_change_email_help">
+    <text>Enter the correct address. Your account will be kept; registration will continue automatically after you open the new link.</text>
+  </string>
+  <string id="st_netcoop_email_domain_invalid">
+    <text>This email domain does not exist or does not accept mail. Correct the address.</text>
   </string>
 </string_table>

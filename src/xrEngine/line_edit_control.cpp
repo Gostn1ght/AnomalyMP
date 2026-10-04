@@ -446,6 +446,7 @@ namespace text_editor
 		{
 			return;
 		}
+		update_key_states();
 		if (!m_hold_mode)
 		{
 			m_last_key_time = 0.0f;
@@ -613,11 +614,12 @@ namespace text_editor
 		strncpy_s(buf + m_p1, m_buffer_size, m_inserted, _min(new_size, m_buffer_size - m_p1)); // part 2
 
 		u8 ds = (m_insert_mode && m_p2 < old_edit_size) ? 1 : 0;
-		strncpy_s(buf + m_p1 + new_size, m_buffer_size, m_edit_str + m_p2 + ds,
-		          _min(old_edit_size - m_p2 - ds, m_buffer_size - m_p1 - new_size)); // part 3
+		const int tail_size = _min(old_edit_size - m_p2 - ds, m_buffer_size - 1 - m_p1 - new_size);
+		strncpy_s(buf + m_p1 + new_size, m_buffer_size - m_p1 - new_size,
+			m_edit_str + m_p2 + ds, tail_size); // part 3 fits after a long paste
 		buf[m_buffer_size] = 0;
 
-		int szn = m_p1 + new_size + old_edit_size - m_p2 - ds;
+		int szn = m_p1 + new_size + tail_size;
 		if (szn < m_buffer_size)
 		{
 			strncpy_s(m_edit_str, m_buffer_size, buf, szn); // part 1+2+3

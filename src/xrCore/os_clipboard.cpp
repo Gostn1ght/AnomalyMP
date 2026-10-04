@@ -33,27 +33,53 @@ void os_clipboard::paste_from_clipboard(LPSTR buffer, u32 const& buffer_size)
 {
 	VERIFY(buffer);
 	VERIFY(buffer_size > 0);
+	buffer[0] = 0;
 
 	if (!OpenClipboard(0))
 		return;
 
-	HGLOBAL hmem = GetClipboardData(CF_TEXT);
-	if (!hmem)
-		return;
-
-	LPCSTR clipdata = (LPCSTR)GlobalLock(hmem);
-	strncpy_s(buffer, buffer_size, clipdata, buffer_size - 1);
-	buffer[buffer_size - 1] = 0;
-	for (u32 i = 0; i < strlen(buffer); ++i)
+	// UI text uses CP1251; CF_TEXT depends on the Windows system code page.
+	// Prefer Unicode copied from browsers, mail clients and text editors.
+	HGLOBAL hmem = GetClipboardData(CF_UNICODETEXT);
+	const bool unicode = hmem != nullptr;
+	if (!hmem) hmem = GetClipboardData(CF_TEXT);
+	if (hmem)
 	{
-		char c = buffer[i];
-		if (((isprint(c) == 0) && (c != char(-1))) || c == '\t' || c == '\n') // "я" = -1
+		const void* memory = GlobalLock(hmem);
+		if (memory)
+		{
+			const SIZE_T bytes = GlobalSize(hmem);
+			if (unicode)
+			{
+				const wchar_t* text = static_cast<const wchar_t*>(memory);
+				SIZE_T count = 0, limit = bytes / sizeof(wchar_t);
+				if (limit > buffer_size - 1) limit = buffer_size - 1;
+				while (count < limit && text[count]) ++count;
+				const int copied = count ? WideCharToMultiByte(1251, WC_NO_BEST_FIT_CHARS, text, int(count),
+					buffer, int(buffer_size - 1), "?", nullptr) : 0;
+				buffer[copied] = 0;
+			}
+			else
+			{
+				const char* text = static_cast<const char*>(memory);
+				SIZE_T count = 0, limit = bytes;
+				if (limit > buffer_size - 1) limit = buffer_size - 1;
+				while (count < limit && text[count]) { buffer[count] = text[count]; ++count; }
+				buffer[count] = 0;
+			}
+			GlobalUnlock(hmem);
+		}
+	}
+	buffer[buffer_size - 1] = 0;
+	for (u32 i = 0; buffer[i]; ++i)
+	{
+		const unsigned char c = static_cast<unsigned char>(buffer[i]);
+		if (c < 32 || c == 127)
 		{
 			buffer[i] = ' ';
 		}
 	}
 
-	GlobalUnlock(hmem);
 	CloseClipboard();
 }
 
