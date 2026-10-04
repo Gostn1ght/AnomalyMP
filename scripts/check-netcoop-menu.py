@@ -298,20 +298,22 @@ print('Stage 0: no arrows/backpack/safe, Esc asks to quit, double click ignored 
 lua.execute(r"""
 -- Stage 2: the room objects are the buttons.
 finish_camera(); last_window:CloseRoomView(); finish_camera()
-assert(not controls.enter.shown and not controls.server.shown and not controls.settings.shown, 'floating labels hidden')
--- Hover over the door: highlight, label, one click sound.
+assert(not controls.server.shown and not controls.settings.shown, 'floating labels hidden')
+-- Hover over the PDA: highlight, label, one click sound.
 local sounds=clicks_played
-pick_result=4; cursor={x=100,y=300}; last_window:Update()
-assert(last_hover==4 and last_window.hover_label.shown and last_window.hover_label.text=='st_netcoop_obj_door')
+pick_result=0; cursor={x=300,y=330}; last_window:Update()
+assert(last_hover==0 and last_window.hover_label.shown and last_window.hover_label.text=='st_netcoop_obj_pda')
 assert(clicks_played==sounds+1); last_window:Update(); assert(clicks_played==sounds+1, 'sound only on change')
+-- The door is behind the overview camera: never hovered from there.
+pick_result=4; cursor={x=310,y=340}; last_window:Update(); assert(last_hover==-1)
 -- Off every object: no highlight, no label.
-pick_result=-1; cursor={x=110,y=310}; last_window:Update()
+pick_result=-1; cursor={x=320,y=350}; last_window:Update()
 assert(last_hover==-1 and not last_window.hover_label.shown)
--- Arrows move the selection left to right: door, PDA, character, radio.
-last_window:OnKeyboard(DIK_keys.DIK_RIGHT,ui_events.WINDOW_KEY_PRESSED); last_window:Update(); assert(last_hover==4)
+-- Arrows move the selection left to right: PDA, character, radio.
 last_window:OnKeyboard(DIK_keys.DIK_RIGHT,ui_events.WINDOW_KEY_PRESSED); last_window:Update(); assert(last_hover==0)
-last_window:OnKeyboard(DIK_keys.DIK_LEFT,ui_events.WINDOW_KEY_PRESSED); last_window:Update(); assert(last_hover==4)
--- Tab shows every label while held.
+last_window:OnKeyboard(DIK_keys.DIK_RIGHT,ui_events.WINDOW_KEY_PRESSED); last_window:Update(); assert(last_hover==2)
+last_window:OnKeyboard(DIK_keys.DIK_LEFT,ui_events.WINDOW_KEY_PRESSED); last_window:Update(); assert(last_hover==0)
+-- Tab shows every label while held (the door's too, it is off screen).
 last_window:OnKeyboard(DIK_keys.DIK_TAB,ui_events.WINDOW_KEY_PRESSED); last_window:Update()
 local shown=0; for _,label in pairs(last_window.tab_labels) do if label.shown then shown=shown+1 end end
 assert(shown==4 and not last_window.hover_label.shown)
@@ -325,10 +327,16 @@ assert(last_window.room_view=='server' and last_hover==-1)
 last_window:Update(); assert(last_hover==-1)
 finish_camera(); assert(controls.server_panel.shown)
 callbacks.room_back(); finish_camera(); assert(last_window.room_view==nil)
--- Enter on the selected door enters the Zone with the current slot.
-commands={}; pick_result=-1; cursor={x=520,y=330}; last_window:Update()
-last_window:OnKeyboard(DIK_keys.DIK_LEFT,ui_events.WINDOW_KEY_PRESSED); last_window:Update()
-assert(last_hover==1)
+-- "Enter the Zone" turns the camera to the door; the door is clickable there and enters.
+cache_characters('Door Tester||||||||||'); last_window:ShowCharacters(); finish_camera()
+assert(last_window.names[1]=='Door Tester' and controls.enter.shown~=false)
+callbacks.char_enter(); assert(last_window.room_view=='door' and camera_target==4)
+finish_camera(); pick_result=4; cursor={x=512,y=380}; last_window:Update(); assert(last_hover==4)
+local requests=#cloud_requests
+last_window:OnKeyboard(DIK_keys.MOUSE_1,ui_events.WINDOW_KEY_PRESSED)
+assert(#cloud_requests==requests+1 and cloud_requests[#cloud_requests].action=='refresh', 'door click enters')
+on_cloud_result(false,'NETWORK_ERROR','cloud_user',true)
+callbacks.room_back(); finish_camera(); assert(last_window.room_view==nil)
 """)
 print('Stage 2: hidden floating labels, hover highlight + label + click sound, arrows, Tab labels, mouse click, no hover while the camera moves PASS')
 

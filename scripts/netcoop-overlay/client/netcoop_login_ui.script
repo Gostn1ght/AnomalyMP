@@ -48,10 +48,13 @@ local ROOM_OBJECTS = {
 	[0] = {label = "obj_pda", action = "ShowServer"},
 	[1] = {label = "obj_radio", action = "ShowSettings"},
 	[2] = {label = "obj_character", action = "ShowCharacterView"},
-	[4] = {label = "obj_door", action = "EnterDoor"},
+	[4] = {label = "obj_door", action = "DoorAction"},
 }
+-- The close-up in which one object stays clickable (the door is behind the
+-- overview camera and is used from its own view).
+local VIEW_OBJECT = {door = 4}
 -- Keyboard order, left to right as seen from the room overview.
-local KEY_ORDER = {4, 0, 2, 1}
+local KEY_ORDER = {0, 2, 1}
 local click_sound
 local function play_click()
 	pcall(function()
@@ -221,7 +224,9 @@ end
 -- until the mouse moves. Nothing is hovered while busy or in a close-up view.
 function netcoop_login_wnd:UpdateHover()
     local object = -1
-    local active = self.mode == "characters" and not self.room_view and not self:Busy() and self:IsShown()
+    local active = self.mode == "characters" and not self:Busy() and self:IsShown()
+    local only = self.room_view and VIEW_OBJECT[self.room_view]
+    if self.room_view and not only then active = false end
     if active and netcoop_preview_pick then
         local cursor = GetCursorPosition()
         if self.last_cursor and (math.abs(cursor.x - self.last_cursor.x) > 2 or math.abs(cursor.y - self.last_cursor.y) > 2) then
@@ -229,7 +234,8 @@ function netcoop_login_wnd:UpdateHover()
         end
         self.last_cursor = {x = cursor.x, y = cursor.y}
         object = self.key_focus or netcoop_preview_pick(cursor.x, cursor.y)
-        if not ROOM_OBJECTS[object] then object = -1 end
+        if not ROOM_OBJECTS[object] or (only and object ~= only) or (not only and object == 4) then object = -1 end
+        active = not only
     end
     if object ~= (self.hovered or -1) then
         self.hovered = object
@@ -261,6 +267,11 @@ function netcoop_login_wnd:ActivateObject(object)
 end
 function netcoop_login_wnd:ShowCharacterView() self:OpenRoomView("character", 2) end
 function netcoop_login_wnd:EnterDoor() self:SelectCharacter(self.slot) end
+-- The door is behind the camera: first turn to it, then enter.
+function netcoop_login_wnd:DoorAction()
+    if self.room_view == "door" then return self:EnterDoor() end
+    self:OpenRoomView("door", 4)
+end
 function netcoop_login_wnd:SetMsg(text)
 	self.msg:TextControl():SetText(text or "")
     if self.character_msg then self.character_msg:TextControl():SetText(text or "") end
@@ -469,7 +480,8 @@ function netcoop_login_wnd:ShowCharacters()
             local b = xml:Init3tButton(path, self.character_panel); b:TextControl():SetText(text)
             self:Register(b, "char_" .. path); self:Bind("char_" .. path, handler, path == "back"); return b
         end
-        self.enter = button("enter", tr("enter_zone"), function() self:OpenRoomView("server",4) end)
+        self.enter = button("enter", tr("enter_zone"), self.DoorAction)
+        self.enter:SetWndPos(vector2():set(432, 692)); self.enter:SetWndSize(vector2():set(160, 34))
         button("back", tr("exit"), self.OnBack)
         local settings = button("settings", tr("settings"), self.ShowSettings)
         local server=button("server",tr("room_map"),self.ShowServer)
@@ -478,7 +490,7 @@ function netcoop_login_wnd:ShowCharacters()
             local slot = i
             self.slot_buttons[i] = button("slot" .. i, "", function() self.slot = slot; self:ChangeSlot(0) end)
         end
-        self.room_buttons={{button=server,object=0},{button=settings,object=1},{button=self.enter,object=4}}
+        self.room_buttons={{button=server,object=0},{button=settings,object=1}}
         self.character_badge:Show(false)
         self.character_description:Show(false)
         self.server_panel = xml:InitStatic("server_panel", self)
@@ -649,6 +661,10 @@ function netcoop_login_wnd:OnKeyboard(dik, keyboard_action)
 	end
 	if keyboard_action == ui_events.WINDOW_KEY_PRESSED then
 		local room = self.mode == "characters" and not self.room_view
+		if self.mode == "characters" and self.room_view == "door" and dik == DIK_keys.MOUSE_1 and (self.hovered or -1) == 4 then
+			guard("door click", self.EnterDoor)(self)
+			return true
+		end
 		if room and dik == DIK_keys.DIK_TAB then
 			self.show_all = true
 			return true
@@ -672,7 +688,7 @@ function netcoop_login_wnd:OnKeyboard(dik, keyboard_action)
 			printf("[Lost Zone][menu] key Enter")
 			guard("key Enter", function()
 				if self.mode == "characters" then
-					if self.server_panel:IsShown() then self:SelectCharacter(self.slot)
+					if self.server_panel:IsShown() or self.room_view == "door" then self:SelectCharacter(self.slot)
 					elseif not self.room_view and (self.hovered or -1) >= 0 then self:ActivateObject(self.hovered) end
 				elseif self.mode == "profile" then self:ContinueProfile()
 				elseif cloud_enabled() and self.form_mode == "login" then self:OnLogin()

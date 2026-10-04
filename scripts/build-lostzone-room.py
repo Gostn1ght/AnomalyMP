@@ -107,27 +107,31 @@ def place(name, asset, x, z, support=0.0, rot=(0, 0, 0), scale=(1, 1, 1), y=None
 
 picks = {}
 HALF_PI = math.pi / 2
-DOOR_Z = 1.30
-SOFA_Z = 1.35
-# Sofa against the right wall, facing the door across the room; table in front.
-_, sofa_hi = place('sofa', 'dynamics/efp_props/prop_couch_1.ogf', X1 - 0.54, SOFA_Z, rot=(0, math.pi, 0))
-_, table_hi = place('table', 'dynamics/efp_props/prop_table_2.ogf', 0.50, SOFA_Z)
+SOFA_X = -0.55
+SOFA_Z = Z1 - 0.55
+# Sofa against the back wall facing the camera, table in front of it.
+place('sofa', 'dynamics/efp_props/prop_couch_1.ogf', SOFA_X, SOFA_Z, rot=(0, HALF_PI, 0))
+_, table_hi = place('table', 'dynamics/efp_props/prop_table_2.ogf', SOFA_X, SOFA_Z - 1.20, rot=(0, HALF_PI, 0))
 TOP = table_hi[1]
-LAMP = (0.58, 1.80)
+LAMP = (SOFA_X + 0.42, SOFA_Z - 1.02)
 place('lamp', 'dynamics/el_tehnika/table_lamp_01.ogf', LAMP[0], LAMP[1], TOP, rot=(0, 2.6, 0))
-place('PDA', 'netcoop/dev_pda.ogf', 0.36, 0.95, TOP, rot=(0, 0.35, 0), scale=(1.6, 1.6, 1.6), pick=0)
-place('journal', 'dynamics/decor/notes_writing_book.ogf', 0.62, 1.30, TOP, rot=(0, 1.2, 0), scale=(0.7, 0.7, 0.7))
-place('tin', 'dynamics/devices/dev_conserv/dev_conserv.ogf', 0.26, 1.55, TOP)
-# Floor-standing radio set against the back wall, facing the camera.
-place('radio', 'dynamics/el_tehnika/radiola.ogf', 0.00, Z1 - 0.28, pick=1)
-# Heavy bunker door on the left wall, straight across from the sofa.
-place('door', 'dynamics/door/door_trader.ogf', X0 + 0.14, DOOR_Z + 0.705, rot=(0, HALF_PI, 0), pick=4)
+PDA = (SOFA_X - 0.28, SOFA_Z - 1.40)
+place('PDA', 'netcoop/dev_pda.ogf', PDA[0], PDA[1], TOP, rot=(0, 0.35, 0), scale=(1.6, 1.6, 1.6), pick=0)
+place('journal', 'dynamics/decor/notes_writing_book.ogf', SOFA_X + 0.05, SOFA_Z - 1.05, TOP, rot=(0, 0.3, 0), scale=(0.7, 0.7, 0.7))
+place('tin', 'dynamics/devices/dev_conserv/dev_conserv.ogf', SOFA_X + 0.38, SOFA_Z - 1.42, TOP)
+# Small radio on a wooden shelf unit against the back wall, right of the sofa.
+SHELF_X = X1 - 0.78
+_, shelf_hi = place('shelf', 'dynamics/efp_props/prop_shelf_1.ogf', SHELF_X, Z1 - 0.25, rot=(0, HALF_PI, 0))
+place('radio', 'dynamics/el_tehnika/priemnik_gorizont.ogf', SHELF_X - 0.10, Z1 - 0.27, shelf_hi[1], rot=(0, math.pi, 0),
+      scale=(1.3, 1.3, 1.3), pick=1)
+# Heavy bunker door in the wall behind the camera; the camera turns to it.
+place('door', 'dynamics/door/door_trader.ogf', -0.705, Z0 + 0.14, pick=4)
 # Decor.
-place('stove', 'dynamics/efp_props/prop_stove2.ogf', X0 + 0.50, Z1 - 0.40)
-place('gas cylinder', 'dynamics/decor/gaz_balon.ogf', -1.00, Z1 - 0.28)
-place('backpack', 'dynamics/equipments/sumka3.ogf', 0.90, Z1 - 0.40, rot=(0, 0.4, 0), scale=(1.2, 1.2, 1.2))
-place('poster', 'dynamics/decor/poster2.ogf', 0.00, Z1 - 0.02, rot=(-HALF_PI, 0, 0), scale=(0.55, 0.55, 0.55), y=1.80)
-place('map', 'dynamics/decor/map1.ogf', X1 - 0.02, SOFA_Z, rot=(-HALF_PI, HALF_PI, 0), scale=(0.55, 0.55, 0.55), y=1.85)
+place('stove', 'dynamics/efp_props/prop_stove2.ogf', X0 + 0.40, 0.10, rot=(0, -HALF_PI, 0))
+place('gas cylinder', 'dynamics/decor/gaz_balon.ogf', X0 + 0.30, 0.85)
+place('backpack', 'dynamics/equipments/sumka3.ogf', SHELF_X - 0.20, Z1 - 0.95, rot=(0, 0.4, 0), scale=(1.2, 1.2, 1.2))
+place('poster', 'dynamics/decor/poster2.ogf', SOFA_X + 0.55, Z1 - 0.02, rot=(-HALF_PI, 0, 0), scale=(0.55, 0.55, 0.55), y=1.80)
+place('map', 'dynamics/decor/map1.ogf', X0 + 0.02, 0.45, rot=(-HALF_PI, -HALF_PI, 0), scale=(0.55, 0.55, 0.55), y=1.75)
 
 # Wall containment: nothing may pass through the shell.
 problems = []
@@ -156,16 +160,18 @@ for texture, vertices in sorted(batches.items()):
 
 # Seated character: pelvis just above the 0.34 m cushion (0.61 left it
 # hovering), on the seat half of the sofa, facing the door (-X).
-SEAT_HEADING = -HALF_PI
-seat = [sofa_hi[0] - 0.62, 0.49, SOFA_Z + 0.20]
-picks[2] = ([seat[0] - 0.70, 0.0, seat[2] - 0.35], [seat[0] + 0.35, 1.45, seat[2] + 0.35])
+SEAT_HEADING = math.pi
+seat = [SOFA_X - 0.05, 0.49, SOFA_Z - 0.12]
+picks[2] = ([seat[0] - 0.35, 0.0, seat[2] - 0.70], [seat[0] + 0.35, 1.45, seat[2] + 0.35])
 lamp = [LAMP[0] - 0.04, TOP + 0.35, LAMP[1] - 0.09]
-views = [dict(name='overview', eye=[0.00, 1.62, -2.30], target=[0.10, 0.95, 1.60]),
-         dict(name='pda', eye=[0.15, 1.30, 0.25], target=[0.36, TOP + 0.02, 0.95]),
-         dict(name='radio', eye=[0.00, 1.35, 1.40], target=[0.00, 0.50, Z1 - 0.28]),
-         dict(name='character', eye=[0.20, 1.45, 1.00], target=[seat[0], 1.00, seat[2]]),
-         dict(name='character', eye=[0.20, 1.45, 1.00], target=[seat[0], 1.00, seat[2]]),
-         dict(name='door', eye=[-0.30, 1.55, 1.00], target=[X0, 1.30, DOOR_Z])]
+views = [dict(name='overview', eye=[0.00, 1.62, -2.20], target=[0.00, 0.95, 1.80]),
+         dict(name='pda', eye=[PDA[0] + 0.20, 1.30, PDA[1] - 0.70], target=[PDA[0], TOP + 0.02, PDA[1]]),
+         dict(name='radio', eye=[SHELF_X - 0.45, 1.55, Z1 - 1.30], target=[SHELF_X - 0.10, shelf_hi[1] + 0.15, Z1 - 0.27]),
+         dict(name='character', eye=[seat[0] + 0.25, 1.45, seat[2] - 1.75], target=[seat[0], 1.00, seat[2]]),
+         dict(name='character', eye=[seat[0] + 0.25, 1.45, seat[2] - 1.75], target=[seat[0], 1.00, seat[2]]),
+         # Swing to the door behind the camera from the side, so the look
+         # direction never passes through the eye during the transition.
+         dict(name='door', eye=[0.80, 1.55, -0.60], target=[0.00, 1.30, Z0])]
 out.mkdir(parents=True, exist_ok=True)
 (out / 'personal_room.room').write_bytes(binary)
 values = sum((v['eye'] + v['target'] for v in views), []) + lamp + seat + [SEAT_HEADING]
