@@ -545,9 +545,10 @@ local function install_squad_witnesses()
 			-- fighting squad immortal. Keep explicit story protection.
 			if attacked and attacked.until_time >= time_global() and storage and storage.ini
 				and not get_object_story_id(npc:id()) then
-				local rule = storage.ini:r_string_to_condlist(storage.section_logic, "invulnerable")
-					or storage.active_section and storage.ini:r_string_to_condlist(storage.active_section, "invulnerable")
-				if rule and npc:section():find("^sim_default") then return false end
+				local rule = storage.ini:r_string_ex(storage.section_logic, "invulnerable")
+					or storage.active_section and storage.ini:r_string_ex(storage.active_section, "invulnerable")
+				if rule and npc:section():find("^sim_default") and rule:find("npc_in_zone", 1, true)
+					and rule:find("safe_restr", 1, true) then return false end
 			end
 			return protection(npc)
 		end

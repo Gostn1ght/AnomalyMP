@@ -26,6 +26,7 @@ jobs:
           python -m pip install lupa==2.8
           python scripts/check-netcoop-menu.py
           python scripts/check-netcoop-trade.py
+          python scripts/check-netcoop-ai.py
       - name: Check actual item interpolation
         run: python scripts/check-netcoop-physics.py
 

@@ -438,7 +438,7 @@ void CAI_Stalker::Hit(SHit* pHDS)
 
 	//conditions().health()			= 1.f;
 
-if (netcoop::enabled() && !netcoop::pure_client() && player_attacker && HDS.damage() > 0.f)
+	if (netcoop::enabled() && !netcoop::pure_client() && player_attacker && HDS.damage() > 0.f)
 	{
 		for (u32 index = 0; index < Level().Objects.o_count(); ++index)
 		{

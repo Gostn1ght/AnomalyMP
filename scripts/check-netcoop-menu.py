@@ -348,6 +348,7 @@ callbacks.room_back(); finish_camera(); assert(last_window.room_view==nil)
 cache_characters('Door Tester||||||||||'); last_window:ShowCharacters(); finish_camera()
 commands={}; local requests=#cloud_requests; local joins=#characters
 callbacks.room_next(); assert(last_window.room_view=='door' and camera_target==4)
+assert(not controls.room_back.shown, 'door has no Back overlay')
 callbacks.room_next(); assert(last_window.room_view=='door','ignore rapid camera turn')
 finish_camera(); pick_result=4; cursor={x=512,y=380}; last_window:Update(); assert(last_hover==4)
 last_window:OnKeyboard(DIK_keys.MOUSE_1,ui_events.WINDOW_KEY_PRESSED)
