@@ -68,6 +68,8 @@ void CMMSound::whell_UpdateMoving(float frequency)
 
 void CMMSound::music_Play()
 {
+    // Lost Zone room audio is owned by netcoop_menu_radio after presentation.
+    if (strstr(Core.Params, "-netcoop")) { music_Stop(); return; }
 	if (m_play_list.empty())
 		return;
 
@@ -85,6 +87,7 @@ void CMMSound::music_Play()
 
 void CMMSound::music_Update()
 {
+    if (strstr(Core.Params, "-netcoop")) { music_Stop(); return; }
 	if (Device.Paused()) return;
 
 	if (0 == m_music_stereo._feedback())

@@ -29,6 +29,8 @@ jobs:
           python scripts/check-netcoop-ai.py
       - name: Check actual item interpolation
         run: python scripts/check-netcoop-physics.py
+      - name: Check actual startup menu audio
+        run: python scripts/check-menu-audio.py
       - name: Check actual Firebase verification links
         run: python scripts/check-firebase-links.py
       - name: Check actual keyboard and clipboard paste
