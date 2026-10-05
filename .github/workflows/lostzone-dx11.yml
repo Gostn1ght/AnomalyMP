@@ -33,6 +33,8 @@ jobs:
           python scripts/check-netcoop-ai.py
           python scripts/check-netcoop-items.py
           python scripts/check-netcoop-world-rules.py
+          python scripts/check-netcoop-transit.py
+          python scripts/check-netcoop-emission.py
       - name: Check actual item interpolation
         run: python scripts/check-netcoop-physics.py
       - name: Check actual startup menu audio

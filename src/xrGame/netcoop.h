@@ -267,6 +267,14 @@ bool script_item_action(int kind, u16 item, u16 target, LPCSTR action);
 LPCSTR script_actor_login(u16 actor_id);
 // Lua (server): netcoop_players() -> "id id ..." of logged-in players' Actors.
 LPCSTR script_players();
+// Lua (server, location cluster): "map map ..." served by other servers of
+// the cluster; empty without netcoop_cluster.ltx.
+LPCSTR script_cluster_maps();
+// Lua (server): NPC transit records (netcoop_transit.script) for a map's
+// server. put writes one record atomically; take claims and removes the
+// oldest record for that map ("" when there is none).
+bool script_transit_put(LPCSTR level, LPCSTR content);
+LPCSTR script_transit_take(LPCSTR level);
 // Server: may this player's account use the box/placed object (owner and access
 // list kept by netcoop_server_compat.can_access); true for anything unowned.
 bool server_object_access(u16 object_id, xrClientData* CL);

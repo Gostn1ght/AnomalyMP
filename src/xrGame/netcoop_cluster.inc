@@ -24,6 +24,8 @@
 
 static void store_money(xrClientData* CL); // netcoop.cpp, account money of a slot-1 character
 
+static u64 cluster_unix_ms();
+
 static const u32 cluster_lease_ttl_s = 30, cluster_ticket_ttl_s = 180, cluster_leave_ms = 3000;
 
 struct ClusterLeaving { u16 actor = 0; u32 since = 0; xr_string level; };
@@ -252,6 +254,91 @@ void server_task_check_target(const char* task_id, unsigned short object_id)
 	Msg("[Lost Zone][tasks] %s: target %u is on %s, task %s", task_id, object_id, level, done ? "cancelled" : "left as is");
 	if (!done) return;
 	s_cancelled_foreign_tasks.erase(task_id); // the same id may be given again later
+}
+
+// ---- NPC transit records (netcoop_transit.script) -------------------------
+
+LPCSTR script_cluster_maps()
+{
+	static xr_string maps;
+	maps.clear();
+	string_path path;
+	FS.update_path(path, "$app_data_root$", "netcoop_cluster.ltx");
+	if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) return "";
+	CInifile ini(path, TRUE, TRUE, FALSE);
+	if (!ini.section_exist("locations")) return "";
+	CInifile::Sect& section = ini.r_section("locations");
+	for (const auto& item : section.Data)
+	{
+		xr_string host; u32 port = 0;
+		if (!cluster_location(*item.first, host, port) || port == cluster_port()) continue;
+		if (!maps.empty()) maps += " ";
+		maps += *item.first;
+	}
+	return maps.c_str();
+}
+
+static bool cluster_name_valid(LPCSTR name)
+{
+	if (!name || !name[0] || xr_strlen(name) > 63) return false;
+	for (const char* c = name; *c; ++c)
+		if (!isalnum((unsigned char)*c) && *c != '_') return false;
+	return true;
+}
+
+static void cluster_transit_dir(string_path& path)
+{
+	string_path dir; cluster_dir(dir);
+	xr_sprintf(path, "%stransit\\", dir);
+	CreateDirectoryA(path, nullptr);
+}
+
+bool script_transit_put(LPCSTR level, LPCSTR content)
+{
+	if (!enabled() || !cluster_name_valid(level) || !content || xr_strlen(content) > 262144) return false;
+	u8 nonce[8];
+	if (!random_bytes(nonce, sizeof(nonce))) return false;
+	string_path dir, path, temp;
+	cluster_transit_dir(dir);
+	xr_sprintf(path, "%s%s_%016llx_%s.lua", dir, level, cluster_unix_ms(), to_hex(nonce, sizeof(nonce)).c_str());
+	xr_sprintf(temp, "%s.tmp", path);
+	FILE* f = fopen(temp, "wb");
+	if (!f) return false;
+	const size_t size = xr_strlen(content);
+	const bool ok = fwrite(content, 1, size, f) == size && fflush(f) == 0 && _commit(_fileno(f)) == 0;
+	if (fclose(f) != 0 || !ok || !MoveFileExA(temp, path, MOVEFILE_WRITE_THROUGH)) { DeleteFileA(temp); return false; }
+	return true;
+}
+
+LPCSTR script_transit_take(LPCSTR level)
+{
+	static xr_string content;
+	content.clear();
+	if (!enabled() || !cluster_name_valid(level)) return "";
+	string_path dir, mask;
+	cluster_transit_dir(dir);
+	xr_sprintf(mask, "%s%s_*.lua", dir, level);
+	WIN32_FIND_DATAA found;
+	HANDLE search = FindFirstFileA(mask, &found);
+	if (search == INVALID_HANDLE_VALUE) return "";
+	xr_string oldest = found.cFileName;
+	while (FindNextFileA(search, &found))
+		if (xr_strcmp(found.cFileName, oldest.c_str()) < 0) oldest = found.cFileName; // names sort by time
+	FindClose(search);
+	// Renaming claims the record: only one process can win it.
+	string_path path, claimed;
+	xr_sprintf(path, "%s%s", dir, oldest.c_str());
+	xr_sprintf(claimed, "%s.%u.claimed", path, GetCurrentProcessId());
+	if (!MoveFileExA(path, claimed, 0)) return "";
+	if (FILE* f = fopen(claimed, "rb"))
+	{
+		char buffer[4096];
+		size_t n;
+		while ((n = fread(buffer, 1, sizeof(buffer), f)) > 0 && content.size() < 262144) content.append(buffer, n);
+		fclose(f);
+	}
+	DeleteFileA(claimed);
+	return content.c_str();
 }
 
 // ---- server: login and leaving ---------------------------------------------

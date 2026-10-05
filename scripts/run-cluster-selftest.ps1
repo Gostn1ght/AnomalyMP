@@ -13,7 +13,9 @@ param(
     [string]$Runtime = (Join-Path $PSScriptRoot "..\..\gamma-runtime"),
     [int]$Bots = 4,
     [int]$Minutes = 10,
-    [int]$LoadTimeoutMinutes = 15
+    [int]$LoadTimeoutMinutes = 15,
+    # Load test: only the Great Swamp server, no cluster, bots stay there.
+    [switch]$LoadOnly
 )
 $ErrorActionPreference = "Stop"
 $Runtime = (Resolve-Path $Runtime).Path
@@ -29,7 +31,7 @@ Get-ChildItem $appdata -Force -ErrorAction SilentlyContinue | Where-Object { $_.
     Remove-Item -Recurse -Force
 Remove-Item (Join-Path $Runtime "appdata\selftest_bots\logs") -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $logs | Out-Null
-Set-Content -Encoding ascii (Join-Path $appdata "netcoop_cluster.ltx") "[locations]`r`nk00_marsh  = 127.0.0.1:1367`r`nl01_escape = 127.0.0.1:1377`r`n"
+if (-not $LoadOnly) { Set-Content -Encoding ascii (Join-Path $appdata "netcoop_cluster.ltx") "[locations]`r`nk00_marsh  = 127.0.0.1:1367`r`nl01_escape = 127.0.0.1:1377`r`n" }
 $stamp = Get-Date
 
 function Start-LocationServer($name, $port, $start) {
@@ -61,9 +63,12 @@ try {
     $processes += Start-LocationServer "marsh" 1367 "hidden_base"
     $marsh = Wait-Loaded "marsh"
     Write-Host "marsh loaded: $marsh"
-    $processes += Start-LocationServer "escape" 1377 "rookie_village"
-    $escape = Wait-Loaded "escape"
-    Write-Host "escape loaded: $escape"
+    $escape = $marsh
+    if (-not $LoadOnly) {
+        $processes += Start-LocationServer "escape" 1377 "rookie_village"
+        $escape = Wait-Loaded "escape"
+        Write-Host "escape loaded: $escape"
+    }
     $botArgs = "-nosplashwindow -netcoop -dbg -noprefetch -multi_instance -logname selftest_bots -fsltx fsgame_selftest_bots.ltx " +
         "-netcoop_bots $Bots -netcoop_bots_addr 127.0.0.1/port=1367"
     $processes += Start-Process -FilePath $client -ArgumentList $botArgs -WorkingDirectory $Runtime -PassThru
@@ -91,4 +96,6 @@ $summary = [ordered]@{
     fatal = @($serverLines + $botLines | Select-String "FATAL ERROR|stack trace|Expression\s*:").Count
 }
 $summary.GetEnumerator() | ForEach-Object { "{0,-14} {1}" -f $_.Key, $_.Value }
+"last bot reports:"; $botLines | Select-String "wanted:" | Select-Object -Last 3 | ForEach-Object { $_.Line }
+"last server metrics:"; Get-Content $marsh | Select-String "\[metrics\] server" | Select-Object -Last 3 | ForEach-Object { $_.Line }
 "logs: $marsh ; $escape ; $($botLog.FullName)"

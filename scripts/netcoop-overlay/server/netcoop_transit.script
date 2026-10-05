@@ -1,0 +1,239 @@
+----------------------------------------------------------------------
+-- NPC squads walk between the maps of the location cluster (doc 43 H09/H10)
+----------------------------------------------------------------------
+-- Now and then a stalker squad nobody watches leaves its map through a level
+-- changer that leads to another map of the cluster. The same people arrive
+-- there: name, profile, faction, rank, reputation, health, money and every
+-- item they carry, at the changer that leads back. Nobody is created from
+-- nothing and nobody is lost: the record is written before the squad is
+-- released, and the target server claims each record once
+-- (netcoop_transit_put / netcoop_transit_take in netcoop_cluster.inc).
+-- Story squads, companions, squads on a scripted target and squads in sight
+-- of a player never leave. The location server keeps its population:
+-- arrivals from the other side balance departures.
+local TRANSIT = {
+	check_ms = 600000, -- real time between looks for a departing squad
+	chance = 0.3,
+	player_clear = 150, -- no player this close to any member
+	arrivals_ms = 15000, -- real time between looks for arriving squads
+}
+-- Cluster soak test (-netcoop_cluster_selftest): a squad leaves every minute.
+if command_line and string.find(command_line(), "-netcoop_cluster_selftest", 1, true) then
+	TRANSIT.check_ms, TRANSIT.chance = 60000, 1
+end
+local next_departure, next_arrival = 0, 0
+
+-- Identity carried over; everything about place, squad and smart terrain
+-- comes from the new object.
+local IDENTITY = {
+	"money", "specific_character", "trader_flags", "character_profile", "community_index", "rank",
+	"reputation", "character_name", "dead_body_can_take", "dead_body_closed", "equipment_preferences",
+	"weapon_preferences", "health", "visual_name", "visual_flags",
+}
+-- Fields of an item's state that belong to the place, not to the item.
+local PLACE = { "game_vertex_id", "distance", "direct_control", "level_vertex_id", "story_id", "spawn_story_id" }
+
+local function serialize(value, depth)
+	depth = depth or 0
+	local kind = type(value)
+	if kind == "number" then return string.format("%.17g", value) end
+	if kind == "string" then return string.format("%q", value) end
+	if kind == "boolean" then return value and "true" or "false" end
+	if kind ~= "table" or depth > 8 then return "nil" end
+	local parts = {}
+	for k, v in pairs(value) do
+		local key = type(k) == "number" and ("[" .. string.format("%.17g", k) .. "]") or ("[" .. string.format("%q", tostring(k)) .. "]")
+		parts[#parts + 1] = key .. "=" .. serialize(v, depth + 1)
+	end
+	return "{" .. table.concat(parts, ",") .. "}"
+end
+
+function deserialize(text)
+	if type(text) ~= "string" or text == "" then return nil end
+	local chunk = loadstring("return " .. text)
+	if not chunk then return nil end
+	setfenv(chunk, {}) -- data only
+	local ok, value = pcall(chunk)
+	return ok and type(value) == "table" and value or nil
+end
+
+local function cluster_maps()
+	local maps = {}
+	for name in string.gmatch(netcoop_cluster_maps and netcoop_cluster_maps() or "", "%S+") do maps[name] = true end
+	return maps
+end
+
+local function level_of(se)
+	local graph = game_graph()
+	return se and se.m_game_vertex_id and alife():level_name(graph:vertex(se.m_game_vertex_id):level_id())
+end
+
+local function players_near(pos, radius)
+	for id in string.gmatch(netcoop_players and netcoop_players() or "", "%d+") do
+		local actor = level.object_by_id(tonumber(id))
+		if actor and actor:position():distance_to(pos) <= radius then return true end
+	end
+	return false
+end
+
+-- Level changers of this map, by the map they lead to.
+local function changers()
+	local here, out = level.name(), {}
+	local sim = alife()
+	for id = 1, 65534 do
+		local se = sim:object(id)
+		local class = se and se:clsid()
+		if class and (class == clsid.level_changer_s or class == clsid.level_changer) and level_of(se) == here then
+			local data = utils_stpk.get_level_changer_data(se)
+			if data and data.dest_level_name and data.dest_level_name ~= "" then
+				out[data.dest_level_name] = out[data.dest_level_name] or se
+			end
+		end
+	end
+	return out
+end
+
+-- Items by owner: one pass over the registry serves a whole squad.
+local function items_by_owner()
+	local sim, out = alife(), {}
+	for id = 1, 65534 do
+		local se = sim:object(id)
+		local parent = se and se.parent_id
+		if parent and parent ~= 65535 then
+			out[parent] = out[parent] or {}
+			table.insert(out[parent], se)
+		end
+	end
+	return out
+end
+local function items_of(owner_id, index) return (index or items_by_owner())[owner_id] or {} end
+
+local function eligible(squad)
+	if not (squad and squad.squad_members) then return false end
+	if get_object_story_id and get_object_story_id(squad.id) then return false end
+	if axr_companions and axr_companions.companion_squads and axr_companions.companion_squads[squad.id] then return false end
+	if squad.get_script_target and squad:get_script_target() then return false end
+	local count = 0
+	for member in squad:squad_members() do
+		local se = alife():object(member.id)
+		if not (se and IsStalker(nil, se:clsid()) and se:alive()) then return false end
+		if get_object_story_id and get_object_story_id(member.id) then return false end
+		if players_near(se.position, TRANSIT.player_clear) then return false end
+		count = count + 1
+	end
+	return count > 0
+end
+
+local function capture(squad, target)
+	local record = { v = 1, from = level.name(), to = target, section = squad:section_name(), members = {} }
+	local index = items_by_owner()
+	for member in squad:squad_members() do
+		local se = alife():object(member.id)
+		local entry = { section = se:section_name(), data = utils_stpk.get_stalker_data(se), items = {} }
+		for _, item in ipairs(items_of(se.id, index)) do
+			entry.items[#entry.items + 1] = { section = item:section_name(), data = utils_stpk.get_object_data(item) }
+		end
+		record.members[#record.members + 1] = entry
+	end
+	return record
+end
+
+-- One squad that nobody sees leaves through a changer to a cluster map.
+function depart(roll)
+	local maps = cluster_maps()
+	if next(maps) == nil then return "no cluster" end
+	local exits = changers()
+	local targets = {}
+	for name, se in pairs(exits) do if maps[name] then targets[#targets + 1] = name end end
+	if #targets == 0 then return "no exits" end
+	if roll() >= TRANSIT.chance then return "stays" end
+	local here, candidates = level.name(), {}
+	for _, squad in pairs(SIMBOARD and SIMBOARD.squads or {}) do
+		if level_of(squad) == here and eligible(squad) then candidates[#candidates + 1] = squad end
+	end
+	if #candidates == 0 then return "nobody" end
+	local squad = candidates[math.floor(roll() * #candidates) + 1]
+	local target = targets[math.floor(roll() * #targets) + 1]
+	local record = capture(squad, target)
+	if not netcoop_transit_put(target, serialize(record)) then return "not written" end
+	-- Written first: a crash right here leaves the squad on both maps rather
+	-- than on neither.
+	local ids, index = {}, items_by_owner()
+	for member in squad:squad_members() do ids[#ids + 1] = member.id end
+	for _, id in ipairs(ids) do
+		for _, item in ipairs(items_of(id, index)) do alife_release(item) end
+		alife_release_id(id)
+	end
+	alife_release(squad)
+	printf("[Lost Zone][transit] squad %s (%d) left %s for %s", record.section, #record.members, here, target)
+	return "left"
+end
+
+local function restore_member(squad, entry, se_changer)
+	local id = squad:add_squad_member(entry.section, se_changer.position, se_changer.m_level_vertex_id, se_changer.m_game_vertex_id)
+	local se = id and alife():object(id)
+	if not se then return false end
+	-- Identity from the record, place and links from the new object.
+	local fresh = utils_stpk.get_stalker_data(se)
+	for _, key in ipairs(IDENTITY) do
+		if entry.data[key] ~= nil then fresh[key] = entry.data[key] end
+	end
+	utils_stpk.set_stalker_data(fresh, se)
+	-- The profile's starting items are replaced by what the person carried.
+	for _, item in ipairs(items_of(se.id)) do alife_release(item) end
+	for _, saved in ipairs(entry.items or {}) do
+		if ini_sys:section_exist(saved.section) then
+			local item = alife_create_item(saved.section, se)
+			if item and saved.data then
+				local state = utils_stpk.get_object_data(item)
+				if state then
+					for key, value in pairs(saved.data) do state[key] = value end
+					local now = utils_stpk.get_object_data(item)
+					for _, key in ipairs(PLACE) do state[key] = now[key] end
+					utils_stpk.set_object_data(state, item)
+				end
+			end
+		end
+	end
+	return true
+end
+
+-- Squads that walked here from another map appear at the changer that leads
+-- back to it.
+function arrive()
+	local record = deserialize(netcoop_transit_take(level.name()))
+	if not record then return "nothing" end
+	local exits = changers()
+	local se_changer = exits[record.from]
+	if not se_changer then
+		for _, se in pairs(exits) do se_changer = se; break end
+	end
+	if not (se_changer and record.section and ini_sys:section_exist(record.section)) then
+		printf("! [Lost Zone][transit] squad %s from %s has no way in", tostring(record.section), tostring(record.from))
+		return "no entrance"
+	end
+	local squad = alife_create(record.section, se_changer.position, se_changer.m_level_vertex_id, se_changer.m_game_vertex_id)
+	if not squad then return "not created" end
+	local count = 0
+	for _, entry in ipairs(record.members or {}) do
+		if ini_sys:section_exist(entry.section) and restore_member(squad, entry, se_changer) then count = count + 1 end
+	end
+	if squad.set_squad_relation then squad:set_squad_relation() end
+	if SIMBOARD and SIMBOARD.assign_squad_to_smart then SIMBOARD:assign_squad_to_smart(squad) end
+	printf("[Lost Zone][transit] squad %s (%d) arrived on %s from %s", record.section, count, level.name(), tostring(record.from))
+	return "arrived"
+end
+
+function update()
+	local now = time_global()
+	if now >= next_arrival then
+		next_arrival = now + TRANSIT.arrivals_ms
+		local ok, result = pcall(arrive)
+		if not ok then printf("! [Lost Zone][transit] arrival failed: %s", tostring(result)) end
+	end
+	if now >= next_departure then
+		next_departure = now + TRANSIT.check_ms
+		local ok, result = pcall(depart, math.random)
+		if not ok then printf("! [Lost Zone][transit] departure failed: %s", tostring(result)) end
+	end
+end
