@@ -98,6 +98,12 @@ class HttpTest(unittest.TestCase):
         self.server.ready.clear()
         self.assertEqual(self.call("GET", "/v1/clock")[0], 503)
 
+    def test_early_rejection_delivers_response_with_an_unread_post_body(self):
+        for _ in range(8):
+            self.assertEqual(self.call("POST", "/v1/command", raw='{}', token=None)[0],401)
+            self.assertEqual(self.call("POST", "/v1/command", raw='{}', headers={"Content-Type":"text/plain"})[0],400)
+            self.assertEqual(self.call("POST", "/v1/command", raw='x'*65537)[0],413)
+
     def test_request_backpressure_rate_and_worker_bound(self):
         self.server.rate_limit = RateLimit(rate=0, burst=1)
         self.assertEqual(self.call("GET", "/v1/clock")[0], 200)

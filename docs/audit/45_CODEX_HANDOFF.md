@@ -103,3 +103,8 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
 - `8d586d8f9` Foundation 37367127157 SUCCESS GCC/MSVC (включая wallet/account
   fault checks). DX11 37367011993 в очереди, runtime не обновлён. Следующий
   backend-only commit не меняет native/overlay code и не отменяет этот build.
+
+- HTTP fix: ранний POST отказ на Windows мог дать TCP reset вместо JSON error.
+  Respond теперь flush/half-close + bounded tail drain; повторные реальные HTTP
+  tests и полный локальный backend run: 75 PASS. ab98e1811 backend Windows
+  Actions 37368019662 SUCCESS (74 tests, до fix); Linux queued.

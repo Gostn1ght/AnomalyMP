@@ -269,3 +269,13 @@ Native Foundation на `8d586d8f9` / Actions 37367127157 SUCCESS GCC/MSVC:
 actual mailbox, player handoff с late wallet, account lock/fsync/rename faults,
 остальные clock/store/bridge/corpse/items/spatial/replication fixtures. Полный
 DX11 Actions 37367011993 пока в очереди; установленных новых exe нет.
+
+Общий Windows run после contact блока один раз выявил реальную транспортную
+ошибку: при раннем отказе POST (неверный Content-Type) незачитанное тело
+вызывало TCP reset/WinError 10053 вместо JSON 400. Исправлен response shutdown:
+сначала flush + SHUT_WR, затем bounded incoming tail drain (64 KiB, короткий
+socket timeout/deadline), без ожидания произвольного Content-Length.
+Повторные unauthorized/MIME/oversize POST checks и полный локальный backend
+run **75 tests PASS**. Это не retry в тесте и не подавление ошибки клиента.
+На ab98e1811 Actions 37368019662 Windows (74 tests до этого fix) SUCCESS;
+Linux ещё в очереди. Новый backend-only commit требует Actions обоих ОС.

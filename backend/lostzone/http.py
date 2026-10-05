@@ -201,6 +201,20 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Connection", "close")
             self.end_headers()
             self.wfile.write(body)
+            self.wfile.flush()
+            # Rejecting before consuming a POST body can send a TCP reset on
+            # Windows, hiding the JSON error from a normal client. Send FIN
+            # for the response first, then drain a bounded incoming tail.
+            # Never wait for an untrusted Content-Length or chunked stream.
+            self.connection.shutdown(socket.SHUT_WR)
+            self.connection.settimeout(.05)
+            remaining = 65536
+            deadline = time.monotonic() + .1
+            while remaining and time.monotonic() < deadline:
+                data = self.connection.recv(min(remaining, 4096))
+                if not data:
+                    break
+                remaining -= len(data)
         except OSError:
             pass # Peer disconnected; committed commands remain queryable.
         finally:
