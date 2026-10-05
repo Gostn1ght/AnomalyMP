@@ -2,6 +2,7 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import os
+import re
 import subprocess
 if os.environ.get("GITHUB_ACTIONS") != "true":
     raise SystemExit("Native checks must run in GitHub Actions")
@@ -10,11 +11,16 @@ cluster = (root/"src/xrGame/netcoop_cluster.inc").read_text(encoding="utf-8")
 a = cluster.index('static bool cluster_move(xrServer* server, xrClientData* CL, CLevelChanger* changer)\n{')
 b = cluster.index('// -netcoop_cluster_selftest:', a)
 body = cluster[a:b]
+status_start = cluster.index('static LPCSTR cluster_target_problem(u32 port)\n{')
+status_end = cluster.index('\nstatic bool cluster_secret()',status_start)
+status_body = cluster[status_start:status_end]
+status_ttl = re.search(r'static const u32 cluster_status_ttl_s\s*=\s*(\d+)\s*;',cluster).group(1)
 engine = (root/"src/xrGame/netcoop.cpp").read_text(encoding="utf-8")
 start = engine.index('static void store_money(xrClientData* CL)\n{')
 end = engine.index('\nvoid server_on_client_disconnect(', start)
 money = engine[start:end].replace('static void store_money(', 'static void captured_store_money(')
 source = r'''
+#define _CRT_SECURE_NO_WARNINGS
 #include <cassert>
 #include <cstdint>
 #include <map>
@@ -48,6 +54,11 @@ AI ai(){return {};}
 const char* cluster_current_level(){return "source";}
 u32 cluster_port(){return 1267;}u32 real_time_ms(){return 100;}
 bool location_ok=true,ticket_ok=true,save_ok=true,accounts_ok=true;
+bool status_ok=true;
+std::string target_status="100 0 16";
+u32 cluster_now(){return 100;}
+void cluster_dir(string_path& path){std::snprintf(path,sizeof(path),"cluster/");}
+bool cluster_read_line(const char*,xr_string& value){value=target_status;return status_ok;}
 std::string events, refusal;int saved_destination=0;
 bool cluster_location(const char*,std::string& host,u32& port){host="localhost";port=1277;return location_ok;}
 void cluster_refuse(xrServer*,xrClientData*,const char* message){refusal=message;events+='R';}
@@ -72,10 +83,10 @@ bool character_save_actor(u16,const CharacterDestination* destination){
 void cluster_lease_release(const char*){events+='L';}
 void script_send_to_actor(u16,const char*,const char*){events+='N';assert(s_actor_character.empty());}
 void Msg(const char*,...){}
-'''+money+r'''
+'''+f'\nstatic const u32 cluster_status_ttl_s = {status_ttl};\n'+status_body+money+r'''
 void store_money(xrClientData* client){events+='M';assert(!server_client_leaving(client));captured_store_money(client);}
 '''+body+r'''
-void reset(){events.clear();refusal.clear();saved_destination=0;s_cluster_leaving.clear();s_character_restore.clear();s_actor_character[7]=1;ticket_ok=save_ok=location_ok=accounts_ok=true;}
+void reset(){events.clear();refusal.clear();saved_destination=0;s_cluster_leaving.clear();s_character_restore.clear();s_actor_character[7]=1;ticket_ok=save_ok=location_ok=accounts_ok=status_ok=true;target_status="100 0 16";}
 int main(){
  xrServer server;Owner owner;xrClientData client;client.owner=&owner;CLevelChanger changer;
  reset();ticket_ok=false;
@@ -95,6 +106,11 @@ int main(){
  assert(account.money==20 && !account.touched && !s_accounts_dirty);
  reset();s_character_restore[7]=1;assert(!cluster_move(&server,&client,&changer));assert(events=="R");
  reset();location_ok=false;assert(!cluster_move(&server,&client,&changer));assert(events=="R");
+ reset();status_ok=false;assert(!cluster_move(&server,&client,&changer));assert(events=="R" && saved_destination==0 && s_cluster_leaving.empty());
+ reset();target_status="0 0 16";assert(!cluster_move(&server,&client,&changer));assert(events=="R" && refusal.find("offline")!=std::string::npos);
+ reset();target_status="100 15 16";assert(!cluster_move(&server,&client,&changer));assert(events=="R" && refusal.find("full")!=std::string::npos);
+ reset();target_status="broken";assert(!cluster_move(&server,&client,&changer));assert(events=="R");
+ reset();target_status="100 14 16";assert(cluster_move(&server,&client,&changer));assert(events=="TMASLN");
  reset();changer.open=false;assert(!cluster_move(&server,&client,&changer));assert(events=="R");
  std::cout<<"PASS actual player handoff: ticket failure preserves source, save failure cancels prepare/unfreezes, success freezes/saves/releases/redirects in order\n";
 }

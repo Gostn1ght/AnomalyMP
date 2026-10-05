@@ -154,3 +154,11 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
 - DX11 8d586d8f9 / 37367011993 attempt 2 SUCCESS, artifact verified present.
   Installation/selftest remains Claude's area; no installer/runtime edits by
   Codex. This package has v2 transit API and wallet/account durability fixes.
+
+- Native fixture follow-up: latest a5702564c DX11 run 37371467639 failed before
+  engine compilation, because cluster_move now calls cluster_target_problem
+  and the isolated player-transfer fixture had not included that dependency.
+  Codex updated its fixture to extract the ACTUAL target availability helper
+  and TTL (rather than return a hard-coded success), plus tests for unreadable,
+  stale, malformed, full and available target status. Native verification must
+  run on Actions; no local compiler used. Runtime installation remains Claude.
