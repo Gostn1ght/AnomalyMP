@@ -15,8 +15,6 @@
 #include "xrServer_updates_compressor.h"
 #include "xrClientsPool.h"
 #include "xrmessages.h"
-#include "netcoop_spatial_grid.h"
-#include "netcoop_simulation_lod.h"
 #include <memory>
 
 #ifdef DEBUG
@@ -25,6 +23,7 @@
 
 
 class CSE_Abstract;
+struct NetcoopChunkShadow;
 
 const u32 NET_Latency = 50; // time in (ms)
 
@@ -131,10 +130,7 @@ private:
 	void SendUpdatesAOI();
 	u32 m_aoi_tick = 0;
 	// Diagnostic shadow only: no spawn, AI, ownership or packet filtering.
-	std::unique_ptr<netcoop_world::SpatialGrid> m_chunk_shadow;
-	std::unique_ptr<netcoop_world::SimulationLodPlanner> m_lod_shadow;
-	struct ShadowObserver { netcoop_world::SpatialPoint position; u64 real_ms = 0; };
-	std::map<u16, ShadowObserver> m_shadow_observers;
+	std::unique_ptr<NetcoopChunkShadow> m_chunk_shadow;
 	u64 m_chunk_shadow_last = 0;
 	u64 m_chunk_shadow_log = 0;
 	bool m_chunk_shadow_failed = false;
