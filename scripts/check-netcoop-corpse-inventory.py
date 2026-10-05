@@ -121,7 +121,7 @@ struct Fixture {
   netcoop::active=true;fixture_ai.sim=&sim;
   body.ID=1;body.children={2,3};first.ID=2;second.ID=3;
   first.ID_Parent=second.ID_Parent=1;
-  sim.registry.values={{1,&body},{2,&first},{3,&second}};
+  sim.registry.values={{u16(1),&body},{u16(2),&first},{u16(3),&second}};
  }
  void loot_survives() {
   assert(sim.registry.object(2)==&first && sim.registry.object(3)==&second);

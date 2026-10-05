@@ -126,7 +126,10 @@ header не требуется включать полное ядро grid/LOD.
 Lua world guard останавливает исключительно age-based release_item_manager
 и его уже поставленный timer: оба порядка on_game_load и замена метода
 проверены locally через actual Lua. Consumption/quest/pickup paths не
-перехватываются. Native age-only NeedToDestroyObject для inventory item,
+перехватываются. Также закрыты отдельные age purges: floor artefacts в
+grok_artefact_despawner.delete_artefacts и persistent NPC inventory в
+release_npc_inventory.clean_npc_inv, с сохранением vanilla behaviour вне co-op.
+Native age-only NeedToDestroyObject для inventory item,
 weapon и dropped grenade также отключены в co-op; armed missile fuse
 оставлен в отдельном действующем пути. Для этого добавлен fixture настоящих
 methods и fuse scheduler; native checks запускаются только в Actions.
@@ -140,6 +143,9 @@ WinHTTP→backend, foreign seed rejection и bounded stop/join.
 encoding при чтении corpse source. Чтение sources исправлено на UTF-8;
 это не ошибка bridge protocol. Общий native pipeline и полный DX11
 ещё должны пройти на итоговом commit.
+Повтор `bb92601b0`: Linux PASS; Windows снова прошёл bridge/store, но
+corpse fixture остановился на /WX C4244 (template map initializer с int→u16
+key). Fixture использует явные u16 keys; production adapter не изменён.
 
 Игра автоматически не запускалась: ранее launch был blocked by policy;
 запрет не обойдён. Нет live gameplay приёмки, данных p99/FPS/traffic,

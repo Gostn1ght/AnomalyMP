@@ -11,12 +11,26 @@ local function cooperative()
     return netcoop_enabled and netcoop_enabled()
 end
 
+local function keep_inventory_from_purge(owner, name)
+    local original = owner and owner[name]
+    if type(original) ~= "function" or guarded_cleaners[original] then return end
+    local guarded = function(...)
+        if cooperative() then return end
+        return original(...)
+    end
+    guarded_cleaners[guarded] = true
+    owner[name] = guarded
+end
+
 function on_try_respawn(smart, flags)
     if cooperative() and flags then flags.disabled = true end
 end
 
 function install()
     if not cooperative() then return end
+    -- These are inventory/artefact age purges, not AI consumption or trading.
+    keep_inventory_from_purge(grok_artefact_despawner, "delete_artefacts")
+    keep_inventory_from_purge(release_npc_inventory, "clean_npc_inv")
     -- This manager implements only the age-based dropped-item purge. Keep
     -- consumption, repairs, quest removal and explicit pickup paths intact.
     local cleaner = release_item_manager and release_item_manager.clear

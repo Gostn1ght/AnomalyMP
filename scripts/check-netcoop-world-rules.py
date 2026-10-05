@@ -37,13 +37,15 @@ print("Actual server world rules: no NPC/mutant replenishment, preserved initial
 
 lua = LuaRuntime(unpack_returned_tuples=True)
 lua.execute(r'''
-cooperative = true; purged = 0; consumed = 0; timers = {}; callbacks = {}
+cooperative = true; purged = 0; consumed = 0; timers = {}; callbacks = {}; artefacts = 0; npc_items = 0
 function netcoop_enabled() return cooperative end
 function printf() end
 function RegisterScriptCallback(kind, fn) callbacks[kind] = fn end
 function RemoveTimeEvent(id, name) timers[id .. name] = nil end
 function CreateTimeEvent(id, name, fn) timers[id .. name] = fn end
 release_item_manager = {clear = function() purged = purged + 1; return false end}
+grok_artefact_despawner = {delete_artefacts = function(id) artefacts = artefacts + id; return id end}
+release_npc_inventory = {clean_npc_inv = function(id) npc_items = npc_items + id; return id end}
 function consume_item() consumed = consumed + 1 end
 -- Simulate the base manager's earlier on_game_load callback capturing clear.
 CreateTimeEvent(0, "release_item", release_item_manager.clear)
@@ -57,8 +59,13 @@ assert(timers["0unrelated_quest"], "leave other timers intact")
 local guarded = release_item_manager.clear
 for i=1,100 do assert(release_item_manager.clear() == true) end
 assert(purged == 0, "dropped items have no age-based deletion")
+local artefact_guard = grok_artefact_despawner.delete_artefacts
+local inventory_guard = release_npc_inventory.clean_npc_inv
+grok_artefact_despawner.delete_artefacts(7); release_npc_inventory.clean_npc_inv(9)
+assert(artefacts == 0 and npc_items == 0, "floor artefacts and persistent NPC inventory are not age-purged")
 for i=1,10 do install() end
 assert(guarded == release_item_manager.clear, "item guard is idempotent")
+assert(artefact_guard == grok_artefact_despawner.delete_artefacts and inventory_guard == release_npc_inventory.clean_npc_inv)
 -- The base callback can also run after ours; it then captures the guard.
 CreateTimeEvent(0, "release_item", release_item_manager.clear)
 assert(timers["0release_item"]() == true and purged == 0)
@@ -66,10 +73,14 @@ release_item_manager.clear = function() purged = purged + 1; return false end
 CreateTimeEvent(0, "release_item", release_item_manager.clear)
 callbacks.on_game_load()
 assert(not timers["0release_item"] and release_item_manager.clear() == true)
+grok_artefact_despawner.delete_artefacts = function(id) artefacts = artefacts + id; return id end
+callbacks.on_game_load(); grok_artefact_despawner.delete_artefacts(7); assert(artefacts == 0)
 timers["0unrelated_quest"](); assert(consumed == 1)
 cooperative = false
 assert(release_item_manager.clear() == false and purged == 1,
        "single-player retains its original purge policy")
+assert(grok_artefact_despawner.delete_artefacts(7) == 7 and artefacts == 7)
+assert(release_npc_inventory.clean_npc_inv(9) == 9 and npc_items == 9)
 ''')
 print("Actual dropped-item guard: old/new queued callbacks, reload replacement, consumption and unrelated timers PASS")
 
