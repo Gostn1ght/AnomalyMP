@@ -301,6 +301,8 @@ class Ownership:
         tx.execute("UPDATE scheduled_event SET state='CANCELLED',result=? WHERE aggregate_id=? AND type='RouteArrived' AND state='PENDING'",
                    (canonical({"reason":"actor died"}),"entity:"+row["id"]))
         event = self.store.event(tx,"entity:"+row["id"],"EntityDied",evidence,occurred_ms,committed_ms=self.world.now())
+        if self.world.quest_death_queue:
+            self.world.quest_death_queue(tx,row["id"],event,occurred_ms)
         group = tx.execute("SELECT e.* FROM group_member m JOIN entity e ON e.id=m.group_id WHERE m.member_id=?",(row["id"],)).fetchone()
         if group and group["alive"] and not tx.execute("SELECT 1 FROM group_member m JOIN entity e ON e.id=m.member_id WHERE m.group_id=? AND e.alive=1",(group["id"],)).fetchone():
             if (group["writer"],group["fence"]) != (row["writer"],row["fence"]):
@@ -311,7 +313,9 @@ class Ownership:
             tx.execute("UPDATE route SET active=0 WHERE entity_id=?",(group["id"],))
             tx.execute("UPDATE scheduled_event SET state='CANCELLED',result=? WHERE aggregate_id=? AND type='RouteArrived' AND state='PENDING'",
                        (canonical({"reason":"group died"}),"entity:"+group["id"]))
-            self.store.event(tx,"entity:"+group["id"],"GroupLostAllMembers",{"group_id":group["id"],"last_member":row["id"]},occurred_ms,committed_ms=self.world.now())
+            group_event = self.store.event(tx,"entity:"+group["id"],"GroupLostAllMembers",{"group_id":group["id"],"last_member":row["id"]},occurred_ms,committed_ms=self.world.now())
+            if self.world.quest_death_queue:
+                self.world.quest_death_queue(tx,group["id"],group_event,occurred_ms)
         return {"id":row["id"],"version":row["version"]+1,"event":event}
 
     @staticmethod

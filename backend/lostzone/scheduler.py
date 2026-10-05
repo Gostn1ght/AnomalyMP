@@ -12,7 +12,8 @@ from .store import Conflict, Invalid, canonical, finite, identifier, persistent_
 class Scheduler:
     def __init__(self, world):
         self.world, self.store = world, world.store
-        self.handlers = {"TimelinePhase": self.timeline_phase}
+        self.handlers = world.scheduler_handlers
+        self.handlers.setdefault("TimelinePhase",self.timeline_phase)
 
     def schedule_in(self, tx, event_id, due_ms, aggregate, version, event_type, payload, priority=0):
         persistent_id(event_id)

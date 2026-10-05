@@ -3,15 +3,19 @@ import hashlib
 import json
 
 from .ownership import Ownership
+from .scheduler import Scheduler
 from .store import Conflict, Invalid, canonical, identifier, persistent_id, positive
 
 
 class Quests:
-    def __init__(self, world, definitions):
+    def __init__(self, world, definitions, scheduler=None):
         if not isinstance(definitions, dict):
             raise Invalid("quest definitions must be a server configuration object")
         self.world, self.store = world, world.store
         self.ownership = Ownership(world)
+        self.scheduler = scheduler or Scheduler(world)
+        if self.scheduler.world is not world:
+            raise Conflict("quest scheduler belongs to another world authority")
         self.definitions = json.loads(canonical(definitions))
         for quest_id, definition in self.definitions.items():
             identifier(quest_id)
@@ -38,6 +42,83 @@ class Quests:
                     raise Invalid("invalid quest item quantity")
                 if not isinstance(item.get("state", {}), dict):
                     raise Invalid("invalid quest reward item state")
+        self.scheduler.handlers["QuestDeathConsequences"] = self.death_consequences
+        world.quest_death_queue = self.queue_death
+        with self.store.transaction() as tx:
+            self.reconcile_in(tx)
+
+    @staticmethod
+    def death_job_id(death_id, batch):
+        return hashlib.sha256(f"quest-death:{death_id}:{batch}".encode("ascii")).hexdigest()[:32]
+
+    def queue_death(self, tx, entity_id, sequence, occurred_ms):
+        # Scheduling one durable job shares the death transaction; applying
+        # possibly many quest failures is deferred into bounded atomic batches.
+        required = tx.execute("SELECT 1 FROM quest_requirement r JOIN quest q ON q.character_id=r.character_id AND q.id=r.quest_id "
+                              "WHERE r.entity_id=? AND r.alive_required=1 AND r.policy='FAIL' "
+                              "AND COALESCE(json_extract(q.state,'$.status'),'ACTIVE') NOT IN ('FAILED','COMPLETED') LIMIT 1",(entity_id,)).fetchone()
+        if not required:
+            return False
+        source = tx.execute("SELECT * FROM world_event WHERE sequence=?",(sequence,)).fetchone()
+        if not source or source["aggregate_id"]!="entity:"+entity_id or source["type"] not in ("EntityDied","GroupLostAllMembers"):
+            raise Conflict("quest failure requires committed death evidence")
+        event_id = self.death_job_id(source["id"],0)
+        payload = {"entity_id":entity_id,"death_id":source["id"],"death_sequence":sequence,"batch":0}
+        existing = tx.execute("SELECT 1 FROM scheduled_event WHERE id=?",(event_id,)).fetchone()
+        self.scheduler.schedule_in(tx,event_id,occurred_ms,"entity:"+entity_id,sequence,"QuestDeathConsequences",payload)
+        return existing is None
+
+    def death_consequences(self, tx, event):
+        payload = json.loads(event["payload"])
+        entity_id,sequence = payload["entity_id"],payload["death_sequence"]
+        source = tx.execute("SELECT * FROM world_event WHERE sequence=? AND id=?",(sequence,payload["death_id"])).fetchone()
+        entity = tx.execute("SELECT alive FROM entity WHERE id=?",(entity_id,)).fetchone()
+        if (not source or source["aggregate_id"]!="entity:"+entity_id or source["type"] not in ("EntityDied","GroupLostAllMembers")
+                or not entity or entity[0]):
+            return {"reason":"death evidence/registry changed"},False
+        rows = tx.execute("SELECT q.* FROM quest_requirement r JOIN quest q ON q.character_id=r.character_id AND q.id=r.quest_id "
+                          "WHERE r.entity_id=? AND r.alive_required=1 AND r.policy='FAIL' "
+                          "AND COALESCE(json_extract(q.state,'$.status'),'ACTIVE') NOT IN ('FAILED','COMPLETED') "
+                          "ORDER BY q.character_id,q.id LIMIT 65",(entity_id,)).fetchall()
+        failed = []
+        for row in rows[:64]:
+            state = json.loads(row["state"])
+            state.update(status="FAILED",failure_entity=entity_id,failure_event=source["id"],failed_world_ms=source["world_ms"])
+            tx.execute("UPDATE quest SET state=?,version=version+1 WHERE character_id=? AND id=?",
+                       (canonical(state),row["character_id"],row["id"]))
+            data = {"character_id":row["character_id"],"quest_id":row["id"],"entity_id":entity_id,"death_id":source["id"]}
+            self.store.event(tx,"quest:"+row["character_id"]+":"+row["id"],"QuestFailed",data,source["world_ms"],committed_ms=self.world.now())
+            failed.append({"character_id":row["character_id"],"quest_id":row["id"]})
+        more = len(rows)>64
+        if more:
+            next_payload = {**payload,"batch":payload["batch"]+1}
+            self.scheduler.schedule_in(tx,self.death_job_id(source["id"],next_payload["batch"]),source["world_ms"],
+                                       "entity:"+entity_id,sequence,"QuestDeathConsequences",next_payload)
+        return {"failed":failed,"more":more,"death_id":source["id"]},True
+
+    def reconcile_in(self, tx, after_entity=None):
+        # Compatibility recovery for deaths committed before this subscriber
+        # existed. Missing evidence is held; no fabricated death or respawn.
+        rows = tx.execute("SELECT DISTINCT r.entity_id FROM quest_requirement r JOIN entity e ON e.id=r.entity_id "
+                          "JOIN quest q ON q.character_id=r.character_id AND q.id=r.quest_id WHERE e.alive=0 "
+                          "AND r.alive_required=1 AND r.policy='FAIL' AND COALESCE(json_extract(q.state,'$.status'),'ACTIVE') "
+                          "NOT IN ('FAILED','COMPLETED') AND r.entity_id>? ORDER BY r.entity_id LIMIT 65",(after_entity or "",)).fetchall()
+        scheduled,unproven = 0,[]
+        for row in rows[:64]:
+            source = tx.execute("SELECT sequence,world_ms FROM world_event WHERE aggregate_id=? AND type IN ('EntityDied','GroupLostAllMembers') "
+                                "ORDER BY sequence DESC LIMIT 1",("entity:"+row[0],)).fetchone()
+            if source:
+                scheduled += self.queue_death(tx,row[0],source["sequence"],source["world_ms"])
+            else:
+                unproven.append(row[0])
+        return {"scheduled":scheduled,"examined":min(64,len(rows)),"unproven":unproven,
+                "next_after":rows[63][0] if len(rows)>64 else None}
+
+    def reconcile(self, actor, command_id, after_entity=None):
+        if after_entity is not None:
+            persistent_id(after_entity)
+        return self.store.command(actor,command_id,{"type":"quest_reconcile","after_entity":after_entity},
+                                  lambda tx:self.reconcile_in(tx,after_entity))
 
     def grant(self, actor, command_id, character_id, fence, quest_id):
         identifier(quest_id)

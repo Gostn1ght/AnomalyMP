@@ -13,6 +13,8 @@ class World:
         self.monotonic = monotonic
         self.wall = wall
         self.scale_handlers = []
+        self.quest_death_queue = None
+        self.scheduler_handlers = {}
         if store.epoch is not None:
             raise Conflict("world service already bootstrapped")
         finite(initial_ms)

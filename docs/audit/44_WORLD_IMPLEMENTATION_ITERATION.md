@@ -397,3 +397,52 @@ clearing inventory. Foundation workflow now includes character source changes.
 Only Python fixture syntax checked locally; native compilation/execution remains
 GitHub Actions. This fixes silent capture truncation, not the separate native
 session lease race, file-worker queue/fencing or distributed ledger adoption.
+
+## Durable quest death subscriber and bounded compatibility recovery
+
+EntityDied and GroupLostAllMembers now enqueue QuestDeathConsequences in the
+same transaction as the permanent death/loot changes, when an active quest
+requires that entity alive. The scheduler fails at most 64 linked quests per
+atomic batch, journals the original death ID/time, and durably queues the next
+batch. A quest failure does not require a player poll, location ownership or
+an unfrozen character; it survives a player's prepared/committed handoff.
+No reward, wallet write or replacement NPC is created. Corpse pins remain
+until all active requirements are resolved; alive_required=false objectives
+still retain their corpse. A failed journal write rolls back the batch, while
+the previously committed death remains available for retry.
+
+Schedulers constructed on the same World share registered handlers. A new
+World after restart creates fresh handlers; a scheduler from another World is
+refused. Startup examines up to 64 legacy dead quest targets. The admin-only
+quest_reconcile operation has an optional after_entity cursor and returns
+next_after to continue the bounded scan; unproven deaths are held and reported,
+so even 64 missing journal records cannot starve later proven deaths. This is
+explicit maintenance for old records, not an unbounded startup sweep.
+
+Seven new tests cover automatic consequences during handoff, restart with old
+death evidence, 65-quest fanout, journal rollback/retry, last-member group death,
+foreign scheduler rejection, and cursor recovery past incomplete old records.
+HTTP role checks include the new maintenance operation. Native quest/UI event
+adoption and quest configuration migration remain pending; this is backend
+functionality, not completion of all I requirements.
+Full local backend suite: **117 tests PASS**.
+
+Verification update: 6dd10b37b Foundation 37373918198 SUCCESS GCC/MSVC, including
+the actual player inventory completeness helper. Its DX11 run 37373918186 is
+still compiling; installed runtime is not claimed to contain that fix.
+b317ac297 backend 37372725746 SUCCESS Windows+Linux (104 tests). 2a12b6de6
+backend 37373382669 Windows SUCCESS (110); Linux cancelled, requiring a newer
+successful Linux run before its follow-ups are accepted there.
+
+## Native NPC transit default remains opt-in
+
+H11-lite release_foreign_population does not by itself establish a unique
+global NPC registry or safe existing-world migration. It partitions generic
+initial squads once; old saves without netcoop_foreign_released also take that
+path, while story/companion/scripted entities are retained. It cannot prove
+that a valuable foreign-map state has been preserved in another authority.
+The mailbox also lacks a shared WorldID envelope and cross-host writer fencing,
+and full mod/Lua state remapping plus native checkpoint failure acceptance is
+unfinished. Therefore -netcoop_npc_transit remains an explicit opt-in; normal
+launchers remain unchanged. Automatic activation must follow ownership,
+complete-state and migration acceptance, rather than the partition helper.

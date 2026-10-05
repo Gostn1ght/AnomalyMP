@@ -95,8 +95,8 @@ class Dispatcher:
     def __init__(self, world, signing_key, quest_definitions=None, catalog=None, trade_profiles=None, scavenging_rules=None):
         self.world, self.store = world, world.store
         self.ownership, self.transfers = Ownership(world), Transfers(world, signing_key)
-        self.quests = Quests(world, quest_definitions or {})
         self.timelines = Timelines(world)
+        self.quests = Quests(world, quest_definitions or {},scheduler=self.timelines.scheduler)
         self.offline = Offline(world, self.timelines.scheduler)
         self.catalog = Catalog(catalog)
         self.trade = Trade(world, self.catalog, trade_profiles)
@@ -123,7 +123,8 @@ class Dispatcher:
                           "stash_visit": self.scavenging.schedule, "offline_combat": self.encounters.schedule,
                           "offline_contact": self.encounters.plan_contact,
                           "offline_contacts": self.encounters.plan_location,
-                          "offline_hazard":self.hazards.plan_contact}
+                          "offline_hazard":self.hazards.plan_contact,
+                          "quest_reconcile":self.quests.reconcile}
         functions = {
             "location_claim": self.world.claim_location, "location_renew": self.world.renew_location,
             "location_recover": self.ownership.recover_location,

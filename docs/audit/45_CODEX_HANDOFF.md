@@ -203,3 +203,21 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   included in check-netcoop-player-transfer.py; local syntax only, native Actions
   pending. Foundation now triggers on netcoop_characters.inc as well. Other
   actor's dirty world-store/Lua-scope/overlay files excluded from this commit.
+
+- Codex: death/last-member group events enqueue durable quest failures in the
+  death transaction. Consequences run without player polling in atomic batches
+  of 64, preserve original evidence across restart/handoff, release corpse pins
+  after failure, and never reward/respawn. Shared per-World scheduler handlers;
+  bounded legacy recovery via admin quest_reconcile/after_entity/next_after.
+  Missing death evidence stays held and cannot block cursor progress.
+  Native quest event/UI adoption remains separate.
+  Full local backend 117 PASS; native/runtime paths untouched in this change.
+- Verification: 6dd10b37b Foundation 37373918198 SUCCESS GCC/MSVC; DX11
+  37373918186 checks SUCCESS, engine compiling. b317ac297 backend
+  37372725746 SUCCESS Windows+Linux (104). 2a12b6de6 / 37373382669 Windows
+  SUCCESS (110), Linux cancelled. Backend-only follow-up will not cancel DX11.
+- NPC transit default decision: H11-lite does not prove full old-world state
+  migration/unique global population, and mailbox WorldID/cross-host fencing,
+  mod-state remapping and real paired-checkpoint failure acceptance remain.
+  Keep -netcoop_npc_transit opt-in; no launcher/default changes by Codex.
+  Do not count generic foreign-map release as acceptance of automatic transit.
