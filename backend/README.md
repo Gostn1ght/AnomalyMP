@@ -145,3 +145,21 @@ Admin `stash_visit` планирует событие для offline NPC и offl
 Hydration до события отменяет abstract visit. Epoch fencing при restart
 не меняет семантическую revision capture; visits сохраняют frozen input.
 Автоматический выбор маршрутов/целей NPC и подключение к GAMMA впереди.
+
+## Дальние бои
+
+Admin `offline_combat` сохраняет immutable encounter capture: WorldID/seed,
+EventID, время, конкретные участники, revisions, враждебность и состояние
+оружия из ItemLedger. `relations` в WorldState задаёт hostile faction pairs;
+другой observer, повтор или restart не становятся входом RNG. Coarse model
+ограничен 64 бойцами на сторону и 64 inventory items на бойца. Он учитывает
+индивидуальное здоровье/опыт, condition и power оружия из catalog, записывает
+ранения и расход действительных magazine rounds, death tombstones, corpse
+loot и durable evidence одной транзакцией. Пустой погибший отряд не движется;
+состав с casualty IDs сохраняется. Hydration/смена capture/отношений отменяет
+абстрактный бой до damage. Нет тиков пуль и нового population.
+
+Это baseline resolver, требующий настройки баланса и engine адаптера.
+Маршрутный planner ещё должен автоматически находить встречи и отдавать
+наблюдаемый бой engine; звуки/визуальные следы не воспроизводятся по одному
+факту наличия backend event. Offline anomaly/shelter/emission damage впереди.

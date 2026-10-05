@@ -64,6 +64,8 @@ class Transfers:
             root = self.ownership.require_entity(tx, actor, entity_id, source_fence, entity_version, alive=True)
             if root["location"] != source or root["kind"] not in ("CHARACTER", "NPC", "MUTANT", "GROUP"):
                 raise Conflict("entity cannot depart this source")
+            if root["kind"] in ("NPC","MUTANT") and tx.execute("SELECT 1 FROM group_member WHERE member_id=?", (entity_id,)).fetchone():
+                raise Conflict("transfer the persistent group instead of one member")
             target_lease = tx.execute("SELECT * FROM location_lease WHERE location=?", (target,)).fetchone()
             if not target_lease or target_lease["expires_ms"] <= self.world.real_ms():
                 raise Conflict("target authority is unavailable")
@@ -90,6 +92,8 @@ class Transfers:
                     if row["location"] != source:
                         raise Conflict("group member is not owned by source")
                     ids.append(member)
+                if len(ids)==1:
+                    raise Conflict("group has no living members to transfer")
             entities = [dict(tx.execute("SELECT * FROM entity WHERE id=?", (value,)).fetchone()) for value in ids]
             items = [dict(row) for value in ids for row in tx.execute("SELECT * FROM item WHERE holder=? AND kind IN('PLAYER','NPC','CORPSE') ORDER BY id", (value,))]
             transfer_id = uuid.uuid4().hex

@@ -24,6 +24,7 @@ from .timelines import Timelines
 from .offline import Offline
 from .economy import Catalog, Trade
 from .scavenging import Scavenging
+from .encounters import Encounters
 
 
 @dataclass(frozen=True)
@@ -99,6 +100,7 @@ class Dispatcher:
         self.catalog = Catalog(catalog)
         self.trade = Trade(world, self.catalog, trade_profiles)
         self.scavenging = Scavenging(world, self.offline, self.catalog, scavenging_rules)
+        self.encounters = Encounters(world, self.offline, self.catalog)
 
     @staticmethod
     def allowed(principal, location):
@@ -114,7 +116,7 @@ class Dispatcher:
             raise Invalid("invalid command arguments")
         administrative = {"world_scale": self.world.set_scale, "world_state": self.world.set_state,
                           "timeline_schedule": self.timelines.schedule, "route_start": self.offline.start_route,
-                          "stash_visit": self.scavenging.schedule}
+                          "stash_visit": self.scavenging.schedule, "offline_combat": self.encounters.schedule}
         functions = {
             "location_claim": self.world.claim_location, "location_renew": self.world.renew_location,
             "location_recover": self.ownership.recover_location,

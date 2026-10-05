@@ -33,7 +33,8 @@ class Catalog:
             self.entries[section] = {
                 "category": record["category"],
                 "price": integer(record.get("price"), 1, 1_000_000_000, "base price"),
-                "weight_g": integer(record.get("weight_g"), 0, 1_000_000, "item weight")}
+                "weight_g": integer(record.get("weight_g"), 0, 1_000_000, "item weight"),
+                "combat_power": integer(record.get("combat_power",100 if record["category"]=="WEAPON" else 0),0,10000,"combat power")}
 
     def entry(self, section):
         if section not in self.entries:

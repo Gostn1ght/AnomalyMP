@@ -282,17 +282,37 @@ class Ownership:
                    "version": version, "cause": cause}
         def apply(tx):
             row = self.require_entity(tx, actor, entity_id, fence, version, alive=True)
-            state = json.loads(row["state"])
-            state.update(death_time=self.world.now(), cause=cause, corpse_removed=False)
-            tx.execute("UPDATE entity SET alive=0,state=?,version=version+1 WHERE id=?",
-                       (canonical(state), entity_id))
-            tx.execute("UPDATE item SET kind='CORPSE',version=version+1 WHERE holder=? AND kind IN ('PLAYER','NPC')",
-                       (entity_id,))
-            tx.execute("UPDATE player_session SET state='DISCONNECTED',fence=fence+1 WHERE character_id=?", (entity_id,))
-            tx.execute("UPDATE character SET session_fence=session_fence+1 WHERE id=?", (entity_id,))
-            event = self.store.event(tx, "entity:" + entity_id, "EntityDied", payload, self.world.now())
-            return {"id": entity_id, "version": version + 1, "event": event}
+            return self.die_in(tx,row,cause,self.world.now(),payload)
         return self.store.command(actor, command_id, payload, apply)
+
+    def die_in(self, tx, row, cause, occurred_ms, evidence):
+        # Called only after the caller has validated its local/offline writer.
+        # Shares the same death + loot transaction with abstract encounters.
+        if not row["alive"]:
+            raise Conflict("death has already been committed")
+        identifier(cause)
+        state = json.loads(row["state"])
+        state.update(health=0,death_time=occurred_ms,cause=cause,corpse_removed=False)
+        tx.execute("UPDATE entity SET alive=0,state=?,version=version+1 WHERE id=?", (canonical(state),row["id"]))
+        tx.execute("UPDATE item SET kind='CORPSE',version=version+1 WHERE holder=? AND kind IN ('PLAYER','NPC')", (row["id"],))
+        tx.execute("UPDATE player_session SET state='DISCONNECTED',fence=fence+1 WHERE character_id=?", (row["id"],))
+        tx.execute("UPDATE character SET session_fence=session_fence+1 WHERE id=?", (row["id"],))
+        tx.execute("UPDATE route SET active=0 WHERE entity_id=?", (row["id"],))
+        tx.execute("UPDATE scheduled_event SET state='CANCELLED',result=? WHERE aggregate_id=? AND type='RouteArrived' AND state='PENDING'",
+                   (canonical({"reason":"actor died"}),"entity:"+row["id"]))
+        event = self.store.event(tx,"entity:"+row["id"],"EntityDied",evidence,occurred_ms,committed_ms=self.world.now())
+        group = tx.execute("SELECT e.* FROM group_member m JOIN entity e ON e.id=m.group_id WHERE m.member_id=?",(row["id"],)).fetchone()
+        if group and group["alive"] and not tx.execute("SELECT 1 FROM group_member m JOIN entity e ON e.id=m.member_id WHERE m.group_id=? AND e.alive=1",(group["id"],)).fetchone():
+            if (group["writer"],group["fence"]) != (row["writer"],row["fence"]):
+                raise Conflict("dead group's derived state belongs to another writer")
+            state = json.loads(group["state"])
+            state.update(death_time=occurred_ms,cause="all_members_dead",corpse_removed=True)
+            tx.execute("UPDATE entity SET alive=0,state=?,version=version+1 WHERE id=?",(canonical(state),group["id"]))
+            tx.execute("UPDATE route SET active=0 WHERE entity_id=?",(group["id"],))
+            tx.execute("UPDATE scheduled_event SET state='CANCELLED',result=? WHERE aggregate_id=? AND type='RouteArrived' AND state='PENDING'",
+                       (canonical({"reason":"group died"}),"entity:"+group["id"]))
+            self.store.event(tx,"entity:"+group["id"],"GroupLostAllMembers",{"group_id":group["id"],"last_member":row["id"]},occurred_ms,committed_ms=self.world.now())
+        return {"id":row["id"],"version":row["version"]+1,"event":event}
 
     def cleanup_corpse(self, actor, command_id, entity_id, fence, version):
         payload = {"type": "corpse_cleanup", "id": entity_id, "fence": fence, "version": version}
