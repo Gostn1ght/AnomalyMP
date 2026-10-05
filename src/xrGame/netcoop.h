@@ -212,6 +212,9 @@ void server_frame_update(xrServer* server);
 // it draws; this takes the current weather's sun, sky and ambient light and
 // a switched-on torch of a player (stage 8). rendered = the ROS value.
 float server_luminocity(const CObject* object, float rendered);
+// Server: distance to the nearest living player (positions cached each
+// frame); a large value when no player is online.
+float server_nearest_player_distance(const Fvector& position);
 // Item instance state (netcoop_items.inc, gameplay plan stage 1): the server
 // versions each item's condition/charge, portions, magazine, addons and box
 // count and sends changed fields; carriers report their own wear and drain.

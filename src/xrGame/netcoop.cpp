@@ -1600,6 +1600,31 @@ void server_update(xrServer* server)
 // once per 100 frames: item and corpse poses left ~1 s apart instead of
 // every 50 ms, and clients glided items between them ("sliding on ice");
 // bullet marks arrived late. Each has its own rate limit.
+static xr_vector<Fvector> s_player_positions;
+
+static void cache_player_positions()
+{
+	static u32 previous = 0;
+	const u32 now = real_time_ms();
+	if (previous && now - previous < 100) return;
+	previous = now;
+	s_player_positions.clear();
+	for (u32 n = 0; n < Level().Objects.o_count(); ++n)
+	{
+		CActor* actor = smart_cast<CActor*>(Level().Objects.o_get_by_iterator(n));
+		if (actor && actor->g_Alive() && !actor->getDestroy() && server_player_copy(actor))
+			s_player_positions.push_back(actor->Position());
+	}
+}
+
+float server_nearest_player_distance(const Fvector& position)
+{
+	float best = 100000.f;
+	for (const Fvector& player : s_player_positions)
+		best = _min(best, player.distance_to(position));
+	return best;
+}
+
 float server_luminocity(const CObject* object, float rendered)
 {
 	float light = 0.5f;
@@ -1622,6 +1647,7 @@ float server_luminocity(const CObject* object, float rendered)
 void server_frame_update(xrServer* server)
 {
 	if (!enabled() || !g_pGameLevel) return;
+	cache_player_positions();
 	server_physics_update(server);
 	server_pda_update(server);
 	server_marks_update(server);

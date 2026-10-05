@@ -51,6 +51,10 @@ private:
 	u32 m_last_client_update_time;
 	// Netcoop client: when the dead body was last moved to the server's place.
 	u32 m_netcoop_corpse_sync_time = 0;
+	// Shown position of a netcoop puppet: a late snapshot's correction is
+	// smoothed over ~50 ms instead of a jump (stage 11).
+	Fvector m_netcoop_shown_pos;
+	bool m_netcoop_shown_valid = false;
 
 protected:
 
@@ -169,6 +173,8 @@ public:
 	{
 	};
 	virtual void shedule_Update(u32 DT);
+	// Netcoop server: think more often near players (no player camera there).
+	virtual float shedule_Scale();
 	virtual void UpdateCL();
 
 	// Network

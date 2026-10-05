@@ -332,6 +332,22 @@ void CCustomMonster::net_Import(NET_Packet& P)
 	setEnabled(TRUE);
 }
 
+// The scheduler gives an object an update interval from t_min (scale 0) to
+// (1000 + t_max) / 2 ms (scale 1; 625 ms for NPCs), by distance to the
+// camera. A dedicated netcoop server has no player camera: NPCs and monsters
+// next to players far from the server's camera thought every ~0.6 s (slow
+// reactions, idle mutants; stage 12). There it is the distance to the
+// nearest player, and a fight near a player always gets the shortest interval.
+float CCustomMonster::shedule_Scale()
+{
+	if (!netcoop::enabled() || netcoop::pure_client())
+		return Device.vCameraPosition.distance_to(Position()) / 200.f;
+	const float distance = netcoop::server_nearest_player_distance(Position());
+	if (distance < 100.f && memory().enemy().selected())
+		return 0.f;
+	return distance / 200.f;
+}
+
 void CCustomMonster::shedule_Update(u32 DT)
 {
 	netcoop::ServerActorScope netcoop_scope(this);
@@ -608,6 +624,24 @@ void CCustomMonster::UpdateCL()
 		{
 			if (!animation_movement_controlled() && m_update_rotation_on_frame)
 				XFORM().rotateY(NET_Last.o_model);
+			// Netcoop puppet: when a snapshot was late the model went on along
+			// its velocity; the next snapshot pulled it back at once (a
+			// visible jerk). Close such errors over ~50 ms; snap only when
+			// the error is teleport-sized (stage 11, plan section 21).
+			if (Remote() && netcoop::pure_client())
+			{
+				Fvector shown = NET_Last.p_pos;
+				if (m_netcoop_shown_valid)
+				{
+					Fvector error;
+					error.sub(m_netcoop_shown_pos, NET_Last.p_pos);
+					if (error.magnitude() < 3.f)
+						shown.mad(NET_Last.p_pos, error, expf(-_min(Device.fTimeDelta, 0.1f) / 0.05f));
+				}
+				m_netcoop_shown_pos = shown;
+				m_netcoop_shown_valid = true;
+				NET_Last.p_pos = shown;
+			}
 			if (!animation_movement_controlled())
 				XFORM().translate_over(NET_Last.p_pos);
 			if (Remote() && netcoop::pure_client())
