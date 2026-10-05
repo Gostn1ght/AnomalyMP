@@ -108,7 +108,7 @@ Engine bridge должен явно согласовать WorldID/seed и adopt
 
 ## Абстрактное движение
 
-`entity_dehydrate` принимает полный capture группы, CAS каждого живого
+`dehydrate` принимает полный capture группы, CAS каждого живого
 члена и сохраняет state до передачи writer в offline authority. Dead
 members остаются на месте смерти. Location recovery не забирает offline
 records. `route_start` (admin) задаёт bounded polyline, speed_real и seed;
@@ -117,8 +117,31 @@ World scale rebase сохраняет скорость в метрах за ре
 оставляет одну pending arrival. Restart замораживает downtime и меняет
 offline fence, не создавая новых персонажей.
 
-`entity_hydrate` возвращает положение и прежнее состояние под текущим
+`hydrate` возвращает положение и прежнее состояние под текущим
 location fence. Engine adapter должен безопасно разместить объекты,
 восстановить Reduced AI и открыть replication только после готовности;
 backend ownership ACK сам по себе этого не подтверждает. Пока эти
 операции не вызываются действительным игровым сервером.
+
+## Торговля и посещения тайников
+
+Config `items` задаёт для section доверенные `category`, `price` и `weight_g`;
+`traders` — именованные профили с `buy_categories`, `buy_bp`, `sell_bp`,
+`min_condition_bp`. Entity торговца выбирает `trade_profile`, хранит свой
+wallet и действительный inventory. `trade` с BUY/SELL сохраняет одновременно
+одну ledger-запись вещи, деньги обоих участников, versions, journal и
+command result. Продаётся/покупается весь stack; цена — целое число с учётом
+quantity/condition. Проверяются предпочтения, средства, место и carry
+capacity. `price_limit` защищает согласие с ценой; `quote_only` сохраняет
+предложение без изменения предмета/денег. Частичные stacks и GAMMA UI
+ещё требуют engine adapter. Пустой catalog не создаёт выдуманные цены.
+
+Admin `stash_visit` планирует событие для offline NPC и offline STASH.
+Проверяются ownership, CAS, защита тайника, положение в момент события,
+редкость и capacity. По умолчанию chance=8%, cooldown=6 игровых часов;
+один визит может перенести одну существующую вещь. Deposit разрешён
+только для FOOD/MEDICINE/AMMO/JUNK/TOOL из доверенного catalog; оружие,
+броня и артефакты исключены. Никакого генератора нового лута/respawn/TTL.
+Hydration до события отменяет abstract visit. Epoch fencing при restart
+не меняет семантическую revision capture; visits сохраняют frozen input.
+Автоматический выбор маршрутов/целей NPC и подключение к GAMMA впереди.

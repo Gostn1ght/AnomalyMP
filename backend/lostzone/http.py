@@ -22,6 +22,8 @@ from .store import Conflict, Invalid, Unavailable, canonical, identifier
 from .transfers import Transfers
 from .timelines import Timelines
 from .offline import Offline
+from .economy import Catalog, Trade
+from .scavenging import Scavenging
 
 
 @dataclass(frozen=True)
@@ -88,12 +90,15 @@ class RateLimit:
 
 
 class Dispatcher:
-    def __init__(self, world, signing_key, quest_definitions=None):
+    def __init__(self, world, signing_key, quest_definitions=None, catalog=None, trade_profiles=None, scavenging_rules=None):
         self.world, self.store = world, world.store
         self.ownership, self.transfers = Ownership(world), Transfers(world, signing_key)
         self.quests = Quests(world, quest_definitions or {})
         self.timelines = Timelines(world)
         self.offline = Offline(world, self.timelines.scheduler)
+        self.catalog = Catalog(catalog)
+        self.trade = Trade(world, self.catalog, trade_profiles)
+        self.scavenging = Scavenging(world, self.offline, self.catalog, scavenging_rules)
 
     @staticmethod
     def allowed(principal, location):
@@ -108,7 +113,8 @@ class Dispatcher:
         if not isinstance(args, dict) or not isinstance(operation, str):
             raise Invalid("invalid command arguments")
         administrative = {"world_scale": self.world.set_scale, "world_state": self.world.set_state,
-                          "timeline_schedule": self.timelines.schedule, "route_start": self.offline.start_route}
+                          "timeline_schedule": self.timelines.schedule, "route_start": self.offline.start_route,
+                          "stash_visit": self.scavenging.schedule}
         functions = {
             "location_claim": self.world.claim_location, "location_renew": self.world.renew_location,
             "location_recover": self.ownership.recover_location,
@@ -120,6 +126,7 @@ class Dispatcher:
             "transfer_commit": self.transfers.commit, "transfer_abort": self.transfers.abort,
             "quest_grant": self.quests.grant, "quest_progress": self.quests.progress,
             "dehydrate": self.offline.dehydrate, "hydrate": self.offline.hydrate,
+            "trade": self.trade.transact,
         }
         if operation in administrative:
             if principal.role != "admin":

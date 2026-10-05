@@ -65,6 +65,8 @@ class HttpTest(unittest.TestCase):
         self.assertEqual(self.command("location_claim", {"actor": "admin", "location": "cordon"})[0], 400)
         self.assertEqual(self.command("location_claim", {"location": "garbage"})[0], 403)
         self.assertEqual(self.command("world_scale", {"value": 1})[0], 403)
+        self.assertEqual(self.command("stash_visit", {})[0], 403)
+        self.assertEqual(self.command("trade", {"location": "garbage"})[0], 403)
         self.assertEqual(self.call("GET", "/v1/events")[0], 404)
 
     def test_duplicate_command_over_real_http_and_contract_rejection(self):

@@ -35,7 +35,10 @@ class World:
                 positive(row["epoch"] + 1, "authority epoch")
                 tx.execute("UPDATE world SET epoch=epoch+1,world_ms=MAX(world_ms,event_highwater),sequence=1,revision=revision+1 WHERE singleton=1")
             row = tx.execute("SELECT * FROM world WHERE singleton=1").fetchone()
-            tx.execute("UPDATE entity SET fence=?,version=version+1 WHERE writer LIKE 'offline:%'", (row["epoch"],))
+            # World ownership epoch changes; semantic state does not. Keeping
+            # entity revision allows immutable scheduled captures to survive a
+            # restart, while the Store epoch fences the old service instance.
+            tx.execute("UPDATE entity SET fence=? WHERE writer LIKE 'offline:%'", (row["epoch"],))
         store.epoch = row["epoch"]
         self.world_id, self.seed = int(row["world_id"]), int(row["seed"])
         self._anchor_ms, self._scale = row["world_ms"], row["scale"]

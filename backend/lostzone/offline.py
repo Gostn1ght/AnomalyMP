@@ -62,7 +62,7 @@ class Offline:
                    "fence": fence, "version": version, "captures": captures}
         def apply(tx):
             root = self.ownership.require_entity(tx, actor, entity_id, fence, version)
-            if root["kind"] not in ("GROUP", "NPC", "MUTANT") or root["location"] != location:
+            if root["kind"] not in ("GROUP", "NPC", "MUTANT", "STASH", "CONTAINER", "DOOR", "TRAP", "CAMPFIRE", "ANOMALY", "NEST") or root["location"] != location:
                 raise Conflict("entity is not a local abstractable actor")
             if root["alive"] and root["kind"] != "GROUP" and tx.execute("SELECT 1 FROM group_member WHERE member_id=?", (entity_id,)).fetchone():
                 raise Conflict("dehydrate the persistent group instead of one of its members")
@@ -108,6 +108,8 @@ class Offline:
                    "points": points, "speed_real": speed_real, "seed": seed}
         def apply(tx):
             root = self.require_offline(tx, entity_id, version)
+            if root["kind"] not in ("GROUP", "NPC", "MUTANT"):
+                raise Conflict("static object cannot start an actor route")
             if not root["alive"]:
                 raise Conflict("dead actor cannot start moving again")
             if root["kind"] != "GROUP" and tx.execute("SELECT 1 FROM group_member WHERE member_id=?", (entity_id,)).fetchone():
@@ -145,7 +147,13 @@ class Offline:
     def position_at(self, tx, entity, world_ms):
         row = tx.execute("SELECT * FROM route WHERE entity_id=? AND active=1", (entity["id"],)).fetchone()
         if not row:
-            return point(json.loads(entity["state"]).get("position"))
+            position = point(json.loads(entity["state"]).get("position"))
+            group = tx.execute("SELECT e.* FROM group_member m JOIN entity e ON e.id=m.group_id WHERE m.member_id=?", (entity["id"],)).fetchone()
+            if entity["alive"] and group and group["writer"] == "offline:" + group["location"]:
+                origin = point(json.loads(group["state"]).get("position"))
+                target = self.position_at(tx,group,world_ms)
+                return [p + t - o for p,t,o in zip(position,target,origin)]
+            return position
         progress = (world_ms - row["started_ms"]) / (row["arrival_ms"] - row["started_ms"])
         return route_position(json.loads(row["points"]), progress)[0]
 
