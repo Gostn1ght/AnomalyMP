@@ -2445,6 +2445,7 @@ int g_iWeaponRemove = 1;
 
 bool CWeapon::NeedToDestroyObject() const
 {
+	if (netcoop::enabled()) return false;
 	if (GameID() == eGameIDSingle) return false;
 	if (Remote()) return false;
 	if (H_Parent()) return false;

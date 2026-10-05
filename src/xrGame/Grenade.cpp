@@ -12,6 +12,7 @@
 #include "game_cl_base.h"
 #include "xrserver_objects_alife.h"
 #include "script_game_object.h"
+#include "netcoop.h"
 
 #ifdef EXPLOSIVE_CHANGE
 #include "../xrEngine/GameMtlLib.h"
@@ -331,6 +332,7 @@ bool CGrenade::Action(u16 cmd, u32 flags)
 
 bool CGrenade::NeedToDestroyObject() const
 {
+	if (netcoop::enabled()) return false; // dropped grenade TTL, separate from an armed fuse
 	if (IsGameTypeSingle()) return false;
 	if (Remote()) return false;
 	if (TimePassedAfterIndependant() > m_dwGrenadeRemoveTime)

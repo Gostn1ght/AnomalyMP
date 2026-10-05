@@ -126,8 +126,20 @@ header не требуется включать полное ядро grid/LOD.
 Lua world guard останавливает исключительно age-based release_item_manager
 и его уже поставленный timer: оба порядка on_game_load и замена метода
 проверены locally через actual Lua. Consumption/quest/pickup paths не
-перехватываются. Это ещё не полный аудит всех mod cleanup и native item TTL,
-не ItemLedger adapter и не доказательство игрового restart сохранения.
+перехватываются. Native age-only NeedToDestroyObject для inventory item,
+weapon и dropped grenade также отключены в co-op; armed missile fuse
+оставлен в отдельном действующем пути. Для этого добавлен fixture настоящих
+methods и fuse scheduler; native checks запускаются только в Actions.
+Это ещё не полный аудит всех mod cleanup, не ItemLedger adapter и не
+доказательство игрового restart сохранения.
+
+Bridge worker на `5a0a296b4` прошёл actual GCC/MSVC fixture, включая
+WinHTTP→backend, foreign seed rejection и bounded stop/join.
+[Foundation run](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37347061537)
+завершился success на Linux, Windows остановился на Python default text
+encoding при чтении corpse source. Чтение sources исправлено на UTF-8;
+это не ошибка bridge protocol. Общий native pipeline и полный DX11
+ещё должны пройти на итоговом commit.
 
 Игра автоматически не запускалась: ранее launch был blocked by policy;
 запрет не обойдён. Нет live gameplay приёмки, данных p99/FPS/traffic,

@@ -9,10 +9,10 @@ if os.environ.get("GITHUB_ACTIONS") != "true":
 
 root = Path(__file__).resolve().parents[1]
 game = root / "src/xrGame"
-release = (game / "alife_simulator_base.cpp").read_text()
+release = (game / "alife_simulator_base.cpp").read_text(encoding="utf-8")
 release = release[release.index("void CALifeSimulatorBase::release("):
                   release.index("void CALifeSimulatorBase::append_item_vector(")]
-online = (game / "xrServer_process_event_destroy.cpp").read_text()
+online = (game / "xrServer_process_event_destroy.cpp").read_text(encoding="utf-8")
 online = online[online.index("\tconst auto creature ="):
                 online.index("\t// check if we have children")]
 source = r'''

@@ -1582,6 +1582,7 @@ void CInventoryItem::modify_holder_params(float& range, float& fov) const
 
 bool CInventoryItem::NeedToDestroyObject() const
 {
+	if (netcoop::enabled()) return false; // persistent ground items have no age TTL
 	if (GameID() == eGameIDSingle)
 		return false;
 

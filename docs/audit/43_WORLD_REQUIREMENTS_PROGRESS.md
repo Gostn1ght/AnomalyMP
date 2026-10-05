@@ -371,7 +371,8 @@ Simulation Catch-Up, звуковые события/следы. Контрак�
   pickup/trade выполняются общей транзакцией.
 - [ ] L19. Corpse: entity ID, death time/cause, inventory и quest association.
 - [ ] L20. Ragdoll→static→abstract corpse без постоянной удалённой physics.
-- [ ] L21. Corpse cleanup сохраняет death tombstone и переводит **все
+- [ ] L21. Частично: native online/offline detach и backend cleanup есть;
+  engine tombstone/quest adapter и gameplay recovery впереди. Corpse cleanup сохраняет death tombstone и переводит **все
   оставшиеся вещи** на землю с теми же IDs; quest bodies имеют special policy.
 - [ ] L22. Loot generation policy зависит от world events/economy/выброса,
   а не ухода игрока или рестарта; не подменяет rare stash visits.
@@ -394,7 +395,8 @@ Simulation Catch-Up, звуковые события/следы. Контрак�
   отключён server Lua guard; нужен аудит остальных spawn-путей модов.
 - [ ] L35. Сохранить полное состояние живых NPC/мутантов при restart
   и LOD transitions; убитые не создаются снова.
-- [ ] L36. Удалить gameplay-item TTL из всех mod cleanup paths:
+- [ ] L36. Частично: release_item_manager и native inventory/weapon/grenade
+  age-only TTL отключены; полный mod audit и restart приёмка впереди. Удалить gameplay-item TTL из всех mod cleanup paths:
   вещи на полу и содержимое тайников сохраняются.
 - [ ] L37. Новое наполнение тайников: редко, обычные consumables/materials/ammo;
   без брони и мощного оружия, с проверкой loot classification.
