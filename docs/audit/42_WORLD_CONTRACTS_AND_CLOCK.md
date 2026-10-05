@@ -10,6 +10,10 @@ Clock → World State → Location → Chunk/AOI → LOD → Ownership → Persi
 → Transfers → Quests → Weather/Emission → Advanced offline simulation.
 Сохранение ALife уже было добавлено до этой последовательности.
 
+Подробная проверяемая разбивка полного ТЗ и фактические статусы:
+[43_WORLD_REQUIREMENTS_PROGRESS.md](43_WORLD_REQUIREMENTS_PROGRESS.md).
+W1–W12 обозначают группы работ, а не число всех задач пользователя.
+
 ## 1. Проверенная исходная точка и границы этого изменения
 
 В репозитории есть ALife online/offline, серверное выполнение игровых
@@ -756,7 +760,7 @@ travel → встречи → committed consequences → hydrate evidence. Те�
 переход full/coarse на границе события. Load7 игровых часов catch-up: число
 операций зависит от важных событий, не от пропущенных миллисекунд.
 
-W12 — Ecology/Scavenging/ArtifactPolicy/LootDecay/TraderSupply/WorldObjects.
+W12 — Ecology/Scavenging/ArtifactPolicy/CorpseCleanup/TraderSupply/WorldObjects.
 Состояния и таблицы §12, события Spawn/Pickup/Decay/Restock/RouteRiskChanged.
 Подключать по одному типу к существующим ledger/scheduler, без отдельного
 неатомарного хранения. Тест causality цепей и carry capacity, restart-never
