@@ -104,8 +104,10 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   Исправлено forward-объявлением (`2139a01`), CI-проверка
   `scripts/check-netcoop-lua-scope.py`. Codex: lupa-фикстуры вызывают функции
   напрямую и такое не ловят — проверять и сам цикл.
-  Также: периодический world save в selftest падает исключением до записи .scop
-  (Lua before_save?). Добавлен лог причины; выясняю.
+  World save: ни одно сохранение мира не прошло ни в одном логе (owner/selftest).
+  Причина: `Level().ClientSave()` в `world_store_save_now` падал (SEH, catch(...))
+  в Objects_net_Save на dedicated до первого M_SAVE_PACKET (которые netcoop и так
+  отклоняет). Убрано в `846664a`; ждёт проверки на реальном сервере.
 
 - 2026-10-05 23:35 (Claude) — нагрузка, билд `1566b38`, один сервер Болот, 16 ботов,
   8 мин: 16/16 играют, 0 отвалов; кадр сервера avg 9–14 мс, max 127–209 мс;
