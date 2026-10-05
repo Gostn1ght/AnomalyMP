@@ -96,6 +96,12 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
 
 ## Журнал
 
+- 2026-10-06 02:40 (Claude) — `5b444d1` установлен в gamma-runtime и
+  LostZone-3D-Hideout (клиент владельца). Контрольный кластерный прогон: 28
+  переходов, 0 отказов, 1 таймаут переподключения бота в момент остановки теста.
+  Чек-лист владельца: doc 46. Сообщения об отказе перехода — по-русски
+  (st_netcoop_passage_*).
+
 - 2026-10-06 02:20 (Claude) — реальные серверы, overlay `5cf8161` на exe `5302a58`:
   «released 129 squad(s), 218 NPC(s) of other maps» (H11-lite работает), switch
   distance 650 м, 16/16 переходов, fatal 0. GAMMA printf подставляет только %s —
