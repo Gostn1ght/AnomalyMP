@@ -327,6 +327,48 @@ class WorldTest(unittest.TestCase):
         self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM group_member WHERE group_id=?", (group,)).fetchone()[0], 2)
         self.assertEqual(self.store.db.execute("SELECT holder FROM item WHERE id=?", (item,)).fetchone()[0], npc)
 
+    def test_snapshot_exact_utf8_budget_and_rejection_preserve_previous_copy(self):
+        self.world.set_state("admin",uid(),"snapshot_test",0,{"text":'Ж\\"\n'*1000})
+        old = self.store.snapshot()
+        payload = self.store.db.execute("SELECT payload FROM snapshot WHERE id=?",(old["id"],)).fetchone()[0]
+        size = len(payload.encode("utf-8"))
+        self.assertGreater(size,1024)
+        exact = self.store.snapshot(byte_limit=size)
+        self.assertEqual(self.store.db.execute("SELECT payload FROM snapshot WHERE id=?",(exact["id"],)).fetchone()[0],payload)
+        events = self.store.events()
+        with self.assertRaises(Invalid):
+            self.store.snapshot(byte_limit=size-1)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM snapshot").fetchone()[0],2)
+        self.assertEqual(self.store.events(),events)
+        self.assertEqual(self.store.read_snapshot(old["id"]),self.store.read_snapshot(exact["id"]))
+
+    def test_snapshot_oversized_first_row_is_refused_before_reading_later_rows(self):
+        self.entity(state={"position":[0,0,0],"payload":"x"*2000})
+        original_transaction = self.store.transaction
+        from contextlib import contextmanager
+        class Guarded:
+            def __init__(self,tx):
+                self.tx=tx
+            def execute(self,query,*args):
+                cursor = self.tx.execute(query,*args)
+                if query=="SELECT * FROM entity ORDER BY rowid":
+                    def first_only():
+                        yield next(iter(cursor))
+                        raise AssertionError("snapshot read beyond an already oversized first row")
+                    return first_only()
+                return cursor
+        @contextmanager
+        def guarded_transaction():
+            with original_transaction() as tx:
+                yield Guarded(tx)
+        self.store.transaction = guarded_transaction
+        try:
+            with self.assertRaises(Invalid):
+                self.store.snapshot(byte_limit=1024)
+        finally:
+            self.store.transaction=original_transaction
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM snapshot").fetchone()[0],0)
+
     def test_existing_empty_or_unknown_database_fails_closed(self):
         empty = Path(self.folder.name) / "empty.sqlite"
         empty.touch()

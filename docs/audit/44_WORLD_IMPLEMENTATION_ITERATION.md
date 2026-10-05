@@ -668,3 +668,19 @@ ad4725002 DX11 37382384355 **SUCCESS**, full native package includes progress
 capture refusal, bounded commits and logout retention. 3ad35e0ca backend
 37383338666 **SUCCESS Windows+Linux (144 tests)**. Runtime installation/testing
 remain the other actor's area; no claimed installation of the new package.
+
+## Backend snapshot admission before whole-world allocation
+
+Store.snapshot now counts the exact canonical UTF-8 envelope and each escaped
+projection row while reading cursors, before retaining an over-budget record.
+The default cap remains 128 MiB; trusted callers may use a smaller byte_limit.
+Refusal leaves old snapshots, journal and authority state intact. Tests exercise
+exact/one-byte-under limits with Cyrillic, quotes/backslashes/newlines, and an
+oversized first entity guarded against reading any later rows. Full local
+backend **146 tests PASS**. This bounds encoded snapshot admission, not total
+Python RSS: accepted records and final canonical serialization still coexist.
+Native paired-checkpoint format and recovery are unchanged.
+
+970ef6658 Foundation 37384373144 SUCCESS GCC/MSVC: actual failed-logout
+backoff/wrap/coalescing and synchronous Windows write/fsync/rename cleanup
+tests pass. DX11 checks succeeded; full engine package is still compiling.

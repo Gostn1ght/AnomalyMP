@@ -339,3 +339,12 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   Synchronous save completion removes refused temps (old durable file stays).
   Actual helper fault/boundary fixtures expanded; native checks pending.
   Previous full native build completed before pushing this follow-up.
+
+- 970ef6658 Foundation 37384373144 SUCCESS GCC/MSVC, actual backoff/duplicate/
+  u32-wrap and Windows synchronous write/fsync/rename/temp-removal tests pass.
+  DX11 37384373508 checks SUCCESS, engine compiling; runtime left to Claude.
+- Backend snapshots now account exact canonical UTF-8 envelope/escaped rows
+  during cursor reads before retaining oversized records. 128-MiB default,
+  trusted smaller budget, old snapshots/journal preserved on refusal.
+  Exact-boundary/Unicode and guarded early-read tests, full local 146 PASS.
+  No total-RSS claim; no native checkpoint change.

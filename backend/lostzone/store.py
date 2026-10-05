@@ -344,17 +344,30 @@ class Store:
                        (consumer, message_id, digest, canonical(result)))
             return result
 
-    def snapshot(self):
+    def snapshot(self, *, byte_limit=128 * 1024 * 1024):
         # SQLite owns these backend aggregates; one transaction captures all
         # projections and the journal watermark. ALife objects are not included.
+        if type(byte_limit) is not int or not 1024 <= byte_limit <= 128 * 1024 * 1024:
+            raise Invalid("invalid backend snapshot byte budget")
         with self.transaction() as tx:
             self.require_epoch(tx)
             names = ("world", "world_state", "location_lease", "entity", "group_member", "container", "item", "character", "player_session",
                      "transfer", "quest", "quest_requirement", "quest_event", "scheduled_event", "route")
-            records = {name: [dict(row) for row in tx.execute(f"SELECT * FROM {name} ORDER BY rowid")]
-                       for name in names}
             watermark = tx.execute("SELECT COALESCE(MAX(sequence),0) FROM world_event").fetchone()[0]
-            encoded = canonical({"schema": 1, "epoch": self.epoch, "watermark": watermark, "records": records}, limit=128 * 1024 * 1024)
+            records = {name:[] for name in names}
+            payload = {"schema":1,"epoch":self.epoch,"watermark":watermark,"records":records}
+            used = len(canonical(payload,limit=byte_limit).encode("utf-8"))
+            # Account for escaped JSON/UTF-8 while streaming each projection.
+            # The previous full-list construction could allocate the whole
+            # world before discovering that the final envelope exceeded 128 MiB.
+            for name in names:
+                for row in tx.execute(f"SELECT * FROM {name} ORDER BY rowid"):
+                    record = dict(row)
+                    used += len(canonical(record,limit=byte_limit).encode("utf-8")) + (1 if records[name] else 0)
+                    if used > byte_limit:
+                        raise Invalid("backend snapshot exceeds admission byte budget")
+                    records[name].append(record)
+            encoded = canonical(payload,limit=byte_limit)
             checksum = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
             snapshot_id = uuid.uuid4().hex
             tx.execute("INSERT INTO snapshot VALUES(?,?,?,?,?,?)",
