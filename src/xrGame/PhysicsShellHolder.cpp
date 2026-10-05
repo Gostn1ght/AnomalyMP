@@ -13,6 +13,12 @@
 #include "netcoop.h"
 #include "../xrServerEntities/PHSynchronize.h"
 #include "inventory_item.h"
+#include "Weapon.h"
+#include "WeaponAmmo.h"
+#include "CustomOutfit.h"
+#include "ActorHelmet.h"
+#include "eatable_item.h"
+#include "Artefact.h"
 
 //#include "phactivationshape.h"
 #include "../xrphysics/iphworld.h"
@@ -32,20 +38,73 @@ CPhysicsShellHolder::CPhysicsShellHolder()
 	PHRegisterShellHolder(this);
 }
 
-// Coulomb friction on the server: the solver limits tangential impulse to
-// mu * normal impulse. Apply only on static ground, retaining collision
-// shape, mass, slopes and the existing material callbacks.
+// Item physics profiles on the server (gameplay plan, stage 6). One rule
+// for every item made a rifle, a bottle and a bag slide and bounce alike.
+// Coulomb friction: the solver limits tangential impulse to mu * normal
+// impulse; applied only on static ground, keeping collision shape, mass,
+// slopes and the material callbacks. "angular" scales rolling resistance.
+// A section can name its profile: netcoop_physics_profile = weapon.
+struct NetcoopPhysicsProfile { LPCSTR name; float mu, bounce, angular; };
+static const NetcoopPhysicsProfile s_netcoop_profiles[] = {
+	{"small", 0.8f, 0.08f, 2.f}, // food, medicine, ammo boxes, misc
+	{"weapon", 1.0f, 0.04f, 6.f}, // long, heavy, must not roll or skate
+	{"metal", 0.65f, 0.12f, 2.f}, // devices, artefacts, tools
+	{"bottle", 0.55f, 0.15f, 1.f}, // glass and cans roll
+	{"soft", 1.3f, 0.02f, 8.f}, // outfits, helmets, bags
+};
+enum { netcoop_profile_small, netcoop_profile_weapon, netcoop_profile_metal, netcoop_profile_bottle, netcoop_profile_soft,
+	netcoop_profile_count };
+
+template <int Profile>
 static void netcoop_item_ground_contact(bool& collide, bool, dContact& contact, SGameMtl*, SGameMtl*)
 {
 	if (!collide || (dGeomGetBody(contact.geom.g1) && dGeomGetBody(contact.geom.g2)) ||
 		_abs(contact.geom.normal[1]) < 0.5f) return;
-	contact.surface.mu = _max(contact.surface.mu, 0.8f);
-    contact.surface.mu2 = _max(contact.surface.mu2, 0.8f);
-    contact.surface.mode &= ~(dContactSlip1 | dContactSlip2);
-    contact.surface.mode |= dContactApprox1;
-    contact.surface.slip1 = contact.surface.slip2 = 0.f;
-	contact.surface.bounce = _min(contact.surface.bounce, 0.08f);
+	const NetcoopPhysicsProfile& profile = s_netcoop_profiles[Profile];
+	contact.surface.mu = _max(contact.surface.mu, profile.mu);
+	contact.surface.mu2 = _max(contact.surface.mu2, profile.mu);
+	contact.surface.mode &= ~(dContactSlip1 | dContactSlip2);
+	contact.surface.mode |= dContactApprox1;
+	contact.surface.slip1 = contact.surface.slip2 = 0.f;
+	contact.surface.bounce = _min(contact.surface.bounce, profile.bounce);
 	contact.surface.bounce_vel = _max(contact.surface.bounce_vel, 1.5f);
+}
+
+static ObjectContactCallbackFun* const s_netcoop_profile_contacts[netcoop_profile_count] = {
+	netcoop_item_ground_contact<0>, netcoop_item_ground_contact<1>, netcoop_item_ground_contact<2>,
+	netcoop_item_ground_contact<3>, netcoop_item_ground_contact<4>,
+};
+
+static int netcoop_item_profile(CPhysicsShellHolder* holder)
+{
+	LPCSTR section = holder->cNameSect().c_str();
+	if (pSettings->line_exist(section, "netcoop_physics_profile"))
+	{
+		LPCSTR name = pSettings->r_string(section, "netcoop_physics_profile");
+		for (int i = 0; i < netcoop_profile_count; ++i)
+			if (!xr_strcmp(name, s_netcoop_profiles[i].name)) return i;
+	}
+	if (smart_cast<CWeaponAmmo*>(holder)) return netcoop_profile_small;
+	if (smart_cast<CWeapon*>(holder)) return netcoop_profile_weapon;
+	if (smart_cast<CCustomOutfit*>(holder) || smart_cast<CHelmet*>(holder)) return netcoop_profile_soft;
+	if (smart_cast<CArtefact*>(holder)) return netcoop_profile_metal;
+	if (smart_cast<CEatableItem*>(holder))
+	{
+		static LPCSTR const containers[] = {"bottle", "vodka", "water", "beer", "drink", "energy", "juice", "can"};
+		for (LPCSTR word : containers)
+			if (strstr(section, word)) return netcoop_profile_bottle;
+		return netcoop_profile_small;
+	}
+	return netcoop_profile_small;
+}
+
+static void netcoop_apply_item_profile(CPhysicsShellHolder* holder, CPhysicsShell* shell)
+{
+	const int index = netcoop_item_profile(holder);
+	shell->add_ObjectContactCallback(s_netcoop_profile_contacts[index]);
+	float linear = 0.f, angular = 0.f;
+	shell->GetAirResistance(linear, angular);
+	shell->SetAirResistance(linear, angular * s_netcoop_profiles[index].angular);
 }
 
 CPhysicsShellHolder::~CPhysicsShellHolder()
@@ -274,7 +333,7 @@ void CPhysicsShellHolder::activate_physic_shell()
 		XFORM().set(m_netcoop_throw_start);
 	create_physic_shell();
 	if (netcoop::enabled() && !netcoop::pure_client() && smart_cast<CInventoryItem*>(this))
-		m_pPhysicsShell->add_ObjectContactCallback(netcoop_item_ground_contact);
+		netcoop_apply_item_profile(this, m_pPhysicsShell);
 	Fvector l_fw, l_up;
 	l_fw.set(XFORM().k);
 	l_up.set(XFORM().j);
@@ -340,7 +399,7 @@ void CPhysicsShellHolder::setup_physic_shell()
 	VERIFY(!m_pPhysicsShell);
 	create_physic_shell();
 	if (netcoop::enabled() && !netcoop::pure_client() && smart_cast<CInventoryItem*>(this))
-		m_pPhysicsShell->add_ObjectContactCallback(netcoop_item_ground_contact);
+		netcoop_apply_item_profile(this, m_pPhysicsShell);
 	if (netcoop::enabled() && !netcoop::pure_client())
 		if (CInventoryItem* item = smart_cast<CInventoryItem*>(this))
 			m_pPhysicsShell->setMass(_max(0.05f, item->Weight()));
@@ -476,8 +535,11 @@ void CPhysicsShellHolder::netcoop_physics_import(NET_Packet& P)
 	if (!m_netcoop_physics.empty())
 	{
 		if (s32(snapshot.stamp - m_netcoop_physics.back().stamp) <= 0) return;
+		// A sleeping body is sent once and then every 10 s (stage 6); after
+		// such a gap the old samples would stretch the interpolation delay.
 		if (snapshot.states.size() != m_netcoop_physics.back().states.size() ||
-			snapshot.states[0].position.distance_to(m_netcoop_physics.back().states[0].position) > 3.f)
+			snapshot.states[0].position.distance_to(m_netcoop_physics.back().states[0].position) > 3.f ||
+			s32(snapshot.stamp - m_netcoop_physics.back().stamp) > 500)
 			m_netcoop_physics.clear();
 	}
 	netcoop::snapshot_sample(snapshot.stamp);

@@ -1585,15 +1585,24 @@ void server_update(xrServer* server)
 	psActorFlags.set(AF_GODMODE_RT, FALSE);
 	destroy_pending_actors(server);
 	server_talk_prune(server);
-	server_physics_update(server);
 	characters_update(server);
-	server_pda_update(server);
-	server_marks_update(server);
 	if (!s_accounts_loaded)
 		return;
 	StoreMoney store;
 	server->ForEachClientDo(store);
 	accounts_save();
+}
+
+// Every server frame. These ran from server_update, which xrServer calls
+// once per 100 frames: item and corpse poses left ~1 s apart instead of
+// every 50 ms, and clients glided items between them ("sliding on ice");
+// bullet marks arrived late. Each has its own rate limit.
+void server_frame_update(xrServer* server)
+{
+	if (!enabled() || !g_pGameLevel) return;
+	server_physics_update(server);
+	server_pda_update(server);
+	server_marks_update(server);
 }
 
 // ---------------------------------------------------------------------------
@@ -3063,6 +3072,9 @@ void client_on_physics(NET_Packet& P)
 	if (holder) holder->netcoop_physics_import(P);
 }
 
+struct PhysicsSent { bool sleeping = false; u32 last = 0; };
+static xr_map<u16, PhysicsSent> s_physics_sent;
+
 void server_physics_update(xrServer* server)
 {
 	if (!g_pGameLevel || pure_client()) return;
@@ -3072,6 +3084,9 @@ void server_physics_update(xrServer* server)
 	if (previous && now - previous < 50) return;
 	previous = now;
 	++tick;
+	if (tick % 200 == 0)
+		for (auto it = s_physics_sent.begin(); it != s_physics_sent.end();)
+			it = Level().Objects.net_Find(it->first) ? std::next(it) : s_physics_sent.erase(it);
 	struct FootContact { Fvector position, direction; };
 	xr_vector<FootContact> feet;
 	for (u32 n = 0; n < Level().Objects.o_count(); ++n)
@@ -3124,6 +3139,33 @@ void server_physics_update(xrServer* server)
 				break;
 			}
 		}
+		// Stage 6: only moving bodies are sent at the full rate. A body that
+		// fell asleep sends its final pose once to every client, then a
+		// refresh every 10 s; a push or a hit wakes it and sending resumes.
+		const bool awake = holder->PPhysicsShell()->isEnabled();
+		if (awake && !creature)
+		{
+			// Drops and explosions: no item flies off faster than 12 m/s.
+			for (u16 i = 0; i < count; ++i)
+			{
+				SPHNetState state; holder->PHGetSyncItem(i)->get_State(state);
+				Fvector velocity = state.linear_vel;
+				const float speed = velocity.magnitude();
+				if (speed > 12.f)
+				{
+					velocity.mul(12.f / speed);
+					holder->PPhysicsShell()->get_ElementByStoreOrder(i)->set_LinearVel(velocity);
+				}
+			}
+		}
+		PhysicsSent& sent = s_physics_sent[holder->ID()];
+		if (!awake)
+		{
+			if (sent.sleeping && now - sent.last < 10000) continue;
+			sent.sleeping = true;
+		}
+		else sent.sleeping = false;
+		sent.last = now;
 		NET_Packet P;
 		P.w_begin(M_NETCOOP_PHYSICS);
 		P.w_u16(holder->ID());
@@ -3147,16 +3189,17 @@ void server_physics_update(xrServer* server)
 			CPhysicsShellHolder* holder;
 			NET_Packet* packet;
 			u32 tick;
+			bool settled; // asleep: final or refresh pose, sent to everyone at once
 			void operator()(IClient* client)
 			{
 				xrClientData* CL = static_cast<xrClientData*>(client);
 				if (CL == server->GetServerClient() || !CL->flags.bConnected || !CL->gamma_snapshot_ready || !CL->owner) return;
 				const float distance = CL->owner->o_Position.distance_to(holder->Position());
 				const u32 every = distance < 50.f ? 1 : distance < 150.f ? 2 : distance < 300.f ? 5 : 20;
-				if ((tick + holder->ID()) % every || !server->HasSendQueueRoom(CL, 64)) return;
-				server->SendTo(CL->ID, *packet, net_flags(FALSE, TRUE));
+				if ((!settled && (tick + holder->ID()) % every) || !server->HasSendQueueRoom(CL, 64)) return;
+				server->SendTo(CL->ID, *packet, net_flags(settled ? TRUE : FALSE, TRUE));
 			}
-		} send = {server, holder, &P, tick};
+		} send = {server, holder, &P, tick, !awake};
 		server->ForEachClientDo(send);
 	}
 }

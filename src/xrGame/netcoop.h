@@ -206,6 +206,8 @@ bool server_character_load_actor(xrClientData* CL, CSE_Abstract* actor);
 void server_character_spawn_items(xrClientData* CL);
 void server_character_save_actor(u16 actor_id);
 void server_physics_update(xrServer* server);
+// Every server frame: physics poses, PDA screens, bullet marks (own rates).
+void server_frame_update(xrServer* server);
 // Item instance state (netcoop_items.inc, gameplay plan stage 1): the server
 // versions each item's condition/charge, portions, magazine, addons and box
 // count and sends changed fields; carriers report their own wear and drain.

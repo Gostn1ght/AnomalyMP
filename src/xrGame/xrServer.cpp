@@ -277,6 +277,7 @@ void xrServer::Update()
 
 	SendUpdatesToAll();
 	netcoop::server_items_update(this);
+	netcoop::server_frame_update(this);
 
 
 	if (game->sv_force_sync) Perform_game_export();

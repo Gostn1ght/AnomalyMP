@@ -11,8 +11,8 @@ source = (root/'src/xrGame/PhysicsShellHolder.cpp').read_text()
 begin = source.index('static float netcoop_physics_coordinate(')
 end = source.index('\nvoid CPhysicsShellHolder::netcoop_physics_update()', begin)
 interpolation = source[begin:end]
-begin = source.index('static void netcoop_item_ground_contact(')
-end = source.index('\nCPhysicsShellHolder::~', begin)
+begin = source.index('struct NetcoopPhysicsProfile')
+end = source.index('static ObjectContactCallbackFun* const', begin)
 contact = source[begin:end]
 fixtures = r'''
 #include <algorithm>
@@ -25,6 +25,7 @@ template<class T> T _min(T a,T b){return std::min(a,b);}
 float _abs(float v){return std::abs(v);} float _sqrt(float v){return std::sqrt(v);}
 template<class T> void clamp(T& v,T a,T b){v=std::clamp(v,a,b);}
 constexpr float EPS_S=0.0000001f;
+typedef const char* LPCSTR;
 struct SGameMtl {};
 struct dContact {
  struct {void* g1=nullptr;void* g2=nullptr;float normal[3]={0,1,0};} geom;
@@ -48,14 +49,21 @@ int main(){
    }
  }
  bool collide=true;dContact c;c.geom.g1=(void*)1;c.surface.mode=dContactSlip1|dContactSlip2;
- netcoop_item_ground_contact(collide,true,c,nullptr,nullptr);
+ netcoop_item_ground_contact<netcoop_profile_small>(collide,true,c,nullptr,nullptr);
  assert(c.surface.mu>=.8f && c.surface.mu2>=.8f && !(c.surface.mode&(dContactSlip1|dContactSlip2)));
  assert(c.surface.slip1==0 && c.surface.slip2==0 && c.surface.bounce<=.08f);
+ // Profiles: a rifle grips and does not bounce, a bottle rolls and bounces more, a bag grips most.
+ dContact rifle;rifle.geom.g1=(void*)1;netcoop_item_ground_contact<netcoop_profile_weapon>(collide,true,rifle,nullptr,nullptr);
+ dContact bottle;bottle.geom.g1=(void*)1;netcoop_item_ground_contact<netcoop_profile_bottle>(collide,true,bottle,nullptr,nullptr);
+ dContact bag;bag.geom.g1=(void*)1;netcoop_item_ground_contact<netcoop_profile_soft>(collide,true,bag,nullptr,nullptr);
+ assert(rifle.surface.mu>bottle.surface.mu && bag.surface.mu>rifle.surface.mu);
+ assert(rifle.surface.bounce<bottle.surface.bounce && bag.surface.bounce<=rifle.surface.bounce);
+ for(const auto& p:s_netcoop_profiles){assert(p.mu>0.3f && p.mu<2.f && p.bounce>=0 && p.bounce<0.3f && p.angular>=1.f);}
  dContact dynamic;dynamic.geom.g1=(void*)1;dynamic.geom.g2=(void*)2;
- netcoop_item_ground_contact(collide,true,dynamic,nullptr,nullptr);assert(dynamic.surface.mu==0);
+ netcoop_item_ground_contact<netcoop_profile_weapon>(collide,true,dynamic,nullptr,nullptr);assert(dynamic.surface.mu==0);
  dContact wall;wall.geom.normal[1]=0;
- netcoop_item_ground_contact(collide,true,wall,nullptr,nullptr);assert(wall.surface.mu==0);
- puts("Actual physics: ballistic midpoint, 1M monotone samples, static-ground friction and dynamic/wall exclusions PASS");
+ netcoop_item_ground_contact<netcoop_profile_weapon>(collide,true,wall,nullptr,nullptr);assert(wall.surface.mu==0);
+ puts("Actual physics: ballistic midpoint, 1M monotone samples, per-profile static-ground friction and dynamic/wall exclusions PASS");
 }
 '''
 with tempfile.TemporaryDirectory() as folder:
