@@ -113,8 +113,7 @@ void CObjectHandler::OnItemDrop(CInventoryItem* inventory_item, bool just_before
 
 	m_inventory_actual = false;
 
-	if (g_ai_unlimited_ammo && m_infinite_ammo && planner().object().g_Alive() && !inventory_item->useful_for_NPC() &&
-		!netcoop::server_real_npc_ammo())
+	if (g_ai_unlimited_ammo && m_infinite_ammo && planner().object().g_Alive() && !inventory_item->useful_for_NPC())
 	{
 		CWeaponAmmo* weapon_ammo = smart_cast<CWeaponAmmo*>(inventory_item);
 		if (weapon_ammo)

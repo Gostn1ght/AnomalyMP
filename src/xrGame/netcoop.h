@@ -244,9 +244,6 @@ void client_on_physics(NET_Packet& P);
 // for this: on the dedicated server it did not tell these copies apart
 // (s96: players' shots never reached FireStart).
 bool server_player_copy(const CObject* object);
-// Server: NPCs use the ammunition they really carry (gameplay plan, NPC
-// inventory): no ammo from nowhere on reload, no new box when one runs out.
-bool server_real_npc_ammo();
 // A real-time millisecond clock of this process: never paused or scaled
 // (the engine's global timer stops in menus and follows time_factor).
 u32 real_time_ms();

@@ -584,11 +584,12 @@ end
 -- valuables...), ammunition for its weapon, ammo parts and artefacts. Every
 -- item that wears gets a condition: weapons and armour from the NPC's rank
 -- (GAMMA's dph_loot_cond ranges), devices a battery charge. The NPC lives
--- with it: the engine wears its weapons with every shot, it reloads from its
--- real ammunition (no ammo from nowhere on the netcoop server) and uses its
--- medicine when wounded. At death nothing is generated again: the corpse
--- holds what the NPC still had, plus the outfit it wore. Everything draws
--- from a seed made of the world seed and the NPC id.
+-- with it: the engine wears its weapons with every shot and it uses its
+-- medicine when wounded. Ammunition stays endless in a fight (the engine's
+-- NPC ammo; the owner's choice), but a corpse carries little of it: at death
+-- each calibre is cut to 20-100 % of one box. Nothing else is generated at
+-- death: the corpse holds what the NPC still had, plus the outfit it wore.
+-- Everything draws from a seed made of the world seed and the NPC id.
 -- NPCs with a story id (traders, quest givers) keep GAMMA's death loot.
 local WORLD_SEED = (os.time() % 100000) * 7919
 local CONDITION_DEFAULT = { -- percent, used when MCM has no value
@@ -599,7 +600,6 @@ local BATTERY_CHARGE = { 15, 90 } -- percent, devices an NPC carries
 local LOOT_GENERATORS = { "create_item_list", "try_spawn_ammo", "try_spawn_powders", "try_spawn_bullets",
 	"try_spawn_casings", "try_spawn_sin_artefacts" }
 local pending_inventory = {} -- npc id -> { at = time, step = 1 build | 2 condition }
-local resupply_seen = {} -- npc id -> time it was first seen out of ammo and out of combat
 
 local function seeded_random(seed)
 	local state = seed % 2147483647
@@ -713,49 +713,46 @@ local function process_pending_inventory()
 	end
 end
 
--- Real ammunition has a safety net: an NPC out of combat that has had no
--- round for its weapon for two minutes gets one box (it went to its stash).
-local function npc_has_ammo(npc, weapon)
-	if weapon:get_ammo_in_magazine() > 0 then return true end
-	local types = parse_list(ini_sys, weapon:section(), "ammo_class")
-	local has = false
-	npc:iterate_inventory(function(_, item)
-		if not has and item then
-			for _, sec in ipairs(types) do if item:section() == sec then has = true; break end end
-		end
-	end, npc)
-	return has
-end
-
-local function process_resupply()
-	local now = time_global()
-	for _, id in ipairs(db.OnlineStalkers or {}) do
-		local npc = level.object_by_id(id)
-		local weapon = npc and npc:alive() and IsStalker(npc) and npc:best_weapon()
-		if weapon and IsWeapon(weapon) and not npc:best_enemy() and not npc_has_ammo(npc, weapon) then
-			resupply_seen[id] = resupply_seen[id] or now
-			if now - resupply_seen[id] > 120000 then
-				resupply_seen[id] = nil
-				local types = parse_list(ini_sys, weapon:section(), "ammo_class")
-				if types[1] then
-					alife_create_item(types[1], npc, { ammo = ini_sys:r_float_ex(types[1], "box_size") or 30 })
-					printf("[Lost Zone][loot] npc %s out of ammo for %s: one box of %s", npc:name(), weapon:section(), types[1])
-				end
-			end
-		else
-			resupply_seen[id] = nil
-		end
-	end
-end
-
 local function on_npc_net_spawn(npc)
 	if npc and IsStalker(npc) then pending_inventory[npc:id()] = { at = time_global() + 2000, step = 1 } end
+end
+
+-- A corpse's ammunition: per calibre at most one box, 20-100 % of it.
+local function cap_corpse_ammo(npc, roll)
+	local boxes = {}
+	npc:iterate_inventory(function(_, item)
+		if item and IsAmmo(item) then
+			local sec = item:section()
+			boxes[sec] = boxes[sec] or {}
+			table.insert(boxes[sec], item)
+		end
+	end, npc)
+	local kept, removed = 0, 0
+	for sec, list in pairs(boxes) do
+		local box = ini_sys:r_float_ex(sec, "box_size") or 30
+		local allowed = roll(math.max(1, math.floor(box * 0.2)), math.max(1, math.floor(box)))
+		for _, item in ipairs(list) do
+			local count = item:ammo_get_count()
+			if allowed <= 0 then
+				removed = removed + count
+				alife_release(item)
+			elseif count > allowed then
+				item:ammo_set_count(allowed)
+				removed = removed + count - allowed
+				kept = kept + allowed
+				allowed = 0
+			else
+				kept = kept + count
+				allowed = allowed - count
+			end
+		end
+	end
+	return kept, removed
 end
 
 local function on_npc_death_loot(victim)
 	if not (victim and IsStalker(victim) and death_manager and death_manager.create_release_item) then return end
 	pending_inventory[victim:id()] = nil
-	resupply_seen[victim:id()] = nil
 	if se_load_var(victim:id(), victim:name(), "death_dropped") then return end
 	local before = count_items(victim)
 	local dm = death_manager
@@ -771,8 +768,9 @@ local function on_npc_death_loot(victim)
 	local ok, err = with_player_bound(dm.create_release_item, victim)
 	math.randomseed(os.time() + victim:id())
 	for name, fn in pairs(saved) do dm[name] = fn end
-	printf("[Lost Zone][loot] npc %s died: %s loot %s, %d -> %d items", victim:name(), lived and "lived" or "generated",
-		ok and "ok" or ("failed: " .. tostring(err)), before, count_items(victim))
+	local kept, removed = cap_corpse_ammo(victim, seeded_random(WORLD_SEED + victim:id() * 17))
+	printf("[Lost Zone][loot] npc %s died: %s loot %s, %d -> %d items, ammo %d left (%d removed)", victim:name(),
+		lived and "lived" or "generated", ok and "ok" or ("failed: " .. tostring(err)), before, count_items(victim), kept, removed)
 end
 
 local function install_npc_loot()
@@ -823,12 +821,7 @@ function on_game_start()
 	if AddUniqueCall and ProcessEventQueue then
 		AddUniqueCall(server_event_queue)
 		AddUniqueCall(server_world_loop)
-		local next_resupply = 0
-		AddUniqueCall(function()
-			process_pending_inventory()
-			if time_global() >= next_resupply then next_resupply = time_global() + 10000; pcall(process_resupply) end
-			return false
-		end)
+		AddUniqueCall(function() process_pending_inventory(); return false end)
 		printf("[Lost Zone] server time event queue installed")
 	end
 	-- base-game's NPC vision hook reads db.actor (torch, flashlight) for every

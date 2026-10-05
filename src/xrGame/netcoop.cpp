@@ -1600,8 +1600,6 @@ void server_update(xrServer* server)
 // once per 100 frames: item and corpse poses left ~1 s apart instead of
 // every 50 ms, and clients glided items between them ("sliding on ice");
 // bullet marks arrived late. Each has its own rate limit.
-bool server_real_npc_ammo() { return enabled() && !pure_client(); }
-
 float server_luminocity(const CObject* object, float rendered)
 {
 	float light = 0.5f;

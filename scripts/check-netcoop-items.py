@@ -178,7 +178,9 @@ function npc(id)
 end
 generated=0; made_loot=0
 death_manager={get_items_by_npc=function() return nil end,
-  try_spawn_ammo=function(n) table.insert(n._inv, make_item(n:id()*10+5,'ammo_545',1)) generated=generated+1 end,
+  try_spawn_ammo=function(n) local a=make_item(n:id()*10+5,'ammo_545',1); a._count=120
+    a.ammo_get_count=function(self) return self._count end; a.ammo_set_count=function(self,c) self._count=c end
+    table.insert(n._inv, a) generated=generated+1 end,
   try_spawn_powders=function() end, try_spawn_bullets=function() end, try_spawn_casings=function() end,
   try_spawn_sin_artefacts=function() end,
   create_item_list=function(n) table.insert(n._inv, make_item(n:id()*10+6+generated,'medkit',1)) generated=generated+1 end,
@@ -210,6 +212,8 @@ a2._inv[1]:set_condition(0.31); table.remove(a2._inv)
 local before=#a2._inv
 death_loot(a2)
 assert(made_loot==1 and #a2._inv==before,'nothing generated at death')
+local ammo; for _,i in ipairs(a2._inv) do if i._sec=='ammo_545' then ammo=i end end
+assert(ammo and ammo._count>=6 and ammo._count<=30,'corpse keeps at most one box of ammo: '..(ammo and ammo._count or -1))
 assert(a2._inv[1]:condition()==0.31,'weapon keeps its real condition')
 death_loot(a2); assert(made_loot==1,'death routine only once')
 -- story NPC (trader): no spawn inventory, GAMMA loot at death
