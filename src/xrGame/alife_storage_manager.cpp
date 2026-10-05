@@ -169,6 +169,10 @@ void CALifeStorageManager::load(void* buffer, const u32& buffer_size, LPCSTR fil
 
 bool CALifeStorageManager::load(LPCSTR save_name_no_check)
 {
+	// Loading an older save inside this process would reset ClockSync sequence
+	// under the same fence and replay world mutations. Block before unload.
+	CHECK_OR_EXIT(!netcoop_world::local_world_authority().ready(),
+		"Live quickload is disabled for persistent servers; restart from the committed world snapshot");
 	LPCSTR game_saves_path = FS.get_path("$game_saves$")->m_Path;
 
 	string_path save_name;

@@ -50,6 +50,11 @@ scale=0 и Lua calendar jump запрещены в persistent мире: физи
 ещё не имеют общего pause/catch-up barrier. Положительное изменение scale
 не создаёт скачка времени. Старый engine может прочитать prefix, но
 сохранять новый persistent мир старым engine нельзя: он потеряет trailer.
+После initial bootstrap live quickload/reset календаря заблокирован до
+unload: загрузка старого файла под той же epoch сбросила бы sequence и
+повторила бы world mutations. Восстановление пока только рестартом сервера
+из committed pointer, с новой durable epoch; безопасный live recovery API
+появится вместе с journal/barrier.
 
 Готового World Service и кластера из 25 локаций эта интеграция не создаёт.
 

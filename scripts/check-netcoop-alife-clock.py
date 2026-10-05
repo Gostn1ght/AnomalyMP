@@ -110,6 +110,10 @@ int main(int argc,char** argv) {
  // Failure after durable epoch reservation burns that epoch, never reuses it.
  owner.open(".","zone");assert(owner.identity().epoch==3);owner.close();
  owner.open(".","zone");assert(owner.identity().epoch==4);owner.close();
+ owner.open(".","zone");owner.complete_bootstrap();assert(owner.ready());
+ rejects([&]{restored.init("alife");});
+ IReader rollback(saved);rejects([&]{restored.load(rollback);});
+ owner.close();assert(!owner.ready());
  std::fstream record("zone.authority",std::ios::in|std::ios::out|std::ios::binary);record.seekp(10);record.put('X');record.close();
  rejects([&]{owner.open(".","zone");});assert(!owner.active());
  std::cout<<"PASS: actual ALife calendar save/load, legacy adoption, timer wrap independence, time-scale continuity, concurrent reads, restart/fence, corrupt/foreign/truncated state and exclusive process ownership\n";

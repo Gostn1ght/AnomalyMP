@@ -9,6 +9,7 @@ on:
       - 'src/xrGame/netcoop_alife_clock.h'
       - 'src/xrGame/alife_time_manager*'
       - 'src/xrGame/alife_simulator.cpp'
+      - 'src/xrGame/alife_storage_manager.cpp'
       - 'src/xrGame/game_sv_single.cpp'
       - 'scripts/check-netcoop-alife-clock.py'
       - 'scripts/check-netcoop-world-clock.py'

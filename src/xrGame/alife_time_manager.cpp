@@ -21,6 +21,8 @@ CALifeTimeManager::~CALifeTimeManager()
 
 void CALifeTimeManager::init(LPCSTR section)
 {
+	CHECK_OR_EXIT(!netcoop_world::local_world_authority().ready(),
+		"Refusing to reset a running persistent world clock; restart through its committed snapshot");
 	u32 years, months, days, hours, minutes, seconds;
 	sscanf(pSettings->r_string(section, "start_time"), "%u:%u:%u", &hours, &minutes, &seconds);
 	sscanf(pSettings->r_string(section, "start_date"), "%u.%u.%u", &days, &months, &years);
@@ -71,6 +73,8 @@ void CALifeTimeManager::save(IWriter& memory_stream)
 
 void CALifeTimeManager::load(IReader& file_stream)
 {
+	CHECK_OR_EXIT(!netcoop_world::local_world_authority().ready(),
+		"Refusing live clock rollback; persistent world recovery requires a fresh authority epoch");
 	const u32 chunk_size = file_stream.find_chunk(GAME_TIME_CHUNK_DATA);
 	CHECK_OR_EXIT(chunk_size == 16 || chunk_size == 64, "Invalid ALife time chunk; recovery required");
 	file_stream.r(&m_game_time, sizeof(m_game_time));

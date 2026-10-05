@@ -127,6 +127,12 @@ public:
         if (!active()) throw std::logic_error("world authority not acquired");
         return identity_;
     }
+    bool ready() const { return active() && ready_; }
+    void complete_bootstrap()
+    {
+        if (!active()) throw std::logic_error("bootstrap without world authority");
+        ready_ = true;
+    }
     void close()
     {
 #ifdef _WIN32
@@ -137,6 +143,7 @@ public:
         lock_ = -1;
 #endif
         identity_ = {};
+        ready_ = false;
     }
 
 private:
@@ -193,6 +200,7 @@ private:
     }
     std::string base_;
     WorldIdentity identity_;
+    bool ready_ = false;
 #ifdef _WIN32
     HANDLE lock_ = INVALID_HANDLE_VALUE;
 #else
