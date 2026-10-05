@@ -369,7 +369,10 @@ function make_box(id, items)
 end
 local npc=make_item(400,'stalker',1); npc._inv={}
 npc.alive=function() return true end
-npc.position=function() return vector():set(10,0,0) end
+npc.position=function() return vector():set(1,0,0) end
+npc.best_enemy=function() return nil end
+npc.wounded=function() return false end
+npc.critically_wounded=function() return false end
 npc.name=function() return 'npc400' end
 npc.is_on_belt=function() return false end
 npc.iterate_inventory=function(self,fn,o) for _,i in ipairs(self._inv) do fn(o,i) end end
@@ -383,7 +386,8 @@ local old_r=ini_sys.r_string_ex
 ini_sys.r_string_ex=function(i,sec,key) if key=='kind' then return functors[sec] and functors[sec].kind end return old_r(i,sec,key) end
 ini_sys.r_bool_ex=function() return false end
 hour=10
-game.get_game_time=function() return {get=function() return 2012,5,1,hour,0,0,0 end} end
+game.CTime=function() return {} end
+game.get_game_time=function() return {diffSec=function() return hour * 3600 end} end
 local function always() return 0 end
 local box=make_box(700,{make_item(701,'bread',1)})
 assert(stash_visit(box, function() return 0.99 end)=="no visit",'rare: 8%')
@@ -398,5 +402,22 @@ hour=30; online="91 "; player.position=function() return vector():set(5,0,0) end
 assert(stash_visit(box, always)=="watched",'never in front of a player')
 owned_t()[700]={owner='ivan',kind='stash'}
 assert(stash_visit(box, always)=="protected",'player stashes untouched')
+owned_t()[700]=nil; online=""; hour=40
+npc.position=function() return vector():set(60,0,0) end
+assert(stash_visit(box, always)=="nobody near",'no remote transfer from 60m')
+npc.position=function() return vector():set(1,0,0) end
+npc.best_enemy=function() return player end
+assert(stash_visit(box, always)=="nobody near",'busy in combat')
+npc.best_enemy=function() return nil end
+npc.wounded=function() return true end
+assert(stash_visit(box, always)=="nobody near",'wounded NPC stays with current behaviour')
+npc.wounded=function() return false end
+local state=alife_storage_manager.get_state()
+state.netcoop_stash_visits={[700]=((2012*12+5)*31+1)*24+10}
+state.netcoop_stash_visits_v2[700]=nil
+assert(stash_visit(box, always)=="too soon",'legacy visits migrate with a cooldown')
+hour=45.9; assert(stash_visit(box, always)=="too soon")
+hour=46; assert(stash_visit(box, always)=="deposit")
+hour=45; assert(stash_visit(box, always)=="too soon",'clock rollback never opens a visit')
 ''')
 print("Stash visits: rare, real item moves, no weapons/armour/artefacts deposited, not watched, protected stashes untouched PASS")

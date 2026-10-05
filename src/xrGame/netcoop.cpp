@@ -939,8 +939,16 @@ static bool accounts_file_stamp(FILETIME& stamp)
 struct AccountsFileLock
 {
 	HANDLE mutex;
-	AccountsFileLock() { mutex = CreateMutexA(nullptr, FALSE, "Local\\LostZoneAccountsFile"); if (mutex) WaitForSingleObject(mutex, 5000); }
-	~AccountsFileLock() { if (mutex) { ReleaseMutex(mutex); CloseHandle(mutex); } }
+	bool held;
+	AccountsFileLock() : mutex(CreateMutexA(nullptr, FALSE, "Local\\LostZoneAccountsFile")), held(false)
+	{
+		if (mutex)
+		{
+			const DWORD result = WaitForSingleObject(mutex, 5000);
+			held = result == WAIT_OBJECT_0 || result == WAIT_ABANDONED;
+		}
+	}
+	~AccountsFileLock() { if (mutex) { if (held) ReleaseMutex(mutex); CloseHandle(mutex); } }
 };
 
 static void accounts_read(Accounts& out)
@@ -1027,12 +1035,17 @@ static void accounts_load()
 	Msg("[Lost Zone] loaded %u account(s)", (u32)s_accounts.size());
 }
 
-static void accounts_save()
+static bool accounts_save()
 {
 	if (!s_accounts_dirty)
-		return;
+		return true;
 
 	AccountsFileLock lock;
+	if (!lock.held)
+	{
+		Msg("! [Lost Zone] account save held: file mutex unavailable");
+		return false;
+	}
 	accounts_refresh();
 	string_path path, temp;
 	accounts_path(path);
@@ -1041,7 +1054,7 @@ static void accounts_save()
 	if (!f)
 	{
 		Msg("! [Lost Zone] cannot write %s", temp);
-		return;
+		return false;
 	}
 	fprintf(f, "# NetAnomaly accounts: login|role|salt|pbkdf2-sha256|money|device-digest|approval\n");
 	for (Accounts::const_iterator it = s_accounts.begin(); it != s_accounts.end(); ++it)
@@ -1052,15 +1065,23 @@ static void accounts_save()
 		else
 			fprintf(f, "%s|%s|%s|%s|-|%s|%s|%s\n", a.login.c_str(), role_name(a.role), a.salt.c_str(), a.hash.c_str(), a.device.c_str(), a.approval == 0 ? "pending" : a.approval == 2 ? "rejected" : "approved", a.firebase_uid.c_str());
 	}
-	fclose(f);
+	const bool flushed = !ferror(f) && fflush(f) == 0 && _commit(_fileno(f)) == 0;
+	const bool closed = fclose(f) == 0;
+	if (!flushed || !closed)
+	{
+		DeleteFileA(temp);
+		Msg("! [Lost Zone] incomplete account save; keeping %s", path);
+		return false;
+	}
 	if (!MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
 	{
 		Msg("! [Lost Zone] cannot replace %s", path);
-		return;
+		return false;
 	}
 	s_accounts_dirty = false;
 	for (auto& entry : s_accounts) entry.second.touched = false;
 	accounts_file_stamp(s_accounts_stamp);
+	return true;
 }
 
 static Account* account_find(LPCSTR login)
@@ -1598,7 +1619,7 @@ static void server_release_task_manager(u16 actor_id);
 
 static void store_money(xrClientData* CL)
 {
-	if (!CL || !CL->netcoop_login.size() || !CL->owner || CL->netcoop_character_slot != 1)
+	if (!CL || server_client_leaving(CL) || !CL->netcoop_login.size() || !CL->owner || CL->netcoop_character_slot != 1)
 		return;
 	CSE_ALifeTraderAbstract* trader = smart_cast<CSE_ALifeTraderAbstract*>(CL->owner);
 	if (!trader)

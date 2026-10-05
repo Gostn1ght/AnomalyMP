@@ -41,6 +41,8 @@ on:
       - 'scripts/check-netcoop-transit-queue.py'
       - 'src/xrGame/netcoop_cluster.inc'
       - 'scripts/check-netcoop-player-transfer.py'
+      - 'src/xrGame/netcoop.cpp'
+      - 'scripts/check-netcoop-account-store.py'
       - 'scripts/check-netcoop-replication-index.py'
       - '.github/workflows/lostzone-world-foundation.yml'
   workflow_dispatch:
@@ -108,5 +110,7 @@ jobs:
           python scripts/check-netcoop-transit-queue.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-player-transfer.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-netcoop-account-store.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-alife-clock.py

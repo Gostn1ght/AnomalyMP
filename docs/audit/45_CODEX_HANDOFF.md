@@ -89,3 +89,9 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   `-netcoop_npc_transit` только для изолированных испытаний. Подробности и
   незакрытые критерии — doc 44, раздел «исправления аварийного перехода».
   Не переносить Lua v2 поверх старых exe: API put изменён, нужны id/ack bindings.
+
+- Новый набор: запрет late source wallet overwrite, fail-closed account save
+  (mutex/fsync/rename) и abort player prepare при его ошибке; physical stash
+  reach 2 м, combat/wounded/observer guards, настоящий CTime cooldown + legacy
+  migration. Lua PASS. Нужен итоговый Actions build; не ставить частичные overlays.
+  Foundation 57535cd5c / 37366256415 полностью SUCCESS (GCC/MSVC).

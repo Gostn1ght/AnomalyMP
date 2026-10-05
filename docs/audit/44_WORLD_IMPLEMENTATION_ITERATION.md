@@ -218,3 +218,26 @@ ticket готовится до изменения character destination; оши�
 отменяет prepare и возвращает source; lease release/redirect идут только
 после успешного сохранения. Это не полноценная распределённая 2PC-приёмка.
 Watchdog запускает служебные процессы с скрытым окном.
+
+Следующее исправление: source disconnect/periodic `store_money` не пишет
+кошелёк уходящего/redirected игрока; начальный wallet capture выполняется до
+freeze. Account save теперь возвращает результат: lock timeout/CreateMutex
+failure не дают писать без блокировки, fsync/close/rename failure сохраняют
+старый файл и dirty state. Переход отменяет prepare ticket до character save,
+если wallet commit не прошёл. Actual player fixture проверяет поздний source
+save после изменения target wallet; Windows account fixture инъецирует
+lock/fsync/rename failures. Полного lease fencing при параллельном входе
+между процессами это не закрывает.
+
+Stash adapter: взаимодействие с NPC на расстоянии до 2 м вместо 60 м;
+проверяется наблюдение и за NPC, и за ящиком, бой/ранение запрещают посещение.
+Календарь cooldown использует CTime diffSec; legacy 31-day timestamps
+мигрируют с консервативной 6-часовой паузой, прежняя история сохраняется.
+Actual Lua fixture этих случаев проходит. Путь NPC к специально выбранному
+тайнику, async item-transfer acknowledgment и глобальный ledger ещё нужны.
+
+На `57535cd5c` весь Foundation (GCC + MSVC, включая actual mailbox/player
+fixtures) SUCCESS: Actions 37366256415. Первый `887fe7277` DX11 остановился
+на deprecated strcpy в новом player fixture; замена на bounded snprintf
+проверена Foundation. Полный DX11 `57535cd5c` оставался в очереди до следующего
+набора исправлений; этот запуск не используется как свидетельство сборки.

@@ -1282,7 +1282,7 @@ local STASH_VISIT = {
 	check_ms = 600000, -- real time between looks at the stashes
 	min_game_hours = 6,
 	chance = 0.08,
-	npc_reach = 60, -- an NPC this close to the box makes the visit
+	npc_reach = 2, -- actual interaction reach; never move loot across 60 metres
 	player_clear = 50, -- no player this close
 	max_items = 2,
 	deposit_kinds = { i_food = true, i_drink = true, i_medical = true, i_mutant_raw = true, i_mutant_part = true,
@@ -1292,14 +1292,12 @@ local stash_boxes, stash_scan_at, next_stash_look = nil, 0, 0
 
 local function visit_state()
 	local state = alife_storage_manager.get_state()
-	state.netcoop_stash_visits = state.netcoop_stash_visits or {}
-	return state.netcoop_stash_visits
+	state.netcoop_stash_visits_v2 = state.netcoop_stash_visits_v2 or {}
+	return state.netcoop_stash_visits_v2
 end
 
 local function game_hours()
-	local t = game.get_game_time()
-	local y, m, d, h, mi = t:get(0, 0, 0, 0, 0, 0, 0)
-	return ((y * 12 + m) * 31 + d) * 24 + h + mi / 60
+	return game.get_game_time():diffSec(game.CTime()) / 3600
 end
 
 -- World stash ids, rebuilt every game hour (boxes are few and static).
@@ -1349,7 +1347,8 @@ local function visitor_near(box)
 	local best, best_d = nil, STASH_VISIT.npc_reach
 	for _, id in ipairs(db.OnlineStalkers or {}) do
 		local npc = level.object_by_id(id)
-		if npc and npc:alive() and IsStalker(npc) and not (get_object_story_id and get_object_story_id(id))
+		if npc and npc:alive() and IsStalker(npc) and not npc:best_enemy() and not npc:wounded()
+			and not npc:critically_wounded() and not (get_object_story_id and get_object_story_id(id))
 			and not (axr_companions and axr_companions.non_task_companions and axr_companions.non_task_companions[id]) then
 			local d = npc:position():distance_to(box:position())
 			if d < best_d then best, best_d = npc, d end
@@ -1364,11 +1363,19 @@ function stash_visit(box, roll)
 	local visits = visit_state()
 	local now = game_hours()
 	local last = visits[box:id()]
+	-- Older saves used a fictitious 31-day calendar. Migrate conservatively:
+	-- retain their visit evidence and wait one real cooldown after conversion.
+	local legacy = alife_storage_manager.get_state().netcoop_stash_visits
+	if last == nil and legacy and legacy[box:id()] ~= nil then
+		visits[box:id()] = now
+		return "too soon"
+	end
 	if last and now - last < STASH_VISIT.min_game_hours then return "too soon" end
 	if roll() >= STASH_VISIT.chance then return "no visit" end
 	if players_near(box:position(), STASH_VISIT.player_clear) then return "watched" end
 	local npc = visitor_near(box)
 	if not npc then return "nobody near" end
+	if players_near(npc:position(), STASH_VISIT.player_clear) then return "watched" end
 	local in_box, on_npc = {}, {}
 	box:iterate_inventory_box(function(_, item) if item and take_allowed(item) then in_box[#in_box + 1] = item end end, box)
 	npc:iterate_inventory(function(_, item)

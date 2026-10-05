@@ -407,11 +407,19 @@ static bool cluster_move(xrServer* server, xrClientData* CL, CLevelChanger* chan
 	if (!cluster_ticket_write(CL->netcoop_login.c_str(), CL->netcoop_character_slot, level))
 		return cluster_refuse(server, CL, "the transfer ticket could not be saved"), false;
 
+	// Capture the wallet before freezing. Disconnect/periodic saves of a
+	// frozen source must never overwrite money already spent at the target.
+	store_money(CL);
+	if (!accounts_save())
+	{
+		string_path ticket;
+		cluster_file("ticket", CL->netcoop_login.c_str(), CL->netcoop_character_slot, ticket);
+		DeleteFileA(ticket);
+		return cluster_refuse(server, CL, "the account wallet could not be saved"), false;
+	}
 	// The frozen player sends nothing more that the server would apply.
 	ClusterLeaving& leaving = s_cluster_leaving[CL->ID.value()];
 	leaving.actor = actor_id; leaving.since = real_time_ms(); leaving.level = level;
-	store_money(CL);
-	accounts_save();
 	CharacterDestination destination;
 	destination.game_vertex = game_vertex; destination.level_vertex = level_vertex;
 	destination.position = changer->next_position(); destination.angles = changer->next_angles();

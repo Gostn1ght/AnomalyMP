@@ -10,6 +10,10 @@ cluster = (root/"src/xrGame/netcoop_cluster.inc").read_text(encoding="utf-8")
 a = cluster.index('static bool cluster_move(xrServer* server, xrClientData* CL, CLevelChanger* changer)\n{')
 b = cluster.index('// -netcoop_cluster_selftest:', a)
 body = cluster[a:b]
+engine = (root/"src/xrGame/netcoop.cpp").read_text(encoding="utf-8")
+start = engine.index('static void store_money(xrClientData* CL)\n{')
+end = engine.index('\nvoid server_on_client_disconnect(', start)
+money = engine[start:end].replace('static void store_money(', 'static void captured_store_money(')
 source = r'''
 #include <cassert>
 #include <cstdint>
@@ -26,7 +30,9 @@ int xr_strcmp(const char* a,const char* b){return std::strcmp(a,b);}
 struct xrServer {};
 namespace GameGraph {using _GRAPH_ID=u16;struct CVertex{u16 level_id()const{return 2;}};}
 struct Id{u32 value()const{return 5;}};
-struct Owner{u16 ID=7;};
+struct CSE_ALifeTraderAbstract {u32 m_dwMoney=100;};
+struct Owner : CSE_ALifeTraderAbstract {u16 ID=7;};
+template<class T> T smart_cast(Owner* owner) {return static_cast<T>(owner);}
 struct xrClientData{Owner* owner;Id ID;std::string netcoop_login="tester";u8 netcoop_character_slot=1;};
 struct CLevelChanger {
  bool open=true;bool IsLevelChangerEnabled()const{return open;}
@@ -41,7 +47,7 @@ struct AI {Graph game_graph()const{return {};}};
 AI ai(){return {};}
 const char* cluster_current_level(){return "source";}
 u32 cluster_port(){return 1267;}u32 real_time_ms(){return 100;}
-bool location_ok=true,ticket_ok=true,save_ok=true;
+bool location_ok=true,ticket_ok=true,save_ok=true,accounts_ok=true;
 std::string events, refusal;int saved_destination=0;
 bool cluster_location(const char*,std::string& host,u32& port){host="localhost";port=1277;return location_ok;}
 void cluster_refuse(xrServer*,xrClientData*,const char* message){refusal=message;events+='R';}
@@ -51,7 +57,11 @@ std::map<u16,int>s_character_restore,s_actor_character;
 bool cluster_ticket_write(const char*,u8,const char*){events+='T';return ticket_ok;}
 void cluster_file(const char*,const char*,u8,char* out){std::snprintf(out,260,"ticket");}
 void DeleteFileA(const char*){events+='D';}
-void store_money(xrClientData*){events+='M';}void accounts_save(){events+='A';}
+struct Account {bool has_money=false,touched=false;u32 money=0;};
+Account account;bool s_accounts_dirty=false;
+Account* account_find(const char*){return &account;}
+bool server_client_leaving(xrClientData* client){return s_cluster_leaving.count(client->ID.value())!=0;}
+void store_money(xrClientData*);bool accounts_save(){events+='A';return accounts_ok;}
 struct CharacterDestination{u16 game_vertex;u32 level_vertex;int position,angles;};
 bool character_save_actor(u16,const CharacterDestination* destination){
  events+='S';assert(!s_cluster_leaving.empty());
@@ -62,18 +72,27 @@ bool character_save_actor(u16,const CharacterDestination* destination){
 void cluster_lease_release(const char*){events+='L';}
 void script_send_to_actor(u16,const char*,const char*){events+='N';assert(s_actor_character.empty());}
 void Msg(const char*,...){}
+'''+money+r'''
+void store_money(xrClientData* client){events+='M';assert(!server_client_leaving(client));captured_store_money(client);}
 '''+body+r'''
-void reset(){events.clear();refusal.clear();saved_destination=0;s_cluster_leaving.clear();s_character_restore.clear();s_actor_character[7]=1;ticket_ok=save_ok=location_ok=true;}
+void reset(){events.clear();refusal.clear();saved_destination=0;s_cluster_leaving.clear();s_character_restore.clear();s_actor_character[7]=1;ticket_ok=save_ok=location_ok=accounts_ok=true;}
 int main(){
  xrServer server;Owner owner;xrClientData client;client.owner=&owner;CLevelChanger changer;
  reset();ticket_ok=false;
  assert(!cluster_move(&server,&client,&changer));
  assert(events=="TR" && saved_destination==0 && s_cluster_leaving.empty() && s_actor_character.count(7)==1);
+ reset();accounts_ok=false;
+ assert(!cluster_move(&server,&client,&changer));
+ assert(events=="TMADR" && saved_destination==0 && s_cluster_leaving.empty() && s_actor_character.count(7)==1);
  reset();save_ok=false;
  assert(!cluster_move(&server,&client,&changer));
  assert(events=="TMASDR" && saved_destination==0 && s_cluster_leaving.empty() && s_actor_character.count(7)==1);
  reset();assert(cluster_move(&server,&client,&changer));
  assert(events=="TMASLN" && saved_destination==2 && s_cluster_leaving.count(5)==1 && s_actor_character.empty());
+ assert(account.money==100 && account.has_money);
+ account.money=20;account.touched=false;s_accounts_dirty=false;
+ captured_store_money(&client); // old source disconnect after target spending
+ assert(account.money==20 && !account.touched && !s_accounts_dirty);
  reset();s_character_restore[7]=1;assert(!cluster_move(&server,&client,&changer));assert(events=="R");
  reset();location_ok=false;assert(!cluster_move(&server,&client,&changer));assert(events=="R");
  reset();changer.open=false;assert(!cluster_move(&server,&client,&changer));assert(events=="R");
