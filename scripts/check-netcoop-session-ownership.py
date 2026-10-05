@@ -41,8 +41,8 @@ template<class A,class B>using xr_map=std::map<A,B>;
 template<size_t N>void xr_sprintf(char(&out)[N],const char* format,...){va_list args;va_start(args,format);vsnprintf(out,N,format,args);va_end(args);}
 void to_lower(xr_string& value){std::transform(value.begin(),value.end(),value.begin(),[](unsigned char c){return char(std::tolower(c));});}
 void cluster_dir(string_path& path){std::snprintf(path,sizeof(path),"cluster\\");CreateDirectoryA(path,nullptr);}
-u32 current_port=1267,now=100;bool fail_open=false,fail_flush=false,fail_rename=false;
-u32 cluster_port(){return current_port;}u32 cluster_now(){return now;}
+u32 current_port=1267,fixture_now=100;bool fail_open=false,fail_flush=false,fail_rename=false;
+u32 cluster_port(){return current_port;}u32 cluster_now(){return fixture_now;}
 static const u32 cluster_lease_ttl_s=30;
 int flushes=0;
 void character_commits_flush(){
@@ -104,7 +104,7 @@ int main(int argc,char** argv){
  Child probe=spawn("probe",1277);completed(probe);
  Child other=spawn("other",1277);completed(other);
  // Stalling past the TTL still does not permit another live writer.
- now=10000;probe=spawn("probe",1277);completed(probe);
+ fixture_now=10000;probe=spawn("probe",1277);completed(probe);
  cluster_lease_release("USER");assert(s_cluster_ownership.empty() && flushes==1);
  assert(!cluster_lease_write("USER"));
  Child claim=spawn("claim",1277);completed(claim);
@@ -119,7 +119,7 @@ int main(int argc,char** argv){
  // Real process termination releases the OS lock; after the compatibility
  // timestamp lease expires, a new owner can commit the same account.
  assert(TerminateProcess(held.process,0));completed(held);CloseHandle(event);
- now=131;assert(cluster_claim_session("user",error));cluster_lease_release("user");
+ fixture_now=131;assert(cluster_claim_session("user",error));cluster_lease_release("user");
  // Failed create, fsync or rename must never report a successful claim or
  // leak the exclusive handle; retry in another process remains possible.
  for(int fault=0;fault<3;++fault){
@@ -130,8 +130,8 @@ int main(int argc,char** argv){
  }
  // Old timestamp-only owners are held conservatively until expiry.
  string_path path;cluster_file("online","user",-1,path);assert(cluster_write_line(path,"1277 100"));
- now=100;assert(!cluster_claim_session("user",error));assert(s_cluster_ownership.empty());
- now=130;assert(cluster_claim_session("user",error));cluster_lease_release("user");
+ fixture_now=100;assert(!cluster_claim_session("user",error));assert(s_cluster_ownership.empty());
+ fixture_now=130;assert(cluster_claim_session("user",error));cluster_lease_release("user");
  // Start two real claimers against an absent lease at the same barrier.
  HANDLE start=CreateEventA(nullptr,TRUE,FALSE,(event_name+"_start").c_str());
  HANDLE won=CreateEventA(nullptr,TRUE,FALSE,(event_name+"_won").c_str());assert(start && won);
@@ -142,7 +142,7 @@ int main(int argc,char** argv){
  Child& losing=loser==0?first:second;Child& winning=loser==0?second:first;
  completed(losing);assert(WaitForSingleObject(winning.process,0)==WAIT_TIMEOUT);
  assert(TerminateProcess(winning.process,0));completed(winning);CloseHandle(start);CloseHandle(won);
- now=131;assert(cluster_claim_session("user",error));cluster_lease_release("user");
+ fixture_now=131;assert(cluster_claim_session("user",error));cluster_lease_release("user");
  std::cout<<"PASS actual session ownership: cross-process/local duplicate refusal, stalled owner, independent accounts, crash release, drain ordering, stale release, create/fsync/rename failure and legacy lease expiry\n";
 }
 '''
