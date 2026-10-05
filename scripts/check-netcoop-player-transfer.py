@@ -39,7 +39,7 @@ struct CActor:CGameObject,CInventoryOwner {bool alive=true;bool g_Alive()const{r
 template<class T,class P>T smart_cast(P* object){return dynamic_cast<T>(object);}
 struct xrClientData {};
 struct CSE_Abstract {u16 ID=7;xrClientData* owner=nullptr;std::vector<u16>children;};
-struct Game {CSE_Abstract entity;std::map<u16,CSE_Abstract*>entries{{7,&entity}};CSE_Abstract* get_entity_from_eid(u16 id){auto found=entries.find(id);return found==entries.end()?nullptr:found->second;}};
+struct Game {CSE_Abstract entity;std::map<u16,CSE_Abstract*>entries{{u16(7),&entity}};CSE_Abstract* get_entity_from_eid(u16 id){auto found=entries.find(id);return found==entries.end()?nullptr:found->second;}};
 struct xrServer {Game* game;xrClientData client;void* GetServerClient(){return &client;}};
 struct StubObjects {CGameObject* actor=nullptr;CGameObject* net_Find(u16){return actor;}};
 struct Runtime {StubObjects Objects;};
@@ -57,7 +57,7 @@ void Msg(const char*,...){}
 '''+give_body+r'''
 void give_to_server(xrServer* server,CSE_Abstract* entity,u32 depth){++gives;captured_give_to_server(server,entity,depth);}
 '''+disconnect_body+r'''
-void reset(CActor& actor){actor.destroyed=false;actor.alive=true;runtime.Objects.actor=&actor;saves=gives=releases=tasks=0;save_ok=true;s_pending_actor_destroy={7};s_actor_character={{7,"tester:1"}};s_cluster_leaving.clear();}
+void reset(CActor& actor){actor.destroyed=false;actor.alive=true;runtime.Objects.actor=&actor;saves=gives=releases=tasks=0;save_ok=true;s_pending_actor_destroy={7};s_actor_character={{u16(7),"tester:1"}};s_cluster_leaving.clear();}
 void run(){
  Game game;xrServer server{&game,{}};CActor actor;
  reset(actor);save_ok=false;destroy_pending_actors(&server);
