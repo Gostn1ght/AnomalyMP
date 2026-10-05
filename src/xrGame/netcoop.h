@@ -208,6 +208,10 @@ void server_character_save_actor(u16 actor_id);
 void server_physics_update(xrServer* server);
 // Every server frame: physics poses, PDA screens, bullet marks (own rates).
 void server_frame_update(xrServer* server);
+// Server: how lit an object is for NPC vision. The renderer lights only what
+// it draws; this takes the current weather's sun, sky and ambient light and
+// a switched-on torch of a player (stage 8). rendered = the ROS value.
+float server_luminocity(const CObject* object, float rendered);
 // Item instance state (netcoop_items.inc, gameplay plan stage 1): the server
 // versions each item's condition/charge, portions, magazine, addons and box
 // count and sends changed fields; carriers report their own wear and drain.
@@ -268,6 +272,11 @@ void metric_remote_actor(u16 id, bool remote, bool alive, u32 net_size, s32 age_
 void metric_actor_error(float error, bool applied);
 void metric_owner_step_rejected(float step);
 void metric_weapon_fire(CWeapon* weapon);
+// Server: an NPC/monster took a player as its enemy; reaction_ms = time
+// since it first saw the player (-1: not by sight, e.g. hit or sound).
+void metric_ai_reaction(u16 npc, u16 player, s32 reaction_ms);
+// Server: a player became visible to an NPC/monster after notice_ms in view.
+void metric_ai_notice(u16 npc, u16 player, u32 notice_ms, float distance);
 // Server: bytes of object updates sent this tick and objects serialised.
 void metric_server_sent(u32 bytes, u32 objects);
 // Server: a client's snapshot skipped because its send queue was late.

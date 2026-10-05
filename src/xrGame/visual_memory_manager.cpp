@@ -27,6 +27,7 @@
 #include "client_spawn_manager.h"
 #include "memory_manager.h"
 #include "ai/monsters/basemonster/base_monster.h"
+#include "netcoop.h"
 
 float g_ai_vision_speed_boost = 1.0f;
 
@@ -323,6 +324,11 @@ float CVisualMemoryManager::object_luminocity(const CGameObject* game_object) co
 	if (!smart_cast<CEntityAlive const*>(game_object)) //Alundaio
 		return (1.f);
 	float luminocity = const_cast<CGameObject*>(game_object)->ROS()->get_luminocity();
+	// Netcoop server: the renderer lights only what it draws, so the
+	// luminocity of players and NPCs stayed 0 and was floored to 0.001:
+	// NPCs saw everything ~30 times slower than intended (stage 8).
+	if (netcoop::enabled() && !netcoop::pure_client())
+		luminocity = netcoop::server_luminocity(game_object, luminocity);
 	float power = log(luminocity > .001f ? luminocity : .001f) * current_state().m_luminocity_factor;
 	return (exp(power));
 }
@@ -364,7 +370,10 @@ float CVisualMemoryManager::get_visible_value(const CGameObject* game_object, fl
 	::luabind::functor<float> funct;
 	// Pure netcoop clients have no ALife and do not run Actor Lua binders,
 	// so GAMMA's db.actor-dependent vision hook belongs on the server.
-	if (g_actor && ai().get_alife() && ai().script_engine().functor("visual_memory_manager.get_visible_value", funct))
+	// The dedicated netcoop server has no local Actor (g_actor) but runs
+	// this hook; netcoop_server_compat serves it with the observed player.
+	if ((g_actor || (netcoop::enabled() && !netcoop::pure_client())) && ai().get_alife() &&
+		ai().script_engine().functor("visual_memory_manager.get_visible_value", funct))
 		return (funct(m_object ? m_object->lua_game_object() : 0, game_object ? game_object->lua_game_object() : 0,
 		              time_delta, current_state().m_time_quant, luminocity, current_state().m_velocity_factor,
 		              object_velocity, distance, object_distance, always_visible_distance)) * g_ai_vision_speed_boost * m_vision_speed;
@@ -454,17 +463,23 @@ bool CVisualMemoryManager::visible(const CGameObject* game_object, float time_de
 		clamp(new_object.m_value, 0.f, current_state().m_visibility_threshold + EPS_L);
 		new_object.m_update_time = Device.dwTimeGlobal;
 		new_object.m_prev_time = get_prev_time(game_object);
+		new_object.m_netcoop_start = Device.dwTimeGlobal;
 		add_not_yet_visible_object(new_object);
 		return (new_object.m_value >= current_state().m_visibility_threshold);
 	}
 
+	const bool was_visible = object->m_value >= current_state().m_visibility_threshold;
 	object->m_update_time = Device.dwTimeGlobal;
 	object->m_value += get_visible_value(game_object, distance, object_distance, time_delta,
 	                                     get_object_velocity(game_object, *object), object_luminocity(game_object));
 	clamp(object->m_value, 0.f, current_state().m_visibility_threshold + EPS_L);
 	object->m_prev_time = get_prev_time(game_object);
 
-	return (object->m_value >= current_state().m_visibility_threshold);
+	const bool now_visible = object->m_value >= current_state().m_visibility_threshold;
+	// Netcoop server (stage 8): time from a player entering view to being seen.
+	if (now_visible && !was_visible && m_object && object->m_netcoop_start && netcoop::server_player_copy(game_object))
+		netcoop::metric_ai_notice(m_object->ID(), game_object->ID(), Device.dwTimeGlobal - object->m_netcoop_start, distance);
+	return (now_visible);
 }
 
 bool CVisualMemoryManager::should_ignore_object(CObject const* object) const

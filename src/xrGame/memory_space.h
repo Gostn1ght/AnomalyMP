@@ -49,6 +49,7 @@ namespace MemorySpace
 		float m_value;
 		u32 m_update_time;
 		u32 m_prev_time;
+		u32 m_netcoop_start = 0; // when it entered view (stage 8 measurements)
 	};
 
 	struct SObjectParams

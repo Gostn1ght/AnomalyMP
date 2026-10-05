@@ -28,6 +28,9 @@
 #include "Inventory.h"
 #include "PDA.h"
 #include "InventoryBox.h"
+#include "Torch.h"
+#include "../xrEngine/Environment.h"
+#include "../xrEngine/IGame_Persistent.h"
 #include "inventory_item.h"
 #include "entity_alive.h"
 #include "trade.h"
@@ -1597,6 +1600,25 @@ void server_update(xrServer* server)
 // once per 100 frames: item and corpse poses left ~1 s apart instead of
 // every 50 ms, and clients glided items between them ("sliding on ice");
 // bullet marks arrived late. Each has its own rate limit.
+float server_luminocity(const CObject* object, float rendered)
+{
+	float light = 0.5f;
+	CEnvDescriptorMixer* env = g_pGamePersistent && g_pGamePersistent->pEnvironment ? g_pGamePersistent->Environment().CurrentEnv : nullptr;
+	if (env)
+	{
+		const float sun = _max(env->sun_color.x, _max(env->sun_color.y, env->sun_color.z));
+		const float sky = _max(env->hemi_color.x, _max(env->hemi_color.y, env->hemi_color.z));
+		const float ambient = _max(env->ambient.x, _max(env->ambient.y, env->ambient.z));
+		light = sun * 0.6f + sky * 0.6f + ambient;
+		clamp(light, 0.05f, 1.f);
+	}
+	if (const CActor* actor = smart_cast<const CActor*>(object))
+		for (PIItem item : const_cast<CActor*>(actor)->inventory().m_all)
+			if (const CTorch* torch = smart_cast<const CTorch*>(item))
+				if (torch->torch_active()) { light = _max(light, 0.8f); break; }
+	return _max(rendered, light);
+}
+
 void server_frame_update(xrServer* server)
 {
 	if (!enabled() || !g_pGameLevel) return;
@@ -3615,6 +3637,40 @@ bool client_death_key(int key)
 	return true;
 }
 
+static u32 s_ai_reactions = 0, s_ai_reaction_sum = 0, s_ai_reaction_max = 0, s_ai_unseen = 0, s_ai_log_time = 0;
+
+static u32 s_ai_notices = 0, s_ai_notice_sum = 0, s_ai_notice_max = 0, s_ai_notice_log = 0;
+
+void metric_ai_notice(u16 npc, u16 player, u32 notice_ms, float distance)
+{
+	++s_ai_notices;
+	s_ai_notice_sum += notice_ms;
+	s_ai_notice_max = _max(s_ai_notice_max, notice_ms);
+	const u32 now = real_time_ms();
+	if (now - s_ai_notice_log < 250) return;
+	s_ai_notice_log = now;
+	CObject* object = Level().Objects.net_Find(npc);
+	Msg("[NetAnomaly][ai] %s (%u) saw player %u at %.0f m after %u ms in view", object ? object->cName().c_str() : "?", npc, player,
+		distance, notice_ms);
+}
+
+void metric_ai_reaction(u16 npc, u16 player, s32 reaction_ms)
+{
+	if (reaction_ms < 0) ++s_ai_unseen;
+	else
+	{
+		++s_ai_reactions;
+		s_ai_reaction_sum += u32(reaction_ms);
+		s_ai_reaction_max = _max(s_ai_reaction_max, u32(reaction_ms));
+	}
+	const u32 now = real_time_ms();
+	if (now - s_ai_log_time < 250) return;
+	s_ai_log_time = now;
+	CObject* object = Level().Objects.net_Find(npc);
+	Msg("[NetAnomaly][ai] %s (%u) took player %u as enemy: %s %d ms after first sight", object ? object->cName().c_str() : "?", npc,
+		player, reaction_ms < 0 ? "not seen," : "", reaction_ms);
+}
+
 void metrics_update()
 {
 	client_death_frame();
@@ -3660,7 +3716,15 @@ void metrics_update()
 		    m.puppet_frames, m.puppet_frames ? 100.f * m.extrap_frames / m.puppet_frames : 0.f, m.jumps, m.jump_max,
 		    m.acks, m.fixes, m.acks ? m.err_sum / m.acks : 0.f, m.err_max, m.owner_rejects, m.owner_reject_max,
 		    m.shots, m.sv_bytes / 1024.f / 10.f, m.sv_objects, m.sv_blocked);
+		if (s_ai_notices)
+			Msg("[Lost Zone][metrics] ai noticed players %u avg %u max %u ms in view", s_ai_notices,
+				s_ai_notice_sum / s_ai_notices, s_ai_notice_max);
+		if (s_ai_reactions || s_ai_unseen)
+			Msg("[Lost Zone][metrics] ai reactions to players %u avg %u max %u ms, without sight %u",
+				s_ai_reactions, s_ai_reactions ? s_ai_reaction_sum / s_ai_reactions : 0, s_ai_reaction_max, s_ai_unseen);
 	}
+	s_ai_reactions = s_ai_reaction_sum = s_ai_reaction_max = s_ai_unseen = 0;
+	s_ai_notices = s_ai_notice_sum = s_ai_notice_max = 0;
 	ZeroMemory(&m, sizeof(m));
 	if (puppets.size() > 4096)
 		puppets.clear();
