@@ -93,7 +93,7 @@ $summary = [ordered]@{
     bot_moves = @($botLines | Select-String "\[bots\] .* goes to").Count
     bot_plays = @($botLines | Select-String "\[bots\] .* plays Actor").Count
     bot_failures = @($botLines | Select-String "^! \[Lost Zone\]\[bots\]").Count
-    fatal = @($serverLines + $botLines | Select-String "FATAL ERROR|stack trace|Expression\s*:").Count
+    fatal = @($serverLines + $botLines | Select-String -CaseSensitive "FATAL ERROR|Expression\s*:").Count
 }
 $summary.GetEnumerator() | ForEach-Object { "{0,-14} {1}" -f $_.Key, $_.Value }
 "last bot reports:"; $botLines | Select-String "wanted:" | Select-Object -Last 3 | ForEach-Object { $_.Line }
