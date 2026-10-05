@@ -22,13 +22,21 @@ class Encounters:
         offline.scheduler.handlers["OfflineCombat"] = self.resolve
         world.plan_validators["OfflineCombat"] = self.capture_valid
 
-    def fighters(self, tx, root):
+    def individuals(self, tx, root):
         if root["kind"] not in ("NPC","MUTANT","GROUP") or not root["alive"]:
             raise Conflict("encounter requires living actors/groups")
         rows = self.offline.members(tx,root,limit=65)
         rows = [row for row in rows if row["kind"] in ("NPC","MUTANT") and row["alive"]]
         if not 1 <= len(rows) <= 64:
             raise Conflict("encounter exceeds bounded individual resolution")
+        for row in rows:
+            self.offline.require_offline(tx,row["id"])
+            if row["location"] != root["location"]:
+                raise Conflict("member is outside encounter location")
+        return rows
+
+    def fighters(self, tx, root):
+        rows = self.individuals(tx,root)
         result,budget = [],CaptureBudget()
         for row in sorted(rows,key=lambda value:value["id"]):
             self.offline.require_offline(tx,row["id"])
@@ -58,6 +66,39 @@ class Encounters:
             result.append({"id":row["id"],"version":row["version"],"health_bp":hp,"experience":skill,
                            "melee_power":integer(state.get("melee_power",10),1,10000,"melee power"),"weapons":weapons})
         return result
+
+    def member_contacts(self, tx, roots, now, end, radius, budget):
+        # Each living participant has its own corridor, including the group's
+        # formation offset and turns. Reserve the group once after discovery;
+        # its centre is neither a substitute fighter nor a second encounter.
+        index,paths,owners = ContactIndex(),{},{}
+        by_root = {root["id"]:root for root in roots}
+        for root in roots:
+            for member in self.individuals(tx,root):
+                if member["id"] != root["id"]:
+                    budget.consume(member["state"])
+                path = trajectory(self.offline,tx,member,now,end)
+                index.upsert(member["id"],root["location"],path)
+                paths[member["id"]],owners[member["id"]] = path,root["id"]
+        work = CandidateBudget(index.limits["max_checks"])
+        pairs = index.pairs(radius,work,owners)
+        contacts,root_pairs,relations = {},set(),{}
+        for first,second in pairs:
+            key = tuple(sorted((owners[first],owners[second])))
+            root_pairs.add(key)
+            if key not in relations:
+                try:
+                    self.hostility(tx,by_root[key[0]],by_root[key[1]])
+                    relations[key] = True
+                except Conflict:
+                    relations[key] = False
+            if not relations[key]:
+                continue
+            work.consume(len(paths[first])+len(paths[second]))
+            at = earliest_contact(paths[first],paths[second],radius)
+            if at is not None:
+                contacts[key] = min(at,contacts.get(key,at))
+        return sorted((at,*key) for key,at in contacts.items()),len(root_pairs),len(paths)
 
     def hostility(self, tx, a, b):
         factions = [json.loads(row["state"]).get("faction") for row in (a,b)]
@@ -134,10 +175,13 @@ class Encounters:
                     raise Conflict("plan contact for the persistent group")
             now = self.world.now()
             end = finite(now + horizon_ms)
-            paths = [trajectory(self.offline, tx, root, now, end) for root in roots]
-            at = earliest_contact(*paths, radius)
-            if at is None:
+            budget = CaptureBudget(8*1024*1024)
+            for root in roots:
+                budget.consume(root["state"])
+            contacts,_,_ = self.member_contacts(tx,roots,now,end,radius,budget)
+            if not contacts:
                 return {"event_id":None, "reason":"routes do not meet"}
+            at = contacts[0][0]
             combat = {key:payload[key] for key in ("event_id","first_id","second_id","first_version","second_version","seed","radius")}
             combat.update(type="offline_combat", due_ms=at)
             result = self.schedule_in(tx, combat, planning_now=now)
@@ -178,31 +222,15 @@ class Encounters:
         reserved,reserved_hazards,cancelled = reservation_state if reservation_state is not None else reservations(self.world,tx,location,self.world.plan_validators)
         now = self.world.now() if planning_now is None else planning_now
         end = finite(now+horizon_ms)
-        index,paths,by_id = ContactIndex(),{},{}
-        for root in roots:
-            if root["id"] in reserved:
-                continue
-            path = trajectory(self.offline,tx,root,now,end)
-            index.upsert(root["id"],location,path)
-            paths[root["id"]],by_id[root["id"]] = path,root
-        work = CandidateBudget(index.limits["max_checks"])
-        pairs = index.pairs(radius,work)
-        contacts = []
-        for first,second in pairs:
-            try:
-                self.hostility(tx,by_id[first],by_id[second])
-            except Conflict:
-                continue
-            work.consume(len(paths[first])+len(paths[second]))
-            at = earliest_contact(paths[first],paths[second],radius)
-            if at is not None:
-                contacts.append((at,first,second))
+        by_id = {root["id"]:root for root in roots}
+        contacts,candidate_pairs,participants = self.member_contacts(tx,
+            [root for root in roots if root["id"] not in reserved],now,end,radius,budget)
         plans,deferred = [],0
         if collect:
             options = [{"type":"offline_combat","first_id":first,"second_id":second,
                         "first_version":by_id[first]["version"],"second_version":by_id[second]["version"],
                         "due_ms":at,"seed":seed,"radius":radius} for at,first,second in sorted(contacts)]
-            return {"options":options,"actors":len(roots),"candidate_pairs":len(pairs),"cancelled_plans":cancelled}
+            return {"options":options,"actors":len(roots),"members":participants,"candidate_pairs":candidate_pairs,"cancelled_plans":cancelled}
         for at,first,second in sorted(contacts):
             if first in reserved or second in reserved:
                 deferred += 1
@@ -216,7 +244,7 @@ class Encounters:
             result = self.schedule_in(tx,combat,planning_now=now)
             plans.append({**result,"first_id":first,"second_id":second,"due_ms":at})
             reserved.update((first,second))
-        return {"contacts":plans,"actors":len(roots),"candidate_pairs":len(pairs),"deferred_contacts":deferred,
+        return {"contacts":plans,"actors":len(roots),"members":participants,"candidate_pairs":candidate_pairs,"deferred_contacts":deferred,
                 "cancelled_plans":cancelled}
 
 
@@ -255,7 +283,8 @@ class Encounters:
         # The surface contact time is rounded through SQLite and route
         # interpolation. Match hazard resolution's micrometre tolerance so
         # a captured boundary hit is not cancelled by floating-point noise.
-        if distance(*positions)>plan["radius"]+1e-6:
+        participants = [[self.offline.position_at(tx,member,at) for member in self.individuals(tx,root)] for root in roots]
+        if not any(distance(first,second)<=plan["radius"]+1e-6 for first in participants[0] for second in participants[1]):
             return {"reason":"routes do not meet"},False
         scores = []
         for side in plan["sides"]:

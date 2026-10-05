@@ -628,3 +628,23 @@ Full local backend **139 tests PASS**. Native paths are unchanged.
 
 ad4725002 Foundation 37382384401 SUCCESS GCC/MSVC, including actual quest
 progress capture; DX11 checks succeeded and full engine compilation is pending.
+
+## Offline fights discover living group members instead of group centres
+
+Both direct contact and location discovery now index actual living NPC/mutant
+trajectories with formation offsets and route turns. Member pairs from the
+same group are excluded before pair admission; earliest contacts collapse to
+one persistent group-pair reservation. Resolution checks an actual individual
+pair at the captured time before ammo or casualties, so two abstract centres
+passing close do not manufacture combat when every living member misses.
+Root positions remain the group's route anchors and member IDs are unchanged.
+
+Index limits now apply to living participants (256), route segments (8192),
+cross-group candidate pairs (4096) and shared broad/narrow work (200000), plus
+the combined eight-MiB entity-state capture. Admission overflow rolls back all
+new plans. Five tests cover offset/turn contact and restart, location discovery
+with one group reservation, centre-only false positives, participant overflow
+and manually scheduled phantom combat without ammo spend. Full local backend
+**144 tests PASS**; 7fac62827 backend 37382911385 SUCCESS Windows+Linux (139).
+This remains coarse whole-group combat after actual contact, not per-fighter
+ballistics or a native AI adapter. Automatic route-change planning is pending.

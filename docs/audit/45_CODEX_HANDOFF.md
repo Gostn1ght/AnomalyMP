@@ -309,3 +309,10 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
 - Backend contact entry avoids catastrophic quadratic cancellation for small
   spheres/long routes; combat shares hazard boundary tolerance. Geometry and
   actual captured-fight regressions added, full local backend 139 PASS.
+
+- Backend group contacts now index living individual corridors/formation
+  offsets/turns and reserve one group pair; intra-group pairs excluded, centre-
+  only phantom combat refused before damage/ammo. Participant/segment/byte/
+  broad+narrow admission retained. Five tests, full local 144 PASS.
+  7fac62827 backend 37382911385 SUCCESS Windows+Linux (139); native build left
+  running. Still whole-group coarse outcomes, no route-change subscriber.

@@ -343,6 +343,72 @@ class EncounterTest(unittest.TestCase):
         self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='OfflineCombat'").fetchone()[0],0)
         self.assertEqual(self.row(self.second)["alive"],1)
 
+    def offset_patrol(self, second_position):
+        self.place(self.second,second_position)
+        group = self.group(self.first,"duty")
+        self.place(group,[-100,0,-2])
+        captures = {value:{"version":self.row(value)["version"],"state":json.loads(self.row(value)["state"])}
+                    for value in (group,self.first)}
+        self.offline.dehydrate("a",uid(),group,"cordon",self.fence,self.row(group)["version"],captures)
+        self.offline.start_route("admin",uid(),group,self.row(group)["version"],
+                                 [[-100,0,-2],[-100,0,8],[-80,0,8]],1,42)
+        return group
+
+    def test_direct_group_contact_uses_member_offset_and_turn_then_survives_restart(self):
+        group = self.offset_patrol([10,0,10])
+        result = self.encounters.plan_contact("admin",uid(),self.event,group,self.second,
+                     self.row(group)["version"],self.row(self.second)["version"],1000000,17,1)
+        self.assertAlmostEqual(result["due_ms"],190000)
+        self.store.close();self.open();self.ns=19_001_000_000
+        self.scheduler.run_due(budget_ms=1000)
+        self.assertEqual(self.result()["casualties"],[self.second])
+        self.assertEqual(self.row(self.second)["alive"],0)
+        self.assertEqual(json.loads(self.row(group)["state"])["member_ids"],[self.first])
+        loot = self.store.db.execute("SELECT * FROM item WHERE id=?",(self.loot,)).fetchone()
+        self.assertEqual((loot["id"],loot["kind"],loot["holder"]),(self.loot,"CORPSE",self.second))
+
+    def test_location_discovery_finds_offset_member_and_reserves_only_the_group(self):
+        group = self.offset_patrol([10,0,10])
+        result = self.encounters.plan_location("admin",uid(),"cordon",1000000,17,1)
+        self.assertEqual((result["actors"],result["members"],result["candidate_pairs"],len(result["contacts"])),(2,2,1,1))
+        plan = result["contacts"][0]
+        self.assertEqual({plan["first_id"],plan["second_id"]},{group,self.second})
+        self.assertNotIn(self.first,(plan["first_id"],plan["second_id"]))
+        self.assertAlmostEqual(plan["due_ms"],190000)
+        self.assertEqual(self.encounters.plan_location("admin",uid(),"cordon",1000000,17,1)["contacts"],[])
+
+    def test_group_centre_crossing_cannot_invent_a_fight_when_members_miss(self):
+        self.offset_patrol([-90,0,8])
+        result = self.encounters.plan_location("admin",uid(),"cordon",1000000,17,1)
+        self.assertEqual(result["contacts"],[])
+        self.assertEqual(self.row(self.second)["alive"],1)
+        self.assertEqual(json.loads(self.store.db.execute("SELECT state FROM item WHERE id=?",(self.weapon,)).fetchone()[0])["rounds"],30)
+
+    def test_group_member_population_budget_refuses_without_partial_capture(self):
+        group = self.group(self.first,"duty")
+        captures = {value:{"version":self.row(value)["version"],"state":json.loads(self.row(value)["state"])}
+                    for value in (group,self.first)}
+        self.offline.dehydrate("a",uid(),group,"cordon",self.fence,self.row(group)["version"],captures)
+        second_member = self.insert_offline_actor([2,0,0],"duty")
+        with self.store.transaction() as tx:
+            state = json.loads(self.row(group)["state"]);state["member_ids"].append(second_member)
+            tx.execute("UPDATE entity SET state=?,version=version+1 WHERE id=?",(json.dumps(state),group))
+            tx.execute("INSERT INTO group_member VALUES(?,?)",(group,second_member))
+        # Two roots fit, but their three living participants exceed this index.
+        with patch("lostzone.encounters.ContactIndex",lambda:ContactIndex(max_entities=2)):
+            with self.assertRaises(Unavailable):
+                self.encounters.plan_location("admin",uid(),"cordon",1000,17,10)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='OfflineCombat'").fetchone()[0],0)
+
+    def test_manual_group_centre_fight_is_cancelled_before_ammo_or_damage(self):
+        group = self.offset_patrol([-90,0,8])
+        self.encounters.schedule("admin",uid(),self.event,group,self.second,
+                                 self.row(group)["version"],self.row(self.second)["version"],200000,17,1)
+        self.ns=20_001_000_000;self.scheduler.run_due(budget_ms=1000)
+        self.assertEqual(self.result()["reason"],"routes do not meet")
+        self.assertEqual(self.row(self.second)["alive"],1)
+        self.assertEqual(json.loads(self.store.db.execute("SELECT state FROM item WHERE id=?",(self.weapon,)).fetchone()[0])["rounds"],30)
+
 
 if __name__=="__main__":
     unittest.main()

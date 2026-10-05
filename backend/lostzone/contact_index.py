@@ -136,7 +136,7 @@ class ContactIndex:
                         raise Unavailable("contact query candidate budget exhausted")
         return sorted(result)
 
-    def pairs(self, radius, budget=None):
+    def pairs(self, radius, budget=None, owners=None):
         finite(radius,.1,200)
         result = set()
         budget = budget or CandidateBudget(self.limits["max_checks"])
@@ -153,6 +153,8 @@ class ContactIndex:
                         if other <= entity_id or candidate in seen:
                             continue
                         seen.add(candidate)
+                        if owners is not None and owners[other] == owners[entity_id]:
+                            continue
                         a,b,lo,hi = self.entries[other][1][number]
                         if a > end or b < start or any(x > h or y < l for x,y,l,h in zip(expanded_lower,expanded_upper,lo,hi)):
                             continue
