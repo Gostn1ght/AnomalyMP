@@ -35,6 +35,9 @@
 #include "level_graph.h"
 #include "ai_object_location.h"
 #include "Weapon.h"
+#include "WeaponAmmo.h"
+#include "eatable_item.h"
+#include "netcoop_item_state.h"
 #include "script_engine.h"
 #include "xrServer_Objects_ALife_Monsters.h"
 #include "game_base_space.h"
@@ -832,6 +835,8 @@ bool script_trade(u16 partner_id, bool actor_sells, LPCSTR ids)
 	}
 	if (list.empty() || list.size() > 256)
 		return false;
+	// The server prices and moves the items with their latest state.
+	client_items_update(true);
 	NET_Packet P;
 	P.w_begin(M_NETCOOP_TRADE);
 	P.w_u16(partner_id);
@@ -1059,10 +1064,13 @@ void server_list_accounts(xr_string& out)
 
 static u32 storage_capacity(bool safe);
 static u32 storage_section_cost(LPCSTR section);
+static void item_state_for_save(u16 id, xr_vector<u8>& out);
+static void item_state_restore(u16 id, const xr_vector<u8>& saved);
 #include "netcoop_characters.inc"
 #include "netcoop_storage.inc"
 #include "netcoop_pda.inc"
 #include "netcoop_marks.inc"
+#include "netcoop_items.inc"
 
 // ---------------------------------------------------------------------------
 // server: authentication

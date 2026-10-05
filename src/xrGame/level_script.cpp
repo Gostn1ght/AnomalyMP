@@ -2788,6 +2788,7 @@ void CLevel::script_register(lua_State* L)
 		def("netcoop_preview_draw", &netcoop::script_preview_draw),
 		def("netcoop_command", &netcoop::script_command),
 		def("netcoop_trade", &netcoop::script_trade),
+		def("netcoop_item_info", &netcoop::script_item_info),
 		def("netcoop_pure_client", &netcoop::script_pure_client),
 		def("netcoop_enabled", &netcoop::enabled),
 		def("netcoop_task_taken", &netcoop::server_task_taken_by_other),

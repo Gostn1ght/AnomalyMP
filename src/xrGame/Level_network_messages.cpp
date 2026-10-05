@@ -406,6 +406,9 @@ void CLevel::ClientReceive()
 		case M_NETCOOP_PHYSICS:
 			netcoop::client_on_physics(*P);
 			break;
+		case M_NETCOOP_ITEM_STATE:
+			netcoop::client_on_item_state(*P);
+			break;
 		case M_NETCOOP_SCRIPT:
 			{
 				netcoop::client_on_script(*P);

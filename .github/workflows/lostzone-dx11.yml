@@ -55,6 +55,9 @@ jobs:
       - name: Check actor packet compatibility
         shell: pwsh
         run: ./scripts/check-actor-packet.ps1
+      - name: Check item instance state model
+        shell: pwsh
+        run: ./scripts/check-item-state.ps1
       - name: Build DX11 on GitHub Actions
         shell: pwsh
         run: |

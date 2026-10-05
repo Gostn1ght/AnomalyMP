@@ -812,6 +812,10 @@ public:
 	int GetSuitableAmmoTotal(bool use_item_to_spawn = false) const;
 
 	void SetAmmoElapsed(int ammo_count);
+	// Netcoop: the server's magazine of this weapon instance (cartridge types
+	// bottom first, as runs) and its addons.
+	void netcoop_set_magazine(u8 ammo_type, const u8* types, const u16* counts, u32 runs);
+	void netcoop_set_addons(u8 flags);
 
 	virtual void OnMagazineEmpty();
 	void SpawnAmmo(u32 boxCurr = 0xffffffff,

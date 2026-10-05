@@ -8,7 +8,8 @@ struct Character
 	u32 last_save = 0;
 	NET_Packet actor;
 	xr_vector<u8> progress;
-	struct Item { xr_string section; u16 parent, place = 0; NET_Packet spawn; };
+	// state: uid, portions and cartridge sequence (netcoop_items.inc), NCH7+.
+	struct Item { xr_string section; u16 parent, place = 0; NET_Packet spawn; xr_vector<u8> state; };
 	xr_vector<Item> items, safe;
 	u32 storage_revision = 1;
 	xr_string storage_request, storage_signature;
@@ -87,6 +88,21 @@ static void character_write_packet(FILE* f, const NET_Packet& packet)
 	if (size) fwrite(packet.B.data, 1, size, f);
 }
 
+static void character_write_state(FILE* f, const xr_vector<u8>& state)
+{
+	const u16 size = u16(_min(state.size(), size_t(512)));
+	fwrite(&size, 2, 1, f);
+	if (size) fwrite(state.data(), 1, size, f);
+}
+
+static bool character_read_state(FILE* f, xr_vector<u8>& state)
+{
+	u16 size = 0;
+	if (fread(&size, 2, 1, f) != 1 || size > 512) return false;
+	state.resize(size);
+	return !size || fread(state.data(), 1, size, f) == size;
+}
+
 static bool character_save(Character& character)
 {
 	string_path path, temp;
@@ -94,7 +110,7 @@ static bool character_save(Character& character)
 	xr_sprintf(temp, "%s.tmp", path);
 	FILE* f = fopen(temp, "wb");
 	if (!f) return false;
-	const u32 magic = 0x3648434e; // NCH6: atomic inventory + private safe; NCH3/4/5 remain readable
+	const u32 magic = 0x3748434e; // NCH7: item instance state; NCH3/4/5/6 remain readable
 	fwrite(&magic, 4, 1, f);
 	fwrite(character.name.c_str(), 1, character.name.size() + 1, f);
 	fwrite(character.faction.c_str(), 1, character.faction.size() + 1, f);
@@ -111,6 +127,7 @@ static bool character_save(Character& character)
 		fwrite(&item.parent, 2, 1, f);
 		fwrite(&item.place, 2, 1, f);
 		character_write_packet(f, item.spawn);
+		character_write_state(f, item.state);
 	}
 	const u32 size = u32(character.progress.size()), crc = crc32(character.progress.data(), size);
 	fwrite(&size, 4, 1, f); fwrite(&crc, 4, 1, f);
@@ -124,6 +141,7 @@ static bool character_save(Character& character)
         fwrite(item.section.c_str(),1,item.section.size()+1,f);
         fwrite(&item.parent,2,1,f); fwrite(&item.place,2,1,f);
         character_write_packet(f,item.spawn);
+        character_write_state(f,item.state);
     }
     const bool ok = !ferror(f) && fflush(f)==0 && _commit(_fileno(f))==0;
 	const bool closed = fclose(f) == 0;
@@ -144,7 +162,7 @@ static Character* character_load(LPCSTR account, u8 slot)
 	Character character;
 	character.account = account; character.slot = slot;
 	u32 magic = 0, count = 0;
-	bool ok = fread(&magic, 4, 1, f) == 1 && (magic == 0x3348434e || magic == 0x3448434e || magic == 0x3548434e || magic == 0x3648434e) &&
+	bool ok = fread(&magic, 4, 1, f) == 1 && (magic == 0x3348434e || magic == 0x3448434e || magic == 0x3548434e || magic == 0x3648434e || magic == 0x3748434e) &&
 		character_read_string(f, character.name, 63) && character_read_string(f, character.faction, 32) &&
 		character_read_string(f, character.loadout, 4096);
 	if (ok && magic >= 0x3548434e) ok = character_read_string(f, character.description, 512) && character_read_string(f, character.history, 1536);
@@ -161,7 +179,8 @@ static Character* character_load(LPCSTR account, u8 slot)
 		Character::Item item;
 		ok = character_read_string(f, item.section, 128) && fread(&item.parent, 2, 1, f) == 1 &&
 			item.parent <= i && (magic == 0x3348434e || fread(&item.place, 2, 1, f) == 1) &&
-			character_read_packet(f, item.spawn) && pSettings->section_exist(item.section.c_str());
+			character_read_packet(f, item.spawn) && (magic < 0x3748434e || character_read_state(f, item.state)) &&
+			pSettings->section_exist(item.section.c_str());
 		if (ok) character.items.push_back(std::move(item));
 	}
 	if (ok && magic != 0x3348434e)
@@ -174,7 +193,7 @@ static Character* character_load(LPCSTR account, u8 slot)
 			ok = (!size || fread(character.progress.data(), 1, size, f) == size) && crc32(character.progress.data(), size) == crc;
 		}
 	}
-    if (ok && magic==0x3648434e)
+    if (ok && magic>=0x3648434e)
     {
         ok=fread(&character.storage_revision,4,1,f)==1 && character.storage_revision &&
             character_read_string(f,character.storage_request,32) && character_read_string(f,character.storage_signature,80) &&
@@ -183,7 +202,8 @@ static Character* character_load(LPCSTR account, u8 slot)
         {
             Character::Item item;
             ok=character_read_string(f,item.section,128) && fread(&item.parent,2,1,f)==1 && item.parent<=i &&
-                fread(&item.place,2,1,f)==1 && character_read_packet(f,item.spawn) && pSettings->section_exist(item.section.c_str());
+                fread(&item.place,2,1,f)==1 && character_read_packet(f,item.spawn) &&
+                (magic<0x3748434e || character_read_state(f,item.state)) && pSettings->section_exist(item.section.c_str());
             if (ok) character.safe.push_back(std::move(item));
         }
     }
@@ -381,6 +401,7 @@ void server_character_spawn_items(xrClientData* CL)
 			item->s_flags.assign(M_SPAWN_OBJECT_LOCAL);
 			CSE_Abstract* spawned = server->game->spawn_end(item, CL->ID);
 			if (!spawned) return;
+			item_state_restore(spawned->ID, saved.state);
 			parents.push_back(spawned->ID);
 			if (!saved.parent && saved.place) restore.places.push_back(std::make_pair(spawned->ID, saved.place));
 		}
@@ -452,6 +473,7 @@ static void character_capture_items(xrServer* server, Character& character, CSE_
 		record.parent = parent_index; record.section = item->s_name.c_str();
 		if (CInventoryItem* runtime = smart_cast<CInventoryItem*>(Level().Objects.net_Find(id))) record.place = runtime->m_ItemCurrPlace.value;
 		item->Spawn_Write(record.spawn, TRUE);
+		item_state_for_save(id, record.state);
 		character.items.push_back(std::move(record));
 		const u16 index = u16(character.items.size());
 		character_capture_items(server, character, item, index, depth + 1);

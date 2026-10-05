@@ -501,6 +501,10 @@ BOOL CInventoryItem::net_Spawn(CSE_Abstract* DC)
 
 void CInventoryItem::net_Destroy()
 {
+	// The ID may be reused by another item: its state record ends here.
+	if (netcoop::enabled())
+		netcoop::item_destroyed(object().ID());
+
 	if (m_pInventory)
 	{
 		VERIFY(std::find(m_pInventory->m_all.begin(), m_pInventory->m_all.end(), this)==m_pInventory->m_all.end());

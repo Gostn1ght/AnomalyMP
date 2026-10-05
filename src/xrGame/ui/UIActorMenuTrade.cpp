@@ -686,6 +686,7 @@ void CUIActorMenu::TransferItems(CUIDragDropListEx* pSellList, CUIDragDropListEx
 		}
 		if (!ids.empty() && ids.size() <= 256)
 		{
+			netcoop::client_items_update(true);
 			NET_Packet P;
 			P.w_begin(M_NETCOOP_TRADE);
 			P.w_u16(m_pPartnerInvOwner->object_id());

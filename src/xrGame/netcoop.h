@@ -206,6 +206,21 @@ bool server_character_load_actor(xrClientData* CL, CSE_Abstract* actor);
 void server_character_spawn_items(xrClientData* CL);
 void server_character_save_actor(u16 actor_id);
 void server_physics_update(xrServer* server);
+// Item instance state (netcoop_items.inc, gameplay plan stage 1): the server
+// versions each item's condition/charge, portions, magazine, addons and box
+// count and sends changed fields; carriers report their own wear and drain.
+void server_items_update(xrServer* server);
+void server_on_item_report(xrServer* server, xrClientData* CL, NET_Packet& P);
+// A server-authored change of a carried item (trade, repair): its owner gets
+// the predicted fields too.
+void server_item_touch(u16 id);
+void item_destroyed(u16 id); // both sides, from CInventoryItem::net_Destroy
+void client_on_item_state(NET_Packet& P);
+// Every frame (rate-limited); flush = report own item changes now, before an
+// event that moves an item to someone else.
+void client_items_update(bool flush = false);
+void client_item_forget(u16 id);
+LPCSTR script_item_info(u16 id);
 void client_on_physics(NET_Packet& P);
 // Server: the object is the Actor of a remote player. Local() is not used
 // for this: on the dedicated server it did not tell these copies apart

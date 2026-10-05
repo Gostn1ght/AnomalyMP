@@ -974,6 +974,17 @@ void CGameObject::u_EventGen(NET_Packet& P, u32 type, u32 dest)
 
 void CGameObject::u_EventSend(NET_Packet& P, u32 dwFlags)
 {
+	// Netcoop: an event that hands an item to someone else carries the
+	// state the owner last reported; send this client's changes first.
+	if (netcoop::pure_client() && P.B.count >= 8)
+	{
+		u16 message = 0, type = 0;
+		memcpy(&message, P.B.data, sizeof(message));
+		memcpy(&type, P.B.data + 6, sizeof(type)); // M_EVENT u16, time u32, type u16
+		if (message == M_EVENT && (type == GE_OWNERSHIP_REJECT || type == GE_TRADE_SELL || type == GE_TRADE_BUY || type == GE_DESTROY_REJECT ||
+			type == GE_TRANSFER_AMMO || type == GE_ADDON_DETACH))
+			netcoop::client_items_update(true);
+	}
 	Level().Send(P, dwFlags);
 }
 

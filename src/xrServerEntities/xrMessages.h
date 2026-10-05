@@ -133,6 +133,8 @@ enum
 	M_NETCOOP_SCRIPT, // server -> client: stringZ channel, stringZ data (server Lua -> client Lua)
 	M_NETCOOP_PDA_SCREEN, // bounded fragments of an owner PDA target, RGB565 + LZO
 	M_NETCOOP_MARK, // authoritative bullet / blood wallmarks
+	M_NETCOOP_ITEM_STATE, // server -> client: u16 n, n x (u16 id, u32 incarnation, u16 version, u16 mask, fields)
+	M_NETCOOP_ITEM_REPORT, // client -> server: u16 n, n x (u16 id, u16 mask, owner-predicted fields)
 	MSG_FORCEDWORD = u32(-1)
 };
 static_assert(M_CL_INPUT == 9 && M_CL_UPDATE == 10 && M_CL_INPUT_ACK == 53,

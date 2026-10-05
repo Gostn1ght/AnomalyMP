@@ -3120,6 +3120,48 @@ void CWeapon::SetAmmoElapsed(int ammo_count)
 	};
 }
 
+void CWeapon::netcoop_set_magazine(u8 ammo_type, const u8* types, const u16* counts, u32 runs)
+{
+	if (m_ammoTypes.empty()) return;
+	if (ammo_type < m_ammoTypes.size()) m_ammoType = ammo_type;
+	// Shots take rounds from the top: when the server's magazine is a bottom
+	// part of ours, drop the rest instead of loading every cartridge again.
+	u32 total = 0, index = 0;
+	bool prefix = true;
+	for (u32 r = 0; r < runs && prefix; ++r)
+	{
+		total += counts[r];
+		for (u16 i = 0; i < counts[r] && prefix; ++i, ++index)
+			prefix = index < m_magazine.size() && m_magazine[index].m_LocalAmmoType == types[r];
+	}
+	if (prefix && total <= m_magazine.size())
+	{
+		m_magazine.resize(total);
+		iAmmoElapsed = int(total);
+		m_BriefInfo_CalcFrame = 0;
+		return;
+	}
+	m_magazine.clear();
+	for (u32 r = 0; r < runs; ++r)
+	{
+		if (types[r] >= m_ammoTypes.size()) continue;
+		CCartridge cartridge;
+		cartridge.Load(m_ammoTypes[types[r]].c_str(), types[r], m_APk);
+		for (u16 i = 0; i < counts[r]; ++i)
+			m_magazine.push_back(cartridge);
+	}
+	iAmmoElapsed = int(m_magazine.size());
+	m_BriefInfo_CalcFrame = 0;
+}
+
+void CWeapon::netcoop_set_addons(u8 flags)
+{
+	if (m_flagsAddOnState == flags) return;
+	m_flagsAddOnState = flags;
+	UpdateAddonsVisibility();
+	m_BriefInfo_CalcFrame = 0;
+}
+
 u32 CWeapon::ef_main_weapon_type() const
 {
 	VERIFY(m_ef_main_weapon_type != u32(-1));
