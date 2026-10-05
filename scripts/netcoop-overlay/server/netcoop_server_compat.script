@@ -232,6 +232,17 @@ local player_tasks = {}
 
 local restored_players = {} -- actor id -> its saved character state was applied
 
+-- Engine (GameTaskManager, netcoop_cluster.inc): a generated task whose
+-- target is on another map cannot be done on this location server. It is
+-- cancelled like a player's cancel (on_cancel, no fail penalty).
+function cancel_task_on_other_map(task_id, level_name)
+	local manager = task_manager and task_manager.get_task_manager and task_manager.get_task_manager()
+	if not (manager and manager.task_info and manager.task_info[task_id]) then return false end
+	manager:set_task_cancelled(task_id)
+	printf("[Lost Zone][tasks] %s cancelled: its target is on %s", task_id, tostring(level_name))
+	return true
+end
+
 function capture_character_state(actor)
     local id = actor:id()
     local storage = db.storage[id] or {}

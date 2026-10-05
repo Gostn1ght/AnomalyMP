@@ -235,6 +235,25 @@ bool server_task_here(const char* origin)
 	return !enabled() || !origin || !origin[0] || !xr_strcmp(origin, cluster_current_level());
 }
 
+static xr_set<xr_string> s_cancelled_foreign_tasks;
+
+void server_task_check_target(const char* task_id, unsigned short object_id)
+{
+	if (!enabled() || pure_client() || !task_id || object_id == u16(-1) || !ai().get_alife() || !ai().get_game_graph()) return;
+	CSE_ALifeObject* target = smart_cast<CSE_ALifeObject*>(ai().alife().objects().object(object_id, true));
+	if (!target || target->m_story_id != INVALID_STORY_ID || !ai().game_graph().valid_vertex_id(target->m_tGraphID)) return;
+	const LPCSTR level = *ai().game_graph().header().level(ai().game_graph().vertex(target->m_tGraphID)->level_id()).name();
+	if (!xr_strcmp(level, cluster_current_level())) return;
+	if (!s_cancelled_foreign_tasks.insert(task_id).second) return;
+	::luabind::functor<bool> cancel;
+	bool done = false;
+	if (ai().script_engine().functor("netcoop_server_compat.cancel_task_on_other_map", cancel))
+		try { done = cancel(task_id, level); } catch (...) {}
+	Msg("[Lost Zone][tasks] %s: target %u is on %s, task %s", task_id, object_id, level, done ? "cancelled" : "left as is");
+	if (!done) return;
+	s_cancelled_foreign_tasks.erase(task_id); // the same id may be given again later
+}
+
 // ---- server: login and leaving ---------------------------------------------
 
 // finish_auth, after the password: the cluster lease, the ticket and a fresh
@@ -438,11 +457,77 @@ struct ClusterHeartbeat
 	}
 };
 
+// ---- one calendar for the cluster ----------------------------------------
+// Every server publishes its game time; each one follows the most advanced.
+// A server that is behind (it was restarted, or its map was down) runs its
+// clock faster until it has caught up: the world clock forbids jumps, and a
+// faster clock keeps ALife, weather and events continuous. No server is ever
+// slowed down, so the cluster time only moves forward.
+static u32 s_cluster_clock_check = 0;
+static float s_cluster_clock_factor = 0.f;
+
+static u64 cluster_unix_ms()
+{
+	FILETIME ft; GetSystemTimeAsFileTime(&ft);
+	const u64 ticks = (u64(ft.dwHighDateTime) << 32) | ft.dwLowDateTime;
+	return ticks / 10000 - 11644473600000ull;
+}
+
+static void cluster_clock_update()
+{
+	if (!ai().get_alife()) return;
+	string_path config;
+	FS.update_path(config, "$app_data_root$", "netcoop_cluster.ltx");
+	if (GetFileAttributesA(config) == INVALID_FILE_ATTRIBUTES) return; // single server
+	CALifeTimeManager& time = const_cast<CALifeSimulator*>(ai().get_alife())->time_manager();
+	const float normal = time.normal_time_factor();
+	if (!(normal > 0.f)) return;
+	const u64 now = cluster_unix_ms(), own = time.game_time();
+	string_path dir, file; cluster_dir(dir);
+	xr_sprintf(file, "%sclock_%u.txt", dir, cluster_port());
+	string128 line; xr_sprintf(line, "%llu %llu %f", now, own, normal);
+	cluster_write_line(file, line);
+	// The most advanced fresh clock, projected to this moment.
+	double target = double(own);
+	string_path mask; xr_sprintf(mask, "%sclock_*.txt", dir);
+	WIN32_FIND_DATAA found;
+	HANDLE search = FindFirstFileA(mask, &found);
+	if (search != INVALID_HANDLE_VALUE)
+	{
+		do
+		{
+			string_path path; xr_sprintf(path, "%s%s", dir, found.cFileName);
+			xr_string text; unsigned long long stamp = 0, game = 0; float factor = 0.f;
+			if (!cluster_read_line(path, text) || sscanf(text.c_str(), "%llu %llu %f", &stamp, &game, &factor) != 3) continue;
+			if (stamp > now || now - stamp > 30000 || !(factor > 0.f) || factor > 1000.f) continue;
+			target = _max(target, double(game) + double(now - stamp) * factor);
+		} while (FindNextFileA(search, &found));
+		FindClose(search);
+	}
+	// Behind by more than 2 game seconds: catch up within about a real
+	// minute, at most four times the normal speed.
+	const double behind = target - double(own);
+	float factor = normal;
+	if (behind > 2000.0) factor = normal + float(_min(behind / 60000.0, double(normal) * 3.0));
+	if (_abs(factor - s_cluster_clock_factor) > normal * 0.01f)
+	{
+		if (factor != normal || s_cluster_clock_factor != 0.f)
+			Msg("[Lost Zone][cluster] calendar %.0f s behind the cluster: time factor %.2f", behind / 1000.0, factor);
+		time.set_time_factor(factor);
+		s_cluster_clock_factor = factor;
+	}
+}
+
 // server_frame_update: leases of everyone here every 10 s; players that got
 // their redirect are disconnected after a short grace for the message.
 static void cluster_update(xrServer* server)
 {
 	const u32 now = real_time_ms();
+	if (now - s_cluster_clock_check >= 5000)
+	{
+		s_cluster_clock_check = now;
+		cluster_clock_update();
+	}
 	if (now - s_cluster_heartbeat >= 10000)
 	{
 		s_cluster_heartbeat = now;

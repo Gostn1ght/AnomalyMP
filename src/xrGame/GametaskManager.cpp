@@ -199,6 +199,9 @@ void CGameTaskManager::UpdateTasks()
 				continue;
 			if (!netcoop::server_task_here(t->m_netcoop_origin.c_str()))
 				continue;
+			// A generated task whose target lives on another map cannot be
+			// done on this location server: cancel it the GAMMA way.
+			netcoop::server_task_check_target(t->m_ID.c_str(), t->m_map_object_id);
 
 			ETaskState const state = t->UpdateState();
 

@@ -24,6 +24,10 @@ foreach ($file in @($server, $client, (Join-Path $Runtime "fsgame_selftest_serve
 }
 $appdata = Join-Path $Runtime "appdata\selftest"
 $logs = Join-Path $appdata "logs"
+# Every run starts a fresh world, accounts and characters of its own.
+Get-ChildItem $appdata -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -notin @("user.ltx", "logs") } |
+    Remove-Item -Recurse -Force
+Remove-Item (Join-Path $Runtime "appdata\selftest_bots\logs") -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $logs | Out-Null
 Set-Content -Encoding ascii (Join-Path $appdata "netcoop_cluster.ltx") "[locations]`r`nk00_marsh  = 127.0.0.1:1367`r`nl01_escape = 127.0.0.1:1377`r`n"
 $stamp = Get-Date
@@ -44,7 +48,9 @@ function Wait-Loaded($name) {
     $deadline = (Get-Date).AddMinutes($LoadTimeoutMinutes)
     while ((Get-Date) -lt $deadline) {
         $log = Find-Log $name
-        if ($log -and (Select-String -Path $log.FullName -Pattern "Full Memory Stats" -SimpleMatch -Quiet)) { return $log.FullName }
+        # The periodic clock line starts once the level and ALife run.
+        if ($log -and (Select-String -Path $log.FullName -Pattern "[Lost Zone][clock] server game" -SimpleMatch -Quiet)) { return $log.FullName }
+        if ($log -and (Select-String -Path $log.FullName -Pattern "FATAL ERROR" -SimpleMatch -Quiet)) { throw "server $name crashed while loading: $($log.FullName)" }
         Start-Sleep -Seconds 10
     }
     throw "server $name did not finish loading in $LoadTimeoutMinutes min"
