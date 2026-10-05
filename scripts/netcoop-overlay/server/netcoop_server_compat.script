@@ -712,6 +712,11 @@ end
 
 -- Its items spawn after it: look a moment later, then condition what it has
 -- (the new items spawn a frame later again).
+-- Defined further down; the per-frame loop in on_game_start calls them.
+-- Without these forward declarations the loop called nil globals and none of
+-- them ever ran (check-netcoop-lua-scope.py).
+local owned_objects_update, stash_visits_update, keep_switch_distance
+
 local function process_pending_inventory()
 	local now = time_global()
 	for id, entry in pairs(pending_inventory) do
@@ -1260,7 +1265,7 @@ local function send_owner_spots()
 end
 
 local next_spot_scan = 0
-local function owned_objects_update()
+function owned_objects_update()
 	if time_global() < next_spot_scan then return end
 	next_spot_scan = time_global() + 1000
 	pcall(send_owner_spots)
@@ -1397,7 +1402,7 @@ function stash_visit(box, roll)
 	return deposit and "deposit" or "take"
 end
 
-local function stash_visits_update()
+function stash_visits_update()
 	if time_global() < next_stash_look then return end
 	next_stash_look = time_global() + STASH_VISIT.check_ms
 	for _, id in ipairs(world_stash_ids()) do
@@ -1419,7 +1424,7 @@ end
 local WORLD_SWITCH_DISTANCE = 650
 local next_switch_check = 0
 
-local function keep_switch_distance()
+function keep_switch_distance()
 	if time_global() < next_switch_check then return end
 	next_switch_check = time_global() + 10000
 	local sim = alife()

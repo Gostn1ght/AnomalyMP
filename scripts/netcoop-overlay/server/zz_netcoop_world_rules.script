@@ -192,6 +192,7 @@ function install()
             marshal.encode = encode
             if not ok then
                 encoded_snapshot, encoded_name = nil, nil
+                printf("! [Lost Zone][world] script state save failed: %s", tostring(err))
                 error(err)
             end
         end

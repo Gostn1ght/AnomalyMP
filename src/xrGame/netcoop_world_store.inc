@@ -297,6 +297,11 @@ bool world_store_save_now(LPCSTR reason)
 		Level().ClientSave();
 		const_cast<CALifeSimulator*>(ai().get_alife())->save(save, false);
 	}
+	catch (const std::exception& e)
+	{
+		Msg("! [NetAnomaly][world] saving %s failed (%s): %s", save, reason, e.what());
+		return false;
+	}
 	catch (...)
 	{
 		Msg("! [NetAnomaly][world] saving %s failed (%s)", save, reason);
