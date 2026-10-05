@@ -81,10 +81,69 @@ local function keep_squads_on_their_map()
     end
 end
 
+-- Location cluster (doc 43 H11): every location server loads the ALife of the
+-- whole Zone, but only its own map is ever seen. Generic squads of the other
+-- maps are invisible copies here; the server of their map owns the real ones.
+-- Once per world they are released, so each server simulates only its own
+-- population and NPCs arriving from another map are not doubles. Story
+-- squads, companions and squads on a scripted target stay.
+local release_pending = false
+local function cluster_mode()
+    local path = getFS and getFS():update_path("$app_data_root$", "netcoop_cluster.ltx")
+    local file = path and io.open(path, "r")
+    if file then file:close() end
+    return file ~= nil
+end
+
+function release_foreign_population()
+    if not (cooperative() and cluster_mode() and SIMBOARD and SIMBOARD.squads and alife_storage_manager) then return 0 end
+    local state = alife_storage_manager.get_state()
+    if state.netcoop_foreign_released then return 0 end
+    -- A new world gets its population on the first update: wait for it.
+    if SIMBOARD.start_position_filled == false or next(SIMBOARD.squads) == nil then return nil end
+    local here, graph, sim = level.name(), game_graph(), alife()
+    local companions = axr_companions and axr_companions.companion_squads or {}
+    local doomed = {}
+    for id, squad in pairs(SIMBOARD.squads) do
+        local gv = squad.m_game_vertex_id
+        local level_name = gv and sim:level_name(graph:vertex(gv):level_id())
+        if level_name and level_name ~= here and not (get_object_story_id and get_object_story_id(id))
+            and not companions[id] and not (squad.get_script_target and squad:get_script_target()) then
+            doomed[#doomed + 1] = squad
+        end
+    end
+    local members = 0
+    for _, squad in ipairs(doomed) do
+        local ids = {}
+        for member in squad:squad_members() do ids[#ids + 1] = member.id end
+        for _, id in ipairs(ids) do
+            if not (get_object_story_id and get_object_story_id(id)) then
+                alife_release_id(id)
+                members = members + 1
+            end
+        end
+        alife_release(squad)
+    end
+    state.netcoop_foreign_released = true
+    printf("[Lost Zone][world] released %d squad(s), %d NPC(s) of other maps: their location servers own them", #doomed, members)
+    return #doomed
+end
+
 function install()
     if not cooperative() then return end
     disable_spawners()
     keep_squads_on_their_map()
+    if release_foreign_population() == nil and AddUniqueCall and not release_pending then
+        release_pending = true
+        local next_try = 0
+        AddUniqueCall(function()
+            if time_global() < next_try then return false end
+            next_try = time_global() + 5000
+            local done = release_foreign_population() ~= nil
+            if done then release_pending = false end
+            return done
+        end)
+    end
     -- These are inventory/artefact age purges, not AI consumption or trading.
     keep_inventory_from_purge(grok_artefact_despawner, "delete_artefacts")
     keep_inventory_from_purge(release_npc_inventory, "clean_npc_inv")

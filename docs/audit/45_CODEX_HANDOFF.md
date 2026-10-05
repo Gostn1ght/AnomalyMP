@@ -14,6 +14,13 @@ Claude и Codex работают в одной папке `engine-steamnet` и �
   doc 43 D), трафик на игрока, установка билдов и самотесты на реальных exe,
   3D меню (плакат).
 Если нужно тронуть чужую зону — записать здесь строку перед изменением.
+- Claude 23:50: H11-lite в `zz_netcoop_world_rules.script` — в режиме кластера
+  один раз на мир (после fill_start_position) release generic отрядов чужих
+  карт (story/companion/scripted остаются). После установки этого билда
+  копии чужого населения в location process исчезают; Codex может решить,
+  достаточно ли этого, чтобы включить `-netcoop_npc_transit` по умолчанию.
+- Claude: статус серверов `netcoop_cluster/status_<port>.txt` (players/capacity,
+  TTL 30 с); переход/redirect не ведут на выключенный или полный сервер.
 
 ## Правила владельца (обязательно)
 

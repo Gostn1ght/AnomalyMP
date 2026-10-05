@@ -176,3 +176,48 @@ cooperative = false
 assert(smart.target_precondition(there, squad), "single-player keeps cross-map travel")
 ''')
 print("Actual squad map guard: generic targets on other maps refused in coop, single-player unchanged PASS")
+
+lua = LuaRuntime(unpack_returned_tuples=True)
+lua.execute(r'''
+cooperative = true; callbacks = {}; released = {}; calls = {}; now = 0
+function netcoop_enabled() return cooperative end
+function printf() end
+function time_global() return now end
+function RegisterScriptCallback(kind, fn) callbacks[kind] = fn end
+function AddUniqueCall(fn) calls[#calls + 1] = fn end
+getFS = function() return {update_path = function() return "cluster.ltx" end} end
+io = {open = function() return {close = function() end} end}
+local names = {[1] = "k00_marsh", [2] = "l01_escape"}
+function game_graph() return {vertex = function(_, gv) return {level_id = function() return gv end} end} end
+function alife() return {level_name = function(_, id) return names[id] end} end
+level = {name = function() return "k00_marsh" end}
+store = {}
+alife_storage_manager = {get_state = function() return store end}
+story = {[30] = true}
+function get_object_story_id(id) return story[id] end
+function alife_release_id(id) released[#released + 1] = id end
+function alife_release(se) released[#released + 1] = se.id end
+function squad(id, gv, members)
+    return {id = id, m_game_vertex_id = gv, squad_members = function()
+        local i = 0
+        return function() i = i + 1; return members[i] and {id = members[i]} end
+    end}
+end
+SIMBOARD = {start_position_filled = false, squads = {}}
+''')
+lua.execute(source)
+lua.execute(r'''
+on_game_start()
+assert(#released == 0 and #calls == 1, "a new world waits for its population")
+SIMBOARD.squads = {[10] = squad(10, 1, {11, 12}), [20] = squad(20, 2, {21, 22}), [30] = squad(30, 2, {31})}
+SIMBOARD.start_position_filled = true
+now = 6000
+assert(calls[1]() == true)
+local set = {}
+for _, id in ipairs(released) do set[id] = true end
+assert(set[20] and set[21] and set[22], "a generic squad of another map is released")
+assert(not set[10] and not set[11] and not set[30] and not set[31], "own map and story squads stay")
+local count = #released
+install(); assert(#released == count, "once per world")
+''')
+print("Actual cluster population split: other maps' generic squads released once, own map and story squads kept PASS")
