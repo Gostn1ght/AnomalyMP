@@ -13,6 +13,7 @@ from lostzone.ownership import Ownership
 from lostzone.offline import Offline
 from lostzone.scheduler import Scheduler
 from lostzone.scavenging import Scavenging
+from lostzone.quests import Quests
 
 
 def uid():
@@ -277,6 +278,60 @@ class EconomyTest(unittest.TestCase):
             del plan["positions"]
             tx.execute("UPDATE scheduled_event SET payload=? WHERE id=?",(json.dumps(plan),row["id"]))
         self.assert_visit_cancelled_without_mutation(item)
+
+    def test_locked_stash_refuses_plan_and_lock_after_plan_cancels_without_loot(self):
+        self.setup_visit()
+        item = self.visit_food()
+        def lock(value):
+            with self.store.transaction() as tx:
+                state = json.loads(tx.execute("SELECT state FROM entity WHERE id=?",(self.stash,)).fetchone()[0])
+                state["locked"] = value
+                tx.execute("UPDATE entity SET state=?,version=version+1 WHERE id=?",(json.dumps(state),self.stash))
+        lock(True)
+        with self.assertRaises(Conflict):
+            self.visit()
+        lock(False)
+        self.visit()
+        lock(True)
+        self.assert_visit_cancelled_without_mutation(item)
+
+    def test_active_quest_stash_is_protected_even_when_container_policy_allows_npcs(self):
+        self.setup_visit()
+        item = self.visit_food()
+        self.visit()
+        quests = Quests(self.world,{"retrieve":{"steps":[{"type":"ContainerOpened","target":self.stash}],
+                                             "requirements":[{"entity_id":self.stash}]}})
+        quests.grant("a",uid(),self.player,self.fence,"retrieve")
+        self.assert_visit_cancelled_without_mutation(item)
+        with self.assertRaises(Conflict):
+            self.visit(due=30_000_000)
+        with self.store.transaction() as tx:
+            tx.execute("UPDATE quest SET state=? WHERE character_id=? AND id='retrieve'",(json.dumps({"status":"COMPLETED"}),self.player))
+        # Releasing a quest pin allows a later genuine visit, not a reroll.
+        self.visit(due=30_000_000)
+
+    def test_quest_item_catalog_and_item_markers_exclude_take_and_deposit(self):
+        self.setup_visit()
+        self.catalog = Catalog({"quest_food":{"category":"FOOD","price":10,"weight_g":1,"quest_protected":True},
+                                "food":{"category":"FOOD","price":10,"weight_g":1}})
+        self.scavenging.catalog = self.catalog
+        items = []
+        with self.store.transaction() as tx:
+            for kind,holder in (("NPC",self.npc),("STASH",self.stash)):
+                for section,state in (("quest_food",{}),("food",{"quest_item":True}),("food",{"quest_protected":True})):
+                    item = uid()
+                    tx.execute("INSERT INTO item VALUES(?,?,?,?,1,1,?)",(item,section,kind,holder,json.dumps(state)))
+                    items.append((item,kind,holder))
+        self.visit();self.ns=100_000_000
+        self.scheduler.run_due(budget_ms=1000)
+        for item,kind,holder in items:
+            row = self.store.db.execute("SELECT kind,holder,version FROM item WHERE id=?",(item,)).fetchone()
+            self.assertEqual(tuple(row),(kind,holder,1))
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM world_event WHERE type='ItemScavenged'").fetchone()[0],0)
+
+    def test_catalog_quest_protection_requires_a_boolean(self):
+        with self.assertRaises(Invalid):
+            Catalog({"food":{"category":"FOOD","price":10,"weight_g":1,"quest_protected":"false"}})
 
 
 if __name__=="__main__":

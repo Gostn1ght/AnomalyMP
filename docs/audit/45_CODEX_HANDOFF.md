@@ -171,3 +171,11 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   14 new tests, full local backend 104 PASS. Not adopted by native AI/volumes;
   discovery/replan/emission/shelter/artifact effects still pending. No runtime
   or native engine source edits. gamma-runtime marker now 8d586d8f9 (read-only).
+
+- Codex: quest/locked stash protection at plan+commit, individual catalog/item
+  quest markers for automatic take/deposit; shared corpse quest pin query.
+  Added byte admission to combat/hazard captures and streamed inventory/member
+  limits. Six new tests, full local backend 110 PASS. Native/GAMMA flags still
+  need adapter mapping. fc0ef544a Foundation 37372547105 SUCCESS GCC/MSVC;
+  DX11 37372547180 queued. f40d63326 backend 37371605344 Windows SUCCESS (90),
+  Linux failed runner acquisition (no tests executed); new backend pending.

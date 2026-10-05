@@ -314,13 +314,19 @@ class Ownership:
             self.store.event(tx,"entity:"+group["id"],"GroupLostAllMembers",{"group_id":group["id"],"last_member":row["id"]},occurred_ms,committed_ms=self.world.now())
         return {"id":row["id"],"version":row["version"]+1,"event":event}
 
+    @staticmethod
+    def quest_required(tx, entity_id):
+        return tx.execute("SELECT 1 FROM quest_requirement r JOIN quest q ON q.character_id=r.character_id AND q.id=r.quest_id "
+                          "WHERE r.entity_id=? AND COALESCE(json_extract(q.state,'$.status'),'ACTIVE') NOT IN ('FAILED','COMPLETED') LIMIT 1",
+                          (entity_id,)).fetchone() is not None
+
     def cleanup_corpse(self, actor, command_id, entity_id, fence, version):
         payload = {"type": "corpse_cleanup", "id": entity_id, "fence": fence, "version": version}
         def apply(tx):
             row = self.require_entity(tx, actor, entity_id, fence, version)
             if row["alive"]:
                 raise Conflict("living entity cannot be cleaned up")
-            if tx.execute("SELECT 1 FROM quest_requirement r JOIN quest q ON q.character_id=r.character_id AND q.id=r.quest_id WHERE r.entity_id=? AND COALESCE(json_extract(q.state,'$.status'),'ACTIVE') NOT IN ('FAILED','COMPLETED')", (entity_id,)).fetchone():
+            if self.quest_required(tx,entity_id):
                 raise Conflict("corpse is still required by an active quest")
             state = json.loads(row["state"])
             state["corpse_removed"] = True

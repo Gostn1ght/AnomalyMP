@@ -308,6 +308,16 @@ class EncounterTest(unittest.TestCase):
             self.encounters.plan_location("admin",uid(),"cordon",1000,17,10)
         self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='OfflineCombat'").fetchone()[0],0)
 
+    def test_large_weapon_states_refuse_aggregate_capture_before_fight(self):
+        state = json.dumps({"payload":"x"*550000,"rounds":30})
+        with self.store.transaction() as tx:
+            for _ in range(2):
+                tx.execute("INSERT INTO item VALUES(?,'wpn','NPC',?,1,1,?)",(uid(),self.first,state))
+        with self.assertRaises(Conflict):
+            self.schedule()
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='OfflineCombat'").fetchone()[0],0)
+        self.assertEqual(self.row(self.second)["alive"],1)
+
 
 if __name__=="__main__":
     unittest.main()

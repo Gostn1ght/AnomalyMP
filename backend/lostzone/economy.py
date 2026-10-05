@@ -36,12 +36,15 @@ class Catalog:
             protection = {identifier(kind):integer(value,0,10000,"hazard protection") for kind,value in protection.items()}
             if protection and record["category"] not in ("ARMOR","ARTIFACT"):
                 raise Invalid("hazard protection requires armor or artifact")
+            quest_protected = record.get("quest_protected",False)
+            if type(quest_protected) is not bool:
+                raise Invalid("invalid quest item catalog policy")
             self.entries[section] = {
                 "category": record["category"],
                 "price": integer(record.get("price"), 1, 1_000_000_000, "base price"),
                 "weight_g": integer(record.get("weight_g"), 0, 1_000_000, "item weight"),
                 "combat_power": integer(record.get("combat_power",100 if record["category"]=="WEAPON" else 0),0,10000,"combat power"),
-                "hazard_protection_bp":protection}
+                "hazard_protection_bp":protection,"quest_protected":quest_protected}
 
     def entry(self, section):
         if section not in self.entries:

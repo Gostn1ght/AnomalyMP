@@ -352,3 +352,29 @@ priority, competing contacts. HTTP role checks include operation. Full local
 backend **104 tests PASS**. Automatic hazard discovery, retreat/path decisions,
 real game volumes/hydration, emission/shelter/artifact effects remain; L is not
 marked complete. Native compilation is still exclusively GitHub Actions.
+
+## Quest stash protection and capture byte admission
+
+Locked entity state and active quest requirements now protect otherwise
+NPC-accessible stashes, both at planning and commit. Granting a quest after
+planning cancels that visit without consuming cooldown or moving loot. A shared
+Ownership.quest_required query also retains existing corpse protection. Trusted
+catalog quest_protected bool and item quest_item/quest_protected flags exclude
+individual items from BOTH automatic take/deposit; player access is unchanged.
+Four tests cover lock before/after planning, late quest pin and completed pin
+release, both movement directions/markers, and invalid catalog policy.
+
+Combat/hazard member queries stop at 65 records (root plus up to 64 fighters),
+inventory is streamed with the same 64-item boundary, and CaptureBudget stops
+encoded state accumulation at 1 MiB with metadata reserve before parsing the
+remaining states. Existing final canonical event limit remains. Two actual
+resolver tests reject multiple individually valid large item states without
+scheduling damage/charge/ledger changes. Full local backend **110 tests PASS**.
+No native adapter adoption or whole C/K/L completion is claimed.
+
+fc0ef544a Foundation Actions 37372547105 **SUCCESS GCC/MSVC**, including the
+actual target availability helper and failure cases in the repaired transfer
+fixture. DX11 37372547180 queued. f40d63326 backend Actions 37371605344 Windows
+**SUCCESS (90 tests)**; Linux cancelled by external runner admission failure:
+"The job was not acquired by Runner of type hosted even after multiple attempts".
+Not a code/test failure; newer backend jobs cover the follow-up changes.

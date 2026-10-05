@@ -222,6 +222,16 @@ class HazardTest(unittest.TestCase):
         self.assertEqual(json.loads(self.row(self.hazard)["state"])["charges"],0)
         self.assertEqual(self.store.db.execute("SELECT kind FROM item WHERE id=?",(self.item,)).fetchone()[0],"NPC")
 
+    def test_large_individual_states_cannot_overflow_aggregate_capture_admission(self):
+        state = json.dumps({"payload":"x"*550000})
+        with self.store.transaction() as tx:
+            for _ in range(2):
+                tx.execute("INSERT INTO item VALUES(?,'food','NPC',?,1,1,?)",(uid(),self.npc,state))
+        with self.assertRaises(Conflict):
+            self.plan()
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='OfflineHazard'").fetchone()[0],0)
+        self.assertEqual(json.loads(self.row(self.hazard)["state"])["charges"],1)
+
 
 if __name__=="__main__":
     unittest.main()

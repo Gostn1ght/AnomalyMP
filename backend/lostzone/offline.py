@@ -40,7 +40,7 @@ class Offline:
         scheduler.handlers["RouteArrived"] = self.arrived
         world.scale_handlers.append(self.scale_changed)
 
-    def members(self, tx, root):
+    def members(self, tx, root, limit=None):
         result = [root]
         if root["kind"] == "GROUP":
             for value in json.loads(root["state"])["member_ids"]:
@@ -49,6 +49,8 @@ class Offline:
                     raise Conflict("persistent member disappeared")
                 if row["alive"]:
                     result.append(row)
+                    if limit is not None and len(result)>limit:
+                        raise Conflict("member capture exceeds admission limit")
         return result
 
     def dehydrate(self, actor, command_id, entity_id, location, fence, version, captures):

@@ -9,6 +9,7 @@ import json
 
 from .contacts import earliest_contact, trajectory
 from .contact_index import ContactIndex
+from .capture import CaptureBudget
 from .economy import integer
 from .offline import distance
 from .store import Conflict, Invalid, Unavailable, canonical, finite, identifier, persistent_id, positive
@@ -22,29 +23,31 @@ class Encounters:
     def fighters(self, tx, root):
         if root["kind"] not in ("NPC","MUTANT","GROUP") or not root["alive"]:
             raise Conflict("encounter requires living actors/groups")
-        rows = self.offline.members(tx,root)
+        rows = self.offline.members(tx,root,limit=65)
         rows = [row for row in rows if row["kind"] in ("NPC","MUTANT") and row["alive"]]
         if not 1 <= len(rows) <= 64:
             raise Conflict("encounter exceeds bounded individual resolution")
-        result = []
+        result,budget = [],CaptureBudget()
         for row in sorted(rows,key=lambda value:value["id"]):
             self.offline.require_offline(tx,row["id"])
             if row["location"] != root["location"]:
                 raise Conflict("member is outside encounter location")
+            budget.consume(row["state"])
             state = json.loads(row["state"])
             hp = int(finite(state.get("health",1),0,1)*10000)
             if not hp:
                 raise Conflict("living actor has zero captured health")
             skill = integer(state.get("experience",0),0,10,"actor experience")
-            items = tx.execute("SELECT * FROM item WHERE kind='NPC' AND holder=? ORDER BY id LIMIT 65", (row["id"],)).fetchall()
-            if len(items) > 64:
-                raise Conflict("combat inventory exceeds bounded resolver")
+            items = tx.execute("SELECT * FROM item WHERE kind='NPC' AND holder=? ORDER BY id LIMIT 65", (row["id"],))
             weapons = []
-            for item in items:
+            for index,item in enumerate(items):
+                if index==64:
+                    raise Conflict("combat inventory exceeds bounded resolver")
                 entry = self.catalog.entry(item["section"])
                 if entry["category"] == "WEAPON":
                     if item["quantity"] != 1:
                         raise Conflict("weapon stacks need individual ledger IDs")
+                    budget.consume(item["state"])
                     item_state = json.loads(item["state"])
                     rounds = integer(item_state.get("rounds",0),0,10000,"weapon rounds")
                     condition = int(finite(item_state.get("condition",1),0,1)*10000)

@@ -27,7 +27,15 @@ class Scavenging:
         if not policy or (policy["policy"] != "NPC_ACCESSIBLE" and
                           not (policy["policy"] == "FACTION" and policy["owner"] == json.loads(npc["state"]).get("faction"))):
             raise Conflict("stash is protected from NPC scavenging")
+        if json.loads(stash["state"]).get("locked",False) is not False or self.offline.ownership.quest_required(tx,stash_id):
+            raise Conflict("stash is locked or required by an active quest")
         return npc,stash,policy
+
+    def movable_item(self, row):
+        if row["section"] not in self.catalog.entries or self.catalog.entry(row["section"])["quest_protected"]:
+            return False
+        state = json.loads(row["state"])
+        return all(state.get(flag,False) is False for flag in ("quest_item","quest_protected"))
 
     def schedule(self, actor, command_id, event_id, npc_id, stash_id, npc_version, stash_version, due_ms, seed):
         for value in (event_id,npc_id,stash_id):
@@ -86,14 +94,14 @@ class Scavenging:
             # Bound work regardless of box size; ordering is stable across hosts.
             take = tx.execute("SELECT * FROM item WHERE kind='STASH' AND holder=? ORDER BY id LIMIT 64", (stash["id"],)).fetchall()
             deposit = [row for row in tx.execute("SELECT * FROM item WHERE kind='NPC' AND holder=? ORDER BY id LIMIT 64", (npc["id"],))
-                       if row["section"] in self.catalog.entries and self.catalog.entry(row["section"])["category"] in DEPOSIT_CATEGORIES]
+                       if self.movable_item(row) and self.catalog.entry(row["section"])["category"] in DEPOSIT_CATEGORIES]
             # The trusted catalog excludes armor/all weapons/artifacts from
             # deposits; individual carried items are moved with the same IDs.
             options = []
             capacity = integer(npc_state.get("carry_capacity_g",50000),0,1_000_000,"NPC carry capacity")
             carried_weight = self.catalog.carry_weight(tx,npc["id"]) if take else 0
             for row in take:
-                if row["section"] not in self.catalog.entries:
+                if not self.movable_item(row):
                     continue
                 weight = self.catalog.entry(row["section"])["weight_g"] * row["quantity"]
                 if carried_weight + weight <= capacity:

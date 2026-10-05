@@ -164,6 +164,12 @@ Capture также содержит собственный маршрут и г�
 идущего с отрядом NPC. Замена пути или world-scale rebase отменяет старое
 событие до переноса предмета и изменения cooldown, даже если NPC всё ещё
 рядом с тайником. Старые планы без motion capture отменяются.
+Закрытый тайник (`entity.state.locked=true`) и тайник, связанный с активным
+quest requirement, исключены из NPC visits. Проверка повторяется при
+разрешении события: новый квест/замок отменяет ранее запланированный визит.
+Catalog `quest_protected=true` и item.state `quest_item`/`quest_protected`
+защищают конкретные вещи от автоматического take/deposit. Эти правила не
+изменяют разрешения игрока; native adapter ещё должен передавать эти flags.
 Автоматический выбор маршрутов/целей NPC и подключение к GAMMA впереди.
 
 ## Дальние бои
@@ -241,3 +247,9 @@ priority=0 не переписываются и могут консервати�
 Ограничения: 64 живых участника и 64 inventory items на участника, маршруты
 до 1024 точек. Автоматическая discovery hazards, NPC replan, engine volumes,
 native hydration, emission/shelter damage и artifact spawn ещё впереди.
+
+Combat/hazard capture дополнительно ограничивает сумму encoded actor/item
+states до 1 MiB (combat: на сторону; hazard: на группу), с резервом metadata.
+Inventory читается курсором, отказ происходит до разбора остальных больших
+состояний. Слишком большой capture не меняет здоровье, charges или ledger.
+Финальный canonical event также сохраняет свой прежний предел 1 MiB.

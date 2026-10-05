@@ -8,6 +8,7 @@ import hashlib
 import json
 
 from .contacts import earliest_contact, trajectory
+from .capture import CaptureBudget
 from .economy import integer
 from .offline import distance, point
 from .store import Conflict, Invalid, canonical, finite, identifier, persistent_id, positive
@@ -50,14 +51,15 @@ class Hazards:
             raise Conflict("hazard requires a living offline actor/group")
         if root["kind"] != "GROUP" and tx.execute("SELECT 1 FROM group_member WHERE member_id=?",(root["id"],)).fetchone():
             raise Conflict("hazard contact belongs to the persistent group")
-        rows = [row for row in self.offline.members(tx,root) if row["kind"] in ("NPC","MUTANT") and row["alive"]]
+        rows = [row for row in self.offline.members(tx,root,limit=65) if row["kind"] in ("NPC","MUTANT") and row["alive"]]
         if not 1 <= len(rows) <= 64:
             raise Conflict("hazard actor capture exceeds member limit")
-        result = []
+        result,budget = [],CaptureBudget()
         for row in sorted(rows,key=lambda row:row["id"]):
             self.offline.require_offline(tx,row["id"])
             if row["location"] != root["location"]:
                 raise Conflict("hazard member is on another map")
+            budget.consume(row["state"])
             state = json.loads(row["state"])
             health = int(finite(state.get("health",1),0,1)*10000)
             if not health:
@@ -66,11 +68,12 @@ class Hazards:
             if not isinstance(known,list) or len(known)>64:
                 raise Invalid("invalid captured hazard knowledge")
             known = [identifier(value) for value in known]
-            inventory = tx.execute("SELECT * FROM item WHERE kind='NPC' AND holder=? ORDER BY id LIMIT 65",(row["id"],)).fetchall()
-            if len(inventory)>64:
-                raise Conflict("hazard inventory exceeds capture limit")
+            inventory = tx.execute("SELECT * FROM item WHERE kind='NPC' AND holder=? ORDER BY id LIMIT 65",(row["id"],))
             items,protection = [],0
-            for item in inventory:
+            for index,item in enumerate(inventory):
+                if index==64:
+                    raise Conflict("hazard inventory exceeds capture limit")
+                budget.consume(item["state"])
                 item_state = json.loads(item["state"])
                 items.append(dict(item,state=item_state))
                 if item_state.get("equipped") is True:
