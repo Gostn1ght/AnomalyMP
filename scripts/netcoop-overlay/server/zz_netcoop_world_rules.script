@@ -1,0 +1,35 @@
+-- Lost Zone population is finite. New-game fill_start_position owns initial
+-- squads; smart terrain replenishment must never replace dead NPCs/mutants.
+-- Do not intercept SIMBOARD:create_squad globally: quests and initial world
+-- creation use that same entry point.
+local blocked_methods = {}
+
+local function cooperative()
+    return netcoop_enabled and netcoop_enabled()
+end
+
+function on_try_respawn(smart, flags)
+    if cooperative() and flags then flags.disabled = true end
+end
+
+function install()
+    if not cooperative() then return end
+    local class = smart_terrain and smart_terrain.se_smart_terrain
+    if class and type(class.try_respawn) == "function" and not blocked_methods[class.try_respawn] then
+        local original = class.try_respawn
+        local guarded = function(self, ...)
+            if cooperative() then return end
+            return original(self, ...)
+        end
+        blocked_methods[guarded] = true
+        class.try_respawn = guarded
+        printf("[Lost Zone][world] NPC/mutant replenishment disabled; initial population and surviving squads preserved")
+    end
+end
+
+function on_game_start()
+    if not cooperative() then return end
+    RegisterScriptCallback("on_try_respawn", on_try_respawn)
+    RegisterScriptCallback("on_game_load", install)
+    install()
+end

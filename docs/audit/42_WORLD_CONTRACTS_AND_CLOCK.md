@@ -22,22 +22,66 @@ online/offline нельзя считать уже реализованными L
 
 В этой итерации реализованы `WorldClock`, `LocationClock`, `ClockSample`,
 `WorldStateSnapshot`, `IWorldService`, `LocalWorldService` в
-`src/xrGame/netcoop_world_clock.h`. Это проверяемое ядро W2, пока **без
-подключения к игровому циклу, БД и межпроцессному транспорту**. Сейчас
-игровое время продолжает вести существующий `game_GameState`/ALife.
-Ядро не подменяет собой готовый World Service и не выдаёт существующий
-однолокационный сервер за кластер из 25 локаций.
+`src/xrGame/netcoop_world_clock.h`. Следующая итерация подключает ядро
+к `CALifeTimeManager` для серверов с `-netcoop_world=<name>`:
+`ALifeWorldClock` обслуживает календарь ALife, серверные time packets и
+environment time factor. 64-битный `steady_clock` не зависит от таймера
+рендеринга/Alt-Tab/32-битного wrap. Mutex защищает чтения ALife worker и
+server main thread; monotonic sample берётся внутри lock.
+Обычный freeplay без persistent world option сохраняет прежние часы.
+Пакет GitHub Actions включает `1-Server.cmd` с `-netcoop_world=lostzone`;
+старые установленные launchers сами от коммита не меняются. Limit=2 в
+проверочном launcher не является заявлением готовности 128 игроков.
+
+`WorldAuthorityStore` удерживает OS exclusive lock и до загрузки ALife
+атомарно записывает новую epoch в `<world>.authority` с checksum.
+WorldID/seed сохраняются; пропущенная epoch после неудачного старта не
+переиспользуется. Это **один процесс на локальной папке сохранений**, без
+SQLite, межпроцессного ClockSync, distributed lease или поддержки SMB/NFS.
+Игровые time packets остаются совместимыми; `LocationClock` ещё не
+подключён к клиентскому/межлокационному транспорту.
+
+Часы и их identity/revision записываются в один снимок ALife через
+опциональный trailer существующего time chunk. Legacy save принимается
+как явная миграция; clock-aware save другого WorldID/seed либо с epoch,
+не меньшей текущей, отклоняется. После рестарта offline время заморожено
+до восстановления; автоматического catch-up не добавлено. Calendar-only
+scale=0 и Lua calendar jump запрещены в persistent мире: физика/движение
+ещё не имеют общего pause/catch-up barrier. Положительное изменение scale
+не создаёт скачка времени. Старый engine может прочитать prefix, но
+сохранять новый persistent мир старым engine нельзя: он потеряет trailer.
+
+Готового World Service и кластера из 25 локаций эта интеграция не создаёт.
 
 Дополнительно исправлен блокер предыдущей CI-сборки W1: защищённая
 изменяемая перегрузка `CALifeSimulator::objects()` заменена публичным
 const-доступом. При выборе слота сохранения используется указатель
 последнего успешного снимка: после рестарта нельзя перезаписывать его
 из-за обнуления счётчика. Указатель принимает только два слота своего мира.
+Новые manifests содержат размер/checksum снимка; файл снимка flush-ится
+до commit указателя. Повреждённый pointer, отсутствующий committed save
+или checksum mismatch останавливает загрузку вместо генерации нового мира.
+Legacy pointer принимается один раз и обновляется следующим commit.
+Нет автоматического выбора backup при повреждении: нужна явная recovery.
 Это не заменяет будущий журнал событий и испытания с аварийным завершением.
+До W7 возможна потеря несохранённых последних пяти минут и несогласованность
+world snapshot с отдельно сохранённым персонажем; crash-safe item ledger
+этой итерацией не заявляется.
 
 Неизменённые рабочие изменения мебели/тайников и состояния персонажа
 сохраняются отдельно. Сон/недосып не входит в новое состояние мира или
 Clock API; индивидуальный сон не ускоряет время всем игрокам.
+
+Изменение владельца от 2026-10-05 заменяет старые пункты про respawn/TTL:
+NPC и мутанты имеют конечную начальную популяцию, не возрождаются и не
+пополняются автоматически. Обычные предметы на земле и тайники не
+исчезают по таймеру; удаляться могут тела и временные визуальные эффекты.
+`zz_netcoop_world_rules.script` отключает штатный smart-terrain/SMR
+replenishment на сервере. Initial population и scripted quest creation
+остаются отдельными путями; автоматические spawn-пути дополнительных
+модов ещё нужно проверить в этапе population/ownership. Редкие визиты
+NPC к тайникам и сохранённые death tombstones описаны ниже и **ещё не
+исполняются новым scheduler**.
 
 ## 2. Топология и границы authority
 
@@ -460,8 +504,10 @@ holdover, новые глобальные irreversible последствия ж
 
 ## 12. Offline simulation и все persistent типы
 
-GroupState хранит members (stable IDs либо population cohorts для обычных
-мутантов), alive/wounded, faction/species, health summary, resources,
+GroupState хранит members (stable IDs всех NPC и мутантов без безымянного
+восстановления cohort slots), alive/wounded/dead, faction/species, health,
+injuries, inventory, equipment/condition/ammo, money, needs, hostility/memory,
+animation/action phase, timers, current task/route и resources,
 route/version, start/destination/time/speed, strength/task/seed. Route
 состоит из участков с arrival times, risk/anomaly/shelter costs. Движение
 вычисляется по времени запроса, arrival/encounter планируются при изменении
@@ -499,30 +545,54 @@ Offline поиск NPC учитывает equipment/experience/risk/task/carry c
 перемещает уже существующий ItemID WORLD→NPC атомарно. Смерть переносит
 его NPC→CORPSE, дальнейшая продажа — тот же item ledger.
 
-Ground loot: critical/valuable/normal/disposable + configurable TTL.
+Ground loot: critical/valuable/normal; gameplay items не имеют auto-cleanup TTL.
 Хранить saved support/position/rotation; при hydration trace вниз, validate
 surface/navmesh/penetration, deterministic fallback рядом. Нельзя новый
 ItemID создать из cluster одновременно с оставшимся runtime-object.
-Respawn NONE/TIME/EMISSION/EVENT/ECONOMY; рестарт никогда не является trigger.
-Tier0/quest-protected автоматически не удаляются.
+Drop сохраняет тот же ItemID/condition/ammo/stack/owner. LOD и restart не
+пересоздают и не удаляют предмет. Уничтожение только явной игровой
+операцией, расходованием или физическим уничтожением, с committed событием.
+Blood/particles/empty cosmetic casings могут иметь TTL без удаления вещей.
 
 Stash/container: ID/access policy/version/lock/owner/quest link/discovered
 players/contents seed фиксируются один раз. NPCAccessible разрешает
 событийное scavenging; PlayerOnly/QuestProtected защищают содержимое.
 Право доступа проверяется на **каждом** переносе, не только при UI-open.
 Пустой контейнер и новый backpack — одна versioned операция без duplicate.
+Содержимое не reroll-ится при open/load/restart. Изменить его может игрок
+либо редкий `NpcStashVisit`: NPC забирает часть вещей в свой inventory или
+переносит туда часть уже имеющегося лута. Это `MoveItem` с тем же ItemID,
+двойной проверкой access policy/версий NPC+stash и общей транзакцией;
+повтор EventID после crash не повторяет перенос. Нет бесплатного spawn
+лутa по таймеру и нет overwrite содержимого, пока игрок держит контейнер.
+Начальные параметры визитов — редкая проверка раз в 12–48 игровых часов,
+до 1–3 предметов, cooldown на NPC и тайник; это tuning defaults для W12,
+не реализованная сейчас частота. Online NPC должен дойти до тайника и
+выполнить действие; offline применяется тот же committed route/arrival.
+Автоматический deposit использует явный whitelist еды, воды, базовой
+медицины, материалов и небольших запасов обычных патронов. Броня и
+мощное оружие запрещены; до определения weapon tiers оружие исключено
+целиком из автоматического deposit. Запрет касается NPC refill, а не
+предметов, которые игрок сам положил в свой тайник. PlayerOnly и
+QuestProtected не становятся доступными NPC из-за перезапуска/LOD.
 
 Corpse: OriginalEntityID/death EventID/time/location/cause/inventory/decay/
 quest association. Ragdoll → static → abstract → remains/cleanup.
-Перед cleanup ценное переходит в ground cluster/скэвенджера, дешёвое
-destroyed; quest corpses отдельная policy. Важные тела/оружие сохраняются,
+Перед cleanup все нерасходованные вещи переносятся в durable ground
+cluster с прежними ItemIDs; тело удаляется отдельным событием.
+Permanent death tombstone остаётся после удаления тела, чтобы registry,
+quest logic и population не могли вернуть погибшего. Quest corpses имеют
+отсрочку удаления до разрешения task/evidence links. Тела и их состояние
+сохраняются до cleanup; оружие и остальные вещи сохраняются после него,
 кровь/гильзы — temporary cosmetics с TTL. Evidence имеет IDs от EventID;
 повтор hydration не удваивает трупы или оружие.
 
 Mutants/nests: species/count/territory/food/aggression/migration/tolerance/
-capacity/threat/last update. Убийство уменьшает durable population, восстановление
-ограничено едой/временем/capacity и не происходит на рестарте. Стая hydrate
-из тех же survivors/cohort slots, без восстанавливаемых мёртвых member IDs.
+capacity/threat/last update. Убийство навсегда уменьшает durable population;
+respawn, автоматическое размножение и replenishment отключены. Миграция
+перемещает только существующих живых EntityIDs и не создаёт замену
+погибшим. Стая hydrate из тех же survivors, со всеми wounds/tasks/resources;
+ни clock catch-up, ни emission, ни cleanup тела не возвращают dead member.
 Ecology влияет на route risk и trader supply через versioned events.
 
 Trader: money/item ledger/supply/demand/restock/faction/location. Restock
@@ -585,6 +655,15 @@ invalid samples, rollback monotonic, RTT, holdover, recovery, 64-bit uptime.
 микробенчмарк часов, **не** тест 512 игровых соединений или NPC.
 
 W2b/W3 — ClockStore/WorldStateStore/AuthorityLeaseStore и ALifeWorldAdapter.
+Выполнена локальная часть: durable WorldID/seed/epoch + exclusive file lock,
+ALife adoption, calendar/environment scale, checkpoint trailer, checksum
+manifest и fail-closed startup. `check-netcoop-alife-clock.py` исполняет
+настоящие методы time manager со stub I/O/config, проверяет restart,
+foreign/corrupt/truncated state, monotonic reads из двух потоков и OS lock
+из отдельного процесса. Это не live gameplay и не hard power-loss тест.
+Остаются remote ClockSync с asymmetric delay/loss/reorder, event-time
+highwater/journal, barrier/recovery, authenticated World Service endpoint
+и load test. W2b/W3 целиком **не закрыт** только локальным file adapter.
 Структуры/таблицы §4; BootstrapRequest/WorldStateSnapshot/ClockSync/
 WorldScaleChanged. Порядок: миграции → durable epoch → recovery → immutable
 snapshot → read-only shadow adapter → проверка time/environment/time factor

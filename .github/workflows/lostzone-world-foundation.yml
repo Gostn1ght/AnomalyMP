@@ -5,6 +5,12 @@ on:
     branches: [menu-3d-hideout]
     paths:
       - 'src/xrGame/netcoop_world_clock.h'
+      - 'src/xrGame/netcoop_world_authority.h'
+      - 'src/xrGame/netcoop_alife_clock.h'
+      - 'src/xrGame/alife_time_manager*'
+      - 'src/xrGame/alife_simulator.cpp'
+      - 'src/xrGame/game_sv_single.cpp'
+      - 'scripts/check-netcoop-alife-clock.py'
       - 'scripts/check-netcoop-world-clock.py'
       - 'src/xrGame/netcoop_world_store.inc'
       - 'scripts/check-netcoop-world-store.py'
@@ -27,6 +33,8 @@ jobs:
         run: python scripts/check-netcoop-world-clock.py
       - name: Exercise snapshot slot recovery
         run: python scripts/check-netcoop-world-store.py
+      - name: Exercise ALife integration and durable ownership
+        run: python scripts/check-netcoop-alife-clock.py
   clock-windows:
     runs-on: windows-2022
     timeout-minutes: 10
@@ -42,3 +50,5 @@ jobs:
           python scripts/check-netcoop-world-clock.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-world-store.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-netcoop-alife-clock.py

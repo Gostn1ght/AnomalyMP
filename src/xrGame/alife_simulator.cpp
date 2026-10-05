@@ -17,6 +17,7 @@
 #include "alife_object_registry.h"
 #include "../xrEngine/xr_ioconsole.h"
 #include "netcoop.h"
+#include "netcoop_world_authority.h"
 
 #ifdef DEBUG
 #	include "moving_objects.h"
@@ -54,6 +55,23 @@ CALifeSimulator::CALifeSimulator(xrServer* server, shared_str* command_line) :
 
 	typedef IGame_Persistent::params params;
 	params& p = g_pGamePersistent->m_game_params;
+	// Acquire and durably advance the local fence before loading ALife or
+	// allowing any callback to publish events. Pure clients never construct ALife.
+	if (netcoop::enabled())
+	{
+		try
+		{
+			const auto world = netcoop_world::world_option(Core.Params);
+			if (!world.empty())
+			{
+				netcoop_world::local_world_authority().open(FS.get_path("$game_saves$")->m_Path, world);
+				const auto owner = netcoop_world::local_world_authority().identity();
+				Msg("[Lost Zone][world] acquired %s, epoch %llu", world.c_str(),
+					static_cast<unsigned long long>(owner.epoch));
+			}
+		}
+		catch (const std::exception& error) { CHECK_OR_EXIT(false, error.what()); }
+	}
 	// Netcoop server with -netcoop_world: continue the saved world (doc 41, W1).
 	netcoop::world_store_choose_start(p.m_game_or_spawn, sizeof(p.m_game_or_spawn), p.m_new_or_load, sizeof(p.m_new_or_load));
 
@@ -94,6 +112,7 @@ void CALifeSimulator::destroy()
 {
 	//	validate					();
 	CALifeUpdateManager::destroy();
+	netcoop_world::local_world_authority().close();
 	VERIFY(ai().get_alife());
 	ai().set_alife(0);
 }

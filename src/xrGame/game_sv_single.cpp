@@ -228,11 +228,18 @@ ALife::_TIME_ID game_sv_Single::GetEnvironmentGameTime()
 
 float game_sv_Single::GetEnvironmentGameTimeFactor()
 {
+	if (ai().get_alife() && ai().alife().initialized() && alife().time_manager().has_world_clock())
+		return alife().time_manager().time_factor();
 	return (inherited::GetGameTimeFactor());
 }
 
 void game_sv_Single::SetEnvironmentGameTimeFactor(const float fTimeFactor)
 {
+	if (ai().get_alife() && ai().alife().initialized() && alife().time_manager().has_world_clock())
+	{
+		alife().time_manager().set_time_factor(fTimeFactor);
+		return;
+	}
 	return (inherited::SetGameTimeFactor(fTimeFactor));
 }
 

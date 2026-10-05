@@ -24,6 +24,17 @@ static const u32 world_save_period_ms = 300000;
 static bool s_world_loaded = false;
 static bool s_world_cleanup_pending = false;
 static u32 s_world_last_save = 0;
+static u32 s_world_previous_players = 0;
+static bool s_world_committed = false;
+static u32 s_world_last_attempt = 0;
+static const u32 world_save_retry_ms = 15000;
+
+struct WorldSnapshotDigest
+{
+	u64 bytes = 0;
+	u64 hash = 14695981039346656037ULL;
+	bool recorded = false;
+};
 
 static bool world_store_name(string64& out)
 {
@@ -32,7 +43,7 @@ static bool world_store_name(string64& out)
 	if (!option || !enabled() || pure_client()) return false;
 	option += xr_strlen("-netcoop_world=");
 	u32 length = 0;
-	while (option[length] && option[length] != ' ')
+	while (option[length] && option[length] != ' ' && option[length] != '\t' && option[length] != '\r' && option[length] != '\n')
 	{
 		// Reserve "_a" / "_b" and a terminator. Never silently truncate
 		// names: two different worlds must not alias the same save slots.
@@ -53,34 +64,80 @@ static void world_store_pointer_path(LPCSTR world, string_path& path)
 	FS.update_path(path, "$game_saves$", file);
 }
 
-static bool world_store_read_pointer(LPCSTR world, string64& save)
+static bool world_store_read_pointer(LPCSTR world, string64& save, WorldSnapshotDigest* digest = nullptr)
 {
 	save[0] = 0;
 	string_path path;
 	world_store_pointer_path(world, path);
 	FILE* f = fopen(path, "rb");
 	if (!f) return false;
-	const size_t read = fread(save, 1, sizeof(save) - 1, f);
-	fclose(f);
-	save[read] = 0;
-	for (size_t i = 0; i < read; ++i)
-		if (save[i] == '\r' || save[i] == '\n') { save[i] = 0; break; }
+	char content[256] = {};
+	const size_t read = fread(content, 1, sizeof(content) - 1, f);
+	const bool complete = fgetc(f) == EOF && !ferror(f);
+	const bool closed = fclose(f) == 0;
+	if (!complete || !closed || !read || memchr(content, 0, read)) return false;
+	const char* newline = strchr(content, '\n');
+	const size_t first_line = newline ? size_t(newline - content) : read;
+	if (first_line >= sizeof(save)) return false;
+	memcpy(save, content, first_line);
+	save[first_line] = 0;
+	if (first_line && save[first_line - 1] == '\r') save[first_line - 1] = 0;
+	if (strchr(save, '\r')) return false;
 	// Only this world's two slots are valid: a damaged pointer must never
 	// select another world or an arbitrary save path.
 	string64 slot_a, slot_b;
 	xr_sprintf(slot_a, "%s_a", world);
 	xr_sprintf(slot_b, "%s_b", world);
-	return xr_strcmp(save, slot_a) == 0 || xr_strcmp(save, slot_b) == 0;
+	if (xr_strcmp(save, slot_a) != 0 && xr_strcmp(save, slot_b) != 0) return false;
+	WorldSnapshotDigest parsed;
+	if (newline && newline[1])
+	{
+		unsigned long long bytes = 0, hash = 0;
+		char line_end = 0, extra = 0;
+		if (sscanf(newline + 1, "LZW2 %llu %llx%c%c", &bytes, &hash, &line_end, &extra) != 3 ||
+			!bytes || line_end != '\n') return false;
+		parsed.bytes = bytes; parsed.hash = hash; parsed.recorded = true;
+	}
+	if (digest) *digest = parsed;
+	return true;
+}
+
+static bool world_store_snapshot_digest(LPCSTR save, WorldSnapshotDigest& digest, bool flush)
+{
+	string128 file;
+	xr_sprintf(file, "%s%s", save, SAVE_EXTENSION);
+	string_path path;
+	FS.update_path(path, "$game_saves$", file);
+	FILE* f = fopen(path, flush ? "rb+" : "rb");
+	if (!f) return false;
+	digest = {};
+	unsigned char buffer[65536];
+	size_t read;
+	while ((read = fread(buffer, 1, sizeof(buffer), f)) != 0)
+	{
+		digest.bytes += read;
+		for (size_t i = 0; i < read; ++i) { digest.hash ^= buffer[i]; digest.hash *= 1099511628211ULL; }
+	}
+	const bool checked = !ferror(f) && digest.bytes > 0 &&
+		(!flush || _commit(_fileno(f)) == 0);
+	const bool closed = fclose(f) == 0;
+	digest.recorded = checked && closed;
+	return digest.recorded;
 }
 
 static bool world_store_write_pointer(LPCSTR world, LPCSTR save)
 {
 	string_path path, temp;
 	world_store_pointer_path(world, path);
+	WorldSnapshotDigest digest;
+	if (!world_store_snapshot_digest(save, digest, true)) return false;
 	xr_sprintf(temp, "%s.tmp", path);
 	FILE* f = fopen(temp, "wb");
 	if (!f) return false;
-	const bool written = fwrite(save, 1, xr_strlen(save), f) == xr_strlen(save) && fflush(f) == 0 && _commit(_fileno(f)) == 0;
+	string256 manifest;
+	xr_sprintf(manifest, "%s\nLZW2 %llu %llx\n", save,
+		static_cast<unsigned long long>(digest.bytes), static_cast<unsigned long long>(digest.hash));
+	const bool written = fwrite(manifest, 1, xr_strlen(manifest), f) == xr_strlen(manifest) && fflush(f) == 0 && _commit(_fileno(f)) == 0;
 	const bool closed = fclose(f) == 0;
 	return written && closed && MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
 }
@@ -90,8 +147,21 @@ bool world_store_choose_start(LPSTR game_or_spawn, u32 game_size, LPSTR new_or_l
 {
 	string64 world, save;
 	if (!world_store_name(world)) return false;
-	if (!world_store_read_pointer(world, save))
+	s_world_loaded = false;
+	s_world_cleanup_pending = false;
+	s_world_last_save = s_world_previous_players = 0;
+	s_world_committed = false;
+	s_world_last_attempt = 0;
+	WorldSnapshotDigest expected;
+	if (!world_store_read_pointer(world, save, &expected))
 	{
+		string_path path;
+		world_store_pointer_path(world, path);
+		string128 a, b;
+		xr_sprintf(a, "%s_a%s", world, SAVE_EXTENSION);
+		xr_sprintf(b, "%s_b%s", world, SAVE_EXTENSION);
+		CHECK_OR_EXIT(!FS.exist(path) && !FS.exist("$game_saves$", a) && !FS.exist("$game_saves$", b),
+			"Persistent world pointer is missing/corrupt; recovery required. Refusing to create a new world.");
 		Msg("[NetAnomaly][world] '%s': no saved world yet, starting a new one", world);
 		return false;
 	}
@@ -99,12 +169,20 @@ bool world_store_choose_start(LPSTR game_or_spawn, u32 game_size, LPSTR new_or_l
 	xr_sprintf(file, "%s%s", save, SAVE_EXTENSION);
 	if (!FS.exist("$game_saves$", file))
 	{
-		Msg("! [NetAnomaly][world] '%s': saved world %s is missing, starting a new one", world, file);
-		return false;
+		CHECK_OR_EXIT(false, "Committed world snapshot is missing; recovery required");
 	}
+	if (expected.recorded)
+	{
+		WorldSnapshotDigest actual;
+		CHECK_OR_EXIT(world_store_snapshot_digest(save, actual, false) &&
+			actual.bytes == expected.bytes && actual.hash == expected.hash,
+			"Committed world snapshot checksum mismatch; recovery required");
+	}
+	else Msg("[NetAnomaly][world] '%s': legacy snapshot has no checksum; next commit upgrades it", world);
 	xr_strcpy(game_or_spawn, game_size, save);
 	xr_strcpy(new_or_load, mode_size, "load");
 	s_world_loaded = true;
+	s_world_committed = true;
 	s_world_cleanup_pending = true;
 	Msg("[NetAnomaly][world] '%s': loading saved world %s", world, save);
 	return true;
@@ -137,12 +215,24 @@ bool world_store_save_now(LPCSTR reason)
 {
 	string64 world;
 	if (!world_store_name(world) || !ai().get_alife() || !g_pGameLevel) return false;
+	s_world_last_attempt = real_time_ms();
 	string64 save, previous, slot_a;
 	xr_sprintf(slot_a, "%s_a", world);
 	// Derive the next slot from the committed pointer, not a process-local
 	// counter reset by restart. Never overwrite the last committed snapshot,
 	// including after a failed save or a failed pointer replacement.
-	const bool current_a = world_store_read_pointer(world, previous) && xr_strcmp(previous, slot_a) == 0;
+	const bool has_pointer = world_store_read_pointer(world, previous);
+	if (!has_pointer)
+	{
+		string_path path;
+		world_store_pointer_path(world, path);
+		if (s_world_committed || FS.exist(path))
+		{
+			Msg("! [NetAnomaly][world] refusing save: committed pointer is corrupt/inaccessible");
+			return false;
+		}
+	}
+	const bool current_a = has_pointer && xr_strcmp(previous, slot_a) == 0;
 	xr_sprintf(save, "%s_%c", world, current_a ? 'b' : 'a');
 	CTimer timer;
 	timer.Start();
@@ -157,12 +247,13 @@ bool world_store_save_now(LPCSTR reason)
 		Msg("! [NetAnomaly][world] saving %s failed (%s)", save, reason);
 		return false;
 	}
-	s_world_last_save = real_time_ms();
 	if (!world_store_write_pointer(world, save))
 	{
 		Msg("! [NetAnomaly][world] saved %s but could not point %s.current to it", save, world);
 		return false;
 	}
+	s_world_last_save = real_time_ms();
+	s_world_committed = true;
 	Msg("[NetAnomaly][world] saved %s (%s) in %u ms", save, reason, timer.GetElapsed_ms());
 	return true;
 }
@@ -182,10 +273,10 @@ static void world_store_update(xrServer* server)
 		}
 	} counter = {server, 0};
 	server->ForEachClientDo(counter);
-	static u32 previous_players = 0;
 	const u32 now = real_time_ms();
 	if (!s_world_last_save) s_world_last_save = now;
-	if (counter.count == 0 && previous_players > 0) world_store_save_now("last player left");
-	else if (now - s_world_last_save >= world_save_period_ms) world_store_save_now("periodic");
-	previous_players = counter.count;
+	if (counter.count == 0 && s_world_previous_players > 0) world_store_save_now("last player left");
+	else if (now - s_world_last_save >= world_save_period_ms &&
+		now - s_world_last_attempt >= world_save_retry_ms) world_store_save_now("periodic");
+	s_world_previous_players = counter.count;
 }

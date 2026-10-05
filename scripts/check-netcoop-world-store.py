@@ -19,6 +19,8 @@ source = r'''
 #include <fstream>
 #include <stdexcept>
 #include <iostream>
+#include <cstdint>
+#define CHECK_OR_EXIT(condition, message) do { if(!(condition)) throw std::runtime_error(message); } while(false)
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
@@ -40,8 +42,8 @@ bool checked_move(const char* from,const char* to,unsigned long flags) {
 #endif
 }
 #define MoveFileExA checked_move
-using u32=unsigned int; using LPCSTR=const char*;using LPSTR=char*;
-using string64=char[64];using string128=char[128];using string_path=char[260];
+using u32=unsigned int; using u64=std::uint64_t; using LPCSTR=const char*;using LPSTR=char*;
+using string64=char[64];using string128=char[128];using string256=char[256];using string_path=char[260];
 const char* SAVE_EXTENSION=".sav";
 template <size_t N> void xr_sprintf(char (&s)[N],const char* f,...) {
  va_list args;va_start(args,f);
@@ -57,6 +59,7 @@ struct {const char* Params="-netcoop -netcoop_world=zone";} Core;
 struct Files {
  void update_path(char* out,const char*,const char* file) {std::snprintf(out,260,"%s",file);}
  bool exist(const char*,const char* file) {return bool(std::ifstream(file));}
+ bool exist(const char* file) {return bool(std::ifstream(file));}
 } FS;
 bool fail_save=false;int revision=0;std::string last_slot;
 struct CALifeSimulator {
@@ -80,14 +83,17 @@ source += store[store.index("bool world_store_choose_start"):store.index("// Liv
 source += store[store.index("bool world_store_save_now"):store.index("// Every server_update")]
 source += r'''
 std::string contents(const char* file) {std::string s;std::ifstream(file)>>s;return s;}
+template<class F> void rejects(F f) {bool failed=false;try{f();}catch(const std::exception&){failed=true;}assert(failed);}
 int main() {
  assert(world_save_period_ms==300000);
+ assert(world_save_retry_ms==15000);
+ string64 load,mode;
+ assert(!world_store_choose_start(load,64,mode,64)); // genuinely new world
  revision=1; assert(world_store_save_now("first"));
  assert(contents("zone.current")=="zone_a" && contents("zone_a.sav")=="1");
  revision=2; assert(world_store_save_now("second"));
  assert(contents("zone.current")=="zone_b" && contents("zone_b.sav")=="2");
  // Restart selection reads the committed pointer, not a new counter at zero.
- string64 load,mode;
  assert(world_store_choose_start(load,64,mode,64));
  assert(std::string(load)=="zone_b" && std::string(mode)=="load");
  assert(s_world_loaded && s_world_cleanup_pending);
@@ -101,16 +107,39 @@ int main() {
  revision=5;fail_pointer=false;assert(world_store_save_now("retry pointer"));
  assert(last_slot=="zone_b" && contents("zone_b.sav")=="5");
  assert(contents("zone_a.sav")=="3");
+ // New manifests detect byte corruption, truncation and missing snapshots.
+ WorldSnapshotDigest digest;
+ assert(world_store_read_pointer("zone",load,&digest) && digest.recorded && digest.bytes==1);
+ std::ofstream("zone_b.sav")<<"6"; // same size, different bytes
+ rejects([&]{world_store_choose_start(load,64,mode,64);});
+ std::ofstream("zone_b.sav")<<"";
+ rejects([&]{world_store_choose_start(load,64,mode,64);});
+ std::remove("zone_b.sav");
+ rejects([&]{world_store_choose_start(load,64,mode,64);});
+ std::ofstream("zone_b.sav")<<"5";
+ assert(world_store_choose_start(load,64,mode,64));
+ std::remove("zone.current");
+ assert(!world_store_save_now("lost committed pointer"));
+ rejects([&]{world_store_choose_start(load,64,mode,64);});
  std::ofstream("zone.current")<<"foreign_a";
  assert(!world_store_read_pointer("zone",load));
+ rejects([&]{world_store_choose_start(load,64,mode,64);});
+ assert(!world_store_save_now("corrupt pointer"));
  std::ofstream("zone.current")<<"../other_world";
+ assert(!world_store_read_pointer("zone",load));
+ std::ofstream("zone.current")<<"zone_b\nLZW2 1 123\ntrailing";
+ assert(!world_store_read_pointer("zone",load));
+ std::ofstream("zone.current")<<"zone_b\rgarbage";
  assert(!world_store_read_pointer("zone",load));
  std::ofstream("zone.current")<<"zone_b\n";
  assert(world_store_read_pointer("zone",load));
+ assert(world_store_choose_start(load,64,mode,64)); // explicit legacy migration
+ assert(world_store_save_now("upgrade legacy"));
+ assert(world_store_read_pointer("zone",load,&digest) && digest.recorded);
  Core.Params="-netcoop_world=../escape";assert(!world_store_name(load));
  Core.Params="-netcoop_world=abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnop";
  assert(!world_store_name(load));
- std::cout<<"PASS: actual W1 save slot/pointer code; restart, interrupted save, failed manifest replacement, retry, foreign/corrupt pointer\n";
+ std::cout<<"PASS: actual W1 save code; restart, interrupted save, manifest failure, checksum corruption/truncation, missing snapshot/pointer, legacy upgrade, fail-closed recovery\n";
 }
 '''
 with TemporaryDirectory(prefix="world-store-") as tmp:

@@ -10,6 +10,8 @@
 
 #include "object_interfaces.h"
 #include "alife_space.h"
+#include "netcoop_alife_clock.h"
+#include <memory>
 
 class CALifeTimeManager
 {
@@ -21,6 +23,7 @@ private:
 
 private:
 	ALife::_TIME_ID m_start_game_time;
+	std::unique_ptr<netcoop_world::ALifeWorldClock> m_world_clock;
 
 public:
 	CALifeTimeManager(LPCSTR section);
@@ -28,12 +31,13 @@ public:
 	virtual void save(IWriter& memory_stream);
 	virtual void load(IReader& file_stream);
 	void init(LPCSTR section);
-	IC void set_time_factor(float time_factor);
+	void set_time_factor(float time_factor);
 	IC ALife::_TIME_ID start_game_time() const;
-	IC ALife::_TIME_ID game_time() const;
-	IC float time_factor() const;
+	ALife::_TIME_ID game_time() const;
+	float time_factor() const;
 	IC float normal_time_factor() const;
-	IC void change_game_time(u32 value);
+	void change_game_time(u32 value);
+	bool has_world_clock() const { return bool(m_world_clock); }
 };
 
 #include "alife_time_manager_inline.h"

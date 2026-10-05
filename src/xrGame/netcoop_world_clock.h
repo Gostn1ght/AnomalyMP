@@ -81,6 +81,8 @@ public:
         return state_;
     }
 
+    double scale() const { return state_.time_scale; }
+
 private:
     void rebase(std::uint64_t mono_ms)
     {
@@ -245,6 +247,14 @@ public:
     WorldStateSnapshot snapshot(std::uint64_t mono_ms) override
     {
         return {1, seed_, revision_, clock_.publish(mono_ms)};
+    }
+    double now(std::uint64_t mono_ms) const { return clock_.now(mono_ms); }
+    double scale() const { return clock_.scale(); }
+    void set_scale(double scale, std::uint64_t mono_ms)
+    {
+        if (revision_ == UINT64_MAX) throw std::overflow_error("world revision exhausted");
+        clock_.set_scale(scale, mono_ms);
+        ++revision_;
     }
 private:
     WorldClock clock_;
