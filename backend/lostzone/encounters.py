@@ -18,6 +18,8 @@ from .store import Conflict, Invalid, Unavailable, canonical, finite, identifier
 
 class Encounters:
     def __init__(self, world, offline, catalog):
+        if offline.world is not world or offline.scheduler.world is not world:
+            raise Conflict("combat representation belongs to another world authority")
         self.world,self.store,self.offline,self.catalog = world,world.store,offline,catalog
         offline.scheduler.handlers["OfflineCombat"] = self.resolve
         world.plan_validators["OfflineCombat"] = self.capture_valid

@@ -18,6 +18,8 @@ from .store import Conflict, Invalid, Unavailable, canonical, finite, identifier
 
 class Hazards:
     def __init__(self, world, offline, catalog):
+        if offline.world is not world or offline.scheduler.world is not world:
+            raise Conflict("hazard representation belongs to another world authority")
         self.world,self.store,self.offline,self.catalog = world,world.store,offline,catalog
         offline.scheduler.handlers["OfflineHazard"] = self.resolve
         world.plan_validators["OfflineHazard"] = self.capture_valid

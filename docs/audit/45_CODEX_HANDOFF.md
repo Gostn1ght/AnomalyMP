@@ -348,3 +348,8 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   trusted smaller budget, old snapshots/journal preserved on refusal.
   Exact-boundary/Unicode and guarded early-read tests, full local 146 PASS.
   No total-RSS claim; no native checkpoint change.
+
+- d68758147 backend 37384735948 SUCCESS Windows+Linux (146).
+  Offline/combat/hazard/scavenging constructors now reject foreign World or
+  Scheduler before changing handlers. Two real-DB composition refusal tests;
+  full local 148 PASS. Not distributed native world fencing.

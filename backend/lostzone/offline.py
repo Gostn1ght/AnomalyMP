@@ -35,6 +35,8 @@ def route_position(points, progress):
 
 class Offline:
     def __init__(self, world, scheduler):
+        if scheduler.world is not world:
+            raise Conflict("offline scheduler belongs to another world authority")
         self.world, self.store, self.scheduler = world, world.store, scheduler
         self.ownership = Ownership(world)
         scheduler.handlers["RouteArrived"] = self.arrived

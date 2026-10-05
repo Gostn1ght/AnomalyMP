@@ -47,6 +47,43 @@ class OfflineTest(unittest.TestCase):
         return self.offline.dehydrate("a", uid(), self.npc, "cordon", self.fence, row["version"],
                                       {self.npc: {"version": row["version"], "state": json.loads(row["state"])}})
 
+    def test_foreign_world_scheduler_is_refused_without_overwriting_handlers(self):
+        other = Store(Path(self.folder.name)/"foreign.db")
+        try:
+            foreign = World(other,world_id=99)
+            scheduler = Scheduler(foreign)
+            handlers = dict(scheduler.handlers)
+            with self.assertRaises(Conflict):
+                Offline(self.world,scheduler)
+            self.assertEqual(scheduler.handlers,handlers)
+            self.assertEqual(len(self.world.scale_handlers),1)
+            self.assertEqual(other.db.execute("SELECT COUNT(*) FROM scheduled_event").fetchone()[0],0)
+        finally:
+            other.close()
+
+    def test_foreign_offline_representation_cannot_register_combat_hazards_or_loot(self):
+        from lostzone.economy import Catalog
+        from lostzone.encounters import Encounters
+        from lostzone.hazards import Hazards
+        from lostzone.scavenging import Scavenging
+        other = Store(Path(self.folder.name)/"foreign.db")
+        try:
+            foreign = World(other,world_id=99)
+            scheduler = Scheduler(foreign)
+            offline = Offline(foreign,scheduler)
+            handlers = dict(scheduler.handlers)
+            for service in (Encounters,Hazards,Scavenging):
+                with self.subTest(service=service.__name__):
+                    with self.assertRaises(Conflict):
+                        service(self.world,offline,Catalog({}))
+            self.assertEqual(scheduler.handlers,handlers)
+            self.assertEqual(self.world.plan_validators,{})
+            self.assertEqual(foreign.plan_validators,{})
+            self.assertEqual(other.db.execute("SELECT COUNT(*) FROM entity").fetchone()[0],0)
+            self.assertEqual(self.row()["alive"],1)
+        finally:
+            other.close()
+
     def test_analytic_movement_hydrates_midroute_without_losing_state(self):
         self.dehydrate()
         route = self.offline.start_route("admin", uid(), self.npc, 2, [[0,0,0], [100,0,0], [100,0,100]], 2, 42)

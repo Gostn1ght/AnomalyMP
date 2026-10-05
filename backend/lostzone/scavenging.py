@@ -9,6 +9,8 @@ from .store import Conflict, Invalid, canonical, finite, persistent_id, positive
 
 class Scavenging:
     def __init__(self, world, offline, catalog, rules=None):
+        if offline.world is not world or offline.scheduler.world is not world:
+            raise Conflict("scavenging representation belongs to another world authority")
         self.world, self.store, self.offline, self.catalog = world, world.store, offline, catalog
         rules = {} if rules is None else rules
         if not isinstance(rules, dict):

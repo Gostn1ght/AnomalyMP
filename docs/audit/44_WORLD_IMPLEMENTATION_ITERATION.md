@@ -684,3 +684,14 @@ Native paired-checkpoint format and recovery are unchanged.
 970ef6658 Foundation 37384373144 SUCCESS GCC/MSVC: actual failed-logout
 backoff/wrap/coalescing and synchronous Windows write/fsync/rename cleanup
 tests pass. DX11 checks succeeded; full engine package is still compiling.
+
+## Reject foreign World/Scheduler representations before handler registration
+
+Offline, Encounters, Hazards and Scavenging now require their scheduler and
+offline representation to belong to the exact same World. Previously a mixed
+constructor could overwrite the other world's handlers and schedule events in
+a database that its runner never reads. Two actual-database tests prove refusal
+before handler/validator/scale-hook changes and without entity/event mutation.
+Full local backend **148 tests PASS**. d68758147 backend 37384735948 SUCCESS
+Windows+Linux (146); new checks pending. This is an in-process composition
+boundary, not distributed native WorldID/fencing adoption.
