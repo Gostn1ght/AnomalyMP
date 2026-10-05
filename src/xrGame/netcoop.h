@@ -271,10 +271,12 @@ LPCSTR script_players();
 // the cluster; empty without netcoop_cluster.ltx.
 LPCSTR script_cluster_maps();
 // Lua (server): NPC transit records (netcoop_transit.script) for a map's
-// server. put writes one record atomically; take claims and removes the
-// oldest record for that map ("" when there is none).
-bool script_transit_put(LPCSTR level, LPCSTR content);
+// server. Publish only after the source checkpoint. Reads are nondestructive;
+// acknowledge only after the target checkpoint includes its durable receipt.
+LPCSTR script_transit_id();
+bool script_transit_put(LPCSTR level, LPCSTR id, LPCSTR content);
 LPCSTR script_transit_take(LPCSTR level);
+bool script_transit_ack(LPCSTR level, LPCSTR id);
 // Server: may this player's account use the box/placed object (owner and access
 // list kept by netcoop_server_compat.can_access); true for anything unowned.
 bool server_object_access(u16 object_id, xrClientData* CL);

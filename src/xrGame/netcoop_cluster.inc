@@ -286,60 +286,7 @@ static bool cluster_name_valid(LPCSTR name)
 	return true;
 }
 
-static void cluster_transit_dir(string_path& path)
-{
-	string_path dir; cluster_dir(dir);
-	xr_sprintf(path, "%stransit\\", dir);
-	CreateDirectoryA(path, nullptr);
-}
-
-bool script_transit_put(LPCSTR level, LPCSTR content)
-{
-	if (!enabled() || !cluster_name_valid(level) || !content || xr_strlen(content) > 262144) return false;
-	u8 nonce[8];
-	if (!random_bytes(nonce, sizeof(nonce))) return false;
-	string_path dir, path, temp;
-	cluster_transit_dir(dir);
-	xr_sprintf(path, "%s%s_%016llx_%s.lua", dir, level, cluster_unix_ms(), to_hex(nonce, sizeof(nonce)).c_str());
-	xr_sprintf(temp, "%s.tmp", path);
-	FILE* f = fopen(temp, "wb");
-	if (!f) return false;
-	const size_t size = xr_strlen(content);
-	const bool ok = fwrite(content, 1, size, f) == size && fflush(f) == 0 && _commit(_fileno(f)) == 0;
-	if (fclose(f) != 0 || !ok || !MoveFileExA(temp, path, MOVEFILE_WRITE_THROUGH)) { DeleteFileA(temp); return false; }
-	return true;
-}
-
-LPCSTR script_transit_take(LPCSTR level)
-{
-	static xr_string content;
-	content.clear();
-	if (!enabled() || !cluster_name_valid(level)) return "";
-	string_path dir, mask;
-	cluster_transit_dir(dir);
-	xr_sprintf(mask, "%s%s_*.lua", dir, level);
-	WIN32_FIND_DATAA found;
-	HANDLE search = FindFirstFileA(mask, &found);
-	if (search == INVALID_HANDLE_VALUE) return "";
-	xr_string oldest = found.cFileName;
-	while (FindNextFileA(search, &found))
-		if (xr_strcmp(found.cFileName, oldest.c_str()) < 0) oldest = found.cFileName; // names sort by time
-	FindClose(search);
-	// Renaming claims the record: only one process can win it.
-	string_path path, claimed;
-	xr_sprintf(path, "%s%s", dir, oldest.c_str());
-	xr_sprintf(claimed, "%s.%u.claimed", path, GetCurrentProcessId());
-	if (!MoveFileExA(path, claimed, 0)) return "";
-	if (FILE* f = fopen(claimed, "rb"))
-	{
-		char buffer[4096];
-		size_t n;
-		while ((n = fread(buffer, 1, sizeof(buffer), f)) > 0 && content.size() < 262144) content.append(buffer, n);
-		fclose(f);
-	}
-	DeleteFileA(claimed);
-	return content.c_str();
-}
+#include "netcoop_transit_queue.inc"
 
 // ---- server: login and leaving ---------------------------------------------
 
@@ -455,6 +402,11 @@ static bool cluster_move(xrServer* server, xrClientData* CL, CLevelChanger* chan
 	if (s_character_restore.find(actor_id) != s_character_restore.end())
 		return cluster_refuse(server, CL, "the character is still loading"), false;
 
+	// Prepare the ticket before changing the authoritative character file.
+	// A ticket write failure must leave the player and saved destination here.
+	if (!cluster_ticket_write(CL->netcoop_login.c_str(), CL->netcoop_character_slot, level))
+		return cluster_refuse(server, CL, "the transfer ticket could not be saved"), false;
+
 	// The frozen player sends nothing more that the server would apply.
 	ClusterLeaving& leaving = s_cluster_leaving[CL->ID.value()];
 	leaving.actor = actor_id; leaving.since = real_time_ms(); leaving.level = level;
@@ -465,13 +417,14 @@ static bool cluster_move(xrServer* server, xrClientData* CL, CLevelChanger* chan
 	destination.position = changer->next_position(); destination.angles = changer->next_angles();
 	if (!character_save_actor(actor_id, &destination))
 	{
+		string_path ticket;
+		cluster_file("ticket", CL->netcoop_login.c_str(), CL->netcoop_character_slot, ticket);
+		DeleteFileA(ticket); // prepared ticket has no committed destination
 		s_cluster_leaving.erase(CL->ID.value());
 		return cluster_refuse(server, CL, "the character could not be saved"), false;
 	}
 	// From here on this server never saves the character again.
 	s_actor_character.erase(actor_id);
-	if (!cluster_ticket_write(CL->netcoop_login.c_str(), CL->netcoop_character_slot, level))
-		Msg("! [Lost Zone][cluster] ticket for %s not written; arrival is not audited", CL->netcoop_login.c_str());
 	cluster_lease_release(CL->netcoop_login.c_str());
 	string256 data;
 	xr_sprintf(data, "%s|%u|%s", host.c_str(), port, level);

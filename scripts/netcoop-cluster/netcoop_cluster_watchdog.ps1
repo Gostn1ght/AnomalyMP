@@ -17,7 +17,7 @@ function Start-Location($s) {
         "-netport $($s.Port) -netcoop_start_location=$($s.Start) -netcoop_world=$($s.World) " +
         "-start `"server(all/single/alife/new/portsv=$($s.Port)/maxplayers=16)`" " +
         "`"client(localhost/name=serverauthority/port=$($s.Port)/portcl=$($s.Port + 1))`""
-    $p = Start-Process -FilePath $exe -ArgumentList $arguments -WorkingDirectory $Runtime -PassThru
+    $p = Start-Process -FilePath $exe -ArgumentList $arguments -WorkingDirectory $Runtime -WindowStyle Hidden -PassThru
     Write-Host ("{0:HH:mm:ss} started {1} (port {2}, pid {3})" -f (Get-Date), $s.Name, $s.Port, $p.Id)
     return $p
 }

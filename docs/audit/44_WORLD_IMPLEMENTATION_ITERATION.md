@@ -169,3 +169,52 @@ key). Fixture использует явные u16 keys; production adapter не 
    ecology без population regrowth, trade/supply routes и evidence playback.
 6. Настоящие restart/crash/transfer/AOI churn и многопользовательские тесты;
    измерения нагрузки вместо переноса цифр из microbenchmark.
+
+## Продолжение 2026-10-05: исправления аварийного перехода
+
+Полный DX11 на `95a4f2c9f` успешно собран в
+[GitHub Actions](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37362306316).
+Это подтверждает сборку предыдущего состояния; новые изменения ниже проходят
+отдельную проверку, в установленную игру ещё не перенесены.
+
+В NPC transit обнаружены реальные нарушения сохранности: target удалял запись
+до восстановления; source публиковал её до удаления/сохранения отряда;
+отсутствующая секция предмета молча пропускалась. Исправленный адаптер:
+
+- сохраняет retired source и durable outbox в одной паре ALife/Lua snapshots;
+- публикует под неизменным случайным 128-bit transfer ID после source checkpoint;
+- читает mailbox без удаления; target сохраняет весь приём с inbox receipt до ack;
+- ack атомарно переводит запись в tombstone; saved outbox retry не публикует её снова;
+- переносит полный поддерживаемый stalker/item STATE и `se_object/game_object`
+  Lua state, сохраняя отдельный persistent ID при смене временного native u16 ID;
+- отсутствующий предмет/вход, userdata/cyclic/unmapped mod state удерживают передачу;
+- заменяет исполняемый `loadstring` на ограниченный data-only parser;
+- исправляет squad packet: текущая GAMMA пишет пять строк до save marker,
+  старый utils_stpk squad helper понимал четыре.
+
+Локальный actual Lua fixture: source save failure/restart, durable source +
+publish failure/restart, target save failure/retry/restart, target commit +
+ack failure/restart, missing section/entrance, partial spawn rollback, partial
+source release, unsupported mod state, persistent identity/state, malicious
+wire/depth/size/duplicate-key rejection. Native Windows mailbox и actual player
+cluster_move fault fixtures выполняются только в Actions.
+
+**H09/H10 всё ещё частичны.** Каждый location server пока загружает ALife
+registry всей Зоны (H11), а глобальная engine/backend ownership mapping ещё
+не подключена. Поэтому автоматический NPC transit по умолчанию выключен;
+исправленный адаптер допускается только с явным `-netcoop_npc_transit` в
+изолированной проверке. Обычный cluster soak флаг это не включает.
+Это предотвращает появление копий начальной foreign population. Также ещё
+нужны общий fencing/mutation barrier, remapping произвольных ссылок модов,
+наблюдаемый маршрут, permanent-death ownership и проверка на настоящих exe.
+Не заявлены cross-host transport, глобальный ItemLedger или приёмка H12.
+Mailbox tombstones и inbox receipts сохраняются без TTL; их безопасная
+компактификация после согласованного checkpoint ещё впереди.
+Старые `.lua/.claimed` записи прежнего адаптера не удаляются/не импортируются
+автоматически: нужно установить, были ли их NPC уже восстановлены.
+
+Player handoff больше не продолжает переход при ошибке записи ticket:
+ticket готовится до изменения character destination; ошибка character save
+отменяет prepare и возвращает source; lease release/redirect идут только
+после успешного сохранения. Это не полноценная распределённая 2PC-приёмка.
+Watchdog запускает служебные процессы с скрытым окном.

@@ -1,16 +1,10 @@
 ----------------------------------------------------------------------
 -- NPC squads walk between the maps of the location cluster (doc 43 H09/H10)
 ----------------------------------------------------------------------
--- Now and then a stalker squad nobody watches leaves its map through a level
--- changer that leads to another map of the cluster. The same people arrive
--- there: name, profile, faction, rank, reputation, health, money and every
--- item they carry, at the changer that leads back. Nobody is created from
--- nothing and nobody is lost: the record is written before the squad is
--- released, and the target server claims each record once
--- (netcoop_transit_put / netcoop_transit_take in netcoop_cluster.inc).
--- Story squads, companions, squads on a scripted target and squads in sight
--- of a player never leave. The location server keeps its population:
--- arrivals from the other side balance departures.
+-- Offline, unobserved non-story stalker squads move through cluster exits.
+-- Source retirement and an outbox share a world checkpoint. Target restore
+-- and an inbox receipt share another. The mailbox retains records until ack.
+-- Unsupported mod state holds the squad rather than silently losing data.
 local TRANSIT = {
 	check_ms = 600000, -- real time between looks for a departing squad
 	chance = 0.3,
@@ -22,39 +16,136 @@ if command_line and string.find(command_line(), "-netcoop_cluster_selftest", 1, 
 	TRANSIT.check_ms, TRANSIT.chance = 60000, 1
 end
 local next_departure, next_arrival = 0, 0
+local function transit_enabled()
+    -- Each server still loads a whole-Zone ALife registry (H11). Until the
+    -- shared persistent-identity/ownership adapter scopes that bootstrap,
+    -- automatic migration would duplicate the initial foreign population.
+    -- Keep the corrected adapter available for explicit isolated tests.
+    return command_line and string.find(command_line(), "-netcoop_npc_transit", 1, true) ~= nil
+end
 
--- Identity carried over; everything about place, squad and smart terrain
--- comes from the new object.
-local IDENTITY = {
-	"money", "specific_character", "trader_flags", "character_profile", "community_index", "rank",
-	"reputation", "character_name", "dead_body_can_take", "dead_body_closed", "equipment_preferences",
-	"weapon_preferences", "health", "visual_name", "visual_flags",
-}
--- Fields of an item's state that belong to the place, not to the item.
-local PLACE = { "game_vertex_id", "distance", "direct_control", "level_vertex_id", "story_id", "spawn_story_id" }
-
-local function serialize(value, depth)
-	depth = depth or 0
-	local kind = type(value)
-	if kind == "number" then return string.format("%.17g", value) end
-	if kind == "string" then return string.format("%q", value) end
-	if kind == "boolean" then return value and "true" or "false" end
-	if kind ~= "table" or depth > 8 then return "nil" end
-	local parts = {}
-	for k, v in pairs(value) do
-		local key = type(k) == "number" and ("[" .. string.format("%.17g", k) .. "]") or ("[" .. string.format("%q", tostring(k)) .. "]")
-		parts[#parts + 1] = key .. "=" .. serialize(v, depth + 1)
-	end
-	return "{" .. table.concat(parts, ",") .. "}"
+-- Bounded data wire format. It never compiles/executes mailbox contents.
+-- Tables have a count; strings have a byte length (including Cyrillic).
+local MAX_BYTES, MAX_NODES, MAX_DEPTH = 262144, 8192, 16
+local function finite(n) return n == n and n ~= math.huge and n ~= -math.huge end
+function serialize(value)
+    local seen, nodes, bytes, parts = {}, 0, 0, {}
+    local function emit(text)
+        bytes = bytes + #text
+        assert(bytes <= MAX_BYTES, "transfer too large")
+        parts[#parts + 1] = text
+    end
+    local function write(v, depth)
+        nodes = nodes + 1
+        assert(nodes <= MAX_NODES and depth <= MAX_DEPTH, "transfer too complex")
+        local kind = type(v)
+        if kind == "boolean" then emit(v and "B1" or "B0")
+        elseif kind == "number" then
+            assert(finite(v), "non-finite number")
+            emit("N" .. string.format("%.17g", v) .. ";")
+        elseif kind == "string" then
+            assert(not string.find(v, "\0", 1, true), "embedded NUL")
+            emit("S" .. #v .. ":" .. v)
+        elseif kind == "table" then
+            assert(not seen[v] and not getmetatable(v), "cyclic/metatable state")
+            seen[v] = true
+            local keys = {}
+            for k in pairs(v) do
+                assert(type(k) == "string" or (type(k) == "number" and finite(k) and k == math.floor(k)), "invalid key")
+                keys[#keys + 1] = k
+            end
+            table.sort(keys, function(a, b) if type(a) ~= type(b) then return type(a) < type(b) end return a < b end)
+            emit("T" .. #keys .. ":")
+            for _, k in ipairs(keys) do write(k, depth + 1); write(v[k], depth + 1) end
+            seen[v] = nil
+        else error("unsupported state: " .. kind) end
+    end
+    local ok, err = pcall(write, value, 0)
+    if not ok then return nil, err end
+    return table.concat(parts)
 end
 
 function deserialize(text)
-	if type(text) ~= "string" or text == "" then return nil end
-	local chunk = loadstring("return " .. text)
-	if not chunk then return nil end
-	setfenv(chunk, {}) -- data only
-	local ok, value = pcall(chunk)
-	return ok and type(value) == "table" and value or nil
+    if type(text) ~= "string" or #text == 0 or #text > MAX_BYTES then return nil end
+    local pos, nodes = 1, 0
+    local function count()
+        local stop = string.find(text, ":", pos, true)
+        assert(stop and stop - pos <= 6, "invalid length")
+        local token = text:sub(pos, stop - 1)
+        assert(token:match("^%d+$"), "invalid length")
+        pos = stop + 1
+        return tonumber(token)
+    end
+    local function read(depth)
+        nodes = nodes + 1
+        assert(nodes <= MAX_NODES and depth <= MAX_DEPTH, "transfer too complex")
+        local tag = text:sub(pos, pos); pos = pos + 1
+        if tag == "S" then
+            local size = count()
+            assert(size <= #text - pos + 1, "truncated string")
+            local v = text:sub(pos, pos + size - 1); pos = pos + size
+            assert(not string.find(v, "\0", 1, true), "embedded NUL")
+            return v
+        elseif tag == "B" then
+            local v = text:sub(pos, pos); pos = pos + 1
+            assert(v == "0" or v == "1", "invalid boolean")
+            return v == "1"
+        elseif tag == "N" then
+            local stop = string.find(text, ";", pos, true)
+            assert(stop and stop - pos <= 32, "invalid number")
+            local token = text:sub(pos, stop - 1)
+            assert(token:match("^[%d%.eE%+%-]+$"), "invalid number")
+            local v = tonumber(token)
+            assert(v and finite(v), "invalid number")
+            pos = stop + 1; return v
+        elseif tag == "T" then
+            local size, value = count(), {}
+            assert(size <= MAX_NODES / 2, "too many fields")
+            for i = 1, size do
+                local k = read(depth + 1)
+                assert(type(k) == "string" or (type(k) == "number" and k == math.floor(k)), "invalid key")
+                assert(value[k] == nil, "duplicate key")
+                value[k] = read(depth + 1)
+            end
+            return value
+        end
+        error("invalid tag")
+    end
+    local ok, value = pcall(read, 0)
+    return ok and pos == #text + 1 and type(value) == "table" and value or nil
+end
+
+local PLACE = {
+    "game_vertex_id", "distance", "direct_control", "level_vertex_id", "story_id", "spawn_story_id",
+    "dynamic_out_restrictions", "dynamic_in_restrictions", "base_out_restrictors", "base_in_restrictors",
+    "smart_terrain_id", "smart_terrain_task_active", "old_lvid", "active_section", "source_id", "killer_id",
+    "current_target_id", "respawn_point_id", "smart_id", "members", "members_count",
+}
+local function storage()
+    local state = alife_storage_manager and alife_storage_manager.get_state()
+    assert(state and state.se_object and state.game_object, "persistent Lua storage unavailable")
+    state.netcoop_transit_v2 = state.netcoop_transit_v2 or {outbox = {}, inbox = {}}
+    return state, state.netcoop_transit_v2
+end
+local function valid_id(id) return type(id) == "string" and #id == 32 and id:match("^[0-9a-f]+$") end
+local function entity_state(se)
+    local state = storage()
+    local saved = state.se_object[se.id]
+    if saved and saved.name ~= se:name() then error("stale entity storage") end
+    saved = saved or {name = se:name()}
+    state.se_object[se.id] = saved
+    if not valid_id(saved.netcoop_persistent_id) then
+        saved.netcoop_persistent_id = netcoop_transit_id()
+        assert(valid_id(saved.netcoop_persistent_id), "identity generation failed")
+    end
+    -- Unknown mod-global ID-keyed state needs an explicit remapping adapter.
+    -- Do not discard it and pretend that the person's complete state moved.
+    for key, value in pairs(state) do
+        if key ~= "se_object" and key ~= "game_object" and key ~= "netcoop_transit_v2" and
+            type(value) == "table" and value[se.id] ~= nil then error("unmapped state: " .. tostring(key)) end
+    end
+    assert(not (db and db.storage and db.storage[se.id]), "online entity cannot transfer")
+    return {id = se.id, pid = saved.netcoop_persistent_id, se = saved, game = state.game_object[se.id] or {}}
 end
 
 local function cluster_maps()
@@ -108,6 +199,43 @@ local function items_by_owner()
 end
 local function items_of(owner_id, index) return (index or items_by_owner())[owner_id] or {} end
 
+-- GAMMA's current squad tail has FIVE strings before its save marker.
+-- utils_stpk.get/set_squad_data still use the older four-string layout;
+-- using those helpers would truncate scripted_target and misread the marker.
+local SQUAD_LINKS = {"current_target_id", "respawn_point_id", "respawn_point_prop_section", "smart_id", "scripted_target"}
+local function squad_data(se)
+    local packet = net_packet()
+    packet:w_begin(0); se:STATE_Write(packet); packet:r_seek(2)
+    local data = {}
+    utils_stpk.parse_cse_alife_object_properties_packet(data, packet)
+    data.members = {}
+    local count = packet:r_u32()
+    assert(count <= 64, "too many squad members")
+    for i = 1, count do data.members[i] = packet:r_u16() end
+    local start = packet:r_tell()
+    for _, key in ipairs(SQUAD_LINKS) do data[key] = packet:r_stringZ() end
+    local length = packet:r_tell() - start
+    assert(packet:r_u16() == length and packet:r_eof(), "unsupported squad packet version")
+    return data
+end
+local function restore_squad_data(saved, se)
+    local fresh, packet = squad_data(se), net_packet()
+    local data = {} -- place-independent properties and explicit target links
+    for key, value in pairs(saved) do data[key] = value end
+    for _, key in ipairs(PLACE) do data[key] = fresh[key] end
+    for _, key in ipairs(SQUAD_LINKS) do data[key] = fresh[key] end
+    data.respawn_point_prop_section = saved.respawn_point_prop_section
+    packet:w_begin(0)
+    utils_stpk.fill_cse_alife_object_properties_packet(data, packet)
+    packet:w_u32(#fresh.members)
+    for _, id in ipairs(fresh.members) do packet:w_u16(id) end
+    local start = packet:w_tell()
+    for _, key in ipairs(SQUAD_LINKS) do packet:w_stringZ(data[key] or "nil") end
+    packet:w_u16(packet:w_tell() - start)
+    local size = packet:w_tell(); packet:r_seek(2)
+    se:STATE_Read(packet, size)
+end
+
 local function eligible(squad)
 	if not (squad and squad.squad_members) then return false end
 	if get_object_story_id and get_object_story_id(squad.id) then return false end
@@ -116,7 +244,7 @@ local function eligible(squad)
 	local count = 0
 	for member in squad:squad_members() do
 		local se = alife():object(member.id)
-		if not (se and IsStalker(nil, se:clsid()) and se:alive()) then return false end
+		if not (se and IsStalker(nil, se:clsid()) and se:alive()) or se.online then return false end
 		if get_object_story_id and get_object_story_id(member.id) then return false end
 		if players_near(se.position, TRANSIT.player_clear) then return false end
 		count = count + 1
@@ -125,115 +253,234 @@ local function eligible(squad)
 end
 
 local function capture(squad, target)
-	local record = { v = 1, from = level.name(), to = target, section = squad:section_name(), members = {} }
-	local index = items_by_owner()
-	for member in squad:squad_members() do
-		local se = alife():object(member.id)
-		local entry = { section = se:section_name(), data = utils_stpk.get_stalker_data(se), items = {} }
-		for _, item in ipairs(items_of(se.id, index)) do
-			entry.items[#entry.items + 1] = { section = item:section_name(), data = utils_stpk.get_object_data(item) }
-		end
-		record.members[#record.members + 1] = entry
-	end
-	return record
+    local record = {v = 2, id = netcoop_transit_id(), from = level.name(), to = target,
+        section = squad:section_name(), native = squad_data(squad), lua = entity_state(squad), members = {}}
+    assert(valid_id(record.id) and type(record.native) == "table", "incomplete squad capture")
+    local index = items_by_owner()
+    for member in squad:squad_members() do
+        local se = alife():object(member.id)
+        local entry = {section = se:section_name(), data = utils_stpk.get_stalker_data(se), lua = entity_state(se), items = {}}
+        assert(type(entry.data) == "table", "incomplete NPC capture")
+        for _, item in ipairs(items_of(se.id, index)) do
+            assert(not item.online and not get_object_story_id(item.id), "online/story item cannot transfer")
+            local data = utils_stpk.get_object_data(item)
+            assert(type(data) == "table", "unsupported item capture")
+            entry.items[#entry.items + 1] = {section = item:section_name(), data = data, lua = entity_state(item)}
+        end
+        record.members[#record.members + 1] = entry
+    end
+    return record
 end
 
--- One squad that nobody sees leaves through a changer to a cluster map.
+local function checkpoint(reason)
+    local ok, result = pcall(netcoop_world_save, reason)
+    return ok and result == true
+end
+
+local function release_saved(saved)
+    local state = storage()
+    local se = alife():object(saved.id)
+    if se then
+        local current = state.se_object[saved.id]
+        assert(current and current.netcoop_persistent_id == saved.pid, "source id reused; transfer held")
+        alife_release(se)
+        assert(not alife():object(saved.id), "source release failed")
+    end
+end
+
+local function retire(record)
+    for _, member in ipairs(record.members) do
+        for _, item in ipairs(member.items) do release_saved(item.lua) end
+        release_saved(member.lua)
+    end
+    release_saved(record.lua)
+end
+
+-- Persist the retired source and its outbox together before publishing.
+-- On crash before that checkpoint the old source still exists and no target
+-- can read a record. After it, the saved outbox retries the same transfer id.
+function recover_outbox()
+    local state, journal = storage()
+    for id, pending in pairs(journal.outbox) do
+        local record = deserialize(pending.wire)
+        assert(record and record.id == id and record.from == level.name(), "invalid saved outbox")
+        if pending.phase == "retiring" then
+            retire(record)
+            pending.phase = "retired"
+        end
+        assert(pending.phase == "retired", "invalid outbox phase")
+        if not checkpoint("NPC transit source") then return "source checkpoint pending" end
+        if not netcoop_transit_put(record.to, id, pending.wire) then return "publish pending" end
+        journal.outbox[id] = nil -- the durable mailbox (or tombstone) now owns recovery
+    end
+    return "ready"
+end
+
 function depart(roll)
-	local maps = cluster_maps()
-	if next(maps) == nil then return "no cluster" end
-	local exits = changers()
-	local targets = {}
-	for name, se in pairs(exits) do if maps[name] then targets[#targets + 1] = name end end
-	if #targets == 0 then return "no exits" end
-	if roll() >= TRANSIT.chance then return "stays" end
-	local here, candidates = level.name(), {}
-	for _, squad in pairs(SIMBOARD and SIMBOARD.squads or {}) do
-		if level_of(squad) == here and eligible(squad) then candidates[#candidates + 1] = squad end
-	end
-	if #candidates == 0 then return "nobody" end
-	local squad = candidates[math.floor(roll() * #candidates) + 1]
-	local target = targets[math.floor(roll() * #targets) + 1]
-	local record = capture(squad, target)
-	if not netcoop_transit_put(target, serialize(record)) then return "not written" end
-	-- Written first: a crash right here leaves the squad on both maps rather
-	-- than on neither.
-	local ids, index = {}, items_by_owner()
-	for member in squad:squad_members() do ids[#ids + 1] = member.id end
-	for _, id in ipairs(ids) do
-		for _, item in ipairs(items_of(id, index)) do alife_release(item) end
-		alife_release_id(id)
-	end
-	alife_release(squad)
-	printf("[Lost Zone][transit] squad %s (%d) left %s for %s", record.section, #record.members, here, target)
-	return "left"
+    if not transit_enabled() then return "ownership adapter required" end
+    local _, journal = storage()
+    if next(journal.inbox) then
+        -- Pending target saves must finish before any new ownership changes.
+        for _, receipt in pairs(journal.inbox) do if not receipt.committed then return "arrival pending" end end
+    end
+    local recovered = recover_outbox()
+    if recovered ~= "ready" then return recovered end
+    local maps = cluster_maps()
+    if next(maps) == nil then return "no cluster" end
+    local exits, targets = changers(), {}
+    for name in pairs(exits) do if maps[name] then targets[#targets + 1] = name end end
+    if #targets == 0 then return "no exits" end
+    if roll() >= TRANSIT.chance then return "stays" end
+    local here, candidates = level.name(), {}
+    for _, squad in pairs(SIMBOARD and SIMBOARD.squads or {}) do
+        if level_of(squad) == here and eligible(squad) then candidates[#candidates + 1] = squad end
+    end
+    if #candidates == 0 then return "nobody" end
+    local squad = candidates[math.floor(roll() * #candidates) + 1]
+    local target = targets[math.floor(roll() * #targets) + 1]
+    local ok, record = pcall(capture, squad, target)
+    if not ok then return "capture held: " .. tostring(record) end
+    local wire, err = serialize(record)
+    if not wire then return "capture held: " .. tostring(err) end
+    journal.outbox[record.id] = {phase = "retiring", wire = wire}
+    local result = recover_outbox()
+    if result ~= "ready" then return result end
+    printf("[Lost Zone][transit] squad %s (%d) left %s for %s", record.section, #record.members, here, target)
+    return "left"
 end
 
-local function restore_member(squad, entry, se_changer)
-	local id = squad:add_squad_member(entry.section, se_changer.position, se_changer.m_level_vertex_id, se_changer.m_game_vertex_id)
-	local se = id and alife():object(id)
-	if not se then return false end
-	-- Identity from the record, place and links from the new object.
-	local fresh = utils_stpk.get_stalker_data(se)
-	for _, key in ipairs(IDENTITY) do
-		if entry.data[key] ~= nil then fresh[key] = entry.data[key] end
-	end
-	utils_stpk.set_stalker_data(fresh, se)
-	-- The profile's starting items are replaced by what the person carried.
-	for _, item in ipairs(items_of(se.id)) do alife_release(item) end
-	for _, saved in ipairs(entry.items or {}) do
-		if ini_sys:section_exist(saved.section) then
-			local item = alife_create_item(saved.section, se)
-			if item and saved.data then
-				local state = utils_stpk.get_object_data(item)
-				if state then
-					for key, value in pairs(saved.data) do state[key] = value end
-					local now = utils_stpk.get_object_data(item)
-					for _, key in ipairs(PLACE) do state[key] = now[key] end
-					utils_stpk.set_object_data(state, item)
-				end
-			end
-		end
-	end
-	return true
+local function restore_lua(saved, se)
+    local state = storage()
+    local se_state = deserialize(assert(serialize(saved.se)))
+    local game_state = deserialize(assert(serialize(saved.game)))
+    se_state.name, game_state.name = se:name(), se:name()
+    se_state.netcoop_persistent_id = saved.pid
+    state.se_object[se.id], state.game_object[se.id] = se_state, game_state
+end
+local function relocated(saved, fresh)
+    local state = deserialize(assert(serialize(saved)))
+    for _, key in ipairs(PLACE) do state[key] = fresh[key] end
+    return state
 end
 
--- Squads that walked here from another map appear at the changer that leads
--- back to it.
+local function restore_member(squad, entry, changer, spawned)
+    local id = squad:add_squad_member(entry.section, changer.position, changer.m_level_vertex_id, changer.m_game_vertex_id)
+    local se = id and alife():object(id)
+    assert(se, "NPC spawn failed")
+    spawned[#spawned + 1] = se
+    utils_stpk.set_stalker_data(relocated(entry.data, utils_stpk.get_stalker_data(se)), se)
+    restore_lua(entry.lua, se)
+    for _, item in ipairs(items_of(se.id)) do alife_release(item) end
+    for _, saved in ipairs(entry.items) do
+        local item = alife_create_item(saved.section, se)
+        assert(item, "item spawn failed")
+        spawned[#spawned + 1] = item
+        utils_stpk.set_object_data(relocated(saved.data, assert(utils_stpk.get_object_data(item))), item)
+        restore_lua(saved.lua, item)
+    end
+end
+
+local function validate(record, id)
+    assert(record.v == 2 and record.id == id and record.to == level.name() and record.from ~= record.to, "foreign record")
+    assert(type(record.from) == "string" and record.from:match("^[%w_]+$"), "invalid source")
+    assert(ini_sys:section_exist(record.section) and type(record.native) == "table", "missing squad section/state")
+    assert(type(record.members) == "table" and #record.members > 0 and #record.members <= 64, "invalid members")
+    local ids = {}
+    local function entity(entry)
+        assert(type(entry.lua) == "table" and valid_id(entry.lua.pid) and not ids[entry.lua.pid], "invalid entity identity")
+        ids[entry.lua.pid] = true
+        assert(type(entry.lua.se) == "table" and type(entry.lua.game) == "table", "incomplete Lua state")
+        assert(ini_sys:section_exist(entry.section), "missing section: " .. tostring(entry.section))
+    end
+    entity(record)
+    for _, entry in ipairs(record.members) do
+        entity(entry)
+        assert(type(entry.data) == "table" and type(entry.items) == "table" and #entry.items <= 4096, "invalid member state")
+        for _, item in ipairs(entry.items) do entity(item); assert(type(item.data) == "table", "missing item state") end
+    end
+end
+
+-- Only receipts already present in a loaded checkpoint are durable. A new
+-- receipt is held in memory until the paired ALife/Lua save returns success.
+-- Set its flag before saving, reset it on failure; no other update executes
+-- while the synchronous save is running.
+local function commit_receipt(receipt)
+    receipt.committed = true
+    if not checkpoint("NPC transit target") then receipt.committed = false; return false end
+    return true
+end
+
 function arrive()
-	local record = deserialize(netcoop_transit_take(level.name()))
-	if not record then return "nothing" end
-	local exits = changers()
-	local se_changer = exits[record.from]
-	if not se_changer then
-		for _, se in pairs(exits) do se_changer = se; break end
-	end
-	if not (se_changer and record.section and ini_sys:section_exist(record.section)) then
-		printf("! [Lost Zone][transit] squad %s from %s has no way in", tostring(record.section), tostring(record.from))
-		return "no entrance"
-	end
-	local squad = alife_create(record.section, se_changer.position, se_changer.m_level_vertex_id, se_changer.m_game_vertex_id)
-	if not squad then return "not created" end
-	local count = 0
-	for _, entry in ipairs(record.members or {}) do
-		if ini_sys:section_exist(entry.section) and restore_member(squad, entry, se_changer) then count = count + 1 end
-	end
-	if squad.set_squad_relation then squad:set_squad_relation() end
-	if SIMBOARD and SIMBOARD.assign_squad_to_smart then SIMBOARD:assign_squad_to_smart(squad) end
-	printf("[Lost Zone][transit] squad %s (%d) arrived on %s from %s", record.section, count, level.name(), tostring(record.from))
-	return "arrived"
+    if not transit_enabled() then return "ownership adapter required" end
+    local _, journal = storage()
+    for id, receipt in pairs(journal.inbox) do
+        if not receipt.committed then
+            if not commit_receipt(receipt) then return "target checkpoint pending" end
+            if not netcoop_transit_ack(level.name(), id) then return "ack pending" end
+        end
+    end
+    local text = netcoop_transit_take(level.name())
+    if type(text) ~= "string" or text == "" then return "nothing" end
+    local id, wire = text:sub(1, 32), text:sub(34)
+    if not valid_id(id) or text:sub(33, 33) ~= "\n" then return "invalid record" end
+    local receipt = journal.inbox[id]
+    if receipt then
+        assert(receipt.wire == wire, "transfer id conflict")
+        if not receipt.committed and not commit_receipt(receipt) then return "target checkpoint pending" end
+        return netcoop_transit_ack(level.name(), id) and "acknowledged" or "ack pending"
+    end
+    local record = deserialize(wire)
+    local ok, err = pcall(function() assert(record, "invalid wire"); validate(record, id) end)
+    if not ok then printf("! [Lost Zone][transit] held record %s: %s", id, tostring(err)); return "record held" end
+    local changer = changers()[record.from]
+    if not changer then return "no entrance" end -- never substitute an unrelated exit
+    local spawned = {}
+    local restored, failure = pcall(function()
+        local squad = alife_create(record.section, changer.position, changer.m_level_vertex_id, changer.m_game_vertex_id)
+        assert(squad, "squad spawn failed")
+        spawned[#spawned + 1] = squad
+        -- A section may spawn profile members: replace every starting entity.
+        local starters = {}
+        for member in squad:squad_members() do starters[#starters + 1] = member.id end
+        for _, member_id in ipairs(starters) do
+            for _, item in ipairs(items_of(member_id)) do alife_release(item) end
+            alife_release_id(member_id)
+        end
+        for _, entry in ipairs(record.members) do restore_member(squad, entry, changer, spawned) end
+        restore_squad_data(record.native, squad)
+        restore_lua(record.lua, squad)
+        if squad.set_squad_relation then squad:set_squad_relation() end
+        if SIMBOARD and SIMBOARD.assign_squad_to_smart then SIMBOARD:assign_squad_to_smart(squad) end
+    end)
+    if not restored then
+        for i = #spawned, 1, -1 do
+            local se = spawned[i]
+            if alife():object(se.id) then
+                for _, item in ipairs(items_of(se.id)) do alife_release(item) end
+                alife_release(se)
+            end
+        end
+        printf("! [Lost Zone][transit] restore rolled back: %s", tostring(failure))
+        return "restore failed"
+    end
+    receipt = {wire = wire, committed = false}
+    journal.inbox[id] = receipt
+    if not commit_receipt(receipt) then return "target checkpoint pending" end
+    if not netcoop_transit_ack(level.name(), id) then return "ack pending" end
+    printf("[Lost Zone][transit] squad %s (%d) arrived on %s from %s", record.section, #record.members, level.name(), record.from)
+    return "arrived"
 end
 
 function update()
-	local now = time_global()
-	if now >= next_arrival then
-		next_arrival = now + TRANSIT.arrivals_ms
-		local ok, result = pcall(arrive)
-		if not ok then printf("! [Lost Zone][transit] arrival failed: %s", tostring(result)) end
-	end
-	if now >= next_departure then
-		next_departure = now + TRANSIT.check_ms
-		local ok, result = pcall(depart, math.random)
-		if not ok then printf("! [Lost Zone][transit] departure failed: %s", tostring(result)) end
-	end
+    local now = time_global()
+    if now >= next_arrival then
+        next_arrival = now + TRANSIT.arrivals_ms
+        local ok, result = pcall(arrive)
+        if not ok then printf("! [Lost Zone][transit] arrival held: %s", tostring(result)) end
+    end
+    if now >= next_departure then
+        next_departure = now + TRANSIT.check_ms
+        local ok, result = pcall(depart, math.random)
+        if not ok then printf("! [Lost Zone][transit] departure held: %s", tostring(result)) end
+    end
 end

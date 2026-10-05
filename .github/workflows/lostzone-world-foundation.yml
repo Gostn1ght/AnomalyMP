@@ -37,6 +37,10 @@ on:
       - 'scripts/check-netcoop-item-lifetime.py'
       - 'src/xrGame/netcoop_replication_index.cpp'
       - 'src/xrGame/netcoop_replication_index.h'
+      - 'src/xrGame/netcoop_transit_queue.inc'
+      - 'scripts/check-netcoop-transit-queue.py'
+      - 'src/xrGame/netcoop_cluster.inc'
+      - 'scripts/check-netcoop-player-transfer.py'
       - 'scripts/check-netcoop-replication-index.py'
       - '.github/workflows/lostzone-world-foundation.yml'
   workflow_dispatch:
@@ -71,6 +75,8 @@ jobs:
         run: python scripts/check-netcoop-replication-index.py
       - name: Exercise ALife integration and durable ownership
         run: python scripts/check-netcoop-alife-clock.py
+      - name: Exercise actual player handoff I/O failures
+        run: python scripts/check-netcoop-player-transfer.py
   clock-windows:
     runs-on: windows-2022
     timeout-minutes: 10
@@ -98,5 +104,9 @@ jobs:
           python scripts/check-netcoop-item-lifetime.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-replication-index.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-netcoop-transit-queue.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-netcoop-player-transfer.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-alife-clock.py

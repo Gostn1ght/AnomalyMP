@@ -81,3 +81,11 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
 
 - 2026-10-05 22:00 — билд `1566b38` установлен в gamma-runtime; `a3bf4e0`
   (облачный вход + заморозка заданий) собирается; самотест запущен.
+
+- Продолжение Codex 2026-10-05: `95a4f2c9f` DX11 Actions 37362306316 SUCCESS.
+  Новый NPC adapter имеет paired source/target checkpoints + durable mailbox
+  ack/tombstone и crash/retry Lua fixtures. Старые destructive-read/partial-loot
+  пути убраны. Автоматический transit выключен до H11/global ownership;
+  `-netcoop_npc_transit` только для изолированных испытаний. Подробности и
+  незакрытые критерии — doc 44, раздел «исправления аварийного перехода».
+  Не переносить Lua v2 поверх старых exe: API put изменён, нужны id/ack bindings.

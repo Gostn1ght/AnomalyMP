@@ -14,7 +14,7 @@ objects, released, created, logs = {}, {}, {}, {}
 local next_id = 100
 function printf(fmt, ...) logs[#logs + 1] = string.format(fmt, ...) end
 function time_global() return 0 end
-function command_line() return "" end
+function command_line() return "-netcoop_npc_transit" end
 clsid = {level_changer_s = 50, level_changer = 51, script_stalker = 1, stalker = 2, actor = 3, script_actor = 4}
 function IsStalker(o, c) return c == 1 end
 function game_graph() return {vertex = function(_, gv) return {level_id = function() return gv end} end} end
@@ -24,10 +24,28 @@ level = {name = function() return LEVEL end, object_by_id = function(id) return 
 players = {}
 function netcoop_players() local t = {} for id in pairs(players) do t[#t + 1] = id end return table.concat(t, " ") end
 ini_sys = {section_exist = function(_, s) return s ~= "missing_item" end}
+function net_packet()
+    local p = {cells = {}, cursor = 1, size = 0}
+    function p:w_begin() self.cells = {}; self.size = 2; self.cursor = 1 end
+    function p:r_seek(n) assert(n == 2); self.cursor = 1 end
+    function p:w(value, width) self.cells[#self.cells + 1] = {value, width}; self.size = self.size + width end
+    function p:r() local c = assert(self.cells[self.cursor], "truncated packet"); self.cursor = self.cursor + 1; return c[1] end
+    function p:w_u32(v) self:w(v, 4) end
+    function p:r_u32() return self:r() end
+    function p:w_u16(v) self:w(v, 2) end
+    function p:r_u16() return self:r() end
+    function p:w_stringZ(v) self:w(v, #v + 1) end
+    function p:r_stringZ() local v = self:r(); assert(type(v) == "string"); return v end
+    function p:w_tell() return self.size end
+    function p:r_tell() local n = 2; for i = 1, self.cursor - 1 do n = n + self.cells[i][2] end; return n end
+    function p:r_eof() return self.cursor > #self.cells end
+    return p
+end
 local function new(section, cls, gv, parent, fields)
 	next_id = next_id + 1
 	local o = {id = next_id, m_game_vertex_id = gv, parent_id = parent or 65535, position = {x = 0},
-		m_level_vertex_id = 7, cls = cls, sec = section, alive_ = true, data = fields or {}}
+		m_level_vertex_id = 7, cls = cls, sec = section, alive_ = true, online = false, data = fields or {}}
+	function o:name() return self.sec .. tostring(self.id) end
 	function o:clsid() return self.cls end
 	function o:section_name() return self.sec end
 	function o:alive() return self.alive_ end
@@ -36,13 +54,18 @@ local function new(section, cls, gv, parent, fields)
 end
 function spawn(section, cls, gv, parent, fields) return new(section, cls, gv, parent, fields) end
 utils_stpk = {
+    parse_cse_alife_object_properties_packet = function(t, p) t.game_vertex_id = p:r_u16(); t.custom_data = p:r_stringZ() end,
+    fill_cse_alife_object_properties_packet = function(t, p) p:w_u16(t.game_vertex_id); p:w_stringZ(t.custom_data) end,
 	get_level_changer_data = function(se) return {dest_level_name = se.dest} end,
 	get_stalker_data = function(se) local t = {} for k, v in pairs(se.data) do t[k] = v end return t end,
 	set_stalker_data = function(t, se) se.data = t end,
 	get_object_data = function(se) local t = {} for k, v in pairs(se.data) do t[k] = v end return t end,
 	set_object_data = function(t, se) se.data = t end,
 }
-function alife_release(se) released[#released + 1] = se.id; objects[se.id] = nil end
+function alife_release(se)
+    if fail_release_id == se.id then error("release injected") end
+    released[#released + 1] = se.id; objects[se.id] = nil; SIMBOARD.squads[se.id] = nil
+end
 function alife_release_id(id) released[#released + 1] = id; objects[id] = nil end
 function get_object_story_id(id) return objects[id] and objects[id].story end
 function make_squad(section, gv, members)
@@ -60,66 +83,261 @@ function make_squad(section, gv, members)
 		return npc.id
 	end
 	function squad:set_squad_relation() self.relation = true end
+    function squad:STATE_Write(p)
+        p:w_u16(self.m_game_vertex_id); p:w_stringZ(self.custom_data or "squad personal state")
+        p:w_u32(#self.members)
+        for _, id in ipairs(self.members) do p:w_u16(id) end
+        local start = p:w_tell()
+        p:w_stringZ("nil"); p:w_stringZ("nil"); p:w_stringZ(self.respawn_point_prop_section or "origin props")
+        p:w_stringZ("nil"); p:w_stringZ("nil") -- GAMMA's fifth string: scripted_target
+        p:w_u16(p:w_tell() - start)
+    end
+    function squad:STATE_Read(p)
+        self.m_game_vertex_id = p:r_u16(); self.custom_data = p:r_stringZ()
+        local count = p:r_u32(); assert(count == #self.members)
+        for _, id in ipairs(self.members) do assert(p:r_u16() == id) end
+        local start = p:r_tell()
+        assert(p:r_stringZ() == "nil"); assert(p:r_stringZ() == "nil")
+        self.respawn_point_prop_section = p:r_stringZ()
+        assert(p:r_stringZ() == "nil"); assert(p:r_stringZ() == "nil")
+        local size = p:r_tell() - start; assert(p:r_u16() == size and p:r_eof())
+    end
 	SIMBOARD.squads[squad.id] = squad
 	return squad
 end
 SIMBOARD = {squads = {}, assign_squad_to_smart = function() end}
 function alife_create(section, pos, lvid, gvid) local s = make_squad(section, gvid, {}); created[#created + 1] = s; return s end
-function alife_create_item(section, owner) return new(section, 30, owner.m_game_vertex_id, owner.id, {game_vertex_id = owner.m_game_vertex_id}) end
+function alife_create_item(section, owner)
+    if section == fail_item then return nil end
+    return new(section, 30, owner.m_game_vertex_id, owner.id, {game_vertex_id = owner.m_game_vertex_id})
+end
+storage_state = {se_object = {}, game_object = {}}
+alife_storage_manager = {get_state = function() return storage_state end}
+db = {storage = {}}
+function deep_copy(t, seen)
+    if type(t) ~= "table" then return t end
+    seen = seen or {}; if seen[t] then return seen[t] end
+    local c = {}; seen[t] = c
+    for k, v in pairs(t) do c[deep_copy(k, seen)] = deep_copy(v, seen) end
+    return c
+end
+function netcoop_world_save(reason)
+    if fail_save then return false end
+    snapshot = deep_copy({objects = objects, squads = SIMBOARD.squads, storage = storage_state, created = created})
+    return true
+end
+function rollback_to_checkpoint()
+    local saved = deep_copy(snapshot)
+    objects, SIMBOARD.squads, storage_state, created = saved.objects, saved.squads, saved.storage, saved.created
+end
 '''
+
+serial = 0
+fail_put = False
+fail_ack = False
 
 def vm(level, gv):
     lua = LuaRuntime(unpack_returned_tuples=True)
     lua.execute(WORLD, level)
     g = lua.globals()
     g.netcoop_cluster_maps = lambda: "l01_escape" if level == "k00_marsh" else "k00_marsh"
-    def put(target, text):
-        records.setdefault(target, []).append(text)
+    def new_id():
+        global serial
+        serial += 1
+        return f"{serial:032x}"
+    def put(target, key, wire):
+        if fail_put:
+            return False
+        queue = records.setdefault(target, {})
+        if key in queue:
+            assert queue[key][0] == wire, "same id never changes payload"
+        else:
+            queue[key] = (wire, False)
         return True
     def take(target):
-        queue = records.get(target) or []
-        return queue.pop(0) if queue else ""
+        queue = records.get(target) or {}
+        for key in sorted(queue):
+            wire, done = queue[key]
+            if not done:
+                return key + "\n" + wire
+        return ""
+    def ack(target, key):
+        if fail_ack:
+            return False
+        wire, _ = records[target][key]
+        records[target][key] = wire, True
+        return True
+    g.netcoop_transit_id = new_id
     g.netcoop_transit_put = put
     g.netcoop_transit_take = take
+    g.netcoop_transit_ack = ack
     lua.execute(source)
     return lua
 
-marsh = vm("k00_marsh", 1)
-marsh.execute(r'''
+def pair():
+    global records, fail_put, fail_ack
+    records, fail_put, fail_ack = {}, False, False
+    marsh, escape = vm("k00_marsh", 1), vm("l01_escape", 2)
+    marsh.execute(r'''
 changer = spawn("lc", 50, 1); changer.dest = "l01_escape"
-local a = spawn("stalker_a", 1, 1, nil, {character_name = "Vasya Folk", money = 1200, rank = 300, health = 0.7, game_vertex_id = 1, story_id = -1})
-local b = spawn("stalker_b", 1, 1, nil, {character_name = "Petro", money = 50, rank = 10, health = 1})
-spawn("wpn_ak74", 30, 1, a.id, {condition = 0.62, ammo_elapsed = 17, game_vertex_id = 1, story_id = 5})
-spawn("missing_item", 30, 1, b.id, {})
+a = spawn("stalker_a", 1, 1, nil, {character_name = "Vasya Folk", money = 1200, rank = 300, health = 0.7,
+    equipment_preferences = {2, 3}, game_vertex_id = 1, story_id = -1, death_droped = false, custom_data = "personal", visual_name = "v"})
+b = spawn("stalker_b", 1, 1, nil, {character_name = "Petro", money = 50, rank = 10, health = 1})
+weapon = spawn("wpn_ak74", 30, 1, a.id, {condition = 0.62, ammo_elapsed = 17, upgrades = {"scope"}, game_vertex_id = 1, story_id = -1})
+storage_state.se_object[a.id] = {name = a:name(), injured = true, consumption = {last = 123, remaining = 4}}
+storage_state.game_object[a.id] = {name = a:name(), pstor_all = {visited = "safehouse"}}
 squad = make_squad("stalker_sim_squad", 1, {a.id, b.id})
 story = make_squad("story_squad", 1, {spawn("s", 1, 1).id}); story.story = 12
-assert(depart(function() return 0 end) == "left")
-assert(objects[squad.id] == nil and objects[a.id] == nil and objects[b.id] == nil, "the squad left this map")
-assert(objects[story.id] ~= nil, "story squads stay")
+assert(netcoop_world_save("initial"))
 ''')
-assert len(records.get("l01_escape", [])) == 1, "one record for Cordon"
+    escape.execute('back = spawn("lc", 50, 2); back.dest = "k00_marsh"; assert(netcoop_world_save("initial"))')
+    return marsh, escape
 
-escape = vm("l01_escape", 2)
+def restart(lua):
+    lua.globals().rollback_to_checkpoint()
+    lua.execute(source)
+
+marsh, escape = pair()
+assert marsh.globals().depart(lambda: 0) == "left"
 escape.execute(r'''
-back = spawn("lc", 50, 2); back.dest = "k00_marsh"
 assert(arrive() == "arrived")
 local squad = created[1]
-assert(squad and squad.sec == "stalker_sim_squad" and squad.m_game_vertex_id == 2 and squad.relation)
-assert(#squad.members == 2)
-local a = objects[squad.members[1]]
-assert(a.data.character_name == "Vasya Folk" and a.data.money == 1200 and a.data.rank == 300 and a.data.health == 0.7)
-assert(a.data.smart_terrain_id == 77 and a.data.game_vertex_id == 2, "place and links from the new map")
+assert(#squad.members == 2 and squad.m_game_vertex_id == 2 and squad.relation)
+local npc = objects[squad.members[1]]
+assert(npc.data.character_name == "Vasya Folk" and npc.data.health == .7 and npc.data.money == 1200)
+assert(npc.data.death_droped == false and npc.data.custom_data == "personal" and npc.data.equipment_preferences[2] == 3)
+assert(npc.data.game_vertex_id == 2 and npc.data.smart_terrain_id == 77)
+assert(storage_state.se_object[npc.id].injured and storage_state.se_object[npc.id].consumption.remaining == 4)
+assert(storage_state.game_object[npc.id].pstor_all.visited == "safehouse")
 local carried = {}
-for id, o in pairs(objects) do if o.parent_id == a.id then carried[#carried + 1] = o end end
-assert(#carried == 1 and carried[1].sec == "wpn_ak74", "profile supplies replaced by what was carried")
-assert(carried[1].data.condition == 0.62 and carried[1].data.ammo_elapsed == 17)
-assert(carried[1].data.story_id == nil and carried[1].data.game_vertex_id == 2, "item place fields from the new map")
-assert(arrive() == "nothing", "a record is used once")
+for _, o in pairs(objects) do if o.parent_id == npc.id then carried[#carried + 1] = o end end
+assert(#carried == 1 and carried[1].sec == "wpn_ak74")
+assert(carried[1].data.condition == .62 and carried[1].data.ammo_elapsed == 17 and carried[1].data.upgrades[1] == "scope")
+assert(carried[1].data.game_vertex_id == 2)
+assert(arrive() == "nothing")
 ''')
-marsh.execute(r'''
-local c = spawn("stalker_c", 1, 1, nil, {})
-watched = make_squad("stalker_sim_squad", 1, {c.id})
-players[5] = {position = function() return {distance_to = function() return 10 end} end}
-assert(depart(function() return 0 end) == "nobody", "a squad in sight of a player stays")
+# The retirement checkpoint contains the wire outbox, not necessarily the
+# removed se_object slots (production unregister can clear those slots).
+wire = next(iter(records["l01_escape"].values()))[0]
+source_pid = marsh.globals().deserialize(wire).members[1].lua.pid
+npc_id = escape.globals().created[1].members[1]
+assert escape.globals().storage_state.se_object[npc_id].netcoop_persistent_id == source_pid
+restart(marsh)
+assert marsh.globals().recover_outbox() == "ready"
+assert escape.globals().arrive() == "nothing", "source restart cannot republish acknowledged record"
+
+# Source checkpoint fails: nobody can read a transfer; crash restores source.
+marsh, escape = pair()
+marsh.globals().fail_save = True
+assert marsh.globals().depart(lambda: 0) == "source checkpoint pending"
+assert escape.globals().arrive() == "nothing"
+restart(marsh)
+assert marsh.globals().objects[marsh.globals().a.id] is not None
+marsh.globals().fail_save = False
+assert marsh.globals().depart(lambda: 0) == "left"
+assert escape.globals().arrive() == "arrived"
+
+# Retired source is durable, publication fails; crash retries its saved outbox.
+marsh, escape = pair()
+fail_put = True
+assert marsh.globals().depart(lambda: 0) == "publish pending"
+assert escape.globals().arrive() == "nothing"
+restart(marsh)
+assert marsh.globals().objects[marsh.globals().a.id] is None
+fail_put = False
+assert marsh.globals().recover_outbox() == "ready"
+assert escape.globals().arrive() == "arrived"
+
+# Target save fails: in-memory retries don't spawn again. A crash rolls back
+# the new squad and leaves the mailbox readable for the next restore.
+marsh, escape = pair()
+assert marsh.globals().depart(lambda: 0) == "left"
+escape.globals().fail_save = True
+assert escape.globals().arrive() == "target checkpoint pending"
+assert len(escape.globals().created) == 1
+assert escape.globals().arrive() == "target checkpoint pending"
+assert len(escape.globals().created) == 1
+restart(escape)
+assert len(escape.globals().created) == 0
+escape.globals().fail_save = False
+assert escape.globals().arrive() == "arrived"
+assert len(escape.globals().created) == 1
+
+# Commit succeeded but acknowledgment failed: restart uses durable receipt.
+marsh, escape = pair()
+assert marsh.globals().depart(lambda: 0) == "left"
+fail_ack = True
+assert escape.globals().arrive() == "ack pending"
+restart(escape)
+fail_ack = False
+assert escape.globals().arrive() == "acknowledged"
+assert len(escape.globals().created) == 1
+
+# Missing entrance or ANY inventory section retains the entire record.
+marsh, escape = pair()
+assert marsh.globals().depart(lambda: 0) == "left"
+escape.execute('back.dest = "wrong_map"')
+assert escape.globals().arrive() == "no entrance"
+assert len(escape.globals().created) == 0
+escape.execute('back.dest = "k00_marsh"; ini_sys.section_exist = function(_, s) return s ~= "wpn_ak74" end')
+assert escape.globals().arrive() == "record held"
+assert len(escape.globals().created) == 0
+escape.execute('ini_sys.section_exist = function() return true end')
+assert escape.globals().arrive() == "arrived"
+
+# Partial spawn fails: every new entity rolls back, original record survives.
+marsh, escape = pair()
+assert marsh.globals().depart(lambda: 0) == "left"
+escape.globals().fail_item = "wpn_ak74"
+assert escape.globals().arrive() == "restore failed"
+escape.execute('for _, o in pairs(objects) do assert(o.cls == 50, "no partial squad or supplies") end')
+escape.globals().fail_item = None
+assert escape.globals().arrive() == "arrived"
+
+# Source partial retirement: reconcile exact persistent identities on retry.
+marsh, escape = pair()
+marsh.execute('fail_release_id = b.id')
+try:
+    marsh.globals().depart(lambda: 0)
+except Exception:
+    pass
+else:
+    raise AssertionError("fault must hold departure")
+assert escape.globals().arrive() == "nothing"
+marsh.globals().fail_release_id = None
+assert marsh.globals().recover_outbox() == "ready"
+assert escape.globals().arrive() == "arrived"
+
+# Unsupported/unmapped state holds source; online/story/watched NPCs stay.
+marsh, escape = pair()
+marsh.execute('storage_state.se_object[a.id].unsupported = function() end')
+assert marsh.globals().depart(lambda: 0).startswith("capture held")
+assert marsh.globals().objects[marsh.globals().a.id] is not None
+assert not records
+marsh.execute('storage_state.se_object[a.id].unsupported = nil; storage_state.some_mod = {[a.id] = {target_id = 999}}')
+assert marsh.globals().depart(lambda: 0).startswith("capture held")
+assert not records
+marsh.execute('storage_state.some_mod = nil; a.online = true')
+assert marsh.globals().depart(lambda: 0) == "nobody"
+marsh.execute('a.online = false; players[5] = {position = function() return {distance_to = function() return 10 end} end}')
+assert marsh.globals().depart(lambda: 0) == "nobody"
+
+# Strict parser rejects executable Lua, truncation, duplicates and resource
+# bombs without ever invoking a compiler or executing mailbox contents.
+escape.execute(r'''
+assert(deserialize("(function() while true do end end)()") == nil)
+assert(deserialize("T2:S1:xN1;S1:xN2;") == nil)
+assert(deserialize("T1:S1:xS999999:abc") == nil)
+assert(deserialize("T1:S1:xN1e999;") == nil)
+assert(deserialize(string.rep("T1:S1:x", 30) .. "B1") == nil)
+assert(deserialize("T0:trailing") == nil)
+assert(serialize({value = 0/0}) == nil)
+assert(serialize({value = "a\0b"}) == nil)
+local cycle = {}; cycle.self = cycle; assert(serialize(cycle) == nil)
+local text = assert(serialize({text = "Привет", flag = false, numbers = {1, -2, .1}}))
+assert(deserialize(text).text == "Привет" and deserialize(text).flag == false)
 ''')
-print("NPC transit: identity, inventory and squad move once between location servers; story/watched squads stay PASS")
+print("NPC transit PASS: paired checkpoints, crash/retry at source/publish/target/ack, intact inventory, stable IDs and supported Lua/native state, held exit/section, rollback, bounded non-executable wire")
+escape.execute('command_line = function() return "-netcoop_cluster_selftest" end')
+assert escape.globals().arrive() == "ownership adapter required"
+assert escape.globals().depart(lambda: 0) == "ownership adapter required"
