@@ -493,6 +493,7 @@ void xrServer::SendUpdatesAOI()
 		try
 		{
 			if (!m_chunk_shadow) m_chunk_shadow.reset(new netcoop_world::SpatialGrid(100));
+			if (!m_lod_shadow) m_lod_shadow.reset(new netcoop_world::SimulationLodPlanner());
 			m_chunk_shadow->clear();
 			for (const Chunk& c : chunks)
 				m_chunk_shadow->upsert({0, u64(c.id) + 1}, 1, {c.position.x, c.position.y, c.position.z});
@@ -502,6 +503,7 @@ void xrServer::SendUpdatesAOI()
 				u32 clients = 0, mismatches = 0;
 				netcoop_world::SpatialQueryStats stats;
 				u64 full_scan = 0;
+				std::vector<netcoop_world::PlayerInterest> observers;
 				void operator()(IClient* client)
 				{
 					xrClientData* peer = static_cast<xrClientData*>(client);
@@ -509,6 +511,17 @@ void xrServer::SendUpdatesAOI()
 						!peer->gamma_snapshot_ready || !peer->owner) return;
 					const Fvector& eye = peer->owner->o_Position;
 					const netcoop_world::SpatialPoint center{eye.x, eye.y, eye.z};
+					netcoop_world::SpatialPoint velocity;
+					const u64 now = server->m_chunk_shadow_last;
+					auto old = server->m_shadow_observers.find(peer->owner->ID);
+					if (old != server->m_shadow_observers.end() && now > old->second.real_ms && now-old->second.real_ms < 2000)
+					{
+						const double seconds = double(now-old->second.real_ms)/1000.;
+						velocity = {(center.x-old->second.position.x)/seconds,
+							(center.y-old->second.position.y)/seconds,(center.z-old->second.position.z)/seconds};
+					}
+					server->m_shadow_observers[peer->owner->ID] = {center,now};
+					observers.push_back({{0,u64(peer->owner->ID)+1},1,center,velocity});
 					const auto actual = server->m_chunk_shadow->query(1, center, 1000, &stats);
 					std::vector<netcoop_world::SpatialId> expected;
 					for (const Chunk& c : chunks)
@@ -524,6 +537,18 @@ void xrServer::SendUpdatesAOI()
 			} probe = {this};
 			const auto started = std::chrono::steady_clock::now();
 			ForEachClientDo(probe);
+			for (auto it=m_shadow_observers.begin();it!=m_shadow_observers.end();)
+				if (it->second.real_ms != shadow_now) it=m_shadow_observers.erase(it); else ++it;
+			std::map<netcoop_world::CellId, bool, netcoop_world::CellOrder> occupied;
+			for (const Chunk& c : chunks)
+				occupied.emplace(m_chunk_shadow->cell(1,{c.position.x,c.position.y,c.position.z}),true);
+			std::vector<netcoop_world::LodDemand> demands;
+			for (const auto& entry : occupied)
+				demands.push_back(m_lod_shadow->observer_demand(*m_chunk_shadow,entry.first,probe.observers));
+			const auto lod_changes = m_lod_shadow->update(demands,shadow_now);
+			u32 lod_counts[4] = {};
+			for (const auto& entry : occupied) ++lod_counts[unsigned(m_lod_shadow->level(entry.first))];
+			m_lod_shadow->prune_dormant();
 			const u64 query_us = u64(std::chrono::duration_cast<std::chrono::microseconds>(
 				std::chrono::steady_clock::now()-started).count());
 			if (!m_chunk_shadow_log || shadow_now - m_chunk_shadow_log >= 10000)
@@ -532,12 +557,16 @@ void xrServer::SendUpdatesAOI()
 				Msg("[chunk-shadow] objects=%u cells=%u clients=%u candidates=%llu full_scan=%llu mismatches=%u compare_us=%llu",
 					u32(m_chunk_shadow->size()),u32(m_chunk_shadow->cell_count()),probe.clients,
 					probe.stats.candidates,probe.full_scan,probe.mismatches,query_us);
+				Msg("[lod-shadow] full_cells=%u reduced_cells=%u abstract_cells=%u dormant_cells=%u changes=%u (policy only)",
+					lod_counts[3],lod_counts[2],lod_counts[1],lod_counts[0],u32(lod_changes.size()));
 			}
 		}
 		catch (const std::exception&)
 		{
 			m_chunk_shadow_failed = true;
 			m_chunk_shadow.reset();
+			m_lod_shadow.reset();
+			m_shadow_observers.clear();
 			Msg("! [chunk-shadow] invalid state/configuration; diagnostics disabled, legacy replication continues");
 		}
 	}
