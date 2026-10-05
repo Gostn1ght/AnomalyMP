@@ -303,3 +303,9 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   script/origin data before Actor/inventory mutation; transfer fixture includes
   actual progress function, 512/513 boundary and previous-snapshot retention.
   Python syntax only locally; progress native checks pending on next push.
+
+- ad4725002 Foundation 37382384401 SUCCESS GCC/MSVC: actual progress capture
+  checks pass. DX11 37382384355 checks SUCCESS, engine compiling.
+- Backend contact entry avoids catastrophic quadratic cancellation for small
+  spheres/long routes; combat shares hazard boundary tolerance. Geometry and
+  actual captured-fight regressions added, full local backend 139 PASS.

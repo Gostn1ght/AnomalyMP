@@ -59,20 +59,16 @@ def entry_fraction(p, delta, radius):
     a = sum(x*x for x in delta)
     if a == 0:
         return None
-    b = 2 * sum(x*y for x, y in zip(p, delta))
-    closest = min(1.0, max(0.0, -b/(2*a)))
+    projection = -math.fsum(x*y for x, y in zip(p, delta))/a
+    closest = min(1.0, max(0.0, projection))
     if sum((x+y*closest)**2 for x, y in zip(p, delta)) > radius*radius:
         return None
-    discriminant = max(0.0, b*b - 4*a*c)
-    # Stable quadratic roots avoid cancellation with a distant initial pair.
-    q = -.5 * (b + math.copysign(math.sqrt(discriminant), b))
-    if q == 0:
-        return closest
-    roots = sorted((q/a, c/q))
-    for value in roots:
-        if 0 <= value <= 1:
-            return value
-    return None
+    # Measure the chord from the nearest point on the infinite line. Computing
+    # b*b-4*a*c loses a small contact sphere when the starting separation is
+    # millions of metres, even with a stable quadratic-root formula afterward.
+    perpendicular = math.fsum((x+y*projection)**2 for x, y in zip(p, delta))
+    half_chord = math.sqrt(max(0.0, (radius*radius-perpendicular)/a))
+    return min(1.0, max(0.0, projection-half_chord))
 
 
 def earliest_contact(first, second, radius):

@@ -613,3 +613,18 @@ queue and disconnect retention fixtures pass. f4803b1c0 backend 37380934586
 SUCCESS Windows+Linux, 136 tests. Claude's 5302a58 runtime test is recorded in
 the shared handoff: actual world saved in 207 ms and loaded on server restart;
 this first native acceptance does not prove all mod-owned entity state.
+
+## Contact precision at small radii and long travel distances
+
+Continuous sphere entry now uses closest-line/chord geometry rather than the
+subtraction of two large quadratic terms. At a ten-million-metre separation
+and a 0.1-metre radius, the old result fired about 0.209 world milliseconds
+early on the supported one-day window. Surface entry, reverse travel, grazing,
+tangency and a nearby miss are now checked. Combat resolution also matches
+hazards' one-micrometre boundary tolerance: SQLite/interpolation rounding could
+previously cancel a correctly captured 0.1-metre fight. An actual planned
+fight now applies and journals its individual casualties at that boundary.
+Full local backend **139 tests PASS**. Native paths are unchanged.
+
+ad4725002 Foundation 37382384401 SUCCESS GCC/MSVC, including actual quest
+progress capture; DX11 checks succeeded and full engine compilation is pending.

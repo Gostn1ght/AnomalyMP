@@ -36,6 +36,26 @@ class ContactGeometryTest(unittest.TestCase):
             with self.assertRaises(Invalid):
                 earliest_contact(valid, path, 10)
 
+    def test_small_contact_sphere_on_long_route_enters_at_surface(self):
+        end = 86400000
+        first = [(0, [-10000000, 0, 0]), (end, [10000000, 0, 0])]
+        fixed = [(0, [0, 0, 0]), (end, [0, 0, 0])]
+        self.assertAlmostEqual(earliest_contact(first, fixed, .1), end/2-.1/(20000000/end), places=6)
+        # Reversing both trajectories must preserve the entry time and radius.
+        reverse = [(0, [10000000, 0, 0]), (end, [-10000000, 0, 0])]
+        self.assertAlmostEqual(earliest_contact(reverse, fixed, .1), earliest_contact(first, fixed, .1), places=6)
+
+    def test_long_grazing_route_and_tangent_do_not_invent_an_early_contact(self):
+        end = 86400000
+        fixed = [(0, [0, 0, 0]), (end, [0, 0, 0])]
+        first = [(0, [-10000000, .06, .079]), (end, [10000000, .06, .079])]
+        chord = (.1**2-.06**2-.079**2)**.5
+        self.assertAlmostEqual(earliest_contact(first, fixed, .1), end/2-chord/(20000000/end), places=6)
+        tangent = [(0, [-10000000, .1, 0]), (end, [10000000, .1, 0])]
+        self.assertEqual(earliest_contact(tangent, fixed, .1), end/2)
+        outside = [(0, [-10000000, .100001, 0]), (end, [10000000, .100001, 0])]
+        self.assertIsNone(earliest_contact(outside, fixed, .1))
+
 
 if __name__ == "__main__":
     unittest.main()

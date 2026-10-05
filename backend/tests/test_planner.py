@@ -146,6 +146,16 @@ class PlannerTest(unittest.TestCase):
         self.assertEqual((result["cancelled_plans"],result["contacts"][0]["due_ms"]),(1,80000))
         self.assertEqual(self.state(old["event_id"])["state"],"CANCELLED")
 
+    def test_surface_contact_rounding_does_not_cancel_a_captured_fight(self):
+        self.change(self.trap,armed=False)
+        contact = self.plan(radius=.1)["contacts"][0]
+        self.assertEqual(contact["type"],"offline_combat")
+        self.ns = int((contact["due_ms"]+1)/10*1000000)
+        self.scheduler.run_due(budget_ms=1000)
+        event = self.state(contact["event_id"])
+        self.assertEqual(event["state"],"APPLIED")
+        self.assertTrue(json.loads(event["result"])["casualties"])
+
 
 if __name__=="__main__":
     unittest.main()

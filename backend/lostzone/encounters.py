@@ -252,7 +252,10 @@ class Encounters:
         except Conflict:
             return {"reason":"individual capture/inventory changed"},False
         positions = [self.offline.position_at(tx,root,at) for root in roots]
-        if distance(*positions)>plan["radius"]:
+        # The surface contact time is rounded through SQLite and route
+        # interpolation. Match hazard resolution's micrometre tolerance so
+        # a captured boundary hit is not cancelled by floating-point noise.
+        if distance(*positions)>plan["radius"]+1e-6:
             return {"reason":"routes do not meet"},False
         scores = []
         for side in plan["sides"]:
