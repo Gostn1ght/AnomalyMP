@@ -5,7 +5,7 @@ from .capture import CaptureBudget
 from .store import Unavailable, canonical
 
 
-def reservations(world, tx, location, validators):
+def reservations(world, tx, location, validators, details=None):
     # Stream payloads; a row limit alone could fetch hundreds of MiB before
     # checking the aggregate byte admission. Absent validators hold their jobs.
     rows = tx.execute("SELECT * FROM scheduled_event WHERE state='PENDING' AND type IN ('OfflineCombat','OfflineHazard') "
@@ -30,4 +30,6 @@ def reservations(world, tx, location, validators):
         else:
             roots.add(plan["entity_id"])
             hazards.add(plan["hazard_id"])
+        if details is not None:
+            details.append((event,plan))
     return roots,hazards,cancelled

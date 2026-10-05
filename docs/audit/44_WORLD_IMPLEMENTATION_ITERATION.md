@@ -516,3 +516,31 @@ server that ignores the ownership file is not fenced by this mechanism.
 This is Windows single-host/shared-runtime ownership, not distributed authority,
 snapshot journal/2PC adoption or cross-host fencing. Save worker backpressure
 and full native inventory-ledger integration remain unfinished.
+
+## Combined earliest combat/hazard planning
+
+Admin offline_plan now collects both discovery passes at one planning instant,
+then admits up to 64 globally time-ordered disjoint contacts in one transaction.
+Valid pending plans are options rather than unconditional locks, so a newly
+placed earlier trap preempts a later captured firefight/hazard. Stale captures
+are cancelled first; preemption creates durable cancellation evidence, without
+health/ammo/charge mutation. Exact time ties retain previous EventID/capture/RNG,
+then fresh ties use combat followed by persistent IDs. Retry/restart/new command
+seed cannot reroll a retained valid outcome. Failure during preemption/capture
+or admission rolls back every cancellation and replacement together.
+
+Both original explicit planners share their existing bounded discovery helpers;
+limits remain per search (combined at most 400000 candidate work checks plus
+bounded validation/scheduling), 512 pending captures/8 MiB, 64 chosen contacts.
+No silent truncation. Automatic route-change subscriber and native integration
+are still pending, but the earlier separate-command ordering limitation now has
+a unified authority operation. Eight new tests cover chronological choice in
+both directions, preemption of an existing later fight and valid hazard by a
+new trap, retained RNG across restart/retry/new seed, atomic journal failure,
+65-contact refusal and world-scale stale cancellation. Full local backend
+**135 tests PASS**; HTTP roles also reject location/observer mutation.
+
+5302a58f4 Foundation 37378444819 **SUCCESS GCC/MSVC**, including actual Windows
+session ownership subprocess/barrier/crash/flush/rename tests. Its DX11
+37378445074 native checks SUCCESS; full engine compiling. 1d8004572 backend
+37377564300 **SUCCESS Windows+Linux (127 tests)**.

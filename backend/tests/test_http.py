@@ -70,6 +70,7 @@ class HttpTest(unittest.TestCase):
         self.assertEqual(self.command("offline_contacts", {"location":"cordon","horizon_ms":1000,"seed":17})[0],403)
         self.assertEqual(self.command("offline_hazard", {})[0],403)
         self.assertEqual(self.command("offline_hazards", {})[0],403)
+        self.assertEqual(self.command("offline_plan", {})[0],403)
         self.assertEqual(self.command("quest_reconcile", {})[0],403)
         self.assertEqual(self.command("trade", {"location": "garbage"})[0], 403)
         self.assertEqual(self.call("GET", "/v1/events")[0], 404)
@@ -77,7 +78,7 @@ class HttpTest(unittest.TestCase):
     def test_observer_bridge_credential_cannot_claim_or_mutate_world(self):
         self.assertEqual(self.call("GET","/v1/bootstrap",token="d"*48)[0],200)
         for operation,args in (("world_scale",{"value":1}),("location_claim",{"location":"cordon"}),
-                               ("entity_create",{}),("trade",{}),("offline_combat",{}),("offline_contacts",{}),("offline_hazard",{}),("offline_hazards",{}),("quest_reconcile",{})):
+                               ("entity_create",{}),("trade",{}),("offline_combat",{}),("offline_contacts",{}),("offline_hazard",{}),("offline_hazards",{}),("offline_plan",{}),("quest_reconcile",{})):
             self.assertEqual(self.command(operation,args,token="d"*48)[0],403)
 
     def test_duplicate_command_over_real_http_and_contract_rejection(self):

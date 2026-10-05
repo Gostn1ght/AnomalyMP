@@ -249,3 +249,13 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   Actual Windows subprocess/barrier/crash/I/O fixture added to Actions; syntax
   only checked locally. Every cluster process needs the matching new binary;
   old servers ignoring ownership files and cross-host writers are not fenced.
+
+- Verification: 5302a58f4 Foundation 37378444819 SUCCESS GCC/MSVC, actual Windows
+  ownership fixture PASS after correcting a strict fixture-only variable
+  shadow warning. DX11 37378445074 native checks SUCCESS, engine compiling.
+  1d8004572 backend 37377564300 SUCCESS Windows+Linux (127).
+- Codex combined offline_plan: one planning instant, globally earliest
+  combat/hazard choice, preempts later valid captures when a new earlier trap
+  appears; retains prior RNG/EventID at equal time. Atomic cancel+replace,
+  bounded admission, no health/ammo mutation during planning. Eight new tests;
+  full local backend 135 PASS. Route-change subscriber/native adoption pending.
