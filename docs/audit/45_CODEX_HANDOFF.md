@@ -353,3 +353,12 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   Offline/combat/hazard/scavenging constructors now reject foreign World or
   Scheduler before changing handlers. Two real-DB composition refusal tests;
   full local 148 PASS. Not distributed native world fencing.
+
+- 67dea8b64 backend 37385134369 SUCCESS Windows+Linux, 148 confirmed in logs.
+  Living-member capture now projects dead state as NULL in SQLite, avoiding
+  unnecessary blob reads; stored casualty state/roster untouched. Existing
+  full suite remains 148 PASS locally after this change.
+- 970ef6658 DX11 37384373508 CANCELLED by 5cf816177 overlay push (not compile
+  failure). Current DX11 37385428435 includes all native fixes: checks SUCCESS,
+  engine compiling. Latest successful native package ad4725002/37382384355.
+  Please preserve the running package build; backend/docs-only pushes are safe.

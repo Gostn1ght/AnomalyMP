@@ -46,7 +46,12 @@ class Offline:
         result = [root]
         if root["kind"] == "GROUP":
             for value in json.loads(root["state"])["member_ids"]:
-                row = tx.execute("SELECT * FROM entity WHERE id=?", (value,)).fetchone()
+                # Keep permanent casualty IDs in the roster, but do not load
+                # their potentially large state blobs for a living-members
+                # capture. SQLite evaluates the CASE before returning state.
+                row = tx.execute("SELECT id,kind,location,writer,fence,version,alive,"
+                                 "CASE WHEN alive=1 THEN state ELSE NULL END AS state "
+                                 "FROM entity WHERE id=?", (value,)).fetchone()
                 if not row:
                     raise Conflict("persistent member disappeared")
                 if row["alive"]:

@@ -695,3 +695,16 @@ before handler/validator/scale-hook changes and without entity/event mutation.
 Full local backend **148 tests PASS**. d68758147 backend 37384735948 SUCCESS
 Windows+Linux (146); new checks pending. This is an in-process composition
 boundary, not distributed native WorldID/fencing adoption.
+
+Offline living-member capture now asks SQLite to return a casualty's state as
+NULL instead of reading its large state blob into Python only to discard it.
+The stored casualty state and permanent roster IDs are untouched. Existing
+movement/death/handoff/restart suite remains **148 tests PASS** locally.
+67dea8b64 backend 37385134369 SUCCESS Windows+Linux (148).
+
+970ef6658 DX11 37384373508 was CANCELLED by the newer overlay push 5cf816177,
+not a C++ diagnostic. Foundation 37384373144 remains SUCCESS. Current full
+package run is 37385428435 (5cf816177, includes all Codex native fixes), native
+checks SUCCESS, engine compiling. Latest completed native package is still
+ad4725002 / 37382384355. Do not infer installation or live acceptance of the
+failed-logout backoff from its passing standalone fixture.
