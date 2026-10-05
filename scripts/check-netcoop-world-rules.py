@@ -189,7 +189,8 @@ getFS = function() return {update_path = function() return "cluster.ltx" end} en
 io = {open = function() return {close = function() end} end}
 local names = {[1] = "k00_marsh", [2] = "l01_escape"}
 function game_graph() return {vertex = function(_, gv) return {level_id = function() return gv end} end} end
-function alife() return {level_name = function(_, id) return names[id] end} end
+squad_objects = {}
+function alife() return {level_name = function(_, id) return names[id] end, object = function(_, id) return squad_objects[id] end} end
 level = {name = function() return "k00_marsh" end}
 store = {}
 alife_storage_manager = {get_state = function() return store end}
@@ -209,7 +210,9 @@ lua.execute(source)
 lua.execute(r'''
 on_game_start()
 assert(#released == 0 and #calls == 1, "a new world waits for its population")
-SIMBOARD.squads = {[10] = squad(10, 1, {11, 12}), [20] = squad(20, 2, {21, 22}), [30] = squad(30, 2, {31})}
+-- As in GAMMA: SIMBOARD.squads maps id -> true, the objects come from alife.
+squad_objects = {[10] = squad(10, 1, {11, 12}), [20] = squad(20, 2, {21, 22}), [30] = squad(30, 2, {31})}
+SIMBOARD.squads = {[10] = true, [20] = true, [30] = true}
 SIMBOARD.start_position_filled = true
 now = 6000
 assert(calls[1]() == true)

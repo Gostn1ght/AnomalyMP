@@ -332,8 +332,10 @@ function depart(roll)
     if #targets == 0 then return "no exits" end
     if roll() >= TRANSIT.chance then return "stays" end
     local here, candidates = level.name(), {}
-    for _, squad in pairs(SIMBOARD and SIMBOARD.squads or {}) do
-        if level_of(squad) == here and eligible(squad) then candidates[#candidates + 1] = squad end
+    -- SIMBOARD.squads maps squad id -> true, not the squad object.
+    for id in pairs(SIMBOARD and SIMBOARD.squads or {}) do
+        local squad = alife():object(id)
+        if squad and level_of(squad) == here and eligible(squad) then candidates[#candidates + 1] = squad end
     end
     if #candidates == 0 then return "nobody" end
     local squad = candidates[math.floor(roll() * #candidates) + 1]

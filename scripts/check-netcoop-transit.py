@@ -102,7 +102,7 @@ function make_squad(section, gv, members)
         assert(p:r_stringZ() == "nil"); assert(p:r_stringZ() == "nil")
         local size = p:r_tell() - start; assert(p:r_u16() == size and p:r_eof())
     end
-	SIMBOARD.squads[squad.id] = squad
+	SIMBOARD.squads[squad.id] = true -- as in GAMMA: id -> true
 	return squad
 end
 SIMBOARD = {squads = {}, assign_squad_to_smart = function() end}

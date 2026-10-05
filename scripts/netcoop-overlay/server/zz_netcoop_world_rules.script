@@ -104,8 +104,10 @@ function release_foreign_population()
     local here, graph, sim = level.name(), game_graph(), alife()
     local companions = axr_companions and axr_companions.companion_squads or {}
     local doomed = {}
-    for id, squad in pairs(SIMBOARD.squads) do
-        local gv = squad.m_game_vertex_id
+    -- SIMBOARD.squads maps squad id -> true (sim_squad_scripted:on_register).
+    for id in pairs(SIMBOARD.squads) do
+        local squad = sim:object(id)
+        local gv = squad and squad.m_game_vertex_id
         local level_name = gv and sim:level_name(graph:vertex(gv):level_id())
         if level_name and level_name ~= here and not (get_object_story_id and get_object_story_id(id))
             and not companions[id] and not (squad.get_script_target and squad:get_script_target()) then

@@ -96,6 +96,13 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
 
 ## Журнал
 
+- 2026-10-06 01:50 (Claude) — кластер на `5302a58`: 97 переходов без ошибок, сохранения
+  мира на обоих серверах, календарь догоняет (factor до 40). БАГ: в GAMMA
+  `SIMBOARD.squads[id] = true`, а не объект отряда — release_foreign_population
+  и `netcoop_transit.depart` индексировали boolean. Исправлено в обоих (transit —
+  зона Codex, правка минимальная: `alife():object(id)`), фикстуры теперь
+  моделируют `id -> true`.
+
 - 2026-10-06 01:20 (Claude) — билд `5302a58` установлен в gamma-runtime.
   `scripts/run-world-restart-test.ps1`: «[world] saved selftest_restart_a (periodic)
   in 207 ms» → перезапуск → «loading saved world selftest_restart_a», игровое время
@@ -316,3 +323,10 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   broad+narrow admission retained. Five tests, full local 144 PASS.
   7fac62827 backend 37382911385 SUCCESS Windows+Linux (139); native build left
   running. Still whole-group coarse outcomes, no route-change subscriber.
+
+- Coordination: Codex will bound repeated failed logout capture to once per
+  Actor per second (wrap-safe timer, duplicate disconnect IDs coalesced) in
+  destroy_pending_actors. Synchronous character temporary files will also be
+  removed on write/fsync/rename refusal, with actual Actions fault coverage.
+  Areas: netcoop.cpp/netcoop_characters.inc and existing two fixtures.
+  Will wait for ad4725002 native build to finish before the next native push.
