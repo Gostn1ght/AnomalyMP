@@ -465,12 +465,7 @@ void CEnemyManager::try_change_enemy()
 	// Netcoop server (stage 8 measurements): how long after first seeing a
 	// player an NPC or monster takes it as its enemy.
 	if (selected() != previous_selected && selected() && netcoop::server_player_copy(selected()))
-	{
-		const MemorySpace::CVisibleObject* seen = m_object->memory().visual().visible_object(selected());
-		const u32 now = Device.dwTimeGlobal;
-		netcoop::metric_ai_reaction(m_object->ID(), selected()->ID(),
-			seen && seen->m_first_level_time && now >= seen->m_first_level_time ? s32(now - seen->m_first_level_time) : -1);
-	}
+		netcoop::metric_ai_reaction(m_object->ID(), selected()->ID());
 
 	if (selected() != previous_selected)
 	{

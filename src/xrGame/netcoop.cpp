@@ -3641,8 +3641,12 @@ static u32 s_ai_reactions = 0, s_ai_reaction_sum = 0, s_ai_reaction_max = 0, s_a
 
 static u32 s_ai_notices = 0, s_ai_notice_sum = 0, s_ai_notice_max = 0, s_ai_notice_log = 0;
 
+static xr_map<u32, u32> s_ai_seen; // npc << 16 | player -> real time it saw the player
+
 void metric_ai_notice(u16 npc, u16 player, u32 notice_ms, float distance)
 {
+	if (s_ai_seen.size() > 8192) s_ai_seen.clear();
+	s_ai_seen[u32(npc) << 16 | player] = real_time_ms();
 	++s_ai_notices;
 	s_ai_notice_sum += notice_ms;
 	s_ai_notice_max = _max(s_ai_notice_max, notice_ms);
@@ -3654,8 +3658,12 @@ void metric_ai_notice(u16 npc, u16 player, u32 notice_ms, float distance)
 		distance, notice_ms);
 }
 
-void metric_ai_reaction(u16 npc, u16 player, s32 reaction_ms)
+void metric_ai_reaction(u16 npc, u16 player)
 {
+	auto seen = s_ai_seen.find(u32(npc) << 16 | player);
+	// Seen more than a minute ago (or never): the enemy came from a hit,
+	// a sound or the squad, not from this sight.
+	const s32 reaction_ms = seen != s_ai_seen.end() && real_time_ms() - seen->second < 60000 ? s32(real_time_ms() - seen->second) : -1;
 	if (reaction_ms < 0) ++s_ai_unseen;
 	else
 	{

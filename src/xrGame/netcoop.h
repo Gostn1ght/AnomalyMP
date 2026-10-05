@@ -272,9 +272,9 @@ void metric_remote_actor(u16 id, bool remote, bool alive, u32 net_size, s32 age_
 void metric_actor_error(float error, bool applied);
 void metric_owner_step_rejected(float step);
 void metric_weapon_fire(CWeapon* weapon);
-// Server: an NPC/monster took a player as its enemy; reaction_ms = time
-// since it first saw the player (-1: not by sight, e.g. hit or sound).
-void metric_ai_reaction(u16 npc, u16 player, s32 reaction_ms);
+// Server: an NPC/monster took a player as its enemy; the time since it saw
+// that player (metric_ai_notice) is the reaction, or "not by sight".
+void metric_ai_reaction(u16 npc, u16 player);
 // Server: a player became visible to an NPC/monster after notice_ms in view.
 void metric_ai_notice(u16 npc, u16 player, u32 notice_ms, float distance);
 // Server: bytes of object updates sent this tick and objects serialised.
