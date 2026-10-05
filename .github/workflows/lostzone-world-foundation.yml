@@ -1,0 +1,44 @@
+name: Lost Zone World Foundation
+
+on:
+  push:
+    branches: [menu-3d-hideout]
+    paths:
+      - 'src/xrGame/netcoop_world_clock.h'
+      - 'scripts/check-netcoop-world-clock.py'
+      - 'src/xrGame/netcoop_world_store.inc'
+      - 'scripts/check-netcoop-world-store.py'
+      - '.github/workflows/lostzone-world-foundation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  clock-linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Exercise actual clock and location follower
+        run: python scripts/check-netcoop-world-clock.py
+      - name: Exercise snapshot slot recovery
+        run: python scripts/check-netcoop-world-store.py
+  clock-windows:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Exercise actual clock with the engine toolchain
+        shell: cmd
+        run: |
+          call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          python scripts/check-netcoop-world-clock.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-netcoop-world-store.py

@@ -24,7 +24,6 @@ static const u32 world_save_period_ms = 300000;
 static bool s_world_loaded = false;
 static bool s_world_cleanup_pending = false;
 static u32 s_world_last_save = 0;
-static u32 s_world_slot = 0;
 
 static bool world_store_name(string64& out)
 {
@@ -33,8 +32,11 @@ static bool world_store_name(string64& out)
 	if (!option || !enabled() || pure_client()) return false;
 	option += xr_strlen("-netcoop_world=");
 	u32 length = 0;
-	while (option[length] && option[length] != ' ' && length + 1 < sizeof(out))
+	while (option[length] && option[length] != ' ')
 	{
+		// Reserve "_a" / "_b" and a terminator. Never silently truncate
+		// names: two different worlds must not alias the same save slots.
+		if (length + 3 >= sizeof(out)) return false;
 		const char c = option[length];
 		if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_')) return false;
 		out[length] = c;
@@ -63,7 +65,12 @@ static bool world_store_read_pointer(LPCSTR world, string64& save)
 	save[read] = 0;
 	for (size_t i = 0; i < read; ++i)
 		if (save[i] == '\r' || save[i] == '\n') { save[i] = 0; break; }
-	return save[0] != 0;
+	// Only this world's two slots are valid: a damaged pointer must never
+	// select another world or an arbitrary save path.
+	string64 slot_a, slot_b;
+	xr_sprintf(slot_a, "%s_a", world);
+	xr_sprintf(slot_b, "%s_b", world);
+	return xr_strcmp(save, slot_a) == 0 || xr_strcmp(save, slot_b) == 0;
 }
 
 static bool world_store_write_pointer(LPCSTR world, LPCSTR save)
@@ -112,7 +119,9 @@ static void world_store_cleanup_loaded()
 	CALifeSimulator* sim = const_cast<CALifeSimulator*>(ai().get_alife());
 	CSE_ALifeCreatureActor* story = sim->graph().actor();
 	xr_vector<CSE_ALifeDynamicObject*> players;
-	for (auto& entry : sim->objects().objects())
+	// The mutable objects() overload is protected; the public const registry
+	// is sufficient while collecting ids, before any release mutates it.
+	for (const auto& entry : static_cast<const CALifeSimulator*>(sim)->objects().objects())
 	{
 		CSE_ALifeCreatureActor* actor = smart_cast<CSE_ALifeCreatureActor*>(entry.second);
 		if (actor && actor != story && actor->get_health() > 0.f) players.push_back(entry.second);
@@ -128,8 +137,13 @@ bool world_store_save_now(LPCSTR reason)
 {
 	string64 world;
 	if (!world_store_name(world) || !ai().get_alife() || !g_pGameLevel) return false;
-	string64 save;
-	xr_sprintf(save, "%s_%c", world, (s_world_slot++ & 1) ? 'b' : 'a');
+	string64 save, previous, slot_a;
+	xr_sprintf(slot_a, "%s_a", world);
+	// Derive the next slot from the committed pointer, not a process-local
+	// counter reset by restart. Never overwrite the last committed snapshot,
+	// including after a failed save or a failed pointer replacement.
+	const bool current_a = world_store_read_pointer(world, previous) && xr_strcmp(previous, slot_a) == 0;
+	xr_sprintf(save, "%s_%c", world, current_a ? 'b' : 'a');
 	CTimer timer;
 	timer.Start();
 	try
