@@ -378,3 +378,22 @@ fixture. DX11 37372547180 queued. f40d63326 backend Actions 37371605344 Windows
 **SUCCESS (90 tests)**; Linux cancelled by external runner admission failure:
 "The job was not acquired by Runner of type hosted even after multiple attempts".
 Not a code/test failure; newer backend jobs cover the follow-up changes.
+
+## Player inventory checkpoint completeness (native, verification pending)
+
+character_capture_items previously continued past missing children/count 512,
+and returned at depth >8, then character_save_actor persisted the truncated
+inventory. New character_inventory_complete validates the entire registered
+inventory tree before any money/state update or previous items.clear:
+registered matching child ID, exact parent, inventory type, no invalid/repeated
+ID/cycle, at most 512 items and the same capture depth boundary. On failure the
+save returns false; existing transfer abort path cancels prepare and unfreezes
+source, preserving the previous on-disk character snapshot.
+
+Actual helper is extracted into the existing player-transfer C++ fixture with
+valid empty/ordinary/boundary cases and missing/foreign-ID/wrong-parent/non-item,
+invalid-ID, duplicate/cycle, count/depth overflow. Wiring order is checked before
+clearing inventory. Foundation workflow now includes character source changes.
+Only Python fixture syntax checked locally; native compilation/execution remains
+GitHub Actions. This fixes silent capture truncation, not the separate native
+session lease race, file-worker queue/fencing or distributed ledger adoption.

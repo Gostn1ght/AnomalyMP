@@ -195,3 +195,11 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   truncation in netcoop_characters.inc (character-save/transfer safety), with
   actual native helper coverage in its existing player-transfer fixture.
   Claude's replication/world-store/Lua-scope/runtime changes are left alone.
+
+- Native player snapshot completeness: netcoop_characters.inc now preflights
+  all child IDs/parents/inventory types/cycles/depth/count before clearing the
+  previous snapshot. Invalid/over-limit capture refuses save, so transfer abort
+  preserves source/old file instead of losing some items. Actual helper tests
+  included in check-netcoop-player-transfer.py; local syntax only, native Actions
+  pending. Foundation now triggers on netcoop_characters.inc as well. Other
+  actor's dirty world-store/Lua-scope/overlay files excluded from this commit.

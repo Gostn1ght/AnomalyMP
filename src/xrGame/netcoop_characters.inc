@@ -517,6 +517,24 @@ void server_character_spawn_items(xrClientData* CL)
 	Msg("[Lost Zone] character '%s' slot %u loaded for %s", character->name.c_str(), character->slot, character->account.c_str());
 }
 
+// Refuse the whole checkpoint before clearing the previous inventory. The
+// capture below has finite depth/count limits; silently skipping one child
+// would otherwise lose that item on the next login or location transition.
+static bool character_inventory_complete(xrServer* server, CSE_Abstract* parent, u32 depth, xr_vector<u16>& visited)
+{
+	if (!parent) return false;
+	if (depth > 8) return parent->children.empty();
+	for (u16 id : parent->children)
+	{
+		if (id == 0xffff || visited.size() >= 513 || std::find(visited.begin(), visited.end(), id) != visited.end()) return false;
+		CSE_Abstract* item = server->game->get_entity_from_eid(id);
+		if (!item || item->ID != id || item->ID_Parent != parent->ID || !smart_cast<CSE_ALifeInventoryItem*>(item)) return false;
+		visited.push_back(id);
+		if (!character_inventory_complete(server, item, depth + 1, visited)) return false;
+	}
+	return true;
+}
+
 static void character_capture_items(xrServer* server, Character& character, CSE_Abstract* parent, u16 parent_index, u32 depth)
 {
 	if (depth > 8) return;
@@ -559,6 +577,15 @@ static bool character_save_actor(u16 actor_id, const CharacterDestination* desti
 	CSE_ALifeCreatureActor* entity = smart_cast<CSE_ALifeCreatureActor*>(actor);
 	if (!entity || !runtime) return false;
 	if (s_character_restore.find(actor_id) != s_character_restore.end()) return false;
+	if (runtime->g_Alive())
+	{
+		xr_vector<u16> visited; visited.push_back(actor_id);
+		if (!character_inventory_complete(server, actor, 0, visited))
+		{
+			Msg("[Lost Zone] character save refused: inventory tree is incomplete, cyclic, or exceeds capture limits (actor %u)", actor_id);
+			return false;
+		}
+	}
 	entity->m_dwMoney = runtime->get_money();
 	entity->m_rank = runtime->Rank(); entity->m_reputation = runtime->Reputation();
 	entity->o_Position = runtime->Position();

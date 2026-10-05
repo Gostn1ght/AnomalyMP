@@ -40,6 +40,7 @@ on:
       - 'src/xrGame/netcoop_transit_queue.inc'
       - 'scripts/check-netcoop-transit-queue.py'
       - 'src/xrGame/netcoop_cluster.inc'
+      - 'src/xrGame/netcoop_characters.inc'
       - 'scripts/check-netcoop-player-transfer.py'
       - 'src/xrGame/netcoop.cpp'
       - 'scripts/check-netcoop-account-store.py'

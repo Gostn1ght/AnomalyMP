@@ -19,6 +19,47 @@ engine = (root/"src/xrGame/netcoop.cpp").read_text(encoding="utf-8")
 start = engine.index('static void store_money(xrClientData* CL)\n{')
 end = engine.index('\nvoid server_on_client_disconnect(', start)
 money = engine[start:end].replace('static void store_money(', 'static void captured_store_money(')
+characters = (root/"src/xrGame/netcoop_characters.inc").read_text(encoding="utf-8")
+inventory_start = characters.index('static bool character_inventory_complete(')
+inventory_end = characters.index('\nstatic void character_capture_items(',inventory_start)
+inventory_body = characters[inventory_start:inventory_end]
+save_body = characters[characters.index('static bool character_save_actor('):characters.index('\nvoid server_character_save_actor(')]
+assert save_body.index('character_inventory_complete(server, actor, 0, visited)') < save_body.index('character.items.clear()')
+inventory_fixture = r'''
+namespace inventory_fixture {
+template<class T>using xr_vector=std::vector<T>;
+struct CSE_Abstract {virtual ~CSE_Abstract()=default;u16 ID=1,ID_Parent=0xffff;std::vector<u16>children;};
+struct CSE_ALifeInventoryItem:CSE_Abstract {};
+template<class T>T smart_cast(CSE_Abstract* item){return dynamic_cast<T>(item);}
+struct Game {std::map<u16,CSE_Abstract*>items;CSE_Abstract* get_entity_from_eid(u16 id){auto it=items.find(id);return it==items.end()?nullptr:it->second;}};
+struct xrServer {Game* game;};
+'''+inventory_body+r'''
+struct Tree {
+ Game game;xrServer server{&game};CSE_Abstract root;
+ std::vector<std::unique_ptr<CSE_Abstract>>storage;
+ CSE_Abstract* add(u16 id,CSE_Abstract* parent,bool inventory=true){
+  std::unique_ptr<CSE_Abstract>item;
+  if(inventory)item.reset(new CSE_ALifeInventoryItem);else item.reset(new CSE_Abstract);
+  item->ID=id;item->ID_Parent=parent->ID;parent->children.push_back(id);
+  auto result=item.get();game.items[id]=result;storage.push_back(std::move(item));return result;
+ }
+ bool complete(){xr_vector<u16>visited{root.ID};return character_inventory_complete(&server,&root,0,visited);}
+};
+void run(){
+ {Tree t;assert(t.complete());t.add(2,&t.root);assert(t.complete());}
+ {Tree t;t.root.children.push_back(2);assert(!t.complete());}
+ {Tree t;auto item=t.add(2,&t.root);item->ID_Parent=3;assert(!t.complete());}
+ {Tree t;auto item=t.add(2,&t.root);item->ID=3;assert(!t.complete());}
+ {Tree t;t.add(2,&t.root,false);assert(!t.complete());}
+ {Tree t;t.add(0xffff,&t.root);assert(!t.complete());}
+ {Tree t;t.add(2,&t.root);t.root.children.push_back(2);assert(!t.complete());}
+ {Tree t;auto item=t.add(2,&t.root);item->children.push_back(t.root.ID);assert(!t.complete());}
+ {Tree t;for(u16 id=2;id<514;++id)t.add(id,&t.root);assert(t.complete());t.add(514,&t.root);assert(!t.complete());}
+ {Tree t;CSE_Abstract* parent=&t.root;for(u16 id=2;id<11;++id)parent=t.add(id,parent);assert(t.complete());t.add(11,parent);assert(!t.complete());}
+ std::cout<<"PASS actual inventory capture preflight: complete boundary, missing/foreign/non-item/duplicate/cycle/depth/count refusal\n";
+}
+}
+'''
 source = r'''
 #define _CRT_SECURE_NO_WARNINGS
 #include <cassert>
@@ -29,6 +70,9 @@ source = r'''
 #include <cstring>
 #include <cstdarg>
 #include <iostream>
+#include <algorithm>
+#include <memory>
+#include <vector>
 using u8=unsigned char;using u16=unsigned short;using u32=unsigned int;
 using xr_string=std::string;using LPCSTR=const char*;using string_path=char[260];using string256=char[256];
 template<size_t N>void xr_sprintf(char(&s)[N],const char* f,...) {va_list v;va_start(v,f);vsnprintf(s,N,f,v);va_end(v);}
@@ -85,9 +129,10 @@ void script_send_to_actor(u16,const char*,const char*){events+='N';assert(s_acto
 void Msg(const char*,...){}
 '''+f'\nstatic const u32 cluster_status_ttl_s = {status_ttl};\n'+status_body+money+r'''
 void store_money(xrClientData* client){events+='M';assert(!server_client_leaving(client));captured_store_money(client);}
-'''+body+r'''
+'''+inventory_fixture+body+r'''
 void reset(){events.clear();refusal.clear();saved_destination=0;s_cluster_leaving.clear();s_character_restore.clear();s_actor_character[7]=1;ticket_ok=save_ok=location_ok=accounts_ok=status_ok=true;target_status="100 0 16";}
 int main(){
+ inventory_fixture::run();
  xrServer server;Owner owner;xrClientData client;client.owner=&owner;CLevelChanger changer;
  reset();ticket_ok=false;
  assert(!cluster_move(&server,&client,&changer));
