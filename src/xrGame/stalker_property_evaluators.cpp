@@ -7,6 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "pch_script.h"
+#include "netcoop.h"
 #include "stalker_property_evaluators.h"
 #include "ai/stalker/ai_stalker.h"
 #include "stalker_decision_space.h"
@@ -415,13 +416,19 @@ _value_type CStalkerPropertyEvaluatorPlayerOnThePath::evaluate()
 	if (!enemy)
 		return (false);
 
-	if (!object().is_relation_enemy(Actor()))
+	// Netcoop server: Actor() is the server's own authority Actor; the
+	// player in question is the enemy itself when it is a player (stage 9).
+	const CEntityAlive* player = netcoop::server_player_copy(enemy) ? enemy : Actor();
+	if (!player)
 		return (false);
 
-	if (!m_object->memory().visual().visible_now(Actor()))
+	if (!object().is_relation_enemy(player))
 		return (false);
 
-	return (object().movement().is_object_on_the_way(Actor(), 2.f));
+	if (!m_object->memory().visual().visible_now(player))
+		return (false);
+
+	return (object().movement().is_object_on_the_way(player, 2.f));
 }
 
 //////////////////////////////////////////////////////////////////////////
