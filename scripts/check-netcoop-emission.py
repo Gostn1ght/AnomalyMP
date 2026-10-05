@@ -116,4 +116,21 @@ e.receive('7|0|0.000|222'); assert(cleanups==1 and fx_stops==1)
 mgr:update(); local previous=updates; mgr:update(); assert(updates==previous)
 e.reset(); e.receive('1|1|20.000|222'); assert(starts==2 and active_seconds==20)
 ''')
+lua.execute('''
+e=netcoop_emission
+-- Cluster schedule: the same slot hour on every server, one start per slot.
+local a1 = e.scheduled_start(100.2, 24); local a2 = e.scheduled_start(110.7, 24)
+assert(a1 == a2 and a1 >= 96 and a1 < 120, "one start time per 24 h slot")
+assert(e.scheduled_start(130, 24) >= 120, "next slot")
+store = {}
+alife_storage_manager={get_state=function() return store end}
+getFS=function() return {update_path=function() return "cluster.ltx" end} end
+io={open=function() return {close=function() end} end}
+e.reset_cluster_mode(); assert(e.cluster_mode())
+local at = e.scheduled_start(100, 24)
+factor=6; now=(at*3600-100000)*1000/6 + 1000
+e.update_world(); assert(factor==10, "starts at the scheduled hour")
+now=now+223000; e.update_world(); assert(factor==6)
+now=now+1000; e.update_world(); assert(factor==6, "once per slot")
+''')
 print('PASS: shared clock, shelter IDs, per-owner protection, late join, single respawn and client presentation')

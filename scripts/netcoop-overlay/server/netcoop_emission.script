@@ -15,6 +15,41 @@ local function next_interval(mgr)
     local frequency = math.max(1, math.floor(tonumber(ui_options.get("alife/event/emission_frequency")) or 24))
     mgr._delta = math.random(math.max(1, math.floor(frequency / 2)) * 3600, frequency * 3600)
 end
+-- Location cluster: one emission for the whole Zone. Every server derives the
+-- same schedule from the shared calendar (netcoop_cluster.inc keeps the game
+-- clocks together): one emission per frequency slot at a slot-specific hour.
+-- A server that comes up more than half an hour (game) after the start skips
+-- that one; a finished slot is remembered across restarts.
+local cluster_cached = nil
+function cluster_mode()
+    if cluster_cached == nil then
+        local path = getFS and getFS():update_path("$app_data_root$", "netcoop_cluster.ltx")
+        local file = path and io.open(path, "r")
+        cluster_cached = file ~= nil
+        if file then file:close() end
+    end
+    return cluster_cached
+end
+function reset_cluster_mode() cluster_cached = nil end -- tests, config change
+local function frequency_hours()
+    return math.max(1, math.floor(tonumber(ui_options.get("alife/event/emission_frequency")) or 24))
+end
+function scheduled_start(hours, frequency)
+    local slot = math.floor(hours / frequency)
+    local offset = ((slot * 2654435761) % 4294967296) / 4294967296 * frequency
+    return slot * frequency + offset, slot
+end
+local function cluster_due()
+    local hours = game.get_game_time():diffSec(game.CTime()) / 3600
+    local frequency = frequency_hours()
+    local at, slot = scheduled_start(hours, frequency)
+    if hours < at or hours - at > 0.5 then return false end
+    local state = alife_storage_manager.get_state()
+    if state.netcoop_emission_slot == slot then return false end
+    state.netcoop_emission_slot = slot
+    return true
+end
+
 local function payload()
     return string.format("%d|%d|%.3f|%d", sequence, started_at and 1 or 0, elapsed(), duration)
 end
@@ -82,9 +117,12 @@ end
 function update_world()
     install()
     local mgr = manager()
-    if not started_at and valid_level() and ui_options.get("alife/event/emission_state")
-        and game.get_game_time():diffSec(mgr.last_surge_time) >= mgr._delta then
-        start()
+    if not started_at and valid_level() and ui_options.get("alife/event/emission_state") then
+        if cluster_mode() then
+            if cluster_due() then start() end
+        elseif game.get_game_time():diffSec(mgr.last_surge_time) >= mgr._delta then
+            start()
+        end
     end
     -- Finish after every player's final damage tick, rather than before it.
     if started_at and elapsed() >= duration + 1 then finish() end
