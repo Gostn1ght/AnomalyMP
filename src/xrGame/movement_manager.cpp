@@ -7,6 +7,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "pch_script.h"
+#include "netcoop.h"
 #include "movement_manager.h"
 #include "movement_manager_space.h"
 #include "game_location_selector.h"
@@ -373,6 +374,9 @@ bool CMovementManager::can_use_distributed_computations(u32 option) const
 	// Fix for bug which makes mutants running in one place. Something happens with the thread, and the mutants will wait for a thread which will never finish running.
 	// Many thanks to Arszi for finding this <3
 	// demonized: add cvar switch for toggling it
+	// Netcoop server: always as with the fix on (its user.ltx had it off; idle
+	// mutants were a top complaint, stage 10).
+	if (netcoop::enabled() && !netcoop::pure_client()) return false;
 	return (!monsterStuckFix && !m_build_at_once && g_mt_config.test(option) && !object().getDestroy());
 }
 
