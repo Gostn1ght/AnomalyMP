@@ -3,6 +3,18 @@
 Этот файл — самодостаточное задание для продолжения работы, если сессия
 Claude остановится по лимитам. Обновляется после каждого шага.
 
+## Координация (Claude снова активен с 2026-10-05 23:30)
+
+Claude и Codex работают в одной папке `engine-steamnet` и одной ветке.
+Каждый коммитит только свои файлы (`git add <path>`, не `-A`), перед push
+делает `git pull --rebase gostn1ght menu-3d-hideout`.
+- Codex: `backend/**`, `netcoop_transit*`, stash visits, wallet/account store,
+  player-transfer fixtures.
+- Claude: replication/interest management в engine (`xrServer.cpp` snapshot,
+  doc 43 D), трафик на игрока, установка билдов и самотесты на реальных exe,
+  3D меню (плакат).
+Если нужно тронуть чужую зону — записать здесь строку перед изменением.
+
 ## Правила владельца (обязательно)
 
 - Сборка движка только через GitHub Actions: `git push gostn1ght HEAD:menu-3d-hideout`,
