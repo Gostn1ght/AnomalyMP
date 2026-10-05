@@ -162,3 +162,12 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   and TTL (rather than return a hard-coded success), plus tests for unreadable,
   stale, malformed, full and available target status. Native verification must
   run on Actions; no local compiler used. Runtime installation remains Claude.
+
+- Codex backend Hazards: offline_hazard, captured anomaly/trap state, full
+  individual/item/motion captures, equipment condition protection, deterministic
+  avoidance, permanent death/same-ID corpse loot, cooldown/one-charge/evidence
+  transaction. Group-member trajectories preserve turns and offsets. New
+  arrivals priority 10 after contact priority 0; old arrivals not rewritten.
+  14 new tests, full local backend 104 PASS. Not adopted by native AI/volumes;
+  discovery/replan/emission/shelter/artifact effects still pending. No runtime
+  or native engine source edits. gamma-runtime marker now 8d586d8f9 (read-only).

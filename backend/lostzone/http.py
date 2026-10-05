@@ -25,6 +25,7 @@ from .offline import Offline
 from .economy import Catalog, Trade
 from .scavenging import Scavenging
 from .encounters import Encounters
+from .hazards import Hazards
 
 
 @dataclass(frozen=True)
@@ -101,6 +102,7 @@ class Dispatcher:
         self.trade = Trade(world, self.catalog, trade_profiles)
         self.scavenging = Scavenging(world, self.offline, self.catalog, scavenging_rules)
         self.encounters = Encounters(world, self.offline, self.catalog)
+        self.hazards = Hazards(world, self.offline, self.catalog)
 
     @staticmethod
     def allowed(principal, location):
@@ -120,7 +122,8 @@ class Dispatcher:
                           "timeline_schedule": self.timelines.schedule, "route_start": self.offline.start_route,
                           "stash_visit": self.scavenging.schedule, "offline_combat": self.encounters.schedule,
                           "offline_contact": self.encounters.plan_contact,
-                          "offline_contacts": self.encounters.plan_location}
+                          "offline_contacts": self.encounters.plan_location,
+                          "offline_hazard":self.hazards.plan_contact}
         functions = {
             "location_claim": self.world.claim_location, "location_renew": self.world.renew_location,
             "location_recover": self.ownership.recover_location,

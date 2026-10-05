@@ -323,3 +323,32 @@ DX11 **8d586d8f9 / 37367011993 attempt 2 SUCCESS**, including checks+engine;
 matching client/server artifact available (187445389 compressed bytes).
 Foundation same commit SUCCESS; runtime installation/selftests belong to the
 other active actor per doc 45 coordination; do not mix v2 Lua into old exe.
+
+## Offline persistent hazard contact (backend-only)
+
+Admin offline_hazard captures and schedules continuous route contact with one
+persistent ANOMALY/TRAP; no per-NPC collision tick. Individual group trajectories
+now retain the group polyline's turns and each member's offset. Hazard type,
+radius/intensity/damage, cooldown, active/armed/charges, owner and safe factions
+come from trusted state. Inventory captures include IDs/versions/state; trusted
+ARMOR/ARTIFACT protection considers equipped flag and condition, not possession
+alone. Deterministic bounded experience/knowledge avoidance is a baseline
+policy, not a claimed GAMMA resistance model.
+
+One transaction saves actual member positions, injuries/permanent deaths,
+unchanged loot IDs moved to corpse, last-member group death, stopped route,
+hazard cooldown/one trap charge and evidence. Hydration, route-scale change,
+item or hazard revision cancels before mutation. Failure of evidence write
+rolls all of these back. Restart preserves captured outcomes. Two contacts
+cannot spend one charge twice. New RouteArrived priority 10 settles after
+physical contact (priority 0) at the endpoint; old persisted arrival priority
+is not rewritten (conservative cancellation possible).
+
+14 meaningful tests cover trap death+restart/retry/inventory, equipped/unequipped
+and damaged protection, hydration, scale, item mutation, owner/faction/height/
+cooldown misses, journal rollback, deterministic anomaly clone/restart, offset
+member through route turn and last-member death, invalid policy, endpoint
+priority, competing contacts. HTTP role checks include operation. Full local
+backend **104 tests PASS**. Automatic hazard discovery, retreat/path decisions,
+real game volumes/hydration, emission/shelter/artifact effects remain; L is not
+marked complete. Native compilation is still exclusively GitHub Actions.

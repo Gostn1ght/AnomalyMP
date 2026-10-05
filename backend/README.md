@@ -209,4 +209,35 @@ continuous narrow phase вычисляет действительное сбли
 
 Наблюдаемый бой должен принять engine; звуки/визуальные следы не
 воспроизводятся по одному факту наличия backend event. Offline
-anomaly/shelter/emission damage впереди.
+emission/shelter damage впереди.
+
+## Аномалии и ловушки offline
+
+Admin `offline_hazard` планирует физическое пересечение маршрута конкретного
+actor/group с конкретной ANOMALY/TRAP: EventID, entity/hazard IDs и versions,
+horizon_ms, seed. Доверенное состояние опасности задаёт `hazard_type`, position,
+radius (0.1..200), damage_bp (1..10000), intensity (0..100), cooldown_ms,
+cooldown_until_ms, active (anomaly) или armed/charges (trap). owner_id и
+safe_factions исключают защищённых участников. Проверяются индивидуальные
+пути членов группы со смещениями и поворотами, а не только центр отряда.
+
+Capture содержит здоровье/опыт/known_hazards, версии и полное состояние
+carried items, движение, состояние опасности и WorldID/seed. Trusted catalog
+может задать ARMOR/ARTIFACT `hazard_protection_bp` по типам; учитывается только
+equipped=true, один предмет/ID и действительный condition. Применяется лучшая
+защита без бесконечного суммирования. Вероятность избежать опасности —
+ограниченная baseline policy опыта/знаний, с seed из сохранённого capture;
+это не откалиброванная модель GAMMA damage/resistance.
+
+Результат одной транзакцией сохраняет ранения/постоянную смерть, позиции,
+сохранение всех вещей с прежними IDs в corpse, состояние группы, cooldown и
+однократный расход заряда trap. Маршрут останавливается для нового решения
+AI, погибшие члены не respawn. Hydration, смена маршрута/экипировки/опасности
+отменяют stale event до damage/charges. Restart без изменения capture
+сохраняет исход. Новые RouteArrived имеют priority=10: контакт priority=0 в
+самой конечной точке разрешается до arrival CAS. Старые pending arrivals с
+priority=0 не переписываются и могут консервативно отменить такой новый план.
+
+Ограничения: 64 живых участника и 64 inventory items на участника, маршруты
+до 1024 точек. Автоматическая discovery hazards, NPC replan, engine volumes,
+native hydration, emission/shelter damage и artifact spawn ещё впереди.

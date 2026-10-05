@@ -13,9 +13,18 @@ from .store import Invalid, finite
 
 def trajectory(offline, tx, entity, start, end):
     route = tx.execute("SELECT * FROM route WHERE entity_id=? AND active=1", (entity["id"],)).fetchone()
+    offset = [0,0,0]
+    if not route and entity["alive"]:
+        group = tx.execute("SELECT e.* FROM group_member m JOIN entity e ON e.id=m.group_id WHERE m.member_id=?",(entity["id"],)).fetchone()
+        if group:
+            offline.require_offline(tx,group["id"])
+            if group["alive"] and group["location"] == entity["location"]:
+                offset = [a-b for a,b in zip(point(json.loads(entity["state"]).get("position")),
+                                           point(json.loads(group["state"]).get("position")))]
+                route = tx.execute("SELECT * FROM route WHERE entity_id=? AND active=1", (group["id"],)).fetchone()
     result = [(start, offline.position_at(tx, entity, start))]
     if route:
-        points = [point(p) for p in json.loads(route["points"])]
+        points = [point([a+b for a,b in zip(point(p),offset)]) for p in json.loads(route["points"])]
         if not 2 <= len(points) <= 1024:
             raise Invalid("invalid stored route")
         lengths = [distance(a, b) for a, b in zip(points, points[1:])]

@@ -30,11 +30,18 @@ class Catalog:
             identifier(section)
             if not isinstance(record, dict) or record.get("category") not in CATEGORIES:
                 raise Invalid("invalid catalog category")
+            protection = record.get("hazard_protection_bp",{})
+            if not isinstance(protection,dict) or len(protection)>16:
+                raise Invalid("invalid equipment hazard protection")
+            protection = {identifier(kind):integer(value,0,10000,"hazard protection") for kind,value in protection.items()}
+            if protection and record["category"] not in ("ARMOR","ARTIFACT"):
+                raise Invalid("hazard protection requires armor or artifact")
             self.entries[section] = {
                 "category": record["category"],
                 "price": integer(record.get("price"), 1, 1_000_000_000, "base price"),
                 "weight_g": integer(record.get("weight_g"), 0, 1_000_000, "item weight"),
-                "combat_power": integer(record.get("combat_power",100 if record["category"]=="WEAPON" else 0),0,10000,"combat power")}
+                "combat_power": integer(record.get("combat_power",100 if record["category"]=="WEAPON" else 0),0,10000,"combat power"),
+                "hazard_protection_bp":protection}
 
     def entry(self, section):
         if section not in self.entries:

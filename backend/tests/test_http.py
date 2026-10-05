@@ -68,13 +68,14 @@ class HttpTest(unittest.TestCase):
         self.assertEqual(self.command("world_scale", {"value": 1})[0], 403)
         self.assertEqual(self.command("stash_visit", {})[0], 403)
         self.assertEqual(self.command("offline_contacts", {"location":"cordon","horizon_ms":1000,"seed":17})[0],403)
+        self.assertEqual(self.command("offline_hazard", {})[0],403)
         self.assertEqual(self.command("trade", {"location": "garbage"})[0], 403)
         self.assertEqual(self.call("GET", "/v1/events")[0], 404)
 
     def test_observer_bridge_credential_cannot_claim_or_mutate_world(self):
         self.assertEqual(self.call("GET","/v1/bootstrap",token="d"*48)[0],200)
         for operation,args in (("world_scale",{"value":1}),("location_claim",{"location":"cordon"}),
-                               ("entity_create",{}),("trade",{}),("offline_combat",{}),("offline_contacts",{})):
+                               ("entity_create",{}),("trade",{}),("offline_combat",{}),("offline_contacts",{}),("offline_hazard",{})):
             self.assertEqual(self.command(operation,args,token="d"*48)[0],403)
 
     def test_duplicate_command_over_real_http_and_contract_rejection(self):

@@ -137,7 +137,7 @@ class Offline:
     def schedule_arrival(self, tx, entity_id, version, arrival):
         event_id = hashlib.sha256(f"route-arrival:{entity_id}:{version}".encode("ascii")).hexdigest()[:32]
         self.scheduler.schedule_in(tx, event_id, arrival, "entity:" + entity_id, version,
-                                   "RouteArrived", {"entity_id": entity_id})
+                                   "RouteArrived", {"entity_id": entity_id}, priority=10)
 
     @staticmethod
     def cancel_arrivals(tx, entity_id):
