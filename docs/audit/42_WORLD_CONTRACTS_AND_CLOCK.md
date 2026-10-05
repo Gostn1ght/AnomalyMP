@@ -185,6 +185,20 @@ Combat/Physics, ReplicationScheduler, EventJournal, SnapshotCoordinator.
 Все переходы игровых objects выполняются simulation thread; фоновые I/O
 возвращают данные с version/epoch, которые повторно проверяются на apply.
 
+Особенность X-Ray: ALife хранит глобальный graph/registry, а
+`CALifeUpdateManager::update_scheduled()` вызывает общий scheduler.
+Запуск 25 обычных ALife-save процессов не создаёт 25 независимых
+authorities локаций: каждый может продолжить чужую offline-жизнь.
+`ALifeAdapter` обязан проверять `LocationID + ownership fence` перед
+schedule/spawn/task/respawn и отключать изменения чужих локаций. Чужие
+graph/smart metadata допускаются как read-only ссылки для маршрутов;
+группы других карт исполняются только владельцем Offline Scheduler.
+Новый location bootstrap получает scoped snapshot/claims, а не ещё один
+полный `alife/new` с копиями story NPC. Инициализировать весь spawn и затем
+просто скрыть лишних NPC через AOI недостаточно. До включения второй
+локации нужен тест: её scheduler не меняет ни одной foreign entity;
+global unique registry и один World Service сохраняются общими.
+
 `ChunkID=(LocationID, floor(x/cell_size), floor(z/cell_size))`, включая
 отрицательные координаты. Начальный размер 100 м, конфиг. Геометрия
 активации считает distance to **bounds**, а не только до центра ячейки.
@@ -600,6 +614,8 @@ W8 — TransferCoordinator/SessionStore/AdmissionController/NpcTransitAdapter.
 TransferState/TokenClaims/FrozenCheckpoint; character/session/transfer
 таблицы. Prepare/Claim/Commit/Status/Abort/Release (§9). Сначала admission,
 затем transfer state machine, затем hidden spawn, потом NPC transit.
+Перед запуском второго процесса внедрить описанное в §5 ограничение ALife
+по владельцу локации; локальные GAMMA-инициализаторы не создают копии Зоны.
 Тест: 1000 переходов с disconnect/crash A/B в каждом состоянии, token reuse,
 expiry после claim, заполненная target. Load: burst переходов, один owner
 и один активный actor всегда, инвентарь/CharacterID не теряются.
