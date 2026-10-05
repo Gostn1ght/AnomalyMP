@@ -279,3 +279,14 @@ socket timeout/deadline), без ожидания произвольного Con
 run **75 tests PASS**. Это не retry в тесте и не подавление ошибки клиента.
 На ab98e1811 Actions 37368019662 Windows (74 tests до этого fix) SUCCESS;
 Linux ещё в очереди. Новый backend-only commit требует Actions обоих ОС.
+
+- Stash motion capture: member NPC depended on a group route without changing
+  its own version; world-scale rebase also changes route version only. Visits
+  now capture own route and (where applicable) group ID/version/route, validate
+  current offline group authority, and cancel stale/legacy plans before any
+  item/cooldown mutation. Restart-only fences are excluded from semantic input.
+  Five new tests: group route replacement, solo/group scale rebase while still
+  inside reach, group visit across restart (same item once), legacy cancellation.
+  Local full backend: 80 PASS. Backend 2802baa3f Actions 37368996036 SUCCESS
+  on Linux/Windows (75 tests before this change). DX11 8d586d8f9 retry acquired
+  runner; checks SUCCESS, engine compiling. No workflow migration was needed.

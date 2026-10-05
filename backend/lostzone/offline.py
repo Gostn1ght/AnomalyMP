@@ -157,6 +157,27 @@ class Offline:
         progress = (world_ms - row["started_ms"]) / (row["arrival_ms"] - row["started_ms"])
         return route_position(json.loads(row["points"]), progress)[0]
 
+    def position_capture(self, tx, entity):
+        """Capture semantic motion dependencies, excluding restart-only fences.
+
+        A member follows its group's route without changing its own version.
+        World-scale rebasing likewise changes the route, not entity versions.
+        Scheduled interactions must validate both dependencies before mutation.
+        """
+        route = tx.execute("SELECT version,active FROM route WHERE entity_id=?", (entity["id"],)).fetchone()
+        capture = {"route":dict(route) if route else None, "group":None}
+        if entity["alive"] and (not route or not route["active"]):
+            group = tx.execute("SELECT e.* FROM group_member m JOIN entity e ON e.id=m.group_id WHERE m.member_id=?",
+                               (entity["id"],)).fetchone()
+            if group:
+                self.require_offline(tx, group["id"])
+                if group["kind"] != "GROUP" or not group["alive"] or group["location"] != entity["location"]:
+                    raise Conflict("member motion belongs to an unavailable group")
+                group_route = tx.execute("SELECT version,active FROM route WHERE entity_id=?", (group["id"],)).fetchone()
+                capture["group"] = {"id":group["id"], "version":group["version"],
+                                    "route":dict(group_route) if group_route else None}
+        return capture
+
     def write_positions(self, tx, root, target):
         state = json.loads(root["state"])
         origin = point(state.get("position"))

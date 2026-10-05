@@ -114,3 +114,11 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   Respond теперь flush/half-close + bounded tail drain; повторные реальные HTTP
   tests и полный локальный backend run: 75 PASS. ab98e1811 backend Windows
   Actions 37368019662 SUCCESS (74 tests, до fix); Linux queued.
+
+- Stash follow-up: own/group motion dependencies captured, stale route/scale
+  plans cancelled without moving items or consuming cooldown; restart-only
+  fences do not cancel valid plans. Full local backend 80 PASS. Backend
+  2802baa3f / 37368996036 SUCCESS Linux+Windows (75 tests). DX11 8d586d8f9
+  run 37367011993 attempt 1 failed runner admission, not compilation; attempt 2
+  checks SUCCESS and actual engine build running. Runtime still 1566b38 in
+  gamma-runtime / 79263abd5 in LostZone-3D-Hideout; no partial overlays installed.

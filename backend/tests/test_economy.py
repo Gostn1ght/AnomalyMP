@@ -198,6 +198,86 @@ class EconomyTest(unittest.TestCase):
         event = self.store.db.execute("SELECT * FROM scheduled_event WHERE type='StashVisited'").fetchone()
         self.assertEqual(json.loads(event["result"])["reason"],"route does not reach this stash")
 
+    def visit_group(self):
+        group = uid()
+        with self.store.transaction() as tx:
+            tx.execute("INSERT INTO entity VALUES(?,'GROUP','cordon','offline:cordon',?,1,1,?)",
+                       (group,self.store.epoch,json.dumps({"position":[0,0,0],"member_ids":[self.npc]})))
+            tx.execute("INSERT INTO group_member VALUES(?,?)",(group,self.npc))
+        self.offline.start_route("admin",uid(),group,1,[[0,0,0],[100,0,0]],2,42)
+        return group
+
+    def visit_food(self):
+        item = uid()
+        with self.store.transaction() as tx:
+            tx.execute("INSERT INTO item VALUES(?,?,'NPC',?,1,1,'{}')",(item,"food",self.npc))
+        return item
+
+    def assert_visit_cancelled_without_mutation(self, item):
+        self.ns = 100_000_000
+        self.scheduler.run_due(budget_ms=1000)
+        row = self.store.db.execute("SELECT * FROM item WHERE id=?",(item,)).fetchone()
+        self.assertEqual((row["kind"],row["holder"],row["version"]),("NPC",self.npc,1))
+        self.assertEqual(self.store.db.execute("SELECT state FROM scheduled_event WHERE type='StashVisited'").fetchone()[0],"CANCELLED")
+        for entity_id,key in ((self.npc,"last_scavenge_ms"),(self.stash,"last_npc_visit_ms")):
+            state = json.loads(self.store.db.execute("SELECT state FROM entity WHERE id=?",(entity_id,)).fetchone()[0])
+            self.assertNotIn(key,state)
+
+    def test_group_route_replacement_cancels_nearby_visit_without_member_version_change(self):
+        self.setup_visit()
+        group = self.visit_group()
+        item = self.visit_food()
+        self.visit()
+        self.offline.start_route("admin",uid(),group,2,[[0,0,0],[0,0,100]],2,43)
+        self.assertEqual(self.store.db.execute("SELECT version FROM entity WHERE id=?",(self.npc,)).fetchone()[0],2)
+        self.assert_visit_cancelled_without_mutation(item)
+
+    def rebase_visit(self, grouped):
+        self.setup_visit()
+        if grouped:
+            self.visit_group()
+        else:
+            self.offline.start_route("admin",uid(),self.npc,2,[[0,0,0],[100,0,0]],2,42)
+        item = self.visit_food()
+        self.visit()
+        before = self.store.db.execute("SELECT version FROM entity WHERE id=?",(self.npc,)).fetchone()[0]
+        self.world.set_scale("admin",uid(),20)
+        self.assertEqual(self.store.db.execute("SELECT version FROM entity WHERE id=?",(self.npc,)).fetchone()[0],before)
+        # Both old/new positions are within reach; cancellation must
+        # come from the stale capture, rather than a distance miss.
+        npc = self.store.db.execute("SELECT * FROM entity WHERE id=?",(self.npc,)).fetchone()
+        self.assertLess(sum(p*p for p in self.offline.position_at(self.store.db,npc,1000)),100)
+        self.assert_visit_cancelled_without_mutation(item)
+
+    def test_scale_rebase_cancels_nearby_solo_visit(self):
+        self.rebase_visit(False)
+
+    def test_scale_rebase_cancels_nearby_group_visit(self):
+        self.rebase_visit(True)
+
+    def test_group_visit_survives_authority_restart_and_moves_same_item_once(self):
+        self.setup_visit()
+        self.visit_group()
+        item = self.visit_food()
+        self.visit()
+        self.store.close();self.open()
+        self.ns = 100_000_000
+        self.assertEqual(self.scheduler.run_due(budget_ms=1000),1)
+        row = self.store.db.execute("SELECT * FROM item WHERE id=?",(item,)).fetchone()
+        self.assertEqual((row["id"],row["kind"],row["holder"],row["version"]),(item,"STASH",self.stash,2))
+        self.assertEqual(self.scheduler.run_due(budget_ms=1000),0)
+
+    def test_legacy_visit_without_motion_capture_is_cancelled(self):
+        self.setup_visit()
+        item = self.visit_food()
+        self.visit()
+        with self.store.transaction() as tx:
+            row = tx.execute("SELECT * FROM scheduled_event WHERE type='StashVisited'").fetchone()
+            plan = json.loads(row["payload"])
+            del plan["positions"]
+            tx.execute("UPDATE scheduled_event SET payload=? WHERE id=?",(json.dumps(plan),row["id"]))
+        self.assert_visit_cancelled_without_mutation(item)
+
 
 if __name__=="__main__":
     unittest.main()

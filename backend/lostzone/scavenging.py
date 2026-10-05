@@ -46,7 +46,8 @@ class Scavenging:
             last = json.loads(stash["state"]).get("last_npc_visit_ms")
             if last is not None and due_ms-last < self.rules["minimum_interval_ms"]:
                 raise Conflict("stash was visited too recently")
-            plan = {**payload,"rules":self.rules,"container_version":policy["version"],"location":npc["location"]}
+            plan = {**payload,"rules":self.rules,"container_version":policy["version"],"location":npc["location"],
+                    "positions":[self.offline.position_capture(tx,row) for row in (npc,stash)]}
             self.offline.scheduler.schedule_in(tx,event_id,due_ms,"entity:"+stash_id,stash_version,"StashVisited",plan)
             self.store.event(tx,"entity:"+stash_id,"StashVisitPlanned",payload,self.world.now())
             return {"event_id":event_id,"due_ms":due_ms}
@@ -62,6 +63,12 @@ class Scavenging:
             return {"reason":"participants/protection changed"},False
         if (npc["version"],stash["version"],policy["version"]) != (plan["npc_version"],plan["stash_version"],plan["container_version"]):
             return {"reason":"visit capture changed"},False
+        try:
+            positions = [self.offline.position_capture(tx,row) for row in (npc,stash)]
+        except Conflict:
+            return {"reason":"visit motion authority changed"},False
+        if positions != plan.get("positions"):
+            return {"reason":"visit motion capture changed"},False
         rules,at = plan["rules"],event["due_world_ms"]
         stash_state,npc_state = (json.loads(row["state"]) for row in (stash,npc))
         last = stash_state.get("last_npc_visit_ms")
