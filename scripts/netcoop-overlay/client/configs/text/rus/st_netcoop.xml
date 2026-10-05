@@ -495,4 +495,28 @@
   <string id="st_netcoop_loadout_error">
     <text>Не удалось завершить выбор снаряжения. Попробуйте ещё раз; подробности записаны в журнал.</text>
   </string>
+  <string id="st_netcoop_passage_not_inside">
+    <text>Подойдите ближе к переходу.</text>
+  </string>
+  <string id="st_netcoop_passage_closed">
+    <text>Этот переход закрыт.</text>
+  </string>
+  <string id="st_netcoop_passage_no_server">
+    <text>Эта часть Зоны пока недоступна.</text>
+  </string>
+  <string id="st_netcoop_passage_offline">
+    <text>Сервер этой локации сейчас выключен. Попробуйте позже.</text>
+  </string>
+  <string id="st_netcoop_passage_full">
+    <text>Сервер этой локации заполнен. Попробуйте позже.</text>
+  </string>
+  <string id="st_netcoop_passage_loading">
+    <text>Персонаж ещё загружается.</text>
+  </string>
+  <string id="st_netcoop_passage_save_failed">
+    <text>Не удалось сохранить персонажа, переход отменён.</text>
+  </string>
+  <string id="st_netcoop_passage_unavailable">
+    <text>Переход недоступен.</text>
+  </string>
 </string_table>

@@ -3135,8 +3135,19 @@ void client_on_script(NET_Packet& P)
 	if (!xr_strcmp(channel, "netcoop_transfer")) return client_cluster_transfer(data);
 	if (!xr_strcmp(channel, "netcoop_transfer_refused"))
 	{
-		string512 text; xr_sprintf(text, "Passage unavailable: %s", data);
-		return client_on_server_text(text);
+		// The server names the reason in English; the player reads it in the
+		// game's language (st_netcoop.xml).
+		static const struct { LPCSTR reason, key; } reasons[] = {
+			{"not inside", "st_netcoop_passage_not_inside"}, {"passage is closed", "st_netcoop_passage_closed"},
+			{"no server runs", "st_netcoop_passage_no_server"}, {"is offline", "st_netcoop_passage_offline"},
+			{"is full", "st_netcoop_passage_full"}, {"still loading", "st_netcoop_passage_loading"},
+			{"could not be saved", "st_netcoop_passage_save_failed"},
+		};
+		LPCSTR key = "st_netcoop_passage_unavailable";
+		for (const auto& r : reasons)
+			if (strstr(data, r.reason)) { key = r.key; break; }
+		Msg("[Lost Zone][cluster] passage refused: %s", data);
+		return client_on_server_text(*CStringTable().translate(key));
 	}
 	::luabind::functor<void> f;
 	if (!ai().script_engine().functor("netcoop_client_compat.on_script_message", f))

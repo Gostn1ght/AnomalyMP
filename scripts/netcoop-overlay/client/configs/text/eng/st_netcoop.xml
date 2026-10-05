@@ -495,4 +495,28 @@
   <string id="st_netcoop_loadout_error">
     <text>Equipment selection could not be completed. Try again; details were written to the log.</text>
   </string>
+  <string id="st_netcoop_passage_not_inside">
+    <text>Come closer to the passage.</text>
+  </string>
+  <string id="st_netcoop_passage_closed">
+    <text>This passage is closed.</text>
+  </string>
+  <string id="st_netcoop_passage_no_server">
+    <text>That part of the Zone is not open yet.</text>
+  </string>
+  <string id="st_netcoop_passage_offline">
+    <text>The server of that location is down. Try again later.</text>
+  </string>
+  <string id="st_netcoop_passage_full">
+    <text>The server of that location is full. Try again later.</text>
+  </string>
+  <string id="st_netcoop_passage_loading">
+    <text>Your character is still loading.</text>
+  </string>
+  <string id="st_netcoop_passage_save_failed">
+    <text>Your character could not be saved; you stay here.</text>
+  </string>
+  <string id="st_netcoop_passage_unavailable">
+    <text>This passage is unavailable.</text>
+  </string>
 </string_table>
