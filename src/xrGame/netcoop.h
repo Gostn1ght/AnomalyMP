@@ -226,6 +226,11 @@ LPCSTR script_item_info(u16 id);
 bool client_transfer(u16 from, u16 to, u16 item);
 void client_on_transfer_result(NET_Packet& P);
 void server_on_transfer(xrServer* server, xrClientData* CL, NET_Packet& P);
+// Lua (client): netcoop_item_action(kind, item, target, action) - the server
+// runs an item action (stage 3): kind 0 = menu functor "module.function",
+// kind 1 = item dropped on item ("battery_swap"). Target 65535 = none.
+bool script_item_action(int kind, u16 item, u16 target, LPCSTR action);
+void server_on_item_action(xrServer* server, xrClientData* CL, NET_Packet& P);
 void client_on_physics(NET_Packet& P);
 // Server: the object is the Actor of a remote player. Local() is not used
 // for this: on the dedicated server it did not tell these copies apart

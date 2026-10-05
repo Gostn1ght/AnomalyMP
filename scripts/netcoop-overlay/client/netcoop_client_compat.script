@@ -574,6 +574,74 @@ local function init_event_managers()
 	end
 end
 
+-- Item actions that create or release items need alife(), which exists only
+-- on the server (stage 3). A client ran them halfway: a battery charged the
+-- device and stayed in the inventory. These are sent to the server, which
+-- checks and runs them for this player (netcoop_server_compat.item_action;
+-- keep SERVER_ITEM_ACTIONS equal to its SERVER_MENU_ACTIONS).
+local SERVER_ITEM_ACTIONS = {
+	["item_device.func_battery"] = true,
+}
+
+local function menu_functor(sec, i)
+	return ini_sys and ini_sys:r_string_ex(sec, "use" .. i .. "_action_functor")
+end
+
+local function server_battery_drop(obj_b, obj_d, slot_from, slot_to)
+	if not (slot_from == EDDListType.iActorBag and (slot_to == EDDListType.iActorBag or slot_to == EDDListType.iActorSlot)) then
+		return
+	end
+	local dev = item_device
+	if not (dev and obj_b and obj_d and obj_b:section() == dev.device_battery and dev.dev_consumption[obj_d:section()]) then
+		return
+	end
+	if obj_d:condition() > obj_b:condition() then
+		actor_menu.set_msg(1, game.translate_string("ui_st_battery_more_power"))
+		return
+	end
+	if netcoop_item_action(1, obj_b:id(), obj_d:id(), "battery_swap") then
+		pcall(actor_effects.play_item_fx, dev.device_battery)
+		pcall(utils_obj.play_sound, "interface\\inv_batt")
+	end
+end
+
+local function install_server_item_actions()
+	if not (netcoop_item_action and netcoop_pure_client and netcoop_pure_client()) then return end
+	local ui = ui_inventory and ui_inventory.UIInventory
+	if ui and not ui.__netcoop_item_actions then
+		ui.__netcoop_item_actions = true
+		local action_custom = ui.Action_Custom
+		ui.Action_Custom = function(self, obj, bag, temp, i)
+			local checked = self:CheckItem(obj, "Action_Custom " .. tostring(i))
+			local functor = checked and menu_functor(checked:section(), i)
+			if functor and SERVER_ITEM_ACTIONS[functor] then
+				netcoop_item_action(0, checked:id(), 65535, functor)
+				if self.PlaySND and snd_button then self:PlaySND(snd_button) end
+				self:On_Item_Update()
+				return
+			end
+			return action_custom(self, obj, bag, temp, i)
+		end
+	end
+	-- item_device registers its battery drop handler as a local function:
+	-- find it among on_game_start's upvalues and put the server request in place.
+	local dev = item_device
+	if dev and type(dev.on_game_start) == "function" and debug and debug.getupvalue and not dev.__netcoop_battery_drop then
+		for n = 1, 64 do
+			local name, fn = debug.getupvalue(dev.on_game_start, n)
+			if not name then break end
+			if name == "on_item_drag_dropped" and type(fn) == "function" then
+				UnregisterScriptCallback("ActorMenu_on_item_drag_drop", fn)
+				RegisterScriptCallback("ActorMenu_on_item_drag_drop", server_battery_drop)
+				dev.__netcoop_battery_drop = true
+				printf("[Lost Zone] battery swaps run on the server")
+				break
+			end
+		end
+		if not dev.__netcoop_battery_drop then printf("! [Lost Zone] item_device battery drop handler not found") end
+	end
+end
+
 function on_game_start()
 	install_actor_lifecycle()
 	install_weather_follow()
@@ -588,6 +656,8 @@ function on_game_start()
 	end)
 	quiet_busy_hands()
 	install_server_trade()
+	-- After every module's on_game_start (item_device registers its handlers there).
+	RegisterScriptCallback("actor_on_first_update", install_server_item_actions)
 	RegisterScriptCallback("actor_on_item_take", on_item_take)
 	init_event_managers()
 	netcoop_emission_view.install()

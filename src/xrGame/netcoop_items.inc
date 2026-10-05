@@ -28,7 +28,7 @@ struct ItemRecord
 	u32 incarnation = 0; // a reused object ID starts a new incarnation
 	u16 version = 0;
 	u16 owner = 0xffff; // player Actor carrying it, 0xffff = everyone
-	bool forced = false; // server-authored change: predicted fields go to the owner too
+	u32 forced_until = 0; // server-authored change: predicted fields go to the owner too, briefly
 	u32 last_send = 0;
 	item_state::State sent;
 };
@@ -299,7 +299,7 @@ void server_items_update(xrServer* server)
 			record.owner = owner;
 			record.sent = current;
 			++record.version;
-			record.forced = false;
+			record.forced_until = 0;
 			record.last_send = now;
 			queue(owner, id, record, item_state::applicable(current) | item_state::f_full);
 			continue;
@@ -307,7 +307,8 @@ void server_items_update(xrServer* server)
 		u16 mask = item_state::diff(record.sent, current) & ~item_state::f_uid;
 		// The carrier predicts these fields itself; the server's duplicate
 		// simulation of the same shots and wear is not echoed back to it.
-		if (owner != 0xffff && !record.forced) mask &= ~item_state::f_owner_predicted;
+		const bool forced = now < record.forced_until;
+		if (owner != 0xffff && !forced) mask &= ~item_state::f_owner_predicted;
 		// Items inside an NPC, corpse or container change with every shot of
 		// their holder; others see them only when looting, so 2 Hz is enough
 		// (the final state still goes out on the next scan).
@@ -315,9 +316,12 @@ void server_items_update(xrServer* server)
 		if (!mask || now - record.last_send < interval) continue;
 		item_state::merge(record.sent, current, mask);
 		++record.version;
-		record.forced = false;
+		// A server-authored change is applied by the carrier even to the
+		// fields it predicts (the client drops those from ordinary deltas).
+		const u16 flags = forced && owner != 0xffff ? item_state::f_full : 0;
+		record.forced_until = 0;
 		record.last_send = now;
-		queue(owner, id, record, mask);
+		queue(owner, id, record, u16(mask | flags));
 	}
 
 	// Joining clients (and respawned players): full snapshots of the world's
@@ -378,7 +382,7 @@ void server_items_update(xrServer* server)
 void server_item_touch(u16 id)
 {
 	auto found = s_item_records.find(id);
-	if (found != s_item_records.end()) found->second.forced = true;
+	if (found != s_item_records.end()) found->second.forced_until = real_time_ms() + 2000;
 }
 
 void item_destroyed(u16 id)
@@ -679,4 +683,71 @@ LPCSTR script_item_info(u16 id)
 	xr_sprintf(text, "server uid=%llu inc=%u v=%u owner=%u cond=%.3f uses=%u/%u ammo=%u box=%u", r.sent.uid, r.incarnation, r.version,
 		r.owner, live ? item_state::dequantize(s.condition) : -1.f, s.uses, s.max_uses, item_state::ammo_total(s), s.stack_count);
 	return text;
+}
+
+// ---- server-executed item actions (stage 3) -----------------------------------
+// GAMMA's item scripts (battery swap, unpacking, kits) create and release
+// items through alife(), which does not exist on a client: there the device
+// was charged and the battery kept (charging for free). The client now asks
+// the server to run the action; the server checks that the items are in the
+// player's inventory and that the action is one it performs
+// (netcoop_server_compat.item_action keeps that list as data), then runs the
+// same GAMMA function for that player. Results replicate as usual; the
+// carrier also receives the fields it normally predicts itself.
+// M_NETCOOP_ITEM_ACTION: u8 kind (0 menu functor, 1 item dropped on item),
+// u16 item, u16 target (0xffff none), stringZ action.
+
+bool script_item_action(int kind, u16 item, u16 target, LPCSTR action)
+{
+	if (!pure_client() || kind < 0 || kind > 1 || !action || xr_strlen(action) > 63) return false;
+	client_items_update(true);
+	NET_Packet P;
+	P.w_begin(M_NETCOOP_ITEM_ACTION);
+	P.w_u8(u8(kind)); P.w_u16(item); P.w_u16(target); P.w_stringZ(action);
+	Level().Send(P, net_flags(TRUE, TRUE));
+	return true;
+}
+
+void server_on_item_action(xrServer* server, xrClientData* CL, NET_Packet& P)
+{
+	if (!enabled() || !CL || !CL->owner || P.r_elapsed() < 6) return;
+	const u8 kind = P.r_u8();
+	const u16 item = P.r_u16(), target = P.r_u16();
+	string64 action;
+	if (kind > 1 || !read_string(P, action, sizeof(action))) return;
+	CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(CL->owner->ID));
+	auto carried = [&](u16 id) { return smart_cast<CInventoryItem*>(Level().Objects.net_Find(id)) && item_root(server, id) == CL->owner->ID; };
+	xr_string failure;
+	if (!actor || !actor->g_Alive()) failure = "player is dead";
+	else if (!carried(item)) failure = "item is not in your inventory";
+	else if (target != 0xffff && !carried(target)) failure = "target is not in your inventory";
+	else
+	{
+		::luabind::functor<LPCSTR> run;
+		if (!ai().script_engine().functor("netcoop_server_compat.item_action", run)) failure = "server item actions are not loaded";
+		else
+		{
+			ServerVictimScope scope(actor);
+			try
+			{
+				LPCSTR result = run(int(CL->owner->ID), int(kind), int(item), int(target), (LPCSTR)action);
+				failure = result ? result : "";
+			}
+			catch (...) { failure = "server script error"; }
+		}
+	}
+	if (failure.empty())
+	{
+		server_item_touch(item);
+		if (target != 0xffff) server_item_touch(target);
+	}
+	Msg("%s[NetAnomaly][item] action %s kind=%u item=%u target=%u player=%s %s%s", failure.empty() ? "" : "! ", action, kind, item,
+		target, CL->netcoop_login.c_str(), failure.empty() ? "ok" : "failed: ", failure.c_str());
+	if (!failure.empty())
+	{
+		NET_Packet reply;
+		reply.w_begin(M_NETANOMALY_MSG);
+		reply.w_stringZ(make_string("! %s", failure.c_str()).c_str());
+		server->SendTo(CL->ID, reply, net_flags(TRUE, TRUE));
+	}
 }

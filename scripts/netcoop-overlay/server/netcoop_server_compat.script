@@ -629,3 +629,60 @@ function on_game_start()
 		end
 	end
 end
+
+----------------------------------------------------------------------
+-- Item actions a player's client asks the server to run (stage 3,
+-- netcoop_items.inc server_on_item_action). The engine has checked that
+-- the items are in the player's inventory; db.actor and AC_ID are that
+-- player while this runs. Returns "" or the reason for a refusal.
+----------------------------------------------------------------------
+-- Menu functors (useN_action_functor) the server performs. The client sends
+-- these instead of running them (netcoop_client_compat SERVER_ITEM_ACTIONS,
+-- keep both lists equal).
+local SERVER_MENU_ACTIONS = {
+	["item_device.func_battery"] = true, -- take the battery out of a device
+}
+
+local function section_has_functor(section, functor)
+	for i = 1, 10 do
+		local value = ini_sys:r_string_ex(section, "use" .. i .. "_action_functor")
+		if value and value == functor then return true end
+	end
+	return false
+end
+
+-- item_device's drag-and-drop of a battery on a device, with alife().
+local function battery_swap(battery, device)
+	local dev = item_device
+	if not (dev and dev.device_battery and dev.dev_consumption and dev.dev_critical) then return "devices are not loaded" end
+	local sec_b, sec_d = battery:section(), device:section()
+	if sec_b ~= dev.device_battery or not dev.dev_consumption[sec_d] then return "this battery does not fit" end
+	local con_b, con_d = battery:condition(), device:condition()
+	if con_d > con_b then return game.translate_string("ui_st_battery_more_power") end
+	if con_d > (dev.dev_critical[sec_d] or 0) then
+		alife_create_item(dev.device_battery, db.actor, { cond = con_d })
+	end
+	alife_release(battery)
+	device:set_condition(con_b)
+	printf("[Lost Zone] battery %s (%.2f) -> %s (was %.2f)", sec_b, con_b, sec_d, con_d)
+	return ""
+end
+
+function item_action(actor_id, kind, item_id, target_id, action)
+	local item = level.object_by_id(item_id)
+	local target = target_id ~= 65535 and level.object_by_id(target_id) or nil
+	if not item or (target_id ~= 65535 and not target) then return "item is not available" end
+	if kind == 0 then
+		if not SERVER_MENU_ACTIONS[action] then return "this action is not run by the server" end
+		if not section_has_functor(item:section(), action) then return "this item has no such action" end
+		local module, name = string.match(action, "^([%w_]+)%.([%w_]+)$")
+		local fn = module and _G[module] and _G[module][name]
+		if type(fn) ~= "function" then return "action is not loaded on the server" end
+		local ok, err = pcall(fn, item)
+		if not ok then printf("! [Lost Zone] item action %s failed: %s", action, tostring(err)); return "server script error" end
+		return ""
+	elseif kind == 1 and action == "battery_swap" and target then
+		return battery_swap(item, target)
+	end
+	return "unknown item action"
+end
