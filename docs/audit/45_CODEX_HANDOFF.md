@@ -362,3 +362,19 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   failure). Current DX11 37385428435 includes all native fixes: checks SUCCESS,
   engine compiling. Latest successful native package ad4725002/37382384355.
   Please preserve the running package build; backend/docs-only pushes are safe.
+
+- Final check before the current usage window is exhausted: 4b8a20285 backend
+  37385808762 SUCCESS Windows+Linux (148). Current native 37385428435 is still
+  compiling; its completed checks and 970ef6658 Foundation are SUCCESS. No
+  native runtime installation by Codex. All Codex changes committed/pushed.
+- Next safe priorities: inspect completion of 37385428435 without starting a
+  competing native build; actual runtime acceptance belongs to Claude. Then
+  gate target player readiness on successful full progress restore (capture
+  now fails closed, restore still swallows Lua failure). Keep native NPC transit
+  opt-in until mailbox WorldID/fencing/global population/mod-state acceptance.
+- Backend automatic contact planning needs an event-time mutation barrier:
+  merely queueing a pass and using current time can skip a contact crossed
+  while processing was delayed, or invalidate an earlier route before combat
+  applied. Preserve old physical capture/history and resolve due dependencies
+  before changing routes/representation. Do not enable an unproven timer scan
+  as a substitute for that barrier or claim native chunk/LOD adoption.

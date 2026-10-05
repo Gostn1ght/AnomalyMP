@@ -708,3 +708,7 @@ package run is 37385428435 (5cf816177, includes all Codex native fixes), native
 checks SUCCESS, engine compiling. Latest completed native package is still
 ad4725002 / 37382384355. Do not infer installation or live acceptance of the
 failed-logout backoff from its passing standalone fixture.
+
+4b8a20285 backend 37385808762 SUCCESS Windows+Linux (148 tests), including
+the casualty-state projection optimization. Full native 37385428435 remains
+in progress; current proven native package is ad4725002/37382384355.
