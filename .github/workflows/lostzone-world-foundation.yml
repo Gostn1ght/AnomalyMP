@@ -17,10 +17,13 @@ on:
       - 'scripts/check-netcoop-world-store.py'
       - 'src/xrGame/netcoop_spatial_grid.h'
       - 'src/xrGame/netcoop_simulation_lod.h'
+      - 'src/xrGame/netcoop_world_bridge.h'
+      - 'src/xrGame/netcoop_world_bridge.inc'
       - 'src/xrGame/xrServer.cpp'
       - 'src/xrGame/xrServer.h'
       - 'scripts/check-netcoop-spatial-grid.py'
       - 'scripts/check-netcoop-simulation-lod.py'
+      - 'scripts/check-netcoop-world-bridge.py'
       - '.github/workflows/lostzone-world-foundation.yml'
   workflow_dispatch:
 
@@ -42,6 +45,8 @@ jobs:
         run: python scripts/check-netcoop-spatial-grid.py
       - name: Exercise simulation LOD and representation barriers
         run: python scripts/check-netcoop-simulation-lod.py
+      - name: Exercise read-only world bridge and wire protocol
+        run: python scripts/check-netcoop-world-bridge.py
       - name: Exercise snapshot slot recovery
         run: python scripts/check-netcoop-world-store.py
       - name: Exercise ALife integration and durable ownership
@@ -63,6 +68,8 @@ jobs:
           python scripts/check-netcoop-spatial-grid.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-simulation-lod.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-netcoop-world-bridge.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-world-store.py
           if errorlevel 1 exit /b %errorlevel%

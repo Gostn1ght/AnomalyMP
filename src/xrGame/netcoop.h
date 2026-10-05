@@ -173,6 +173,7 @@ struct ServerVictimScope
 };
 void server_on_client_disconnect(xrClientData* CL);
 void server_update(xrServer* server); // periodic money persistence
+void server_world_bridge_stop(); // join the optional read-only loopback worker
 bool server_account_money(LPCSTR login, u32& money);
 // Per-player tasks: updates each player's tasks and sends changed lists.
 void server_tasks_update(xrServer* server);

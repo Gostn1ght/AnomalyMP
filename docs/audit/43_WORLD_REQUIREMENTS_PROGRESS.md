@@ -13,10 +13,17 @@
 не засчитывается как выполнение кода. Процент готовности по количеству
 строк не вычисляется: стоимость задач сильно различается.
 
-На эту дату рабочая детализация содержит **188 задач**: 10 ограниченных
+На исходной сверке `0d5e5e660` рабочая детализация содержит **188 задач**: 10 ограниченных
 задач имеют реализацию и fixture-проверки, 3 имеют частичную основу,
 175 остаются впереди. Это подсчёт данного списка, а не заявление,
 что пользователь буквально написал 188 пронумерованных пунктов.
+
+После этой сверки добавлены исполняемый transactional backend, handoff,
+quests/timelines, abstract routes, economy/scavenging/encounters и native
+spatial/LOD shadow. Фактическая реализация и границы проверок перечислены
+в [итерации 44](44_WORLD_IMPLEMENTATION_ITERATION.md). Отметки здесь
+сохраняют критерий работы **в игровой системе**: отдельный backend resolver
+или fixture не закрывает engine adapter и приёмку всего пункта.
 
 Статусы:
 
@@ -35,16 +42,17 @@ W4–W12; поздние номера W8–W12 в первоначальном �
 Основание: «Масштаб мира», «Общая серверная архитектура», «Сервер является
 авторитетным», «Что требуется спроектировать». Контракты: 42 §2–3, §13–14.
 
-- [ ] A01. World Service как исполняемый модуль: глобальный календарь,
+- [ ] A01. Частично: исполняемый local World Service; engine adoption впереди. Глобальный календарь,
   seed, параметры мира и события; не обслуживает каждый AI/physics tick.
 - [ ] A02. Независимые Location Runtime: каждый процесс изменяет только
   принадлежащую ему локацию, без повторной инициализации всей Зоны.
 - [ ] A03. Authority lease и fencing между процессами/хостами: старый
   владелец после потери lease не может публиковать изменения.
-- [ ] A04. Player Persistence с отдельным интерфейсом и транзакциями.
-- [ ] A05. Quest Service с независимым от локации состоянием заданий.
-- [ ] A06. Transfer/Session Service с единственным владельцем персонажа.
-- [ ] A07. Persistence DB: схемы, миграции, версии и восстановление.
+- [ ] A04. Частично: backend Player Persistence с транзакциями; game bridge впереди.
+- [ ] A05. Частично: backend Quest Service; GAMMA adapter впереди.
+- [ ] A06. Частично: Transfer/Session Service; hidden engine spawn/release впереди.
+- [ ] A07. Частично: SQLite WAL, schema migrations v1→v3, crash tests;
+  coherent engine/backend recovery впереди.
 - [ ] A08. Event/Message Bus: повторная доставка, inbox/outbox,
   дедупликация, порядок и повтор после отключения.
 - [ ] A09. Auth/Gateway: удостоверенная серверная сессия и проверка
@@ -74,7 +82,8 @@ W4–W12; поздние номера W8–W12 в первоначальном �
 - [x] B07. Чтения из ALife worker и server thread защищены mutex;
   live reload/reset под той же epoch отклонён.
 - [ ] B08. Частично: LocalWorldService и WorldStateSnapshot есть;
-  durable World State с погодой, событиями и территориями ещё отсутствует.
+  backend durable WorldState с weather/emission timelines добавлен;
+  engine consumption и territories впереди.
 - [ ] B09. Удостоверенный World Service endpoint и wire encoding
   Bootstrap/ClockSync/ScaleChanged, доставка серверам локаций.
 - [ ] B10. Подключить LocationClock к действительным location packets;
@@ -118,8 +127,12 @@ B01–B07 проверены native fixtures `check-netcoop-world-clock.py` и
 - [ ] C13. Профиль: время spatial query, число активных ячеек, churn
   и стоимость двух игроков на противоположных концах локации.
 
-**Весь C пока впереди.** Старый ALife online/offline и дистанционный
-фильтр сообщений не являются готовым Chunk Manager.
+SpatialGrid реализован и fixture проверен; engine использует его в
+diagnostic shadow для сравнения с legacy. Новое ядро поддерживает cells,
+move/erase, location scope, 128-bit IDs и capsule query. Native LOD policy
+объединяет observer demand и содержит hysteresis/barrier. Live ownership,
+реальное переключение AI/physics и packet admission впереди; C целиком
+не закрыт. Shadow использует runtime handles вместо durable registry.
 
 ## D. Interest Management и network replication
 
@@ -181,7 +194,10 @@ B01–B07 проверены native fixtures `check-netcoop-world-clock.py` и
 - [ ] E21. Приёмка: высота/оптика, максимальная скорость, два игрока,
   бой у границы; нет видимого «пробуждения» и пропажи сущностей.
 
-**Весь E пока впереди.** Штатные два ALife состояния не считаются четырьмя LOD.
+Основа E добавлена: planner четырёх уровней, hysteresis и RepresentationGate
+в native fixture/shadow; backend сохраняет полный capture и аналитические
+маршруты конкретных групп. ALife adapter/Reduced AI/hydration queue ещё
+не подключены. Штатные два ALife состояния не считаются четырьмя LOD.
 
 ## F. Entity ownership, предметы и защита от duplication
 

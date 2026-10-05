@@ -42,7 +42,7 @@ class Credentials:
             raise Invalid("invalid server credentials configuration")
         for actor, data in entries.items():
             identifier(actor)
-            if not isinstance(data, dict) or data.get("role") not in ("admin", "location"):
+            if not isinstance(data, dict) or data.get("role") not in ("admin", "location", "observer"):
                 raise Invalid("invalid server credential role")
             token, locations = data.get("token"), data.get("locations", [])
             if not isinstance(token, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{32,256}", token):
@@ -109,6 +109,8 @@ class Dispatcher:
             raise PermissionError("location is outside this server's allowlist")
 
     def execute(self, principal, request):
+        if principal.role=="observer":
+            raise PermissionError("read-only observer cannot mutate world state")
         if not isinstance(request, dict) or set(request) != {"command_id", "operation", "arguments"}:
             raise Invalid("command requires command_id, operation and arguments")
         args, operation = request["arguments"], request["operation"]

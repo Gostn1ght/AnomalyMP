@@ -25,6 +25,7 @@ def create_config(path, locations):
     for location in locations:
         credentials["location:" + location] = {"role": "location", "locations": [location],
                                                  "token": secrets.token_urlsafe(48)}
+    credentials["observer:engine"] = {"role":"observer","locations":[],"token":secrets.token_urlsafe(48)}
     config = {"schema": 1, "database": "world.sqlite", "port": 38477,
               "signing_key": secrets.token_hex(32), "credentials": credentials}
     data = json.dumps(config, ensure_ascii=False, indent=2).encode("utf-8")
@@ -39,6 +40,28 @@ def create_config(path, locations):
         # reason to overwrite an existing credential file on the next run.
         raise
     return path
+
+
+def create_bridge_config(config_path, destination):
+    # Export only a read-only observer, never an admin/location token. The
+    # engine owns its existing WorldID/seed; this file does not adopt a new DB.
+    config_path,destination = Path(config_path).resolve(),Path(destination).resolve()
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    Credentials(config.get("credentials"))
+    entry = config.get("credentials",{}).get("observer:engine")
+    if not entry or entry.get("role")!="observer":
+        raise Invalid("a dedicated read-only engine observer is required")
+    port = config.get("port",38477)
+    if type(port) is not int or not 1 <= port <= 65535:
+        raise Invalid("shadow bridge requires a fixed loopback port")
+    if destination.name!="netcoop_world_bridge.json":
+        raise Invalid("engine bridge file must be netcoop_world_bridge.json")
+    destination.parent.mkdir(parents=True,exist_ok=True)
+    encoded = json.dumps({"schema":1,"mode":"shadow","host":"127.0.0.1","port":port,"token":entry["token"]}).encode("utf-8")
+    descriptor = os.open(destination,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+    with os.fdopen(descriptor,"wb") as file:
+        file.write(encoded);file.flush();os.fsync(file.fileno())
+    return destination
 
 
 def run(path, port_override=None):
@@ -108,14 +131,20 @@ def run(path, port_override=None):
 
 def main():
     parser = argparse.ArgumentParser(description="Lost Zone local World Service")
-    parser.add_argument("mode", choices=("init", "serve"))
+    parser.add_argument("mode", choices=("init", "serve", "bridge-config"))
     parser.add_argument("--config", required=True)
     parser.add_argument("--location", action="append", default=[])
     parser.add_argument("--port", type=int)
+    parser.add_argument("--destination")
     args = parser.parse_args()
     if args.mode == "init":
         create_config(args.config, args.location)
         print("Created private service configuration. Tokens are not printed.")
+    elif args.mode=="bridge-config":
+        if not args.destination:
+            raise Invalid("bridge-config requires --destination in the server userdata folder")
+        create_bridge_config(args.config,args.destination)
+        print("Created private read-only engine bridge configuration. Token is not printed.")
     else:
         run(args.config, args.port)
 

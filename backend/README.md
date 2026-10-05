@@ -76,6 +76,22 @@ Init создаёт приватный config один раз и не замен
 Credentials именуют principal и явный список его локаций. Principal нельзя
 назначить из request body. Player clients эти credentials не получают.
 
+Для native shadow bridge существует отдельная роль `observer`: bootstrap/clock
+доступны, mutations всегда запрещены. `init` выдаёт отдельный observer token.
+Экспорт приватного файла в server userdata (не клиентский overlay):
+
+```powershell
+python -m lostzone bridge-config --config runtime/config.json --destination <server-userdata>/netcoop_world_bridge.json
+```
+
+Экспорт никогда не заменяет существующий файл и не использует admin/location
+credential. Движок читает файл при запуске и получает /v1/bootstrap на worker
+через WinHTTP loopback без proxy/redirect. Bounded wire parser и LocationClock
+проверяют WorldID/seed/epoch/schema/sequence/holdover; main thread только
+сравнивает estimate с ALife clock. `[world-bridge-shadow]` не назначает backend
+владельцем и не изменяет календарь, inventory или AI. Файл конфигурации и DB
+мира должны согласовывать identity отдельно; несовпадение закрывает observer.
+
 GET /v1/clock, /v1/bootstrap; GET /v1/location?id=...&fence=...;
 GET /v1/transfer?id=...; admin GET /v1/events?after=...&limit=...;
 POST /v1/command: command_id (128-bit hex), operation, arguments.

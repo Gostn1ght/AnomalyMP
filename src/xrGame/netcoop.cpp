@@ -9,6 +9,11 @@
 #include <winhttp.h>
 #include <windns.h>
 #include "../3rd party/nlohmann/json.hpp"
+#include "netcoop_world_bridge.h"
+#include <condition_variable>
+#include <fstream>
+#include <mutex>
+#include <thread>
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "bcrypt.lib")
@@ -406,6 +411,7 @@ static xr_string client_device_key()
 }
 
 #include "netcoop_firebase.inc"
+#include "netcoop_world_bridge.inc"
 
 struct StorageRequest
 {
@@ -1594,6 +1600,7 @@ void server_update(xrServer* server)
 	psActorFlags.set(AF_GODMODE_RT, FALSE);
 	destroy_pending_actors(server);
 	world_store_update(server);
+	server_world_bridge_update();
 	server_talk_prune(server);
 	characters_update(server);
 	if (!s_accounts_loaded)

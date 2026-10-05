@@ -38,6 +38,7 @@ public:
 	IC float normal_time_factor() const;
 	void change_game_time(u32 value);
 	bool has_world_clock() const { return bool(m_world_clock); }
+	bool export_world_state(netcoop_world::WorldStateSnapshot& snapshot);
 };
 
 #include "alife_time_manager_inline.h"

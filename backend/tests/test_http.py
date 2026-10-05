@@ -14,7 +14,7 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lostzone import Store, World, Invalid
 from lostzone.http import Credentials, Dispatcher, RateLimit, Server
-from lostzone.__main__ import create_config
+from lostzone.__main__ import create_config, create_bridge_config
 
 
 class HttpTest(unittest.TestCase):
@@ -25,7 +25,8 @@ class HttpTest(unittest.TestCase):
         self.credentials = Credentials({
             "admin": {"role": "admin", "token": "a" * 48},
             "cordon-server": {"role": "location", "token": "b" * 48, "locations": ["cordon"]},
-            "garbage-server": {"role": "location", "token": "c" * 48, "locations": ["garbage"]}})
+            "garbage-server": {"role": "location", "token": "c" * 48, "locations": ["garbage"]},
+            "engine-observer":{"role":"observer","token":"d"*48,"locations":[]}})
         self.server = Server(("127.0.0.1", 0), Dispatcher(self.world, b"key-" * 8), self.credentials, max_workers=2)
         self.thread = threading.Thread(target=self.server.serve_forever)
         self.thread.start()
@@ -68,6 +69,12 @@ class HttpTest(unittest.TestCase):
         self.assertEqual(self.command("stash_visit", {})[0], 403)
         self.assertEqual(self.command("trade", {"location": "garbage"})[0], 403)
         self.assertEqual(self.call("GET", "/v1/events")[0], 404)
+
+    def test_observer_bridge_credential_cannot_claim_or_mutate_world(self):
+        self.assertEqual(self.call("GET","/v1/bootstrap",token="d"*48)[0],200)
+        for operation,args in (("world_scale",{"value":1}),("location_claim",{"location":"cordon"}),
+                               ("entity_create",{}),("trade",{}),("offline_combat",{})):
+            self.assertEqual(self.command(operation,args,token="d"*48)[0],403)
 
     def test_duplicate_command_over_real_http_and_contract_rejection(self):
         key = uuid.uuid4().hex
@@ -127,6 +134,23 @@ class HttpTest(unittest.TestCase):
         self.assertEqual(path.read_bytes(), original)
         with self.assertRaises(Invalid):
             Server(("0.0.0.0", 38477), self.server.dispatcher, self.credentials)
+
+    def test_native_bridge_config_exports_only_observer_and_never_replaces_credentials(self):
+        config_path = Path(self.folder.name)/"backend.json"
+        create_config(config_path,["cordon"])
+        config = json.loads(config_path.read_text())
+        destination = Path(self.folder.name)/"userdata"/"netcoop_world_bridge.json"
+        create_bridge_config(config_path,destination)
+        result = json.loads(destination.read_text())
+        self.assertEqual((result["host"],result["mode"]),("127.0.0.1","shadow"))
+        self.assertEqual(result["token"],config["credentials"]["observer:engine"]["token"])
+        self.assertNotEqual(result["token"],config["credentials"]["admin"]["token"])
+        with self.assertRaises(FileExistsError):
+            create_bridge_config(config_path,destination)
+        config["credentials"]["observer:engine"]["role"]="admin"
+        config_path.write_text(json.dumps(config))
+        with self.assertRaises(Invalid):
+            create_bridge_config(config_path,Path(self.folder.name)/"other"/"netcoop_world_bridge.json")
 
     def test_real_cli_service_restart_and_private_bootstrap(self):
         folder = Path(self.folder.name) / "service"

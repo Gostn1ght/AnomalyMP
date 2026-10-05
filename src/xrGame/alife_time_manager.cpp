@@ -146,3 +146,10 @@ void CALifeTimeManager::change_game_time(u32 value)
 	}
 	m_game_time += value;
 }
+
+bool CALifeTimeManager::export_world_state(netcoop_world::WorldStateSnapshot& snapshot)
+{
+	if (!m_world_clock) return false;
+	snapshot = m_world_clock->checkpoint();
+	return true;
+}
