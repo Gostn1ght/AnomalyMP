@@ -65,6 +65,11 @@
 #include "../xrEngine/gamemtllib.h"
 #include "../Include/xrRender/Kinematics.h"
 #include "../Include/xrRender/KinematicsAnimated.h"
+#include "../xrEngine/XR_IOConsole.h"
+#include "level_changer.h"
+#include <time.h>
+
+extern xr_vector<CLevelChanger*> g_lchangers;
 
 namespace netcoop
 {
@@ -891,6 +896,9 @@ struct Account
 	u32 money;
 	u32 failures;
 	u32 locked_until;
+	// Changed here and not yet written. Location servers share the file:
+	// everything else is re-read from it (accounts_refresh).
+	bool touched = false;
 };
 
 typedef xr_map<xr_string, Account> Accounts;
@@ -903,12 +911,28 @@ static void accounts_path(string_path& path)
 	FS.update_path(path, "$app_data_root$", "netcoop_accounts.txt");
 }
 
-static void accounts_load()
-{
-	if (s_accounts_loaded)
-		return;
-	s_accounts_loaded = true;
+static FILETIME s_accounts_stamp = {};
 
+static bool accounts_file_stamp(FILETIME& stamp)
+{
+	string_path path;
+	accounts_path(path);
+	WIN32_FILE_ATTRIBUTE_DATA data;
+	if (!GetFileAttributesExA(path, GetFileExInfoStandard, &data)) return false;
+	stamp = data.ftLastWriteTime;
+	return true;
+}
+
+// One writer at a time across the location server processes.
+struct AccountsFileLock
+{
+	HANDLE mutex;
+	AccountsFileLock() { mutex = CreateMutexA(nullptr, FALSE, "Local\\LostZoneAccountsFile"); if (mutex) WaitForSingleObject(mutex, 5000); }
+	~AccountsFileLock() { if (mutex) { ReleaseMutex(mutex); CloseHandle(mutex); } }
+};
+
+static void accounts_read(Accounts& out)
+{
 	string_path path;
 	accounts_path(path);
 	FILE* f = fopen(path, "rb");
@@ -953,10 +977,42 @@ static void accounts_load()
 
 		xr_string key = a.login;
 		to_lower(key);
-		s_accounts[key] = a;
+		out[key] = a;
 	}
 	fclose(f);
-	Msg("[Lost Zone] loaded %u account(s) from %s", (u32)s_accounts.size(), path);
+}
+
+// Another location server may have written the file (registration, money of
+// a player who is there now): adopt its records except our unsaved changes.
+static void accounts_refresh()
+{
+	FILETIME stamp;
+	if (!accounts_file_stamp(stamp) || !CompareFileTime(&stamp, &s_accounts_stamp)) return;
+	Accounts file;
+	accounts_read(file);
+	s_accounts_stamp = stamp;
+	for (auto& entry : file)
+	{
+		auto it = s_accounts.find(entry.first);
+		if (it == s_accounts.end()) { s_accounts[entry.first] = entry.second; continue; }
+		if (it->second.touched) continue;
+		const u32 failures = it->second.failures, locked = it->second.locked_until;
+		it->second = entry.second;
+		it->second.failures = failures; it->second.locked_until = locked;
+	}
+}
+
+static void accounts_load()
+{
+	if (s_accounts_loaded)
+	{
+		accounts_refresh();
+		return;
+	}
+	s_accounts_loaded = true;
+	accounts_read(s_accounts);
+	accounts_file_stamp(s_accounts_stamp);
+	Msg("[Lost Zone] loaded %u account(s)", (u32)s_accounts.size());
 }
 
 static void accounts_save()
@@ -964,9 +1020,11 @@ static void accounts_save()
 	if (!s_accounts_dirty)
 		return;
 
+	AccountsFileLock lock;
+	accounts_refresh();
 	string_path path, temp;
 	accounts_path(path);
-	xr_sprintf(temp, "%s.tmp", path);
+	xr_sprintf(temp, "%s.%u.tmp", path, GetCurrentProcessId());
 	FILE* f = fopen(temp, "wb");
 	if (!f)
 	{
@@ -989,6 +1047,8 @@ static void accounts_save()
 		return;
 	}
 	s_accounts_dirty = false;
+	for (auto& entry : s_accounts) entry.second.touched = false;
+	accounts_file_stamp(s_accounts_stamp);
 }
 
 static Account* account_find(LPCSTR login)
@@ -1004,7 +1064,7 @@ bool server_reset_device(LPCSTR login)
 {
     Account* account = account_find(login);
     if (!account) return false;
-    account->device.clear(); s_accounts_dirty = true; accounts_save();
+    account->device.clear(); account->touched = true; s_accounts_dirty = true; accounts_save();
     return true;
 }
 
@@ -1014,6 +1074,7 @@ bool script_registration_decide(LPCSTR login, bool accept)
     Account* account = account_find(login);
     if (!account || account->approval != 0) return false;
     account->approval = accept ? 1 : 2;
+    account->touched = true;
     s_accounts_dirty = true; accounts_save();
     Msg("[Lost Zone] registration '%s' %s", login, accept ? "approved" : "rejected");
     return true;
@@ -1062,6 +1123,7 @@ bool server_set_role(LPCSTR login, u8 role, xr_string& message)
 	}
 	a->role = role;
 	if (role == role_admin) a->approval = 1; // console bootstrap of the first administrator
+	a->touched = true;
 	s_accounts_dirty = true;
 	accounts_save();
 	message = a->login;
@@ -1165,6 +1227,8 @@ static void reject(xrServer* server, xrClientData* CL, LPCSTR message)
 	xr_sprintf(reason, "@%s", message);
 	server->DisconnectClient(CL, reason);
 }
+
+#include "netcoop_cluster.inc"
 
 // The server's PBKDF2 (60000 rounds) took ~100 ms of a frame for every
 // login; with many players joining the world stuttered for everyone. It runs
@@ -1380,6 +1444,7 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
 		created.money = 0;
 		created.failures = 0;
 		created.locked_until = 0;
+		created.touched = true;
 		s_accounts[in_use.login] = created;
 		s_accounts_dirty = true;
 		accounts_save();
@@ -1415,7 +1480,7 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
         return;
     }
     if (a->device.empty() && !pending->device.empty())
-    { a->device = pending->device; s_accounts_dirty = true; accounts_save(); }
+    { a->device = pending->device; a->touched = true; s_accounts_dirty = true; accounts_save(); }
 	if (a->approval != 1)
 	{
 		reject(server, CL, a->approval == 0 ? "Registration pending administrator approval" : "Registration rejected by administrator");
@@ -1434,6 +1499,13 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
         }
         else send_auth_result(server, CL, true, a->role, "Account verified");
         server->DisconnectClient(CL, "@Account verified");
+        return;
+    }
+    xr_string cluster_error;
+    if (!cluster_on_login(CL, a->login.c_str(), pending->slot, cluster_error))
+    {
+        CL->netcoop_login = NULL;
+        reject(server, CL, cluster_error.c_str());
         return;
     }
     if (!character_select(CL, pending->slot, pending->character_name.c_str(), pending->faction.c_str(), pending->economy, pending->loadout.c_str()))
@@ -1516,6 +1588,7 @@ static void store_money(xrClientData* CL)
 	{
 		a->has_money = true;
 		a->money = trader->m_dwMoney;
+		a->touched = true;
 		s_accounts_dirty = true;
 	}
 }
@@ -1561,10 +1634,20 @@ static void destroy_pending_actors(xrServer* server)
 		CGameObject* actor_object = smart_cast<CGameObject*>(Level().Objects.net_Find(ids[i]));
 		if (actor_object && smart_cast<CActor*>(actor_object) && server->GetServerClient())
 		{
-            server_character_save_actor(ids[i]);
+            // Synchronous: another location server may load this file as
+            // soon as the lease is gone. A player who left through a level
+            // changer was saved at the destination already and is not saved
+            // here again; the target server owns the lease.
+            const bool moved = cluster_actor_leaving(ids[i]);
+            const auto key = s_actor_character.find(ids[i]);
+            const xr_string login = key != s_actor_character.end() ? key->second.substr(0, key->second.rfind(':')) : xr_string();
+            if (!moved && character_save_actor(ids[i], nullptr, false) && !login.empty()) cluster_lease_release(login.c_str());
             s_actor_character.erase(ids[i]);
+            for (auto it = s_cluster_leaving.begin(); it != s_cluster_leaving.end();)
+                if (it->second.actor == ids[i]) it = s_cluster_leaving.erase(it); else ++it;
 			give_to_server(server, server->game->get_entity_from_eid(ids[i]), 0);
-            if (!smart_cast<CActor*>(actor_object)->g_Alive()) continue; // retain lootable corpse
+            // A dead body keeps its loot; a moved player's items went along.
+            if (!moved && !smart_cast<CActor*>(actor_object)->g_Alive()) continue;
 			Msg("[Lost Zone] removing Actor %u of a disconnected player", ids[i]);
 			// An NPC still talking to this Actor would keep a dangling partner.
 			CActor* leaving = smart_cast<CActor*>(actor_object);
@@ -1682,6 +1765,7 @@ void server_frame_update(xrServer* server)
 	server_physics_update(server);
 	server_pda_update(server);
 	server_marks_update(server);
+	cluster_update(server);
 }
 
 // ---------------------------------------------------------------------------
@@ -2926,6 +3010,12 @@ void client_on_script(NET_Packet& P)
 	static char data[8192];
 	if (!read_string(P, channel, sizeof(channel)) || !read_string(P, data, sizeof(data)))
 		return;
+	if (!xr_strcmp(channel, "netcoop_transfer")) return client_cluster_transfer(data);
+	if (!xr_strcmp(channel, "netcoop_transfer_refused"))
+	{
+		string512 text; xr_sprintf(text, "Passage unavailable: %s", data);
+		return client_on_server_text(text);
+	}
 	::luabind::functor<void> f;
 	if (!ai().script_engine().functor("netcoop_client_compat.on_script_message", f))
 		return;

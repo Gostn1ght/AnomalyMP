@@ -269,6 +269,11 @@ LPCSTR script_players();
 // list kept by netcoop_server_compat.can_access); true for anything unowned.
 bool server_object_access(u16 object_id, xrClientData* CL);
 void server_on_item_action(xrServer* server, xrClientData* CL, NET_Packet& P);
+// Location cluster (netcoop_cluster.inc): M_CHANGE_LEVEL of a remote player
+// moves the character to the server of the target map; a leaving player's
+// further packets are ignored until the disconnect.
+void server_on_change_level(xrServer* server, xrClientData* CL, NET_Packet& P);
+bool server_client_leaving(xrClientData* CL);
 void client_on_physics(NET_Packet& P);
 // Server: the object is the Actor of a remote player. Local() is not used
 // for this: on the dedicated server it did not tell these copies apart

@@ -43,6 +43,11 @@ public:
 	virtual bool IsVisibleForZones() { return false; }
 	void EnableLevelChanger(bool b) { m_b_enabled = b; }
 	bool IsLevelChangerEnabled() const { return m_b_enabled; }
+	// Arrival point on the target map (netcoop location cluster).
+	GameGraph::_GRAPH_ID next_game_vertex() const { return m_game_vertex_id; }
+	u32 next_level_vertex() const { return m_level_vertex_id; }
+	const Fvector& next_position() const { return m_position; }
+	const Fvector& next_angles() const { return m_angles; }
 	void SetLEvelChangerInvitationStr(LPCSTR str) { m_invite_str = str; }
 	//serialization
 	virtual BOOL net_SaveRelevant();

@@ -19,6 +19,7 @@
 
 #include "UIGameSP.h"
 #include "../xrengine/xr_collide_form.h"
+#include "netcoop.h"
 
 xr_vector<CLevelChanger*> g_lchangers;
 
@@ -124,6 +125,11 @@ void CLevelChanger::feel_touch_new(CObject* tpObject)
 	VERIFY(l_tpActor);
 	if (!l_tpActor->g_Alive())
 		return;
+	// Netcoop: only the player's own Actor on its client asks; the server
+	// moves the player (netcoop_cluster.inc). Other players' copies and the
+	// server's own Actor never change the level.
+	if (netcoop::enabled() && (!netcoop::pure_client() || l_tpActor != Actor()))
+		return;
 
 	if (m_bSilentMode)
 	{
@@ -192,6 +198,8 @@ void CLevelChanger::update_actor_invitation()
 		VERIFY(l_tpActor);
 
 		if (!l_tpActor->g_Alive())
+			continue;
+		if (netcoop::enabled() && (!netcoop::pure_client() || l_tpActor != Actor()))
 			continue;
 
 		if (m_entrance_time + 5.0f < Device.fTimeGlobal)

@@ -817,6 +817,15 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
         default: break;
         }
     }
+    if (!CL->flags.bLocal && netcoop::enabled())
+    {
+        if (netcoop::server_client_leaving(CL)) return 0; // frozen until it reconnects elsewhere
+        if (type == M_CHANGE_LEVEL && CL->netcoop_role != netcoop::role_none)
+        {
+            netcoop::server_on_change_level(this, CL, P);
+            return 0;
+        }
+    }
     if (!CL->flags.bLocal)
     {
         switch (type)

@@ -543,17 +543,22 @@ static void character_capture_items(xrServer* server, Character& character, CSE_
 	}
 }
 
-void server_character_save_actor(u16 actor_id)
+// A level changer's arrival point on another map (netcoop_cluster.inc).
+struct CharacterDestination { GameGraph::_GRAPH_ID game_vertex; u32 level_vertex; Fvector position, angles; };
+
+// Captures the Actor into its character and writes the file; with a
+// destination the saved position is that point instead of the current one.
+static bool character_save_actor(u16 actor_id, const CharacterDestination* destination, bool background = false)
 {
 	auto key = s_actor_character.find(actor_id);
-	if (key == s_actor_character.end() || !g_pGameLevel || !Level().Server) return;
+	if (key == s_actor_character.end() || !g_pGameLevel || !Level().Server) return false;
 	Character& character = s_characters[key->second];
 	xrServer* server = Level().Server;
 	CSE_Abstract* actor = server->game->get_entity_from_eid(actor_id);
 	CActor* runtime = smart_cast<CActor*>(Level().Objects.net_Find(actor_id));
 	CSE_ALifeCreatureActor* entity = smart_cast<CSE_ALifeCreatureActor*>(actor);
-	if (!entity || !runtime) return;
-	if (s_character_restore.find(actor_id) != s_character_restore.end()) return;
+	if (!entity || !runtime) return false;
+	if (s_character_restore.find(actor_id) != s_character_restore.end()) return false;
 	entity->m_dwMoney = runtime->get_money();
 	entity->m_rank = runtime->Rank(); entity->m_reputation = runtime->Reputation();
 	entity->o_Position = runtime->Position();
@@ -565,15 +570,34 @@ void server_character_save_actor(u16 actor_id)
 	character.items.clear();
 	if (runtime->g_Alive()) character_capture_items(server, character, actor, 0, 0);
 	character_capture_progress(character, runtime);
+	const Fvector position = entity->o_Position, angles = entity->o_Angle;
+	const SRotation torso = entity->o_torso;
+	const GameGraph::_GRAPH_ID graph = entity->m_tGraphID;
+	const u32 node = entity->m_tNodeID;
+	if (destination)
+	{
+		entity->o_Position = destination->position; entity->o_Angle = destination->angles;
+		entity->m_tGraphID = destination->game_vertex; entity->m_tNodeID = destination->level_vertex;
+		entity->o_torso.yaw = destination->angles.y; entity->o_torso.pitch = destination->angles.x; entity->o_torso.roll = 0.f;
+	}
 	// A dead character resumes alive; its former inventory stays in the world.
 	const float health = entity->get_health();
 	entity->set_health(runtime->g_Alive() ? runtime->GetfHealth() : 1.f);
 	actor->Spawn_Write(character.actor, TRUE);
 	entity->set_health(health);
+	if (destination)
+	{
+		entity->o_Position = position; entity->o_Angle = angles; entity->o_torso = torso;
+		entity->m_tGraphID = graph; entity->m_tNodeID = node;
+	}
 	character.initialized = true;
     if (character.storage_revision!=0xffffffffu) ++character.storage_revision;
-	if (!character_save(character, true)) Msg("! [Lost Zone] character save failed for %s slot %u", character.account.c_str(), character.slot);
+	if (character_save(character, background)) return true;
+	Msg("! [Lost Zone] character save failed for %s slot %u", character.account.c_str(), character.slot);
+	return false;
 }
+
+void server_character_save_actor(u16 actor_id) { character_save_actor(actor_id, nullptr, true); }
 
 static void characters_update(xrServer* server)
 {

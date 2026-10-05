@@ -1,0 +1,6 @@
+; Location cluster: map name = address:port the players' clients connect to.
+; Every location server runs from this folder (same accounts and characters).
+; A map without a line here keeps its level changers closed.
+[locations]
+k00_marsh  = 127.0.0.1:1267
+l01_escape = 127.0.0.1:1277

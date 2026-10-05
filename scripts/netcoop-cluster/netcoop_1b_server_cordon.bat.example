@@ -1,0 +1,6 @@
+@echo off
+rem Second location server of the cluster: Cordon (l01_escape). Runs next to
+rem netcoop_1_server.bat (Great Swamp); level changers between the two maps
+rem move players across (appdata\server\netcoop_cluster.ltx).
+cd /d "%~dp0"
+start "" "dedicated\LostZoneServerDX11.exe" -nosplashwindow -netcoop -dbg -multi_instance -logname srv_escape -fsltx fsgame_server.ltx -netport 1277 -netcoop_start_location=rookie_village -netcoop_world=zone_escape -start "server(all/single/alife/new/portsv=1277/maxplayers=16)" "client(localhost/name=serverauthority/port=1277/portcl=1278)"
