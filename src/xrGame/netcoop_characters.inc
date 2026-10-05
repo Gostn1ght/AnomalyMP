@@ -184,6 +184,18 @@ static bool character_commit_file(LPCSTR temp, LPCSTR path)
 	return ok && closed && MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
 }
 
+static bool character_sync_commit(FILE* f, LPCSTR temp, LPCSTR path)
+{
+	const bool ok = !ferror(f) && fflush(f) == 0 && _commit(_fileno(f)) == 0;
+	const bool closed = fclose(f) == 0;
+	if (!ok || !closed || !MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+	{
+		DeleteFileA(temp);
+		return false;
+	}
+	return true;
+}
+
 static void character_commit_worker(void*)
 {
 	for (;;)
@@ -267,9 +279,7 @@ static bool character_save(Character& character, bool background = false)
         character.last_save = real_time_ms();
         return true;
     }
-    const bool ok = !ferror(f) && fflush(f)==0 && _commit(_fileno(f))==0;
-	const bool closed = fclose(f) == 0;
-	if (!ok || !closed || !MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) return false;
+	if (!character_sync_commit(f, temp, path)) return false;
 	character.last_save = real_time_ms();
 	return true;
 }

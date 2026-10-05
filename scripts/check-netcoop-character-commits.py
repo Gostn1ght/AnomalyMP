@@ -18,6 +18,7 @@ assert 'character_commit_take(commit)' in worker and 'character_commit_finish()'
 save=characters[characters.index('static bool character_save(Character&'):characters.index('static Character* character_load(')]
 assert save.index('character_commits_flush()') < save.index('character_temp_path(') < save.index('fopen(temp, "wb")')
 assert save.index('_ftelli64(f)') < save.index('character_commit_enqueue(commit)') < save.index('character.last_save = real_time_ms()')
+assert save.index('character_sync_commit(f, temp, path)') < save.rindex('character.last_save = real_time_ms()')
 
 source=r'''
 #define _CRT_SECURE_NO_WARNINGS
@@ -47,7 +48,11 @@ using xr_string=std::string;using string_path=char[260];
 template<class T>using xr_deque=std::deque<T>;
 struct xrCriticalSection{std::mutex lock;void Enter(){lock.lock();}void Leave(){lock.unlock();}};
 std::vector<std::string>deleted;
-void record_delete(LPCSTR path){deleted.push_back(path);}
+void record_delete(LPCSTR path){deleted.push_back(path);
+#ifdef _WIN32
+ ::DeleteFileA(path);
+#endif
+}
 u32 fixture_pid=123;
 u32 process_id(){return fixture_pid;}
 #ifdef _WIN32
@@ -75,6 +80,20 @@ void io_faults(){
  fail_rename=true;assert(!character_commit_file("candidate.tmp","character.bin"));fail_rename=false;
  assert(read_file()=="previous durable snapshot");
  assert(character_commit_file("candidate.tmp","character.bin"));assert(read_file()=="new complete snapshot");
+ // Execute the actual synchronous completion path, including failed temporary
+ // file cleanup, while the prior durable snapshot stays intact.
+ auto candidate=[](){FILE* file=fopen("sync.tmp","wb");assert(file);assert(fwrite("next",1,4,file)==4);return file;};
+ fail_flush=true;assert(!character_sync_commit(candidate(),"sync.tmp","character.bin"));fail_flush=false;
+ assert(read_file()=="new complete snapshot" && GetFileAttributesA("sync.tmp")==INVALID_FILE_ATTRIBUTES);
+ fail_rename=true;assert(!character_sync_commit(candidate(),"sync.tmp","character.bin"));fail_rename=false;
+ assert(read_file()=="new complete snapshot" && GetFileAttributesA("sync.tmp")==INVALID_FILE_ATTRIBUTES);
+ assert(character_sync_commit(candidate(),"sync.tmp","character.bin"));
+ assert(read_file()=="next" && GetFileAttributesA("sync.tmp")==INVALID_FILE_ATTRIBUTES);
+ // A write error must close and remove the failed candidate too.
+ std::ofstream("readonly.tmp")<<"read only candidate";FILE* readonly=fopen("readonly.tmp","rb");assert(readonly);
+ assert(fwrite("bad",1,3,readonly)!=3 && ferror(readonly));
+ assert(!character_sync_commit(readonly,"readonly.tmp","character.bin"));
+ assert(read_file()=="next" && GetFileAttributesA("readonly.tmp")==INVALID_FILE_ATTRIBUTES);
 }
 #endif
 int main(){

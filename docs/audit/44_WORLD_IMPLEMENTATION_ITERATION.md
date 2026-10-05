@@ -648,3 +648,23 @@ and manually scheduled phantom combat without ammo spend. Full local backend
 **144 tests PASS**; 7fac62827 backend 37382911385 SUCCESS Windows+Linux (139).
 This remains coarse whole-group combat after actual contact, not per-fighter
 ballistics or a native AI adapter. Automatic route-change planning is pending.
+
+## Native failed logout retry backoff and synchronous temp cleanup
+
+Failed logout retains the Actor/inventory/account ownership, but now retries
+capture at most once per Actor per second instead of each server frame.
+Unsigned elapsed-time subtraction survives u32 timer wrap; duplicate transport
+disconnect IDs create one retry. Successful cleanup removes retry state.
+Actual disconnect fixture exercises 999/1000-ms boundaries, duplicate reports
+and timer wrap without premature release or destruction.
+
+The synchronous commit completion now removes its candidate temporary file
+after write/flush/close/fsync/rename refusal and preserves the old durable file.
+An extracted actual completion helper adds real Windows write-error and
+injected fsync/rename fault checks, file disappearance and successful retry.
+Native checks pending on Actions; Python syntax checked locally only.
+
+ad4725002 DX11 37382384355 **SUCCESS**, full native package includes progress
+capture refusal, bounded commits and logout retention. 3ad35e0ca backend
+37383338666 **SUCCESS Windows+Linux (144 tests)**. Runtime installation/testing
+remain the other actor's area; no claimed installation of the new package.

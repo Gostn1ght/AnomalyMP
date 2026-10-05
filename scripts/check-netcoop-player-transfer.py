@@ -110,6 +110,8 @@ struct Runtime {StubObjects Objects;};
 Runtime runtime;Runtime& Level(){return runtime;}bool g_pGameLevel=true;
 struct Lock {int depth=0;void Enter(){++depth;}void Leave(){assert(depth>0);--depth;}};
 Lock s_pending_lock;xr_vector<u16>s_pending_actor_destroy;
+std::map<u16,u32>s_actor_destroy_retry;u32 fixture_retry_clock=0;
+u32 real_time_ms(){return fixture_retry_clock;}
 std::map<u16,xr_string>s_actor_character;
 struct Leaving {u16 actor=0;};std::map<u32,Leaving>s_cluster_leaving;
 bool save_ok=true;int saves=0,gives=0,releases=0,tasks=0;
@@ -121,23 +123,31 @@ void Msg(const char*,...){}
 '''+give_body+r'''
 void give_to_server(xrServer* server,CSE_Abstract* entity,u32 depth){++gives;captured_give_to_server(server,entity,depth);}
 '''+disconnect_body+r'''
-void reset(CActor& actor){actor.destroyed=false;actor.alive=true;runtime.Objects.actor=&actor;saves=gives=releases=tasks=0;save_ok=true;s_pending_actor_destroy={7};s_actor_character={{u16(7),"tester:1"}};s_cluster_leaving.clear();}
+void reset(CActor& actor){actor.destroyed=false;actor.alive=true;runtime.Objects.actor=&actor;saves=gives=releases=tasks=0;save_ok=true;s_pending_actor_destroy={7};s_actor_character={{u16(7),"tester:1"}};s_cluster_leaving.clear();s_actor_destroy_retry.clear();fixture_retry_clock=0;}
 void run(){
  Game game;xrServer server{&game,{}};CActor actor;
  reset(actor);save_ok=false;destroy_pending_actors(&server);
  assert(!actor.destroyed && s_actor_character.count(7)==1 && s_pending_actor_destroy==xr_vector<u16>{7});
  assert(saves==1 && gives==1 && releases==0 && tasks==0 && s_pending_lock.depth==0);
- save_ok=true;destroy_pending_actors(&server);
+ save_ok=true;fixture_retry_clock=999;destroy_pending_actors(&server);
+ assert(saves==1 && releases==0 && !actor.destroyed && s_pending_actor_destroy.size()==1);
+ fixture_retry_clock=1000;destroy_pending_actors(&server);
  assert(actor.destroyed && s_actor_character.empty() && s_pending_actor_destroy.empty());
- assert(saves==2 && gives==2 && releases==1 && tasks==1);
+ assert(saves==2 && gives==2 && releases==1 && tasks==1 && s_actor_destroy_retry.empty());
  reset(actor);actor.alive=false;save_ok=false;destroy_pending_actors(&server);
  assert(!actor.destroyed && s_pending_actor_destroy.size()==1 && releases==0);
- save_ok=true;destroy_pending_actors(&server);
+ save_ok=true;fixture_retry_clock=1000;destroy_pending_actors(&server);
  assert(!actor.destroyed && s_pending_actor_destroy.empty() && s_actor_character.empty() && releases==1 && tasks==0);
  reset(actor);s_actor_character.clear();s_cluster_leaving[5]={7};save_ok=false;destroy_pending_actors(&server);
  assert(actor.destroyed && saves==0 && releases==0 && s_cluster_leaving.empty());
  reset(actor);s_actor_character.clear();save_ok=false;destroy_pending_actors(&server);
  assert(actor.destroyed && saves==0 && s_pending_actor_destroy.empty());
+ reset(actor);s_pending_actor_destroy={7,7,7};save_ok=false;destroy_pending_actors(&server);
+ assert(saves==1 && gives==1 && releases==0 && s_pending_actor_destroy==xr_vector<u16>{7});
+ destroy_pending_actors(&server);assert(saves==1 && s_pending_actor_destroy.size()==1);
+ reset(actor);fixture_retry_clock=0xfffffff0u;save_ok=false;destroy_pending_actors(&server);
+ save_ok=true;fixture_retry_clock+=999u;destroy_pending_actors(&server);assert(saves==1 && releases==0);
+ fixture_retry_clock+=1u;destroy_pending_actors(&server);assert(saves==2 && releases==1 && actor.destroyed && s_actor_destroy_retry.empty());
  // Match the deepest valid inventory preflight: the ninth leaf also migrates
  // to the server, so no supported child retains a disconnected client owner.
  std::vector<CSE_Abstract> children(9);CSE_Abstract* parent=&game.entity;

@@ -1627,6 +1627,7 @@ bool server_requires_login(xrServer* server, xrClientData* CL)
 
 static xrCriticalSection s_pending_lock;
 static xr_vector<u16> s_pending_actor_destroy;
+static xr_map<u16, u32> s_actor_destroy_retry;
 static void server_release_task_manager(u16 actor_id);
 
 static void store_money(xrClientData* CL)
@@ -1686,6 +1687,9 @@ static void destroy_pending_actors(xrServer* server)
 
 	for (u32 i = 0; i < ids.size() && g_pGameLevel; ++i)
 	{
+		// Transport may report the same disconnect twice. Keep only one retry
+		// for that Actor, without releasing its state or account ownership.
+		if (std::find(ids.begin(), ids.begin() + i, ids[i]) != ids.begin() + i) continue;
 		CGameObject* actor_object = smart_cast<CGameObject*>(Level().Objects.net_Find(ids[i]));
 		if (actor_object && smart_cast<CActor*>(actor_object) && server->GetServerClient())
 		{
@@ -1698,13 +1702,23 @@ static void destroy_pending_actors(xrServer* server)
             const xr_string login = key != s_actor_character.end() ? key->second.substr(0, key->second.rfind(':')) : xr_string();
             if (!moved && !login.empty())
             {
+                const auto retry = s_actor_destroy_retry.find(ids[i]);
+                if (retry != s_actor_destroy_retry.end() && u32(real_time_ms() - retry->second) < 1000)
+                {
+                    s_pending_lock.Enter();
+                    s_pending_actor_destroy.push_back(ids[i]);
+                    s_pending_lock.Leave();
+                    continue;
+                }
                 if (!character_save_actor(ids[i], nullptr, false))
                 {
                     // Disk/capture failure must not turn logout into inventory
                     // loss. Retain the tracked Actor and account ownership,
                     // migrate it off the disconnected client, and retry from
-                    // the next main-thread update. A fresh login remains held.
+                    // a later main-thread update. A fresh login remains held;
+                    // retry backoff avoids repeated disk I/O every frame.
                     give_to_server(server, server->game->get_entity_from_eid(ids[i]), 0);
+                    s_actor_destroy_retry[ids[i]] = real_time_ms();
                     s_pending_lock.Enter();
                     s_pending_actor_destroy.push_back(ids[i]);
                     s_pending_lock.Leave();
@@ -1712,6 +1726,7 @@ static void destroy_pending_actors(xrServer* server)
                 }
                 cluster_lease_release(login.c_str());
             }
+            s_actor_destroy_retry.erase(ids[i]);
             s_actor_character.erase(ids[i]);
             for (auto it = s_cluster_leaving.begin(); it != s_cluster_leaving.end();)
                 if (it->second.actor == ids[i]) it = s_cluster_leaving.erase(it); else ++it;
@@ -1730,6 +1745,7 @@ static void destroy_pending_actors(xrServer* server)
 			server_release_task_manager(ids[i]);
 			actor_object->DestroyObject();
 		}
+		else s_actor_destroy_retry.erase(ids[i]);
 	}
 }
 

@@ -330,3 +330,12 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   removed on write/fsync/rename refusal, with actual Actions fault coverage.
   Areas: netcoop.cpp/netcoop_characters.inc and existing two fixtures.
   Will wait for ad4725002 native build to finish before the next native push.
+
+- ad4725002 DX11 37382384355 SUCCESS, full package produced; Foundation
+  37382384401 SUCCESS GCC/MSVC. 3ad35e0ca backend 37383338666 SUCCESS
+  Windows+Linux (144). Runtime left to Claude.
+- Prepared follow-up: failed logout capture retries once/second per Actor;
+  duplicate callbacks coalesce, u32 wrap handled, ownership held until save.
+  Synchronous save completion removes refused temps (old durable file stays).
+  Actual helper fault/boundary fixtures expanded; native checks pending.
+  Previous full native build completed before pushing this follow-up.
