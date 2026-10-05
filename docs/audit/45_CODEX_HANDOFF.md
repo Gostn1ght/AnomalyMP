@@ -144,3 +144,13 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   run 37367011993 attempt 1 failed runner admission, not compilation; attempt 2
   checks SUCCESS and actual engine build running. Runtime still 1566b38 in
   gamma-runtime / 79263abd5 in LostZone-3D-Hideout; no partial overlays installed.
+
+- Codex: backend contact corridor index + admin offline_contacts now selects
+  candidates by spatial cells and segment time windows, uses continuous narrow
+  phase, excludes group members, reserves pending combat, commits earliest
+  disjoint pairs atomically. Overflow fails whole admission (no truncation).
+  Full local backend 90 PASS; native/runtime files not changed. Route-change
+  subscriber/replanning, large-map windowing/native adoption still pending.
+- DX11 8d586d8f9 / 37367011993 attempt 2 SUCCESS, artifact verified present.
+  Installation/selftest remains Claude's area; no installer/runtime edits by
+  Codex. This package has v2 transit API and wallet/account durability fixes.

@@ -290,3 +290,36 @@ Linux ещё в очереди. Новый backend-only commit требует Ac
   Local full backend: 80 PASS. Backend 2802baa3f Actions 37368996036 SUCCESS
   on Linux/Windows (75 tests before this change). DX11 8d586d8f9 retry acquired
   runner; checks SUCCESS, engine compiling. No workflow migration was needed.
+
+## Contact corridor broad phase (backend-only)
+
+ContactIndex uses location-scoped 3D cells, floor coordinates (including
+negative boundaries), per-segment AABBs and overlapping time windows. Query
+padding accounts for contact radius; exact continuous narrow phase decides
+whether/when paths meet. Atomic upsert/erase preserve the old entry if a
+replacement violates limits. No entity/segment/pair/work overflow is truncated.
+
+Admin-only offline_contacts snapshots up to 256 offline roots on one map,
+excludes persistent group members and roots reserved by pending combat,
+sorts contacts by time/IDs, schedules earliest disjoint pairs in one DB
+transaction (max 64), and reports deferred overlapping contacts. Retry and
+restart preserve scheduled IDs/captures; second-plan journal failure rolls
+back the entire batch. This command has no production engine authority.
+
+Five index tests compare candidates to brute-force continuous geometry,
+negative cells/map/height/time/radius separation, move/remove and rejected
+replacement, dense work/pair overflow, reference/segment/entity admission.
+Five batch tests cover crossing+restart+retry reservations, group-only roots,
+sparse/neutral misses, second-plan rollback and actor limit. HTTP role checks
+cover the new operation. Full local backend **90 tests PASS**.
+
+Bounds: 8192 segments, 131072 references, 4096 cells per segment/query,
+200000 work checks, 4096 pairs. Incremental index API exists, but admin
+adapter rebuilds from a bounded snapshot on each explicit planning command.
+Automatic route-change subscriptions/replanning, large-map windowing, native
+AI handover and real load acceptance remain. C/K are not marked wholly done.
+
+DX11 **8d586d8f9 / 37367011993 attempt 2 SUCCESS**, including checks+engine;
+matching client/server artifact available (187445389 compressed bytes).
+Foundation same commit SUCCESS; runtime installation/selftests belong to the
+other active actor per doc 45 coordination; do not mix v2 Lua into old exe.

@@ -7,6 +7,7 @@ import uuid
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from lostzone import Store, World, Conflict
+from lostzone.store import Unavailable
 from lostzone.economy import Catalog
 from lostzone.ownership import Ownership
 from lostzone.offline import Offline
@@ -235,6 +236,77 @@ class EncounterTest(unittest.TestCase):
         self.world.now = lambda: original() + next(ticks)*.001
         result = self.contact()
         self.assertIsNotNone(result["event_id"])
+
+    def test_location_planner_finds_crossing_and_reserves_one_fight_across_retry_restart(self):
+        self.crossing()
+        command = uid()
+        result = self.encounters.plan_location("admin",command,"cordon",1_200_000,17,10)
+        self.assertEqual((result["actors"],result["candidate_pairs"],len(result["contacts"])),(2,1,1))
+        plan = result["contacts"][0]
+        self.event = plan["event_id"]
+        self.store.close();self.open()
+        self.assertEqual(self.encounters.plan_location("admin",command,"cordon",1_200_000,17,10),result)
+        self.assertEqual(self.encounters.plan_location("admin",uid(),"cordon",1_200_000,17,10)["contacts"],[])
+        self.ns = int((plan["due_ms"]/self.world._scale+.01)*1_000_000)
+        self.scheduler.run_due(budget_ms=1000)
+        self.assertEqual(self.result()["capture_hash"],plan["capture_hash"])
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='OfflineCombat'").fetchone()[0],1)
+
+    def test_location_planner_uses_groups_and_never_schedules_member_twice(self):
+        group = self.group(self.first,"duty")
+        captures = {value:{"version":self.row(value)["version"],"state":json.loads(self.row(value)["state"])}
+                    for value in (group,self.first)}
+        self.offline.dehydrate("a",uid(),group,"cordon",self.fence,1,captures)
+        result = self.encounters.plan_location("admin",uid(),"cordon",1000,17,10)
+        self.assertEqual((result["actors"],len(result["contacts"])),(2,1))
+        plan = result["contacts"][0]
+        self.assertEqual({plan["first_id"],plan["second_id"]},{group,self.second})
+        self.assertNotIn(self.first,(plan["first_id"],plan["second_id"]))
+
+    def test_location_planner_sparse_and_neutral_candidates_do_not_create_combat(self):
+        self.place(self.second,[1000,0,0])
+        sparse = self.encounters.plan_location("admin",uid(),"cordon",1000,17,10)
+        self.assertEqual((sparse["candidate_pairs"],sparse["contacts"]),(0,[]))
+        self.place(self.second,[1,0,0])
+        self.world.set_state("admin",uid(),"relations",1,{"hostile":[]})
+        neutral = self.encounters.plan_location("admin",uid(),"cordon",1000,17,10)
+        self.assertEqual((neutral["candidate_pairs"],neutral["contacts"]),(1,[]))
+        self.assertEqual(json.loads(self.store.db.execute("SELECT state FROM item WHERE id=?",(self.weapon,)).fetchone()[0])["rounds"],30)
+
+    def insert_offline_actor(self, position, faction):
+        entity_id = uid()
+        with self.store.transaction() as tx:
+            tx.execute("INSERT INTO entity VALUES(?,'NPC','cordon','offline:cordon',?,1,1,?)",
+                       (entity_id,self.store.epoch,json.dumps({"position":position,"faction":faction,"health":1})))
+        return entity_id
+
+    def test_location_plan_failure_rolls_back_every_scheduled_pair_and_journal(self):
+        self.insert_offline_actor([1000,0,0],"duty")
+        self.insert_offline_actor([1001,0,0],"bandit")
+        original = self.store.event
+        planned = 0
+        def fail_second(tx,aggregate,event_type,*args,**kwargs):
+            nonlocal planned
+            if event_type == "OfflineEncounterPlanned":
+                planned += 1
+                if planned == 2:
+                    raise RuntimeError("injected second plan journal failure")
+            return original(tx,aggregate,event_type,*args,**kwargs)
+        self.store.event = fail_second
+        with self.assertRaises(RuntimeError):
+            self.encounters.plan_location("admin",uid(),"cordon",1000,17,10)
+        self.store.event = original
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='OfflineCombat'").fetchone()[0],0)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM world_event WHERE type='OfflineEncounterPlanned'").fetchone()[0],0)
+
+    def test_location_actor_budget_refuses_without_partial_schedule(self):
+        with self.store.transaction() as tx:
+            for i in range(255):
+                tx.execute("INSERT INTO entity VALUES(?,'NPC','cordon','offline:cordon',?,1,1,?)",
+                           (uid(),self.store.epoch,json.dumps({"position":[i,0,0],"faction":"duty","health":1})))
+        with self.assertRaises(Unavailable):
+            self.encounters.plan_location("admin",uid(),"cordon",1000,17,10)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='OfflineCombat'").fetchone()[0],0)
 
 
 if __name__=="__main__":

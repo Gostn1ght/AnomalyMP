@@ -119,7 +119,8 @@ class Dispatcher:
         administrative = {"world_scale": self.world.set_scale, "world_state": self.world.set_state,
                           "timeline_schedule": self.timelines.schedule, "route_start": self.offline.start_route,
                           "stash_visit": self.scavenging.schedule, "offline_combat": self.encounters.schedule,
-                          "offline_contact": self.encounters.plan_contact}
+                          "offline_contact": self.encounters.plan_contact,
+                          "offline_contacts": self.encounters.plan_location}
         functions = {
             "location_claim": self.world.claim_location, "location_renew": self.world.renew_location,
             "location_recover": self.ownership.recover_location,

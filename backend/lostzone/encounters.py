@@ -8,9 +8,10 @@ import hashlib
 import json
 
 from .contacts import earliest_contact, trajectory
+from .contact_index import ContactIndex
 from .economy import integer
 from .offline import distance
-from .store import Conflict, Invalid, canonical, finite, persistent_id, positive
+from .store import Conflict, Invalid, Unavailable, canonical, finite, identifier, persistent_id, positive
 
 
 class Encounters:
@@ -142,6 +143,69 @@ class Encounters:
     def roll(plan, label):
         data = f"{plan['world_id']}:{plan['world_seed']}:{plan['event_id']}:{plan['seed']}:{plan['capture_hash']}:{label}"
         return int.from_bytes(hashlib.sha256(data.encode("utf-8")).digest()[:8],"big")
+
+    def plan_location(self, actor, command_id, location, horizon_ms, seed, radius=50):
+        """One bounded event-driven planning pass; never a per-frame NPC scan.
+
+        Snapshot scanning is still required for this backend adapter. The
+        incremental index can be kept by a future route-change subscriber.
+        Only the earliest disjoint contacts are reserved; subsequent contacts
+        must be replanned after resolution changes the actor captures.
+        """
+        identifier(location); finite(horizon_ms,1,86_400_000); finite(radius,.1,200)
+        if type(seed) is not int or not 0 <= seed < 2**64:
+            raise Invalid("invalid deterministic contact seed")
+        payload = {"type":"offline_contacts","location":location,"horizon_ms":horizon_ms,"seed":seed,"radius":radius}
+        def apply(tx):
+            roots = tx.execute("SELECT e.* FROM entity e WHERE e.location=? AND e.alive=1 AND e.writer=? AND e.fence=? "
+                               "AND e.kind IN ('NPC','MUTANT','GROUP') AND NOT EXISTS "
+                               "(SELECT 1 FROM group_member m WHERE m.member_id=e.id) ORDER BY e.id LIMIT 257",
+                               (location,"offline:"+location,self.store.epoch)).fetchall()
+            if len(roots) > 256:
+                raise Unavailable("offline contact actor budget exhausted")
+            pending = tx.execute("SELECT payload FROM scheduled_event WHERE state='PENDING' AND type='OfflineCombat' "
+                                 "AND json_extract(payload,'$.location')=? LIMIT 257",(location,)).fetchall()
+            if len(pending) > 256:
+                raise Unavailable("offline encounter backlog exhausted")
+            reserved = set()
+            for row in pending:
+                plan = json.loads(row[0])
+                reserved.update((plan["first_id"],plan["second_id"]))
+            now = self.world.now()
+            end = finite(now+horizon_ms)
+            index,paths,by_id = ContactIndex(),{},{}
+            for root in roots:
+                if root["id"] in reserved:
+                    continue
+                path = trajectory(self.offline,tx,root,now,end)
+                index.upsert(root["id"],location,path)
+                paths[root["id"]],by_id[root["id"]] = path,root
+            pairs = index.pairs(radius)
+            contacts = []
+            for first,second in pairs:
+                try:
+                    self.hostility(tx,by_id[first],by_id[second])
+                except Conflict:
+                    continue
+                at = earliest_contact(paths[first],paths[second],radius)
+                if at is not None:
+                    contacts.append((at,first,second))
+            plans,deferred = [],0
+            for at,first,second in sorted(contacts):
+                if first in reserved or second in reserved:
+                    deferred += 1
+                    continue
+                if len(plans) >= 64:
+                    raise Unavailable("offline encounter admission budget exhausted")
+                event_id = hashlib.sha256(f"contact:{self.world.world_id}:{actor}:{command_id}:{first}:{second}".encode("utf-8")).hexdigest()[:32]
+                combat = {"type":"offline_combat","event_id":event_id,"first_id":first,"second_id":second,
+                          "first_version":by_id[first]["version"],"second_version":by_id[second]["version"],
+                          "due_ms":at,"seed":seed,"radius":radius}
+                result = self.schedule_in(tx,combat,planning_now=now)
+                plans.append({**result,"first_id":first,"second_id":second,"due_ms":at})
+                reserved.update((first,second))
+            return {"contacts":plans,"actors":len(roots),"candidate_pairs":len(pairs),"deferred_contacts":deferred}
+        return self.store.command(actor,command_id,payload,apply)
 
     def resolve(self, tx, event):
         plan,at = json.loads(event["payload"]),event["due_world_ms"]
