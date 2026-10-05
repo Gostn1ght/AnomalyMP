@@ -170,6 +170,13 @@ Checkpoint не содержит monotonic anchor прошлого процес�
 Спящая локация при работающем World Service всегда догоняет текущее время.
 Сон одного игрока не меняет глобальный time scale.
 
+Recovery clock floor не ниже максимального времени committed важных
+событий: `max(checkpoint_world_ms, committed_event_time_highwater)`.
+Снимок/журнал должны позволять получить этот highwater до публикации новой
+эпохи. Старые экстраполированные оценки клиента не являются committed
+состоянием; они корректируются за barrier, не откатывая уже committed
+casualties, награды и transfers. Adapter W3 проверяет этот инвариант отдельно.
+
 БД адаптера W3: `world_clock(WorldID PK, epoch, world_ms, scale,
 checkpoint_utc, version)`, `world_state(WorldID PK, seed, revision, blob)`,
 `authority_lease(WorldID PK, owner, fence, expires_at)`, `outbox`, `inbox`.
@@ -459,6 +466,17 @@ route/version, start/destination/time/speed, strength/task/seed. Route
 состоит из участков с arrival times, risk/anomaly/shelter costs. Движение
 вычисляется по времени запроса, arrival/encounter планируются при изменении
 маршрута; отмена route инвалидирует события по expected route version.
+
+Единицы движения задаются явно: Full AI/физика X-Ray обычно используют
+реальные секунды, а календарь ускорен time scale. При scale=10 скорость
+NPC 1.5 м/реальную секунду соответствует 0.15 м/игровую секунду, иначе
+после ухода игрока отряд внезапно ускорится в десять раз. Route хранит
+единицы скорости и сегменты time-scale timeline; ScaleChanged фиксирует
+пройденный участок, пересчитывает ETA и version будущих arrival events.
+Нулевой scale нельзя делить: глобальная пауза требует согласованной остановки
+симуляции, либо отдельной явно заданной clock-domain для движения. До
+подключения Clock к ALife тестируется одинаковое перемещение Full/Coarse
+при scale=1/10/изменении scale; одна формула календаря это не доказывает.
 
 Catch-up выбирает due events в `(last_committed_world_ms, now]`, сортирует
 по `(due_time, priority, EventID)` и исполняет ограниченными batch с
