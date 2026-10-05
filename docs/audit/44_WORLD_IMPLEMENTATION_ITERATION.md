@@ -544,3 +544,48 @@ new trap, retained RNG across restart/retry/new seed, atomic journal failure,
 session ownership subprocess/barrier/crash/flush/rename tests. Its DX11
 37378445074 native checks SUCCESS; full engine compiling. 1d8004572 backend
 37377564300 **SUCCESS Windows+Linux (127 tests)**.
+
+## Bounded native character commit queue and logout failure retention
+
+Pending background character writes now admit up to 256 queued paths and
+32 MiB serialized file bytes, INCLUDING the single in-flight commit. A newer
+complete snapshot supersedes only the pending snapshot for its own path;
+an in-flight file is never replaced underneath I/O. Queue/byte rejection
+returns false before last_save is advanced, removes the rejected temporary
+file, and retains the prior durable snapshot. Failed worker commits release
+their admission and attempt to remove the failed temporary file. Worker take
+and finish account for bytes under the same lock. Temporary names include
+process ID and a nonwrapping u64 sequence for both background and synchronous
+saves; overlong paths are refused rather than truncated into a different file.
+
+This bounds queued file payload/backlog, not total engine RSS or fsync latency.
+Background save still acknowledges enqueue, not durable completion; it is
+not zero-RPO journaled inventory transaction or cross-character atomic saving.
+Synchronous transfer/disconnect saves still drain older pending commits first.
+
+Native disconnect cleanup previously destroyed a tracked Actor even when
+character_save_actor returned false. It now retains the Actor/character link
+and account ownership, migrates off the disconnected client and requeues the
+main-thread cleanup. Only successful synchronous capture/commit releases
+ownership and removes the live Actor. Dead bodies retain their corpse policy;
+already moved and untracked Actors keep their original cleanup paths.
+Ownership migration depth now includes the ninth leaf permitted by inventory
+preflight, so a supported deepest child does not retain a dead client owner.
+
+New actual-helper GCC/MSVC fixture covers pending coalescing, byte/count
+boundaries, unchanged admission on rejection, in-flight accounting, unique
+process/sync paths, one real producer/consumer contention and latest snapshots.
+Windows additionally executes actual commit fsync/rename fault handling.
+The existing player-transfer fixture now extracts actual disconnect cleanup
+and give_to_server: failure retains/retries ownership and Actor, success cleans
+once, dead/moved/untracked policies and deepest valid child ownership checked.
+Only Python syntax checked locally; native execution/build remain Actions-only.
+
+Backend follow-up includes continuous narrow-phase input work in the same
+200000 budget as spatial candidate discovery. An actual planner test fills
+the broad budget and refuses the additional exact geometry without publishing
+a partial fight. Full local backend **136 tests PASS**.
+9f26f5b92 backend Actions 37379314800 **SUCCESS Windows+Linux (135 tests)**.
+5302a58f4 DX11 37378445074 **SUCCESS**, including the local account ownership
+and other actor's dedicated world-save ClientSave removal. Runtime installation
+and real world-save/restart acceptance are still not inferred from compilation.

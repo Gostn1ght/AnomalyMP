@@ -8,7 +8,7 @@ import hashlib
 import json
 
 from .contacts import earliest_contact, trajectory
-from .contact_index import ContactIndex
+from .contact_index import ContactIndex, CandidateBudget
 from .capture import CaptureBudget
 from .economy import integer
 from .offline import distance
@@ -185,13 +185,15 @@ class Encounters:
             path = trajectory(self.offline,tx,root,now,end)
             index.upsert(root["id"],location,path)
             paths[root["id"]],by_id[root["id"]] = path,root
-        pairs = index.pairs(radius)
+        work = CandidateBudget(index.limits["max_checks"])
+        pairs = index.pairs(radius,work)
         contacts = []
         for first,second in pairs:
             try:
                 self.hostility(tx,by_id[first],by_id[second])
             except Conflict:
                 continue
+            work.consume(len(paths[first])+len(paths[second]))
             at = earliest_contact(paths[first],paths[second],radius)
             if at is not None:
                 contacts.append((at,first,second))

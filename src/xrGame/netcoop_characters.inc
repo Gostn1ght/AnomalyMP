@@ -107,11 +107,73 @@ static bool character_read_state(FILE* f, xr_vector<u8>& state)
 // whole server, AI included. Periodic saves and saves after item handovers
 // write a numbered temp file and leave the fsync and the atomic rename to
 // this worker, in order. The previous save stays intact until the rename.
-struct CharacterCommit { xr_string temp, path; };
+struct CharacterCommit { xr_string temp, path; u64 bytes = 0; };
 static xrCriticalSection s_commit_lock;
 static xr_deque<CharacterCommit> s_commits;
 static bool s_commit_worker = false;
 static volatile LONG s_commit_busy = 0;
+static const u32 character_commit_count_limit = 256;
+static const u64 character_commit_byte_limit = 32ull * 1024 * 1024;
+static u64 s_commit_bytes = 0, s_commit_active_bytes = 0;
+
+// At most one pending complete snapshot per path. A newer snapshot contains
+// the full inventory/safe/progress, so it can supersede a queued older one.
+// The in-flight snapshot remains counted and is never replaced underneath I/O.
+static bool character_commit_enqueue(const CharacterCommit& commit)
+{
+	if (!commit.bytes || commit.bytes > character_commit_byte_limit) return false;
+	xr_string superseded;
+	s_commit_lock.Enter();
+	auto previous = s_commits.end();
+	for (auto it = s_commits.begin(); it != s_commits.end(); ++it)
+		if (it->path == commit.path) { previous = it; break; }
+	const u64 old_bytes = previous != s_commits.end() ? previous->bytes : 0;
+	if ((previous == s_commits.end() && s_commits.size() >= character_commit_count_limit) ||
+		s_commit_bytes - old_bytes + commit.bytes > character_commit_byte_limit ||
+		(previous != s_commits.end() && previous->temp == commit.temp))
+	{
+		s_commit_lock.Leave();
+		return false;
+	}
+	if (previous == s_commits.end()) s_commits.push_back(commit);
+	else { superseded = previous->temp; *previous = commit; }
+	s_commit_bytes = s_commit_bytes - old_bytes + commit.bytes;
+	s_commit_lock.Leave();
+	if (!superseded.empty()) DeleteFileA(superseded.c_str());
+	return true;
+}
+
+static bool character_commit_take(CharacterCommit& commit)
+{
+	s_commit_lock.Enter();
+	const bool have = !s_commits.empty() && !s_commit_busy;
+	if (have)
+	{
+		commit = s_commits.front(); s_commits.pop_front();
+		s_commit_active_bytes = commit.bytes;
+		InterlockedExchange(&s_commit_busy, 1);
+	}
+	s_commit_lock.Leave();
+	return have;
+}
+
+static void character_commit_finish()
+{
+	s_commit_lock.Enter();
+	s_commit_bytes -= s_commit_active_bytes;
+	s_commit_active_bytes = 0;
+	InterlockedExchange(&s_commit_busy, 0);
+	s_commit_lock.Leave();
+}
+
+static bool character_temp_path(LPCSTR path, bool background, string_path& temp)
+{
+	static u64 sequence = 0;
+	if (sequence == u64(-1)) return false;
+	const int length = snprintf(temp, sizeof(temp), "%s.%u.%llu%s.tmp", path, u32(GetCurrentProcessId()),
+		static_cast<unsigned long long>(++sequence), background ? "" : ".sync");
+	return length >= 0 && size_t(length) < sizeof(temp);
+}
 
 static bool character_commit_file(LPCSTR temp, LPCSTR path)
 {
@@ -127,14 +189,13 @@ static void character_commit_worker(void*)
 	for (;;)
 	{
 		CharacterCommit commit;
-		bool have = false;
-		s_commit_lock.Enter();
-		if (!s_commits.empty()) { commit = s_commits.front(); s_commits.pop_front(); have = true; InterlockedExchange(&s_commit_busy, 1); }
-		s_commit_lock.Leave();
-		if (!have) { Sleep(5); continue; }
+		if (!character_commit_take(commit)) { Sleep(5); continue; }
 		if (!character_commit_file(commit.temp.c_str(), commit.path.c_str()))
+		{
 			Msg("! [Lost Zone] character commit failed: %s", commit.path.c_str());
-		InterlockedExchange(&s_commit_busy, 0);
+			DeleteFileA(commit.temp.c_str());
+		}
+		character_commit_finish();
 	}
 }
 
@@ -156,9 +217,7 @@ static bool character_save(Character& character, bool background = false)
 	if (!background) character_commits_flush();
 	string_path path, temp;
 	character_path(character.account.c_str(), character.slot, path);
-	static u32 sequence = 0;
-	if (background) xr_sprintf(temp, "%s.%u.tmp", path, ++sequence);
-	else xr_sprintf(temp, "%s.tmp", path);
+	if (!character_temp_path(path, background, temp)) return false;
 	FILE* f = fopen(temp, "wb");
 	if (!f) return false;
 	const u32 magic = 0x3748434e; // NCH7: item instance state; NCH3/4/5/6 remain readable
@@ -197,10 +256,12 @@ static bool character_save(Character& character, bool background = false)
     if (background)
     {
         const bool written = !ferror(f) && fflush(f)==0;
-        if (fclose(f)!=0 || !written) return false;
-        CharacterCommit commit; commit.temp = temp; commit.path = path;
+        const __int64 file_bytes = _ftelli64(f);
+        if (fclose(f)!=0 || !written || file_bytes <= 0 || u64(file_bytes) > character_commit_byte_limit)
+        { DeleteFileA(temp); return false; }
+        CharacterCommit commit; commit.temp = temp; commit.path = path; commit.bytes = u64(file_bytes);
+        if (!character_commit_enqueue(commit)) { DeleteFileA(temp); return false; }
         s_commit_lock.Enter();
-        s_commits.push_back(commit);
         if (!s_commit_worker) { s_commit_worker = true; thread_spawn(character_commit_worker, "netcoop-save", 0, nullptr); }
         s_commit_lock.Leave();
         character.last_save = real_time_ms();

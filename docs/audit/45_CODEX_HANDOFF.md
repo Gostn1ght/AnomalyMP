@@ -259,3 +259,27 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   appears; retains prior RNG/EventID at equal time. Atomic cancel+replace,
   bounded admission, no health/ammo mutation during planning. Eight new tests;
   full local backend 135 PASS. Route-change subscriber/native adoption pending.
+
+- Coordination: Codex follows up netcoop_characters.inc with bounded background
+  save count/bytes, pending complete-snapshot coalescing, in-flight accounting
+  and process-unique temporary names, plus actual helper Actions coverage.
+  Will preserve the running 5302a58f4 DX11 build before the next native push.
+
+- Coordination: native disconnect cleanup currently erases/destroys a tracked
+  Actor even if its synchronous character save failed. Codex will retain/retry
+  that Actor and ownership until the snapshot commits, with actual cleanup
+  function coverage in the player-transfer fixture. netcoop.cpp area noted;
+  world-store/runtime/replication remain untouched.
+
+- Prepared native follow-up: bounded 256-pending/32-MiB commit queue (in-flight
+  bytes included), complete pending snapshot replacement, process/u64 unique
+  temp names and rejected/failed temp cleanup. Actual threaded helper and
+  Windows fsync/rename fixture added; Actions pending.
+  Failed tracked logout save now retains Actor/link/ownership and requeues
+  cleanup; success alone releases/removes, corpse/moved/untracked policies
+  preserved. Actual cleanup and ninth-leaf ownership tests in transfer fixture.
+- Backend geometry work now shares the broad/narrow budget. Full local 136
+  PASS; 9f26f5b92 backend 37379314800 SUCCESS Windows+Linux (135).
+- 5302a58f4 DX11 37378445074 SUCCESS, full package includes ownership and
+  846664a26 world-save fix. Running build completed before this native push.
+  Installation/native world-save/restart acceptance remain Claude's area.

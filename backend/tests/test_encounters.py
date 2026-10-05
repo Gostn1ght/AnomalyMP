@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 import uuid
+from unittest.mock import patch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from lostzone import Store, World, Conflict
@@ -13,6 +14,7 @@ from lostzone.ownership import Ownership
 from lostzone.offline import Offline
 from lostzone.scheduler import Scheduler
 from lostzone.encounters import Encounters
+from lostzone.contact_index import ContactIndex
 
 
 def uid():
@@ -329,6 +331,17 @@ class EncounterTest(unittest.TestCase):
         self.assertAlmostEqual(second["contacts"][0]["due_ms"],old["due_ms"]*2)
         self.assertEqual(self.row(self.second)["alive"],1)
         self.assertEqual(json.loads(self.store.db.execute("SELECT state FROM item WHERE id=?",(self.weapon,)).fetchone()[0])["rounds"],30)
+
+    def test_narrow_phase_shares_the_spatial_work_budget_and_has_no_partial_plan(self):
+        index = ContactIndex(max_checks=20)
+        for entity_id,position in ((self.first,[0,0,0]),(self.second,[1,0,0])):
+            index.upsert(entity_id,"cordon",[(0,position),(1000,position)])
+        self.assertEqual(len(index.pairs(10)),1) # Broad phase alone fits exactly.
+        with patch("lostzone.encounters.ContactIndex",lambda:ContactIndex(max_checks=20)):
+            with self.assertRaises(Unavailable):
+                self.encounters.plan_location("admin",uid(),"cordon",1000,17,10)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='OfflineCombat'").fetchone()[0],0)
+        self.assertEqual(self.row(self.second)["alive"],1)
 
 
 if __name__=="__main__":

@@ -136,22 +136,19 @@ class ContactIndex:
                         raise Unavailable("contact query candidate budget exhausted")
         return sorted(result)
 
-    def pairs(self, radius):
+    def pairs(self, radius, budget=None):
         finite(radius,.1,200)
-        result,checks = set(),0
+        result = set()
+        budget = budget or CandidateBudget(self.limits["max_checks"])
         for entity_id,(location,segments,_,_) in sorted(self.entries.items()):
             for start,end,lower,upper in segments:
                 expanded_lower = tuple(value-radius for value in lower)
                 expanded_upper = tuple(value+radius for value in upper)
                 seen = set()
                 for key in self.cell_keys(location,expanded_lower,expanded_upper):
-                    checks += 1
-                    if checks > self.limits["max_checks"]:
-                        raise Unavailable("contact candidate work budget exhausted")
+                    budget.consume()
                     for candidate in self.cells.get(key,()):
-                        checks += 1
-                        if checks > self.limits["max_checks"]:
-                            raise Unavailable("contact candidate work budget exhausted")
+                        budget.consume()
                         other,number = candidate
                         if other <= entity_id or candidate in seen:
                             continue

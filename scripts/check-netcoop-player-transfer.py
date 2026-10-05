@@ -25,6 +25,65 @@ inventory_end = characters.index('\nstatic void character_capture_items(',invent
 inventory_body = characters[inventory_start:inventory_end]
 save_body = characters[characters.index('static bool character_save_actor('):characters.index('\nvoid server_character_save_actor(')]
 assert save_body.index('character_inventory_complete(server, actor, 0, visited)') < save_body.index('character.items.clear()')
+disconnect_start = engine.index('static void destroy_pending_actors(xrServer* server)\n{')
+disconnect_end = engine.index('\nstruct StoreMoney',disconnect_start)
+disconnect_body = engine[disconnect_start:disconnect_end]
+give_start = engine.index('static void give_to_server(xrServer* server, CSE_Abstract* entity, u32 depth)\n{')
+give_body = engine[give_start:disconnect_start].replace('give_to_server(', 'captured_give_to_server(')
+disconnect_fixture = r'''
+namespace disconnect_fixture {
+template<class T>using xr_vector=std::vector<T>;
+struct CInventoryOwner {virtual ~CInventoryOwner()=default;virtual void StopTalk(){}};
+struct CGameObject {virtual ~CGameObject()=default;bool destroyed=false;void DestroyObject(){destroyed=true;}};
+struct CActor:CGameObject,CInventoryOwner {bool alive=true;bool g_Alive()const{return alive;}bool IsTalking()const{return false;}CInventoryOwner* GetTalkPartner(){return nullptr;}};
+template<class T,class P>T smart_cast(P* object){return dynamic_cast<T>(object);}
+struct xrClientData {};
+struct CSE_Abstract {u16 ID=7;xrClientData* owner=nullptr;std::vector<u16>children;};
+struct Game {CSE_Abstract entity;std::map<u16,CSE_Abstract*>entries{{7,&entity}};CSE_Abstract* get_entity_from_eid(u16 id){auto found=entries.find(id);return found==entries.end()?nullptr:found->second;}};
+struct xrServer {Game* game;xrClientData client;void* GetServerClient(){return &client;}};
+struct StubObjects {CGameObject* actor=nullptr;CGameObject* net_Find(u16){return actor;}};
+struct Runtime {StubObjects Objects;};
+Runtime runtime;Runtime& Level(){return runtime;}bool g_pGameLevel=true;
+struct Lock {int depth=0;void Enter(){++depth;}void Leave(){assert(depth>0);--depth;}};
+Lock s_pending_lock;xr_vector<u16>s_pending_actor_destroy;
+std::map<u16,xr_string>s_actor_character;
+struct Leaving {u16 actor=0;};std::map<u32,Leaving>s_cluster_leaving;
+bool save_ok=true;int saves=0,gives=0,releases=0,tasks=0;
+bool cluster_actor_leaving(u16 actor){for(const auto& entry:s_cluster_leaving)if(entry.second.actor==actor)return true;return false;}
+bool character_save_actor(u16,std::nullptr_t,bool){++saves;return save_ok;}
+void cluster_lease_release(LPCSTR){++releases;}
+void server_release_task_manager(u16){++tasks;}
+void Msg(const char*,...){}
+'''+give_body+r'''
+void give_to_server(xrServer* server,CSE_Abstract* entity,u32 depth){++gives;captured_give_to_server(server,entity,depth);}
+'''+disconnect_body+r'''
+void reset(CActor& actor){actor.destroyed=false;actor.alive=true;runtime.Objects.actor=&actor;saves=gives=releases=tasks=0;save_ok=true;s_pending_actor_destroy={7};s_actor_character={{7,"tester:1"}};s_cluster_leaving.clear();}
+void run(){
+ Game game;xrServer server{&game,{}};CActor actor;
+ reset(actor);save_ok=false;destroy_pending_actors(&server);
+ assert(!actor.destroyed && s_actor_character.count(7)==1 && s_pending_actor_destroy==xr_vector<u16>{7});
+ assert(saves==1 && gives==1 && releases==0 && tasks==0 && s_pending_lock.depth==0);
+ save_ok=true;destroy_pending_actors(&server);
+ assert(actor.destroyed && s_actor_character.empty() && s_pending_actor_destroy.empty());
+ assert(saves==2 && gives==2 && releases==1 && tasks==1);
+ reset(actor);actor.alive=false;save_ok=false;destroy_pending_actors(&server);
+ assert(!actor.destroyed && s_pending_actor_destroy.size()==1 && releases==0);
+ save_ok=true;destroy_pending_actors(&server);
+ assert(!actor.destroyed && s_pending_actor_destroy.empty() && s_actor_character.empty() && releases==1 && tasks==0);
+ reset(actor);s_actor_character.clear();s_cluster_leaving[5]={7};save_ok=false;destroy_pending_actors(&server);
+ assert(actor.destroyed && saves==0 && releases==0 && s_cluster_leaving.empty());
+ reset(actor);s_actor_character.clear();save_ok=false;destroy_pending_actors(&server);
+ assert(actor.destroyed && saves==0 && s_pending_actor_destroy.empty());
+ // Match the deepest valid inventory preflight: the ninth leaf also migrates
+ // to the server, so no supported child retains a disconnected client owner.
+ std::vector<CSE_Abstract> children(9);CSE_Abstract* parent=&game.entity;
+ for(u16 i=0;i<9;++i){auto& child=children[i];child.ID=u16(20+i);parent->children.push_back(child.ID);game.entries[child.ID]=&child;parent=&child;}
+ give_to_server(&server,&game.entity,0);
+ for(const auto& child:children)assert(child.owner==&server.client);
+ std::cout<<"PASS actual disconnect cleanup: failed tracked save retains actor/inventory/ownership for retry; success releases and destroys once; corpses and moved/untracked actors keep their policies\n";
+}
+}
+'''
 inventory_fixture = r'''
 namespace inventory_fixture {
 template<class T>using xr_vector=std::vector<T>;
@@ -129,10 +188,11 @@ void script_send_to_actor(u16,const char*,const char*){events+='N';assert(s_acto
 void Msg(const char*,...){}
 '''+f'\nstatic const u32 cluster_status_ttl_s = {status_ttl};\n'+status_body+money+r'''
 void store_money(xrClientData* client){events+='M';assert(!server_client_leaving(client));captured_store_money(client);}
-'''+inventory_fixture+body+r'''
+'''+inventory_fixture+disconnect_fixture+body+r'''
 void reset(){events.clear();refusal.clear();saved_destination=0;s_cluster_leaving.clear();s_character_restore.clear();s_actor_character[7]=1;ticket_ok=save_ok=location_ok=accounts_ok=status_ok=true;target_status="100 0 16";}
 int main(){
  inventory_fixture::run();
+ disconnect_fixture::run();
  xrServer server;Owner owner;xrClientData client;client.owner=&owner;CLevelChanger changer;
  reset();ticket_ok=false;
  assert(!cluster_move(&server,&client,&changer));

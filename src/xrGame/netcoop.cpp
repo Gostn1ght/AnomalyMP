@@ -1670,7 +1670,7 @@ void server_on_client_disconnect(xrClientData* CL)
 // Actor and everything it carries before destroying it.
 static void give_to_server(xrServer* server, CSE_Abstract* entity, u32 depth)
 {
-	if (!entity || depth > 8)
+	if (!entity || depth > 9)
 		return;
 	entity->owner = static_cast<xrClientData*>(server->GetServerClient());
 	for (u32 i = 0; i < entity->children.size(); ++i)
@@ -1696,7 +1696,22 @@ static void destroy_pending_actors(xrServer* server)
             const bool moved = cluster_actor_leaving(ids[i]);
             const auto key = s_actor_character.find(ids[i]);
             const xr_string login = key != s_actor_character.end() ? key->second.substr(0, key->second.rfind(':')) : xr_string();
-            if (!moved && character_save_actor(ids[i], nullptr, false) && !login.empty()) cluster_lease_release(login.c_str());
+            if (!moved && !login.empty())
+            {
+                if (!character_save_actor(ids[i], nullptr, false))
+                {
+                    // Disk/capture failure must not turn logout into inventory
+                    // loss. Retain the tracked Actor and account ownership,
+                    // migrate it off the disconnected client, and retry from
+                    // the next main-thread update. A fresh login remains held.
+                    give_to_server(server, server->game->get_entity_from_eid(ids[i]), 0);
+                    s_pending_lock.Enter();
+                    s_pending_actor_destroy.push_back(ids[i]);
+                    s_pending_lock.Leave();
+                    continue;
+                }
+                cluster_lease_release(login.c_str());
+            }
             s_actor_character.erase(ids[i]);
             for (auto it = s_cluster_leaving.begin(); it != s_cluster_leaving.end();)
                 if (it->second.actor == ids[i]) it = s_cluster_leaving.erase(it); else ++it;

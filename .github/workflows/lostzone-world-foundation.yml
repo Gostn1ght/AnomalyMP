@@ -45,6 +45,7 @@ on:
       - 'src/xrGame/netcoop.cpp'
       - 'scripts/check-netcoop-account-store.py'
       - 'scripts/check-netcoop-session-ownership.py'
+      - 'scripts/check-netcoop-character-commits.py'
       - 'scripts/check-netcoop-replication-index.py'
       - '.github/workflows/lostzone-world-foundation.yml'
   workflow_dispatch:
@@ -81,6 +82,8 @@ jobs:
         run: python scripts/check-netcoop-alife-clock.py
       - name: Exercise actual player handoff I/O failures
         run: python scripts/check-netcoop-player-transfer.py
+      - name: Exercise bounded complete character commit queue
+        run: python scripts/check-netcoop-character-commits.py
   clock-windows:
     runs-on: windows-2022
     timeout-minutes: 10
@@ -116,5 +119,7 @@ jobs:
           python scripts/check-netcoop-account-store.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-session-ownership.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-netcoop-character-commits.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-alife-clock.py
