@@ -377,6 +377,8 @@ void CCustomMonster::shedule_Update(u32 DT)
 	{
 		// here is monster AI call
 		m_fTimeUpdateDelta = dt;
+		netcoop::ProfileScope netcoop_profile(netcoop::prof_ai);
+		if (netcoop::enabled()) netcoop::metric_ai_update(ID());
 		Device.Statistic->AI_Think.Begin();
 		Device.Statistic->TEST1.Begin();
 		if (GetScriptControl())

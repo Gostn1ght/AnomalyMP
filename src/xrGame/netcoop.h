@@ -280,6 +280,18 @@ void metric_weapon_fire(CWeapon* weapon);
 void metric_ai_reaction(u16 npc, u16 player);
 // Server: a player became visible to an NPC/monster after notice_ms in view.
 void metric_ai_notice(u16 npc, u16 player, u32 notice_ms, float distance);
+// Server time profile (plan section 36), summarised every 10 s: AI thinking
+// with the real update interval of each NPC/monster, snapshot replication,
+// item state and per-frame tasks.
+enum EProfileSlot { prof_ai, prof_replication, prof_items, prof_count };
+struct ProfileScope
+{
+	u32 slot;
+	u64 start;
+	explicit ProfileScope(u32 profile_slot);
+	~ProfileScope();
+};
+void metric_ai_update(u16 npc);
 // Server: bytes of object updates sent this tick and objects serialised.
 void metric_server_sent(u32 bytes, u32 objects);
 // Server: a client's snapshot skipped because its send queue was late.

@@ -3641,6 +3641,33 @@ bool client_death_key(int key)
 
 static u32 s_ai_reactions = 0, s_ai_reaction_sum = 0, s_ai_reaction_max = 0, s_ai_unseen = 0, s_ai_log_time = 0;
 
+static u64 s_prof_ticks[prof_count] = {};
+static u32 s_prof_calls[prof_count] = {};
+static xr_map<u16, u32> s_ai_last_update;
+static u32 s_ai_updates = 0, s_ai_interval_sum = 0, s_ai_interval_max = 0;
+
+ProfileScope::ProfileScope(u32 profile_slot) : slot(profile_slot), start(CPU::QPC()) {}
+ProfileScope::~ProfileScope()
+{
+	if (slot >= prof_count) return;
+	s_prof_ticks[slot] += CPU::QPC() - start;
+	++s_prof_calls[slot];
+}
+
+void metric_ai_update(u16 npc)
+{
+	const u32 now = real_time_ms();
+	u32& last = s_ai_last_update[npc];
+	if (last && now > last && now - last < 10000)
+	{
+		const u32 interval = now - last;
+		++s_ai_updates;
+		s_ai_interval_sum += interval;
+		s_ai_interval_max = _max(s_ai_interval_max, interval);
+	}
+	last = now;
+}
+
 static u32 s_ai_notices = 0, s_ai_notice_sum = 0, s_ai_notice_max = 0, s_ai_notice_log = 0;
 
 static xr_map<u32, u32> s_ai_seen; // npc << 16 | player -> real time it saw the player
@@ -3726,6 +3753,15 @@ void metrics_update()
 		    m.puppet_frames, m.puppet_frames ? 100.f * m.extrap_frames / m.puppet_frames : 0.f, m.jumps, m.jump_max,
 		    m.acks, m.fixes, m.acks ? m.err_sum / m.acks : 0.f, m.err_max, m.owner_rejects, m.owner_reject_max,
 		    m.shots, m.sv_bytes / 1024.f / 10.f, m.sv_objects, m.sv_blocked);
+		if (!pure_client())
+		{
+			const double to_ms = 1000.0 / double(CPU::qpc_freq) / 10.0; // per second of the 10 s window
+			Msg("[Lost Zone][profile] ai %.1f ms/s (%u thinks, NPC update every avg %u max %u ms, %u NPCs) | replication %.1f ms/s"
+				" | items %.1f ms/s",
+				double(s_prof_ticks[prof_ai]) * to_ms, s_prof_calls[prof_ai], s_ai_updates ? s_ai_interval_sum / s_ai_updates : 0,
+				s_ai_interval_max, u32(s_ai_last_update.size()), double(s_prof_ticks[prof_replication]) * to_ms,
+				double(s_prof_ticks[prof_items]) * to_ms);
+		}
 		if (s_ai_notices)
 			Msg("[Lost Zone][metrics] ai noticed players %u avg %u max %u ms in view", s_ai_notices,
 				s_ai_notice_sum / s_ai_notices, s_ai_notice_max);
@@ -3735,6 +3771,9 @@ void metrics_update()
 	}
 	s_ai_reactions = s_ai_reaction_sum = s_ai_reaction_max = s_ai_unseen = 0;
 	s_ai_notices = s_ai_notice_sum = s_ai_notice_max = 0;
+	for (u32 i = 0; i < prof_count; ++i) { s_prof_ticks[i] = 0; s_prof_calls[i] = 0; }
+	s_ai_updates = s_ai_interval_sum = s_ai_interval_max = 0;
+	if (s_ai_last_update.size() > 4096) s_ai_last_update.clear();
 	ZeroMemory(&m, sizeof(m));
 	if (puppets.size() > 4096)
 		puppets.clear();

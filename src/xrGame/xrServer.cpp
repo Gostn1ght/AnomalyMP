@@ -275,9 +275,15 @@ void xrServer::Update()
 	}
 
 
-	SendUpdatesToAll();
-	netcoop::server_items_update(this);
-	netcoop::server_frame_update(this);
+	{
+		netcoop::ProfileScope profile(netcoop::prof_replication);
+		SendUpdatesToAll();
+	}
+	{
+		netcoop::ProfileScope profile(netcoop::prof_items);
+		netcoop::server_items_update(this);
+		netcoop::server_frame_update(this);
+	}
 
 
 	if (game->sv_force_sync) Perform_game_export();
