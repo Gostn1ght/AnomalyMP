@@ -3,6 +3,7 @@
 #include "ParticlesObject.h"
 #include "GamePersistent.h"
 #include "../xrEngine/LightAnimLibrary.h"
+#include "netcoop.h"
 
 /*
 CZoneCampfire* g_zone = NULL;
@@ -70,24 +71,60 @@ void CZoneCampfire::GoDisabledState()
 
 #define OVL_TIME 3000
 
-void CZoneCampfire::turn_on_script()
+void CZoneCampfire::set_burning(bool on)
 {
 	if (psDeviceFlags.test(rsR2 | rsR3 | rsR4))
 	{
 		m_turn_time = Device.dwTimeGlobal + OVL_TIME;
-		m_turned_on = true;
-		GoEnabledState();
+		m_turned_on = on;
+		if (on) GoEnabledState();
+		else GoDisabledState();
 	}
+}
+
+void CZoneCampfire::turn_on_script()
+{
+	// A client's scripts light a campfire only when its player uses matches:
+	// the server checks and does it.
+	if (netcoop::pure_client())
+	{
+		netcoop::client_campfire_request(ID(), true);
+		return;
+	}
+	set_burning(true);
+	if (netcoop::enabled()) netcoop::server_campfire_changed(ID(), true);
 }
 
 void CZoneCampfire::turn_off_script()
 {
-	if (psDeviceFlags.test(rsR2 | rsR3 | rsR4))
+	if (netcoop::pure_client())
 	{
-		m_turn_time = Device.dwTimeGlobal + OVL_TIME;
-		m_turned_on = false;
-		GoDisabledState();
+		netcoop::client_campfire_request(ID(), false);
+		return;
 	}
+	set_burning(false);
+	if (netcoop::enabled()) netcoop::server_campfire_changed(ID(), false);
+}
+
+BOOL CZoneCampfire::net_Spawn(CSE_Abstract* DC)
+{
+	// Netcoop: every campfire starts out (no fire burns at server start or
+	// before a client knows the server's state); state off before the
+	// scripts' binder runs, so GAMMA's "turn it off on spawn" asks nothing.
+	if (netcoop::enabled()) m_turned_on = false;
+	if (!inherited::net_Spawn(DC)) return FALSE;
+	if (netcoop::enabled())
+	{
+		m_turn_time = 0;
+		inherited::GoDisabledState();
+		if (netcoop::pure_client()) netcoop::client_campfire_spawned(this);
+	}
+	return TRUE;
+}
+
+void CZoneCampfire::netcoop_apply(bool on)
+{
+	if (on != m_turned_on) set_burning(on);
 }
 
 bool CZoneCampfire::is_on()

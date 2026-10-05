@@ -16,6 +16,7 @@
 #include "object_factory.h"
 #include "alife_object_registry.h"
 #include "../xrEngine/xr_ioconsole.h"
+#include "netcoop.h"
 
 #ifdef DEBUG
 #	include "moving_objects.h"
@@ -53,6 +54,8 @@ CALifeSimulator::CALifeSimulator(xrServer* server, shared_str* command_line) :
 
 	typedef IGame_Persistent::params params;
 	params& p = g_pGamePersistent->m_game_params;
+	// Netcoop server with -netcoop_world: continue the saved world (doc 41, W1).
+	netcoop::world_store_choose_start(p.m_game_or_spawn, sizeof(p.m_game_or_spawn), p.m_new_or_load, sizeof(p.m_new_or_load));
 
 	R_ASSERT2(
 		xr_strlen(p.m_game_or_spawn) &&

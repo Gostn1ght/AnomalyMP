@@ -908,6 +908,10 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
 				netcoop::server_on_trade(this, CL, P);
 		}
 		break;
+	case M_NETCOOP_CAMPFIRE:
+		if (!CL->flags.bLocal && CL->netcoop_role != netcoop::role_none)
+			netcoop::server_on_campfire(this, CL, P);
+		break;
 	case M_NETCOOP_ITEM_ACTION:
 		if (!CL->flags.bLocal && CL->netcoop_role != netcoop::role_none)
 			netcoop::server_on_item_action(this, CL, P);

@@ -29,6 +29,10 @@
 #include "PDA.h"
 #include "InventoryBox.h"
 #include "Torch.h"
+#include "ZoneCampfire.h"
+#include "alife_simulator.h"
+#include "alife_graph_registry.h"
+#include "alife_object_registry.h"
 #include "../xrEngine/Environment.h"
 #include "../xrEngine/IGame_Persistent.h"
 #include "inventory_item.h"
@@ -1089,6 +1093,8 @@ static void item_state_restore(u16 id, const xr_vector<u8>& saved);
 #include "netcoop_pda.inc"
 #include "netcoop_marks.inc"
 #include "netcoop_items.inc"
+#include "netcoop_world_store.inc"
+#include "netcoop_campfire.inc"
 
 // ---------------------------------------------------------------------------
 // server: authentication
@@ -1587,6 +1593,7 @@ void server_update(xrServer* server)
 	// (UpdateCondition, CanBeHarmed). Keep it off here.
 	psActorFlags.set(AF_GODMODE_RT, FALSE);
 	destroy_pending_actors(server);
+	world_store_update(server);
 	server_talk_prune(server);
 	characters_update(server);
 	if (!s_accounts_loaded)
@@ -1665,7 +1672,9 @@ float server_luminocity(const CObject* object, float rendered)
 void server_frame_update(xrServer* server)
 {
 	if (!enabled() || !g_pGameLevel) return;
+	world_store_cleanup_loaded();
 	cache_player_positions();
+	server_campfires_update(server);
 	server_physics_update(server);
 	server_pda_update(server);
 	server_marks_update(server);

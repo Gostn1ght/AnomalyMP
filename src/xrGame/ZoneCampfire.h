@@ -27,6 +27,13 @@ public:
 	void turn_on_script();
 	void turn_off_script();
 	bool is_on();
+	virtual BOOL net_Spawn(CSE_Abstract* DC);
+	// Netcoop: the server alone lights and puts out campfires (NPC camp logic
+	// runs there, players ask it), and every client shows the server's state.
+	void netcoop_apply(bool on);
+
+private:
+	void set_burning(bool on);
 	virtual void shedule_Update(u32 dt);
 DECLARE_SCRIPT_REGISTER_FUNCTION
 };

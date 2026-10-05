@@ -138,6 +138,7 @@ enum
 	M_NETCOOP_TRANSFER, // client -> server: u32 txid, u16 item, u16 from, u16 to
 	M_NETCOOP_TRANSFER_RESULT, // server -> client: u32 txid, u8 ok, stringZ reason
 	M_NETCOOP_ITEM_ACTION, // client -> server: u8 kind, u16 item, u16 target, stringZ action
+	M_NETCOOP_CAMPFIRE, // server -> client: u16 n, n x (u16 id, u8 on); client -> server: u16 id, u8 on
 	MSG_FORCEDWORD = u32(-1)
 };
 static_assert(M_CL_INPUT == 9 && M_CL_UPDATE == 10 && M_CL_INPUT_ACK == 53,

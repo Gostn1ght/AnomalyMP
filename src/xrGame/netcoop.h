@@ -17,6 +17,7 @@ struct GAME_NEWS_DATA;
 class CWeapon;
 class CActor;
 class CSE_Abstract;
+class CZoneCampfire;
 
 // Console: netcoop_smooth (0 = old network presentation, 1 = doc 38 stage 1),
 // netcoop_interp_ms (interpolation delay for remote objects on a client),
@@ -208,6 +209,19 @@ void server_character_save_actor(u16 actor_id);
 void server_physics_update(xrServer* server);
 // Every server frame: physics poses, PDA screens, bullet marks (own rates).
 void server_frame_update(xrServer* server);
+// W1 (doc 41): with -netcoop_world=<name> the server saves the world every
+// 5 minutes and when the last player leaves, and starts from the newest save.
+// Called by the ALife constructor; true when it switched the start to a load.
+bool world_store_choose_start(LPSTR game_or_spawn, u32 game_size, LPSTR new_or_load, u32 mode_size);
+// Lua (server): netcoop_world_save(reason) - save the world now.
+bool world_store_save_now(LPCSTR reason);
+// Campfires (netcoop_campfire.inc): the server lights and puts them out and
+// sends the state; clients ask (matches) and show it.
+void server_campfire_changed(u16 id, bool on);
+void server_on_campfire(xrServer* server, xrClientData* CL, NET_Packet& P);
+void client_campfire_request(u16 id, bool on);
+void client_on_campfire(NET_Packet& P);
+void client_campfire_spawned(CZoneCampfire* campfire);
 // Server: how lit an object is for NPC vision. The renderer lights only what
 // it draws; this takes the current weather's sun, sky and ambient light and
 // a switched-on torch of a player (stage 8). rendered = the ROS value.
