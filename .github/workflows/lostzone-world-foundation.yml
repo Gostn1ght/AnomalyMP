@@ -15,6 +15,10 @@ on:
       - 'scripts/check-netcoop-world-clock.py'
       - 'src/xrGame/netcoop_world_store.inc'
       - 'scripts/check-netcoop-world-store.py'
+      - 'src/xrGame/netcoop_spatial_grid.h'
+      - 'src/xrGame/xrServer.cpp'
+      - 'src/xrGame/xrServer.h'
+      - 'scripts/check-netcoop-spatial-grid.py'
       - '.github/workflows/lostzone-world-foundation.yml'
   workflow_dispatch:
 
@@ -32,6 +36,8 @@ jobs:
           python-version: '3.13'
       - name: Exercise actual clock and location follower
         run: python scripts/check-netcoop-world-clock.py
+      - name: Exercise actual spatial grid and player interests
+        run: python scripts/check-netcoop-spatial-grid.py
       - name: Exercise snapshot slot recovery
         run: python scripts/check-netcoop-world-store.py
       - name: Exercise ALife integration and durable ownership
@@ -49,6 +55,8 @@ jobs:
         run: |
           call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
           python scripts/check-netcoop-world-clock.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-netcoop-spatial-grid.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-world-store.py
           if errorlevel 1 exit /b %errorlevel%

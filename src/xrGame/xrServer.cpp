@@ -27,6 +27,7 @@
 #include "screenshot_server.h"
 #include "xrServer_info.h"
 #include <functional>
+#include <chrono>
 #include "../xrNetServer/GammaNetPolicy.h"
 
 #pragma warning(push)
@@ -481,6 +482,65 @@ void xrServer::SendUpdatesAOI()
 	}
 
 	const u32 packet_limit = 8 * 1024;
+	// W4 shadow rollout. Compare spatial query with the existing serialized
+	// set before using it to affect relevance. These IDs are temporary engine
+	// handles for diagnostics, not the future durable entity registry.
+	const u64 shadow_now = GetTickCount64();
+	if (strstr(Core.Params, "-netcoop_chunk_shadow") && !m_chunk_shadow_failed &&
+		(!m_chunk_shadow_last || shadow_now - m_chunk_shadow_last >= 200))
+	{
+		m_chunk_shadow_last = shadow_now;
+		try
+		{
+			if (!m_chunk_shadow) m_chunk_shadow.reset(new netcoop_world::SpatialGrid(100));
+			m_chunk_shadow->clear();
+			for (const Chunk& c : chunks)
+				m_chunk_shadow->upsert({0, u64(c.id) + 1}, 1, {c.position.x, c.position.y, c.position.z});
+			struct ShadowProbe
+			{
+				xrServer* server;
+				u32 clients = 0, mismatches = 0;
+				netcoop_world::SpatialQueryStats stats;
+				u64 full_scan = 0;
+				void operator()(IClient* client)
+				{
+					xrClientData* peer = static_cast<xrClientData*>(client);
+					if (client == server->GetServerClient() || !client->flags.bConnected ||
+						!peer->gamma_snapshot_ready || !peer->owner) return;
+					const Fvector& eye = peer->owner->o_Position;
+					const netcoop_world::SpatialPoint center{eye.x, eye.y, eye.z};
+					const auto actual = server->m_chunk_shadow->query(1, center, 1000, &stats);
+					std::vector<netcoop_world::SpatialId> expected;
+					for (const Chunk& c : chunks)
+					{
+						++full_scan;
+						if (netcoop_world::point_distance_squared(center, {c.position.x,c.position.y,c.position.z}) <= 1000000.)
+							expected.push_back({0,u64(c.id)+1});
+					}
+					std::sort(expected.begin(),expected.end());
+					if (actual != expected) ++mismatches;
+					++clients;
+				}
+			} probe = {this};
+			const auto started = std::chrono::steady_clock::now();
+			ForEachClientDo(probe);
+			const u64 query_us = u64(std::chrono::duration_cast<std::chrono::microseconds>(
+				std::chrono::steady_clock::now()-started).count());
+			if (!m_chunk_shadow_log || shadow_now - m_chunk_shadow_log >= 10000)
+			{
+				m_chunk_shadow_log = shadow_now;
+				Msg("[chunk-shadow] objects=%u cells=%u clients=%u candidates=%llu full_scan=%llu mismatches=%u compare_us=%llu",
+					u32(m_chunk_shadow->size()),u32(m_chunk_shadow->cell_count()),probe.clients,
+					probe.stats.candidates,probe.full_scan,probe.mismatches,query_us);
+			}
+		}
+		catch (const std::exception&)
+		{
+			m_chunk_shadow_failed = true;
+			m_chunk_shadow.reset();
+			Msg("! [chunk-shadow] invalid state/configuration; diagnostics disabled, legacy replication continues");
+		}
+	}
 	u32 sent_bytes = 0;
 	struct Sender
 	{

@@ -15,6 +15,8 @@
 #include "xrServer_updates_compressor.h"
 #include "xrClientsPool.h"
 #include "xrmessages.h"
+#include "netcoop_spatial_grid.h"
+#include <memory>
 
 #ifdef DEBUG
 //. #define SLOW_VERIFY_ENTITIES
@@ -127,6 +129,11 @@ private:
 	// Netcoop: per-client object updates by distance (area of interest).
 	void SendUpdatesAOI();
 	u32 m_aoi_tick = 0;
+	// Diagnostic shadow only: no spawn, AI, ownership or packet filtering.
+	std::unique_ptr<netcoop_world::SpatialGrid> m_chunk_shadow;
+	u64 m_chunk_shadow_last = 0;
+	u64 m_chunk_shadow_log = 0;
+	bool m_chunk_shadow_failed = false;
 	u32 m_last_updates_size;
 	u32 m_last_update_time;
 

@@ -40,3 +40,7 @@ compressor/mod/
 *~
 # local patch backups
 *.pre-*
+
+# Local modular backend runtime data and credentials.
+backend/**/__pycache__/
+backend/runtime/
