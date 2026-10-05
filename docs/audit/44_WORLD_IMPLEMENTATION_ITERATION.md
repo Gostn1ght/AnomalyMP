@@ -85,22 +85,49 @@ header не требуется включать полное ядро grid/LOD.
   [run 37340861592](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37340861592).
 - Coarse combat на `e77b86250`: 63 tests PASS локально и в Actions
   Linux/Windows, [run 37342225793](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37342225793).
-- С добавлением observer/export config: 65 tests PASS локально;
-  native transport и соответствующая Actions проверка запускаются отдельно.
+- С добавлением observer/export config: 65 tests PASS локально и в Actions
+  Linux/Windows на `fa9db372a`,
+  [run 37344077860](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37344077860).
 - Grid/LOD/clock/store/ALife native fixtures PASS GCC/MSVC на `79263abd5`,
   [run 37340572447](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37340572447).
 - Full DX11 `230a77b8f` PASS,
   [run 37336051184](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37336051184).
-  Matching artifact установлен в LostZone-3D-Hideout: 32 hashes verified,
-  client/server SHA256 `1D55C3A353E7AC31AE51E9A2ED071E2FF45A99EB2E3545D358ABF88622EA8582`.
-  Backup `build-logs/live-world-backup-20261005-191406` сохранён.
+  Первоначальный matching artifact установлен с backup/hash verification;
+  затем заменён успешной сборкой `79263abd5`, указанной ниже.
 - Full DX11 `0917689f1` остановлен LNK1248 при создании xrGame.lib;
-  fixture tests прошли. Изоляция заголовков `79263abd5` пересобирается,
+  fixture tests прошли. Изоляция заголовков `79263abd5` проверена,
   [run 37340572528](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37340572528).
   Исправленная полная сборка `79263abd5` завершилась успешно;
-  соответствующий matching artifact устанавливается с backup/hash verification.
+  matching artifact установлен: 32 hashes verified, client/server SHA256
+  `21C180B9DD4A1CF0DB2C00D09B9B2420156308AA9A7D2DFE1C865C3FCD02D3CC`.
+  Backup `build-logs/live-world-backup-20261005-195139` сохранён.
   Неуспешный artifact не установлен. Ограничение COFF описано
   [Microsoft](https://learn.microsoft.com/en-us/cpp/error-messages/tool-errors/linker-tools-error-lnk1248?view=msvc-170).
+- Bridge `fa9db372a` выявил две ошибки приёмки: MSVC raw literal внутри
+  assert fixture и C1189 (xrCore запрещает exceptions в release engine TU),
+  [foundation](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37344077673),
+  [DX11](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37344077889).
+  Literal вынесен из macro. Parser, WinHTTP, follower и worker перенесены в
+  отдельный exception-enabled .cpp без xrCore/PCH; engine вызывает noexcept
+  boundary и сохраняет штатные compiler settings. Worker проверяется отдельным
+  native fixture, включая authenticated HTTP, identity mismatch и stop/join.
+  Повторный Actions run ещё требуется; неуспешный artifact не установлен.
+
+## Сохранение предметов при игровой очистке
+
+Добавлены native adapters для online GE_DESTROY и offline ALife release
+мертвых NPC/мутантов: полная проверка children, обычный detach, затем удаление
+тела. Существующие IDs/quantity/condition/ammo не пересоздаются; offline
+предметы получают position/node/graph тела. Неполный detach оставляет тело
+с оставшимися вещами. Actors, живые существа и single-player сохраняют
+отдельную старую политику. Native fixture использует настоящий release method
+и online adapter block со stub registries; Actions приёмка впереди.
+
+Lua world guard останавливает исключительно age-based release_item_manager
+и его уже поставленный timer: оба порядка on_game_load и замена метода
+проверены locally через actual Lua. Consumption/quest/pickup paths не
+перехватываются. Это ещё не полный аудит всех mod cleanup и native item TTL,
+не ItemLedger adapter и не доказательство игрового restart сохранения.
 
 Игра автоматически не запускалась: ранее launch был blocked by policy;
 запрет не обойдён. Нет live gameplay приёмки, данных p99/FPS/traffic,

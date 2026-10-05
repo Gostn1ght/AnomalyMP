@@ -17,9 +17,12 @@ from lostzone.http import Credentials, Dispatcher, Server
 source = r'''
 #define NOMINMAX
 #include "netcoop_world_bridge.h"
+#include "netcoop_world_bridge_worker.h"
 #include <cassert>
 #include <cstdlib>
 #include <iostream>
+#include <fstream>
+#include <thread>
 using namespace netcoop_world;
 template<class F> void rejects(F f) {
  bool failed=false;try{f();}catch(const std::exception&){failed=true;}assert(failed);
@@ -32,7 +35,8 @@ int main(int argc,char** argv) {
  rejects([&]{parse_bridge_bootstrap("{}");});
  rejects([&]{parse_bridge_bootstrap(std::string(65537,' '));});
  rejects([&]{bridge_json(std::string(65,'[')+std::string(65,']'),65536);});
- assert(bridge_json(R"({"text":"[\"{}]"})",100).is_object()); // escaped quotes/brackets
+ const std::string escaped=R"json({"text":"[\"{}]"})json";
+ assert(bridge_json(escaped,100).is_object()); // escaped quotes/brackets
  auto body=BridgeJson::parse(text);
  body["result"]["clock"]["sequence"]=-1;rejects([&]{parse_bridge_bootstrap(body.dump());});
  body=BridgeJson::parse(text);body["result"]["clock"]["schema"]=2;
@@ -63,6 +67,15 @@ int main(int argc,char** argv) {
  bad=config;bad["mode"]="authoritative";rejects([&]{BridgeConfig::parse(bad.dump());});
  bad=config;bad["token"]="x\r\nHost:example.com";rejects([&]{BridgeConfig::parse(bad.dump());});
  bad=config;bad["port"]=65536;rejects([&]{BridgeConfig::parse(bad.dump());});
+ WorldBridgeWorker isolated;
+ assert(!isolated.tick(state).ready);
+ assert(isolated.start("does-not-exist.json",state)==0);
+ {std::ofstream file("invalid.json");file<<"{}";}
+ assert(isolated.start("invalid.json",state)==-1);
+ assert(!isolated.tick(state).ready);
+ {std::ofstream file("oversize.json");file<<std::string(4097,' ');}
+ assert(isolated.start("oversize.json",state)==-1);
+ isolated.stop();isolated.stop();
 #ifdef _WIN32
  assert(argc==2);
  config["port"]=unsigned(std::strtoul(argv[1],nullptr,10));
@@ -70,6 +83,25 @@ int main(int argc,char** argv) {
  WorldStateSnapshot actual{};
  assert(bridge_fetch(connection,actual));
  assert(actual.clock.world_id==123 && actual.world_seed==UINT64_MAX);
+ {std::ofstream file("observer.json");file<<config.dump();}
+ assert(isolated.start("observer.json",actual)==1);
+ bool accepted=false;
+ for (int i=0;i<100 && !accepted;++i) {
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  auto diagnostic=isolated.tick(actual);accepted=diagnostic.accepted;
+  if(accepted)assert(diagnostic.ready && diagnostic.fetched);
+ }
+ assert(accepted);
+ auto stopped=std::chrono::steady_clock::now();isolated.stop();
+ assert(std::chrono::steady_clock::now()-stopped<std::chrono::seconds(3));
+ assert(!isolated.tick(actual).ready);
+ auto mismatched=actual;mismatched.world_seed=1;
+ assert(isolated.start("observer.json",mismatched)==1);
+ for (int i=0;i<20;++i) {
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  auto diagnostic=isolated.tick(mismatched);assert(!diagnostic.ready && !diagnostic.accepted);
+ }
+ isolated.stop();
  connection.token=std::string(48,'x');assert(!bridge_fetch(connection,actual));
  connection.port=0;assert(!bridge_fetch(connection,actual));
  std::cout<<"PASS: real WinHTTP->authenticated backend bootstrap, u64 seed and failed auth\n";
@@ -84,9 +116,11 @@ with TemporaryDirectory(prefix="world-bridge-") as tmp:
     include=str(root/"src/xrGame")
     if os.name=="nt":
         command=["cl","/nologo","/std:c++17","/EHsc","/W4","/WX","/O2","/I"+include,
-                 str(cpp),"/Fe:"+str(exe),"/Fo:"+str(Path(tmp)/"check.obj"),"/link","winhttp.lib"]
+                 str(cpp),str(root/"src/xrGame/netcoop_world_bridge_worker.cpp"),
+                 "/Fe:"+str(exe),"/Fo:"+tmp+os.sep,"/link","winhttp.lib"]
     else:
-        command=["g++","-std=c++17","-Wall","-Wextra","-Werror","-O2","-I",include,str(cpp),"-o",str(exe)]
+        command=["g++","-std=c++17","-Wall","-Wextra","-Werror","-O2","-pthread","-I",include,str(cpp),
+                 str(root/"src/xrGame/netcoop_world_bridge_worker.cpp"),"-o",str(exe)]
     subprocess.run(command,check=True,cwd=tmp)
     if os.name=="nt":
         store=Store(Path(tmp)/"world.db")
@@ -96,8 +130,8 @@ with TemporaryDirectory(prefix="world-bridge-") as tmp:
         worker=threading.Thread(target=server.serve_forever)
         worker.start()
         try:
-            subprocess.run([str(exe),str(server.server_address[1])],check=True)
+            subprocess.run([str(exe),str(server.server_address[1])],check=True,cwd=tmp)
         finally:
             server.shutdown();server.server_close();worker.join();store.close()
     else:
-        subprocess.run([str(exe)],check=True)
+        subprocess.run([str(exe)],check=True,cwd=tmp)

@@ -4,6 +4,7 @@
 -- creation use that same entry point.
 local blocked_methods = {}
 local guarded_savers = {}
+local guarded_cleaners = {}
 local encoded_snapshot, encoded_name
 
 local function cooperative()
@@ -16,6 +17,20 @@ end
 
 function install()
     if not cooperative() then return end
+    -- This manager implements only the age-based dropped-item purge. Keep
+    -- consumption, repairs, quest removal and explicit pickup paths intact.
+    local cleaner = release_item_manager and release_item_manager.clear
+    if type(cleaner) == "function" and not guarded_cleaners[cleaner] then
+        local guarded = function(...)
+            if cooperative() then return true end -- retire a queued purge timer
+            return cleaner(...)
+        end
+        guarded_cleaners[guarded] = true
+        release_item_manager.clear = guarded
+    end
+    -- on_game_load may have queued the old function before this late script
+    -- installed the guard. Removing that particular timer closes that path.
+    if type(RemoveTimeEvent) == "function" then RemoveTimeEvent(0, "release_item") end
     local class = smart_terrain and smart_terrain.se_smart_terrain
     if class and type(class.try_respawn) == "function" and not blocked_methods[class.try_respawn] then
         local original = class.try_respawn

@@ -19,11 +19,17 @@ on:
       - 'src/xrGame/netcoop_simulation_lod.h'
       - 'src/xrGame/netcoop_world_bridge.h'
       - 'src/xrGame/netcoop_world_bridge.inc'
+      - 'src/xrGame/netcoop_world_bridge_worker.cpp'
+      - 'src/xrGame/netcoop_world_bridge_worker.h'
       - 'src/xrGame/xrServer.cpp'
       - 'src/xrGame/xrServer.h'
       - 'scripts/check-netcoop-spatial-grid.py'
       - 'scripts/check-netcoop-simulation-lod.py'
       - 'scripts/check-netcoop-world-bridge.py'
+      - 'src/xrGame/netcoop_corpse_inventory.h'
+      - 'src/xrGame/alife_simulator_base.cpp'
+      - 'src/xrGame/xrServer_process_event_destroy.cpp'
+      - 'scripts/check-netcoop-corpse-inventory.py'
       - '.github/workflows/lostzone-world-foundation.yml'
   workflow_dispatch:
 
@@ -49,6 +55,8 @@ jobs:
         run: python scripts/check-netcoop-world-bridge.py
       - name: Exercise snapshot slot recovery
         run: python scripts/check-netcoop-world-store.py
+      - name: Exercise corpse cleanup without deleting inventory
+        run: python scripts/check-netcoop-corpse-inventory.py
       - name: Exercise ALife integration and durable ownership
         run: python scripts/check-netcoop-alife-clock.py
   clock-windows:
@@ -72,5 +80,7 @@ jobs:
           python scripts/check-netcoop-world-bridge.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-world-store.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-netcoop-corpse-inventory.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-alife-clock.py

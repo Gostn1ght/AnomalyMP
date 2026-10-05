@@ -7,6 +7,9 @@
 #include "game_cl_base.h"
 #include "ai_space.h"
 #include "alife_object_registry.h"
+#include "xrServer_Objects_ALife_Monsters.h"
+#include "netcoop.h"
+#include "netcoop_corpse_inventory.h"
 
 xr_string xrServer::ent_name_safe(u16 eid)
 {
@@ -60,6 +63,41 @@ void xrServer::Process_event_destroy(NET_Packet& P, ClientID sender, u32 time, u
 	NET_Packet P2, *pEventPack = pEPack;
 	P2.w_begin(M_EVENT_PACK);
 	//---------------------------------------------
+	// Body cleanup must not recursively destroy its loot. Actors retain their
+	// separate death/disconnect path; this rule is for finite NPC/mutant bodies.
+	const auto creature = smart_cast<CSE_ALifeCreatureAbstract*>(e_dest);
+	if (netcoop::enabled() && creature && creature->get_health() <= 0.f &&
+		!smart_cast<CSE_ALifeCreatureActor*>(e_dest) && !e_dest->children.empty())
+	{
+		if (!ai().get_alife()) return;
+		const bool preserved = netcoop::preserve_corpse_inventory(e_dest->children,
+			[&](u16 child_id)
+			{
+				auto child = game->get_entity_from_eid(child_id);
+				return child && child->ID_Parent == id_dest &&
+					smart_cast<CSE_ALifeInventoryItem*>(child) &&
+					ai().alife().objects().object(child_id, true);
+			},
+			[&](u16 child_id)
+			{
+				// Use the ordinary detach path to update both ALife registries
+				// and client inventory/physics before the body's destroy event.
+				NET_Packet drop;
+				// Match the destroy timestamp. A newer generated timestamp can
+				// make a client's ordered event queue destroy the parent first.
+				drop.w_begin(M_EVENT);
+				drop.w_u32(time);
+				drop.w_u16(GE_OWNERSHIP_REJECT);
+				drop.w_u16(id_dest);
+				drop.w_u16(child_id);
+				return Process_event_reject(drop, sender, time, id_dest, child_id, true);
+			});
+		if (!preserved)
+		{
+			Msg("! [Lost Zone] Body %u retained: inventory detach is incomplete", id_dest);
+			return;
+		}
+	}
 	// check if we have children 
 	if (!e_dest->children.empty())
 	{

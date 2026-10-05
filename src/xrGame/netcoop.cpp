@@ -9,11 +9,7 @@
 #include <winhttp.h>
 #include <windns.h>
 #include "../3rd party/nlohmann/json.hpp"
-#include "netcoop_world_bridge.h"
-#include <condition_variable>
-#include <fstream>
-#include <mutex>
-#include <thread>
+#include "netcoop_world_bridge_worker.h"
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "bcrypt.lib")

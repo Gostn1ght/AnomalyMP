@@ -37,6 +37,44 @@ print("Actual server world rules: no NPC/mutant replenishment, preserved initial
 
 lua = LuaRuntime(unpack_returned_tuples=True)
 lua.execute(r'''
+cooperative = true; purged = 0; consumed = 0; timers = {}; callbacks = {}
+function netcoop_enabled() return cooperative end
+function printf() end
+function RegisterScriptCallback(kind, fn) callbacks[kind] = fn end
+function RemoveTimeEvent(id, name) timers[id .. name] = nil end
+function CreateTimeEvent(id, name, fn) timers[id .. name] = fn end
+release_item_manager = {clear = function() purged = purged + 1; return false end}
+function consume_item() consumed = consumed + 1 end
+-- Simulate the base manager's earlier on_game_load callback capturing clear.
+CreateTimeEvent(0, "release_item", release_item_manager.clear)
+CreateTimeEvent(0, "unrelated_quest", consume_item)
+''')
+lua.execute(source)
+lua.execute(r'''
+on_game_start()
+assert(not timers["0release_item"], "remove an already-queued original purge callback")
+assert(timers["0unrelated_quest"], "leave other timers intact")
+local guarded = release_item_manager.clear
+for i=1,100 do assert(release_item_manager.clear() == true) end
+assert(purged == 0, "dropped items have no age-based deletion")
+for i=1,10 do install() end
+assert(guarded == release_item_manager.clear, "item guard is idempotent")
+-- The base callback can also run after ours; it then captures the guard.
+CreateTimeEvent(0, "release_item", release_item_manager.clear)
+assert(timers["0release_item"]() == true and purged == 0)
+release_item_manager.clear = function() purged = purged + 1; return false end
+CreateTimeEvent(0, "release_item", release_item_manager.clear)
+callbacks.on_game_load()
+assert(not timers["0release_item"] and release_item_manager.clear() == true)
+timers["0unrelated_quest"](); assert(consumed == 1)
+cooperative = false
+assert(release_item_manager.clear() == false and purged == 1,
+       "single-player retains its original purge policy")
+''')
+print("Actual dropped-item guard: old/new queued callbacks, reload replacement, consumption and unrelated timers PASS")
+
+lua = LuaRuntime(unpack_returned_tuples=True)
+lua.execute(r'''
 function netcoop_enabled() return true end
 function printf() end
 function RegisterScriptCallback() end

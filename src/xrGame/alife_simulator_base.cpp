@@ -22,6 +22,9 @@
 #include "level_graph.h"
 #include "inventory_upgrade_manager.h"
 #include "level.h"
+#include "xrServer_Objects_ALife_Monsters.h"
+#include "netcoop.h"
+#include "netcoop_corpse_inventory.h"
 
 #pragma warning(push)
 #pragma warning(disable:4995)
@@ -275,6 +278,38 @@ void CALifeSimulatorBase::release(CSE_Abstract* abstract, bool alife_query)
 #endif
 	CSE_ALifeDynamicObject* object = objects().object(abstract->ID);
 	VERIFY(object);
+
+	// Offline script cleanup has no network reject event. Detach the existing
+	// items into the graph at the body's position before unregistering it.
+	const auto creature = smart_cast<CSE_ALifeCreatureAbstract*>(object);
+	if (netcoop::enabled() && creature && creature->get_health() <= 0.f &&
+		!smart_cast<CSE_ALifeCreatureActor*>(object) && !object->children.empty())
+	{
+		if (!alife_query || object->m_bOnline)
+		{
+			Msg("! [Lost Zone] Body %u retained: online inventory requires server detach", object->ID);
+			return;
+		}
+		const bool preserved = netcoop::preserve_corpse_inventory(object->children,
+			[&](u16 child_id)
+			{
+				auto child = objects().object(child_id, true);
+				return child && child->ID_Parent == object->ID && !child->m_bOnline &&
+					smart_cast<CSE_ALifeInventoryItem*>(child);
+			},
+			[&](u16 child_id)
+			{
+				auto child = objects().object(child_id);
+				graph().detach(*object, smart_cast<CSE_ALifeInventoryItem*>(child),
+					object->m_tGraphID, true, true);
+				return child->ID_Parent == 0xffff;
+			});
+		if (!preserved)
+		{
+			Msg("! [Lost Zone] Body %u retained: offline inventory detach is incomplete", object->ID);
+			return;
+		}
+	}
 
 	if (!object->children.empty())
 	{
