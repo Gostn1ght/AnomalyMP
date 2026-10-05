@@ -51,9 +51,40 @@ local function disable_spawners()
     end
 end
 
+-- Squads stay on the map they are on (doc 43 H11). A location server holds
+-- players of its own map only; a squad walking off to another map would
+-- leave it for good, unseen (the population is finite). Scripted targets
+-- (quests, story squads) use their own path and still travel.
+local guarded_targets = {}
+
+local function same_level(a, b)
+    local graph = game_graph and game_graph()
+    if not (graph and a.m_game_vertex_id and b.m_game_vertex_id) then return true end
+    return graph:vertex(a.m_game_vertex_id):level_id() == graph:vertex(b.m_game_vertex_id):level_id()
+end
+
+local function keep_squads_on_their_map()
+    local classes = {
+        smart_terrain and smart_terrain.se_smart_terrain,
+        sim_squad_scripted and sim_squad_scripted.sim_squad_scripted,
+    }
+    for _, class in pairs(classes) do
+        local original = class and class.target_precondition
+        if type(original) == "function" and not guarded_targets[original] then
+            local guarded = function(self, squad, ...)
+                if cooperative() and squad and not same_level(self, squad) then return false end
+                return original(self, squad, ...)
+            end
+            guarded_targets[guarded] = true
+            class.target_precondition = guarded
+        end
+    end
+end
+
 function install()
     if not cooperative() then return end
     disable_spawners()
+    keep_squads_on_their_map()
     -- These are inventory/artefact age purges, not AI consumption or trading.
     keep_inventory_from_purge(grok_artefact_despawner, "delete_artefacts")
     keep_inventory_from_purge(release_npc_inventory, "clean_npc_inv")

@@ -209,6 +209,8 @@ public:
 	}
 
 	State state() const { return m_state; }
+	LPCSTR transfer() const { return m_transfer[0] ? m_transfer : nullptr; }
+	u32 index() const { return m_index; }
 	u32 take_bytes()
 	{
 		const u32 b = m_rx_bytes;
@@ -340,6 +342,19 @@ private:
 				string256 data;
 				if (!read_string(P, channel, sizeof(channel)) || !read_string(P, data, sizeof(data)))
 					break;
+				// Location cluster: the server sends the character to another
+				// map; bots_frame reconnects this bot there.
+				if (!xr_strcmp(channel, "netcoop_transfer"))
+				{
+					char host[128] = {}, level[64] = {};
+					u32 port = 0;
+					if (sscanf_s(data, "%127[^|]|%u|%63s", host, (unsigned)sizeof(host), &port, level, (unsigned)sizeof(level)) == 3)
+					{
+						xr_sprintf(m_transfer, "%s/port=%u", host, port);
+						Msg("[Lost Zone][bots] %s goes to %s (%s)", m_login, level, m_transfer);
+					}
+					break;
+				}
 				if (xr_strcmp(channel, "you"))
 					break;
 				u32 id = 0xffff;
@@ -351,7 +366,7 @@ private:
 				m_phase = float(m_index) * 0.7f;
 				m_radius = 4.f + float(m_index % 12) * 2.5f;
 				m_last_move = now;
-				Msg("[Lost Zone][bots] %s plays Actor %u", m_login, id);
+				Msg("[Lost Zone][bots] %s plays Actor %u at %.1f %.1f %.1f", m_login, id, pos.x, pos.y, pos.z);
 				set_state(st_playing, now);
 			}
 			break;
@@ -415,6 +430,7 @@ private:
 
 	u32 m_index;
 	string64 m_login;
+	string256 m_transfer = {};
 	State m_state = st_connecting;
 	u32 m_state_time = 0;
 	bool m_stopped = false;
@@ -559,8 +575,19 @@ void bots_frame()
 		b->start(s_address, now);
 	}
 
-	for (NetcoopBot* b : s_bots)
+	for (NetcoopBot*& b : s_bots)
+	{
 		b->update(now);
+		if (LPCSTR target = b->transfer())
+		{
+			NetcoopBot* moved = xr_new<NetcoopBot>(b->index());
+			string256 address; xr_strcpy(address, target);
+			b->stop();
+			s_dead.push_back({b, now});
+			b = moved;
+			b->start(address, now);
+		}
+	}
 	report(now);
 }
 } // namespace netcoop

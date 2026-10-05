@@ -28,6 +28,7 @@ static const u32 cluster_lease_ttl_s = 30, cluster_ticket_ttl_s = 180, cluster_l
 
 struct ClusterLeaving { u16 actor = 0; u32 since = 0; xr_string level; };
 static xr_map<u32, ClusterLeaving> s_cluster_leaving; // ClientID value -> leaving player
+static xr_map<u32, u32> s_cluster_redirected; // ClientID value -> time of a login redirect
 static u32 s_cluster_heartbeat = 0;
 static xr_string s_cluster_secret;
 
@@ -246,9 +247,44 @@ static bool cluster_on_login(xrClientData* CL, LPCSTR login, u8 slot, xr_string&
 	return true;
 }
 
+// A character saved on another map of the cluster plays there: the entry
+// server sends the client on instead of moving the character to its own map.
+static bool cluster_route(xrServer* server, LPCSTR login, u8 slot, xr_string& redirect)
+{
+	Character* character = slot ? character_load(login, slot) : nullptr;
+	if (!character || !character->initialized || character->respawn || !character->actor.B.count) return false;
+	CSE_Abstract* entity = server->game->spawn_begin("actor");
+	if (!entity) return false;
+	NET_Packet packet = character->actor;
+	u32 vertex = u32(-1);
+	if (entity->Spawn_Read(packet))
+		if (CSE_ALifeCreatureActor* actor = smart_cast<CSE_ALifeCreatureActor*>(entity)) vertex = actor->m_tGraphID;
+	F_entity_Destroy(entity);
+	if (!ai().get_game_graph() || !ai().game_graph().valid_vertex_id(vertex)) return false;
+	const LPCSTR level = *ai().game_graph().header().level(ai().game_graph().vertex(vertex)->level_id()).name();
+	if (!xr_strcmp(level, cluster_current_level())) return false;
+	xr_string host; u32 port = 0;
+	if (!cluster_location(level, host, port) || port == cluster_port()) return false;
+	string256 text;
+	xr_sprintf(text, "redirect|%s|%u|%s", host.c_str(), port, level);
+	redirect = text;
+	return true;
+}
+
+// The redirected client disconnects by itself when it starts the new
+// connection; a kick right away would reach it as a "kicked" dialog.
+static void cluster_send_redirect(xrServer* server, xrClientData* CL, LPCSTR redirect)
+{
+	Msg("[Lost Zone][cluster] %s is sent to %s", CL->netcoop_login.size() ? CL->netcoop_login.c_str() : "?", redirect);
+	send_auth_result(server, CL, false, role_none, redirect);
+	s_cluster_redirected[CL->ID.value()] = real_time_ms();
+}
+
 bool server_client_leaving(xrClientData* CL)
 {
-	return CL && !s_cluster_leaving.empty() && s_cluster_leaving.find(CL->ID.value()) != s_cluster_leaving.end();
+	if (!CL) return false;
+	if (!s_cluster_redirected.empty() && s_cluster_redirected.find(CL->ID.value()) != s_cluster_redirected.end()) return true;
+	return !s_cluster_leaving.empty() && s_cluster_leaving.find(CL->ID.value()) != s_cluster_leaving.end();
 }
 
 static bool cluster_actor_leaving(u16 actor_id)
@@ -263,6 +299,8 @@ static void cluster_refuse(xrServer* server, xrClientData* CL, LPCSTR text)
 	Msg("[Lost Zone][cluster] %s: %s", CL->netcoop_login.c_str(), text);
 	if (CL->owner) script_send_to_actor(CL->owner->ID, "netcoop_transfer_refused", text);
 }
+
+static bool cluster_move(xrServer* server, xrClientData* CL, CLevelChanger* changer);
 
 // M_CHANGE_LEVEL from a remote player: the level changer dialog's "go".
 void server_on_change_level(xrServer* server, xrClientData* CL, NET_Packet& P)
@@ -285,18 +323,26 @@ void server_on_change_level(xrServer* server, xrClientData* CL, NET_Packet& P)
 		if (actor->Position().distance_to(center) <= candidate->Radius() + 10.f) { changer = candidate; break; }
 	}
 	if (!changer) return cluster_refuse(server, CL, "not inside this level changer");
-	if (!changer->IsLevelChangerEnabled()) return cluster_refuse(server, CL, "this passage is closed");
-	if (!ai().game_graph().valid_vertex_id(game_vertex)) return;
+	cluster_move(server, CL, changer);
+}
+
+// The player goes through the changer to the server of its target map.
+static bool cluster_move(xrServer* server, xrClientData* CL, CLevelChanger* changer)
+{
+	if (!changer->IsLevelChangerEnabled()) return cluster_refuse(server, CL, "this passage is closed"), false;
+	const GameGraph::_GRAPH_ID game_vertex = changer->next_game_vertex();
+	const u32 level_vertex = changer->next_level_vertex();
+	if (!ai().game_graph().valid_vertex_id(game_vertex)) return false;
 	const GameGraph::CVertex* vertex = ai().game_graph().vertex(game_vertex);
 	const LPCSTR level = *ai().game_graph().header().level(vertex->level_id()).name();
-	if (!xr_strcmp(level, cluster_current_level())) return cluster_refuse(server, CL, "the passage leads to this map");
+	if (!xr_strcmp(level, cluster_current_level())) return cluster_refuse(server, CL, "the passage leads to this map"), false;
 	xr_string host; u32 port = 0;
 	if (!cluster_location(level, host, port))
-		return cluster_refuse(server, CL, "no server runs that map yet");
-	if (port == cluster_port()) return cluster_refuse(server, CL, "cluster config points the map at this server");
+		return cluster_refuse(server, CL, "no server runs that map yet"), false;
+	if (port == cluster_port()) return cluster_refuse(server, CL, "cluster config points the map at this server"), false;
 	const u16 actor_id = CL->owner->ID;
 	if (s_character_restore.find(actor_id) != s_character_restore.end())
-		return cluster_refuse(server, CL, "the character is still loading");
+		return cluster_refuse(server, CL, "the character is still loading"), false;
 
 	// The frozen player sends nothing more that the server would apply.
 	ClusterLeaving& leaving = s_cluster_leaving[CL->ID.value()];
@@ -309,7 +355,7 @@ void server_on_change_level(xrServer* server, xrClientData* CL, NET_Packet& P)
 	if (!character_save_actor(actor_id, &destination))
 	{
 		s_cluster_leaving.erase(CL->ID.value());
-		return cluster_refuse(server, CL, "the character could not be saved");
+		return cluster_refuse(server, CL, "the character could not be saved"), false;
 	}
 	// From here on this server never saves the character again.
 	s_actor_character.erase(actor_id);
@@ -320,17 +366,60 @@ void server_on_change_level(xrServer* server, xrClientData* CL, NET_Packet& P)
 	xr_sprintf(data, "%s|%u|%s", host.c_str(), port, level);
 	script_send_to_actor(actor_id, "netcoop_transfer", data);
 	Msg("[Lost Zone][cluster] %s leaves for %s (%s:%u)", CL->netcoop_login.c_str(), level, host.c_str(), port);
+	return true;
 }
+
+// -netcoop_cluster_selftest: headless bots (nbot_*) go through the first
+// open changer to another cluster map 20 s after they appear, again and
+// again: a soak test of the whole handoff with real servers and clients.
+static bool cluster_selftest() { return strstr(Core.Params, "-netcoop_cluster_selftest") != nullptr; }
+static xr_map<u16, u32> s_selftest_seen; // bot Actor -> first seen
+
+struct ClusterSelftest
+{
+	xr_vector<std::pair<xrClientData*, CLevelChanger*>>* out;
+	void operator()(IClient* client) const
+	{
+		xrClientData* CL = static_cast<xrClientData*>(client);
+		if (!CL || CL->flags.bLocal || !CL->owner || !CL->netcoop_login.size() || strncmp(CL->netcoop_login.c_str(), "nbot_", 5) ||
+			server_client_leaving(CL)) return;
+		const u32 now = real_time_ms();
+		auto seen = s_selftest_seen.find(CL->owner->ID);
+		if (seen == s_selftest_seen.end()) { s_selftest_seen[CL->owner->ID] = now; return; }
+		if (now - seen->second < 20000) return;
+		seen->second = now; // one attempt per 20 s
+		for (CLevelChanger* changer : g_lchangers)
+		{
+			if (!changer->IsLevelChangerEnabled() || !ai().game_graph().valid_vertex_id(changer->next_game_vertex())) continue;
+			const LPCSTR level = *ai().game_graph().header().level(ai().game_graph().vertex(changer->next_game_vertex())->level_id()).name();
+			xr_string host; u32 port = 0;
+			if (xr_strcmp(level, cluster_current_level()) && cluster_location(level, host, port) && port != cluster_port())
+			{
+				out->push_back(std::make_pair(CL, changer));
+				return;
+			}
+		}
+	}
+};
 
 struct ClusterDisconnectLeaving
 {
-	xrServer* server;
+	xr_vector<xrClientData*>* out;
 	void operator()(IClient* client) const
 	{
 		xrClientData* CL = static_cast<xrClientData*>(client);
 		auto it = s_cluster_leaving.find(CL->ID.value());
 		if (it != s_cluster_leaving.end() && real_time_ms() - it->second.since >= cluster_leave_ms)
-			server->DisconnectClient(CL, "@Moved to another location");
+		{
+			it->second.since = real_time_ms(); // once more later if it is still here
+			out->push_back(CL);
+		}
+		auto sent = s_cluster_redirected.find(CL->ID.value());
+		if (sent != s_cluster_redirected.end() && real_time_ms() - sent->second >= cluster_leave_ms)
+		{
+			s_cluster_redirected.erase(sent);
+			out->push_back(CL);
+		}
 	}
 };
 
@@ -355,9 +444,20 @@ static void cluster_update(xrServer* server)
 		ClusterHeartbeat heartbeat;
 		server->ForEachClientDo(heartbeat);
 	}
-	if (s_cluster_leaving.empty()) return;
-	ClusterDisconnectLeaving disconnect = {server};
-	server->ForEachClientDo(disconnect);
+	if (cluster_selftest())
+	{
+		xr_vector<std::pair<xrClientData*, CLevelChanger*>> moves;
+		ClusterSelftest test = {&moves};
+		server->ForEachClientDo(test);
+		for (const auto& move : moves) cluster_move(server, move.first, move.second);
+	}
+	if (s_cluster_leaving.empty() && s_cluster_redirected.empty()) return;
+	for (auto it = s_cluster_redirected.begin(); it != s_cluster_redirected.end();)
+		if (now - it->second > 60000) it = s_cluster_redirected.erase(it); else ++it; // gone already
+	xr_vector<xrClientData*> gone;
+	ClusterDisconnectLeaving disconnect = {&gone};
+	server->ForEachClientDo(disconnect); // the client list is not changed while it is walked
+	for (xrClientData* CL : gone) server->DisconnectClient(CL, "@Moved to another location");
 }
 
 // ---- client ----------------------------------------------------------------

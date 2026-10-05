@@ -1,0 +1,8 @@
+@echo off
+rem Location cluster: Great Swamp + Cordon servers from this folder.
+rem Players connect to either; a character saved on the other map is sent
+rem there, and level changers between the maps move players across.
+cd /d "%~dp0"
+call netcoop_1_server.bat
+timeout /t 5 /nobreak >nul
+call netcoop_1b_server_cordon.bat

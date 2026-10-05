@@ -150,3 +150,29 @@ local off = night_mutants.try_to_spawn
 install(); assert(night_mutants.try_to_spawn == off and #unregistered == 2, "idempotent")
 ''')
 print("Actual spawner guard: night mutants, base guards and bounty squads off, quest spawns unchanged PASS")
+
+lua = LuaRuntime(unpack_returned_tuples=True)
+lua.execute(r'''
+cooperative = true; callbacks = {}
+function netcoop_enabled() return cooperative end
+function printf() end
+function RegisterScriptCallback(kind, fn) callbacks[kind] = fn end
+local levels = {[10] = 1, [11] = 1, [20] = 2}
+function game_graph() return {vertex = function(_, id) return {level_id = function() return levels[id] end} end} end
+smart_terrain = {se_smart_terrain = {target_precondition = function(self, squad) return true end}}
+sim_squad_scripted = {sim_squad_scripted = {target_precondition = function(self, squad) return true end}}
+''')
+lua.execute(source)
+lua.execute(r'''
+on_game_start()
+local smart = smart_terrain.se_smart_terrain
+local here, there, squad = {m_game_vertex_id = 11}, {m_game_vertex_id = 20}, {m_game_vertex_id = 10}
+assert(smart.target_precondition(here, squad), "a target on the squad's map stays available")
+assert(not smart.target_precondition(there, squad), "a target on another map is refused")
+assert(not sim_squad_scripted.sim_squad_scripted.target_precondition(there, squad), "squad targets too")
+local guarded = smart.target_precondition
+install(); assert(smart.target_precondition == guarded, "idempotent")
+cooperative = false
+assert(smart.target_precondition(there, squad), "single-player keeps cross-map travel")
+''')
+print("Actual squad map guard: generic targets on other maps refused in coop, single-player unchanged PASS")

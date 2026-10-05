@@ -455,6 +455,8 @@ void client_write_auth(NET_Packet& P)
     s_client_role_verified = false;
 }
 
+static void client_cluster_transfer(LPCSTR data); // netcoop_cluster.inc
+
 void client_on_auth_result(NET_Packet& P)
 {
 	client_marks_reset();
@@ -463,6 +465,8 @@ void client_on_auth_result(NET_Packet& P)
 	string512 message;
 	if (!read_string(P, message, sizeof(message)))
 		xr_strcpy(message, "");
+	// The character is on another map of the cluster: go there, same login.
+	if (!ok && !strncmp(message, "redirect|", 9)) return client_cluster_transfer(message + 9);
 
 	s_client_role = ok ? role : u8(role_none);
     s_client_role_verified = !!ok;
@@ -1437,6 +1441,8 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
 		created.login = pending->login;
 		created.role = role_player; // only the server console grants admin
 		created.approval = 0;
+		// Cluster soak test: its headless bots need no administrator.
+		if (strstr(Core.Params, "-netcoop_cluster_selftest") && !strncmp(pending->login.c_str(), "nbot_", 5)) created.approval = 1;
 		created.device = pending->device;
 		created.salt = pending->salt;
 		created.hash = pending->firebase ? "firebase" : pending->hash;
@@ -1506,6 +1512,14 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
     {
         CL->netcoop_login = NULL;
         reject(server, CL, cluster_error.c_str());
+        return;
+    }
+    xr_string redirect;
+    if (cluster_route(server, a->login.c_str(), pending->slot, redirect))
+    {
+        cluster_lease_release(a->login.c_str());
+        cluster_send_redirect(server, CL, redirect.c_str());
+        CL->netcoop_login = NULL;
         return;
     }
     if (!character_select(CL, pending->slot, pending->character_name.c_str(), pending->faction.c_str(), pending->economy, pending->loadout.c_str()))
