@@ -125,3 +125,28 @@ assert(marshal.encode == original_encode, "encoder restored even when saver rais
 assert(not script_snapshot_matches("Zone_A"))
 ''')
 print("Actual server script-save guard: full bytes, truncated/stale data, one-use capture, encoder restoration on exception PASS")
+
+lua = LuaRuntime(unpack_returned_tuples=True)
+lua.execute(r'''
+cooperative = true; spawned = 0; unregistered = {}; callbacks = {}
+function netcoop_enabled() return cooperative end
+function printf() end
+function RegisterScriptCallback(kind, fn) callbacks[kind] = fn end
+function UnregisterScriptCallback(kind, fn) unregistered[#unregistered + 1] = {kind, fn} end
+local function spawn() spawned = spawned + 1 end
+night_mutants = {try_to_spawn = spawn}
+guards_spawner = {spawn_guard = spawn}
+sim_squad_bounty = {try_spawn = spawn}
+tasks_fate = {spawn_target = spawn}
+''')
+lua.execute(source)
+lua.execute(r'''
+on_game_start()
+night_mutants.try_to_spawn(); guards_spawner.spawn_guard(); sim_squad_bounty.try_spawn()
+assert(spawned == 0, "periodic spawners add nobody")
+assert(#unregistered == 2 and unregistered[1][1] == "actor_on_update", "registered update callbacks removed")
+tasks_fate.spawn_target(); assert(spawned == 1, "quest spawns unchanged")
+local off = night_mutants.try_to_spawn
+install(); assert(night_mutants.try_to_spawn == off and #unregistered == 2, "idempotent")
+''')
+print("Actual spawner guard: night mutants, base guards and bounty squads off, quest spawns unchanged PASS")

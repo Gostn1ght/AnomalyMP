@@ -35,6 +35,9 @@ on:
       - 'src/xrGame/Grenade.cpp'
       - 'src/xrGame/Missile.cpp'
       - 'scripts/check-netcoop-item-lifetime.py'
+      - 'src/xrGame/netcoop_replication_index.cpp'
+      - 'src/xrGame/netcoop_replication_index.h'
+      - 'scripts/check-netcoop-replication-index.py'
       - '.github/workflows/lostzone-world-foundation.yml'
   workflow_dispatch:
 
@@ -64,6 +67,8 @@ jobs:
         run: python scripts/check-netcoop-corpse-inventory.py
       - name: Exercise persistent ground items and armed grenade fuses
         run: python scripts/check-netcoop-item-lifetime.py
+      - name: Compare indexed replication candidates with native legacy cadence
+        run: python scripts/check-netcoop-replication-index.py
       - name: Exercise ALife integration and durable ownership
         run: python scripts/check-netcoop-alife-clock.py
   clock-windows:
@@ -91,5 +96,7 @@ jobs:
           python scripts/check-netcoop-corpse-inventory.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-item-lifetime.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-netcoop-replication-index.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-alife-clock.py

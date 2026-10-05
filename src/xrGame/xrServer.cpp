@@ -6,6 +6,7 @@
 #include "netcoop.h"
 #include "xrServer.h"
 #include "netcoop_simulation_lod.h"
+#include "netcoop_replication_index.h"
 #include "actor_defs.h"
 #include "actor.h"
 
@@ -455,8 +456,11 @@ void xrServer::SendUpdatesAOI()
 	};
 	static xr_vector<u8> data;
 	static xr_vector<Chunk> chunks;
+	static xr_vector<netcoop_world::ReplicationRecord> index_records;
+	const bool use_index = strstr(Core.Params, "-netcoop_chunk_index") != nullptr;
 	data.clear();
 	chunks.clear();
+	index_records.clear();
 	++m_aoi_tick;
 
 	NET_Packet tmp;
@@ -492,6 +496,7 @@ void xrServer::SendUpdatesAOI()
 		c.position = root->o_Position;
 		data.insert(data.end(), tmp.B.data, tmp.B.data + tmp.B.count);
 		chunks.push_back(c);
+		if (use_index) index_records.push_back({c.id,c.player,c.position.x,c.position.y,c.position.z});
 	}
 
 	const u32 packet_limit = 8 * 1024;
@@ -580,11 +585,22 @@ void xrServer::SendUpdatesAOI()
 			Msg("! [chunk-shadow] invalid state/configuration; diagnostics disabled, legacy replication continues");
 		}
 	}
+	bool indexed = false;
+	if (use_index)
+	{
+		if (!m_replication_index) m_replication_index.reset(new netcoop_world::ReplicationIndex());
+		indexed = m_replication_index->prepare(index_records.data(),index_records.size());
+	}
+	u64 candidate_checks = 0, full_checks = 0, grid_checks = 0;
+	u32 indexed_clients = 0, fallback_clients = 0;
 	u32 sent_bytes = 0;
 	struct Sender
 	{
 		xrServer* server;
 		u32* sent;
+		bool indexed;
+		u64 *candidate_checks, *full_checks, *grid_checks;
+		u32 *indexed_clients, *fallback_clients;
 		void operator()(IClient* client)
 		{
 			xrClientData* CL = static_cast<xrClientData*>(client);
@@ -594,8 +610,15 @@ void xrServer::SendUpdatesAOI()
 			const Fvector& eye = CL->owner->o_Position;
 			NET_Packet P;
 			P.w_begin(M_UPDATE_OBJECTS);
-			for (u32 i = 0; i < chunks.size(); ++i)
+			netcoop_world::ReplicationSelection selection;
+			if (indexed)
+				selection = server->m_replication_index->select(CL->owner->ID,eye.x,eye.y,eye.z,server->m_aoi_tick);
+			const std::size_t count = selection.valid ? selection.count : chunks.size();
+			*candidate_checks += count; *full_checks += chunks.size(); *grid_checks += selection.spatial_candidates;
+			if (selection.valid) ++*indexed_clients; else ++*fallback_clients;
+			for (std::size_t cursor = 0; cursor < count; ++cursor)
 			{
+				const std::size_t i = selection.valid ? selection.indices[cursor] : cursor;
 				const Chunk& c = chunks[i];
 				const float d = c.id == CL->owner->ID ? 0.f : eye.distance_to(c.position);
 				const u32 every = c.player ? (d < 300.f ? 1 : 2) : d < 50.f ? 1 : d < 150.f ? 2 : d < 300.f ? 4 : 16;
@@ -615,8 +638,14 @@ void xrServer::SendUpdatesAOI()
 				*sent += P.B.count;
 			}
 		}
-	} send = {this, &sent_bytes};
+	} send = {this, &sent_bytes, indexed, &candidate_checks, &full_checks, &grid_checks, &indexed_clients, &fallback_clients};
 	ForEachClientDo(send);
+	if (use_index && (!m_replication_index_log || shadow_now-m_replication_index_log>=10000))
+	{
+		m_replication_index_log = shadow_now;
+		Msg("[replication-index] objects=%u clients=%u fallback=%u selected=%llu full_scan=%llu grid_candidates=%llu (legacy cadence)",
+			u32(chunks.size()),indexed_clients,fallback_clients,candidate_checks,full_checks,grid_checks);
+	}
 	m_last_updates_size = sent_bytes;
 	netcoop::metric_server_sent(sent_bytes, u32(chunks.size()));
 }

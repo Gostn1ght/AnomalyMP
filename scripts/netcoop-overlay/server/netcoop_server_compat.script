@@ -909,7 +909,7 @@ function on_game_start()
 	if AddUniqueCall and ProcessEventQueue then
 		AddUniqueCall(server_event_queue)
 		AddUniqueCall(server_world_loop)
-		AddUniqueCall(function() process_pending_inventory(); owned_objects_update(); return false end)
+		AddUniqueCall(function() process_pending_inventory(); owned_objects_update(); stash_visits_update(); return false end)
 		printf("[Lost Zone] server time event queue installed")
 	end
 	-- base-game's NPC vision hook reads db.actor (torch, flashlight) for every
@@ -1253,6 +1253,139 @@ local function owned_objects_update()
 	if time_global() < next_spot_scan then return end
 	next_spot_scan = time_global() + 1000
 	pcall(send_owner_spots)
+end
+
+----------------------------------------------------------------------
+-- World stashes change slowly (owner 2026-10-05, doc 43 L14/L37)
+----------------------------------------------------------------------
+-- Now and then a stalker near a world stash takes something from it or
+-- puts something of his own into it. Nothing is created or destroyed: the
+-- items move with their identity (the same transfer events as a player's),
+-- so the loot a player finds later really came from someone. Rules match
+-- the world backend (backend/lostzone/scavenging.py): at most one visit per
+-- stash in 6 game hours, 8 % chance per look, deposits never weapons,
+-- armour or artefacts. Happens only with an NPC within reach of the box
+-- and no player close enough to watch; player stashes, story and closed
+-- boxes are never touched.
+local STASH_VISIT = {
+	check_ms = 600000, -- real time between looks at the stashes
+	min_game_hours = 6,
+	chance = 0.08,
+	npc_reach = 60, -- an NPC this close to the box makes the visit
+	player_clear = 50, -- no player this close
+	max_items = 2,
+	deposit_kinds = { i_food = true, i_drink = true, i_medical = true, i_mutant_raw = true, i_mutant_part = true,
+		i_misc = true, i_tool = true, i_kit = true, i_arty_junk = false },
+}
+local stash_boxes, stash_scan_at, next_stash_look = nil, 0, 0
+
+local function visit_state()
+	local state = alife_storage_manager.get_state()
+	state.netcoop_stash_visits = state.netcoop_stash_visits or {}
+	return state.netcoop_stash_visits
+end
+
+local function game_hours()
+	local t = game.get_game_time()
+	local y, m, d, h, mi = t:get(0, 0, 0, 0, 0, 0, 0)
+	return ((y * 12 + m) * 31 + d) * 24 + h + mi / 60
+end
+
+-- World stash ids, rebuilt every game hour (boxes are few and static).
+local function world_stash_ids()
+	if stash_boxes and time_global() < stash_scan_at then return stash_boxes end
+	stash_scan_at = time_global() + 3600000
+	stash_boxes = {}
+	local sim = alife()
+	if not sim then return stash_boxes end
+	for id = 1, 65534 do
+		local se = sim:object(id)
+		if se and se:clsid() == clsid.inventory_box then stash_boxes[#stash_boxes + 1] = id end
+	end
+	return stash_boxes
+end
+
+local function protected_box(box)
+	local id = box:id()
+	if owned()[id] then return true end -- a player's stash or furniture
+	if get_object_story_id and get_object_story_id(id) then return true end
+	local m = alife_storage_manager.get_state()
+	if m.player_created_stashes and m.player_created_stashes[id] then return true end
+	return box.inventory_box_closed ~= nil and box:inventory_box_closed() == true
+end
+
+local function deposit_allowed(item)
+	local sec = item:section()
+	if ini_sys:r_bool_ex(sec, "quest_item", false) then return false end
+	if IsWeapon(item) or IsOutfit(item) or IsHeadgear(item) or IsArtefact(item) then return false end
+	if IsAmmo(item) then return true end
+	return STASH_VISIT.deposit_kinds[ini_sys:r_string_ex(sec, "kind") or ""] == true
+end
+
+local function take_allowed(item)
+	return not ini_sys:r_bool_ex(item:section(), "quest_item", false)
+end
+
+local function players_near(pos, radius)
+	for id in string.gmatch(netcoop_players and netcoop_players() or "", "%d+") do
+		local actor = level.object_by_id(tonumber(id))
+		if actor and actor:position():distance_to(pos) <= radius then return true end
+	end
+	return false
+end
+
+local function visitor_near(box)
+	local best, best_d = nil, STASH_VISIT.npc_reach
+	for _, id in ipairs(db.OnlineStalkers or {}) do
+		local npc = level.object_by_id(id)
+		if npc and npc:alive() and IsStalker(npc) and not (get_object_story_id and get_object_story_id(id))
+			and not (axr_companions and axr_companions.non_task_companions and axr_companions.non_task_companions[id]) then
+			local d = npc:position():distance_to(box:position())
+			if d < best_d then best, best_d = npc, d end
+		end
+	end
+	return best
+end
+
+-- One look at one stash; returns what happened (for the log and tests).
+function stash_visit(box, roll)
+	if not box or protected_box(box) then return "protected" end
+	local visits = visit_state()
+	local now = game_hours()
+	local last = visits[box:id()]
+	if last and now - last < STASH_VISIT.min_game_hours then return "too soon" end
+	if roll() >= STASH_VISIT.chance then return "no visit" end
+	if players_near(box:position(), STASH_VISIT.player_clear) then return "watched" end
+	local npc = visitor_near(box)
+	if not npc then return "nobody near" end
+	local in_box, on_npc = {}, {}
+	box:iterate_inventory_box(function(_, item) if item and take_allowed(item) then in_box[#in_box + 1] = item end end, box)
+	npc:iterate_inventory(function(_, item)
+		if item and deposit_allowed(item) and not npc:is_on_belt(item) then on_npc[#on_npc + 1] = item end
+	end, npc)
+	local deposit = #on_npc > 0 and (#in_box == 0 or roll() < 0.5)
+	local from, list = deposit and npc or box, deposit and on_npc or in_box
+	if #list == 0 then return "nothing to move" end
+	local moved = 0
+	for _ = 1, math.min(STASH_VISIT.max_items, #list) do
+		local index = math.floor(roll() * #list) + 1
+		local item = table.remove(list, index)
+		if deposit then from:transfer_item(item, box) else box:transfer_item(item, npc) end
+		moved = moved + 1
+	end
+	visits[box:id()] = now
+	printf("[Lost Zone][stash] %s %s %d item(s) %s stash %d", npc:name(), deposit and "put" or "took", moved,
+		deposit and "into" or "from", box:id())
+	return deposit and "deposit" or "take"
+end
+
+local function stash_visits_update()
+	if time_global() < next_stash_look then return end
+	next_stash_look = time_global() + STASH_VISIT.check_ms
+	for _, id in ipairs(world_stash_ids()) do
+		local box = level.object_by_id(id) -- online boxes only: near players, never watched
+		if box then pcall(stash_visit, box, math.random) end
+	end
 end
 
 function item_action(actor_id, kind, item_id, target_id, action, login)

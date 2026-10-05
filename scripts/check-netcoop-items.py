@@ -356,3 +356,47 @@ assert(companion_owner(300)==nil and cls.get_script_target(squad)==77)
 ''')
 
 print('Item actions Lua: battery swap/unpack and repair on the server, whitelist, client routing, NPC inventory at spawn, item condition and death loot, furniture and stashes, player state, sleep off, companions PASS')
+
+# World stash visits: rare, real moves, never weapons/armour/artefacts, never watched or protected.
+lua.execute(r'''
+moves={}
+function make_box(id, items)
+  local b=make_item(id,'inv_box',1); b._items=items
+  b.position=function() return vector():set(0,0,0) end
+  b.iterate_inventory_box=function(self,fn,o) for _,i in ipairs(self._items) do fn(o,i) end end
+  b.transfer_item=function(self,item,to) moves[#moves+1]={from=self:id(),to=to:id(),item=item:id()} end
+  return b
+end
+local npc=make_item(400,'stalker',1); npc._inv={}
+npc.alive=function() return true end
+npc.position=function() return vector():set(10,0,0) end
+npc.name=function() return 'npc400' end
+npc.is_on_belt=function() return false end
+npc.iterate_inventory=function(self,fn,o) for _,i in ipairs(self._inv) do fn(o,i) end end
+npc.transfer_item=function(self,item,to) moves[#moves+1]={from=self:id(),to=to:id(),item=item:id()} end
+objects[400]=npc
+db.OnlineStalkers={400}
+online=""
+IsArtefact=function(o) return o._sec=='af_medusa' end
+functors.bread={kind='i_food'}; functors.af_medusa={kind='i_arty'}
+local old_r=ini_sys.r_string_ex
+ini_sys.r_string_ex=function(i,sec,key) if key=='kind' then return functors[sec] and functors[sec].kind end return old_r(i,sec,key) end
+ini_sys.r_bool_ex=function() return false end
+hour=10
+game.get_game_time=function() return {get=function() return 2012,5,1,hour,0,0,0 end} end
+local function always() return 0 end
+local box=make_box(700,{make_item(701,'bread',1)})
+assert(stash_visit(box, function() return 0.99 end)=="no visit",'rare: 8%')
+npc._inv={make_item(402,'wpn_ak74',1), make_item(403,'af_medusa',1), make_item(404,'outfit_sun',1)}
+assert(stash_visit(box, always)=="take" and moves[1].from==700 and moves[1].to==400,'nothing allowed to deposit: the NPC takes')
+assert(stash_visit(box, always)=="too soon",'6 game hours between visits')
+hour=17
+npc._inv={make_item(405,'bread',1), make_item(406,'wpn_ak74',1)}
+local n=#moves
+assert(stash_visit(box, always)=="deposit" and moves[n+1].item==405 and moves[n+1].to==700,'only allowed items deposited')
+hour=30; online="91 "; player.position=function() return vector():set(5,0,0) end
+assert(stash_visit(box, always)=="watched",'never in front of a player')
+owned_t()[700]={owner='ivan',kind='stash'}
+assert(stash_visit(box, always)=="protected",'player stashes untouched')
+''')
+print("Stash visits: rare, real item moves, no weapons/armour/artefacts deposited, not watched, protected stashes untouched PASS")

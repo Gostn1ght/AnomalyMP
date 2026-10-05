@@ -26,8 +26,34 @@ function on_try_respawn(smart, flags)
     if cooperative() and flags then flags.disabled = true end
 end
 
+-- Other mods add NPCs/mutants from nothing on a timer or on the Actor's
+-- update: night mutants, base guard squads, bounty hunter squads. The
+-- population is finite (owner 2026-10-05): these spawners stay off; quest
+-- spawns (tasks_*, dialogs) are untouched.
+local SPAWNERS = {
+    {"night_mutants", "try_to_spawn", "actor_on_update"},
+    {"guards_spawner", "spawn_guard", "actor_on_update"},
+    {"sim_squad_bounty", "try_spawn", nil},
+}
+local disabled_spawners = {}
+
+local function disable_spawners()
+    for _, entry in ipairs(SPAWNERS) do
+        local module, name, callback = _G[entry[1]], entry[2], entry[3]
+        local original = module and module[name]
+        if type(original) == "function" and not disabled_spawners[original] then
+            if callback and UnregisterScriptCallback then UnregisterScriptCallback(callback, original) end
+            local off = function() end
+            disabled_spawners[off] = true
+            module[name] = off
+            printf("[Lost Zone][world] spawner %s.%s disabled", entry[1], name)
+        end
+    end
+end
+
 function install()
     if not cooperative() then return end
+    disable_spawners()
     -- These are inventory/artefact age purges, not AI consumption or trading.
     keep_inventory_from_purge(grok_artefact_despawner, "delete_artefacts")
     keep_inventory_from_purge(release_npc_inventory, "clean_npc_inv")

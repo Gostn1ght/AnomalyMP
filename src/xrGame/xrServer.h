@@ -24,6 +24,7 @@
 
 class CSE_Abstract;
 struct NetcoopChunkShadow;
+namespace netcoop_world { class ReplicationIndex; }
 
 const u32 NET_Latency = 50; // time in (ms)
 
@@ -134,6 +135,8 @@ private:
 	u64 m_chunk_shadow_last = 0;
 	u64 m_chunk_shadow_log = 0;
 	bool m_chunk_shadow_failed = false;
+	std::unique_ptr<netcoop_world::ReplicationIndex> m_replication_index;
+	u64 m_replication_index_log = 0;
 	u32 m_last_updates_size;
 	u32 m_last_update_time;
 
