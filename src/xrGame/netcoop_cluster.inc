@@ -104,6 +104,63 @@ static bool cluster_location(LPCSTR level, xr_string& host, u32& port)
 	return port > 0 && port < 65536;
 }
 
+static bool cluster_config_present()
+{
+	string_path path;
+	FS.update_path(path, "$app_data_root$", "netcoop_cluster.ltx");
+	return GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES;
+}
+
+// ---- server status (doc 43 H01): alive and not full -----------------------
+// Every server writes "unix_s players capacity" to netcoop_cluster/status_<port>.txt
+// each 10 s. A transfer or a login redirect to a map whose server is down or
+// full would strand the character there, so neither happens then.
+static const u32 cluster_status_ttl_s = 30;
+
+static u32 cluster_capacity()
+{
+	static u32 capacity = 0xffffffff;
+	if (capacity != 0xffffffff) return capacity;
+	capacity = 0;
+	if (LPCSTR option = strstr(Core.Params, "maxplayers=")) capacity = u32(atoi(option + xr_strlen("maxplayers=")));
+	return capacity;
+}
+
+struct ClusterCountPlayers
+{
+	u32* count;
+	void operator()(IClient* client) const
+	{
+		xrClientData* CL = static_cast<xrClientData*>(client);
+		if (CL && !CL->flags.bLocal) ++*count;
+	}
+};
+
+static void cluster_status_write(xrServer* server)
+{
+	u32 players = 0;
+	ClusterCountPlayers count = {&players};
+	server->ForEachClientDo(count);
+	string_path dir, file; cluster_dir(dir);
+	xr_sprintf(file, "%sstatus_%u.txt", dir, cluster_port());
+	string128 line; xr_sprintf(line, "%u %u %u", cluster_now(), players, cluster_capacity());
+	cluster_write_line(file, line);
+}
+
+// "" when the server on that port can take one more player, else the reason.
+static LPCSTR cluster_target_problem(u32 port)
+{
+	string_path dir, file; cluster_dir(dir);
+	xr_sprintf(file, "%sstatus_%u.txt", dir, port);
+	xr_string line; u32 stamp = 0, players = 0, capacity = 0;
+	if (!cluster_read_line(file, line) || sscanf(line.c_str(), "%u %u %u", &stamp, &players, &capacity) != 3 ||
+		cluster_now() > stamp + cluster_status_ttl_s)
+		return "the server of that map is offline";
+	// The server's own authority client counts against maxplayers.
+	if (capacity && players + 1 >= capacity) return "the server of that map is full";
+	return "";
+}
+
 static bool cluster_secret()
 {
 	if (!s_cluster_secret.empty()) return true;
@@ -323,6 +380,12 @@ static bool cluster_route(xrServer* server, LPCSTR login, u8 slot, xr_string& re
 	if (!xr_strcmp(level, cluster_current_level())) return false;
 	xr_string host; u32 port = 0;
 	if (!cluster_location(level, host, port) || port == cluster_port()) return false;
+	// Its map's server is down or full: play here (the arrival point of this map).
+	if (cluster_target_problem(port)[0])
+	{
+		Msg("[Lost Zone][cluster] %s stays here: %s (%s)", login, cluster_target_problem(port), level);
+		return false;
+	}
 	string256 text;
 	xr_sprintf(text, "redirect|%s|%u|%s", host.c_str(), port, level);
 	redirect = text;
@@ -359,6 +422,7 @@ static void cluster_refuse(xrServer* server, xrClientData* CL, LPCSTR text)
 }
 
 static bool cluster_move(xrServer* server, xrClientData* CL, CLevelChanger* changer);
+
 
 // M_CHANGE_LEVEL from a remote player: the level changer dialog's "go".
 void server_on_change_level(xrServer* server, xrClientData* CL, NET_Packet& P)
@@ -398,6 +462,8 @@ static bool cluster_move(xrServer* server, xrClientData* CL, CLevelChanger* chan
 	if (!cluster_location(level, host, port))
 		return cluster_refuse(server, CL, "no server runs that map yet"), false;
 	if (port == cluster_port()) return cluster_refuse(server, CL, "cluster config points the map at this server"), false;
+	if (LPCSTR problem = cluster_target_problem(port))
+		if (problem[0]) return cluster_refuse(server, CL, problem), false;
 	const u16 actor_id = CL->owner->ID;
 	if (s_character_restore.find(actor_id) != s_character_restore.end())
 		return cluster_refuse(server, CL, "the character is still loading"), false;
@@ -579,6 +645,7 @@ static void cluster_update(xrServer* server)
 	if (now - s_cluster_heartbeat >= 10000)
 	{
 		s_cluster_heartbeat = now;
+		if (cluster_config_present()) cluster_status_write(server);
 		ClusterHeartbeat heartbeat;
 		server->ForEachClientDo(heartbeat);
 	}
