@@ -34,6 +34,7 @@
 #include "alife_simulator.h"
 #include "alife_graph_registry.h"
 #include "alife_object_registry.h"
+#include "alife_time_manager.h"
 #include "../xrEngine/Environment.h"
 #include "../xrEngine/IGame_Persistent.h"
 #include "inventory_item.h"

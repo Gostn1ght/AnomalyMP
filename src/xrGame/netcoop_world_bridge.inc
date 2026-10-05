@@ -11,7 +11,7 @@ static void server_world_bridge_update()
     if (s_world_bridge_tick && now-s_world_bridge_tick<1000) return;
     s_world_bridge_tick=now;
     netcoop_world::WorldStateSnapshot local{};
-    if (!const_cast<CALifeSimulator*>(ai().get_alife())->export_world_state(local)) return;
+    if (!const_cast<CALifeSimulator*>(ai().get_alife())->time_manager().export_world_state(local)) return;
     if (!s_world_bridge_checked)
     {
         s_world_bridge_checked=true;
