@@ -909,7 +909,7 @@ function on_game_start()
 	if AddUniqueCall and ProcessEventQueue then
 		AddUniqueCall(server_event_queue)
 		AddUniqueCall(server_world_loop)
-		AddUniqueCall(function() process_pending_inventory(); owned_objects_update(); stash_visits_update(); return false end)
+		AddUniqueCall(function() process_pending_inventory(); owned_objects_update(); stash_visits_update(); keep_switch_distance(); return false end)
 		printf("[Lost Zone] server time event queue installed")
 	end
 	-- base-game's NPC vision hook reads db.actor (torch, flashlight) for every
@@ -1385,6 +1385,29 @@ local function stash_visits_update()
 	for _, id in ipairs(world_stash_ids()) do
 		local box = level.object_by_id(id) -- online boxes only: near players, never watched
 		if box then pcall(stash_visit, box, math.random) end
+	end
+end
+
+
+----------------------------------------------------------------------
+-- Simulation radius above the observable distance (doc 43 C07/E21)
+----------------------------------------------------------------------
+-- An NPC exists for the clients only while ALife keeps it online, within
+-- switch_distance of the nearest player. GAMMA's 450 m let NPCs appear at
+-- ~405 m, inside what a player sees in the open or through a scope. The
+-- netcoop server keeps them online to 650 m; beyond 250 m they think at the
+-- reduced rate (CCustomMonster::shedule_Scale), the cheap "Reduced" level.
+-- xr_patch sets its own value on load; it is put back after it.
+local WORLD_SWITCH_DISTANCE = 650
+local next_switch_check = 0
+
+local function keep_switch_distance()
+	if time_global() < next_switch_check then return end
+	next_switch_check = time_global() + 10000
+	local sim = alife()
+	if sim and sim.switch_distance and math.abs(sim:switch_distance() - WORLD_SWITCH_DISTANCE) > 1 then
+		sim:set_switch_distance(WORLD_SWITCH_DISTANCE)
+		printf("[Lost Zone][world] ALife switch distance %d m", WORLD_SWITCH_DISTANCE)
 	end
 end
 
