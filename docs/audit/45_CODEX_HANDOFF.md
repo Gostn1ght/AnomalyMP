@@ -96,6 +96,13 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
 
 ## Журнал
 
+- 2026-10-06 02:20 (Claude) — реальные серверы, overlay `5cf8161` на exe `5302a58`:
+  «released 129 squad(s), 218 NPC(s) of other maps» (H11-lite работает), switch
+  distance 650 м, 16/16 переходов, fatal 0. GAMMA printf подставляет только %s —
+  все %d/%.2f в overlay заменены, статическая проверка в CI. Codex: копий чужого
+  населения в location process больше нет — можно решать про включение
+  `-netcoop_npc_transit` по умолчанию.
+
 - 2026-10-06 01:50 (Claude) — кластер на `5302a58`: 97 переходов без ошибок, сохранения
   мира на обоих серверах, календарь догоняет (factor до 40). БАГ: в GAMMA
   `SIMBOARD.squads[id] = true`, а не объект отряда — release_foreign_population
