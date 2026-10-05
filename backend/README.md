@@ -44,8 +44,9 @@ pickup, потерю ACK, fence, restart, OS lock из другого проце
 
 ## Следующие подключения
 
-Удостоверенный localhost endpoint → read-only engine bridge → согласование
-WorldID/clock/ownership → shadow comparisons → durable mutation paths.
+Локальный authenticated HTTP endpoint, private credentials, bounded worker
+pool и rate limit уже реализованы. Дальше: read-only engine bridge →
+согласование WorldID/clock/ownership → shadow comparisons → durable mutations.
 Два несогласованных реестра/календаря не являются единым World Service.
 
 Spatial index netcoop_spatial_grid.h подключён как диагностика
@@ -58,3 +59,48 @@ engine handles, а не durable registry.
 
 Полные Chunk Manager/LOD/hydration и handoff в работающем engine
 не объявляются выполненными этим первым подключением.
+
+## Сервис и интерфейс
+
+Из каталога backend:
+
+```powershell
+python -m lostzone init --config runtime/config.json --location hidden_base --location cordon --location jupiter
+python -m lostzone serve --config runtime/config.json
+```
+
+Init создаёт приватный config один раз и не заменяет существующие tokens.
+В stdout secrets не выводятся; runtime исключён из Git. Сервис слушает
+только 127.0.0.1:38477; серверы других хостов потребуют TLS/mTLS gateway.
+Credentials именуют principal и явный список его локаций. Principal нельзя
+назначить из request body. Player clients эти credentials не получают.
+
+GET /v1/clock, /v1/bootstrap; GET /v1/location?id=...&fence=...;
+GET /v1/transfer?id=...; admin GET /v1/events?after=...&limit=...;
+POST /v1/command: command_id (128-bit hex), operation, arguments.
+Каждая mutation возвращает durable result до HTTP ACK. Ошибки 400/401/
+403/409/429/503 не содержат tokens/tracebacks. Body limit=64 KiB;
+16 workers, token bucket по principal. Недоступный scheduler/checkpoint
+закрывает command admission до успешного восстановления.
+
+Operations: world_scale/world_state/timeline_schedule (admin),
+location_claim/renew/recover, entity_create/update/death, corpse_cleanup,
+item_create/move, session_disconnect/resume, transfer_prepare/claim/commit/
+abort, quest_grant/progress. World bootstrap согласован по DB transaction
+с clock, state revision и journal watermark. Inbox/outbox реализованы
+как внутренние интерфейсы Store; сетевой subscriber ещё предстоит.
+
+Schema v1→v2 мигрируется транзакционно, включая прежний состав групп;
+неизвестная/пустая существующая DB останавливает запуск. Gameplay items
+не имеют TTL. Смерть сохраняет tombstone, cleanup переносит весь corpse
+loot с прежними IDs/состояниями и сохранённой drop position.
+
+Quest definitions — доверенный config, не player-provided rewards.
+Квесты используют committed objective events, stable entity links,
+version/CAS и одну транзакцию награды с прогрессом. Нужные тела защищены
+от cleanup. Погода/выброс — durable timelines, phases и bounded catch-up;
+локальная фаза/переход рассчитываются аналитически. Damage/shelter/artifact
+effects и GAMMA playback ещё не подключены к этим backend timelines.
+
+Engine bridge должен явно согласовать WorldID/seed и adopt authority:
+запуск standalone backend с новой DB не переключает игровые часы сам.

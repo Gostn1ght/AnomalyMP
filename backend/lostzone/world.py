@@ -62,12 +62,40 @@ class World:
 
     def sample(self):
         with self.store.transaction() as tx:
-            now = self.now()
-            tx.execute("UPDATE world SET world_ms=?,sequence=sequence+1 WHERE singleton=1", (now,))
-            row = tx.execute("SELECT * FROM world WHERE singleton=1").fetchone()
-            return {"schema": 1, "world_id": int(row["world_id"]), "seed": int(row["seed"]),
-                    "authority_epoch": row["epoch"], "sequence": row["sequence"],
-                    "world_ms": now, "time_scale": self._scale, "revision": row["revision"]}
+            return self.sample_in(tx)
+
+    def sample_in(self, tx):
+        now = self.now()
+        tx.execute("UPDATE world SET world_ms=?,sequence=sequence+1 WHERE singleton=1", (now,))
+        row = tx.execute("SELECT * FROM world WHERE singleton=1").fetchone()
+        return {"schema": 1, "world_id": int(row["world_id"]), "seed": int(row["seed"]),
+                "authority_epoch": row["epoch"], "sequence": row["sequence"],
+                "world_ms": now, "time_scale": self._scale, "revision": row["revision"]}
+
+    def bootstrap_snapshot(self):
+        with self.store.transaction() as tx:
+            clock = self.sample_in(tx)
+            rows = tx.execute("SELECT * FROM world_state ORDER BY name").fetchall()
+            watermark = tx.execute("SELECT COALESCE(MAX(sequence),0) FROM world_event").fetchone()[0]
+            return {"schema": 1, "clock": clock, "world_seed": self.seed,
+                    "state_revision": clock["revision"], "event_watermark": watermark,
+                    "states": {row["name"]: {"version": row["version"], "state": json.loads(row["state"])} for row in rows}}
+
+    def set_state(self, actor, command_id, name, version, state):
+        identifier(name)
+        if len(name) > 64 or type(version) is not int or not 0 <= version < 2**63 or not isinstance(state, dict):
+            raise Invalid("invalid world state command")
+        encoded = canonical(state)
+        payload = {"type": "world_state", "name": name, "version": version, "state": state}
+        def apply(tx):
+            row = tx.execute("SELECT version FROM world_state WHERE name=?", (name,)).fetchone()
+            if (row[0] if row else 0) != version:
+                raise Conflict("world state version changed")
+            tx.execute("INSERT INTO world_state VALUES(?,?,?) ON CONFLICT(name) DO UPDATE SET version=excluded.version,state=excluded.state",
+                       (name, version + 1, encoded))
+            event = self.store.event(tx, "world:" + name, "WorldStateChanged", payload, self.now())
+            return {"name": name, "version": version + 1, "event": event}
+        return self.store.command(actor, command_id, payload, apply)
 
     def set_scale(self, actor, command_id, value):
         finite(value, 0.001, 1000)

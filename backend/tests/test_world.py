@@ -310,6 +310,65 @@ class WorldTest(unittest.TestCase):
         with self.assertRaises(Unavailable):
             self.store.read_snapshot(snapshot["id"])
 
+    def test_schema_migration_preserves_world_members_and_inventory(self):
+        npc, mutant = self.entity(), self.entity("MUTANT")
+        group = self.entity("GROUP", {"member_ids": [npc, mutant]})
+        item = self.item("NPC", npc)
+        with self.store.transaction() as tx:
+            tx.execute("DROP TABLE quest_event")
+            tx.execute("DROP TABLE group_member")
+            tx.execute("DROP TABLE world_state")
+            tx.execute("UPDATE metadata SET value='1' WHERE key='schema'")
+        self.store.close()
+        self.open()
+        self.assertEqual(self.store.db.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()[0], "2")
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM group_member WHERE group_id=?", (group,)).fetchone()[0], 2)
+        self.assertEqual(self.store.db.execute("SELECT holder FROM item WHERE id=?", (item,)).fetchone()[0], npc)
+
+    def test_existing_empty_or_unknown_database_fails_closed(self):
+        empty = Path(self.folder.name) / "empty.sqlite"
+        empty.touch()
+        with self.assertRaises(Unavailable):
+            Store(empty)
+        with self.store.transaction() as tx:
+            tx.execute("UPDATE metadata SET value='999' WHERE key='schema'")
+        self.store.close()
+        with self.assertRaises(Unavailable):
+            Store(self.path)
+
+    def test_group_member_cannot_be_duplicated_or_silently_replaced(self):
+        npc = self.entity()
+        group = self.entity("GROUP", {"member_ids": [npc]})
+        with self.assertRaises(Conflict):
+            self.entity("GROUP", {"member_ids": [npc]})
+        with self.assertRaises(Conflict):
+            self.ownership.update_entity("a", uid(), group, self.a, 1, {"member_ids": [uid()]})
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM group_member").fetchone()[0], 1)
+
+    def test_disconnect_resume_preserves_checkpoint_and_releases_admission(self):
+        player = self.character()
+        self.world.claim_location("a", uid(), "cordon", capacity=1)
+        item = self.item("PLAYER", player)
+        self.ownership.disconnect("a", uid(), player, self.a, 1, {"health": .42, "radiation": .33})
+        replacement = self.character("other")
+        with self.assertRaises(Conflict):
+            self.ownership.resume("a", uid(), player, "cordon", self.a, 2)
+        self.ownership.disconnect("a", uid(), replacement, self.a, 1, {"health": 1})
+        resumed = self.ownership.resume("a", uid(), player, "cordon", self.a, 2)
+        self.assertEqual(resumed["state"], {"health": .42, "radiation": .33})
+        self.assertGreater(resumed["session_fence"], 1)
+        self.assertEqual(self.store.db.execute("SELECT holder FROM item WHERE id=?", (item,)).fetchone()[0], player)
+
+    def test_abort_to_full_source_keeps_checkpoint_without_exceeding_capacity(self):
+        player = self.character()
+        self.world.claim_location("a", uid(), "cordon", capacity=1)
+        prepared = self.transfers.prepare("a", uid(), player, "cordon", self.a, "garbage", 1)
+        self.character("new-arrival")
+        aborted = self.transfers.abort("a", uid(), prepared["transfer_id"], self.a)
+        self.assertEqual(aborted["session_state"], "DISCONNECTED")
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM player_session WHERE state='ACTIVE'").fetchone()[0], 1)
+        self.assertEqual(self.transfers.abort("a", uid(), prepared["transfer_id"], self.a), aborted)
+
     def test_process_crash_before_and_after_commit_preserves_one_ledger(self):
         npc, item = self.entity(), self.item()
         command = uid()

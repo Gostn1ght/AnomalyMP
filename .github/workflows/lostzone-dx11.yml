@@ -3,6 +3,10 @@ name: Lost Zone DX11
 on:
   push:
     branches: [menu-3d-hideout]
+    paths-ignore:
+      - 'backend/**'
+      - 'docs/**'
+      - '.github/workflows/lostzone-world-backend.yml'
   workflow_dispatch:
 
 permissions:

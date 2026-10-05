@@ -104,7 +104,8 @@ class Transfers:
             event = self.store.event(tx, "transfer:" + transfer_id, "TransferPrepared",
                                      {**payload, "id": transfer_id, "checkpoint_hash": hashlib.sha256(canonical(checkpoint).encode("utf-8")).hexdigest()}, self.world.now())
             return {"transfer_id": transfer_id, "state": "PREPARED", "token": token, "expires_ms": expiry, "event": event}
-        return self.store.command(actor, command_id, payload, apply)
+        return self.store.command(actor, command_id, payload, apply,
+                                  authorize=lambda tx: self.world.require_location(tx, actor, source, source_fence))
 
     def claim(self, actor, command_id, token, target_fence):
         positive(target_fence, "target fence")
@@ -165,7 +166,12 @@ class Transfers:
                              {"entity_id": row["entity_id"], "source": row["source"], "target": row["target"],
                               "owner": actor, "fence": target_fence, "member_ids": checkpoint["ids"]}, self.world.now())
             return self.public(tx.execute("SELECT * FROM transfer WHERE id=?", (transfer_id,)).fetchone())
-        return self.store.command(actor, command_id, payload, apply)
+        def authorize(tx):
+            row = tx.execute("SELECT target FROM transfer WHERE id=?", (transfer_id,)).fetchone()
+            if not row:
+                raise Conflict("unknown transfer")
+            self.world.require_location(tx, actor, row[0], target_fence)
+        return self.store.command(actor, command_id, payload, apply, authorize=authorize)
 
     def abort(self, actor, command_id, transfer_id, source_fence):
         persistent_id(transfer_id)
@@ -180,13 +186,22 @@ class Transfers:
                 return self.public(row)
             if row["state"] != "PREPARED":
                 raise Conflict("claimed/committed transfer requires destination recovery, not source resume")
+            root = tx.execute("SELECT kind FROM entity WHERE id=?", (row["entity_id"],)).fetchone()
+            session_state = "ACTIVE"
+            if root[0] == "CHARACTER":
+                try:
+                    self.ownership.admission(tx, row["source"], excluding=row["entity_id"])
+                except Conflict:
+                    # Restoring ownership must not exceed source capacity.
+                    # The checkpoint survives; reconnect waits for admission.
+                    session_state = "DISCONNECTED"
             for value in json.loads(row["checkpoint"])["ids"]:
                 updated = tx.execute("UPDATE entity SET writer=?,fence=?,version=version+1 WHERE id=? AND writer=?",
                                      (actor, source_fence, value, "transfer:" + transfer_id))
                 if updated.rowcount != 1:
                     raise Conflict("transfer entity ownership changed")
-            tx.execute("UPDATE player_session SET owner=?,state='ACTIVE',fence=fence+1 WHERE character_id=? AND state='FROZEN'",
-                       (actor, row["entity_id"]))
+            tx.execute("UPDATE player_session SET owner=?,state=?,fence=fence+1 WHERE character_id=? AND state='FROZEN'",
+                       (actor, session_state, row["entity_id"]))
             tx.execute("UPDATE character SET session_fence=session_fence+1 WHERE id=?", (row["entity_id"],))
             tx.execute("UPDATE transfer SET state='ABORTED' WHERE id=?", (transfer_id,))
             self.store.event(tx, "transfer:" + transfer_id, "TransferAborted", payload, self.world.now())
@@ -205,10 +220,12 @@ class Transfers:
                 raise Conflict("transfer status is restricted to source/destination")
             return self.public(row)
 
-    @staticmethod
-    def public(row, checkpoint=False):
+    def public(self, row, checkpoint=False):
         result = {key: row[key] for key in ("id", "entity_id", "source", "target", "state",
                                            "target_owner", "target_fence", "expires_ms")}
         if checkpoint:
             result["checkpoint"] = json.loads(row["checkpoint"])
+        session = self.store.db.execute("SELECT state,fence FROM player_session WHERE character_id=?", (row["entity_id"],)).fetchone()
+        result["session_state"] = session[0] if session else None
+        result["session_fence"] = session[1] if session else None
         return result

@@ -52,20 +52,20 @@ def finite(value, low=0, high=2**53 - 1):
     return value
 
 
-def canonical(value):
+def canonical(value, limit=1024 * 1024):
     try:
         encoded = json.dumps(value, sort_keys=True, separators=(",", ":"),
                              ensure_ascii=False, allow_nan=False)
     except (ValueError, TypeError, RecursionError) as error:
         raise Invalid("invalid JSON state") from error
-    if len(encoded.encode("utf-8")) > 1024 * 1024:
+    if len(encoded.encode("utf-8")) > limit:
         raise Invalid("state exceeds size limit")
     return encoded
 
 
 SCHEMA = """
 CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-INSERT INTO metadata VALUES ('schema','1');
+INSERT INTO metadata VALUES ('schema','2');
 CREATE TABLE world (
  singleton INTEGER PRIMARY KEY CHECK(singleton=1), world_id TEXT NOT NULL,
  seed TEXT NOT NULL, epoch INTEGER NOT NULL CHECK(epoch>0),
@@ -75,12 +75,16 @@ CREATE TABLE world (
 CREATE TABLE location_lease (
  location TEXT PRIMARY KEY, owner TEXT NOT NULL, fence INTEGER NOT NULL CHECK(fence>0),
  expires_ms INTEGER NOT NULL, capacity INTEGER NOT NULL CHECK(capacity>0 AND capacity<=128));
+CREATE TABLE world_state (
+ name TEXT PRIMARY KEY, version INTEGER NOT NULL CHECK(version>0), state TEXT NOT NULL);
 CREATE TABLE entity (
  id TEXT PRIMARY KEY, kind TEXT NOT NULL, location TEXT NOT NULL,
  writer TEXT NOT NULL, fence INTEGER NOT NULL CHECK(fence>0),
  version INTEGER NOT NULL CHECK(version>0), alive INTEGER NOT NULL CHECK(alive IN (0,1)),
  state TEXT NOT NULL);
 CREATE INDEX entity_location ON entity(location,kind);
+CREATE TABLE group_member (
+ group_id TEXT NOT NULL REFERENCES entity(id), member_id TEXT PRIMARY KEY REFERENCES entity(id));
 CREATE TABLE container (
  id TEXT PRIMARY KEY REFERENCES entity(id), policy TEXT NOT NULL,
  owner TEXT NOT NULL, capacity INTEGER NOT NULL CHECK(capacity>=0),
@@ -119,6 +123,11 @@ CREATE TABLE quest_requirement (
  policy TEXT NOT NULL, PRIMARY KEY(character_id,quest_id,entity_id),
  FOREIGN KEY(character_id,quest_id) REFERENCES quest(character_id,id));
 CREATE INDEX requirement_entity ON quest_requirement(entity_id);
+CREATE TABLE quest_event (
+ character_id TEXT NOT NULL, quest_id TEXT NOT NULL, event_sequence INTEGER NOT NULL,
+ PRIMARY KEY(character_id,quest_id,event_sequence),
+ FOREIGN KEY(character_id,quest_id) REFERENCES quest(character_id,id),
+ FOREIGN KEY(event_sequence) REFERENCES world_event(sequence));
 CREATE TABLE world_event (
  sequence INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE,
  aggregate_id TEXT NOT NULL, aggregate_sequence INTEGER NOT NULL,
@@ -147,11 +156,25 @@ CREATE TABLE snapshot (
  watermark INTEGER NOT NULL, checksum TEXT NOT NULL, payload TEXT NOT NULL);
 """
 
+MIGRATE_V1 = """
+CREATE TABLE world_state(name TEXT PRIMARY KEY,version INTEGER NOT NULL CHECK(version>0),state TEXT NOT NULL);
+CREATE TABLE group_member(group_id TEXT NOT NULL REFERENCES entity(id),member_id TEXT PRIMARY KEY REFERENCES entity(id));
+INSERT INTO group_member SELECT e.id,j.value FROM entity e,json_each(e.state,'$.member_ids') j WHERE e.kind='GROUP';
+CREATE TABLE quest_event(character_id TEXT NOT NULL,quest_id TEXT NOT NULL,event_sequence INTEGER NOT NULL,
+ PRIMARY KEY(character_id,quest_id,event_sequence),
+ FOREIGN KEY(character_id,quest_id) REFERENCES quest(character_id,id),
+ FOREIGN KEY(event_sequence) REFERENCES world_event(sequence));
+UPDATE metadata SET value='2' WHERE key='schema';
+"""
+
 
 class Store:
     def __init__(self, path):
         self.path = Path(path).resolve()
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        existed = self.path.exists()
+        if existed and self.path.stat().st_size == 0:
+            raise Unavailable("existing database is empty; explicit recovery is required")
         self.lock = threading.RLock()
         self.db = None
         self.epoch = None
@@ -178,10 +201,17 @@ class Store:
                 raise Unavailable("database integrity check failed")
             tables = self.db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
             if not tables:
+                if existed:
+                    raise Unavailable("existing database has no schema; refusing to create another world")
                 self.db.executescript("BEGIN IMMEDIATE;\n" + SCHEMA + "\nCOMMIT;")
             row = self.db.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()
-            if not row or row[0] != "1":
+            if row and row[0] == "1":
+                self.db.executescript("BEGIN IMMEDIATE;\n" + MIGRATE_V1 + "\nCOMMIT;")
+                row = self.db.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()
+            if not row or row[0] != "2":
                 raise Unavailable("unsupported database schema")
+            if self.db.execute("PRAGMA foreign_key_check").fetchone() is not None:
+                raise Unavailable("database ownership references are inconsistent")
         except BaseException:
             self.close()
             raise
@@ -234,23 +264,24 @@ class Store:
         if row is None or self.epoch is None or row[0] != self.epoch:
             raise Unavailable("world authority is not ready")
 
-    def event(self, tx, aggregate, event_type, payload, world_ms, topic="world"):
+    def event(self, tx, aggregate, event_type, payload, world_ms, topic="world", committed_ms=None):
         self.require_epoch(tx)
         identifier(aggregate)
         identifier(event_type)
         identifier(topic)
         finite(world_ms)
+        committed_ms = world_ms if committed_ms is None else finite(committed_ms)
+        if committed_ms < world_ms:
+            raise Invalid("event cannot be committed before it occurred")
         encoded = canonical(payload)
         world = tx.execute("SELECT event_highwater FROM world WHERE singleton=1").fetchone()
-        if world_ms < world[0]:
-            raise Conflict("event time regressed below committed highwater")
         seq = tx.execute("SELECT COALESCE(MAX(aggregate_sequence),0)+1 FROM world_event WHERE aggregate_id=?",
                          (aggregate,)).fetchone()[0]
         result = tx.execute("INSERT INTO world_event(id,aggregate_id,aggregate_sequence,epoch,world_ms,type,payload,payload_hash) VALUES(?,?,?,?,?,?,?,?)",
                             (uuid.uuid4().hex, aggregate, seq, self.epoch, world_ms,
                              event_type, encoded, hashlib.sha256(encoded.encode("utf-8")).hexdigest()))
         tx.execute("INSERT INTO outbox VALUES(?,?)", (result.lastrowid, topic))
-        tx.execute("UPDATE world SET event_highwater=?, revision=revision+1 WHERE singleton=1", (world_ms,))
+        tx.execute("UPDATE world SET event_highwater=?, revision=revision+1 WHERE singleton=1", (max(world[0], committed_ms),))
         return result.lastrowid
 
     def events(self, after=0, limit=256):
@@ -303,12 +334,12 @@ class Store:
         # projections and the journal watermark. ALife objects are not included.
         with self.transaction() as tx:
             self.require_epoch(tx)
-            names = ("world", "location_lease", "entity", "container", "item", "character", "player_session",
-                     "transfer", "quest", "quest_requirement", "scheduled_event")
+            names = ("world", "world_state", "location_lease", "entity", "group_member", "container", "item", "character", "player_session",
+                     "transfer", "quest", "quest_requirement", "quest_event", "scheduled_event")
             records = {name: [dict(row) for row in tx.execute(f"SELECT * FROM {name} ORDER BY rowid")]
                        for name in names}
             watermark = tx.execute("SELECT COALESCE(MAX(sequence),0) FROM world_event").fetchone()[0]
-            encoded = canonical({"schema": 1, "epoch": self.epoch, "watermark": watermark, "records": records})
+            encoded = canonical({"schema": 1, "epoch": self.epoch, "watermark": watermark, "records": records}, limit=128 * 1024 * 1024)
             checksum = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
             snapshot_id = uuid.uuid4().hex
             tx.execute("INSERT INTO snapshot VALUES(?,?,?,?,?,?)",
