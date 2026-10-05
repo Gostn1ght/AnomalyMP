@@ -21,6 +21,11 @@ template <class F> void rejects(F f) {
  bool failed=false; try { f(); } catch (const std::exception&) { failed=true; }
  assert(failed);
 }
+std::uint64_t local_time(int location, std::uint64_t real_ms) {
+ // Integer rate model includes the unavoidable one-millisecond quantization.
+ return std::uint64_t(1000000+location*10000)+
+  real_ms*std::uint64_t(location%2 ? 1000100 : 999900)/1000000;
+}
 int main() {
  WorldClock a(71, 8, 100000, 10, 900);
  close(a.now(1900), 110000);
@@ -47,6 +52,8 @@ int main() {
  close(f.estimate(300),501500); // message receipt is continuous
  close(f.estimate(400),502550);close(f.estimate(500),503600);
  assert(f.observe(s,500,500)==SyncResult::stale);
+ auto delayed=s;delayed.sequence=1;
+ assert(f.observe(delayed,500,500)==SyncResult::stale);
  s.sequence=3;s.world_ms=502600; // follower ahead: slower, never backwards
  assert(f.observe(s,500,500)==SyncResult::applied);
  close(f.estimate(1500),513100);
@@ -92,7 +99,7 @@ int main() {
  double maximum_error=0;
  for(std::uint64_t real=1000; real<=3600000;real+=1000) {
   for(int i=0;i<25;++i) {
-   auto local=std::uint64_t(1000000+i*10000+double(real)*(i%2 ? 1.0001 : 0.9999));
+   auto local=local_time(i,real);
    if(real%5000==0) {
     auto sample=authority.publish(real);
     assert(locations[i].observe(sample,local,local)==SyncResult::applied);
@@ -101,14 +108,17 @@ int main() {
    maximum_error=std::max(maximum_error,std::abs(locations[i].estimate(local)-authority.now(real)));
   }
  }
- assert(maximum_error<10); // game ms, ideal symmetric/zero-delay fixture
+ // Bound: drift over 5s plus two 1ms quantization boundaries, at scale 10.
+ const double quantized_bound=(5000*0.0001+2)*10;
+ std::cout << "Measured maximum drift: " << maximum_error << " game ms" << std::endl;
+ assert(maximum_error<=quantized_bound); // ideal symmetric/zero-delay fixture
 
  // 25 location clocks and 512 estimate consumers; not a gameplay capacity test.
  auto start=std::chrono::steady_clock::now();double checksum=0;
  for(std::uint64_t frame=1;frame<=10000;++frame)
   for(int player=0;player<512;++player) {
    int i=player%25;
-   auto local=std::uint64_t(1000000+i*10000+3600000*(i%2 ? 1.0001 : 0.9999))+frame;
+   auto local=local_time(i,3600000)+frame;
    checksum+=locations[i].estimate(local);
   }
  assert(checksum>0);
