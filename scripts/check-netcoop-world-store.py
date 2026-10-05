@@ -10,7 +10,9 @@ if os.environ.get("GITHUB_ACTIONS") != "true":
 root = Path(__file__).resolve().parents[1]
 store = (root/"src/xrGame/netcoop_world_store.inc").read_text()
 source = r'''
+#define _CRT_SECURE_NO_WARNINGS
 #include <cassert>
+#include <cstdarg>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -41,8 +43,10 @@ bool checked_move(const char* from,const char* to,unsigned long flags) {
 using u32=unsigned int; using LPCSTR=const char*;using LPSTR=char*;
 using string64=char[64];using string128=char[128];using string_path=char[260];
 const char* SAVE_EXTENSION=".sav";
-template <size_t N,class... Args> void xr_sprintf(char (&s)[N],const char* f,Args... args) {
- std::snprintf(s,N,f,args...);
+template <size_t N> void xr_sprintf(char (&s)[N],const char* f,...) {
+ va_list args;va_start(args,f);
+ int length=std::vsnprintf(s,N,f,args);va_end(args);
+ if(length<0 || size_t(length)>=N) throw std::runtime_error("format buffer overflow");
 }
 size_t xr_strlen(const char* s) { return std::strlen(s); }
 int xr_strcmp(const char* a,const char* b) { return std::strcmp(a,b); }
