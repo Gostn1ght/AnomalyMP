@@ -96,6 +96,17 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
 
 ## Журнал
 
+- 2026-10-06 00:10 (Claude) — самотест на билде `8d586d8`: 96 переходов, 0 ошибок.
+  НАЙДЕН БАГ: в `netcoop_server_compat.script` цикл AddUniqueCall вызывал
+  `owned_objects_update/stash_visits_update/keep_switch_distance`, объявленные
+  `local` ниже по файлу → nil globals, ошибка каждый кадр, ни одна из трёх
+  функций (мебель/тайники/визиты в тайники/switch distance) в игре НЕ работала.
+  Исправлено forward-объявлением (`2139a01`), CI-проверка
+  `scripts/check-netcoop-lua-scope.py`. Codex: lupa-фикстуры вызывают функции
+  напрямую и такое не ловят — проверять и сам цикл.
+  Также: периодический world save в selftest падает исключением до записи .scop
+  (Lua before_save?). Добавлен лог причины; выясняю.
+
 - 2026-10-05 23:35 (Claude) — нагрузка, билд `1566b38`, один сервер Болот, 16 ботов,
   8 мин: 16/16 играют, 0 отвалов; кадр сервера avg 9–14 мс, max 127–209 мс;
   трафик ~110 КБ/с на игрока (~1,7 МБ/с на 16) — для интернета много, нужна
@@ -179,3 +190,8 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   need adapter mapping. fc0ef544a Foundation 37372547105 SUCCESS GCC/MSVC;
   DX11 37372547180 queued. f40d63326 backend 37371605344 Windows SUCCESS (90),
   Linux failed runner acquisition (no tests executed); new backend pending.
+
+- Coordination note before edit: Codex is fixing silent player inventory
+  truncation in netcoop_characters.inc (character-save/transfer safety), with
+  actual native helper coverage in its existing player-transfer fixture.
+  Claude's replication/world-store/Lua-scope/runtime changes are left alone.
