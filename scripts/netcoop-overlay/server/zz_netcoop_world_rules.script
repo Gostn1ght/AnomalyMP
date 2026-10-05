@@ -127,7 +127,7 @@ function release_foreign_population()
         alife_release(squad)
     end
     state.netcoop_foreign_released = true
-    printf("[Lost Zone][world] released %d squad(s), %d NPC(s) of other maps: their location servers own them", #doomed, members)
+    printf("[Lost Zone][world] released %s squad(s), %s NPC(s) of other maps: their location servers own them", #doomed, members)
     return #doomed
 end
 

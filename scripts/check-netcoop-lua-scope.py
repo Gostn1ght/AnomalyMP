@@ -33,7 +33,16 @@ for path in sorted(root.rglob("*.script")):
                 problems.append(f"{path.relative_to(root)}:{n + 1}: '{name}' used before its local declaration on line {at + 1}")
                 break
 
+# GAMMA's printf substitutes only %s; %d/%u/%.2f were logged literally.
+printf_call = re.compile(r'\bprintf\s*\(\s*"((?:[^"\\]|\\.)*)"')
+bad_spec = re.compile(r"%[-+ #0]*\d*(?:\.\d+)?[dfiuxXgGe]")
+for path in sorted(root.rglob("*.script")):
+    for n, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines()):
+        for m in printf_call.finditer(line):
+            if bad_spec.search(m.group(1)):
+                problems.append(f"{path.relative_to(root)}:{n + 1}: printf format other than %s (GAMMA prints it literally)")
+
 if problems:
     print("\n".join(problems))
     sys.exit(1)
-print("Overlay Lua scope: no top-level local is used above its declaration PASS")
+print("Overlay Lua scope: no top-level local is used above its declaration; printf formats only %s PASS")

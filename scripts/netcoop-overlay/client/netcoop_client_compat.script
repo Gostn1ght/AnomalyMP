@@ -357,7 +357,7 @@ local function install_server_trade()
 		end
 		if #ids == 0 then return end
 		if netcoop_trade(npc:id(), actor_sells, table.concat(ids, " ")) then
-			printf("[Lost Zone] trade request: %s %d item(s) with %s", actor_sells and "sell" or "buy", #ids, npc:name())
+			printf("[Lost Zone] trade request: %s %s item(s) with %s", actor_sells and "sell" or "buy", #ids, npc:name())
 			if self.PlaySND and snd_trade then self:PlaySND(snd_trade) end
 		end
 		self.update_info = true

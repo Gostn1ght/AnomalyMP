@@ -347,7 +347,7 @@ function depart(roll)
     journal.outbox[record.id] = {phase = "retiring", wire = wire}
     local result = recover_outbox()
     if result ~= "ready" then return result end
-    printf("[Lost Zone][transit] squad %s (%d) left %s for %s", record.section, #record.members, here, target)
+    printf("[Lost Zone][transit] squad %s (%s) left %s for %s", record.section, #record.members, here, target)
     return "left"
 end
 
@@ -469,7 +469,7 @@ function arrive()
     journal.inbox[id] = receipt
     if not commit_receipt(receipt) then return "target checkpoint pending" end
     if not netcoop_transit_ack(level.name(), id) then return "ack pending" end
-    printf("[Lost Zone][transit] squad %s (%d) arrived on %s from %s", record.section, #record.members, level.name(), record.from)
+    printf("[Lost Zone][transit] squad %s (%s) arrived on %s from %s", record.section, #record.members, level.name(), record.from)
     return "arrived"
 end
 

@@ -706,7 +706,7 @@ local function build_npc_inventory(npc)
 	end)
 	math.randomseed(os.time() + id)
 	se_save_var(id, name, "netcoop_inventory", true)
-	printf("[Lost Zone][loot] npc %s inventory %s: %d -> %d items", name, ok and "made" or ("failed: " .. tostring(err)), before,
+	printf("[Lost Zone][loot] npc %s inventory %s: %s -> %s items", name, ok and "made" or ("failed: " .. tostring(err)), before,
 		count_items(npc))
 end
 
@@ -732,7 +732,7 @@ local function process_pending_inventory()
 				if not se_load_var(id, npc:name(), "netcoop_item_cond") then
 					local c = condition_npc_items(npc, seeded_random(WORLD_SEED + id * 131))
 					se_save_var(id, npc:name(), "netcoop_item_cond", true)
-					printf("[Lost Zone][loot] npc %s conditioned: weapons %d, armour %d, devices %d", npc:name(), c.weapon, c.armour, c.device)
+					printf("[Lost Zone][loot] npc %s conditioned: weapons %s, armour %s, devices %s", npc:name(), c.weapon, c.armour, c.device)
 				end
 			end
 		end
@@ -795,7 +795,7 @@ local function on_npc_death_loot(victim)
 	math.randomseed(os.time() + victim:id())
 	for name, fn in pairs(saved) do dm[name] = fn end
 	local kept, removed = cap_corpse_ammo(victim, seeded_random(WORLD_SEED + victim:id() * 17))
-	printf("[Lost Zone][loot] npc %s died: %s loot %s, %d -> %d items, ammo %d left (%d removed)", victim:name(),
+	printf("[Lost Zone][loot] npc %s died: %s loot %s, %s -> %s items, ammo %s left (%s removed)", victim:name(),
 		lived and "lived" or "generated", ok and "ok" or ("failed: " .. tostring(err)), before, count_items(victim), kept, removed)
 end
 
@@ -846,7 +846,7 @@ local function remember_owner(squad)
 	local login = netcoop_actor_login(actor:id())
 	if login ~= "" then
 		companion_owners()[squad.id] = login
-		printf("[Lost Zone][companions] squad %d now follows %s", squad.id, login)
+		printf("[Lost Zone][companions] squad %s now follows %s", squad.id, login)
 	end
 end
 
@@ -989,7 +989,7 @@ local function battery_swap(battery, device)
 	end
 	alife_release(battery)
 	device:set_condition(con_b)
-	printf("[Lost Zone] battery %s (%.2f) -> %s (was %.2f)", sec_b, con_b, sec_d, con_d)
+	printf("[Lost Zone] battery %s (%s) -> %s (was %s)", sec_b, con_b, sec_d, con_d)
 	return ""
 end
 
@@ -1029,7 +1029,7 @@ local function repair(actor_id, kit, target, part)
 	if part then utils_item.discharge(part) end
 	if IsItem("multiuse", nil, kit) then utils_item.discharge(kit) else utils_item.degrade(kit, REPAIR_DEGRADE) end
 	if game_statistics and game_statistics.increment_statistic then pcall(game_statistics.increment_statistic, "self_repairs") end
-	printf("[Lost Zone] repair %s with %s: %.2f -> %.2f", target:section(), sec, before, result / 100)
+	printf("[Lost Zone] repair %s with %s: %s -> %s", target:section(), sec, before, result / 100)
 	return ""
 end
 
@@ -1126,7 +1126,7 @@ local function furniture_place(actor, item, args, login)
 	owned()[id] = { owner = login, kind = "furniture", section = item:section(), access = {} }
 	alife_release(item)
 	SendScriptCallback("hf_on_furniture_place", id)
-	printf("[Lost Zone][furniture] %s placed %s (%d) at %.1f %.1f %.1f", login, section, id, x, y, z)
+	printf("[Lost Zone][furniture] %s placed %s (%s) at %s %s %s", login, section, id, x, y, z)
 	return ""
 end
 
@@ -1139,7 +1139,7 @@ local function furniture_pickup(actor, obj, login)
 	if obj:clsid() == clsid.inventory_box and not obj:is_inv_box_empty() then return "empty it first" end
 	wrapper:pickup()
 	owned()[obj:id()] = nil
-	printf("[Lost Zone][furniture] %s picked up %s (%d)", login, obj:section(), obj:id())
+	printf("[Lost Zone][furniture] %s picked up %s (%s)", login, obj:section(), obj:id())
 	return ""
 end
 
@@ -1155,7 +1155,7 @@ local function new_stash(actor, item_section, name, login)
 	owned()[se.id] = { owner = login, kind = "stash", name = name, section = item_section, access = {} }
 	SendScriptCallback("actor_on_stash_create", { stash_id = se.id, stash_name = name, stash_section = item_section })
 	send_stash_spot(actor:id(), se.id, name)
-	printf("[Lost Zone][stash] %s made stash %d '%s'", login, se.id, name)
+	printf("[Lost Zone][stash] %s made stash %s '%s'", login, se.id, name)
 	return se
 end
 
@@ -1209,7 +1209,7 @@ function on_box_changed(box_id, actor_id)
 	owned()[box_id] = nil
 	if netcoop_send_to_actor then netcoop_send_to_actor(actor_id, "stash_spot_remove", tostring(box_id)) end
 	alife_release(alife_object(box_id))
-	printf("[Lost Zone][stash] stash %d emptied and packed up", box_id)
+	printf("[Lost Zone][stash] stash %s emptied and packed up", box_id)
 end
 
 -- Access list of an owned object: "access_add <login>" / "access_remove <login>".
@@ -1221,7 +1221,7 @@ local function access_change(obj, args, login)
 	if not who or #who > 40 then return "bad name" end
 	entry.access = entry.access or {}
 	entry.access[who] = (op == "add") and true or nil
-	printf("[Lost Zone][furniture] %s %s access to %d for %s", login, op, obj:id(), who)
+	printf("[Lost Zone][furniture] %s %s access to %s for %s", login, op, obj:id(), who)
 	return ""
 end
 
@@ -1397,7 +1397,7 @@ function stash_visit(box, roll)
 		moved = moved + 1
 	end
 	visits[box:id()] = now
-	printf("[Lost Zone][stash] %s %s %d item(s) %s stash %d", npc:name(), deposit and "put" or "took", moved,
+	printf("[Lost Zone][stash] %s %s %s item(s) %s stash %s", npc:name(), deposit and "put" or "took", moved,
 		deposit and "into" or "from", box:id())
 	return deposit and "deposit" or "take"
 end
