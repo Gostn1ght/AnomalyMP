@@ -4,7 +4,7 @@ import sys
 import unittest
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from lostzone.contact_index import ContactIndex
+from lostzone.contact_index import ContactIndex, CandidateBudget
 from lostzone.contacts import earliest_contact
 from lostzone.store import Invalid, Unavailable
 
@@ -18,6 +18,36 @@ def path(a,b,start=0,end=1000):
 
 
 class ContactIndexTest(unittest.TestCase):
+    def test_read_only_queries_cover_exact_contacts_with_shared_work_admission(self):
+        rng = random.Random(73)
+        index = ContactIndex(cell_size=25)
+        hazards = {uid(i):path([rng.uniform(-50,50),rng.uniform(-5,5),rng.uniform(-50,50)],
+                               [rng.uniform(-50,50),rng.uniform(-5,5),rng.uniform(-50,50)]) for i in range(1,17)}
+        for entity_id,value in hazards.items():
+            index.upsert(entity_id,"cordon",value)
+        work = CandidateBudget()
+        for _ in range(16):
+            value = path([rng.uniform(-50,50),0,rng.uniform(-50,50)],
+                         [rng.uniform(-50,50),0,rng.uniform(-50,50)])
+            found = set(index.query("cordon",value,5,work))
+            exact = {entity_id for entity_id,hazard in hazards.items() if earliest_contact(value,hazard,5) is not None}
+            self.assertTrue(exact <= found)
+            self.assertEqual(index.query("jupiter",value,5),[])
+        before = (len(index.entries),index.references,index.segments)
+        with self.assertRaises(Unavailable):
+            index.query("cordon",path([0,0,0],[0,0,0]),5,CandidateBudget(1))
+        self.assertEqual((len(index.entries),index.references,index.segments),before)
+
+    def test_query_respects_height_time_radius_and_invalid_input_without_mutating_index(self):
+        index = ContactIndex()
+        index.upsert(uid(1),"cordon",path([0,0,0],[0,0,0],2000,3000))
+        self.assertEqual(index.query("cordon",path([0,0,0],[0,0,0]),1),[])
+        self.assertEqual(index.query("cordon",path([0,20,0],[0,20,0],2000,3000),1),[])
+        self.assertEqual(index.query("cordon",path([0,20,0],[0,20,0],2000,3000),20),[uid(1)])
+        with self.assertRaises(Invalid):
+            index.query("cordon",[(0,[0,0,0]),(0,[0,0,0])],1)
+        self.assertEqual(len(index.entries),1)
+
     def test_candidates_cover_exact_contacts_across_negative_cell_boundaries(self):
         rng = random.Random(42)
         index = ContactIndex(cell_size=25,max_checks=1_000_000)

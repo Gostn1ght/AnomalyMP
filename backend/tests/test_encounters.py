@@ -318,6 +318,18 @@ class EncounterTest(unittest.TestCase):
         self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='OfflineCombat'").fetchone()[0],0)
         self.assertEqual(self.row(self.second)["alive"],1)
 
+    def test_new_location_pass_releases_stale_fight_before_its_original_due(self):
+        self.crossing()
+        first = self.encounters.plan_location("admin",uid(),"cordon",1_200_000,17,10)
+        old = first["contacts"][0]
+        self.world.set_scale("admin",uid(),20)
+        second = self.encounters.plan_location("admin",uid(),"cordon",2_400_000,17,10)
+        self.assertEqual((second["cancelled_plans"],len(second["contacts"])),(1,1))
+        self.assertEqual(self.store.db.execute("SELECT state FROM scheduled_event WHERE id=?",(old["event_id"],)).fetchone()[0],"CANCELLED")
+        self.assertAlmostEqual(second["contacts"][0]["due_ms"],old["due_ms"]*2)
+        self.assertEqual(self.row(self.second)["alive"],1)
+        self.assertEqual(json.loads(self.store.db.execute("SELECT state FROM item WHERE id=?",(self.weapon,)).fetchone()[0])["rounds"],30)
+
 
 if __name__=="__main__":
     unittest.main()

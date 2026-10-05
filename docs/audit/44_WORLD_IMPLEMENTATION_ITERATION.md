@@ -446,3 +446,39 @@ and full mod/Lua state remapping plus native checkpoint failure acceptance is
 unfinished. Therefore -netcoop_npc_transit remains an explicit opt-in; normal
 launchers remain unchanged. Automatic activation must follow ownership,
 complete-state and migration acceptance, rather than the partition helper.
+
+## Location hazard discovery and stale contact reservations
+
+Admin offline_hazards now discovers physical contacts through read-only 3D
+corridor queries against persistent active hazards. It checks each actual
+group member path/offset/turn and each hazard radius, cooldown, owner and safe
+factions; it does not infer danger from sharing a chunk. Queries share one
+200000-work budget across the whole pass. At most 256 roots, 256 hazards,
+256 living participants, 8192 route segments, 4096 eligible candidates and
+64 disjoint contacts are admitted. No silent population/candidate truncation.
+
+Combat and hazard planning share bounded pending reservations. Registered
+validators compare current ownership, versions, motion, diplomacy, members,
+equipment and hazard captures; stale plans are cancelled and journaled before
+reserving replacements. Missing validators conservatively retain reservations.
+Cancellation and replacement plans use the same transaction. Backlog payloads
+are streamed with a 512-plan/8-MiB admission; location state reads have an
+8-MiB admission too. A work/byte/journal failure rolls back the entire pass.
+
+Ten new tests cover no-false-negative corridor queries against exact geometry,
+height/time/radius bounds, shared query work admission, hazard discovery across
+retry/restart, early stale replan after scale change, atomic rollback of old
+cancellation/new plan, inactive/immunity/cooldown rules, member offsets, shared
+combat/hazard reservations, 65-contact admission rollback, and stale combat
+release. HTTP rejects the operation for location/observer roles.
+Full local backend **127 tests PASS**.
+
+This remains explicit event-driven planning; automatic route-change subscriber,
+global earliest ordering across the two planners, windowing large locations,
+native AI/volume integration and live-server capacity acceptance are unfinished.
+No whole C/K/L section is marked complete.
+
+6dd10b37b DX11 Actions 37373918186 **SUCCESS**, actual full engine package built
+on GitHub Actions. Foundation 37373918198 SUCCESS GCC/MSVC. Quest subscriber
+285c569c6 backend Actions 37376503077 **SUCCESS Windows+Linux (117 tests)**.
+Runtime installation and real native tests remain the other actor's area.

@@ -12,6 +12,7 @@ from .contact_index import ContactIndex
 from .capture import CaptureBudget
 from .economy import integer
 from .offline import distance
+from .plans import reservations
 from .store import Conflict, Invalid, Unavailable, canonical, finite, identifier, persistent_id, positive
 
 
@@ -19,6 +20,7 @@ class Encounters:
     def __init__(self, world, offline, catalog):
         self.world,self.store,self.offline,self.catalog = world,world.store,offline,catalog
         offline.scheduler.handlers["OfflineCombat"] = self.resolve
+        world.plan_validators["OfflineCombat"] = self.capture_valid
 
     def fighters(self, tx, root):
         if root["kind"] not in ("NPC","MUTANT","GROUP") or not root["alive"]:
@@ -160,20 +162,17 @@ class Encounters:
             raise Invalid("invalid deterministic contact seed")
         payload = {"type":"offline_contacts","location":location,"horizon_ms":horizon_ms,"seed":seed,"radius":radius}
         def apply(tx):
-            roots = tx.execute("SELECT e.* FROM entity e WHERE e.location=? AND e.alive=1 AND e.writer=? AND e.fence=? "
+            rows = tx.execute("SELECT e.* FROM entity e WHERE e.location=? AND e.alive=1 AND e.writer=? AND e.fence=? "
                                "AND e.kind IN ('NPC','MUTANT','GROUP') AND NOT EXISTS "
                                "(SELECT 1 FROM group_member m WHERE m.member_id=e.id) ORDER BY e.id LIMIT 257",
-                               (location,"offline:"+location,self.store.epoch)).fetchall()
-            if len(roots) > 256:
-                raise Unavailable("offline contact actor budget exhausted")
-            pending = tx.execute("SELECT payload FROM scheduled_event WHERE state='PENDING' AND type='OfflineCombat' "
-                                 "AND json_extract(payload,'$.location')=? LIMIT 257",(location,)).fetchall()
-            if len(pending) > 256:
-                raise Unavailable("offline encounter backlog exhausted")
-            reserved = set()
-            for row in pending:
-                plan = json.loads(row[0])
-                reserved.update((plan["first_id"],plan["second_id"]))
+                               (location,"offline:"+location,self.store.epoch))
+            roots,budget = [],CaptureBudget(8*1024*1024)
+            for row in rows:
+                if len(roots)==256:
+                    raise Unavailable("offline contact actor budget exhausted")
+                budget.consume(row["state"])
+                roots.append(row)
+            reserved,_,cancelled = reservations(self.world,tx,location,self.world.plan_validators)
             now = self.world.now()
             end = finite(now+horizon_ms)
             index,paths,by_id = ContactIndex(),{},{}
@@ -207,8 +206,20 @@ class Encounters:
                 result = self.schedule_in(tx,combat,planning_now=now)
                 plans.append({**result,"first_id":first,"second_id":second,"due_ms":at})
                 reserved.update((first,second))
-            return {"contacts":plans,"actors":len(roots),"candidate_pairs":len(pairs),"deferred_contacts":deferred}
+            return {"contacts":plans,"actors":len(roots),"candidate_pairs":len(pairs),"deferred_contacts":deferred,
+                    "cancelled_plans":cancelled}
         return self.store.command(actor,command_id,payload,apply)
+
+    def capture_valid(self, tx, plan):
+        try:
+            roots = [self.offline.require_offline(tx,plan[key],plan[version]) for key,version in
+                     (("first_id","first_version"),("second_id","second_version"))]
+            return (all(root["alive"] and root["location"]==plan["location"] for root in roots) and
+                    [self.route_capture(tx,root["id"]) for root in roots]==plan.get("routes") and
+                    self.hostility(tx,*roots)==plan["relation_version"] and
+                    [self.fighters(tx,root) for root in roots]==plan["sides"])
+        except (Conflict,Invalid,KeyError):
+            return False
 
     def resolve(self, tx, event):
         plan,at = json.loads(event["payload"]),event["due_world_ms"]

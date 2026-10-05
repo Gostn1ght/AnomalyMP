@@ -248,6 +248,32 @@ priority=0 не переписываются и могут консервати�
 до 1024 точек. Автоматическая discovery hazards, NPC replan, engine volumes,
 native hydration, emission/shelter damage и artifact spawn ещё впереди.
 
+Admin `offline_hazards` (`location`, `horizon_ms`, `seed`) теперь ищет опасности
+для offline NPC/мутантов/отрядов через 3D corridor queries. Затем проверяет
+действительные пути отдельных членов, радиус каждой опасности, cooldown и
+owner/faction immunity. Первый контакт резервирует root и hazard; следующие
+контакты сообщаются как deferred_contacts и требуют нового прохода после
+изменения состояния. Бои и опасности используют общие резервы. Новый проход
+отменяет устаревшие captures и освобождает участников до старого due time;
+отмена и новые планы откатываются вместе при ошибке журнала. Отсутствующий
+validator сохраняет чужие резервы консервативно.
+
+Пределы hazard discovery: 256 roots/256 hazards/256 живых участников суммарно,
+8192 сегмента, 4096 eligible candidates, 200000 общих spatial/narrow-phase
+проверок и 64 disjoint контакта. Combined pending backlog — до 512 планов,
+8 MiB encoded payloads; location states — до 8 MiB. Чтение потоковое,
+переполнение отклоняет весь проход. Порядок отдельных команд боя/опасностей
+задаёт вызывающий authority: автоматический общий выбор самого раннего события
+и route-change subscriber ещё нужны; эта команда не запускается на каждом кадре.
+
+Смерть обязательного живого quest entity теперь ставит durable последствия
+для заданий в самой death transaction. Scheduler проваливает до 64 заданий
+за atomic batch без запроса игрока, сохраняя исходный death ID/time и продолжение.
+Награда не выдаётся, NPC не создаётся снова; corpse pins снимаются после провала.
+Для старых deaths startup проверяет 64 targets; admin `quest_reconcile` принимает
+optional `after_entity`, возвращает `next_after` и `unproven`. Продолжение по
+cursor проходит мимо неполных старых записей, не придумывая событие смерти.
+
 Combat/hazard capture дополнительно ограничивает сумму encoded actor/item
 states до 1 MiB (combat: на сторону; hazard: на группу), с резервом metadata.
 Inventory читается курсором, отказ происходит до разбора остальных больших

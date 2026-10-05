@@ -124,6 +124,7 @@ class Dispatcher:
                           "offline_contact": self.encounters.plan_contact,
                           "offline_contacts": self.encounters.plan_location,
                           "offline_hazard":self.hazards.plan_contact,
+                          "offline_hazards":self.hazards.plan_location,
                           "quest_reconcile":self.quests.reconcile}
         functions = {
             "location_claim": self.world.claim_location, "location_renew": self.world.renew_location,

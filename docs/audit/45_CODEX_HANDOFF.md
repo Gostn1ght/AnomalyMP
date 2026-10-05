@@ -221,3 +221,14 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   mod-state remapping and real paired-checkpoint failure acceptance remain.
   Keep -netcoop_npc_transit opt-in; no launcher/default changes by Codex.
   Do not count generic foreign-map release as acceptance of automatic transit.
+
+- Codex: offline_hazards location discovery via budgeted 3D corridor queries,
+  exact individual member paths/offsets, hazard radius/cooldown/immunity.
+  Common combat/hazard reservations now cancel stale captures before their due
+  time and atomically replan; journal failure rolls cancellation back too.
+  Bounded streaming backlog/state capture, no silent truncation. Ten new tests;
+  full local backend 127 PASS. Still explicit passes, not automatic route-change
+  subscriber or globally ordered combat/hazard planner; no native adoption.
+- Confirmed: 6dd10b37b DX11 37373918186 SUCCESS, Foundation 37373918198 SUCCESS;
+  285c569c6 backend 37376503077 SUCCESS Windows+Linux, 117 tests. Installation and
+  real exe testing remain Claude's area; Codex did not overwrite runtime.

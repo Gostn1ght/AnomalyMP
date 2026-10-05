@@ -11,6 +11,19 @@ from .offline import point
 from .store import Invalid, Unavailable, finite, identifier, persistent_id
 
 
+class CandidateBudget:
+    """Shared work admission across all spatial queries in a planning pass."""
+    def __init__(self, maximum=200000):
+        if type(maximum) is not int or not 1 <= maximum <= 1_000_000:
+            raise Invalid("invalid candidate work budget")
+        self.remaining = maximum
+
+    def consume(self, amount=1):
+        self.remaining -= amount
+        if self.remaining < 0:
+            raise Unavailable("contact candidate work budget exhausted")
+
+
 class ContactIndex:
     def __init__(self, cell_size=100, *, max_entities=256, max_segments=8192,
                  max_references=131072, max_cells=4096, max_checks=200000,
@@ -82,6 +95,46 @@ class ContactIndex:
                 bucket.remove((entity_id,number))
                 if not bucket:
                     del self.cells[key]
+
+    def query(self, location, path, radius, budget=None):
+        """Read-only corridor lookup, sharing a budget across member paths.
+
+        The returned IDs are broad-phase candidates; individual hazard radii,
+        immunity and continuous contact still belong to the narrow phase.
+        """
+        identifier(location);finite(radius,.1,200)
+        if not isinstance(path,list) or not 2 <= len(path) <= 1026:
+            raise Invalid("query requires bounded trajectory")
+        validated,previous = [],-1
+        for at,position in path:
+            finite(at)
+            if at <= previous:
+                raise Invalid("trajectory times must increase")
+            validated.append((at,point(position)))
+            previous = at
+        if len(path)-1 > self.limits["max_segments"]:
+            raise Unavailable("contact query segment budget exhausted")
+        budget = budget or CandidateBudget(self.limits["max_checks"])
+        result = set()
+        for first,second in zip(validated,validated[1:]):
+            lower = [min(a,b)-radius for a,b in zip(first[1],second[1])]
+            upper = [max(a,b)+radius for a,b in zip(first[1],second[1])]
+            seen = set()
+            for key in self.cell_keys(location,lower,upper):
+                budget.consume()
+                for candidate in self.cells.get(key,()):
+                    budget.consume()
+                    if candidate in seen:
+                        continue
+                    seen.add(candidate)
+                    entity_id,number = candidate
+                    start,end,lo,hi = self.entries[entity_id][1][number]
+                    if start>second[0] or end<first[0] or any(a>h or b<l for a,b,l,h in zip(lower,upper,lo,hi)):
+                        continue
+                    result.add(entity_id)
+                    if len(result)>self.limits["max_pairs"]:
+                        raise Unavailable("contact query candidate budget exhausted")
+        return sorted(result)
 
     def pairs(self, radius):
         finite(radius,.1,200)

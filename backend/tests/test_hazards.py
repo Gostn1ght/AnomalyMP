@@ -13,6 +13,8 @@ from lostzone.hazards import Hazards
 from lostzone.offline import Offline
 from lostzone.ownership import Ownership
 from lostzone.scheduler import Scheduler
+from lostzone.encounters import Encounters
+from lostzone.store import Unavailable
 
 
 def uid():
@@ -231,6 +233,105 @@ class HazardTest(unittest.TestCase):
             self.plan()
         self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='OfflineHazard'").fetchone()[0],0)
         self.assertEqual(json.loads(self.row(self.hazard)["state"])["charges"],1)
+
+    def discovery(self, command=None):
+        return self.hazards.plan_location("admin",command or uid(),"cordon",300000,17)
+
+    def test_location_discovery_preserves_one_captured_contact_across_retry_restart(self):
+        key = uid()
+        result = self.discovery(key)
+        self.assertEqual((result["actors"],result["hazards"],result["members"],len(result["contacts"])),(1,1,1,1))
+        plan = result["contacts"][0]
+        self.assertAlmostEqual(plan["due_ms"],90000)
+        self.event = plan["event_id"]
+        self.store.close();self.open()
+        self.assertEqual(self.discovery(key),result)
+        self.assertEqual(self.discovery()["contacts"],[])
+        self.assertTrue(self.resolve_plan(plan)["outcomes"][0]["died"])
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='OfflineHazard'").fetchone()[0],1)
+
+    def test_discovery_cancels_stale_motion_and_replans_before_old_due_time(self):
+        old = self.plan()
+        self.world.set_scale("admin",uid(),20)
+        result = self.discovery()
+        self.assertEqual((result["cancelled_plans"],len(result["contacts"])),(1,1))
+        self.assertEqual(self.store.db.execute("SELECT state FROM scheduled_event WHERE id=?",(old["event_id"],)).fetchone()[0],"CANCELLED")
+        plan = result["contacts"][0]
+        self.assertAlmostEqual(plan["due_ms"],180000)
+        self.assertEqual(json.loads(self.row(self.hazard)["state"])["charges"],1)
+        self.event = plan["event_id"]
+        self.assertTrue(self.resolve_plan(plan)["outcomes"][0]["died"])
+
+    def test_discovery_journal_failure_rolls_back_cancellation_and_replacement_together(self):
+        old = self.plan()
+        self.world.set_scale("admin",uid(),20)
+        original = self.store.event
+        def fail(tx,aggregate,event_type,*args,**kwargs):
+            if event_type=="OfflineHazardPlanned":
+                raise RuntimeError("injected replacement plan journal failure")
+            return original(tx,aggregate,event_type,*args,**kwargs)
+        self.store.event = fail
+        with self.assertRaises(RuntimeError):
+            self.discovery()
+        self.store.event = original
+        self.assertEqual(self.store.db.execute("SELECT state FROM scheduled_event WHERE id=?",(old["event_id"],)).fetchone()[0],"PENDING")
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM world_event WHERE type='ScheduledEventCancelled'").fetchone()[0],0)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='OfflineHazard'").fetchone()[0],1)
+
+    def test_discovery_filters_inactive_immunity_height_and_cooldown(self):
+        for changes in ({"armed":False},{"owner_id":self.npc},{"safe_factions":["duty"]},
+                        {"position":[0,20,0]},{"cooldown_until_ms":300001}):
+            self.change(self.hazard,armed=True,owner_id=uid(),safe_factions=[],position=[0,0,0],cooldown_until_ms=0)
+            self.change(self.hazard,**changes)
+            self.assertEqual(self.discovery()["contacts"],[])
+        self.change(self.hazard,owner_id=uid(),safe_factions=[],position=[0,0,0],cooldown_until_ms=100000)
+        self.assertAlmostEqual(self.discovery()["contacts"][0]["due_ms"],100000)
+
+    def test_discovery_uses_offset_member_path_and_reserves_group_once(self):
+        group = uid()
+        with self.store.transaction() as tx:
+            tx.execute("UPDATE route SET active=0 WHERE entity_id=?",(self.npc,))
+            tx.execute("INSERT INTO entity VALUES(?,'GROUP','cordon','offline:cordon',?,1,1,?)",
+                       (group,self.store.epoch,json.dumps({"position":[-10,0,-2],"member_ids":[self.npc]})))
+            tx.execute("INSERT INTO group_member VALUES(?,?)",(group,self.npc))
+        self.offline.start_route("admin",uid(),group,1,[[-10,0,-2],[-10,0,8],[10,0,8]],1,42)
+        self.change(self.hazard,position=[-10,0,10])
+        result = self.discovery()
+        self.assertEqual((result["actors"],result["members"],len(result["contacts"])),(1,1,1))
+        plan = result["contacts"][0]
+        self.assertEqual(plan["entity_id"],group)
+        self.assertAlmostEqual(plan["due_ms"],90000)
+        self.event = plan["event_id"]
+        self.assertEqual(self.resolve_plan(plan)["outcomes"][0]["id"],self.npc)
+
+    def test_hazard_and_combat_planners_share_actor_reservations(self):
+        other = uid()
+        with self.store.transaction() as tx:
+            tx.execute("INSERT INTO entity VALUES(?,'MUTANT','cordon','offline:cordon',?,1,1,?)",
+                       (other,self.store.epoch,json.dumps({"position":[10,0,0],"health":1,"faction":"bandit"})))
+        self.world.set_state("admin",uid(),"relations",0,{"hostile":[["duty","bandit"]]})
+        encounters = Encounters(self.world,self.offline,Catalog({"food":{"category":"FOOD","price":1,"weight_g":1}}))
+        self.plan()
+        self.assertEqual(encounters.plan_location("admin",uid(),"cordon",300000,17,1)["contacts"],[])
+        self.change(self.hazard,armed=False)
+        combat = encounters.plan_location("admin",uid(),"cordon",300000,17,1)
+        self.assertEqual((combat["cancelled_plans"],len(combat["contacts"])),(1,1))
+        self.change(self.hazard,armed=True)
+        self.assertEqual(self.discovery()["contacts"],[])
+
+    def test_discovery_admission_overflow_rolls_back_all_early_plans(self):
+        with self.store.transaction() as tx:
+            for i in range(1,65):
+                position = [i*1000,0,0]
+                tx.execute("INSERT INTO entity VALUES(?,'NPC','cordon','offline:cordon',?,1,1,?)",
+                           (uid(),self.store.epoch,json.dumps({"position":position,"health":.2})))
+                tx.execute("INSERT INTO entity VALUES(?,'TRAP','cordon','offline:cordon',?,1,1,?)",
+                           (uid(),self.store.epoch,json.dumps({"position":position,"hazard_type":"fire","armed":True,
+                                                             "charges":1,"radius":1,"damage_bp":10000})))
+        with self.assertRaises(Unavailable):
+            self.discovery()
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='OfflineHazard'").fetchone()[0],0)
+        self.assertEqual(self.row(self.npc)["alive"],1)
 
 
 if __name__=="__main__":
