@@ -224,6 +224,8 @@ LPCSTR script_item_info(u16 id);
 // Atomic transfer of one item between the player and a corpse or a box
 // (netcoop_transfer.inc, stage 2). Client: false outside a pure client.
 bool client_transfer(u16 from, u16 to, u16 item);
+// TransactionID for trade and transfer requests of this client.
+u32 client_next_txid();
 void client_on_transfer_result(NET_Packet& P);
 void server_on_transfer(xrServer* server, xrClientData* CL, NET_Packet& P);
 // Lua (client): netcoop_item_action(kind, item, target, action) - the server

@@ -689,6 +689,7 @@ void CUIActorMenu::TransferItems(CUIDragDropListEx* pSellList, CUIDragDropListEx
 			netcoop::client_items_update(true);
 			NET_Packet P;
 			P.w_begin(M_NETCOOP_TRADE);
+			P.w_u32(netcoop::client_next_txid());
 			P.w_u16(m_pPartnerInvOwner->object_id());
 			// bBuying: the partner buys, so the actor sells.
 			P.w_u8(bBuying ? netcoop::trade_actor_sells : netcoop::trade_actor_buys);

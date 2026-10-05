@@ -134,23 +134,16 @@ void server_on_transfer(xrServer* server, xrClientData* CL, NET_Packet& P)
 }
 
 // ---- client -------------------------------------------------------------------
-static u32 s_transfer_next = 0;
 static u32 s_transfer_pending = 0;
 
 bool client_transfer(u16 from, u16 to, u16 item)
 {
 	if (!pure_client()) return false;
-	if (!s_transfer_next)
-	{
-		u8 bytes[4] = {};
-		random_bytes(bytes, sizeof(bytes));
-		s_transfer_next = (u32(bytes[0]) << 24 | u32(bytes[1]) << 16 | u32(bytes[2]) << 8) | 1;
-	}
 	// The server moves the item with the state this client last reported.
 	client_items_update(true);
 	NET_Packet P;
 	P.w_begin(M_NETCOOP_TRANSFER);
-	P.w_u32(s_transfer_next++);
+	P.w_u32(client_next_txid());
 	P.w_u16(item); P.w_u16(from); P.w_u16(to);
 	Level().Send(P, net_flags(TRUE, TRUE));
 	++s_transfer_pending;

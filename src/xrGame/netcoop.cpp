@@ -816,6 +816,19 @@ void script_command(LPCSTR text) { client_send_command(text); }
 // Lua trade UIs (GAMMA ui_inventory) ask the server for a deal: the items
 // (space separated ids) the actor sells to or buys from the partner. The
 // server prices and executes it; M_NETCOOP_TRADE_RESULT reports back.
+// Transaction ids of this client: a random start, then sequential.
+u32 client_next_txid()
+{
+	static u32 next = 0;
+	if (!next)
+	{
+		u8 bytes[4] = {};
+		random_bytes(bytes, sizeof(bytes));
+		next = (u32(bytes[0]) << 24 | u32(bytes[1]) << 16 | u32(bytes[2]) << 8) | 1;
+	}
+	return next++;
+}
+
 bool script_trade(u16 partner_id, bool actor_sells, LPCSTR ids)
 {
 	if (!pure_client() || !ids)
@@ -840,6 +853,7 @@ bool script_trade(u16 partner_id, bool actor_sells, LPCSTR ids)
 	client_items_update(true);
 	NET_Packet P;
 	P.w_begin(M_NETCOOP_TRADE);
+	P.w_u32(client_next_txid());
 	P.w_u16(partner_id);
 	P.w_u8(actor_sells ? trade_actor_sells : trade_actor_buys);
 	P.w_u16(u16(list.size()));
@@ -1718,19 +1732,48 @@ static void send_trade_result(xrServer* server, xrClientData* CL, bool ok, LPCST
 		Msg("! [Lost Zone] trade rejected for '%s': %s", CL->netcoop_login.c_str(), message);
 }
 
+struct TradeAnswer { u32 txid; bool ok; xr_string message; };
+static xr_map<u32, xr_deque<TradeAnswer>> s_trade_answers; // ClientID -> recent answers
+static xr_map<u16, u32> s_trade_locks; // item -> real time until which it is in a deal
+
 void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 {
 	if (!enabled() || !CL || !CL->owner || !g_pGameLevel)
 		return;
-	if (P.r_elapsed() < 2 + 1 + 2)
+	if (P.r_elapsed() < 4 + 2 + 1 + 2)
 		return;
 
+	// u32 TransactionID first: a repeated request (resend, double click) gets
+	// the stored answer and is never executed twice.
+	const u32 txid = P.r_u32();
 	const u16 partner_id = P.r_u16();
 	const u8 direction = P.r_u8();
 	const u16 count = P.r_u16();
+	xr_deque<TradeAnswer>& answers = s_trade_answers[CL->ID.value()];
+	for (const TradeAnswer& answer : answers)
+		if (answer.txid == txid)
+		{
+			Msg("[NetAnomaly][trade] tx=%08x player=%s duplicate request, answered again", txid, CL->netcoop_login.c_str());
+			send_trade_result(server, CL, answer.ok, answer.message.c_str());
+			return;
+		}
+	xr_vector<u16> requested;
+	u32 total = 0;
+	auto finish = [&](bool ok, LPCSTR message)
+	{
+		TradeAnswer answer; answer.txid = txid; answer.ok = ok; answer.message = message;
+		answers.push_back(answer);
+		while (answers.size() > 64) answers.pop_front();
+		xr_string ids;
+		for (u16 id : requested) { string16 one; xr_sprintf(one, ids.empty() ? "%u" : ",%u", id); ids += one; }
+		Msg("%s[NetAnomaly][trade] tx=%08x player=%s trader=%u %s items=[%s] price=%u %s%s", ok ? "" : "! ", txid,
+			CL->netcoop_login.c_str(), partner_id, direction == trade_actor_sells ? "sell" : "buy", ids.c_str(), total,
+			ok ? "ok: " : "failed: ", message);
+		send_trade_result(server, CL, ok, message);
+	};
 	if (count == 0 || count > 256 || P.r_elapsed() != u32(count) * sizeof(u16) || direction > trade_actor_sells)
 	{
-		send_trade_result(server, CL, false, "Malformed trade request");
+		finish(false, "Malformed trade request");
 		return;
 	}
 
@@ -1741,12 +1784,12 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 	if (!actor || !actor->g_Alive() || !partner || !partner_alive || !partner_alive->g_Alive() ||
 		smart_cast<CActor*>(partner_object))
 	{
-		send_trade_result(server, CL, false, "Trader is not available");
+		finish(false, "Trader is not available");
 		return;
 	}
 	if (actor->Position().distance_to(partner_object->Position()) > trade_max_distance)
 	{
-		send_trade_result(server, CL, false, "Trader is too far away");
+		finish(false, "Trader is too far away");
 		return;
 	}
 
@@ -1755,7 +1798,7 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 	prepare_trade(partner_id);
 	if (!partner->IsTradeEnabled())
 	{
-		send_trade_result(server, CL, false, "This character does not trade");
+		finish(false, "This character does not trade");
 		return;
 	}
 	const bool partner_buys = direction == trade_actor_sells;
@@ -1766,10 +1809,20 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 	for (u16 i = 0; i < count; ++i)
 	{
 		const u16 id = P.r_u16();
+		requested.push_back(id);
 		PIItem item = smart_cast<PIItem>(Level().Objects.net_Find(id));
-		if (!item || item->object().H_Parent() != seller || item->object().getDestroy())
+		// The lock: an item from a deal still being carried out by its events
+		// is not sold again (the runtime parent changes a frame later).
+		auto lock = s_trade_locks.find(id);
+		if (lock != s_trade_locks.end() && real_time_ms() < lock->second)
 		{
-			send_trade_result(server, CL, false, "Item is no longer available");
+			finish(false, "Item is already being traded");
+			return;
+		}
+		CSE_Abstract* entity = server->game->get_entity_from_eid(id);
+		if (!item || item->object().H_Parent() != seller || item->object().getDestroy() || !entity || entity->ID_Parent != seller->ID())
+		{
+			finish(false, "Item is no longer available");
 			return;
 		}
 		if (std::find(items.begin(), items.end(), item) != items.end())
@@ -1780,7 +1833,7 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 	CTrade* trade = partner->GetTrade();
 	if (!trade)
 	{
-		send_trade_result(server, CL, false, "Trader is not available");
+		finish(false, "Trader is not available");
 		return;
 	}
 	trade->StartTradeEx(actor);
@@ -1790,18 +1843,17 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 		for (auto item:items) cells+=storage_section_cost(item->object().cNameSect().c_str());
 		if (cells>storage_capacity(false))
 		{
-			trade->StopTrade(); send_trade_result(server,CL,false,"No free inventory slots"); return;
+			trade->StopTrade(); finish(false,"No free inventory slots"); return;
 		}
 	}
 
-	u32 total = 0;
 	for (u32 i = 0; i < items.size(); ++i)
 	{
 		const u32 price = trade->GetItemPrice(items[i], partner_buys);
 		if (price == 0)
 		{
 			trade->StopTrade();
-			send_trade_result(server, CL, false, partner_buys ? "Trader does not buy this item"
+			finish(false, partner_buys ? "Trader does not buy this item"
 			                                                  : "Trader does not sell this item");
 			return;
 		}
@@ -1813,14 +1865,14 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 		if (!partner->InfinitiveMoney() && partner->get_money() < total)
 		{
 			trade->StopTrade();
-			send_trade_result(server, CL, false, "Trader does not have enough money");
+			finish(false, "Trader does not have enough money");
 			return;
 		}
 	}
 	else if (actor->get_money() < total)
 	{
 		trade->StopTrade();
-		send_trade_result(server, CL, false, "Not enough money");
+		finish(false, "Not enough money");
 		return;
 	}
 
@@ -1829,8 +1881,15 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 	else
 		trade->OnPerformTrade(total, 0);
 
+	const u32 lock_until = real_time_ms() + 3000;
+	if (s_trade_locks.size() > 4096)
+		for (auto it = s_trade_locks.begin(); it != s_trade_locks.end();)
+			it = real_time_ms() >= it->second ? s_trade_locks.erase(it) : std::next(it);
 	for (u32 i = 0; i < items.size(); ++i)
+	{
+		s_trade_locks[items[i]->object().ID()] = lock_until;
 		trade->TransferItem(items[i], partner_buys);
+	}
 
 	// TransferItem changes money locally; publish the server result to everyone.
 	actor->set_money(actor->get_money(), true);
@@ -1845,7 +1904,7 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 	string256 message;
 	xr_sprintf(message, "%s %u item(s) for %u RU", partner_buys ? "sold" : "bought", (u32)items.size(), total);
 	Msg("[Lost Zone] '%s' %s", CL->netcoop_login.c_str(), message);
-	send_trade_result(server, CL, true, message);
+	finish(true, message);
 }
 } // namespace netcoop
 

@@ -123,7 +123,7 @@ enum
 	M_CL_INPUT_ACK, // appended to preserve existing message IDs
 	M_NETCOOP_AUTH, // client -> server: u8 mode, stringZ login, stringZ key
 	M_NETCOOP_AUTH_RESULT, // server -> client: u8 ok, u8 role, stringZ message
-	M_NETCOOP_TRADE, // client -> server: u16 partner, u8 direction, u16 n, u16 item[n]
+	M_NETCOOP_TRADE, // client -> server: u32 txid, u16 partner, u8 direction, u16 n, u16 item[n]
 	M_NETCOOP_TRADE_RESULT, // server -> client: u8 ok, stringZ message
 	M_NETCOOP_TALK, // client -> server: u8 op (0 start: u16 npc, 1 choose: stringZ id, 2 stop)
 	M_NETCOOP_TALK_STATE, // server -> client: u16 npc, u8 flags, lines, choices
