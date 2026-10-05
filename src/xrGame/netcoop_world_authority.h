@@ -69,6 +69,9 @@ public:
         // Reuse the same name contract for direct callers, including fixtures.
         if (world_option(("-netcoop_world=" + name).c_str()) != name)
             throw std::invalid_argument("invalid world name");
+        std::error_code directory_error;
+        std::filesystem::create_directories(directory, directory_error);
+        if (directory_error) throw std::runtime_error("cannot create persistent world save directory");
         base_ = (std::filesystem::path(directory) / name).string();
         const auto lock = base_ + ".authority.lock";
 #ifdef _WIN32

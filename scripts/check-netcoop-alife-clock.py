@@ -70,6 +70,8 @@ int main(int argc,char** argv) {
  rejects([]{world_option("-netcoop_world=../escape");});
  rejects([]{world_option("x-netcoop_world=zone");});
  rejects([]{world_option("-netcoop_world=one -netcoop_world=two");});
+ WorldAuthorityStore fresh;fresh.open("new/nested/savedgames","cold");
+ assert(fresh.identity().epoch==1);fresh.close();
  CALifeTimeManager legacy("alife");assert(!legacy.has_world_clock());
  Device.dwTimeGlobal=200;assert(legacy.game_time()==63461016001000ULL);
  IWriter old_save;legacy.save(old_save);assert(old_save.bytes.size()==16);
