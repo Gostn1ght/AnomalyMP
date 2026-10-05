@@ -65,7 +65,7 @@ def canonical(value, limit=1024 * 1024):
 
 SCHEMA = """
 CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-INSERT INTO metadata VALUES ('schema','2');
+INSERT INTO metadata VALUES ('schema','3');
 CREATE TABLE world (
  singleton INTEGER PRIMARY KEY CHECK(singleton=1), world_id TEXT NOT NULL,
  seed TEXT NOT NULL, epoch INTEGER NOT NULL CHECK(epoch>0),
@@ -151,6 +151,11 @@ CREATE TABLE scheduled_event (
  type TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN('PENDING','APPLIED','CANCELLED')),
  payload TEXT NOT NULL, result TEXT);
 CREATE INDEX scheduled_due ON scheduled_event(state,due_world_ms,priority,id);
+CREATE TABLE route (
+ entity_id TEXT PRIMARY KEY REFERENCES entity(id), version INTEGER NOT NULL CHECK(version>0),
+ location TEXT NOT NULL, points TEXT NOT NULL, started_ms REAL NOT NULL,
+ arrival_ms REAL NOT NULL, speed_real REAL NOT NULL CHECK(speed_real>0),
+ active INTEGER NOT NULL CHECK(active IN(0,1)), seed TEXT NOT NULL);
 CREATE TABLE snapshot (
  id TEXT PRIMARY KEY, schema INTEGER NOT NULL, epoch INTEGER NOT NULL,
  watermark INTEGER NOT NULL, checksum TEXT NOT NULL, payload TEXT NOT NULL);
@@ -165,6 +170,13 @@ CREATE TABLE quest_event(character_id TEXT NOT NULL,quest_id TEXT NOT NULL,event
  FOREIGN KEY(character_id,quest_id) REFERENCES quest(character_id,id),
  FOREIGN KEY(event_sequence) REFERENCES world_event(sequence));
 UPDATE metadata SET value='2' WHERE key='schema';
+"""
+
+MIGRATE_V2 = """
+CREATE TABLE route(entity_id TEXT PRIMARY KEY REFERENCES entity(id),version INTEGER NOT NULL CHECK(version>0),
+ location TEXT NOT NULL,points TEXT NOT NULL,started_ms REAL NOT NULL,arrival_ms REAL NOT NULL,
+ speed_real REAL NOT NULL CHECK(speed_real>0),active INTEGER NOT NULL CHECK(active IN(0,1)),seed TEXT NOT NULL);
+UPDATE metadata SET value='3' WHERE key='schema';
 """
 
 
@@ -208,7 +220,10 @@ class Store:
             if row and row[0] == "1":
                 self.db.executescript("BEGIN IMMEDIATE;\n" + MIGRATE_V1 + "\nCOMMIT;")
                 row = self.db.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()
-            if not row or row[0] != "2":
+            if row and row[0] == "2":
+                self.db.executescript("BEGIN IMMEDIATE;\n" + MIGRATE_V2 + "\nCOMMIT;")
+                row = self.db.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()
+            if not row or row[0] != "3":
                 raise Unavailable("unsupported database schema")
             if self.db.execute("PRAGMA foreign_key_check").fetchone() is not None:
                 raise Unavailable("database ownership references are inconsistent")
@@ -335,7 +350,7 @@ class Store:
         with self.transaction() as tx:
             self.require_epoch(tx)
             names = ("world", "world_state", "location_lease", "entity", "group_member", "container", "item", "character", "player_session",
-                     "transfer", "quest", "quest_requirement", "quest_event", "scheduled_event")
+                     "transfer", "quest", "quest_requirement", "quest_event", "scheduled_event", "route")
             records = {name: [dict(row) for row in tx.execute(f"SELECT * FROM {name} ORDER BY rowid")]
                        for name in names}
             watermark = tx.execute("SELECT COALESCE(MAX(sequence),0) FROM world_event").fetchone()[0]

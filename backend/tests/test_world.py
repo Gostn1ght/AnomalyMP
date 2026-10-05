@@ -294,8 +294,9 @@ class WorldTest(unittest.TestCase):
         self.transfers.commit("b", uid(), prepared["transfer_id"], self.b)
         rows = self.store.db.execute("SELECT * FROM entity ORDER BY id").fetchall()
         self.assertEqual(len(rows), 3)
-        self.assertTrue(all(row["location"] == "garbage" and row["writer"] == "b" for row in rows))
+        self.assertTrue(all(row["location"] == "garbage" and row["writer"] == "b" for row in rows if row["alive"]))
         self.assertEqual(self.store.db.execute("SELECT alive FROM entity WHERE id=?", (members[1],)).fetchone()[0], 0)
+        self.assertEqual(self.store.db.execute("SELECT location FROM entity WHERE id=?", (members[1],)).fetchone()[0], "cordon")
         self.assertEqual(self.store.db.execute("SELECT holder FROM item WHERE id=?", (item,)).fetchone()[0], members[0])
 
     def test_snapshot_consistency_and_integrity(self):
@@ -318,10 +319,11 @@ class WorldTest(unittest.TestCase):
             tx.execute("DROP TABLE quest_event")
             tx.execute("DROP TABLE group_member")
             tx.execute("DROP TABLE world_state")
+            tx.execute("DROP TABLE route")
             tx.execute("UPDATE metadata SET value='1' WHERE key='schema'")
         self.store.close()
         self.open()
-        self.assertEqual(self.store.db.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()[0], "2")
+        self.assertEqual(self.store.db.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()[0], "3")
         self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM group_member WHERE group_id=?", (group,)).fetchone()[0], 2)
         self.assertEqual(self.store.db.execute("SELECT holder FROM item WHERE id=?", (item,)).fetchone()[0], npc)
 

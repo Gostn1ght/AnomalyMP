@@ -167,7 +167,7 @@ class Ownership:
         payload = {"type": "location_recover", "location": location, "fence": fence}
         def apply(tx):
             self.world.require_location(tx, actor, location, fence)
-            tx.execute("UPDATE entity SET writer=?,fence=?,version=version+1 WHERE location=? AND writer NOT LIKE 'transfer:%'",
+            tx.execute("UPDATE entity SET writer=?,fence=?,version=version+1 WHERE location=? AND writer NOT LIKE 'transfer:%' AND writer NOT LIKE 'offline:%'",
                        (actor, fence, location))
             rows = tx.execute("SELECT id,version,alive FROM entity WHERE location=? AND writer=? AND fence=?",
                               (location, actor, fence)).fetchall()

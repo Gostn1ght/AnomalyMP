@@ -21,6 +21,7 @@ from .quests import Quests
 from .store import Conflict, Invalid, Unavailable, canonical, identifier
 from .transfers import Transfers
 from .timelines import Timelines
+from .offline import Offline
 
 
 @dataclass(frozen=True)
@@ -92,6 +93,7 @@ class Dispatcher:
         self.ownership, self.transfers = Ownership(world), Transfers(world, signing_key)
         self.quests = Quests(world, quest_definitions or {})
         self.timelines = Timelines(world)
+        self.offline = Offline(world, self.timelines.scheduler)
 
     @staticmethod
     def allowed(principal, location):
@@ -106,7 +108,7 @@ class Dispatcher:
         if not isinstance(args, dict) or not isinstance(operation, str):
             raise Invalid("invalid command arguments")
         administrative = {"world_scale": self.world.set_scale, "world_state": self.world.set_state,
-                          "timeline_schedule": self.timelines.schedule}
+                          "timeline_schedule": self.timelines.schedule, "route_start": self.offline.start_route}
         functions = {
             "location_claim": self.world.claim_location, "location_renew": self.world.renew_location,
             "location_recover": self.ownership.recover_location,
@@ -117,6 +119,7 @@ class Dispatcher:
             "transfer_prepare": self.transfers.prepare, "transfer_claim": self.transfers.claim,
             "transfer_commit": self.transfers.commit, "transfer_abort": self.transfers.abort,
             "quest_grant": self.quests.grant, "quest_progress": self.quests.progress,
+            "dehydrate": self.offline.dehydrate, "hydrate": self.offline.hydrate,
         }
         if operation in administrative:
             if principal.role != "admin":

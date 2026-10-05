@@ -21,7 +21,8 @@
 - Персонажи, sessions и prepare/claim/commit/abort/status для handoff.
   Target reservation, подписанные tokens, claim recovery под новым
   location fence; claimed transfer не возвращается source по expiry.
-- NPC и группы переходят с прежними member IDs, включая погибших членов.
+- NPC и группы сохраняют прежние member IDs и сведения о потерях.
+  Тела погибших остаются в локации смерти; с патрулём переходят живые члены.
 - Consistent backend snapshot/checksum/journal watermark. Снимок
   не содержит ALife/Lua; общий engine/backend recovery впереди.
 
@@ -90,7 +91,7 @@ abort, quest_grant/progress. World bootstrap согласован по DB transa
 с clock, state revision и journal watermark. Inbox/outbox реализованы
 как внутренние интерфейсы Store; сетевой subscriber ещё предстоит.
 
-Schema v1→v2 мигрируется транзакционно, включая прежний состав групп;
+Schema v1→v2→v3 мигрируется транзакционно, включая прежний состав групп;
 неизвестная/пустая существующая DB останавливает запуск. Gameplay items
 не имеют TTL. Смерть сохраняет tombstone, cleanup переносит весь corpse
 loot с прежними IDs/состояниями и сохранённой drop position.
@@ -104,3 +105,20 @@ effects и GAMMA playback ещё не подключены к этим backend t
 
 Engine bridge должен явно согласовать WorldID/seed и adopt authority:
 запуск standalone backend с новой DB не переключает игровые часы сам.
+
+## Абстрактное движение
+
+`entity_dehydrate` принимает полный capture группы, CAS каждого живого
+члена и сохраняет state до передачи writer в offline authority. Dead
+members остаются на месте смерти. Location recovery не забирает offline
+records. `route_start` (admin) задаёт bounded polyline, speed_real и seed;
+позиция между событиями рассчитывается аналитически, без тиков каждого NPC.
+World scale rebase сохраняет скорость в метрах за реальную секунду и
+оставляет одну pending arrival. Restart замораживает downtime и меняет
+offline fence, не создавая новых персонажей.
+
+`entity_hydrate` возвращает положение и прежнее состояние под текущим
+location fence. Engine adapter должен безопасно разместить объекты,
+восстановить Reduced AI и открыть replication только после готовности;
+backend ownership ACK сам по себе этого не подтверждает. Пока эти
+операции не вызываются действительным игровым сервером.

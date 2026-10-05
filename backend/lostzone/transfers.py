@@ -79,8 +79,15 @@ class Transfers:
                     raise Invalid("invalid persistent group membership")
                 for member in members:
                     persistent_id(member)
+                    row = tx.execute("SELECT * FROM entity WHERE id=?", (member,)).fetchone()
+                    if not row or member == entity_id or row["kind"] not in ("NPC", "MUTANT"):
+                        raise Conflict("invalid persistent group member")
+                    # Casualty IDs remain in the roster, but a body stays
+                    # where it died. It is never transported with a patrol.
+                    if not row["alive"]:
+                        continue
                     row = self.ownership.require_entity(tx, actor, member, source_fence)
-                    if member == entity_id or row["location"] != source or row["kind"] not in ("NPC", "MUTANT"):
+                    if row["location"] != source:
                         raise Conflict("group member is not owned by source")
                     ids.append(member)
             entities = [dict(tx.execute("SELECT * FROM entity WHERE id=?", (value,)).fetchone()) for value in ids]
