@@ -25,6 +25,70 @@ inventory_end = characters.index('\nstatic void character_capture_items(',invent
 inventory_body = characters[inventory_start:inventory_end]
 save_body = characters[characters.index('static bool character_save_actor('):characters.index('\nvoid server_character_save_actor(')]
 assert save_body.index('character_inventory_complete(server, actor, 0, visited)') < save_body.index('character.items.clear()')
+assert save_body.index('if (!character_capture_progress(character, runtime)) return false;') < save_body.index('entity->m_dwMoney = runtime->get_money()') < save_body.index('character.items.clear()')
+assert save_body.count('character_capture_progress(character, runtime)') == 1
+progress_start = engine.index('static bool character_capture_progress(Character& character, CActor* actor)\n{')
+progress_end = engine.index('\nstatic void character_restore_progress(', progress_start)
+progress_body = engine[progress_start:progress_end]
+progress_fixture = r'''
+namespace progress_fixture {
+using shared_str=std::string;
+struct Character {std::vector<u8>progress{9,8,7};};
+struct CMemoryWriter {
+ std::vector<u8>bytes;
+ void w_u32(u32 value){for(u32 shift=0;shift<32;shift+=8)bytes.push_back(u8(value>>shift));}
+ void w(const void* data,size_t length){auto first=static_cast<const u8*>(data);bytes.insert(bytes.end(),first,first+length);}
+ void w_stringZ(const shared_str& value){w(value.c_str(),value.size()+1);}
+ size_t size()const{return bytes.size();}const void* pointer()const{return bytes.data();}
+};
+struct GameTask {shared_str m_netcoop_origin;};
+struct SGameTaskKey {
+ shared_str task_id="quest";GameTask* game_task=nullptr;size_t payload=4;
+ void save(CMemoryWriter& writer){writer.bytes.resize(writer.bytes.size()+payload,u8(42));}
+};
+using vGameTasks=std::vector<SGameTaskKey>;
+struct TaskManager {vGameTasks entries;vGameTasks& GetGameTasks(){return entries;}};
+TaskManager fixture_manager;TaskManager* server_task_manager(u16){return &fixture_manager;}
+struct InfoRegistry {size_t payload=4;InfoRegistry& registry(){return *this;}size_t objects()const{return payload;}};
+struct CActor {InfoRegistry info;InfoRegistry* m_known_info_registry=&info;u16 ID()const{return 7;}int* lua_game_object(){return nullptr;}};
+void save_data(size_t length,CMemoryWriter& writer){writer.bytes.resize(writer.bytes.size()+length,u8(43));}
+int fixture_scopes=0;
+struct ServerVictimScope {explicit ServerVictimScope(CActor*){++fixture_scopes;}~ServerVictimScope(){--fixture_scopes;}};
+bool fixture_available=true,fixture_throw=false;std::string fixture_script="script";
+namespace luabind {
+ using internal_string=std::string;
+ template<class T>struct functor {T operator()(int*){if(fixture_throw)throw 1;return fixture_script;}};
+}
+struct ScriptEngine {bool functor(const char*,luabind::functor<luabind::internal_string>&){return fixture_available;}};
+struct AI {ScriptEngine scripts;ScriptEngine& script_engine(){return scripts;}};
+AI fixture_ai;AI& ai(){return fixture_ai;}
+shared_str cluster_current_level(){return "map-source";}
+void Msg(const char*,...){}
+static const u32 task_origin_marker=0x524f434e;
+'''+progress_body.replace('::luabind::functor', 'luabind::functor')+r'''
+void reset(CActor& actor){fixture_manager.entries.clear();actor.info.payload=4;fixture_available=true;fixture_throw=false;fixture_script="script";assert(fixture_scopes==0);}
+void refused(Character& character,CActor& actor){auto prior=character.progress;assert(!character_capture_progress(character,&actor));assert(character.progress==prior && fixture_scopes==0);}
+void run(){
+ Character character;CActor actor;GameTask task;
+ reset(actor);SGameTaskKey key;key.game_task=&task;fixture_manager.entries.push_back(key);
+ assert(character_capture_progress(character,&actor));assert(fixture_scopes==0 && task.m_netcoop_origin=="map-source");
+ assert(character.progress.size()>20 && character.progress.front()==1);
+ std::string saved(character.progress.begin(),character.progress.end());
+ assert(saved.find("script")!=std::string::npos && saved.find("quest")!=std::string::npos && saved.find("map-source")!=std::string::npos);
+ reset(actor);fixture_available=false;refused(character,actor);
+ reset(actor);fixture_throw=true;refused(character,actor);
+ reset(actor);fixture_manager.entries.resize(513);refused(character,actor);
+ reset(actor);fixture_manager.entries.resize(512);assert(character_capture_progress(character,&actor));assert(fixture_scopes==0 && character.progress[0]==0 && character.progress[1]==2);
+ reset(actor);fixture_script.assign(1048577,'x');refused(character,actor);
+ reset(actor);fixture_script.assign(1048568,'x');refused(character,actor); // script alone fits; complete envelope does not
+ reset(actor);actor.info.payload=1048577;refused(character,actor);
+ reset(actor);fixture_manager.entries.resize(1);fixture_manager.entries[0].payload=1048577;refused(character,actor);
+ reset(actor);fixture_manager.entries.resize(1);fixture_manager.entries[0].task_id.assign(1048576,'x');refused(character,actor);
+ reset(actor);assert(character_capture_progress(character,&actor));assert(fixture_scopes==0);
+ std::cout<<"PASS actual progress capture: complete task/script/origin snapshot; missing or throwing script, task count and payload limits refuse without replacing prior progress\n";
+}
+}
+'''
 disconnect_start = engine.index('static void destroy_pending_actors(xrServer* server)\n{')
 disconnect_end = engine.index('\nstruct StoreMoney',disconnect_start)
 disconnect_body = engine[disconnect_start:disconnect_end]
@@ -188,11 +252,12 @@ void script_send_to_actor(u16,const char*,const char*){events+='N';assert(s_acto
 void Msg(const char*,...){}
 '''+f'\nstatic const u32 cluster_status_ttl_s = {status_ttl};\n'+status_body+money+r'''
 void store_money(xrClientData* client){events+='M';assert(!server_client_leaving(client));captured_store_money(client);}
-'''+inventory_fixture+disconnect_fixture+body+r'''
+'''+inventory_fixture+disconnect_fixture+progress_fixture+body+r'''
 void reset(){events.clear();refusal.clear();saved_destination=0;s_cluster_leaving.clear();s_character_restore.clear();s_actor_character[7]=1;ticket_ok=save_ok=location_ok=accounts_ok=status_ok=true;target_status="100 0 16";}
 int main(){
  inventory_fixture::run();
  disconnect_fixture::run();
+ progress_fixture::run();
  xrServer server;Owner owner;xrClientData client;client.owner=&owner;CLevelChanger changer;
  reset();ticket_ok=false;
  assert(!cluster_move(&server,&client,&changer));

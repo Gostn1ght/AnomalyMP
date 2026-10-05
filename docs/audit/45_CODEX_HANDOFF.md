@@ -296,3 +296,10 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   extends the existing Actions player-transfer fixture; runtime unchanged.
 - 024fbef42 corrects fixture-only MSVC narrowing in the disconnect test; native
   Actions pending. f4803b1c0 backend 37380934586 SUCCESS Windows+Linux (136).
+
+- 024fbef42 Foundation 37381694426 SUCCESS GCC/MSVC, queue/disconnect tests
+  pass. DX11 cancelled by README push 1c7099246; not a compile failure.
+  Progress capture now refuses missing/throwing Lua or oversized task/info/
+  script/origin data before Actor/inventory mutation; transfer fixture includes
+  actual progress function, 512/513 boundary and previous-snapshot retention.
+  Python syntax only locally; progress native checks pending on next push.

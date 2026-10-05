@@ -2732,19 +2732,30 @@ ServerVictimScope::~ServerVictimScope()
 
 static const u32 task_origin_marker = 0x524f434e; // "NCOR"
 
-static void character_capture_progress(Character& character, CActor* actor)
+static bool character_capture_progress(Character& character, CActor* actor)
 {
 	ServerVictimScope scope(actor);
 	CMemoryWriter writer;
 	vGameTasks& tasks = server_task_manager(actor->ID())->GetGameTasks();
+	if (tasks.size() > 512) { Msg("! [Lost Zone] character task count exceeds restore limit for %u", actor->ID()); return false; }
 	writer.w_u32(u32(tasks.size()));
-	for (SGameTaskKey& task : tasks) task.save(writer);
+	for (SGameTaskKey& task : tasks)
+	{
+		task.save(writer);
+		if (writer.size() > 1048576) return false;
+	}
 	save_data(actor->m_known_info_registry->registry().objects(), writer);
+	if (writer.size() > 1048576) return false;
 	::luabind::functor<luabind::internal_string> capture;
-	if (!ai().script_engine().functor("netcoop_server_compat.capture_character_state", capture)) return;
+	if (!ai().script_engine().functor("netcoop_server_compat.capture_character_state", capture))
+	{
+		Msg("! [Lost Zone] character script capture is unavailable for %u", actor->ID());
+		return false;
+	}
 	luabind::internal_string state;
 	try { state = capture(actor->lua_game_object()); }
-	catch (...) { Msg("! [Lost Zone] cannot serialize character script state for %u", actor->ID()); return; }
+	catch (...) { Msg("! [Lost Zone] cannot serialize character script state for %u", actor->ID()); return false; }
+	if (state.size() > 1048576 || writer.size() + 4 + state.size() > 1048576) return false;
 	writer.w_u32(u32(state.size()));
 	if (!state.empty()) writer.w(state.data(), state.size());
 	// Map that gave each task (netcoop_cluster.inc, server_task_here).
@@ -2755,10 +2766,12 @@ static void character_capture_progress(Character& character, CActor* actor)
 		if (task.game_task && !task.game_task->m_netcoop_origin.size()) task.game_task->m_netcoop_origin = cluster_current_level();
 		writer.w_stringZ(task.task_id);
 		writer.w_stringZ(task.game_task ? task.game_task->m_netcoop_origin : shared_str(""));
+		if (writer.size() > 1048576) return false;
 	}
-	if (writer.size() > 1048576) { Msg("! [Lost Zone] character progress exceeds save limit for %u", actor->ID()); return; }
+	if (writer.size() > 1048576) { Msg("! [Lost Zone] character progress exceeds save limit for %u", actor->ID()); return false; }
 	const u8* data = static_cast<const u8*>(writer.pointer());
 	character.progress.assign(data, data + writer.size());
+	return true;
 }
 
 static void character_restore_progress(Character& character, CActor* actor)

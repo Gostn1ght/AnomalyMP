@@ -18,7 +18,7 @@ static xr_map<xr_string, Character> s_characters;
 static xr_map<u16, xr_string> s_actor_character;
 struct CharacterRestore { xr_vector<std::pair<u16, u16>> places; };
 static xr_map<u16, CharacterRestore> s_character_restore;
-static void character_capture_progress(Character& character, CActor* actor);
+static bool character_capture_progress(Character& character, CActor* actor);
 static void character_restore_progress(Character& character, CActor* actor);
 
 
@@ -647,6 +647,7 @@ static bool character_save_actor(u16 actor_id, const CharacterDestination* desti
 			return false;
 		}
 	}
+	if (!character_capture_progress(character, runtime)) return false;
 	entity->m_dwMoney = runtime->get_money();
 	entity->m_rank = runtime->Rank(); entity->m_reputation = runtime->Reputation();
 	entity->o_Position = runtime->Position();
@@ -657,7 +658,6 @@ static bool character_save_actor(u16 actor_id, const CharacterDestination* desti
 	character.respawn = !runtime->g_Alive();
 	character.items.clear();
 	if (runtime->g_Alive()) character_capture_items(server, character, actor, 0, 0);
-	character_capture_progress(character, runtime);
 	const Fvector position = entity->o_Position, angles = entity->o_Angle;
 	const SRotation torso = entity->o_torso;
 	const GameGraph::_GRAPH_ID graph = entity->m_tGraphID;

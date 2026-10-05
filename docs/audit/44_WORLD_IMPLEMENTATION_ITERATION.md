@@ -589,3 +589,27 @@ a partial fight. Full local backend **136 tests PASS**.
 5302a58f4 DX11 37378445074 **SUCCESS**, including the local account ownership
 and other actor's dedicated world-save ClientSave removal. Runtime installation
 and real world-save/restart acceptance are still not inferred from compilation.
+
+## Native progress capture refuses incomplete quest/script snapshots
+
+Missing Lua serialization, thrown script errors, more than the restore limit
+of 512 tasks and oversized task/info/script/origin data now return false from
+the actual character_capture_progress function. Complete progress replaces the
+cached snapshot only after validation. character_save_actor checks this result
+before changing money, position, inventory, actor packet or storage revision;
+cluster_move therefore keeps the source Actor instead of redirecting with an
+old quest snapshot. Failed disconnect capture uses the existing retain/retry
+path. Capture checks the one-MiB envelope before copying a large script result.
+
+The Actions transfer fixture extracts the actual progress capture and checks
+successful task/script/origin persistence, missing/throwing Lua hooks, 512/513
+tasks, component/combined payload overflow and unchanged prior progress on
+failure. Only Python syntax checked locally; native execution remains Actions.
+This does not add transactional engine quest rewards or full GAMMA quest
+remapping; restore-time failures and player-facing retry messages remain open.
+
+024fbef42 Foundation 37381694426 SUCCESS GCC/MSVC: bounded native character
+queue and disconnect retention fixtures pass. f4803b1c0 backend 37380934586
+SUCCESS Windows+Linux, 136 tests. Claude's 5302a58 runtime test is recorded in
+the shared handoff: actual world saved in 207 ms and loaded on server restart;
+this first native acceptance does not prove all mod-owned entity state.
