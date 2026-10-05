@@ -29,6 +29,8 @@ source = r'''
 #include <unistd.h>
 #define MOVEFILE_REPLACE_EXISTING 1
 #define MOVEFILE_WRITE_THROUGH 2
+#define INVALID_FILE_ATTRIBUTES 0xffffffffUL
+unsigned long GetFileAttributesA(const char* path) { return std::ifstream(path) ? 0UL : INVALID_FILE_ATTRIBUTES; }
 int _commit(int fd) { return fsync(fd); }
 int _fileno(FILE* f) { return fileno(f); }
 #endif
@@ -154,6 +156,9 @@ int main() {
  assert(!world_store_read_pointer("zone",load));
  std::ofstream("zone.current")<<"zone_b\n";
  assert(world_store_read_pointer("zone",load));
+ std::remove("zone_b.scoc");
+ rejects([&]{world_store_choose_start(load,64,mode,64);});
+ std::ofstream("zone_b.scoc")<<"5";
  assert(world_store_choose_start(load,64,mode,64)); // explicit legacy migration
  assert(world_store_save_now("upgrade legacy"));
  assert(world_store_read_pointer("zone",load,&digest) && digest.recorded);

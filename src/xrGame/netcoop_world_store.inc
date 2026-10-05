@@ -64,6 +64,12 @@ static void world_store_pointer_path(LPCSTR world, string_path& path)
 	FS.update_path(path, "$game_saves$", file);
 }
 
+static bool world_store_native_exists(LPCSTR path)
+{
+	// Native fopen writes are not guaranteed to be in the engine's VFS cache.
+	return GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES;
+}
+
 static bool world_store_read_pointer(LPCSTR world, string64& save, WorldSnapshotDigest* digest = nullptr,
 	WorldSnapshotDigest* script_digest = nullptr)
 {
@@ -181,14 +187,19 @@ bool world_store_choose_start(LPSTR game_or_spawn, u32 game_size, LPSTR new_or_l
 		string128 a, b;
 		xr_sprintf(a, "%s_a%s", world, SAVE_EXTENSION);
 		xr_sprintf(b, "%s_b%s", world, SAVE_EXTENSION);
-		CHECK_OR_EXIT(!FS.exist(path) && !FS.exist("$game_saves$", a) && !FS.exist("$game_saves$", b),
+		string_path path_a, path_b;
+		FS.update_path(path_a, "$game_saves$", a);
+		FS.update_path(path_b, "$game_saves$", b);
+		CHECK_OR_EXIT(!world_store_native_exists(path) && !world_store_native_exists(path_a) && !world_store_native_exists(path_b),
 			"Persistent world pointer is missing/corrupt; recovery required. Refusing to create a new world.");
 		Msg("[NetAnomaly][world] '%s': no saved world yet, starting a new one", world);
 		return false;
 	}
 	string128 file;
 	xr_sprintf(file, "%s%s", save, SAVE_EXTENSION);
-	if (!FS.exist("$game_saves$", file))
+	string_path snapshot_path;
+	FS.update_path(snapshot_path, "$game_saves$", file);
+	if (!world_store_native_exists(snapshot_path))
 	{
 		CHECK_OR_EXIT(false, "Committed world snapshot is missing; recovery required");
 	}
@@ -200,11 +211,12 @@ bool world_store_choose_start(LPSTR game_or_spawn, u32 game_size, LPSTR new_or_l
 			"Committed world snapshot checksum mismatch; recovery required");
 	}
 	else Msg("[NetAnomaly][world] '%s': legacy snapshot has no checksum; next commit upgrades it", world);
+	WorldSnapshotDigest actual_script;
+	CHECK_OR_EXIT(world_store_snapshot_digest(save, actual_script, false, ".scoc"),
+		"World script state is missing/empty; refusing to reset NPC/stash state during legacy migration");
 	if (expected_script.recorded)
 	{
-		WorldSnapshotDigest actual;
-		CHECK_OR_EXIT(world_store_snapshot_digest(save, actual, false, ".scoc") &&
-			actual.bytes == expected_script.bytes && actual.hash == expected_script.hash,
+		CHECK_OR_EXIT(actual_script.bytes == expected_script.bytes && actual_script.hash == expected_script.hash,
 			"Committed world script state is missing/corrupt; recovery required");
 	}
 	xr_strcpy(game_or_spawn, game_size, save);
@@ -254,7 +266,7 @@ bool world_store_save_now(LPCSTR reason)
 	{
 		string_path path;
 		world_store_pointer_path(world, path);
-		if (s_world_committed || FS.exist(path))
+		if (s_world_committed || world_store_native_exists(path))
 		{
 			Msg("! [NetAnomaly][world] refusing save: committed pointer is corrupt/inaccessible");
 			return false;
