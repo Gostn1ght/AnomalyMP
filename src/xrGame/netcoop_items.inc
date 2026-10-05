@@ -694,12 +694,13 @@ LPCSTR script_item_info(u16 id)
 // (netcoop_server_compat.item_action keeps that list as data), then runs the
 // same GAMMA function for that player. Results replicate as usual; the
 // carrier also receives the fields it normally predicts itself.
-// M_NETCOOP_ITEM_ACTION: u8 kind (0 menu functor, 1 item dropped on item),
+// M_NETCOOP_ITEM_ACTION: u8 kind (0 menu functor, 1 item dropped on item or
+// another action with the player's item, 2 action on a placed object nearby),
 // u16 item, u16 target (0xffff none), stringZ action.
 
 bool script_item_action(int kind, u16 item, u16 target, LPCSTR action)
 {
-	if (!pure_client() || kind < 0 || kind > 1 || !action || xr_strlen(action) > 63) return false;
+	if (!pure_client() || kind < 0 || kind > 2 || !action || xr_strlen(action) > 63) return false;
 	client_items_update(true);
 	NET_Packet P;
 	P.w_begin(M_NETCOOP_ITEM_ACTION);
@@ -714,14 +715,21 @@ void server_on_item_action(xrServer* server, xrClientData* CL, NET_Packet& P)
 	const u8 kind = P.r_u8();
 	const u16 item = P.r_u16(), target = P.r_u16();
 	string64 action;
-	if (kind > 1 || !read_string(P, action, sizeof(action))) return;
+	if (kind > 2 || !read_string(P, action, sizeof(action))) return;
 	CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(CL->owner->ID));
 	auto carried = [&](u16 id) { return smart_cast<CInventoryItem*>(Level().Objects.net_Find(id)) && item_root(server, id) == CL->owner->ID; };
 	xr_string failure;
 	if (!actor || !actor->g_Alive()) failure = "player is dead";
+	else if (kind == 2)
+	{
+		// A placed object in the world (furniture): within reach of the player.
+		CObject* object = Level().Objects.net_Find(item);
+		if (!object || object->getDestroy()) failure = "object is not available";
+		else if (actor->Position().distance_to(object->Position()) > 5.f) failure = "too far away";
+	}
 	else if (!carried(item)) failure = "item is not in your inventory";
 	else if (target != 0xffff && !carried(target)) failure = "target is not in your inventory";
-	else
+	if (failure.empty())
 	{
 		::luabind::functor<LPCSTR> run;
 		if (!ai().script_engine().functor("netcoop_server_compat.item_action", run)) failure = "server item actions are not loaded";
@@ -730,7 +738,8 @@ void server_on_item_action(xrServer* server, xrClientData* CL, NET_Packet& P)
 			ServerVictimScope scope(actor);
 			try
 			{
-				LPCSTR result = run(int(CL->owner->ID), int(kind), int(item), int(target), (LPCSTR)action);
+				LPCSTR result = run(int(CL->owner->ID), int(kind), int(item), int(target), (LPCSTR)action,
+					CL->netcoop_login.c_str());
 				failure = result ? result : "";
 			}
 			catch (...) { failure = "server script error"; }
@@ -750,4 +759,52 @@ void server_on_item_action(xrServer* server, xrClientData* CL, NET_Packet& P)
 		reply.w_stringZ(make_string("! %s", failure.c_str()).c_str());
 		server->SendTo(CL->ID, reply, net_flags(TRUE, TRUE));
 	}
+}
+
+LPCSTR script_actor_login(u16 actor_id)
+{
+	static string128 login;
+	login[0] = 0;
+	if (!g_pGameLevel || !Level().Server || pure_client()) return login;
+	struct Find
+	{
+		u16 actor; LPSTR out;
+		void operator()(IClient* client)
+		{
+			xrClientData* CL = static_cast<xrClientData*>(client);
+			if (CL->owner && CL->owner->ID == actor && CL->netcoop_login.size()) xr_strcpy(out, sizeof(login), CL->netcoop_login.c_str());
+		}
+	} find = {actor_id, login};
+	Level().Server->ForEachClientDo(find);
+	return login;
+}
+
+bool server_object_access(u16 object_id, xrClientData* CL)
+{
+	if (!CL || pure_client()) return true;
+	::luabind::functor<bool> check;
+	if (!ai().script_engine().functor("netcoop_server_compat.can_access", check)) return true;
+	try { return check(int(object_id), CL->netcoop_login.c_str()); }
+	catch (...) { return false; }
+}
+
+// Lua (server): netcoop_players() -> "id id ..." of the logged-in players' Actors.
+LPCSTR script_players()
+{
+	static xr_string list;
+	list.clear();
+	if (!g_pGameLevel || !Level().Server || pure_client()) return list.c_str();
+	struct Collect
+	{
+		xrServer* server; xr_string* out;
+		void operator()(IClient* client)
+		{
+			xrClientData* CL = static_cast<xrClientData*>(client);
+			if (CL == server->GetServerClient() || !CL->owner || !CL->netcoop_login.size()) return;
+			string16 id; xr_sprintf(id, "%u ", CL->owner->ID);
+			*out += id;
+		}
+	} collect = {Level().Server, &list};
+	Level().Server->ForEachClientDo(collect);
+	return list.c_str();
 }

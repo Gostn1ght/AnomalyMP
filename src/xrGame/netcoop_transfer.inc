@@ -46,7 +46,11 @@ static ETransferEnd transfer_end(xrServer* server, xrClientData* CL, u16 id, CAc
 	if (!entity) return transfer_end_none;
 	if (accessible_corpse(CL, entity)) return transfer_end_corpse;
 	CInventoryBox* box = smart_cast<CInventoryBox*>(Level().Objects.net_Find(id));
-	if (box && actor && !box->closed() && actor->Position().distance_to(box->Position()) <= transfer_reach) return transfer_end_box;
+	// Player-made stashes and storage furniture open only for their owner
+	// and the players on its access list (netcoop_server_compat.can_access).
+	if (box && actor && !box->closed() && actor->Position().distance_to(box->Position()) <= transfer_reach &&
+		server_object_access(id, CL))
+		return transfer_end_box;
 	return transfer_end_none;
 }
 
@@ -126,6 +130,18 @@ void server_on_transfer(xrServer* server, xrClientData* CL, NET_Packet& P)
 		CL->netcoop_login.c_str(), item_id, item ? item->s_name.c_str() : "?", record != s_item_records.end() ? record->second.sent.uid : 0,
 		record != s_item_records.end() ? record->second.version : 0, from, transfer_end_name(source), to, transfer_end_name(target),
 		ok ? "ok" : "failed: ", ok ? "" : failure);
+
+	// A player's backpack stash that was emptied turns back into its item.
+	if (ok && source == transfer_end_box)
+	{
+		::luabind::functor<void> changed;
+		if (ai().script_engine().functor("netcoop_server_compat.on_box_changed", changed))
+		{
+			ServerVictimScope scope(actor);
+			try { changed(int(from), int(CL->owner->ID)); }
+			catch (...) { Msg("! [NetAnomaly][inv] box %u change script failed", from); }
+		}
+	}
 
 	TransferAnswer answer; answer.txid = txid; answer.ok = ok; answer.reason = ok ? "" : failure;
 	answers.push_back(answer);

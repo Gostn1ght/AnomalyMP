@@ -515,6 +515,12 @@ function on_script_message(channel, data)
 	elseif channel == "attach" then
 		set_attached(data)
 		return
+	elseif channel == "player_state" then
+		use_player_state(data)
+		return
+	elseif channel == "stash_spot" or channel == "stash_spot_remove" then
+		use_stash_spot(data, channel == "stash_spot_remove")
+		return
 	end
 	if channel ~= "weather" then
 		printf("[Lost Zone] server message %s: %s", tostring(channel), tostring(data))
@@ -632,9 +638,197 @@ local function install_server_repair()
 	end
 end
 
+-- Furniture and backpack stashes are made by the server (alife() exists only
+-- there): the client sends what the player chose; the server checks the
+-- place, the ownership and creates the object (netcoop_server_compat).
+local function upvalue(fn, wanted)
+	if type(fn) ~= "function" or not (debug and debug.getupvalue) then return nil end
+	for n = 1, 64 do
+		local name, value = debug.getupvalue(fn, n)
+		if not name then return nil end
+		if name == wanted then return value end
+	end
+	return nil
+end
+
+local function install_server_furniture()
+	local pf = placeable_furniture
+	if pf and not pf.__netcoop then
+		pf.__netcoop = true
+		-- GAMMA's placement key calls create_object; the item being placed is
+		-- the module's local item_id (an upvalue of func_place_item).
+		pf.create_object = function(section, location, rotation, lvid, gvid)
+			local item_id = upvalue(pf.func_place_item, "item_id")
+			if not (item_id and location) then return nil end
+			local angles = rotation and rotation.w and rotation:to_euler_angles() or rotation or vector():set(0, 0, 0)
+			netcoop_item_action(1, item_id, 65535, string.format("furniture_place %.2f %.2f %.2f %.3f %.3f %.3f",
+				location.x, location.y, location.z, angles.x, angles.y, angles.z))
+			return nil -- the object arrives as a normal network spawn
+		end
+	end
+	local wrapper = bind_hf_base and bind_hf_base.hf_binder_wrapper
+	if wrapper and not bind_hf_base.__netcoop then
+		bind_hf_base.__netcoop = true
+		wrapper.pickup = function(self)
+			if self.object then netcoop_item_action(2, self.object:id(), 65535, "furniture_pickup") end
+			return true
+		end
+	end
+	local ib = item_backpack
+	if ib and not ib.__netcoop then
+		ib.__netcoop = true
+		if ib.UICreateStash then
+			ib.UICreateStash.OnAccept = function(self)
+				local name = self.input and self.input:GetText() or ""
+				netcoop_item_action(1, self.id, 65535, "stash_create " .. string.sub(string.gsub(name, "[|%c]", ""), 1, 40))
+				self:Close()
+			end
+		end
+		if type(ib.actor_on_item_use) == "function" then
+			local original = ib.actor_on_item_use
+			UnregisterScriptCallback("actor_on_item_use", original)
+			ib.actor_on_item_use = function(obj)
+				if obj and obj:section() == "itm_actor_backpack" then
+					netcoop_item_action(1, obj:id(), 65535, "backpack_deploy")
+					return
+				end
+				return original(obj)
+			end
+			RegisterScriptCallback("actor_on_item_use", ib.actor_on_item_use)
+		end
+	end
+end
+
+-- Access list of the owned object under the crosshair (owner only):
+-- netcoop_client_compat.object_access("add"|"remove", login)
+function object_access(op, login)
+	local obj = level.get_target_obj()
+	if not (obj and login and (op == "add" or op == "remove")) then return false end
+	return netcoop_item_action(2, obj:id(), 65535, "access " .. op .. " " .. login)
+end
+
+-- Global: on_script_message (above) calls it.
+function use_stash_spot(data, remove)
+	if remove then
+		local id = tonumber(data)
+		if id then pcall(level.map_remove_object_spot, id, "treasure_player") end
+		return
+	end
+	local id, name = string.match(data or "", "^(%d+)|(.*)$")
+	id = tonumber(id)
+	if id then pcall(level.map_add_object_spot_ser, id, "treasure_player", name or "") end
+end
+
+----------------------------------------------------------------------
+-- Player state that lives on this client (satiety, stamina, GAMMA's
+-- thirst) is kept by the server with the character (owner 2026-10-05).
+-- The server sends the saved state when the player comes in; only after
+-- that does this client report its state (every 30 s), so a fresh client
+-- never overwrites a saved character.
+----------------------------------------------------------------------
+-- Modules whose save_state/load_state hold this player's own state.
+local PLAYER_STATE_MODULES = { "actor_status_thirst" }
+local player_state_ready = false
+local next_player_state = 0
+
+-- Numbers, booleans and nested tables only: "k=1;t={a=2;};b=true;"
+local function state_encode(t, depth)
+	if depth > 4 then return "" end
+	local out = {}
+	for k, v in pairs(t) do
+		local key = tostring(k)
+		if string.match(key, "^[%w_]+$") then
+			if type(v) == "number" then out[#out + 1] = key .. "=" .. string.format("%.6g", v) .. ";"
+			elseif type(v) == "boolean" then out[#out + 1] = key .. "=" .. (v and "true" or "false") .. ";"
+			elseif type(v) == "table" then out[#out + 1] = key .. "={" .. state_encode(v, depth + 1) .. "};" end
+		end
+	end
+	return table.concat(out)
+end
+
+local function state_decode(s)
+	local pos, root = 1, {}
+	local function parse(into, depth)
+		while pos <= #s do
+			if string.sub(s, pos, pos) == "}" then pos = pos + 1; return true end
+			local key, value_start = string.match(s, "^([%w_]+)=()", pos)
+			if not key or depth > 4 then return false end
+			pos = value_start
+			local k = tonumber(key) or key
+			if string.sub(s, pos, pos) == "{" then
+				pos = pos + 1
+				local child = {}
+				if not parse(child, depth + 1) then return false end
+				into[k] = child
+				if string.sub(s, pos, pos) ~= ";" then return false end
+				pos = pos + 1
+			else
+				local raw, next_pos = string.match(s, "^([^;{}]*);()", pos)
+				if not raw then return false end
+				pos = next_pos
+				if raw == "true" then into[k] = true elseif raw == "false" then into[k] = false else into[k] = tonumber(raw) end
+			end
+		end
+		return depth == 0
+	end
+	return parse(root, 0) and root or nil
+end
+
+local function collect_player_state()
+	local a = db.actor
+	if not a then return nil end
+	local state = { satiety = a.satiety, power = a.power, modules = {} }
+	for _, name in ipairs(PLAYER_STATE_MODULES) do
+		local m = _G[name]
+		if m and type(m.save_state) == "function" then
+			local data = {}
+			if pcall(m.save_state, data) then state.modules[name] = data end
+		end
+	end
+	return state_encode(state, 0)
+end
+
+local function report_player_state()
+	if not (player_state_ready and netcoop_command) or time_global() < next_player_state then return end
+	next_player_state = time_global() + 30000
+	local data = collect_player_state()
+	if data and #data < 3000 then netcoop_command("player_state " .. data) end
+end
+
+-- Global: on_script_message (above) calls it with the server's saved state.
+function use_player_state(data)
+	player_state_ready = true
+	next_player_state = time_global() + 30000
+	if not data or data == "-" then return end
+	local state = state_decode(data)
+	local a = db.actor
+	if not (state and a) then return end
+	if state.satiety then a.satiety = state.satiety end
+	if state.power then a.power = state.power end
+	for name, saved in pairs(state.modules or {}) do
+		local m = _G[name]
+		if m and type(m.load_state) == "function" then pcall(m.load_state, saved) end
+	end
+	printf("[Lost Zone] player state restored")
+end
+
+-- Sleep deprivation is cut from multiplayer (owner 2026-10-05): GAMMA's own
+-- switch turns it off (need, indicator, effects) and stays off whatever the
+-- difficulty settings ask.
+function disable_sleep_need()
+	local s = actor_status_sleep
+	if not s or s.__netcoop_off or type(s.toggle_feature) ~= "function" then return end
+	s.__netcoop_off = true
+	local toggle = s.toggle_feature
+	pcall(toggle, false)
+	s.toggle_feature = function() pcall(toggle, false) end
+end
+
 local function install_server_item_actions()
 	if not (netcoop_item_action and netcoop_pure_client and netcoop_pure_client()) then return end
 	install_server_repair()
+	install_server_furniture()
+	disable_sleep_need()
 	-- Corpse loot is made by the server at death (netcoop_server_compat).
 	-- Opening a corpse here ran GAMMA's loot maker without alife(): nothing
 	-- spawned, but it rerolled the weapons' condition in this client's copy.
@@ -691,6 +885,8 @@ function on_game_start()
 	end)
 	quiet_busy_hands()
 	install_server_trade()
+	disable_sleep_need()
+	RegisterScriptCallback("actor_on_update", function() report_player_state() end)
 	-- After every module's on_game_start (item_device registers its handlers there).
 	RegisterScriptCallback("actor_on_first_update", install_server_item_actions)
 	RegisterScriptCallback("actor_on_item_take", on_item_take)

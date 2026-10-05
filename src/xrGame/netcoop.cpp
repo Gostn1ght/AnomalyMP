@@ -1768,6 +1768,11 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 					if (living_npc(holder))
 						return false;
 				}
+				// Owned boxes (player stashes, storage furniture) also through raw events.
+				if (smart_cast<CInventoryBox*>(Level().Objects.net_Find(destination)) && !server_object_access(destination, CL))
+					return false;
+				if (holder && smart_cast<CInventoryBox*>(Level().Objects.net_Find(holder->ID)) && !server_object_access(holder->ID, CL))
+					return false;
 				// Picking up from the ground: only what lies within reach of the
 				// player's Actor on the server (stage 2 validation).
 				if (item && !holder && dest == CL->owner && type == GE_OWNERSHIP_TAKE)

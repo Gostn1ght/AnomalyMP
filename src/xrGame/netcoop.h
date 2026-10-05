@@ -260,6 +260,13 @@ void server_on_transfer(xrServer* server, xrClientData* CL, NET_Packet& P);
 // runs an item action (stage 3): kind 0 = menu functor "module.function",
 // kind 1 = item dropped on item ("battery_swap"). Target 65535 = none.
 bool script_item_action(int kind, u16 item, u16 target, LPCSTR action);
+// Lua (server): netcoop_actor_login(actor_id) -> account login of that player's Actor, "" otherwise.
+LPCSTR script_actor_login(u16 actor_id);
+// Lua (server): netcoop_players() -> "id id ..." of logged-in players' Actors.
+LPCSTR script_players();
+// Server: may this player's account use the box/placed object (owner and access
+// list kept by netcoop_server_compat.can_access); true for anything unowned.
+bool server_object_access(u16 object_id, xrClientData* CL);
 void server_on_item_action(xrServer* server, xrClientData* CL, NET_Packet& P);
 void client_on_physics(NET_Packet& P);
 // Server: the object is the Actor of a remote player. Local() is not used

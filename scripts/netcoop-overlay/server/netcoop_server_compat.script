@@ -230,10 +230,14 @@ end
 -- doing cannot be taken at the same time.
 local player_tasks = {}
 
+local restored_players = {} -- actor id -> its saved character state was applied
+
 function capture_character_state(actor)
     local id = actor:id()
     local storage = db.storage[id] or {}
     local state = {pstor=storage.pstor or {}, pstor_ctime=storage.pstor_ctime or {}}
+    -- Conditions the server owns (owner 2026-10-05: player states persist).
+    state.netcoop_conditions = {radiation=actor.radiation, psy_health=actor.psy_health}
     task_manager.save_state(state)
     return marshal.encode(state)
 end
@@ -246,6 +250,12 @@ function restore_character_state(actor, encoded)
     db.storage[id].pstor_ctime = state.pstor_ctime or {}
     player_tasks[id] = task_manager.CRandomTask()
     task_manager.load_state(state)
+    local conditions = state.netcoop_conditions
+    if conditions then
+        if conditions.radiation then actor.radiation = conditions.radiation end
+        if conditions.psy_health then actor.psy_health = conditions.psy_health end
+    end
+    restored_players[id] = true
 end
 
 local function install_player_tasks()
@@ -818,10 +828,16 @@ function on_game_start()
 	end
 	install_npc_diagnostic()
 	install_npc_loot()
+	-- Sleep deprivation is cut from multiplayer (owner 2026-10-05).
+	if actor_status_sleep and actor_status_sleep.toggle_feature then
+		local toggle = actor_status_sleep.toggle_feature
+		pcall(toggle, false)
+		actor_status_sleep.toggle_feature = function() pcall(toggle, false) end
+	end
 	if AddUniqueCall and ProcessEventQueue then
 		AddUniqueCall(server_event_queue)
 		AddUniqueCall(server_world_loop)
-		AddUniqueCall(function() process_pending_inventory(); return false end)
+		AddUniqueCall(function() process_pending_inventory(); owned_objects_update(); return false end)
 		printf("[Lost Zone] server time event queue installed")
 	end
 	-- base-game's NPC vision hook reads db.actor (torch, flashlight) for every
@@ -929,7 +945,245 @@ local function repair(actor_id, kit, target, part)
 	return ""
 end
 
-function item_action(actor_id, kind, item_id, target_id, action)
+----------------------------------------------------------------------
+-- Player-owned objects: furniture and backpack stashes (owner 2026-10-05)
+----------------------------------------------------------------------
+-- GAMMA places furniture and makes stashes in Lua with alife(), which a
+-- client does not have: nothing was ever created on the server. Clients now
+-- ask (netcoop_client_compat), the server checks and creates, and records
+-- the owner in the world's script state (saved with the world, W1):
+--   netcoop_owned[id] = { owner = login, kind = "furniture"|"stash",
+--                         name = text, section = item to give back, access = { login = true } }
+-- Only the owner (and players on the object's access list) may open,
+-- pick up or use an owned object. Furniture goes indoors only, never into
+-- safe zones (trader rooms, faction bases).
+local FURNITURE_REACH = 6
+local ROOF_RANGE = 15 -- an indoor spot has static geometry above within this
+-- Safe zones: restrictors whose names match, and areas around these NPCs.
+local SAFE_ZONE_PATTERNS = { "_no_assault", "_no_weapon", "safe_zone", "_sr_safe" }
+local SAFE_STORY_NPCS = { -- story id = radius, m
+	esc_2_12_stalker_trader = 25, -- Sidorovich's bunker
+	bar_visitors_barman_stalker_trader = 45, -- the 100 Rads bar
+	mar_base_owl_stalker_trader = 45, -- Clear Sky base, Swamps
+	mar_base_stalker_tech = 45,
+	mar_base_stalker_barmen = 45,
+	zat_a2_stalker_barmen = 45, -- Skadovsk
+	jup_a6_stalker_barmen = 45, -- Yanov
+	bar_dolg_leader = 30,
+	mil_smart_terrain_7_7_freedom_leader_stalker = 30,
+}
+local sent_spots = {} -- actor id -> true once its stash spots were sent
+
+local function owned()
+	local state = alife_storage_manager.get_state()
+	state.netcoop_owned = state.netcoop_owned or {}
+	return state.netcoop_owned
+end
+
+function can_access(object_id, login)
+	local entry = owned()[object_id]
+	if not entry then return true end
+	return entry.owner == login or (entry.access ~= nil and entry.access[login] == true)
+end
+
+local function indoor(pos)
+	if not ray_pick then return true end
+	local rq = ray_pick()
+	rq:set_position(vector():set(pos.x, pos.y + 0.3, pos.z))
+	rq:set_direction(vector():set(0, 1, 0))
+	rq:set_range(ROOF_RANGE)
+	rq:set_flags(rq_target.rqtStatic)
+	return rq:query()
+end
+
+local function in_safe_zone(pos)
+	for name, zone in pairs(db.zone_by_name or {}) do
+		for _, pattern in ipairs(SAFE_ZONE_PATTERNS) do
+			if string.find(name, pattern, 1, true) and zone.inside and zone:inside(pos) then return name end
+		end
+	end
+	for story_id, radius in pairs(SAFE_STORY_NPCS) do
+		local npc = get_story_object and get_story_object(story_id)
+		if npc and npc:position():distance_to(pos) <= radius then return story_id end
+	end
+	return nil
+end
+
+local function furniture_forbidden(pos)
+	local zone = in_safe_zone(pos)
+	if zone then return "furniture cannot be placed in a safe zone (" .. zone .. ")" end
+	if not indoor(pos) then return "furniture can be placed only indoors" end
+	return nil
+end
+
+local function send_stash_spot(actor_id, id, name)
+	if netcoop_send_to_actor then netcoop_send_to_actor(actor_id, "stash_spot", tostring(id) .. "|" .. tostring(name)) end
+end
+
+local function furniture_place(actor, item, args, login)
+	local x, y, z, h, p, b = string.match(args or "", "^(%S+) (%S+) (%S+) (%S+) (%S+) (%S+)$")
+	x, y, z, h, p, b = tonumber(x), tonumber(y), tonumber(z), tonumber(h), tonumber(p), tonumber(b)
+	if not (x and y and z and h and p and b) then return "bad placement" end
+	local pos = vector():set(x, y, z)
+	if pos:distance_to(actor:position()) > FURNITURE_REACH then return "too far to place" end
+	local section = ini_sys:r_string_ex(item:section(), "placeable_section")
+	if not section then return "this item is not furniture" end
+	local why = furniture_forbidden(pos)
+	if why then return why end
+	local pf = placeable_furniture
+	if not (pf and pf.create_object) then return "furniture is not loaded on the server" end
+	local id = pf.create_object(section, pos, vector():set(h, p, b), actor:level_vertex_id(), actor:game_vertex_id())
+	if not id then return "could not place" end
+	pf.transfer_item_data(item:id(), id)
+	owned()[id] = { owner = login, kind = "furniture", section = item:section(), access = {} }
+	alife_release(item)
+	SendScriptCallback("hf_on_furniture_place", id)
+	printf("[Lost Zone][furniture] %s placed %s (%d) at %.1f %.1f %.1f", login, section, id, x, y, z)
+	return ""
+end
+
+local function furniture_pickup(actor, obj, login)
+	local entry = owned()[obj:id()]
+	if entry and entry.owner ~= login then return "only the player who placed it can pick it up" end
+	local wrapper = bind_hf_base and bind_hf_base.get_wrapper(obj:id())
+	if not wrapper then return "this is not furniture" end
+	if not wrapper:is_pickupable() then return "this cannot be picked up" end
+	if obj:clsid() == clsid.inventory_box and not obj:is_inv_box_empty() then return "empty it first" end
+	wrapper:pickup()
+	owned()[obj:id()] = nil
+	printf("[Lost Zone][furniture] %s picked up %s (%d)", login, obj:section(), obj:id())
+	return ""
+end
+
+local function new_stash(actor, item_section, name, login)
+	local se = alife_create("inv_backpack", actor:position(), actor:level_vertex_id(), actor:game_vertex_id())
+	if not se then return nil end
+	if not name or name == "" then
+		name = strformat(game.translate_string("st_itm_stash_of_character"), actor:character_name())
+	end
+	local state = alife_storage_manager.get_state()
+	state.player_created_stashes = state.player_created_stashes or {}
+	state.player_created_stashes[se.id] = item_section
+	owned()[se.id] = { owner = login, kind = "stash", name = name, section = item_section, access = {} }
+	SendScriptCallback("actor_on_stash_create", { stash_id = se.id, stash_name = name, stash_section = item_section })
+	send_stash_spot(actor:id(), se.id, name)
+	printf("[Lost Zone][stash] %s made stash %d '%s'", login, se.id, name)
+	return se
+end
+
+-- A stash item (item_backpack's UICreateStash): a stash at the player.
+local function stash_create(actor, item, name, login)
+	name = string.sub(string.gsub(name or "", "[|%c]", ""), 1, 40)
+	if not new_stash(actor, item:section(), name, login) then return "could not make a stash" end
+	alife_release(item)
+	return ""
+end
+
+-- The worn backpack used (itm_actor_backpack): a stash with the rucksack's
+-- contents, as item_backpack.actor_on_item_use does.
+local function backpack_deploy(actor, login)
+	local backpack = actor:item_in_slot(13)
+	if not backpack then return "no backpack is worn" end
+	local se = new_stash(actor, backpack:section(), nil, login)
+	if not se then return "could not make a stash" end
+	local backpack_id = backpack:id()
+	alife_release(backpack)
+	local keep = {}
+	local ini = ini_file("items\\settings\\backpack_stash.ltx")
+	if ini and utils_data then keep = utils_data.collect_section(ini, "actor_backpack_keep_items", true) or {} end
+	local actor_id = actor:id()
+	CreateTimeEvent("netcoop_backpack", tostring(se.id), 0, function(stash_id)
+		local box, owner = level.object_by_id(stash_id), level.object_by_id(actor_id)
+		if not (box and owner) then return false end
+		owner:iterate_inventory(function(_, it)
+			if it and it:id() ~= backpack_id and keep[it:section()] == nil
+				and not (IsAmmo(it) and item_backpack and item_backpack.is_ammo_for_wpn and item_backpack.is_ammo_for_wpn(it:section()))
+				and ini_sys:r_string_ex(it:section(), "kind") ~= "i_medical"
+				and not ini_sys:r_bool_ex(it:section(), "quest_item", false)
+				and not owner:is_on_belt(it) and not (item_backpack and item_backpack.is_in_slot and item_backpack.is_in_slot(it)) then
+				owner:transfer_item(it, box)
+			end
+		end)
+		return true
+	end, se.id)
+	return ""
+end
+
+-- Engine (netcoop_transfer.inc) after something was taken from a box.
+function on_box_changed(box_id, actor_id)
+	local box = level.object_by_id(box_id)
+	local entry = owned()[box_id]
+	if not (box and entry and entry.kind == "stash" and box:section() == "inv_backpack" and box:is_inv_box_empty()) then return end
+	local actor = level.object_by_id(actor_id)
+	if actor and entry.section and ini_sys:section_exist(entry.section) then alife_create_item(entry.section, actor) end
+	local state = alife_storage_manager.get_state()
+	if state.player_created_stashes then state.player_created_stashes[box_id] = nil end
+	owned()[box_id] = nil
+	if netcoop_send_to_actor then netcoop_send_to_actor(actor_id, "stash_spot_remove", tostring(box_id)) end
+	alife_release(alife_object(box_id))
+	printf("[Lost Zone][stash] stash %d emptied and packed up", box_id)
+end
+
+-- Access list of an owned object: "access_add <login>" / "access_remove <login>".
+local function access_change(obj, args, login)
+	local entry = owned()[obj:id()]
+	if not entry then return "nobody owns this" end
+	if entry.owner ~= login then return "only the owner can change who may use this" end
+	local op, who = string.match(args or "", "^(%S+) (%S+)$")
+	if not who or #who > 40 then return "bad name" end
+	entry.access = entry.access or {}
+	entry.access[who] = (op == "add") and true or nil
+	printf("[Lost Zone][furniture] %s %s access to %d for %s", login, op, obj:id(), who)
+	return ""
+end
+
+-- Owners see their stashes on the PDA map, also after reconnecting.
+local first_seen = {} -- actor id -> time it was first seen online
+local state_sent = {}
+
+-- The client's own saved state goes back to it once the character was
+-- restored (or after 10 s for a new character); then it starts reporting.
+local function send_player_state(actor_id)
+	if state_sent[actor_id] then return end
+	first_seen[actor_id] = first_seen[actor_id] or time_global()
+	if not restored_players[actor_id] and time_global() - first_seen[actor_id] < 10000 then return end
+	state_sent[actor_id] = true
+	local st = db.storage[actor_id]
+	local saved = st and st.pstor and st.pstor.netcoop_player_state
+	netcoop_send_to_actor(actor_id, "player_state", saved or "-")
+end
+
+local function send_owner_spots()
+	if not (netcoop_players and netcoop_actor_login) then return end
+	local online = {}
+	for id in string.gmatch(netcoop_players(), "%d+") do
+		local actor_id = tonumber(id)
+		online[actor_id] = true
+		send_player_state(actor_id)
+		if not sent_spots[actor_id] then
+			sent_spots[actor_id] = true
+			local login = netcoop_actor_login(actor_id)
+			for stash_id, entry in pairs(owned()) do
+				if entry.kind == "stash" and entry.owner == login and alife_object(stash_id) then
+					send_stash_spot(actor_id, stash_id, entry.name or "")
+				end
+			end
+		end
+	end
+	for actor_id in pairs(sent_spots) do if not online[actor_id] then sent_spots[actor_id] = nil end end
+	for actor_id in pairs(state_sent) do
+		if not online[actor_id] then state_sent[actor_id], first_seen[actor_id], restored_players[actor_id] = nil, nil, nil end
+	end
+end
+
+local next_spot_scan = 0
+local function owned_objects_update()
+	if time_global() < next_spot_scan then return end
+	next_spot_scan = time_global() + 1000
+	pcall(send_owner_spots)
+end
+
+function item_action(actor_id, kind, item_id, target_id, action, login)
 	local item = level.object_by_id(item_id)
 	local target = target_id ~= 65535 and level.object_by_id(target_id) or nil
 	if not item or (target_id ~= 65535 and not target) then return "item is not available" end
@@ -944,6 +1198,16 @@ function item_action(actor_id, kind, item_id, target_id, action)
 		return ""
 	elseif kind == 1 and action == "battery_swap" and target then
 		return battery_swap(item, target)
+	elseif kind == 1 and string.match(action, "^furniture_place ") then
+		return furniture_place(level.object_by_id(actor_id), item, string.sub(action, 17), login or "")
+	elseif kind == 1 and string.match(action, "^stash_create") then
+		return stash_create(level.object_by_id(actor_id), item, string.sub(action, 14), login or "")
+	elseif kind == 1 and action == "backpack_deploy" then
+		return backpack_deploy(level.object_by_id(actor_id), login or "")
+	elseif kind == 2 and action == "furniture_pickup" then
+		return furniture_pickup(level.object_by_id(actor_id), item, login or "")
+	elseif kind == 2 and string.match(action, "^access ") then
+		return access_change(item, string.sub(action, 8), login or "")
 	elseif kind == 1 and target and string.match(action, "^repair %d+$") then
 		local part_id = tonumber(string.match(action, "%d+"))
 		local part = part_id ~= 65535 and level.object_by_id(part_id) or nil

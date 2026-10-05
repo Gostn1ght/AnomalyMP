@@ -1006,7 +1006,9 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
 			int na_eid = (na_cl && na_cl->owner) ? int(na_cl->owner->ID) : int(65535);
 			string64 na_cid;
 			xr_sprintf(na_cid, "%08x", sender.value());
-			Msg("[Lost Zone] command from [%s] (%s) eid=%d", na_name, na_role, na_eid);
+			// Clients report their player state every 30 s: not worth a log line each.
+			if (strncmp(na_text, "player_state ", 13))
+				Msg("[Lost Zone] command from [%s] (%s) eid=%d", na_name, na_role, na_eid);
 			string4096 na_reply;
 			na_reply[0] = 0;
 			::luabind::functor<LPCSTR> na_f;

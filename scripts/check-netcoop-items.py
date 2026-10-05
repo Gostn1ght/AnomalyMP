@@ -222,4 +222,104 @@ assert(#t._inv==4,'story NPC keeps its own inventory')
 death_loot(t); assert(#t._inv==6,'story NPC: GAMMA loot at death')
 ''')
 
-print('Item actions Lua: battery swap/unpack and repair on the server, whitelist, client routing, NPC inventory at spawn, item condition and death loot PASS')
+# Player-owned furniture and stashes: place rules, owner-only access, pickup, stash pack-up.
+lua.execute(r'''
+state={}
+alife_storage_manager={get_state=function() return state end}
+function vector() local v={x=0,y=0,z=0}
+  function v:set(x,y,z) self.x,self.y,self.z=x,y,z; return self end
+  function v:distance_to(o) return math.sqrt((self.x-o.x)^2+(self.y-o.y)^2+(self.z-o.z)^2) end
+  return v end
+roof=true
+rq_target={rqtStatic=1}
+function ray_pick() local r={} function r:set_position() end function r:set_direction() end function r:set_range() end
+  function r:set_flags() end function r:query() return roof end return r end
+safe_zone={inside=function(_,p) return p.x>100 end}
+db.zone_by_name={bar_sr_no_assault=safe_zone, some_restrictor={inside=function() return true end}}
+function get_story_object() return nil end
+sent={}; function netcoop_send_to_actor(a,c,d) sent[#sent+1]={a,c,d} end
+function SendScriptCallback() end
+created={}; next_id=500
+function alife_create(sec,pos) next_id=next_id+1; created[#created+1]=sec; return {id=next_id} end
+function alife_create_item(sec,parent) created[#created+1]=sec end
+function alife_object(id) return {id=id} end
+function alife_release(o) released[#released+1]= type(o.id)=='function' and o:id() or o.id end
+function strformat(f,...) return string.format(f,...) end
+game.translate_string=function(s) return s=='st_itm_stash_of_character' and '%s stash' or s end
+function clamp(v,a,b) return math.max(a,math.min(b,v)) end
+local function actor() local a=make_item(91,'actor',1)
+  function a:position() return vector():set(0,0,0) end
+  function a:level_vertex_id() return 1 end; function a:game_vertex_id() return 1 end
+  function a:character_name() return 'Ivan' end; return a end
+player=actor(); objects[91]=player
+placed=nil
+placeable_furniture={create_object=function(sec,pos) placed={sec=sec,pos=pos}; next_id=next_id+1; return next_id end,
+  transfer_item_data=function() end}
+functors.chair_item={}
+ini_sys.r_string_ex=function(_,sec,key) if sec=='chair_item' and key=='placeable_section' then return 'chair_phy' end
+  return functors[sec] and functors[sec][key] end
+picked=false
+bind_hf_base={get_wrapper=function(id) return {is_pickupable=function() return true end, pickup=function() picked=true end} end}
+clsid={inventory_box=7}
+ini_sys.section_exist=function() return true end
+''')
+start = server.index('-- Player-owned objects: furniture and backpack stashes')
+start = server.rfind('------', 0, start)
+end = server.index('\nfunction item_action(', start)
+lua.execute(server[start:end] + '\nf_place, f_pick, s_create, box_changed, access, owned_t = furniture_place, furniture_pickup, stash_create, on_box_changed, can_access, owned')
+lua.execute(r'''
+local chair=make_item(60,'chair_item',1); objects[60]=chair
+assert(f_place(player, chair, "1.00 0.00 2.00 0.000 0.000 0.000", "ivan")=='', 'indoor placement works')
+assert(placed and placed.sec=='chair_phy')
+local id=next_id
+assert(owned_t()[id].owner=='ivan' and access(id,'ivan') and not access(id,'petr'),'owner only')
+assert(access(12345,'petr'),'unowned objects stay open')
+roof=false
+assert(f_place(player, chair, "1.00 0.00 2.00 0.000 0.000 0.000", "ivan")=='furniture can be placed only indoors')
+roof=true
+assert(string.find(f_place(player, chair, "150.00 0.00 2.00 0 0 0", "ivan"), 'too far'),'reach')
+player.position=function() return vector():set(149,0,2) end
+assert(string.find(f_place(player, chair, "150.00 0.00 2.00 0 0 0", "ivan"), 'safe zone'),'safe zone refused')
+player.position=function() return vector():set(0,0,0) end
+local obj=make_item(id,'chair_phy',1); obj.clsid=function() return 0 end
+assert(f_pick(player, obj, "petr")~='','only the placer picks it up')
+assert(f_pick(player, obj, "ivan")=='' and picked and owned_t()[id]==nil)
+-- backpack stash: made at the player, spot to the owner, packed up when emptied
+local pack=make_item(70,'itm_stash_pack',1)
+assert(s_create(player, pack, "My|stash\n", "ivan")=='')
+local stash=next_id
+assert(owned_t()[stash].kind=='stash' and owned_t()[stash].name=='Mystash')
+assert(sent[#sent][2]=='stash_spot' and sent[#sent][3]==stash..'|Mystash')
+local box=make_item(stash,'inv_backpack',1); box.is_inv_box_empty=function() return true end; objects[stash]=box
+box_changed(stash, 91)
+assert(owned_t()[stash]==nil and created[#created]=='itm_stash_pack' and sent[#sent][2]=='stash_spot_remove')
+''')
+
+# Player state: encoding, restore on the client, reports only after restore, sleep need off.
+lua.execute(r'''
+cmds={}; function netcoop_command(t) cmds[#cmds+1]=t end
+now_ms=0
+actor_obj={satiety=0.2, power=0.9}
+db.actor=actor_obj
+loaded=nil
+actor_status_thirst={save_state=function(m) m.drink={last_drink=42, chk_drink={Y=2012,M=5,D=1}} end,
+  load_state=function(m) loaded=m.drink end}
+toggled={}
+actor_status_sleep={toggle_feature=function(v) toggled[#toggled+1]=v end}
+''')
+start = client.index('local PLAYER_STATE_MODULES')
+end = client.index('local function install_server_item_actions()', start)
+lua.execute(client[start:end] + '\nps_report = report_player_state')
+lua.execute(r'''
+ps_report(); assert(#cmds==0,'no report before the server sent the saved state')
+use_player_state("satiety=0.75;power=0.5;modules={actor_status_thirst={drink={last_drink=1200;chk_drink={Y=2012;};};};};")
+assert(actor_obj.satiety==0.75 and actor_obj.power==0.5 and loaded and loaded.last_drink==1200 and loaded.chk_drink.Y==2012)
+now_ms=40000; ps_report()
+assert(#cmds==1 and string.find(cmds[1],"^player_state ") and string.find(cmds[1],"last_drink=42",1,true))
+use_player_state("-"); use_player_state("broken{{")
+disable_sleep_need(); disable_sleep_need()
+actor_status_sleep.toggle_feature(true)
+assert(toggled[1]==false and toggled[2]==false and #toggled==2,'sleep need stays off')
+''')
+
+print('Item actions Lua: battery swap/unpack and repair on the server, whitelist, client routing, NPC inventory at spawn, item condition and death loot, furniture and stashes, player state, sleep off PASS')

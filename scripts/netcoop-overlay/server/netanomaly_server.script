@@ -91,6 +91,18 @@ function on_client_command(cid, name, entity_id, text, role)
 	-- Fold ASCII command names without changing bytes inside UTF-8 aliases.
 	cmd = string.gsub(cmd or "help", "[A-Z]", string.lower)
 	args = args or ""
+	-- A client's own player state (netcoop_client_compat, every 30 s): kept in
+	-- the character's pstor, saved with the character. No reply, no log line.
+	if cmd == "player_state" then
+		local obj = server_actor(entity_id)
+		if obj and #args < 3000 and not string.find(args, "[^%w_=;{}%.%-%+]") then
+			local st = db.storage[entity_id] or { object = obj }
+			db.storage[entity_id] = st
+			st.pstor = st.pstor or {}
+			st.pstor.netcoop_player_state = args
+		end
+		return ""
+	end
 	printf("[Lost Zone] command '%s' from %s (%s)", cmd, tostring(name), tostring(role))
 
 	if cmd == "help" or cmd == "?" then
