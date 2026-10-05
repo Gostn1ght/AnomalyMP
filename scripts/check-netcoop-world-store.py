@@ -61,10 +61,11 @@ struct Files {
  bool exist(const char*,const char* file) {return bool(std::ifstream(file));}
  bool exist(const char* file) {return bool(std::ifstream(file));}
 } FS;
-bool fail_save=false;int revision=0;std::string last_slot;
+bool fail_save=false,fail_script=false;int revision=0;std::string last_slot;
 struct CALifeSimulator {
  void save(const char* name,bool) {
   last_slot=name;
+  if(!fail_script) std::ofstream(name+std::string(".scoc")) << (fail_save ? "partial" : std::to_string(revision));
   std::ofstream(name+std::string(".sav")) << (fail_save ? "partial" : std::to_string(revision));
   if(fail_save) throw std::runtime_error("injected interrupted engine save");
  }
@@ -107,6 +108,11 @@ int main() {
  revision=5;fail_pointer=false;assert(world_store_save_now("retry pointer"));
  assert(last_slot=="zone_b" && contents("zone_b.sav")=="5");
  assert(contents("zone_a.sav")=="3");
+ assert(contents("zone_a.scoc")=="3");
+ fail_script=true;revision=6;assert(!world_store_save_now("script callback failed"));
+ assert(contents("zone.current")=="zone_b" && contents("zone_b.scoc")=="5");
+ assert(contents("zone_a.scoc").empty()); // stale sidecar cannot be reused
+ fail_script=false;
  // New manifests detect byte corruption, truncation and missing snapshots.
  WorldSnapshotDigest digest;
  assert(world_store_read_pointer("zone",load,&digest) && digest.recorded && digest.bytes==1);
@@ -117,6 +123,12 @@ int main() {
  std::remove("zone_b.sav");
  rejects([&]{world_store_choose_start(load,64,mode,64);});
  std::ofstream("zone_b.sav")<<"5";
+ assert(world_store_choose_start(load,64,mode,64));
+ std::ofstream("zone_b.scoc")<<"6";
+ rejects([&]{world_store_choose_start(load,64,mode,64);});
+ std::remove("zone_b.scoc");
+ rejects([&]{world_store_choose_start(load,64,mode,64);});
+ std::ofstream("zone_b.scoc")<<"5";
  assert(world_store_choose_start(load,64,mode,64));
  std::remove("zone.current");
  assert(!world_store_save_now("lost committed pointer"));
@@ -139,7 +151,7 @@ int main() {
  Core.Params="-netcoop_world=../escape";assert(!world_store_name(load));
  Core.Params="-netcoop_world=abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnop";
  assert(!world_store_name(load));
- std::cout<<"PASS: actual W1 save code; restart, interrupted save, manifest failure, checksum corruption/truncation, missing snapshot/pointer, legacy upgrade, fail-closed recovery\n";
+ std::cout<<"PASS: actual W1 save code; restart, interrupted save, manifest failure, ALife/script checksums, silent script failure/stale sidecar, missing snapshot/pointer, legacy upgrade, fail-closed recovery\n";
 }
 '''
 with TemporaryDirectory(prefix="world-store-") as tmp:

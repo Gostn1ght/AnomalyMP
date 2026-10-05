@@ -64,7 +64,8 @@ static void world_store_pointer_path(LPCSTR world, string_path& path)
 	FS.update_path(path, "$game_saves$", file);
 }
 
-static bool world_store_read_pointer(LPCSTR world, string64& save, WorldSnapshotDigest* digest = nullptr)
+static bool world_store_read_pointer(LPCSTR world, string64& save, WorldSnapshotDigest* digest = nullptr,
+	WorldSnapshotDigest* script_digest = nullptr)
 {
 	save[0] = 0;
 	string_path path;
@@ -90,24 +91,42 @@ static bool world_store_read_pointer(LPCSTR world, string64& save, WorldSnapshot
 	xr_sprintf(slot_b, "%s_b", world);
 	if (xr_strcmp(save, slot_a) != 0 && xr_strcmp(save, slot_b) != 0) return false;
 	WorldSnapshotDigest parsed;
+	WorldSnapshotDigest script;
 	if (newline && newline[1])
 	{
 		unsigned long long bytes = 0, hash = 0;
+		unsigned long long script_bytes = 0, script_hash = 0;
 		char line_end = 0, extra = 0;
-		if (sscanf(newline + 1, "LZW2 %llu %llx%c%c", &bytes, &hash, &line_end, &extra) != 3 ||
-			!bytes || line_end != '\n') return false;
+		if (strncmp(newline + 1, "LZW3 ", 5) == 0)
+		{
+			if (sscanf(newline + 1, "LZW3 %llu %llx %llu %llx%c%c", &bytes, &hash,
+				&script_bytes, &script_hash, &line_end, &extra) != 5 || !script_bytes) return false;
+			script.bytes = script_bytes; script.hash = script_hash; script.recorded = true;
+		}
+		else if (sscanf(newline + 1, "LZW2 %llu %llx%c%c", &bytes, &hash, &line_end, &extra) != 3) return false;
+		if (!bytes || line_end != '\n') return false;
 		parsed.bytes = bytes; parsed.hash = hash; parsed.recorded = true;
 	}
 	if (digest) *digest = parsed;
+	if (script_digest) *script_digest = script;
 	return true;
 }
 
-static bool world_store_snapshot_digest(LPCSTR save, WorldSnapshotDigest& digest, bool flush)
+static void world_store_snapshot_path(LPCSTR save, LPCSTR extension, string_path& path)
 {
 	string128 file;
-	xr_sprintf(file, "%s%s", save, SAVE_EXTENSION);
-	string_path path;
+	xr_sprintf(file, "%s%s", save, extension);
+	// GAMMA's before_save callback lowercases the script sidecar basename.
+	if (xr_strcmp(extension, ".scoc") == 0)
+		for (char* c = file; *c; ++c) if (*c >= 'A' && *c <= 'Z') *c = char(*c + ('a' - 'A'));
 	FS.update_path(path, "$game_saves$", file);
+}
+
+static bool world_store_snapshot_digest(LPCSTR save, WorldSnapshotDigest& digest, bool flush,
+	LPCSTR extension = SAVE_EXTENSION)
+{
+	string_path path;
+	world_store_snapshot_path(save, extension, path);
 	FILE* f = fopen(path, flush ? "rb+" : "rb");
 	if (!f) return false;
 	digest = {};
@@ -129,14 +148,16 @@ static bool world_store_write_pointer(LPCSTR world, LPCSTR save)
 {
 	string_path path, temp;
 	world_store_pointer_path(world, path);
-	WorldSnapshotDigest digest;
-	if (!world_store_snapshot_digest(save, digest, true)) return false;
+	WorldSnapshotDigest digest, script;
+	if (!world_store_snapshot_digest(save, digest, true) ||
+		!world_store_snapshot_digest(save, script, true, ".scoc")) return false;
 	xr_sprintf(temp, "%s.tmp", path);
 	FILE* f = fopen(temp, "wb");
 	if (!f) return false;
 	string256 manifest;
-	xr_sprintf(manifest, "%s\nLZW2 %llu %llx\n", save,
-		static_cast<unsigned long long>(digest.bytes), static_cast<unsigned long long>(digest.hash));
+	xr_sprintf(manifest, "%s\nLZW3 %llu %llx %llu %llx\n", save,
+		static_cast<unsigned long long>(digest.bytes), static_cast<unsigned long long>(digest.hash),
+		static_cast<unsigned long long>(script.bytes), static_cast<unsigned long long>(script.hash));
 	const bool written = fwrite(manifest, 1, xr_strlen(manifest), f) == xr_strlen(manifest) && fflush(f) == 0 && _commit(_fileno(f)) == 0;
 	const bool closed = fclose(f) == 0;
 	return written && closed && MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
@@ -152,8 +173,8 @@ bool world_store_choose_start(LPSTR game_or_spawn, u32 game_size, LPSTR new_or_l
 	s_world_last_save = s_world_previous_players = 0;
 	s_world_committed = false;
 	s_world_last_attempt = 0;
-	WorldSnapshotDigest expected;
-	if (!world_store_read_pointer(world, save, &expected))
+	WorldSnapshotDigest expected, expected_script;
+	if (!world_store_read_pointer(world, save, &expected, &expected_script))
 	{
 		string_path path;
 		world_store_pointer_path(world, path);
@@ -179,6 +200,13 @@ bool world_store_choose_start(LPSTR game_or_spawn, u32 game_size, LPSTR new_or_l
 			"Committed world snapshot checksum mismatch; recovery required");
 	}
 	else Msg("[NetAnomaly][world] '%s': legacy snapshot has no checksum; next commit upgrades it", world);
+	if (expected_script.recorded)
+	{
+		WorldSnapshotDigest actual;
+		CHECK_OR_EXIT(world_store_snapshot_digest(save, actual, false, ".scoc") &&
+			actual.bytes == expected_script.bytes && actual.hash == expected_script.hash,
+			"Committed world script state is missing/corrupt; recovery required");
+	}
 	xr_strcpy(game_or_spawn, game_size, save);
 	xr_strcpy(new_or_load, mode_size, "load");
 	s_world_loaded = true;
@@ -234,6 +262,21 @@ bool world_store_save_now(LPCSTR reason)
 	}
 	const bool current_a = has_pointer && xr_strcmp(previous, slot_a) == 0;
 	xr_sprintf(save, "%s_%c", world, current_a ? 'b' : 'a');
+	// The engine writes GAMMA state before writing the ALife snapshot. Remove
+	// only the inactive slot's sidecar first: a callback that silently fails
+	// must not commit a stale sidecar left by an older save of this slot.
+	string_path script_path;
+	world_store_snapshot_path(save, ".scoc", script_path);
+	FILE* old_script = fopen(script_path, "rb");
+	if (old_script)
+	{
+		fclose(old_script);
+		if (remove(script_path) != 0)
+		{
+			Msg("! [NetAnomaly][world] cannot clear inactive script snapshot %s", script_path);
+			return false;
+		}
+	}
 	CTimer timer;
 	timer.Start();
 	try
