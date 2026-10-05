@@ -47,6 +47,14 @@ struct WorldIdentity
     std::uint64_t epoch = 0;
 };
 
+inline void require_snapshot_size(const std::string& path, std::uint64_t expected_bytes)
+{
+    std::error_code error;
+    const auto actual = std::filesystem::file_size(path, error);
+    if (error || actual != expected_bytes)
+        throw std::runtime_error("incomplete ALife snapshot write; previous commit preserved");
+}
+
 class WorldAuthorityStore
 {
 public:

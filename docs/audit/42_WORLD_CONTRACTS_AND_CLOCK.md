@@ -68,6 +68,11 @@ const-доступом. При выборе слота сохранения ис
 flush-ятся до commit указателя. Перед save удаляется только старый sidecar
 неактивного слота: молча отказавший Lua save не может принять старые данные
 за новое script state. `.scoc` обязателен для нового persistent GAMMA save.
+Server Lua guard захватывает фактический результат `marshal.encode` во
+время before_save и сверяет записанный `.scoc` с этими байтами до commit.
+Encoder восстанавливается после вызова, включая exception; повторного
+encode нет. Это обнаруживает silent partial write, а не только отсутствие
+файла. ALife writer дополнительно проверяет ожидаемый размер `.scop`.
 Повреждённый pointer, отсутствующий committed save/sidecar
 или checksum mismatch останавливает загрузку вместо генерации нового мира.
 Legacy pointer принимается один раз и обновляется следующим commit.

@@ -290,6 +290,15 @@ bool world_store_save_now(LPCSTR reason)
 		Msg("! [NetAnomaly][world] saving %s failed (%s)", save, reason);
 		return false;
 	}
+	// GAMMA ignores some Lua file-write errors. Verify the exact encoded data,
+	// not merely a nonempty/stale sidecar, before committing the pair.
+	::luabind::functor<bool> script_snapshot_ready;
+	if (!ai().script_engine().functor("zz_netcoop_world_rules.script_snapshot_matches", script_snapshot_ready) ||
+		!script_snapshot_ready(save))
+	{
+		Msg("! [NetAnomaly][world] incomplete script snapshot %s; keeping the previous commit", save);
+		return false;
+	}
 	if (!world_store_write_pointer(world, save))
 	{
 		Msg("! [NetAnomaly][world] saved %s but could not point %s.current to it", save, world);

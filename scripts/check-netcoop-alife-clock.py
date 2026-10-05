@@ -114,7 +114,13 @@ int main(int argc,char** argv) {
  rejects([&]{restored.init("alife");});
  IReader rollback(saved);rejects([&]{restored.load(rollback);});
  owner.close();assert(!owner.ready());
- std::fstream record("zone.authority",std::ios::in|std::ios::out|std::ios::binary);record.seekp(10);record.put('X');record.close();
+ std::ofstream("native-snapshot",std::ios::binary)<<"complete";
+ require_snapshot_size("native-snapshot",8);
+ rejects([]{require_snapshot_size("native-snapshot",9);});
+ rejects([]{require_snapshot_size("missing-native-snapshot",8);});
+ std::fstream record("zone.authority",std::ios::in|std::ios::out|std::ios::binary);
+ record.seekg(10);const char byte=static_cast<char>(record.get());
+ record.seekp(10);record.put(static_cast<char>(static_cast<unsigned char>(byte)^0xff));record.close();
  rejects([&]{owner.open(".","zone");});assert(!owner.active());
  std::cout<<"PASS: actual ALife calendar save/load, legacy adoption, timer wrap independence, time-scale continuity, concurrent reads, restart/fence, corrupt/foreign/truncated state and exclusive process ownership\n";
 }

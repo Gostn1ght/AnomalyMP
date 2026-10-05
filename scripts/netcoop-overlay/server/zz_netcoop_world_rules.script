@@ -3,6 +3,8 @@
 -- Do not intercept SIMBOARD:create_squad globally: quests and initial world
 -- creation use that same entry point.
 local blocked_methods = {}
+local guarded_savers = {}
+local encoded_snapshot, encoded_name
 
 local function cooperative()
     return netcoop_enabled and netcoop_enabled()
@@ -25,6 +27,44 @@ function install()
         class.try_respawn = guarded
         printf("[Lost Zone][world] NPC/mutant replenishment disabled; initial population and surviving squads preserved")
     end
+    local storage = alife_storage_manager
+    local saver = storage and storage.CALifeStorageManager_before_save
+    if marshal and type(marshal.encode) == "function" and type(saver) == "function" and not guarded_savers[saver] then
+        local guarded = function(fname)
+            encoded_snapshot, encoded_name = nil, nil
+            local encode = marshal.encode
+            -- Capture the actual encoder output once. Encoding the state a
+            -- second time could change userdata serializers or table order.
+            marshal.encode = function(state)
+                local data = encode(state)
+                if state == storage.get_state() then
+                    encoded_snapshot = data
+                    encoded_name = fname:sub(0, -6):lower()
+                end
+                return data
+            end
+            local ok, err = pcall(saver, fname)
+            marshal.encode = encode
+            if not ok then
+                encoded_snapshot, encoded_name = nil, nil
+                error(err)
+            end
+        end
+        guarded_savers[guarded] = true
+        storage.CALifeStorageManager_before_save = guarded
+    end
+end
+
+function script_snapshot_matches(save)
+    local expected = encoded_snapshot
+    encoded_snapshot = nil -- release the buffer after validation, including failure
+    if type(expected) ~= "string" or expected == "" or encoded_name ~= save:lower() then return false end
+    local path = getFS():update_path("$game_saves$", "") .. encoded_name .. ".scoc"
+    local file = io.open(path, "rb")
+    if not file then return false end
+    local actual = file:read("*all")
+    local closed = file:close()
+    return closed and actual == expected or false
 end
 
 function on_game_start()

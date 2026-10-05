@@ -62,6 +62,9 @@ struct Files {
  bool exist(const char* file) {return bool(std::ifstream(file));}
 } FS;
 bool fail_save=false,fail_script=false;int revision=0;std::string last_slot;
+bool script_matches=true;
+namespace luabind { template<class R>struct functor { R operator()(const char*) {return script_matches;} }; }
+struct ScriptEngine {template<class T>bool functor(const char*,T&){return true;}};
 struct CALifeSimulator {
  void save(const char* name,bool) {
   last_slot=name;
@@ -70,7 +73,10 @@ struct CALifeSimulator {
   if(fail_save) throw std::runtime_error("injected interrupted engine save");
  }
 } simulator;
-struct AI {const CALifeSimulator* get_alife() {return &simulator;}};
+struct AI {
+ const CALifeSimulator* get_alife() {return &simulator;}
+ ScriptEngine& script_engine() {static ScriptEngine engine;return engine;}
+};
 AI& ai() {static AI a;return a;}
 struct EngineLevel {void ClientSend() {} void ClientSave() {}};
 EngineLevel engine_level;
@@ -113,6 +119,9 @@ int main() {
  assert(contents("zone.current")=="zone_b" && contents("zone_b.scoc")=="5");
  assert(contents("zone_a.scoc").empty()); // stale sidecar cannot be reused
  fail_script=false;
+ script_matches=false;assert(!world_store_save_now("partial script write"));
+ assert(contents("zone.current")=="zone_b" && contents("zone_b.scoc")=="5");
+ script_matches=true;
  // New manifests detect byte corruption, truncation and missing snapshots.
  WorldSnapshotDigest digest;
  assert(world_store_read_pointer("zone",load,&digest) && digest.recorded && digest.bytes==1);
