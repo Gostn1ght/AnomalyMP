@@ -571,6 +571,116 @@ local function install_squad_witnesses()
 	end
 end
 
+----------------------------------------------------------------------
+-- NPC weapons and loot (stage 5)
+----------------------------------------------------------------------
+-- GAMMA made a corpse's loot when the player first opened it
+-- (motivator use_callback -> death_manager.create_release_item). On a
+-- netcoop client that runs without alife(), so corpses kept only what the
+-- NPC carried. It also gave the dropped weapon a new random condition, so
+-- NPC weapons were 100 % until death and unrelated to their use.
+--
+-- Now an NPC's weapons get a condition once, when the NPC first comes
+-- online, from its rank (GAMMA's dph_loot_cond ranges); the engine wears
+-- them with every shot. The loot is made once, at death, on the server,
+-- and the weapons keep their real condition. Both use a seed from the
+-- world seed and the NPC id, so the same NPC gets the same result.
+local WORLD_SEED = (os.time() % 100000) * 7919
+local WEAPON_CONDITION_DEFAULT = { -- percent, used when MCM has no value
+	novice = { 25, 65 }, trainee = { 30, 70 }, experienced = { 40, 80 }, professional = { 45, 85 },
+	veteran = { 55, 90 }, expert = { 60, 92 }, master = { 65, 95 }, legend = { 70, 95 }, zombied = { 5, 30 },
+}
+local pending_weapons = {} -- npc id -> real time (ms) to set its weapon conditions
+
+local function seeded_random(seed)
+	local state = seed % 2147483647
+	if state <= 0 then state = state + 2147483646 end
+	return function(lo, hi)
+		state = (state * 16807) % 2147483647
+		local r = (state - 1) / 2147483646
+		return lo + math.floor(r * (hi - lo + 1))
+	end
+end
+
+local function weapon_condition_range(npc)
+	local key = (character_community(npc) == "zombied") and "zombied" or (ranks.get_obj_rank_name(npc) or "novice")
+	local lo = ui_mcm and ui_mcm.get("dph_loot_cond/weapon/" .. key .. "_min")
+	local hi = ui_mcm and ui_mcm.get("dph_loot_cond/weapon/" .. key .. "_max")
+	local default = WEAPON_CONDITION_DEFAULT[key] or WEAPON_CONDITION_DEFAULT.novice
+	lo, hi = tonumber(lo) or default[1], tonumber(hi) or default[2]
+	if hi < lo then hi = lo end
+	return clamp(lo, 5, 100), clamp(hi, 5, 100)
+end
+
+local function condition_npc_weapons(npc)
+	if not (npc and npc:alive()) or se_load_var(npc:id(), npc:name(), "netcoop_wpn_cond") then return end
+	local lo, hi = weapon_condition_range(npc)
+	local roll = seeded_random(WORLD_SEED + npc:id() * 131)
+	local count = 0
+	npc:iterate_inventory(function(_, item)
+		if item and IsWeapon(item) then
+			item:set_condition(roll(lo, hi) / 100)
+			count = count + 1
+		end
+	end, npc)
+	se_save_var(npc:id(), npc:name(), "netcoop_wpn_cond", true)
+	if count > 0 then printf("[Lost Zone][loot] npc %s weapons conditioned %d-%d%%: %d", npc:name(), lo, hi, count) end
+end
+
+local function process_pending_weapons()
+	local now = time_global()
+	for id, at in pairs(pending_weapons) do
+		if now >= at then
+			pending_weapons[id] = nil
+			local npc = level.object_by_id(id)
+			if npc and IsStalker(npc) then pcall(condition_npc_weapons, npc) end
+		end
+	end
+end
+
+local function on_npc_net_spawn(npc)
+	-- Its items spawn after it: look a moment later.
+	if npc and IsStalker(npc) then pending_weapons[npc:id()] = time_global() + 2000 end
+end
+
+local function on_npc_death_loot(victim)
+	if not (victim and IsStalker(victim) and death_manager and death_manager.create_release_item) then return end
+	pending_weapons[victim:id()] = nil
+	if se_load_var(victim:id(), victim:name(), "death_dropped") then return end
+	local before = 0
+	victim:iterate_inventory(function() before = before + 1 end, victim)
+	local bound_here = false
+	if not rawget(db, "actor") then
+		local player = any_player()
+		if player then bind_actor(player); bound_here = true end
+	end
+	math.randomseed(WORLD_SEED + victim:id() * 7)
+	local ok, err = pcall(death_manager.create_release_item, victim)
+	math.randomseed(os.time() + victim:id())
+	if bound_here then bind_actor(nil) end
+	local after = 0
+	victim:iterate_inventory(function() after = after + 1 end, victim)
+	printf("[Lost Zone][loot] npc %s died: loot %s, %d -> %d items", victim:name(), ok and "made" or ("failed: " .. tostring(err)), before, after)
+end
+
+local function install_npc_loot()
+	if not (death_manager and RegisterScriptCallback) or death_manager.__netcoop_loot then return end
+	death_manager.__netcoop_loot = true
+	-- A conditioned NPC's weapon keeps its real (worn) condition at death;
+	-- GAMMA's ammo for the weapon still comes with it.
+	local drop_condition = death_manager.set_weapon_drop_condition
+	if drop_condition then
+		death_manager.set_weapon_drop_condition = function(npc, item)
+			local keep = npc and item and se_load_var(npc:id(), npc:name(), "netcoop_wpn_cond") and item:condition()
+			drop_condition(npc, item)
+			if keep then item:set_condition(keep) end
+		end
+	end
+	RegisterScriptCallback("npc_on_net_spawn", on_npc_net_spawn)
+	RegisterScriptCallback("npc_on_death_callback", on_npc_death_loot)
+	printf("[Lost Zone] NPC weapon condition and death loot run on the server")
+end
+
 function on_game_start()
 	install_squad_witnesses()
 	RegisterScriptCallback("npc_on_hit_callback", on_camp_member_hit)
@@ -598,9 +708,11 @@ function on_game_start()
 		if not ok then printf("[Lost Zone] death_manager init error: %s", tostring(err)) end
 	end
 	install_npc_diagnostic()
+	install_npc_loot()
 	if AddUniqueCall and ProcessEventQueue then
 		AddUniqueCall(server_event_queue)
 		AddUniqueCall(server_world_loop)
+		AddUniqueCall(function() process_pending_weapons(); return false end)
 		printf("[Lost Zone] server time event queue installed")
 	end
 	-- base-game's NPC vision hook reads db.actor (torch, flashlight) for every

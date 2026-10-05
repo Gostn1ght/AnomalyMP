@@ -635,6 +635,13 @@ end
 local function install_server_item_actions()
 	if not (netcoop_item_action and netcoop_pure_client and netcoop_pure_client()) then return end
 	install_server_repair()
+	-- Corpse loot is made by the server at death (netcoop_server_compat).
+	-- Opening a corpse here ran GAMMA's loot maker without alife(): nothing
+	-- spawned, but it rerolled the weapons' condition in this client's copy.
+	if death_manager and not death_manager.__netcoop_server_loot then
+		death_manager.__netcoop_server_loot = true
+		death_manager.create_release_item = function() end
+	end
 	local ui = ui_inventory and ui_inventory.UIInventory
 	if ui and not ui.__netcoop_item_actions then
 		ui.__netcoop_item_actions = true
