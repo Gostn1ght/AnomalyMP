@@ -71,6 +71,12 @@ CPHStaticGeomShell* P_BuildStaticGeomShell(IPhysicsShellHolder* obj, ObjectConta
 	return pUnbrokenObject;
 }
 
+IPHStaticGeomShell* P_BuildStaticGeomShellBox(IPhysicsShellHolder* obj, ObjectContactCallbackFun* object_contact_callback,
+                                              const Fobb& b)
+{
+	return P_BuildStaticGeomShell(obj, object_contact_callback, b);
+}
+
 IPHStaticGeomShell* P_BuildStaticGeomShell(IPhysicsShellHolder* obj, ObjectContactCallbackFun* object_contact_callback)
 {
 	Fobb b;

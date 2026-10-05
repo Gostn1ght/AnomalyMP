@@ -1,11 +1,16 @@
 #pragma once
 #include "inventory_space.h"
-#include "GameObject.h"
+#include "PhysicsShellHolder.h"
 #include "script_export_space.h"
 
-class CInventoryBox : public CGameObject
+class IPHStaticGeomShell;
+
+// A physics shell holder only so that player furniture with an inventory
+// can have a fixed collision box (netcoop); level boxes are unchanged.
+class CInventoryBox : public CPhysicsShellHolder
 {
-	typedef CGameObject inherited;
+	typedef CPhysicsShellHolder inherited;
+	IPHStaticGeomShell* m_netcoop_solid = nullptr;
 
 public:
 	xr_vector<u16> m_items;

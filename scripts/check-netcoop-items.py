@@ -322,4 +322,37 @@ actor_status_sleep.toggle_feature(true)
 assert(toggled[1]==false and toggled[2]==false and #toggled==2,'sleep need stays off')
 ''')
 
-print('Item actions Lua: battery swap/unpack and repair on the server, whitelist, client routing, NPC inventory at spawn, item condition and death loot, furniture and stashes, player state, sleep off PASS')
+# Companions follow the player who recruited them, wait while that player is offline.
+lua.execute(r'''
+online="91 "
+logins={[91]="ivan",[92]="petr",[95]="ivan"}
+function netcoop_players() return online end
+function netcoop_actor_login(id) return logins[id] or "" end
+squads={}
+function get_object_squad(npc) return npc.squad end
+axr_companions={companion_squads={},
+  add_to_actor_squad=function(npc) axr_companions.companion_squads[npc.squad.id]=npc.squad end,
+  add_special_squad=function(squad) axr_companions.companion_squads[squad.id]=squad end,
+  remove_from_actor_squad=function(npc) axr_companions.companion_squads[npc.squad.id]=nil end}
+sim_squad_scripted={sim_squad_scripted={get_script_target=function(self) if axr_companions.companion_squads[self.id] then return 0 end return 77 end}}
+''')
+start = server.index('-- Companions belong to the player who recruited them')
+start = server.rfind('------', 0, start)
+end = server.index('\nfunction on_game_start()', start)
+lua.execute(server[start:end] + '\ninstall_companions()')
+lua.execute(r'''
+local cls=sim_squad_scripted.sim_squad_scripted
+local squad={id=300}; local npc={squad=squad}
+db.actor={id=function() return 91 end}
+axr_companions.add_to_actor_squad(npc)
+assert(cls.get_script_target(squad)==91,'goes to its recruiter, not AC_ID 0')
+assert(cls.get_script_target({id=301})==77,'other squads unchanged')
+online="92 "
+assert(cls.get_script_target(squad)==300,'owner offline: the squad waits')
+online="92 95 "
+assert(cls.get_script_target(squad)==95,'owner back with a new Actor')
+axr_companions.remove_from_actor_squad(npc)
+assert(companion_owner(300)==nil and cls.get_script_target(squad)==77)
+''')
+
+print('Item actions Lua: battery swap/unpack and repair on the server, whitelist, client routing, NPC inventory at spawn, item condition and death loot, furniture and stashes, player state, sleep off, companions PASS')

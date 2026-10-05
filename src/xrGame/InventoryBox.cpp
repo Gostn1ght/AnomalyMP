@@ -9,6 +9,8 @@
 #include "ui/UIActorMenu.h"
 #include "uigamecustom.h"
 #include "inventory_item.h"
+#include "netcoop.h"
+#include "../xrPhysics/IPHStaticGeomShell.h"
 
 CInventoryBox::CInventoryBox()
 {
@@ -97,6 +99,7 @@ void CInventoryBox::UpdateCL()
 
 void CInventoryBox::net_Destroy()
 {
+	if (m_netcoop_solid) DestroyStaticGeomShell(m_netcoop_solid);
 	inherited::net_Destroy();
 }
 
@@ -116,6 +119,26 @@ BOOL CInventoryBox::net_Spawn(CSE_Abstract* DC)
 		m_can_take = pSE_box->m_can_take;
 		m_closed = pSE_box->m_closed;
 		set_tip_text(pSE_box->m_tip_text.c_str());
+	}
+
+	// Netcoop: player furniture with an inventory (GAMMA placeable stashes:
+	// cases, cabinets) was walked through; it gets a fixed box of the size
+	// GAMMA's placement uses (bounding_box_size/origin of its section).
+	LPCSTR section = cNameSect().c_str();
+	if (netcoop::enabled() && !m_netcoop_solid && pSettings->line_exist(section, "placeable_type") &&
+		pSettings->line_exist(section, "bounding_box_size"))
+	{
+		Fobb box;
+		box.m_rotate.identity();
+		box.m_halfsize = pSettings->r_fvector3(section, "bounding_box_size");
+		box.m_halfsize.mul(0.5f);
+		// The placement turns the model by base_rotation; a square footprint
+		// stays right whichever way the box was placed.
+		box.m_halfsize.x = box.m_halfsize.z = _max(box.m_halfsize.x, box.m_halfsize.z);
+		box.m_translate = pSettings->line_exist(section, "bounding_box_origin") ? pSettings->r_fvector3(section, "bounding_box_origin") :
+			Fvector().set(0.f, box.m_halfsize.y, 0.f);
+		if (box.m_halfsize.x > 0.01f && box.m_halfsize.y > 0.01f && box.m_halfsize.z > 0.01f)
+			m_netcoop_solid = P_BuildStaticGeomShellBox(this, nullptr, box);
 	}
 
 	return TRUE;

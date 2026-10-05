@@ -800,6 +800,77 @@ local function install_npc_loot()
 	printf("[Lost Zone] NPC inventories, item condition and death loot run on the server")
 end
 
+----------------------------------------------------------------------
+-- Companions belong to the player who recruited them (owner 2026-10-05)
+----------------------------------------------------------------------
+-- GAMMA sends a companion squad to target 0 (AC_ID), which on the server is
+-- its own authority Actor, not the player who hired the squad. The server
+-- records the recruiting player's login (world script state, saved with the
+-- world) and sends the squad to that player's current Actor; while the
+-- player is offline the squad waits where it is. After a restart or a
+-- reconnect the player gets the same squad back.
+local function companion_owners()
+	local state = alife_storage_manager.get_state()
+	state.netcoop_companion_owner = state.netcoop_companion_owner or {}
+	return state.netcoop_companion_owner
+end
+
+local function online_actor_of(login)
+	if not (login and netcoop_players and netcoop_actor_login) then return nil end
+	for id in string.gmatch(netcoop_players(), "%d+") do
+		local actor_id = tonumber(id)
+		if netcoop_actor_login(actor_id) == login then return actor_id end
+	end
+	return nil
+end
+
+local function remember_owner(squad)
+	local actor = db.actor
+	if not (squad and actor and netcoop_actor_login) then return end
+	local login = netcoop_actor_login(actor:id())
+	if login ~= "" then
+		companion_owners()[squad.id] = login
+		printf("[Lost Zone][companions] squad %d now follows %s", squad.id, login)
+	end
+end
+
+function companion_owner(squad_id)
+	return companion_owners()[squad_id]
+end
+
+local function install_companions()
+	local ac = axr_companions
+	local class = sim_squad_scripted and sim_squad_scripted.sim_squad_scripted
+	if not (ac and class) or ac.__netcoop_owners then return end
+	ac.__netcoop_owners = true
+	local add_npc = ac.add_to_actor_squad
+	ac.add_to_actor_squad = function(npc)
+		add_npc(npc)
+		remember_owner(npc and get_object_squad(npc))
+	end
+	local add_squad = ac.add_special_squad
+	ac.add_special_squad = function(squad, ...)
+		add_squad(squad, ...)
+		remember_owner(squad)
+	end
+	local remove_npc = ac.remove_from_actor_squad
+	ac.remove_from_actor_squad = function(npc)
+		local squad = npc and get_object_squad(npc)
+		remove_npc(npc)
+		if squad and not ac.companion_squads[squad.id] then companion_owners()[squad.id] = nil end
+	end
+	local target = class.get_script_target
+	class.get_script_target = function(self)
+		local id = target(self)
+		if id == 0 and ac.companion_squads[self.id] then
+			local login = companion_owners()[self.id]
+			if login then return online_actor_of(login) or self.id end
+		end
+		return id
+	end
+	printf("[Lost Zone] companions follow the player who recruited them")
+end
+
 function on_game_start()
 	install_squad_witnesses()
 	RegisterScriptCallback("npc_on_hit_callback", on_camp_member_hit)
@@ -828,6 +899,7 @@ function on_game_start()
 	end
 	install_npc_diagnostic()
 	install_npc_loot()
+	install_companions()
 	-- Sleep deprivation is cut from multiplayer (owner 2026-10-05).
 	if actor_status_sleep and actor_status_sleep.toggle_feature then
 		local toggle = actor_status_sleep.toggle_feature
