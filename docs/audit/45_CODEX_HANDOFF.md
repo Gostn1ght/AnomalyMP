@@ -96,6 +96,11 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
 
 ## Журнал
 
+- 2026-10-06 01:20 (Claude) — билд `5302a58` установлен в gamma-runtime.
+  `scripts/run-world-restart-test.ps1`: «[world] saved selftest_restart_a (periodic)
+  in 207 ms» → перезапуск → «loading saved world selftest_restart_a», игровое время
+  продолжилось. ПЕРВОЕ успешное сохранение/загрузка мира на реальном сервере.
+
 - 2026-10-06 00:10 (Claude) — самотест на билде `8d586d8`: 96 переходов, 0 ошибок.
   НАЙДЕН БАГ: в `netcoop_server_compat.script` цикл AddUniqueCall вызывал
   `owned_objects_update/stash_visits_update/keep_switch_distance`, объявленные
@@ -283,3 +288,11 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
 - 5302a58f4 DX11 37378445074 SUCCESS, full package includes ownership and
   846664a26 world-save fix. Running build completed before this native push.
   Installation/native world-save/restart acceptance remain Claude's area.
+
+- Coordination: Codex will make native progress capture fail closed before
+  Actor/inventory mutation in character_save_actor (netcoop.cpp and
+  netcoop_characters.inc). Missing/throwing Lua capture and oversized tasks or
+  progress currently silently save an old quest snapshot as success. Coverage
+  extends the existing Actions player-transfer fixture; runtime unchanged.
+- 024fbef42 corrects fixture-only MSVC narrowing in the disconnect test; native
+  Actions pending. f4803b1c0 backend 37380934586 SUCCESS Windows+Linux (136).
