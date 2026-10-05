@@ -19,6 +19,11 @@
 #include "ActorHelmet.h"
 #include "eatable_item.h"
 #include "Artefact.h"
+#include "WeaponPistol.h"
+#include "WeaponKnife.h"
+#include "CustomDevice.h"
+#include "Torch.h"
+#include "PDA.h"
 
 //#include "phactivationshape.h"
 #include "../xrphysics/iphworld.h"
@@ -46,14 +51,23 @@ CPhysicsShellHolder::CPhysicsShellHolder()
 // A section can name its profile: netcoop_physics_profile = weapon.
 struct NetcoopPhysicsProfile { LPCSTR name; float mu, bounce, angular; };
 static const NetcoopPhysicsProfile s_netcoop_profiles[] = {
-	{"small", 0.8f, 0.08f, 2.f}, // food, medicine, ammo boxes, misc
-	{"weapon", 1.0f, 0.04f, 6.f}, // long, heavy, must not roll or skate
-	{"metal", 0.65f, 0.12f, 2.f}, // devices, artefacts, tools
-	{"bottle", 0.55f, 0.15f, 1.f}, // glass and cans roll
-	{"soft", 1.3f, 0.02f, 8.f}, // outfits, helmets, bags
+	{"small", 0.8f, 0.08f, 2.f}, // anything not listed below
+	{"weapon", 1.0f, 0.04f, 6.f}, // rifles, shotguns: long and heavy, must not roll or skate
+	{"bottle", 0.55f, 0.15f, 1.f}, // glass, cans: roll and clink
+	{"metal", 0.65f, 0.12f, 2.f}, // knives, tools, parts, devices
+	{"soft", 1.3f, 0.02f, 8.f}, // outfits
+	{"pistol", 0.9f, 0.06f, 4.f}, // pistols
+	{"helmet", 0.7f, 0.10f, 3.f}, // helmets, gas masks: hard shell, rock a little
+	{"ammo", 0.9f, 0.05f, 5.f}, // ammunition boxes: flat, slide a little, do not roll
+	{"food", 0.9f, 0.05f, 4.f}, // packaged food, bread, meat
+	{"medicine", 0.8f, 0.06f, 3.f}, // medkits, bandages, pills
+	{"artefact", 0.5f, 0.20f, 1.f}, // rounded, roll furthest
+	{"grenade", 0.6f, 0.15f, 1.f}, // round, bounce
+	{"bag", 1.2f, 0.02f, 8.f}, // backpacks and sacks
 };
-enum { netcoop_profile_small, netcoop_profile_weapon, netcoop_profile_metal, netcoop_profile_bottle, netcoop_profile_soft,
-	netcoop_profile_count };
+enum { netcoop_profile_small, netcoop_profile_weapon, netcoop_profile_bottle, netcoop_profile_metal, netcoop_profile_soft,
+	netcoop_profile_pistol, netcoop_profile_helmet, netcoop_profile_ammo, netcoop_profile_food, netcoop_profile_medicine,
+	netcoop_profile_artefact, netcoop_profile_grenade, netcoop_profile_bag, netcoop_profile_count };
 
 template <int Profile>
 static void netcoop_item_ground_contact(bool& collide, bool, dContact& contact, SGameMtl*, SGameMtl*)
@@ -72,8 +86,19 @@ static void netcoop_item_ground_contact(bool& collide, bool, dContact& contact, 
 
 static ObjectContactCallbackFun* const s_netcoop_profile_contacts[netcoop_profile_count] = {
 	netcoop_item_ground_contact<0>, netcoop_item_ground_contact<1>, netcoop_item_ground_contact<2>,
-	netcoop_item_ground_contact<3>, netcoop_item_ground_contact<4>,
+	netcoop_item_ground_contact<3>, netcoop_item_ground_contact<4>, netcoop_item_ground_contact<5>,
+	netcoop_item_ground_contact<6>, netcoop_item_ground_contact<7>, netcoop_item_ground_contact<8>,
+	netcoop_item_ground_contact<9>, netcoop_item_ground_contact<10>, netcoop_item_ground_contact<11>,
+	netcoop_item_ground_contact<12>,
 };
+static_assert(sizeof(s_netcoop_profiles) / sizeof(s_netcoop_profiles[0]) == netcoop_profile_count, "one row per profile");
+
+static bool netcoop_section_has(LPCSTR section, LPCSTR const* words, u32 count)
+{
+	for (u32 i = 0; i < count; ++i)
+		if (strstr(section, words[i])) return true;
+	return false;
+}
 
 static int netcoop_item_profile(CPhysicsShellHolder* holder)
 {
@@ -84,17 +109,30 @@ static int netcoop_item_profile(CPhysicsShellHolder* holder)
 		for (int i = 0; i < netcoop_profile_count; ++i)
 			if (!xr_strcmp(name, s_netcoop_profiles[i].name)) return i;
 	}
-	if (smart_cast<CWeaponAmmo*>(holder)) return netcoop_profile_small;
+	static LPCSTR const bags[] = {"backpack", "sack", "bag"};
+	static LPCSTR const containers[] = {"bottle", "vodka", "water", "beer", "drink", "energy", "juice", "flask", "can"};
+	static LPCSTR const medicine[] = {"medkit", "bandage", "antirad", "drug", "stimpack", "pill", "morphine", "adrenalin",
+		"vinca", "salicidic", "rad_", "survival_kit", "akvatab"};
+	if (smart_cast<CWeaponAmmo*>(holder)) return netcoop_profile_ammo;
+	if (smart_cast<CGrenade*>(holder)) return netcoop_profile_grenade;
+	if (smart_cast<CWeaponKnife*>(holder)) return netcoop_profile_metal;
+	if (smart_cast<CWeaponPistol*>(holder)) return netcoop_profile_pistol;
 	if (smart_cast<CWeapon*>(holder)) return netcoop_profile_weapon;
-	if (smart_cast<CCustomOutfit*>(holder) || smart_cast<CHelmet*>(holder)) return netcoop_profile_soft;
-	if (smart_cast<CArtefact*>(holder)) return netcoop_profile_metal;
+	if (smart_cast<CHelmet*>(holder)) return netcoop_profile_helmet;
+	if (smart_cast<CCustomOutfit*>(holder)) return netcoop_profile_soft;
+	if (smart_cast<CArtefact*>(holder)) return netcoop_profile_artefact;
+	if (smart_cast<CCustomDevice*>(holder) || smart_cast<CTorch*>(holder) || smart_cast<CPda*>(holder))
+		return netcoop_profile_metal;
 	if (smart_cast<CEatableItem*>(holder))
 	{
-		static LPCSTR const containers[] = {"bottle", "vodka", "water", "beer", "drink", "energy", "juice", "can"};
-		for (LPCSTR word : containers)
-			if (strstr(section, word)) return netcoop_profile_bottle;
-		return netcoop_profile_small;
+		if (netcoop_section_has(section, containers, sizeof(containers) / sizeof(containers[0]))) return netcoop_profile_bottle;
+		if (netcoop_section_has(section, medicine, sizeof(medicine) / sizeof(medicine[0]))) return netcoop_profile_medicine;
+		return netcoop_profile_food;
 	}
+	if (netcoop_section_has(section, bags, sizeof(bags) / sizeof(bags[0]))) return netcoop_profile_bag;
+	// Tools, parts, repair kits and other hardware are metal; the rest small.
+	if (strstr(section, "tool") || strstr(section, "part") || strstr(section, "kit") || strstr(section, "prt_"))
+		return netcoop_profile_metal;
 	return netcoop_profile_small;
 }
 

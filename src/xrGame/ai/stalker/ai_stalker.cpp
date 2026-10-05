@@ -1749,7 +1749,8 @@ bool CAI_Stalker::can_fire_right_now()
 
 bool CAI_Stalker::unlimited_ammo()
 {
-	return g_ai_unlimited_ammo && infinite_ammo() && CObjectHandler::planner().object().g_Alive();
+	return g_ai_unlimited_ammo && infinite_ammo() && CObjectHandler::planner().object().g_Alive() &&
+		!netcoop::server_real_npc_ammo();
 }
 
 void CAI_Stalker::ResetBoneProtections(LPCSTR imm_sect, LPCSTR bone_sect)

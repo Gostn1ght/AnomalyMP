@@ -144,46 +144,78 @@ item_repair.UIRepair.OnRepair(w)
 assert(not local_repair and sent[#sent][1]==1 and sent[#sent][2]==40 and sent[#sent][3]==41 and sent[#sent][4]=='repair 65535' and closed)
 assert(objects[41]:condition()==0.43,'the client does not repair by itself')
 ''')
-# Stage 5: NPC weapon condition at spawn, loot at death, condition kept.
+# Stage 5 / plan section 7: NPC inventory at spawn, every wearing item conditioned, nothing regenerated at death.
 lua.execute(r'''
 vars={}
 function se_load_var(id,name,key) return vars[id..key] end
 function se_save_var(id,name,key,v) vars[id..key]=v end
 function character_community() return "stalker" end
 ranks={get_obj_rank_name=function() return "veteran" end}
-ui_mcm={get=function(k) if k=="dph_loot_cond/weapon/veteran_min" then return 55 elseif k=="dph_loot_cond/weapon/veteran_max" then return 90 end end}
+local mcm={["dph_loot_cond/weapon/veteran_min"]=55,["dph_loot_cond/weapon/veteran_max"]=90,
+  ["dph_loot_cond/outfit/veteran_min"]=40,["dph_loot_cond/outfit/veteran_max"]=70}
+ui_mcm={get=function(k) return mcm[k] end}
 function IsWeapon(o) return o._sec=='wpn_ak74' end
+function IsAmmo(o) return o._sec=='ammo_545' end
+function IsOutfit(o) return o._sec=='outfit_sun' end
+function IsHeadgear(o) return o._sec=='helm_sun' end
 function IsStalker() return true end
-function time_global() return 0 end
+now_ms=0
+function time_global() return now_ms end
 function any_player() return nil end
 function bind_actor() end
+function get_object_story_id(id) return id==99 and 'trader' or nil end
+item_device.dev_consumption={device_torch={}}
+db.storage={}
 function RegisterScriptCallback(name,fn) callbacks[name]=callbacks[name] or {}; callbacks[name][fn]=true end
+npcs={}
 function npc(id)
-  local inv={make_item(id*10+1,'wpn_ak74',1), make_item(id*10+2,'bread',1)}
-  return {_inv=inv,id=function() return id end,name=function() return 'npc'..id end,alive=function() return true end,
+  local inv={make_item(id*10+1,'wpn_ak74',1), make_item(id*10+2,'outfit_sun',1), make_item(id*10+3,'device_torch',1), make_item(id*10+4,'bread',1)}
+  local n={_inv=inv,id=function() return id end,name=function() return 'npc'..id end,alive=function() return true end,
+    spawn_ini=function() return nil end,
     iterate_inventory=function(self,fn,o) for _,i in ipairs(inv) do fn(o,i) end end}
+  npcs[id]=n; objects[id]=n
+  return n
 end
-made_loot=0
-death_manager={set_weapon_drop_condition=function(n,i) i:set_condition(0.99) end,
-  create_release_item=function(n) made_loot=made_loot+1; vars[n:id()..'death_dropped']=true
-    n:iterate_inventory(function(_,i) if IsWeapon(i) then death_manager.set_weapon_drop_condition(n,i) end end, n) end}
+generated=0; made_loot=0
+death_manager={get_items_by_npc=function() return nil end,
+  try_spawn_ammo=function(n) table.insert(n._inv, make_item(n:id()*10+5,'ammo_545',1)) generated=generated+1 end,
+  try_spawn_powders=function() end, try_spawn_bullets=function() end, try_spawn_casings=function() end,
+  try_spawn_sin_artefacts=function() end,
+  create_item_list=function(n) table.insert(n._inv, make_item(n:id()*10+6+generated,'medkit',1)) generated=generated+1 end,
+  set_weapon_drop_condition=function(n,i) i:set_condition(0.99) end}
+death_manager.create_release_item=function(n) made_loot=made_loot+1; vars[n:id()..'death_dropped']=true
+  death_manager.try_spawn_ammo(n); death_manager.create_item_list(n)
+  n:iterate_inventory(function(_,i) if IsWeapon(i) then death_manager.set_weapon_drop_condition(n,i) end end, n) end
+level.object_by_id=function(id) return objects[id] end
 ''')
 start = server.index('local WORLD_SEED')
 end = server.index('\nfunction on_game_start()', start)
-lua.execute(server[start:end] + '\ncondition_weapons, death_loot, install_loot = condition_npc_weapons, on_npc_death_loot, install_npc_loot\ninstall_npc_loot()')
+lua.execute(server[start:end] + '\nspawned, process, death_loot, cond_items = on_npc_net_spawn, process_pending_inventory, on_npc_death_loot, condition_npc_items\ninstall_npc_loot()')
 lua.execute(r'''
-local a, b = npc(3), npc(3)
-condition_weapons(a); vars={} ; condition_weapons(b)
-local ca, cb = a._inv[1]:condition(), b._inv[1]:condition()
-assert(ca==cb and ca>=0.55 and ca<=0.90,'same seed, same rank range: '..ca)
-assert(a._inv[2]:condition()==1,'only weapons')
-local before=b._inv[1]:condition(); condition_weapons(b); assert(b._inv[1]:condition()==before,'once per NPC')
-b._inv[1]:set_condition(0.31) -- worn by its shots
-death_loot(b)
-assert(made_loot==1 and b._inv[1]:condition()==0.31,'loot made at death, weapon keeps its real condition')
-death_loot(b); assert(made_loot==1,'loot only once')
-local c=npc(4); death_loot(c)
-assert(c._inv[1]:condition()==0.99,'unconditioned NPC: GAMMA rule')
+local a=npc(3)
+spawned(a); now_ms=2000; process()
+assert(#a._inv==7 and generated==3,'inventory made at spawn: ammo + community + private items, got '..#a._inv)
+now_ms=4000; process()
+local w,o,d,b=a._inv[1]:condition(),a._inv[2]:condition(),a._inv[3]:condition(),a._inv[4]:condition()
+assert(w>=0.55 and w<=0.90,'weapon by rank: '..w)
+assert(o>=0.40 and o<=0.70,'armour by rank: '..o)
+assert(d>=0.15 and d<=0.90,'device battery: '..d)
+assert(b==1,'food keeps GAMMA condition')
+-- the same NPC id in another world gets the same items and conditions
+local saved_w=w; vars={}; objects[3]=nil; local a2=npc(3); generated=0
+spawned(a2); now_ms=6000; process(); now_ms=8000; process()
+assert(a2._inv[1]:condition()==saved_w,'seeded per NPC')
+-- it lives: the weapon wears, a medkit is used
+a2._inv[1]:set_condition(0.31); table.remove(a2._inv)
+local before=#a2._inv
+death_loot(a2)
+assert(made_loot==1 and #a2._inv==before,'nothing generated at death')
+assert(a2._inv[1]:condition()==0.31,'weapon keeps its real condition')
+death_loot(a2); assert(made_loot==1,'death routine only once')
+-- story NPC (trader): no spawn inventory, GAMMA loot at death
+local t=npc(99); spawned(t); now_ms=10000; process(); now_ms=12000; process()
+assert(#t._inv==4,'story NPC keeps its own inventory')
+death_loot(t); assert(#t._inv==6,'story NPC: GAMMA loot at death')
 ''')
 
-print('Item actions Lua: battery swap/unpack and repair on the server, whitelist, client routing, NPC weapon condition and death loot PASS')
+print('Item actions Lua: battery swap/unpack and repair on the server, whitelist, client routing, NPC inventory at spawn, item condition and death loot PASS')
