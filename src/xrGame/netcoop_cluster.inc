@@ -204,6 +204,20 @@ static bool hmac_sha256_hex(const xr_string& key, const xr_string& data, xr_stri
 
 // ---- session lease: one server owns a logged-in account at a time --------
 
+// A timestamp read followed by a rename is not an ownership claim: two
+// processes can both see an absent/stale lease, and a paused old process can
+// resume after its TTL and overwrite the new owner's snapshot. Keep an OS
+// exclusive handle for the ENTIRE session, including background save commits.
+// A crash releases the handle; a live stalled process cannot be stolen from.
+// The empty ownership file is never deleted/replaced (avoids inode/name races).
+// This is local Windows/shared-runtime authority, not cross-host fencing.
+static xr_map<xr_string, HANDLE> s_cluster_ownership;
+
+static xr_string cluster_login_key(LPCSTR login)
+{
+	xr_string key = login; to_lower(key); return key;
+}
+
 static bool cluster_lease_holder(LPCSTR login, u32& port, u32& stamp)
 {
 	string_path path; cluster_file("online", login, -1, path);
@@ -211,37 +225,70 @@ static bool cluster_lease_holder(LPCSTR login, u32& port, u32& stamp)
 	return cluster_read_line(path, line) && sscanf(line.c_str(), "%u %u", &port, &stamp) == 2;
 }
 
-static void cluster_lease_write(LPCSTR login)
+static bool cluster_lease_write(LPCSTR login)
 {
+	if (s_cluster_ownership.find(cluster_login_key(login)) == s_cluster_ownership.end()) return false;
 	string_path path; cluster_file("online", login, -1, path);
 	string64 line; xr_sprintf(line, "%u %u", cluster_port(), cluster_now());
-	cluster_write_line(path, line);
+	return cluster_write_line(path, line);
 }
 
 // Removes the lease only while it is still ours: the target server may have
 // taken it over already.
 static void cluster_lease_release(LPCSTR login)
 {
+	const auto owned = s_cluster_ownership.find(cluster_login_key(login));
+	if (owned == s_cluster_ownership.end()) return; // Never remove another owner's lease.
+	// Drain every queued old snapshot before another process can load this
+	// account. In normal handoff/disconnect the preceding synchronous save has
+	// already drained; this also covers front-end storage and auth rejection.
+	character_commits_flush();
 	u32 port = 0, stamp = 0;
-	if (!cluster_lease_holder(login, port, stamp) || port != cluster_port()) return;
-	string_path path; cluster_file("online", login, -1, path);
-	DeleteFileA(path);
+	if (cluster_lease_holder(login, port, stamp) && port == cluster_port())
+	{
+		string_path path; cluster_file("online", login, -1, path);
+		DeleteFileA(path);
+	}
+	CloseHandle(owned->second);
+	s_cluster_ownership.erase(owned);
 }
 
 // Login on this server: refused while another live server still has the
 // player; otherwise the lease becomes ours.
 static bool cluster_claim_session(LPCSTR login, xr_string& error)
 {
-	u32 port = 0, stamp = 0;
-	const u32 now = cluster_now();
-	if (cluster_lease_holder(login, port, stamp) && port != cluster_port() && now < stamp + cluster_lease_ttl_s)
+	const xr_string key = cluster_login_key(login);
+	if (s_cluster_ownership.find(key) != s_cluster_ownership.end())
 	{
-		string256 text;
-		xr_sprintf(text, "This character is still on another location server; try again in %u s", stamp + cluster_lease_ttl_s - now);
-		error = text;
+		error = "This account is still owned by this location server";
 		return false;
 	}
-	cluster_lease_write(login);
+	string_path ownership_path; cluster_file("ownership", login, -1, ownership_path);
+	const HANDLE ownership = CreateFileA(ownership_path, GENERIC_READ | GENERIC_WRITE, 0, nullptr,
+		OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+	if (ownership == INVALID_HANDLE_VALUE)
+	{
+		error = "This account is still owned by another location server, or its ownership file is unavailable";
+		return false;
+	}
+	u32 port = 0, stamp = 0;
+	const u32 now = cluster_now();
+	if (cluster_lease_holder(login, port, stamp) && port != cluster_port() && u64(now) < u64(stamp) + cluster_lease_ttl_s)
+	{
+		string256 text;
+		xr_sprintf(text, "This character is still on another location server; try again after its lease expires");
+		error = text;
+		CloseHandle(ownership);
+		return false;
+	}
+	s_cluster_ownership[key] = ownership;
+	if (!cluster_lease_write(login))
+	{
+		CloseHandle(ownership);
+		s_cluster_ownership.erase(key);
+		error = "Cannot commit account ownership; try again after storage is available";
+		return false;
+	}
 	return true;
 }
 

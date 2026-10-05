@@ -482,3 +482,37 @@ No whole C/K/L section is marked complete.
 on GitHub Actions. Foundation 37373918198 SUCCESS GCC/MSVC. Quest subscriber
 285c569c6 backend Actions 37376503077 **SUCCESS Windows+Linux (117 tests)**.
 Runtime installation and real native tests remain the other actor's area.
+
+## Local account lifetime ownership (native, Actions pending)
+
+The timestamp-only lease allowed concurrent read-then-write claims and takeover
+from a paused server that could later resume writing an old character snapshot.
+cluster_claim_session now opens an OS-exclusive per-account ownership file and
+retains its handle for the entire session. Same-process and other-process
+claims are refused; a stalled living owner is held past TTL, a process crash
+releases its OS handle. The compatibility timestamp is still honoured until
+expiry after a crash/old owner, but is no longer the mutual-exclusion mechanism.
+Claim create/fsync/rename failure does not report success or retain the handle.
+Heartbeat writes require locally held ownership. Release by a non-owner does
+not remove any lease; owner release drains all background commits before
+closing the exclusive handle. Empty ownership files are never deleted/replaced.
+
+Front-end storage previously checked only local s_actor_character entries, so
+a live character on another map could be edited through its saved inventory.
+Authenticated slot-zero storage now claims ownership and refreshes the disk
+cache around the complete read/write transaction, then releases. Failed gameplay
+character selection also releases the acquired ownership instead of leaking it.
+
+The new isolated Windows fixture extracts the actual file/claim/heartbeat/
+release functions. It exercises real subprocess refusal, two claimers sharing
+a start barrier, independent accounts, a stalled live owner, actual process
+termination, drain ordering, non-owner release, injected create/fsync/rename
+failures and legacy timestamp expiry. Source wiring assertions cover storage
+and rejected selection. Only Python syntax checked locally; native compilation
+and execution are added to Foundation and DX11 Actions, pending verification.
+
+All local cluster servers must use the updated matching binary; an older
+server that ignores the ownership file is not fenced by this mechanism.
+This is Windows single-host/shared-runtime ownership, not distributed authority,
+snapshot journal/2PC adoption or cross-host fencing. Save worker backpressure
+and full native inventory-ledger integration remain unfinished.

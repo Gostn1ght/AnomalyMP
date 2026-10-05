@@ -232,3 +232,18 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
 - Confirmed: 6dd10b37b DX11 37373918186 SUCCESS, Foundation 37373918198 SUCCESS;
   285c569c6 backend 37376503077 SUCCESS Windows+Linux, 117 tests. Installation and
   real exe testing remain Claude's area; Codex did not overwrite runtime.
+
+- Coordination before native edit: Codex is fixing the local-host account
+  claim race/stale resumed writer using an OS-held per-account ownership file,
+  plus storage front-end cross-location exclusivity and auth-failure release.
+  Areas: netcoop_cluster.inc, finish_auth in netcoop.cpp, isolated Actions
+  ownership fixture/workflows. Runtime/world-store/replication left alone.
+
+- Native lifetime account ownership now holds an exclusive OS file handle
+  through the whole session/save drain. Concurrent/local duplicate claims,
+  TTL stealing of a stalled process and non-owner release are refused;
+  create/fsync/rename failure releases without admitting. Slot-zero storage
+  claims/refreshes/releases account state; rejected character selection releases.
+  Actual Windows subprocess/barrier/crash/I/O fixture added to Actions; syntax
+  only checked locally. Every cluster process needs the matching new binary;
+  old servers ignoring ownership files and cross-host writers are not fenced.

@@ -1529,7 +1529,18 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
     {
         if (pending->storage.active)
         {
+            // A detached inventory on this process may still be a live Actor
+            // on another map. Own the account and refresh its disk cache for
+            // the entire front-end transaction, just as a gameplay login does.
+            xr_string storage_error;
+            if (!cluster_on_login(CL, a->login.c_str(), 0, storage_error))
+            {
+                CL->netcoop_login = NULL;
+                reject(server, CL, storage_error.c_str());
+                return;
+            }
             const xr_string result=storage_execute(server,CL,pending->storage);
+            cluster_lease_release(a->login.c_str());
             send_auth_result(server,CL,true,a->role,"Account verified",result.c_str());
         }
         else send_auth_result(server, CL, true, a->role, "Account verified");
@@ -1553,6 +1564,7 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
     }
     if (!character_select(CL, pending->slot, pending->character_name.c_str(), pending->faction.c_str(), pending->economy, pending->loadout.c_str()))
     {
+        cluster_lease_release(a->login.c_str());
         CL->netcoop_login = NULL;
         reject(server, CL, "Character unavailable or starting items exceed the point budget");
         return;
