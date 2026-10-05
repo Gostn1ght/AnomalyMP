@@ -49,7 +49,7 @@ struct ClusterLeaving{u16 actor=0;u32 since=0;std::string level;};
 std::map<u32,ClusterLeaving>s_cluster_leaving;
 std::map<u16,int>s_character_restore,s_actor_character;
 bool cluster_ticket_write(const char*,u8,const char*){events+='T';return ticket_ok;}
-void cluster_file(const char*,const char*,u8,char* out){std::strcpy(out,"ticket");}
+void cluster_file(const char*,const char*,u8,char* out){std::snprintf(out,260,"ticket");}
 void DeleteFileA(const char*){events+='D';}
 void store_money(xrClientData*){events+='M';}void accounts_save(){events+='A';}
 struct CharacterDestination{u16 game_vertex;u32 level_vertex;int position,angles;};
