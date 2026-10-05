@@ -43,6 +43,20 @@ Claude остановится по лимитам. Обновляется пос
 - самотест: `scripts/run-cluster-selftest.ps1 -Runtime ..\gamma-runtime -Bots 4 -Minutes 12`
   (порты 1367/1377, `appdata\selftest`, флаг `-netcoop_cluster_selftest`).
 
+Дополнительно (коммиты после `a3bf4e0`, ещё не собраны на момент записи):
+- `092b269` общий календарь кластера: каждый сервер пишет `netcoop_cluster/clock_<port>.txt`,
+  отстающий ускоряет время (до 4x) до догоняния — без скачков;
+  generated задания с целью (не story) на другой карте отменяются
+  (`netcoop_server_compat.cancel_task_on_other_map`);
+- `c59a005` общее расписание выброса для кластера (`netcoop_emission.script`,
+  слот частоты + детерминированный час, слот помнится после рестарта);
+- `837632e` `scripts/netcoop-cluster/netcoop_cluster_watchdog.ps1` — перезапуск упавших серверов;
+- `gamma-runtime
+etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`).
+- Компаньоны при переходе остаются ждать на старой карте и снова следуют,
+  когда игрок вернётся (уже так по `get_script_target`); перенос NPC между
+  серверами — H09, не сделан.
+
 ## Очередь задач (по приоритету для ЗБТ)
 
 1. Прогнать самотест, починить найденное (логи `gamma-runtime\appdata\selftest\logs`,
