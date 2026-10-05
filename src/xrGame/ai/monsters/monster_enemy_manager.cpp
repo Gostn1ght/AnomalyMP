@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "../../netcoop.h"
 #include "monster_enemy_manager.h"
 #include "BaseMonster/base_monster.h"
 #include "../ai_monsters_misc.h"
@@ -246,6 +247,9 @@ bool CMonsterEnemyManager::enemy_see_me_now()
 	{
 		return (Actor()->memory().visual().visible_right_now(monster));
 	}
+	// Netcoop server: players' Actors have no visual memory there.
+	if (netcoop::server_player_copy(enemy))
+		return netcoop::server_player_sees(enemy, monster);
 	else
 	{
 		CCustomMonster* cm = const_cast<CEntityAlive*>(enemy)->cast_custom_monster();

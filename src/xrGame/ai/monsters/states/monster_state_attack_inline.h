@@ -187,7 +187,7 @@ bool CStateMonsterAttackAbstract::check_run_away_state()
 			return true;
 		else m_time_next_run_away = Device.dwTimeGlobal + 10000;
 	}
-	else if ((object->EnemyMan.get_enemy() != Actor()) && object->Morale.is_despondent() && (m_time_next_run_away <
+	else if (!netcoop::is_player(object->EnemyMan.get_enemy()) && object->Morale.is_despondent() && (m_time_next_run_away <
 		Device.dwTimeGlobal))
 	{
 		return true;

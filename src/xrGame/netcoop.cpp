@@ -1625,6 +1625,24 @@ float server_nearest_player_distance(const Fvector& position)
 	return best;
 }
 
+bool is_player(const CObject* object)
+{
+	return object && (object == Actor() || server_player_copy(object));
+}
+
+bool server_player_sees(const CObject* player, const CObject* object)
+{
+	const CActor* actor = smart_cast<const CActor*>(player);
+	if (!actor || !object || !actor->g_Alive()) return false;
+	Fvector to; to.sub(object->Position(), actor->Position());
+	const float distance = to.magnitude();
+	if (distance > 70.f) return false;
+	if (distance < 2.f) return true;
+	to.div(distance);
+	Fvector forward; forward.setHP(-const_cast<CActor*>(actor)->netcoop_model_yaw(), 0.f);
+	return forward.dotproduct(to) > 0.5f; // 120 degree view cone
+}
+
 float server_luminocity(const CObject* object, float rendered)
 {
 	float light = 0.5f;

@@ -215,6 +215,11 @@ float server_luminocity(const CObject* object, float rendered);
 // Server: distance to the nearest living player (positions cached each
 // frame); a large value when no player is online.
 float server_nearest_player_distance(const Fvector& position);
+// The local Actor or, on the server, a player's Actor.
+bool is_player(const CObject* object);
+// Server: whether a player looks at an object (view cone, distance), for
+// monster logic written for the single local Actor.
+bool server_player_sees(const CObject* player, const CObject* object);
 // Item instance state (netcoop_items.inc, gameplay plan stage 1): the server
 // versions each item's condition/charge, portions, magazine, addons and box
 // count and sends changed fields; carriers report their own wear and drain.

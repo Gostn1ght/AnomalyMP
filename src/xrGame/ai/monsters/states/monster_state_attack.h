@@ -35,4 +35,5 @@ protected:
 	bool check_behinder();
 };
 
+#include "../../../netcoop.h"
 #include "monster_state_attack_inline.h"

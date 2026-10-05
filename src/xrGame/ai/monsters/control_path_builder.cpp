@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "../../netcoop.h"
 #include "control_path_builder.h"
 #include "control_manager.h"
 #include "BaseMonster/base_monster.h"
@@ -288,6 +289,12 @@ extern CActor* g_actor;
 
 bool CControlPathBuilder::can_use_distributed_computations(u32 option) const
 {
+	// Netcoop server: no local Actor, so every path was built in pieces over
+	// several frames; near players paths are built at once, as for the
+	// single player Actor watching (stage 10).
+	if (netcoop::enabled() && !netcoop::pure_client())
+		return netcoop::server_nearest_player_distance(inherited_com::m_object->Position()) > 80.f &&
+			inherited::can_use_distributed_computations(option);
 	if (!g_actor)
 		return true;
 
