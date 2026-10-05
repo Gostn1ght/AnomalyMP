@@ -464,7 +464,7 @@ void CLevel::OnConnectResult(NET_Packet* P)
 	{
 		// The account login must reach the server before the profile: the
 		// server creates no player state or Actor for an anonymous connection.
-		if (netcoop::client_has_credentials())
+		if (netcoop::client_can_login())
 		{
 			NET_Packet auth;
 			auth.w_begin(M_NETCOOP_AUTH);

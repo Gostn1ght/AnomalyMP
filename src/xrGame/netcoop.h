@@ -75,6 +75,8 @@ bool client_set_credentials(LPCSTR login, LPCSTR password, bool register_account
 bool derive_client_key(LPCSTR login, LPCSTR password, xr_string& key_hex);
 bool client_has_credentials();
 LPCSTR client_login();
+// Client: an account login can be sent (password key or cloud session).
+bool client_can_login();
 u8 client_role();
 void client_write_auth(NET_Packet& P);
 void client_on_auth_result(NET_Packet& P);
@@ -274,6 +276,8 @@ void server_on_item_action(xrServer* server, xrClientData* CL, NET_Packet& P);
 // further packets are ignored until the disconnect.
 void server_on_change_level(xrServer* server, xrClientData* CL, NET_Packet& P);
 bool server_client_leaving(xrClientData* CL);
+// A task given on this map, or one without a recorded map (single server).
+bool server_task_here(const char* origin);
 void client_on_physics(NET_Packet& P);
 // Server: the object is the Actor of a remote player. Local() is not used
 // for this: on the dedicated server it did not tell these copies apart

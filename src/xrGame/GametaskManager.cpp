@@ -197,6 +197,8 @@ void CGameTaskManager::UpdateTasks()
 			CGameTask* const t = (*I).game_task;
 			if (t->GetTaskState() != eTaskStateInProgress)
 				continue;
+			if (!netcoop::server_task_here(t->m_netcoop_origin.c_str()))
+				continue;
 
 			ETaskState const state = t->UpdateState();
 

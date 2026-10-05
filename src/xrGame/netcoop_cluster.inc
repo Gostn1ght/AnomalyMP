@@ -230,6 +230,11 @@ static LPCSTR cluster_current_level()
 	return *ai().game_graph().header().level(ai().level_graph().level_id()).name();
 }
 
+bool server_task_here(const char* origin)
+{
+	return !enabled() || !origin || !origin[0] || !xr_strcmp(origin, cluster_current_level());
+}
+
 // ---- server: login and leaving ---------------------------------------------
 
 // finish_auth, after the password: the cluster lease, the ticket and a fresh

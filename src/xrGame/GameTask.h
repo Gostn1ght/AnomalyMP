@@ -46,6 +46,10 @@ public:
 	shared_str m_map_hint;
 	shared_str m_map_location;
 	u16 m_map_object_id;
+	// Netcoop location cluster: the map whose server gave the task. Its
+	// targets are objects of that server's world; other servers keep the
+	// task as it is instead of evaluating it against their own objects.
+	shared_str m_netcoop_origin;
 
 private:
 	//infos

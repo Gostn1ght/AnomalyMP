@@ -435,6 +435,14 @@ bool script_storage_prepare(int op,int slot,int index,int revision)
     s_storage_request.index=u16(index); s_storage_request.revision=u32(revision); s_storage_request.id=to_hex(nonce,sizeof(nonce));
     return true;
 }
+// A remembered password key or a signed-in cloud (Firebase) session: the
+// cloud sign-in leaves no password key, and joining a world was refused.
+bool client_can_login()
+{
+	if (firebase_enabled() && !s_firebase_session.id.empty()) return true;
+	return client_has_credentials();
+}
+
 void client_write_auth(NET_Packet& P)
 {
 	client_load_credentials();
@@ -2674,6 +2682,8 @@ ServerVictimScope::~ServerVictimScope()
 		bind_script_actor(previous);
 }
 
+static const u32 task_origin_marker = 0x524f434e; // "NCOR"
+
 static void character_capture_progress(Character& character, CActor* actor)
 {
 	ServerVictimScope scope(actor);
@@ -2689,6 +2699,15 @@ static void character_capture_progress(Character& character, CActor* actor)
 	catch (...) { Msg("! [Lost Zone] cannot serialize character script state for %u", actor->ID()); return; }
 	writer.w_u32(u32(state.size()));
 	if (!state.empty()) writer.w(state.data(), state.size());
+	// Map that gave each task (netcoop_cluster.inc, server_task_here).
+	writer.w_u32(task_origin_marker);
+	writer.w_u32(u32(tasks.size()));
+	for (SGameTaskKey& task : tasks)
+	{
+		if (task.game_task && !task.game_task->m_netcoop_origin.size()) task.game_task->m_netcoop_origin = cluster_current_level();
+		writer.w_stringZ(task.task_id);
+		writer.w_stringZ(task.game_task ? task.game_task->m_netcoop_origin : shared_str(""));
+	}
 	if (writer.size() > 1048576) { Msg("! [Lost Zone] character progress exceeds save limit for %u", actor->ID()); return; }
 	const u8* data = static_cast<const u8*>(writer.pointer());
 	character.progress.assign(data, data + writer.size());
@@ -2709,6 +2728,18 @@ static void character_restore_progress(Character& character, CActor* actor)
 	const u32 size = reader.r_u32();
 	if (size > reader.elapsed()) return;
 	luabind::internal_string state(reinterpret_cast<const char*>(reader.pointer()), size);
+	reader.advance(size);
+	if (reader.elapsed() >= 8 && reader.r_u32() == task_origin_marker)
+	{
+		const u32 origins = reader.r_u32();
+		for (u32 i = 0; i < origins && i < 512 && reader.elapsed() > 0; ++i)
+		{
+			shared_str id, origin;
+			reader.r_stringZ(id); reader.r_stringZ(origin);
+			for (SGameTaskKey& task : tasks)
+				if (task.task_id == id && task.game_task) task.game_task->m_netcoop_origin = origin;
+		}
+	}
 	::luabind::functor<void> restore;
 	if (ai().script_engine().functor("netcoop_server_compat.restore_character_state", restore))
 		try { restore(actor->lua_game_object(), state); }
