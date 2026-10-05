@@ -409,6 +409,9 @@ void CLevel::ClientReceive()
 		case M_NETCOOP_ITEM_STATE:
 			netcoop::client_on_item_state(*P);
 			break;
+		case M_NETCOOP_TRANSFER_RESULT:
+			netcoop::client_on_transfer_result(*P);
+			break;
 		case M_NETCOOP_SCRIPT:
 			{
 				netcoop::client_on_script(*P);

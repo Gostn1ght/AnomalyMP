@@ -896,6 +896,10 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
 				netcoop::server_on_trade(this, CL, P);
 		}
 		break;
+	case M_NETCOOP_TRANSFER:
+		if (!CL->flags.bLocal && CL->netcoop_role != netcoop::role_none)
+			netcoop::server_on_transfer(this, CL, P);
+		break;
 	case M_NETCOOP_ITEM_REPORT:
 		if (!CL->flags.bLocal && CL->netcoop_role != netcoop::role_none)
 			netcoop::server_on_item_report(this, CL, P);

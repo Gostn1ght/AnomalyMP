@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "UIActorMenu.h"
+#include "../netcoop.h"
 #include "UIDragDropListEx.h"
 #include "UICharacterInfo.h"
 #include "UIInventoryUtilities.h"
@@ -20,6 +21,9 @@
 
 void move_item_from_to(u16 from_id, u16 to_id, u16 what_id)
 {
+	// Netcoop: one server transaction instead of two independent events.
+	if (netcoop::client_transfer(from_id, to_id, what_id))
+		return;
 	NET_Packet P;
 	CGameObject::u_EventGen(P, GE_TRADE_SELL, from_id);
 	P.w_u16(what_id);

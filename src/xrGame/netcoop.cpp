@@ -27,6 +27,7 @@
 #include "InventoryOwner.h"
 #include "Inventory.h"
 #include "PDA.h"
+#include "InventoryBox.h"
 #include "inventory_item.h"
 #include "entity_alive.h"
 #include "trade.h"
@@ -1669,6 +1670,19 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 					if (living_npc(holder))
 						return false;
 				}
+				// Picking up from the ground: only what lies within reach of the
+				// player's Actor on the server (stage 2 validation).
+				if (item && !holder && dest == CL->owner && type == GE_OWNERSHIP_TAKE)
+				{
+					CObject* actor = Level().Objects.net_Find(CL->owner->ID);
+					CObject* thing = Level().Objects.net_Find(item_id);
+					const float distance = actor && thing ? actor->Position().distance_to(thing->Position()) : 0.f;
+					if (distance > 6.f)
+					{
+						Msg("! [NetAnomaly][inv] player=%s pickup of %u refused: %.1f m away", CL->netcoop_login.c_str(), item_id, distance);
+						return false;
+					}
+				}
 			}
 			return true;
 		}
@@ -1676,6 +1690,8 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 		return true;
 	}
 }
+
+#include "netcoop_transfer.inc"
 
 // ---------------------------------------------------------------------------
 // server: trade
@@ -1820,6 +1836,11 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 	actor->set_money(actor->get_money(), true);
 	partner->set_money(partner->get_money(), true);
 	trade->StopTrade();
+	for (PIItem item : items) server_item_touch(item->object().ID());
+
+	// Commit at once: money and items live in one character file replaced
+	// atomically (it was written every 20 s, so a crash undid recent deals).
+	server_character_save_actor(CL->owner->ID);
 
 	string256 message;
 	xr_sprintf(message, "%s %u item(s) for %u RU", partner_buys ? "sold" : "bought", (u32)items.size(), total);

@@ -221,6 +221,11 @@ void client_on_item_state(NET_Packet& P);
 void client_items_update(bool flush = false);
 void client_item_forget(u16 id);
 LPCSTR script_item_info(u16 id);
+// Atomic transfer of one item between the player and a corpse or a box
+// (netcoop_transfer.inc, stage 2). Client: false outside a pure client.
+bool client_transfer(u16 from, u16 to, u16 item);
+void client_on_transfer_result(NET_Packet& P);
+void server_on_transfer(xrServer* server, xrClientData* CL, NET_Packet& P);
 void client_on_physics(NET_Packet& P);
 // Server: the object is the Actor of a remote player. Local() is not used
 // for this: on the dedicated server it did not tell these copies apart

@@ -256,6 +256,10 @@ void server_items_update(xrServer* server)
 			item_outbox_send(server, box->second, players.client_of(owner));
 	};
 
+	// Characters that gave or got an item this scan: saved at once. Saves
+	// run every 20 s otherwise, and a crash between the giver's and the
+	// taker's save left the item in both files (duplication).
+	xr_vector<u16> save_actors;
 	const u32 count = Level().Objects.o_count();
 	const u32 budget = _min(count, item_scan_budget);
 	for (u32 step = 0; step < budget; ++step)
@@ -290,6 +294,8 @@ void server_items_update(xrServer* server)
 				Msg("[NetAnomaly][item] owner id=%u uid=%llu %s -> %s v=%u cond=%.3f", id, record.sent.uid,
 					item_owner_name(players, record.owner), item_owner_name(players, owner), record.version + 1,
 					item_state::dequantize(current.condition));
+			if (record.owner != 0xffff) save_actors.push_back(record.owner);
+			if (owner != 0xffff) save_actors.push_back(owner);
 			record.owner = owner;
 			record.sent = current;
 			++record.version;
@@ -361,6 +367,10 @@ void server_items_update(xrServer* server)
 
 	item_outbox_send(server, to_all, nullptr);
 	for (auto& box : to_owner) item_outbox_send(server, box.second, players.client_of(box.first));
+
+	std::sort(save_actors.begin(), save_actors.end());
+	save_actors.erase(std::unique(save_actors.begin(), save_actors.end()), save_actors.end());
+	for (u16 actor : save_actors) server_character_save_actor(actor);
 }
 
 // Server: a server-authored change (trade, repair, eat) of a carried item;

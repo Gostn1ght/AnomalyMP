@@ -617,6 +617,10 @@ void CScriptGameObject::TransferItem(CScriptGameObject* pItem, CScriptGameObject
 		return;
 	}
 
+	// Netcoop: one server transaction instead of two independent events.
+	if (netcoop::client_transfer(object().ID(), pForWho->object().ID(), pIItem->object().ID()))
+		return;
+
 	// выбросить у себя
 	NET_Packet P;
 	CGameObject::u_EventGen(P, GE_TRADE_SELL, object().ID());
@@ -653,6 +657,8 @@ void CScriptGameObject::TakeItem(CScriptGameObject* pItem)
 		const CGameObject* parentGO = smart_cast<CGameObject*>(pIItem->object().H_Parent());
 		if ((inventory_owner || inventory_box) && parentGO)
 		{
+			if (netcoop::client_transfer(parentGO->ID(), object().ID(), pIItem->object().ID()))
+				return;
 			NET_Packet P;
 			CGameObject::u_EventGen(P, GE_TRADE_SELL, parentGO->ID());
 			P.w_u16(pIItem->object().ID());
