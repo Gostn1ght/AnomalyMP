@@ -90,7 +90,7 @@ static void character_write_packet(FILE* f, const NET_Packet& packet)
 
 static void character_write_state(FILE* f, const xr_vector<u8>& state)
 {
-	const u16 size = u16(_min(state.size(), size_t(512)));
+	const u16 size = u16(state.size() > 512 ? 512 : state.size());
 	fwrite(&size, 2, 1, f);
 	if (size) fwrite(state.data(), 1, size, f);
 }
