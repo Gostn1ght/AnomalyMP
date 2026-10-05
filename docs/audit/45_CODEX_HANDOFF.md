@@ -95,3 +95,11 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   reach 2 м, combat/wounded/observer guards, настоящий CTime cooldown + legacy
   migration. Lua PASS. Нужен итоговый Actions build; не ставить частичные overlays.
   Foundation 57535cd5c / 37366256415 полностью SUCCESS (GCC/MSVC).
+
+- Backend следующий блок: admin-only offline_contact (continuous bounded 3D
+  contact для известной пары), durable encounter schedule, route capture fence
+  при world-scale rebase, restart/retry checks. Broad phase / автоматическое
+  перепланирование / native ownership adapters всё ещё нужны.
+- `8d586d8f9` Foundation 37367127157 SUCCESS GCC/MSVC (включая wallet/account
+  fault checks). DX11 37367011993 в очереди, runtime не обновлён. Следующий
+  backend-only commit не меняет native/overlay code и не отменяет этот build.

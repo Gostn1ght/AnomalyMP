@@ -7,6 +7,7 @@ because an observer arrived. Engine hydration cancels the abstract resolver.
 import hashlib
 import json
 
+from .contacts import earliest_contact, trajectory
 from .economy import integer
 from .offline import distance
 from .store import Conflict, Invalid, canonical, finite, persistent_id, positive
@@ -73,25 +74,69 @@ class Encounters:
             raise Invalid("invalid encounter identity/seed")
         payload = {"type":"offline_combat","event_id":event_id,"first_id":first_id,"second_id":second_id,
                    "first_version":first_version,"second_version":second_version,"due_ms":due_ms,"seed":seed,"radius":radius}
+        return self.store.command(actor, command_id, payload, lambda tx: self.schedule_in(tx, payload))
+
+    @staticmethod
+    def route_capture(tx, entity_id):
+        row = tx.execute("SELECT version,active FROM route WHERE entity_id=?", (entity_id,)).fetchone()
+        return dict(row) if row else None
+
+    def schedule_in(self, tx, payload, planning_now=None):
+        first_id, second_id = payload["first_id"], payload["second_id"]
+        first_version, second_version = payload["first_version"], payload["second_version"]
+        due_ms, event_id = payload["due_ms"], payload["event_id"]
+        roots = [self.offline.require_offline(tx,value,version) for value,version in ((first_id,first_version),(second_id,second_version))]
+        if roots[0]["location"]!=roots[1]["location"] or due_ms < (self.world.now() if planning_now is None else planning_now):
+            raise Conflict("encounter location/time changed")
+        if any(root["kind"]!="GROUP" and tx.execute("SELECT 1 FROM group_member WHERE member_id=?",(root["id"],)).fetchone() for root in roots):
+            raise Conflict("schedule the persistent group rather than an individual member")
+        relation = self.hostility(tx,*roots)
+        sides = [self.fighters(tx,root) for root in roots]
+        if set(row["id"] for row in sides[0]) & set(row["id"] for row in sides[1]):
+            raise Conflict("encounter sides overlap")
+        plan = {**payload,"world_id":self.world.world_id,"world_seed":self.world.seed,"location":roots[0]["location"],
+                "relation_version":relation,"sides":sides,
+                "routes":[self.route_capture(tx, root["id"]) for root in roots]}
+        # Freeze input before resolution; owner restarts/observers do not
+        # become RNG inputs and cannot change committed casualties.
+        plan["capture_hash"] = hashlib.sha256(canonical(plan).encode("utf-8")).hexdigest()
+        self.offline.scheduler.schedule_in(tx,event_id,due_ms,"entity:"+first_id,first_version,"OfflineCombat",plan)
+        self.store.event(tx,"entity:"+first_id,"OfflineEncounterPlanned",{**payload,"capture_hash":plan["capture_hash"]},self.world.now())
+        return {"event_id":event_id,"capture_hash":plan["capture_hash"]}
+
+    def plan_contact(self, actor, command_id, event_id, first_id, second_id,
+                     first_version, second_version, horizon_ms, seed, radius=50):
+        for value in (event_id, first_id, second_id):
+            persistent_id(value)
+        positive(first_version); positive(second_version)
+        finite(horizon_ms, 1, 86_400_000); finite(radius, .1, 200)
+        if first_id == second_id or type(seed) is not int or not 0 <= seed < 2**64:
+            raise Invalid("invalid encounter identity/seed")
+        payload = {"type":"offline_contact", "event_id":event_id, "first_id":first_id,
+                   "second_id":second_id, "first_version":first_version, "second_version":second_version,
+                   "horizon_ms":horizon_ms, "seed":seed, "radius":radius}
         def apply(tx):
-            roots = [self.offline.require_offline(tx,value,version) for value,version in ((first_id,first_version),(second_id,second_version))]
-            if roots[0]["location"]!=roots[1]["location"] or due_ms < self.world.now():
-                raise Conflict("encounter location/time changed")
-            if any(root["kind"]!="GROUP" and tx.execute("SELECT 1 FROM group_member WHERE member_id=?",(root["id"],)).fetchone() for root in roots):
-                raise Conflict("schedule the persistent group rather than an individual member")
-            relation = self.hostility(tx,*roots)
-            sides = [self.fighters(tx,root) for root in roots]
-            if set(row["id"] for row in sides[0]) & set(row["id"] for row in sides[1]):
-                raise Conflict("encounter sides overlap")
-            plan = {**payload,"world_id":self.world.world_id,"world_seed":self.world.seed,"location":roots[0]["location"],
-                    "relation_version":relation,"sides":sides}
-            # Freeze input before resolution; owner restarts/observers do not
-            # become RNG inputs and cannot change committed casualties.
-            plan["capture_hash"] = hashlib.sha256(canonical(plan).encode("utf-8")).hexdigest()
-            self.offline.scheduler.schedule_in(tx,event_id,due_ms,"entity:"+first_id,first_version,"OfflineCombat",plan)
-            self.store.event(tx,"entity:"+first_id,"OfflineEncounterPlanned",{**payload,"capture_hash":plan["capture_hash"]},self.world.now())
-            return {"event_id":event_id,"capture_hash":plan["capture_hash"]}
-        return self.store.command(actor,command_id,payload,apply)
+            roots = [self.offline.require_offline(tx, value, version) for value, version in
+                     ((first_id,first_version),(second_id,second_version))]
+            if roots[0]["location"] != roots[1]["location"]:
+                raise Conflict("contact candidates are on different maps")
+            self.hostility(tx, *roots)
+            # Validation also excludes static/dead/member-only candidates.
+            for root in roots:
+                self.fighters(tx, root)
+                if root["kind"] != "GROUP" and tx.execute("SELECT 1 FROM group_member WHERE member_id=?", (root["id"],)).fetchone():
+                    raise Conflict("plan contact for the persistent group")
+            now = self.world.now()
+            end = finite(now + horizon_ms)
+            paths = [trajectory(self.offline, tx, root, now, end) for root in roots]
+            at = earliest_contact(*paths, radius)
+            if at is None:
+                return {"event_id":None, "reason":"routes do not meet"}
+            combat = {key:payload[key] for key in ("event_id","first_id","second_id","first_version","second_version","seed","radius")}
+            combat.update(type="offline_combat", due_ms=at)
+            result = self.schedule_in(tx, combat, planning_now=now)
+            return {**result, "due_ms":at}
+        return self.store.command(actor, command_id, payload, apply)
 
     @staticmethod
     def roll(plan, label):
@@ -105,6 +150,8 @@ class Encounters:
                      (("first_id","first_version"),("second_id","second_version"))]
         except Conflict:
             return {"reason":"representation/capture changed"},False
+        if [self.route_capture(tx, root["id"]) for root in roots] != plan.get("routes"):
+            return {"reason":"route capture changed"},False
         try:
             relation = self.hostility(tx,*roots)
         except Conflict:

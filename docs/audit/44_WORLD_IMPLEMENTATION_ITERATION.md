@@ -241,3 +241,31 @@ fixtures) SUCCESS: Actions 37366256415. Первый `887fe7277` DX11 остан
 на deprecated strcpy в новом player fixture; замена на bounded snprintf
 проверена Foundation. Полный DX11 `57535cd5c` оставался в очереди до следующего
 набора исправлений; этот запуск не используется как свидетельство сборки.
+
+## Контакты офлайн-маршрутов (следующий backend блок)
+
+`offline_contact` — admin-only narrow phase для известной пары кандидатов:
+непрерывные piecewise-linear 3D trajectories, первое вхождение в radius,
+повороты/неподвижная сторона/высота. Вычисление линейно по суммарным сегментам
+двух маршрутов (до 1024 на сторону), без per-NPC polling. План combat,
+полные participant captures, route version/active и command result сохраняются
+одной транзакцией. Нет встречи — нет scheduled combat/ammo/death.
+
+World-scale rebase ранее менял route version без entity version: прежний бой
+мог пройти по устаревшему due time, если персонажи всё ещё были близко.
+Теперь resolver отменяет его по route capture прежде любых изменений;
+legacy events без route capture тоже fail closed. Restart/refence без
+семантической смены маршрута план не изменяет.
+
+Проверки: непрерывное пересечение с далёкими endpoints, поворот, неподвижная
+цель, высотное/параллельное разделение, начальное сближение, bounded/finite
+inputs, transactional contact scheduling/retry, miss без патронов, scale
+rebase cancel, движущийся clock в immediate contact и restart до встречи.
+Предыдущие 65 backend checks также проходят. Spatial broad phase discovery,
+автоматическое перепланирование после смены маршрута и engine presentation
+не подключены: J/offline AI блок не объявляется законченным.
+
+Native Foundation на `8d586d8f9` / Actions 37367127157 SUCCESS GCC/MSVC:
+actual mailbox, player handoff с late wallet, account lock/fsync/rename faults,
+остальные clock/store/bridge/corpse/items/spatial/replication fixtures. Полный
+DX11 Actions 37367011993 пока в очереди; установленных новых exe нет.

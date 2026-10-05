@@ -118,7 +118,8 @@ class Dispatcher:
             raise Invalid("invalid command arguments")
         administrative = {"world_scale": self.world.set_scale, "world_state": self.world.set_state,
                           "timeline_schedule": self.timelines.schedule, "route_start": self.offline.start_route,
-                          "stash_visit": self.scavenging.schedule, "offline_combat": self.encounters.schedule}
+                          "stash_visit": self.scavenging.schedule, "offline_combat": self.encounters.schedule,
+                          "offline_contact": self.encounters.plan_contact}
         functions = {
             "location_claim": self.world.claim_location, "location_renew": self.world.renew_location,
             "location_recover": self.ownership.recover_location,

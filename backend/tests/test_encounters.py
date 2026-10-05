@@ -176,6 +176,66 @@ class EncounterTest(unittest.TestCase):
         with self.assertRaises(Conflict):
             Transfers(self.world,b"x"*32).prepare("a",uid(),self.first,"cordon",self.fence,"garbage",self.row(self.first)["version"])
 
+    def contact(self, horizon=100000, command=None):
+        return self.encounters.plan_contact("admin", command or uid(), self.event, self.first, self.second,
+                                           self.row(self.first)["version"], self.row(self.second)["version"], horizon, 17, 10)
+
+    def place(self, entity_id, position):
+        with self.store.transaction() as tx:
+            state = json.loads(self.row(entity_id)["state"])
+            state["position"] = position
+            tx.execute("UPDATE entity SET state=?,version=version+1 WHERE id=?", (json.dumps(state), entity_id))
+
+    def crossing(self):
+        self.place(self.first, [-100,0,0]); self.place(self.second, [0,0,-100])
+        for entity_id, points in ((self.first,[[-100,0,0],[100,0,0]]), (self.second,[[0,0,-100],[0,0,100]])):
+            self.offline.start_route("admin",uid(),entity_id,self.row(entity_id)["version"],points,2,42)
+
+    def test_contact_planner_commits_one_real_crossing_and_retry_does_not_duplicate(self):
+        self.crossing()
+        command = uid()
+        result = self.contact(horizon=1_200_000,command=command)
+        self.assertGreater(result["due_ms"],0)
+        self.assertEqual(self.contact(horizon=1_200_000,command=command),result)
+        self.ns = int((result["due_ms"] / self.world._scale + .01)*1_000_000)
+        self.scheduler.run_due(budget_ms=1000)
+        combat = self.result()
+        self.assertEqual(combat["casualties"],[self.second])
+        self.assertLessEqual(sum((a-b)**2 for a,b in zip(*combat["positions"])),100.000001)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='OfflineCombat'").fetchone()[0],1)
+
+    def test_contact_planner_miss_does_not_create_fight_or_spend_ammo(self):
+        self.place(self.second,[1000,0,0])
+        self.assertEqual(self.contact()["reason"],"routes do not meet")
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='OfflineCombat'").fetchone()[0],0)
+        self.assertEqual(json.loads(self.store.db.execute("SELECT state FROM item WHERE id=?",(self.weapon,)).fetchone()[0])["rounds"],30)
+
+    def test_planned_route_contact_survives_authority_restart(self):
+        self.crossing()
+        result = self.contact(horizon=1_200_000)
+        self.store.close(); self.open()
+        self.ns = int((result["due_ms"] / self.world._scale + .01)*1_000_000)
+        self.scheduler.run_due(budget_ms=1000)
+        self.assertEqual(self.result()["capture_hash"],result["capture_hash"])
+        self.assertEqual(self.result()["casualties"],[self.second])
+
+    def test_scale_rebase_cancels_stale_contact_even_when_still_inside_radius(self):
+        self.offline.start_route("admin",uid(),self.first,self.row(self.first)["version"],[[0,0,0],[10,0,0]],1,42)
+        self.schedule(due=1000)
+        self.world.set_scale("admin",uid(),2)
+        self.ns = 600_000_000
+        self.scheduler.run_due(budget_ms=1000)
+        self.assertEqual(self.result()["reason"],"route capture changed")
+        self.assertEqual(self.row(self.second)["alive"],1)
+        self.assertEqual(json.loads(self.store.db.execute("SELECT state FROM item WHERE id=?",(self.weapon,)).fetchone()[0])["rounds"],30)
+
+    def test_immediate_contact_uses_one_planning_instant(self):
+        original = self.world.now
+        ticks = iter(range(10000))
+        self.world.now = lambda: original() + next(ticks)*.001
+        result = self.contact()
+        self.assertIsNotNone(result["event_id"])
+
 
 if __name__=="__main__":
     unittest.main()
