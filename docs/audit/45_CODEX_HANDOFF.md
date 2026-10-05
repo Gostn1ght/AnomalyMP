@@ -68,8 +68,11 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
    проверяться на сервере той карты (story id), награда идемпотентна.
 4. NPC transit между серверами (H09/H10) — после 2–3.
 5. Нагрузка 16–32 игроков: `-netcoop_bots N -netcoop_bots_addr 127.0.0.1/port=1267`.
-6. Плакат «Революционный проект «Фолк Восянка»» в 3D меню: ждёт фото от
-   владельца (файл не сохранён на диск). Комната: `scripts/build-lostzone-room.py`,
+6. Плакат «Революционный проект «Фолк Восянка»» в 3D меню: генератор готов
+   (`tools/make-soviet-poster.py <фото>` → `client/textures/netcoop/poster_folk.dds`),
+   `build-lostzone-room.py` вешает его на заднюю стену (x -1.6..-1.0, y 1.36..2.26)
+   только если DDS есть. Ждёт фото от владельца (файл не сохранён на диск);
+   после генерации: пересобрать комнату, overlay patch, коммит. Комната: `scripts/build-lostzone-room.py`,
    задняя стена Z1=3.0, текстура в `scripts/netcoop-overlay/client/textures/`.
 
 ## Журнал

@@ -42,7 +42,7 @@ TILE = 2.0  # metres per texture repeat on every surface
 parts, objects, provenance, report = [], [], {}, []
 
 
-def panel(texture, points, normal):
+def panel(texture, points, normal, uv=None, owner='shell'):
     """Quad with the given inward normal; UVs at TILE metres per repeat."""
     w = math.dist(points[0], points[1]) / TILE
     h = math.dist(points[1], points[2]) / TILE
@@ -52,7 +52,7 @@ def panel(texture, points, normal):
              edge1[0] * edge2[1] - edge1[1] * edge2[0]]
     indices = [0, 1, 2, 0, 2, 3] if sum(cross[k] * normal[k] for k in range(3)) >= 0 else [0, 2, 1, 0, 3, 2]
     parts.append(dict(texture=texture, position=sum((list(p) for p in points), []), normal=list(normal) * 4,
-                      uv=[0, 0, w, 0, w, h, 0, h], index=indices, emissive=False, owner='shell'))
+                      uv=uv or [0, 0, w, 0, w, h, 0, h], index=indices, emissive=False, owner=owner))
 
 
 def wall(texture, x0, z0, x1, z1, y0, y1, normal):
@@ -205,6 +205,15 @@ place('bucket', 'dynamics/workshop_room/vedro_01.ogf', X0 + 0.28, 1.35, rot=(0, 
 place('poster left', 'dynamics/decor/poster6.ogf', X0 + 0.005, 1.10, rot=LEFT_WALL, scale=(0.75, 0.75, 0.75), y=1.80)
 # Zone map pinned above the sofa.
 place('map', 'dynamics/decor/map2.ogf', SOFA_X, Z1 - 0.005, rot=BACK_WALL, scale=(0.55, 0.55, 0.55), y=1.80)
+# Soviet poster «Революционный проект «Фолк Восянка»» on the back wall behind
+# the seated character, between the stove and the map. Its texture comes from
+# the owner's photo (tools/make-soviet-poster.py); without it the wall stays bare.
+POSTER_TEXTURE = 'netcoop/poster_folk'
+POSTER_DDS = root / 'scripts/netcoop-overlay/client/textures' / (POSTER_TEXTURE + '.dds')
+if POSTER_DDS.exists():
+    px0, px1, py0, py1, pz = -1.60, -1.00, 1.36, 2.26, Z1 - 0.004
+    panel(POSTER_TEXTURE, [(px0, py0, pz), (px0, py1, pz), (px1, py1, pz), (px1, py0, pz)], (0, 0, -1),
+          uv=[0, 1, 0, 0, 1, 0, 1, 1], owner='poster')
 # Right wall: a crate with the toolbox (settings), an ammo box, posters.
 CRATE = (X1 - 0.46, 0.75)
 place('crate', 'dynamics/box/box_wood_01.ogf', CRATE[0], CRATE[1], rot=(0, 0.06, 0))
@@ -235,7 +244,8 @@ for r in report:
 
 batches = collections.defaultdict(bytearray)
 for p in parts:
-    a.read('textures/' + p['texture'] + '.dds')
+    if p['owner'] != 'poster':  # the poster ships in the overlay, not the game archives
+        a.read('textures/' + p['texture'] + '.dds')
     # Vertex colour RGB = interactive object id (pick index + 1); 255 = none.
     ident = p['pick'] + 1 if p.get('pick') is not None else 255
     for i in p['index']:
