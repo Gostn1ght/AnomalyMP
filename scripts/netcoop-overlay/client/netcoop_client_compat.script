@@ -605,8 +605,36 @@ local function server_battery_drop(obj_b, obj_d, slot_from, slot_to)
 	end
 end
 
+-- item_repair's window repaired the item and used up the kit on the client
+-- only (the kit never ran out). The window now sends the choice; the server
+-- computes and applies the repair (netcoop_server_compat repair).
+local function install_server_repair()
+	local repair = item_repair and item_repair.UIRepair
+	if not repair or repair.__netcoop_repair then return end
+	repair.__netcoop_repair = true
+	repair.OnRepair = function(self)
+		local obj_1 = self.CC[1]:GetCell_Selected(true)
+		local obj_2 = self.CC[2] and self.CC[2]:GetCell_Selected(true)
+		if not (obj_1 and self.obj and self.con_val and self.con_val[4]) then return end
+		if self.CollectValidItems then self:CollectValidItems(self.obj, self.section) end
+		local part = obj_2 and obj_2:id() or 65535
+		if netcoop_item_action(1, self.obj:id(), obj_1:id(), "repair " .. part) then
+			self.hasCraftedItem = true
+			pcall(utils_obj.play_sound, "interface\\inv_properties_2")
+		end
+		-- Refresh once the server's result has arrived.
+		if self.UpdateUi and self.last_cont and self.last_idx and CreateTimeEvent then
+			if self.btn_repair then self.btn_repair:Enable(false) end
+			CreateTimeEvent("netcoop_repair", "update_ui", 0.5, self.UpdateUi, self)
+		else
+			self:OnCancel()
+		end
+	end
+end
+
 local function install_server_item_actions()
 	if not (netcoop_item_action and netcoop_pure_client and netcoop_pure_client()) then return end
+	install_server_repair()
 	local ui = ui_inventory and ui_inventory.UIInventory
 	if ui and not ui.__netcoop_item_actions then
 		ui.__netcoop_item_actions = true

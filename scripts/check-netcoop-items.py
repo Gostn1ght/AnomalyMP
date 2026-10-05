@@ -58,6 +58,41 @@ assert(item_action(91,0,6,65535,'item_device.func_battery')~='','functor must be
 assert(item_action(91,1,5,404,'battery_swap')~='','missing target')
 ''')
 
+# Server repair: GAMMA's formula, kit range, parts, kit use.
+lua.execute(r'''
+function clamp(v,a,b) if v<a then return a elseif v>b then return b end return v end
+items_of={repair_kit={'repair'}, wpn_ak74={'weapon'}, wpn_part={'part'}}
+function IsItem(typ, sec, obj) sec=sec or obj:section(); for _,t in ipairs(items_of[sec] or {}) do if t==typ then return true end end; return false end
+kits={repair_kit={repair_only='wpn_ak74', repair_min_condition=0.2, repair_max_condition=0.9, repair_add_condition=0.25,
+  repair_use_parts=true, repair_parts_sections='wpn_part', repair_parts_multi=1}}
+function parse_list(_, sec, key) local v=kits[sec] and kits[sec][key]; if not v then return nil end; return {[v]=true} end
+ini_sys.r_float_ex=function(_, sec, key) return kits[sec] and kits[sec][key] or (sec=='wpn_part' and key=='repair_part_bonus' and 0.1) or nil end
+ini_sys.r_bool_ex=function(_, sec, key, d) local v=kits[sec] and kits[sec][key]; if v==nil then return d end; return v end
+discharged={}; degraded={}
+utils_item={get_cond_static=function(c) return c end, discharge=function(o) discharged[#discharged+1]=o:id() end,
+  degrade=function(o,n) degraded[#degraded+1]={o:id(),n} end}
+''')
+lua.execute(r'''
+local kit=make_item(40,'repair_kit',1); objects[40]=kit
+local ak=make_item(41,'wpn_ak74',0.43); objects[41]=ak
+local part=make_item(42,'wpn_part',1); objects[42]=part
+part.parent=function() return {id=function() return 91 end} end
+assert(item_action(91,1,40,41,'repair 65535')=='')
+assert(math.abs(ak:condition()-0.68)<1e-6,'43% + 25% without a part: '..ak:condition())
+assert(#degraded==1 and degraded[1][1]==40,'single-use kit degrades')
+ak:set_condition(0.43)
+assert(item_action(91,1,40,41,'repair 42')=='')
+assert(math.abs(ak:condition()-0.78)<1e-6,'part adds its 10% bonus: '..ak:condition())
+assert(#discharged==1 and discharged[1]==42,'the part is used')
+ak:set_condition(0.95)
+assert(item_action(91,1,40,41,'repair 65535')~='','above the kit range refused')
+local other=make_item(43,'wpn_ak74',0.5); objects[43]=other
+other.parent=function() return {id=function() return 7 end} end
+ak:set_condition(0.43)
+assert(item_action(91,1,40,41,'repair 43')~='','a part of another player refused')
+assert(item_action(91,1,41,40,'repair 65535')~='','a non-kit refused')
+''')
+
 # Client: menu routing and the battery drop replacement.
 lua.execute(r'''
 sent={}
@@ -80,7 +115,7 @@ item_device.on_game_start()
 ''')
 start = client.index('local SERVER_ITEM_ACTIONS')
 end = client.index('\nfunction on_game_start()', start)
-lua.execute(client[start:end] + '\ninstall_server_item_actions()')
+lua.execute(client[start:end] + '\ninstall_items = install_server_item_actions\ninstall_server_item_actions()')
 lua.execute(r'''
 local ui=ui_inventory.UIInventory
 local wnd=setmetatable({CheckItem=function(_,o) return o end,On_Item_Update=function() end},{__index=ui})
@@ -99,4 +134,14 @@ assert(#sent==2 and msg,'weaker battery refused locally with the GAMMA message')
 replacement(make_item(32,'batteries_dead',0.9),objects[6],3,2)
 assert(#sent==2,'only from the backpack')
 ''')
-print('Item actions Lua: battery swap/unpack on the server, whitelist, client routing PASS')
+lua.execute(r'''
+item_repair={UIRepair={OnRepair=function() local_repair=true end}}
+install_items()
+local sel={GetCell_Selected=function() return objects[41] end}
+local none={GetCell_Selected=function() return nil end}
+local w={CC={sel,none},obj=objects[40],con_val={[4]=68},OnCancel=function() closed=true end}
+item_repair.UIRepair.OnRepair(w)
+assert(not local_repair and sent[#sent][1]==1 and sent[#sent][2]==40 and sent[#sent][3]==41 and sent[#sent][4]=='repair 65535' and closed)
+assert(objects[41]:condition()==0.43,'the client does not repair by itself')
+''')
+print('Item actions Lua: battery swap/unpack and repair on the server, whitelist, client routing PASS')

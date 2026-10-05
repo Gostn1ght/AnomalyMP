@@ -668,6 +668,46 @@ local function battery_swap(battery, device)
 	return ""
 end
 
+-- item_repair's repair window, computed by the server from the kit's
+-- settings (the client only chooses kit, item and optional part). Same
+-- formula as UIRepair:OnItemSelect and the GAMMA OnRepair override.
+local REPAIR_DEGRADE = 0.2 -- item_repair's local degrade_factor
+
+local function repair(actor_id, kit, target, part)
+	local sec = kit:section()
+	if not IsItem("repair", sec) then return "not a repair kit" end
+	local repair_only = parse_list(ini_sys, sec, "repair_only", true)
+	local main_section = ini_sys:r_string_ex(target:section(), "repair_type") or target:section()
+	if not (repair_only and repair_only[main_section]) then return "this kit does not repair this item" end
+	local con = math.ceil(target:condition() * 100)
+	local min_c = ini_sys:r_float_ex(sec, "repair_min_condition") or 0
+	local max_c = ini_sys:r_float_ex(sec, "repair_max_condition") or 0
+	if con < min_c * 100 or con > max_c * 100 then return "the item's condition is outside this kit's range" end
+	local bonus = 0
+	if part then
+		local holder = part:parent()
+		if not (holder and holder:id() == actor_id) then return "the part is not in your inventory" end
+		if part:id() == target:id() or part:id() == kit:id() then return "invalid part" end
+		if not ini_sys:r_bool_ex(sec, "repair_use_parts", false) then return "this kit uses no parts" end
+		local match = ini_sys:r_bool_ex(sec, "repair_parts_match", false) and part:section() == target:section()
+		local parts = parse_list(ini_sys, sec, "repair_parts_sections", true)
+		if not match and not (parts and parts[part:section()]) then return "this part does not fit" end
+		bonus = match and part:condition() or ini_sys:r_float_ex(part:section(), "repair_part_bonus")
+			or ini_sys:r_float_ex(sec, "repair_part_bonus") or 0
+		if game_achievements and game_achievements.has_achievement("mechanized_warfare") then bonus = bonus + 0.02 end
+		bonus = clamp(math.floor(bonus * 100) * (ini_sys:r_float_ex(sec, "repair_parts_multi") or 1), 0, 100)
+	end
+	local result = clamp(con + bonus + math.floor((ini_sys:r_float_ex(sec, "repair_add_condition") or 0) * 100), 0, 100)
+	if IsItem("part", nil, target) then result = utils_item.get_cond_static(result) end
+	local before = target:condition()
+	target:set_condition(result / 100)
+	if part then utils_item.discharge(part) end
+	if IsItem("multiuse", nil, kit) then utils_item.discharge(kit) else utils_item.degrade(kit, REPAIR_DEGRADE) end
+	if game_statistics and game_statistics.increment_statistic then pcall(game_statistics.increment_statistic, "self_repairs") end
+	printf("[Lost Zone] repair %s with %s: %.2f -> %.2f", target:section(), sec, before, result / 100)
+	return ""
+end
+
 function item_action(actor_id, kind, item_id, target_id, action)
 	local item = level.object_by_id(item_id)
 	local target = target_id ~= 65535 and level.object_by_id(target_id) or nil
@@ -683,6 +723,11 @@ function item_action(actor_id, kind, item_id, target_id, action)
 		return ""
 	elseif kind == 1 and action == "battery_swap" and target then
 		return battery_swap(item, target)
+	elseif kind == 1 and target and string.match(action, "^repair %d+$") then
+		local part_id = tonumber(string.match(action, "%d+"))
+		local part = part_id ~= 65535 and level.object_by_id(part_id) or nil
+		if part_id ~= 65535 and not part then return "the part is not available" end
+		return repair(actor_id, item, target, part)
 	end
 	return "unknown item action"
 end

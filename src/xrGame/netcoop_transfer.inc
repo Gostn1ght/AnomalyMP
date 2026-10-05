@@ -168,7 +168,7 @@ void client_on_transfer_result(NET_Packet& P)
 	if (ok) return;
 	Msg("! [NetAnomaly][inv] transfer %08x refused: %s", txid, reason);
 	// The inventory windows rebuild from the server's events; tell the player why.
-	string320 text;
+	string512 text;
 	xr_sprintf(text, "Transfer refused: %s", reason);
 	client_on_server_text(text);
 }
