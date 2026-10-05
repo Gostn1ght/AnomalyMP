@@ -295,8 +295,13 @@ void xrServer::Update()
 		netcoop::server_update(this);
 
 		// NetAnomaly: publish the real number of connected clients for the
-		// external server console (appdata/netanomaly_console_net.txt)
+		// external server console (appdata/netanomaly_console_net.txt).
+		// Only when it changes: rewriting the file every 100 frames showed as
+		// ~110 ms server frames on those frames (s125 [hitch] log).
+		static int na_published = -1;
+		if (na_published != (int)GetClientsCount())
 		{
+			na_published = (int)GetClientsCount();
 			string_path na_fn;
 			FS.update_path(na_fn, "$app_data_root$", "netanomaly_console_net.txt");
 			IWriter* na_w = FS.w_open(na_fn);

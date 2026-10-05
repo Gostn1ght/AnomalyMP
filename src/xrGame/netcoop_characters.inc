@@ -103,11 +103,62 @@ static bool character_read_state(FILE* f, xr_vector<u8>& state)
 	return !size || fread(state.data(), 1, size, f) == size;
 }
 
-static bool character_save(Character& character)
+// Durable writes (fsync) are slow; on the main thread they stalled the
+// whole server, AI included. Periodic saves and saves after item handovers
+// write a numbered temp file and leave the fsync and the atomic rename to
+// this worker, in order. The previous save stays intact until the rename.
+struct CharacterCommit { xr_string temp, path; };
+static xrCriticalSection s_commit_lock;
+static xr_deque<CharacterCommit> s_commits;
+static bool s_commit_worker = false;
+static volatile LONG s_commit_busy = 0;
+
+static bool character_commit_file(LPCSTR temp, LPCSTR path)
 {
+	FILE* f = fopen(temp, "r+b");
+	if (!f) return false;
+	const bool ok = _commit(_fileno(f)) == 0;
+	const bool closed = fclose(f) == 0;
+	return ok && closed && MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+}
+
+static void character_commit_worker(void*)
+{
+	for (;;)
+	{
+		CharacterCommit commit;
+		bool have = false;
+		s_commit_lock.Enter();
+		if (!s_commits.empty()) { commit = s_commits.front(); s_commits.pop_front(); have = true; InterlockedExchange(&s_commit_busy, 1); }
+		s_commit_lock.Leave();
+		if (!have) { Sleep(5); continue; }
+		if (!character_commit_file(commit.temp.c_str(), commit.path.c_str()))
+			Msg("! [Lost Zone] character commit failed: %s", commit.path.c_str());
+		InterlockedExchange(&s_commit_busy, 0);
+	}
+}
+
+// A synchronous save must not be overtaken by an older background one.
+static void character_commits_flush()
+{
+	for (;;)
+	{
+		s_commit_lock.Enter();
+		const bool idle = s_commits.empty() && !s_commit_busy;
+		s_commit_lock.Leave();
+		if (idle) return;
+		Sleep(1);
+	}
+}
+
+static bool character_save(Character& character, bool background = false)
+{
+	if (!background) character_commits_flush();
 	string_path path, temp;
 	character_path(character.account.c_str(), character.slot, path);
-	xr_sprintf(temp, "%s.tmp", path);
+	static u32 sequence = 0;
+	if (background) xr_sprintf(temp, "%s.%u.tmp", path, ++sequence);
+	else xr_sprintf(temp, "%s.tmp", path);
 	FILE* f = fopen(temp, "wb");
 	if (!f) return false;
 	const u32 magic = 0x3748434e; // NCH7: item instance state; NCH3/4/5/6 remain readable
@@ -142,6 +193,18 @@ static bool character_save(Character& character)
         fwrite(&item.parent,2,1,f); fwrite(&item.place,2,1,f);
         character_write_packet(f,item.spawn);
         character_write_state(f,item.state);
+    }
+    if (background)
+    {
+        const bool written = !ferror(f) && fflush(f)==0;
+        if (fclose(f)!=0 || !written) return false;
+        CharacterCommit commit; commit.temp = temp; commit.path = path;
+        s_commit_lock.Enter();
+        s_commits.push_back(commit);
+        if (!s_commit_worker) { s_commit_worker = true; thread_spawn(character_commit_worker, "netcoop-save", 0, nullptr); }
+        s_commit_lock.Leave();
+        character.last_save = real_time_ms();
+        return true;
     }
     const bool ok = !ferror(f) && fflush(f)==0 && _commit(_fileno(f))==0;
 	const bool closed = fclose(f) == 0;
@@ -509,7 +572,7 @@ void server_character_save_actor(u16 actor_id)
 	entity->set_health(health);
 	character.initialized = true;
     if (character.storage_revision!=0xffffffffu) ++character.storage_revision;
-	if (!character_save(character)) Msg("! [Lost Zone] character save failed for %s slot %u", character.account.c_str(), character.slot);
+	if (!character_save(character, true)) Msg("! [Lost Zone] character save failed for %s slot %u", character.account.c_str(), character.slot);
 }
 
 static void characters_update(xrServer* server)
