@@ -291,20 +291,24 @@ bool world_store_save_now(LPCSTR reason)
 	}
 	CTimer timer;
 	timer.Start();
+	// No Level().ClientSend()/ClientSave() here: the single-player client
+	// save sends M_SAVE_PACKET, which the netcoop server rejects anyway, and
+	// on the dedicated server it faulted inside Objects_net_Save before the
+	// first packet, so every world save failed (2026-10-06 selftest). The
+	// ALife snapshot is taken from the server entities.
+	LPCSTR stage = "alife snapshot";
 	try
 	{
-		Level().ClientSend();
-		Level().ClientSave();
 		const_cast<CALifeSimulator*>(ai().get_alife())->save(save, false);
 	}
 	catch (const std::exception& e)
 	{
-		Msg("! [NetAnomaly][world] saving %s failed (%s): %s", save, reason, e.what());
+		Msg("! [NetAnomaly][world] saving %s failed (%s) at %s: %s", save, reason, stage, e.what());
 		return false;
 	}
 	catch (...)
 	{
-		Msg("! [NetAnomaly][world] saving %s failed (%s)", save, reason);
+		Msg("! [NetAnomaly][world] saving %s failed (%s) at %s", save, reason, stage);
 		return false;
 	}
 	// GAMMA ignores some Lua file-write errors. Verify the exact encoded data,
