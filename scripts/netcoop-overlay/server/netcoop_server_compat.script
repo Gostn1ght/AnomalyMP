@@ -479,20 +479,27 @@ end
 
 -- Local debug channel: the server runs gamma-runtime/netcoop_debug.lua
 -- (then empties it) and logs the result. Only someone with access to the
--- server's files can use it; it needs no game window.
+-- server's files can use it; it needs no game window. With several location
+-- servers in one runtime the first one took the file: netcoop_debug_<map>.lua
+-- is for the server of that map only.
 local debug_next = 0
+local function debug_take(name)
+	local f = io.open(name, "r")
+	if not f then return nil end
+	local code = f:read("*a")
+	f:close()
+	if not code or code == "" then return nil end
+	-- os.remove is not available to base-game scripts: empty the file instead.
+	local w = io.open(name, "w")
+	if w then w:close() end
+	return code
+end
 server_debug_file = function()
 	local now = time_global()
 	if now < debug_next then return end
 	debug_next = now + 2000
-	local f = io.open("netcoop_debug.lua", "r")
-	if not f then return end
-	local code = f:read("*a")
-	f:close()
-	if not code or code == "" then return end
-	-- os.remove is not available to base-game scripts: empty the file instead.
-	local w = io.open("netcoop_debug.lua", "w")
-	if w then w:close() end
+	local code = debug_take("netcoop_debug_" .. tostring(level.name()) .. ".lua") or debug_take("netcoop_debug.lua")
+	if not code then return end
 	local chunk, err = loadstring(code)
 	if not chunk then printf("[Lost Zone][debug] compile error: %s", tostring(err)) return end
 	local ok, res = pcall(chunk)

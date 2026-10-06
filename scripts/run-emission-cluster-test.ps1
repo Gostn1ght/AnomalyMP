@@ -15,7 +15,6 @@ $Runtime = (Resolve-Path $Runtime).Path
 $server = Join-Path $Runtime "dedicated\LostZoneServerDX11.exe"
 $appdata = Join-Path $Runtime "appdata\selftest"
 $logs = Join-Path $appdata "logs"
-$debugFile = Join-Path $Runtime "netcoop_debug.lua"
 Get-ChildItem $appdata -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -notin @("user.ltx") } |
     Remove-Item -Recurse -Force
 New-Item -ItemType Directory -Force $logs | Out-Null
@@ -56,11 +55,11 @@ function Wait-For($name, $pattern, $what, $after = 0) {
     }
     throw "timed out waiting for $what on $name"
 }
-# The debug file is read by every server of the runtime: one write, one
-# answer from each running server named in $names.
+# Each server has its debug file (netcoop_debug_<map>.lua): the same code
+# to every server named in $names, one answer from each.
 function Run-Lua($code, $what, $names) {
     $before = @{}; foreach ($n in $names) { $before[$n] = (Log-Text $n).Length }
-    Set-Content -Path $debugFile -Value $code -Encoding ascii
+    foreach ($n in $names) { Set-Content -Path (Join-Path $Runtime "netcoop_debug_$($maps[$n].map).lua") -Value $code -Encoding ascii }
     $out = @{}
     foreach ($n in $names) {
         $m = Wait-For $n "\[Lost Zone\]\[debug\] (result|error): ([^\r\n]*)" "$what" $before[$n]
@@ -106,7 +105,7 @@ try {
 } finally {
     foreach ($p in $proc.Values) { if ($p -and -not $p.HasExited) { Stop-Process -Id $p.Id -Force } }
 }
-Set-Content -Path $debugFile -Value "" -Encoding ascii
+foreach ($m in $maps.Values) { Remove-Item (Join-Path $Runtime "netcoop_debug_$($m.map).lua") -ErrorAction SilentlyContinue }
 if ($gap -gt 30) { "FAIL: the servers are $gap s apart in the same emission"; exit 1 }
 if ((Field $after.cordon "slot") -ne $slot) { "FAIL: the restarted Cordon server runs another emission: $($after.cordon)"; exit 1 }
 $resumedAt = Field $after.cordon "PHASE"
