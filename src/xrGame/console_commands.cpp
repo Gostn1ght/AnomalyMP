@@ -385,6 +385,7 @@ static void full_memory_stats()
 
 	Msg("* [x-ray]: shared strings: memory[%ld K], count[%lu]", _eco_strings / 1024, _eco_strings_count);
 	Msg("* [x-ray]: shared memory: memory[%ld K]", _eco_smem);
+	mem_profile_report("memory stats");
 
 	u64 DLTX_total_bytes = 0;
 	u64 DLTX_section_count = 0;

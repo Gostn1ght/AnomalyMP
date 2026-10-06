@@ -153,5 +153,7 @@ extern BOOL mem_initialized;
 
 XRCORE_API void vminfo(size_t* _free, size_t* reserved, size_t* committed);
 XRCORE_API void log_vminfo();
+// -mem_profile: call sites holding the most live memory (Lost Zone).
+XRCORE_API void mem_profile_report(LPCSTR stage);
 
 #endif // xrMemoryH

@@ -42,6 +42,167 @@ const bool g_use_pure_alloc = true;
 #define PURE_MEMORY_FILL_ZERO
 #define PURE_MEMORY_ALIGNMENT 1 << 4
 
+// -mem_profile[=<bytes>] (Lost Zone, dedicated server memory): every live
+// allocation of at least <bytes> (default 4096) is remembered with its call
+// stack; mem_profile_report() prints the call sites holding the most memory
+// as module+offset (symbolised offline with the build's PDB). Off unless the
+// flag is on the command line: one branch per allocation.
+namespace mem_profile
+{
+struct Entry
+{
+	void* ptr; // 0 empty, 1 deleted
+	size_t size;
+	void* frames[6];
+};
+static const size_t capacity = size_t(1) << 21;
+static Entry* table = nullptr;
+static SRWLOCK lock = SRWLOCK_INIT;
+static int state = -1; // -1 unknown, 0 off, 1 on
+static size_t threshold = 4096;
+static size_t dropped = 0;
+
+static bool on()
+{
+	if (state >= 0) return state == 1;
+	LPCSTR line = GetCommandLineA();
+	LPCSTR flag = line ? strstr(line, "-mem_profile") : nullptr;
+	if (!flag)
+	{
+		state = 0;
+		return false;
+	}
+	if (flag[12] == '=') threshold = size_t(atoi(flag + 13));
+	if (threshold < 64) threshold = 64;
+	table = (Entry*)VirtualAlloc(nullptr, capacity * sizeof(Entry), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	state = table ? 1 : 0;
+	return state == 1;
+}
+
+static size_t slot_of(void* p) { return (size_t(p) >> 4) * 2654435761u & (capacity - 1); }
+
+static void add(void* p, size_t size)
+{
+	if (!p || size < threshold || !on()) return;
+	Entry e = {p, size, {}};
+	RtlCaptureStackBackTrace(2, 6, e.frames, nullptr);
+	AcquireSRWLockExclusive(&lock);
+	size_t i = slot_of(p);
+	for (size_t n = 0; n < capacity; ++n, i = (i + 1) & (capacity - 1))
+	{
+		if (size_t(table[i].ptr) <= 1)
+		{
+			table[i] = e;
+			ReleaseSRWLockExclusive(&lock);
+			return;
+		}
+	}
+	++dropped;
+	ReleaseSRWLockExclusive(&lock);
+}
+
+static void remove(void* p)
+{
+	if (!p || state != 1) return;
+	if (_aligned_msize(p, PURE_MEMORY_ALIGNMENT, 0) < threshold) return;
+	AcquireSRWLockExclusive(&lock);
+	size_t i = slot_of(p);
+	for (size_t n = 0; n < capacity; ++n, i = (i + 1) & (capacity - 1))
+	{
+		if (table[i].ptr == p)
+		{
+			table[i].ptr = (void*)1;
+			break;
+		}
+		if (table[i].ptr == nullptr) break;
+	}
+	ReleaseSRWLockExclusive(&lock);
+}
+
+static void describe(void* address, char* out, size_t size)
+{
+	HMODULE module = nullptr;
+	char path[MAX_PATH] = "?";
+	if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+		(LPCSTR)address, &module) && module)
+		GetModuleFileNameA(module, path, sizeof(path));
+	LPCSTR name = strrchr(path, '\\');
+	name = name ? name + 1 : path;
+	sprintf_s(out, size, "%s+%Ix", name, size_t((u8*)address - (u8*)module));
+}
+
+static bool in_core(void* address)
+{
+	static HMODULE core = nullptr;
+	if (!core)
+		GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+			(LPCSTR)&in_core, &core);
+	HMODULE module = nullptr;
+	GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+		(LPCSTR)address, &module);
+	return module == core;
+}
+}
+
+XRCORE_API void mem_profile_report(LPCSTR stage)
+{
+	using namespace mem_profile;
+	if (state != 1) return;
+	struct Site
+	{
+		void* key[2];
+		size_t bytes, blocks;
+	};
+	const size_t sites_capacity = 1 << 14;
+	Site* sites = (Site*)VirtualAlloc(nullptr, sites_capacity * sizeof(Site), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	if (!sites) return;
+	size_t total = 0, blocks = 0;
+	AcquireSRWLockShared(&lock);
+	for (size_t i = 0; i < capacity; ++i)
+	{
+		const Entry& e = table[i];
+		if (size_t(e.ptr) <= 1) continue;
+		total += e.size;
+		++blocks;
+		// The first two frames outside xrCore (its allocation wrappers).
+		void* key[2] = {nullptr, nullptr};
+		int k = 0;
+		for (int f = 0; f < 6 && k < 2; ++f)
+			if (e.frames[f] && (k > 0 || !in_core(e.frames[f]))) key[k++] = e.frames[f];
+		if (!key[0]) key[0] = e.frames[0];
+		size_t h = (size_t(key[0]) * 31 + size_t(key[1])) % sites_capacity;
+		for (size_t n = 0; n < sites_capacity; ++n, h = (h + 1) % sites_capacity)
+		{
+			Site& s = sites[h];
+			if (s.blocks == 0 || (s.key[0] == key[0] && s.key[1] == key[1]))
+			{
+				s.key[0] = key[0];
+				s.key[1] = key[1];
+				s.bytes += e.size;
+				++s.blocks;
+				break;
+			}
+		}
+	}
+	ReleaseSRWLockShared(&lock);
+	Msg("[Lost Zone][mem-profile] %s: %Iu MB live in %Iu blocks of >= %Iu bytes (dropped %Iu)", stage ? stage : "",
+		total >> 20, blocks, threshold, dropped);
+	for (int top = 0; top < 40; ++top)
+	{
+		Site* best = nullptr;
+		for (size_t i = 0; i < sites_capacity; ++i)
+			if (sites[i].blocks && (!best || sites[i].bytes > best->bytes)) best = &sites[i];
+		if (!best || best->bytes < (1u << 20)) break;
+		char a[300], b[300];
+		describe(best->key[0], a, sizeof(a));
+		if (best->key[1]) describe(best->key[1], b, sizeof(b));
+		else b[0] = 0;
+		Msg("[Lost Zone][mem-profile] %7.1f MB %7Iu blocks  %s < %s", float(best->bytes) / 1048576.f, best->blocks, a, b);
+		best->blocks = 0;
+	}
+	VirtualFree(sites, 0, MEM_RELEASE);
+}
+
 void* xrMemory::mem_alloc(size_t size
 # ifdef DEBUG_MEMORY_NAME
                           , const char* _name
@@ -59,6 +220,7 @@ void* xrMemory::mem_alloc(size_t size
 		if (result)
 			memset(result, 0, size);
 #endif // PURE_MEMORY_FILL_ZERO
+		mem_profile::add(result, size);
 
 #ifdef USE_MEMORY_MONITOR
         memory_monitor::monitor_alloc(result, size, _name);
@@ -142,6 +304,7 @@ void xrMemory::mem_free(void* P)
 	if (g_use_pure_alloc)
 	{
 		//free(P);
+		mem_profile::remove(P);
 		_aligned_free(P);
 		return;
 	}
@@ -201,7 +364,9 @@ void* xrMemory::mem_realloc(void* P, size_t size
 #endif // PURE_MEMORY_FILL_ZERO
 
 		//void* result = realloc(P, size);
+		mem_profile::remove(P);
 		void* result = _aligned_realloc(P, size, PURE_MEMORY_ALIGNMENT);
+		mem_profile::add(result, size);
 
 #ifdef PURE_MEMORY_FILL_ZERO
 		if (result && size > old_size)
