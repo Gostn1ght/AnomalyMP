@@ -497,7 +497,11 @@ void xrServer::SendUpdatesAOI()
 	static xr_vector<u8> data;
 	static xr_vector<Chunk> chunks;
 	static xr_vector<netcoop_world::ReplicationRecord> index_records;
-	const bool use_index = strstr(Core.Params, "-netcoop_chunk_index") != nullptr;
+	// Chunk stage 1 (doc 49): the spatial index picks each client's candidates
+	// (everything within 300 m, the far objects due this tick, all players)
+	// instead of every object of the map per client; same set as the full scan
+	// (fixture check-netcoop-replication-index.py). -netcoop_no_chunk_index: full scan.
+	const bool use_index = strstr(Core.Params, "-netcoop_no_chunk_index") == nullptr;
 	data.clear();
 	chunks.clear();
 	index_records.clear();
