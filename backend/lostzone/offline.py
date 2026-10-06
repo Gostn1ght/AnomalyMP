@@ -275,7 +275,13 @@ class Offline:
     def scale_changed(self, tx, old_scale, new_scale, now):
         if old_scale == new_scale:
             return
-        for route in tx.execute("SELECT * FROM route WHERE active=1 ORDER BY entity_id").fetchall():
+        routes,budget=[],CaptureBudget(8*1024*1024)
+        for number,route in enumerate(tx.execute("SELECT * FROM route WHERE active=1 ORDER BY entity_id LIMIT 8193")):
+            if number==8192:
+                raise Conflict("route rebase population exceeds admission limit")
+            budget.consume(route["points"])
+            routes.append(route)
+        for route in routes:
             root = self.require_offline(tx, route["entity_id"])
             points = json.loads(route["points"])
             current, index = route_position(points, (now-route["started_ms"])/(route["arrival_ms"]-route["started_ms"]))

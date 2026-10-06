@@ -573,3 +573,13 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   E11 partial only; chunked captures/native restore/Reduced/replication still open.
 - Native24b package download targets ignored _build/artifacts/24b36893b, no
   runtime installation/launch/overwrite. Prior temp cleanup policy block unchanged.
+
+- bac88d387/37424664770 backend SUCCESS Windows+Linux(229).
+- Downloaded native24b artifact verified: built-from commit and2 manifest
+  SHA256s match; identical client/server monolithic exe includes new binding;
+  transit overlay matches. No separate xrGame.dll; earlier assumption corrected.
+  No runtime install/launch or overwrite. Package:_build/artifacts/24b36893b.
+- Whole-world ScaleChanged routes now stream into bounded8192-row/8 MiB
+  admission before updates; refusal keeps old routes/arrivals/clock/anchor.
+  Local full231 PASS with population/guarded-read faults and prior scale tests.
+  Actions pending after push; chunked rescale/native authority/4 LOD still open.

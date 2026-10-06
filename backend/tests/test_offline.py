@@ -328,6 +328,53 @@ class OfflineTest(unittest.TestCase):
             self.world.set_scale("admin", uid(), scale)
         self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE state='PENDING'").fetchone()[0], 1)
 
+    def test_scale_rebase_population_refusal_preserves_clock_and_all_routes(self):
+        with self.store.transaction() as tx:
+            values=[f"{index:032x}" for index in range(8193)]
+            tx.executemany("INSERT INTO entity VALUES(?,'NPC','cordon','offline:cordon',?,1,1,?)",
+                           [(value,self.store.epoch,json.dumps({"position":[0,0,0]})) for value in values])
+            tx.executemany("INSERT INTO route VALUES(?,1,'cordon',?,0,1000000,1,1,'42')",
+                           [(value,json.dumps([[0,0,0],[100,0,0]])) for value in values])
+        before=tuple(self.store.db.execute("SELECT * FROM world").fetchone());events=self.store.events()
+        with self.assertRaises(Conflict):
+            self.world.set_scale("admin",uid(),2)
+        self.assertEqual(self.world._scale,10)
+        self.assertIsNone(self.world._mutation_cut)
+        self.assertEqual(tuple(self.store.db.execute("SELECT * FROM world").fetchone()),before)
+        self.assertEqual(self.store.events(),events)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM route WHERE active=1 AND version=1 AND arrival_ms=1000000").fetchone()[0],8193)
+
+    def test_scale_rebase_stops_before_reading_later_route_after_byte_overflow(self):
+        self.dehydrate();self.offline.start_route("admin",uid(),self.npc,2,[[0,0,0],[100,0,0]],1,42)
+        with self.store.transaction() as tx:
+            tx.execute("UPDATE route SET points=? WHERE entity_id=?",("x"*(8*1024*1024),self.npc))
+        before=self.store.events()
+        from contextlib import contextmanager
+        original=self.store.transaction
+        class Guarded:
+            def __init__(self,tx):
+                self.tx=tx
+            def execute(self,sql,*args):
+                cursor=self.tx.execute(sql,*args)
+                if sql=="SELECT * FROM route WHERE active=1 ORDER BY entity_id LIMIT 8193":
+                    def first_only():
+                        yield next(iter(cursor))
+                        raise AssertionError("scale rebase read beyond an oversized first route")
+                    return first_only()
+                return cursor
+        @contextmanager
+        def transaction():
+            with original() as tx:
+                yield Guarded(tx)
+        self.store.transaction=transaction
+        try:
+            with self.assertRaises(Conflict):
+                self.world.set_scale("admin",uid(),2)
+        finally:
+            self.store.transaction=original
+        self.assertEqual(self.world._scale,10);self.assertEqual(self.store.events(),before)
+        self.assertEqual(self.store.db.execute("SELECT version FROM route WHERE entity_id=?",(self.npc,)).fetchone()[0],1)
+
 
 if __name__ == "__main__":
     unittest.main()

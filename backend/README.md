@@ -449,3 +449,8 @@ Hydration не создаёт новые inventory records. Большим legit
 chunked admission protocol; увеличение неограниченного буфера не подменяет его.
 Это backend ownership claim, а не готовность физического NPC: native adapter
 ещё должен восстановить ledger/tasks, включить Reduced AI и разрешить replication.
+
+Смена scale допускает active route snapshots потоком до пересчёта: максимум
+8192 маршрута/8 MiB encoded points. Переполнение удерживает прежние часы,
+маршруты и arrivals целиком. Это не chunked rescale больших миров и не предел
+времени обработчика; native clock/LOD adoption ещё нужны.

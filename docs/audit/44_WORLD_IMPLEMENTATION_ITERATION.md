@@ -1100,3 +1100,25 @@ HydrationClaimed fault rolls positions/owner/route back with identical item ledg
 foreign invalid state refused before parse; shared oversized-member streaming.
 Backend Actions pending after push. Matching native artifact download staged
 under ignored _build/artifacts/24b36893b; runtime install/launch not performed.
+
+## Bounded whole-world route rebase admission
+
+bac88d387 backend37424664770 SUCCESS Windows+Linux(229). Downloaded native
+24b package verified against built-from24b36893bdfe3ff520b0c189476680b4b7c937c0
+and both manifest SHA256s; identical client/server exe, new transit-next Lua
+binding inside the monolithic exe, and exact normalized transit overlay match.
+Earlier separate-xrGame.dll assumption was corrected against actual package;
+no such DLL exists and no runtime/launch was attempted.
+
+Scale change now admits active route rows incrementally, with8192-row/8 MiB
+encoded-points bounds, before rebase mutations. The previous fetchall could
+retain every route/point blob before any refusal. Overrun preserves the complete
+old route set, scheduled arrivals, durable clock/scale and in-memory anchor;
+no truncation or partial calendar change. This is conservative admission, not a
+chunked large-world rescale protocol or measured handler-time/RSS bound.
+
+Full local231 PASS, including8193-route population refusal with unchanged clock
+and all routes, guarded oversized first-point blob refusal before any later read,
+plus existing mixed scales/movement/one-arrival consistency. Backend Actions
+pending after push. Shared/native world-clock adoption, actual4 LOD/AI/persistent
+registry and live acceptance still open; these counts are tests, not whole stages.
