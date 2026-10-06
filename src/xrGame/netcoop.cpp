@@ -1674,13 +1674,13 @@ static bool character_account_money_commit(xrServer* server, u16 actor_id)
 	if (!character) return false;
 	if (character->slot != 1) return true;
 	CSE_ALifeTraderAbstract* trader = smart_cast<CSE_ALifeTraderAbstract*>(server->game->get_entity_from_eid(actor_id));
-	Account* account = account_find(character->account.c_str());
-	if (!trader || !account) return false;
-	if (!account->has_money || account->money != trader->m_dwMoney)
+	Account* account_record = account_find(character->account.c_str());
+	if (!trader || !account_record) return false;
+	if (!account_record->has_money || account_record->money != trader->m_dwMoney)
 	{
-		account->has_money = true;
-		account->money = trader->m_dwMoney;
-		account->touched = true;
+		account_record->has_money = true;
+		account_record->money = trader->m_dwMoney;
+		account_record->touched = true;
 		s_accounts_dirty = true;
 	}
 	return accounts_save();
