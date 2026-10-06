@@ -4,7 +4,7 @@
 🔧 есть в коде/fixtures, в игре не проверено; 🟡 частично; ⬜ не сделано.
 Генерируется `tools/make-doc43-audit.py`.
 
-Итого: ✅ 17, 🔧 28, 🟡 68, ⬜ 75 из 188.
+Итого: ✅ 17, 🔧 28, 🟡 69, ⬜ 74 из 188.
 
 ## A
 
@@ -210,7 +210,7 @@
 | L03 Route anomaly risk учитывает опыт, faction, экипировку и знания NPC | ⬜ |  |
 | L04 Детерминированные offline anomaly injuries/deaths/item consequences | ⬜ |  |
 | L05 ArtifactID и одно authoritative состояние world/inventory/container | ✅ | рестарт реального сервера: труп с тем же лутом и артефактом NPC, ящик, артефакт на земле - id в id (run-world-persistence-test.ps1, 2026-10-06) |
-| L06 ArtifactSpawnEvents после EmissionEnd определяются заранее, | ⬜ |  |
+| L06 ArtifactSpawnEvents после EmissionEnd определяются заранее, | 🟡 | артефакты после выброса/пси-шторма по правилам GAMMA (шанс), спавн в полях проверен на сервере; поля, пропустившие выброс офлайн, получают артефакты при выходе в онлайн |
 | L07 Safe deterministic artifact placement при hydration | ⬜ |  |
 | L08 NPC ищут артефакты offline с equipment/experience/danger/task | ⬜ |  |
 | L09 Артефакт остаётся у NPC, затем в corpse inventory после смерти | ✅ | рестарт реального сервера: труп с тем же лутом и артефактом NPC, ящик, артефакт на земле - id в id (run-world-persistence-test.ps1, 2026-10-06) |
