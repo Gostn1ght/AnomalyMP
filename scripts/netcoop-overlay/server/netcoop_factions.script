@@ -390,11 +390,17 @@ end
 
 ---------------------------------------------------------------- keeping online Actors in their faction
 local next_check = 0
+-- A few players per call, in turn: one store file read each. All online
+-- players at once every 5 s was 128 file reads in one server frame.
+local online_cursor = 0
 function update_online()
 	if time_global() < next_check then return end
-	next_check = time_global() + 5000
-	for id in string.gmatch(netcoop_players and netcoop_players() or "", "%d+") do
-		local obj = level.object_by_id(tonumber(id))
+	next_check = time_global() + 500
+	local ids = {}
+	for id in string.gmatch(netcoop_players and netcoop_players() or "", "%d+") do ids[#ids + 1] = tonumber(id) end
+	for _ = 1, math.min(8, #ids) do
+		online_cursor = online_cursor % #ids + 1
+		local obj = level.object_by_id(ids[online_cursor])
 		local char = obj and char_of(obj)
 		if char and char ~= "" then
 			local wanted = (deserialize(netcoop_store_read("char_faction", char)) or {}).faction

@@ -253,6 +253,8 @@ int g_Dump_Update_Write = 0;
 INT g_sv_SendUpdate = 0;
 #endif
 
+void netcoop_join_pump(xrServer* server); // xrServer_CL_connect.cpp
+
 void xrServer::Update()
 {
 	if (Level().IsDemoPlayStarted() || Level().IsDemoPlayFinished())
@@ -264,6 +266,7 @@ void xrServer::Update()
 #endif
 	netcoop_process_packets();
 	netcoop::server_auth_update(this);
+	netcoop_join_pump(this);
 	ProceedDelayedPackets();
 	// game update
 	game->ProcessDelayedEvent();

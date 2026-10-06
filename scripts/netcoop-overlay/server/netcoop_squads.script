@@ -201,6 +201,7 @@ end
 -- since the last look reaches the other online members at SHARE strength.
 -- The shared part is not seen as their own change (no echo back).
 local last = {} -- char -> { community = goodwill }
+local last_faction = {} -- char -> faction last seen
 local next_check = 0
 
 local function goodwill(obj, community)
@@ -244,16 +245,21 @@ function update()
 		end
 	end
 	for char, obj in pairs(live) do
-		-- Out of the Loners: out of the squad.
-		if faction_of(obj) ~= LONERS and squad_id_of(char) then
-			leave(char)
-			printf("[Lost Zone][squads] %s left the squad (not a Loner)", char)
+		-- Out of the Loners: out of the squad (the store is read only when the
+		-- faction changed, not for every player every few seconds).
+		local faction = faction_of(obj)
+		if last_faction[char] ~= faction then
+			last_faction[char] = faction
+			if faction ~= LONERS and squad_id_of(char) then
+				leave(char)
+				printf("[Lost Zone][squads] %s left the squad (not a Loner)", char)
+			end
 		end
 		local values = {}
 		for _, community in ipairs(COMMUNITIES) do values[community] = goodwill(obj, community) end
 		last[char] = values
 	end
 	for char in pairs(last) do
-		if not live[char] then last[char] = nil end
+		if not live[char] then last[char] = nil; last_faction[char] = nil end
 	end
 end

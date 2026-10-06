@@ -126,7 +126,8 @@ end
 
 ---------------------------------------------------------------- per player state
 local seen = {}       -- char -> Actor id last restored
-local next_sync, next_save = 0, 0
+local next_sync = 0
+local captured = {} -- char -> time_global of the last attitude save
 
 -- netcoop_squads: attitudes of this Actor are the character's own now.
 function restored(char, id) return char ~= nil and seen[char] == id end
@@ -154,14 +155,19 @@ function update()
 	local t = time_global()
 	if t < next_sync then return end
 	next_sync = t + 5000
-	local save = t >= next_save
-	if save then next_save = t + 60000 end
+	-- Attitudes are saved about once a minute per character, at most 12 per
+	-- call: all players at once was 128 store writes in one server frame.
+	local saves = 12
 	for id in string.gmatch(netcoop_players and netcoop_players() or "", "%d+") do
 		local obj = level.object_by_id(tonumber(id))
 		local char = obj and char_of(obj)
 		if char and char ~= "" then
-			if seen[char] ~= obj:id() then seen[char] = obj:id(); restore(obj, char)
-			elseif save then capture(obj, char) end
+			if seen[char] ~= obj:id() then seen[char] = obj:id(); captured[char] = t; restore(obj, char)
+			elseif saves > 0 and t - (captured[char] or 0) >= 60000 then
+				saves = saves - 1
+				captured[char] = t
+				capture(obj, char)
+			end
 			if netcoop_send_to_actor then
 				netcoop_send_to_actor(obj:id(), "player_rank", string.format("%s|%s", tostring(obj:character_rank()), tostring(obj:character_reputation())))
 			end

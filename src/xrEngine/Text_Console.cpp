@@ -387,10 +387,24 @@ void CTextConsole::DrawLog(HDC hDC, RECT* pRect)
 		m_log_visible_rows = 1;
 	// Other threads append to LogFile under the log lock.
 	LogLock(true);
-	m_log_count = 0;
-	for (const auto& line : LogFile)
-		if (MatchesLogFilter(line.c_str()))
-			++m_log_count;
+	// Counted incrementally: the whole log (up to 40000 lines) was filtered
+	// on every repaint, under the log lock.
+	static int counted_filter = -1;
+	static size_t counted_lines = 0, counted_first = 0;
+	static int counted = 0;
+	const size_t first = LogFile.empty() ? 0 : size_t(LogFile.front().c_str()[0]) ^ LogFile.front().size();
+	if (counted_filter != m_log_filter || counted_lines > LogFile.size() || counted_first != first)
+	{
+		// New filter, or the log dropped its oldest half: count again.
+		counted_filter = m_log_filter;
+		counted_lines = 0;
+		counted = 0;
+		counted_first = first;
+	}
+	for (; counted_lines < LogFile.size(); ++counted_lines)
+		if (MatchesLogFilter(LogFile[counted_lines].c_str()))
+			++counted;
+	m_log_count = counted;
 	const int max_scroll = m_log_count > m_log_visible_rows ? m_log_count - m_log_visible_rows : 0;
 	if (m_log_scroll > max_scroll)
 		m_log_scroll = max_scroll;
@@ -550,7 +564,11 @@ void CTextConsole::OnFrame()
 	LogLock(true);
 	const size_t lines = LogFile.size();
 	LogLock(false);
-	if ((lines != shown_lines && now - m_dwLastUpdateTime >= 500) || now - m_dwLastUpdateTime >= 1000)
+	// A minimised or hidden console is not painted at all: under load the
+	// synchronous GDI calls waited up to 0.3 s (128-player test, 2026-10-06).
+	if (m_pMainWnd && (IsIconic(*m_pMainWnd) || !IsWindowVisible(*m_pMainWnd)))
+		return;
+	if ((lines != shown_lines && now - m_dwLastUpdateTime >= 1000) || now - m_dwLastUpdateTime >= 2000)
 	{
 		m_dwLastUpdateTime = now;
 		shown_lines = lines;
