@@ -4,7 +4,7 @@
 🔧 есть в коде/fixtures, в игре не проверено; 🟡 частично; ⬜ не сделано.
 Генерируется `tools/make-doc43-audit.py`.
 
-Итого: ✅ 11, 🔧 26, 🟡 64, ⬜ 87 из 188.
+Итого: ✅ 11, 🔧 27, 🟡 65, ⬜ 85 из 188.
 
 ## A
 
@@ -249,10 +249,10 @@
 | Пункт | Статус | Что есть |
 |---|---|---|
 | M01 Метрики frame p50/p95/p99/max: AI/physics/replication/IO отдельно | 🟡 | метрики кадра avg/max, профиль ai/replication/items |
-| M02 Metrics по LOD/chunks/online entities и очереди hydration | ⬜ |  |
+| M02 Metrics по LOD/chunks/online entities и очереди hydration | 🟡 | профайлер памяти -mem_profile (места выделения по PDB), [profile] ai/replication/items, [hitch]+[hitch-mt] стеки обоих потоков |
 | M03 Prewarm latency/deadline и достаточный reserved budget | ⬜ |  |
 | M04 При перегрузке сначала дальняя replication/Reduced/Coarse, | 🔧 | перегрузка: сначала реже дальние объекты (x2/x4 по кадру сервера), игроки и ближние 50 м никогда |
-| M05 Bounded backlog, event age, admission limits и cooldown возврата качества | ⬜ |  |
+| M05 Bounded backlog, event age, admission limits и cooldown возврата качества | 🔧 | очередь входа: мир одновременно получают 4 игрока, остальные ждут; лимиты 128/512; записи аренд/хранилища порциями |
 | M06 Тесты 32/64/128 настоящих игровых sessions в hot location | 🟡 | боты-игроки в одной точке: 32 - кадр 15 мс; 64 - 37 мс, 10,7 МБ/с; 128 - обвал: все спавнились в одной точке (исправлено, перепроверка) |
 | M07 512 sessions по 25 локациям; пустые локации остаются abstract, | 🟡 | план кластера на все 33 карты (порты, стартовые точки, лимиты), сторож по плану; нужна многомашинная установка и боты |
 | M08 Суточный сценарий NPC/loot/stashes/emission/trade/transfer | ⬜ |  |
