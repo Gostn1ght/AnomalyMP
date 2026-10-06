@@ -72,13 +72,22 @@ for i = 1, 65534 do
         end
     end
 end
+-- Artefacts lying in this map (L06: the emission's end respawns them).
+local arts, here, gg = 0, level.name(), game_graph()
+for i = 1, 65534 do
+    local se = sim:object(i)
+    if se and se.parent_id == 65535 and IsArtefact(nil, se:clsid()) then
+        local v = gg:vertex(se.m_game_vertex_id)
+        if v and sim:level_name(v:level_id()) == here then arts = arts + 1 end
+    end
+end
 local lost = 0
 for id in pairs(netcoop_cover_test.sheltered) do
     local npc = level.object_by_id(id)
     local se = sim:object(id)
     if (npc and not npc:alive()) or (se and se.alive and not se:alive()) then lost = lost + 1 end
 end
-return string.format("COVER covers=%d alive=%d dead=%d in_cover=%d safe_smart=%d exposed=%d immune=%d sheltered_dead=%d", covers, alive, dead, cover, safe, exposed, immune, lost)
+return string.format("COVER covers=%d alive=%d dead=%d in_cover=%d safe_smart=%d exposed=%d immune=%d sheltered_dead=%d artefacts=%d", covers, alive, dead, cover, safe, exposed, immune, lost, arts)
 end)
 db.actor = previous_actor
 return ok and result or ('probe error ' .. tostring(result))
@@ -106,4 +115,4 @@ Set-Content -Path $debugFile -Value "" -Encoding ascii
 function Field($s, $name) { if ($s -match "$name=(\d+)") { [int]$Matches[1] } else { -1 } }
 if ((Field $start "covers") -le 0) { "FAIL: no shelters loaded on the server"; exit 1 }
 if ((Field $after "sheltered_dead") -gt 0) { "FAIL: NPCs died in a shelter: $after"; exit 1 }
-"PASS: shelters loaded, exposed NPCs $(Field $start 'exposed') -> $(Field $late 'exposed') during the emission, nobody in a shelter died (dead $(Field $start 'dead') -> $(Field $after 'dead'))"
+"PASS: artefacts $(Field $start 'artefacts') -> $(Field $after 'artefacts') after the emission; shelters loaded, exposed NPCs $(Field $start 'exposed') -> $(Field $late 'exposed') during the emission, nobody in a shelter died (dead $(Field $start 'dead') -> $(Field $after 'dead'))"

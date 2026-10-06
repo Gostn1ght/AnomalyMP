@@ -111,6 +111,34 @@ function start(elapsed_seconds)
     return true
 end
 
+-- Artefacts after an emission (doc 43 L06): GAMMA refills the anomaly fields
+-- that are online when it ends (emission_end). Fields far from every player
+-- are offline then and, on a location server whose map never changes, never
+-- got their share. The emissions are counted; a field that comes online after
+-- emissions it missed gets its respawn then, before a player is near.
+local function zone_emissions()
+    local state = alife_storage_manager.get_state()
+    state.netcoop_zone_emissions = state.netcoop_zone_emissions or {}
+    return state, state.netcoop_zone_emissions
+end
+function zone_catch_up(binder)
+    local state, seen = zone_emissions()
+    local count = state.netcoop_emissions or 0
+    local name = binder and binder.object and binder.object:name()
+    if not name then return end
+    if (seen[name] or 0) < count and binder.respawn_artefacts_and_replace_anomaly_zone then
+        binder:respawn_artefacts_and_replace_anomaly_zone()
+    end
+    seen[name] = count
+end
+local function mark_online_zones()
+    local state, seen = zone_emissions()
+    for _, binder in pairs(db.anomaly_by_name or {}) do
+        local name = binder.object and binder.object:name()
+        if name then seen[name] = state.netcoop_emissions or 0 end
+    end
+end
+
 function finish()
     if not started_at then return false end
     local mgr = manager()
@@ -127,7 +155,10 @@ function finish()
     next_interval(mgr)
     SetEvent("surge", "state", false)
     SendScriptCallback("actor_on_interaction", "anomalies", nil, "emissions")
+    local count_state = alife_storage_manager.get_state()
+    count_state.netcoop_emissions = (count_state.netcoop_emissions or 0) + 1
     SendScriptCallback("actor_on_interaction", "anomalies", nil, "emission_end")
+    mark_online_zones() -- these were refilled by emission_end just now
     netcoop_broadcast("emission", payload())
     next_send = time_global() + 1000
     printf("[Lost Zone] emission finished: " .. sequence)
@@ -143,6 +174,17 @@ function install()
     -- every online NPC outside a surge-safe smart died at the end, sheltered
     -- or not.
     if mgr.init_surge_covers then pcall(mgr.init_surge_covers, mgr) end
+    -- Fields coming online catch up on the emissions they missed.
+    local zone_class = bind_anomaly_zone and bind_anomaly_zone.anomaly_zone_binder
+    if zone_class and zone_class.net_spawn and not zone_class.netcoop_catch_up then
+        local original = zone_class.net_spawn
+        zone_class.netcoop_catch_up = true
+        zone_class.net_spawn = function(self, se_abstract)
+            local result = original(self, se_abstract)
+            if result ~= false then pcall(zone_catch_up, self) end
+            return result
+        end
+    end
     -- The dedicated server has no Actor binder to run the stock main loop.
     mgr.update = function() end
     mgr.start = function() return start() end
