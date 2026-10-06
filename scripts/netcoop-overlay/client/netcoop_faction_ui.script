@@ -4,7 +4,7 @@
 -- every button is a "faction ..."/"contract ..." command, then a refresh.
 local OPEN_KEY = DIK_keys.DIK_F6
 local ROWS = 12
-local TABS = { "faction", "contracts", "wanted", "manage" }
+local TABS = { "faction", "contracts", "wanted", "squad", "manage" }
 local wnd, data = nil, nil
 
 local function tr(id) return game.translate_string(id) end
@@ -17,7 +17,7 @@ local function split(line)
 end
 
 local function parse(text)
-	local d = { factions = {}, apps = {}, members = {}, contracts = {}, bounties = {} }
+	local d = { factions = {}, apps = {}, members = {}, contracts = {}, bounties = {}, squad = {}, invites = {}, near = {} }
 	for line in string.gmatch(text or "", "[^\n]+") do
 		local f = split(line)
 		if f[1] == "S" then d.faction, d.role, d.rank, d.admin = f[2], f[3], f[4], f[5] == "1"
@@ -26,7 +26,10 @@ local function parse(text)
 		elseif f[1] == "M" then d.members[#d.members + 1] = { char = f[2], name = f[3], role = f[4], furniture = f[5] == "1" }
 		elseif f[1] == "C" then d.contracts[#d.contracts + 1] = { faction = f[2], index = tonumber(f[3]) or 0, kind = f[4],
 			targets = f[5], progress = f[6], count = f[7], done = tonumber(f[8]) or 0 }
-		elseif f[1] == "B" then d.bounties[#d.bounties + 1] = { name = f[2], reward = f[3], hours = f[4] } end
+		elseif f[1] == "B" then d.bounties[#d.bounties + 1] = { name = f[2], reward = f[3], hours = f[4] }
+		elseif f[1] == "Q" and f[2] == "in" then d.squad[#d.squad + 1] = { name = f[3], online = f[4] == "1" }
+		elseif f[1] == "Q" and f[2] == "invite" then d.invites[#d.invites + 1] = f[3]
+		elseif f[1] == "Q" and f[2] == "near" then d.near[#d.near + 1] = { char = f[3], name = f[4] } end
 	end
 	return d
 end
@@ -67,7 +70,7 @@ function netcoop_faction_wnd:__init() super()
 	self.tabs = {}
 	for i, name in ipairs(TABS) do
 		local b = xml:Init3tButton("tab", self)
-		b:SetWndPos(vector2():set(192 + (i - 1) * 160, 136))
+		b:SetWndPos(vector2():set(192 + (i - 1) * 128, 136))
 		b:TextControl():SetText(tr("st_netcoop_fui_tab_" .. name))
 		self:Register(b, "tab_" .. name)
 		self:AddCallback("tab_" .. name, ui_events.BUTTON_CLICKED, function() self.tab = name; self:Fill() end, self)
@@ -117,6 +120,9 @@ function netcoop_faction_wnd:Fill()
 	local manager = d.admin or d.role == "leader" or d.role == "deputy"
 	self.tabs.manage:Show(manager)
 	if self.tab == "manage" and not manager then self.tab = "faction" end
+	local loner = (d.faction or "stalker") == "stalker"
+	self.tabs.squad:Show(loner)
+	if self.tab == "squad" and not loner then self.tab = "faction" end
 	self.title:TextControl():SetText(string.format(tr("st_netcoop_fui_title"), title_of(d.faction or "stalker"),
 		tr("st_netcoop_fui_role_" .. (d.role or "member")), tostring(d.rank or 0)))
 	local r = 0
@@ -149,6 +155,24 @@ function netcoop_faction_wnd:Fill()
 		for _, b in ipairs(d.bounties) do
 			r = r + 1
 			self:Row(r, string.format(tr("st_netcoop_fui_bounty"), b.name, b.reward, b.hours))
+		end
+	elseif self.tab == "squad" then
+		self.body:TextControl():SetText(tr("st_netcoop_fui_squad_body"))
+		for _, name in ipairs(d.invites) do
+			r = r + 1
+			self:Row(r, string.format(tr("st_netcoop_fui_squad_invite"), name), {
+				{ tr("st_netcoop_fui_accept"), "squad accept" }, { tr("st_netcoop_fui_reject"), "squad decline" } })
+		end
+		for i, m in ipairs(d.squad) do
+			r = r + 1
+			local text = m.name .. (m.online and "" or ("  -  " .. tr("st_netcoop_fui_squad_offline")))
+			self:Row(r, text, i == 1 and { { tr("st_netcoop_fui_leave"), "squad leave" } } or nil)
+		end
+		for _, n in ipairs(d.near) do
+			if r < ROWS then
+				r = r + 1
+				self:Row(r, string.format(tr("st_netcoop_fui_squad_near"), n.name), { { tr("st_netcoop_fui_squad_call"), "squad invite " .. n.char } })
+			end
 		end
 	elseif self.tab == "manage" then
 		self.body:TextControl():SetText(tr("st_netcoop_fui_manage_body"))

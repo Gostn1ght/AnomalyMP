@@ -163,6 +163,39 @@ function command(obj, args)
 	return show(char)
 end
 
+---------------------------------------------------------------- F6 window
+-- Q|in|name|online, Q|invite|name, Q|near|char|name (Loners within 50 m,
+-- not in a squad, up to 5: one click invites them).
+local function clean(text) return (tostring(text or ""):gsub("[|\n]", " ")) end
+function ui_lines(obj)
+	local lines, char = {}, char_of(obj)
+	if char == "" or faction_of(obj) ~= LONERS then return lines end
+	local live = online()
+	local id = squad_id_of(char)
+	for member, name in pairs(members_of(id)) do
+		lines[#lines + 1] = table.concat({ "Q", "in", clean(name), live[member] and "1" or "0" }, "|")
+	end
+	if not id then
+		for squad in string.gmatch(netcoop_store_keys and netcoop_store_keys("squads") or "", "%S+") do
+			local data = store().store_get("squads", squad)
+			local at = (data.invites or {})[char]
+			if at and now() - at <= INVITE_TIME then
+				local from = data.members and data.members[squad] or squad
+				lines[#lines + 1] = table.concat({ "Q", "invite", clean(from) }, "|")
+			end
+		end
+	end
+	local near = 0
+	for other, mate in pairs(live) do
+		if near < 5 and other ~= char and faction_of(mate) == LONERS and not squad_id_of(other) and
+			mate:position():distance_to(obj:position()) <= 50 then
+			near = near + 1
+			lines[#lines + 1] = table.concat({ "Q", "near", other, clean(mate:character_name()) }, "|")
+		end
+	end
+	return lines
+end
+
 ---------------------------------------------------------------- shared attitudes
 -- Every few seconds: each online member's own change of a faction's attitude
 -- since the last look reaches the other online members at SHARE strength.

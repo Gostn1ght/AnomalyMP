@@ -9,7 +9,7 @@
     <title x="192" y="96" width="640" height="34">
         <text r="218" g="190" b="125" font="letterica18" align="l" vert_align="c"/>
     </title>
-    <tab x="192" y="136" width="150" height="32" stretch="1">
+    <tab x="192" y="136" width="122" height="32" stretch="1">
         <text align="c" vert_align="c" font="letterica16"/>
         <texture>ui_button_ordinary</texture>
     </tab>

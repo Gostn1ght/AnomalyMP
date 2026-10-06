@@ -693,4 +693,22 @@
   <string id="st_netcoop_squad_joined">
     <text>%s joined the squad</text>
   </string>
+  <string id="st_netcoop_fui_tab_squad">
+    <text>Squad</text>
+  </string>
+  <string id="st_netcoop_fui_squad_body">
+    <text>A Loner squad, only by consent. What you do touches your mates' standing at half strength.</text>
+  </string>
+  <string id="st_netcoop_fui_squad_invite">
+    <text>Squad invitation from %s</text>
+  </string>
+  <string id="st_netcoop_fui_squad_offline">
+    <text>offline</text>
+  </string>
+  <string id="st_netcoop_fui_squad_near">
+    <text>%s is nearby, not in a squad</text>
+  </string>
+  <string id="st_netcoop_fui_squad_call">
+    <text>Invite</text>
+  </string>
 </string_table>

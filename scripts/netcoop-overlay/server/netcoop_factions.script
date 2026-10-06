@@ -376,6 +376,9 @@ function ui_payload(obj, admin)
 				tostring(def and def.count or 0), tostring(state.done or 0) }, "|")
 		end
 	end
+	if netcoop_squads and netcoop_squads.ui_lines then
+		for _, line in ipairs(netcoop_squads.ui_lines(obj)) do lines[#lines + 1] = line end
+	end
 	if netcoop_store_keys and netcoop_ranks and netcoop_ranks.bounty_of then
 		for wanted in string.gmatch(netcoop_store_keys("bounties"), "%S+") do
 			local b = netcoop_ranks.bounty_of(wanted)

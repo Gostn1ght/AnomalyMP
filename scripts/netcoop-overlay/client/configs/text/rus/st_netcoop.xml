@@ -693,4 +693,22 @@
   <string id="st_netcoop_squad_joined">
     <text>%s вступил в отряд</text>
   </string>
+  <string id="st_netcoop_fui_tab_squad">
+    <text>Отряд</text>
+  </string>
+  <string id="st_netcoop_fui_squad_body">
+    <text>Отряд одиночек: только по согласию. Ваши поступки задевают отношение к товарищам вполовину.</text>
+  </string>
+  <string id="st_netcoop_fui_squad_invite">
+    <text>Приглашение в отряд от %s</text>
+  </string>
+  <string id="st_netcoop_fui_squad_offline">
+    <text>не в сети</text>
+  </string>
+  <string id="st_netcoop_fui_squad_near">
+    <text>%s рядом, не в отряде</text>
+  </string>
+  <string id="st_netcoop_fui_squad_call">
+    <text>Позвать</text>
+  </string>
 </string_table>

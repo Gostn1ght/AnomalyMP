@@ -43,6 +43,7 @@ function player(id, char, name, faction)
     function o:character_name() return name end
     function o:character_rank() return self.rank_ end
     function o:character_reputation() return self.rep end
+    function o:position() return {x = id, distance_to = function(self, other) return math.abs(self.x - other.x) end} end
     players[id] = o; chars[id] = char
     return o
 end
@@ -60,10 +61,15 @@ local d = player(4, "duty_1", "Dima", "dolg")
 local function step() tick = tick + 6000; r.update(); s.update() end
 step(); step()
 -- Consent: an invitation alone does not make a member.
+local function has(lines, text) for _, l in ipairs(lines) do if l == text then return true end end return false end
+assert(has(s.ui_lines(a), "Q|near|boris_1|Boris"), "a nearby Loner can be invited from F6")
+assert(not has(s.ui_lines(a), "Q|near|duty_1|Dima"), "not a Loner: not offered")
 assert(s.command(a, "invite Boris"):find("^~"), "invite")
+assert(has(s.ui_lines(b), "Q|invite|Anna"), "Boris sees the invitation in F6")
 assert(not s.command(b, ""):find("squad:"), "invited is not a member yet")
 assert(s.command(a, "invite Dima"):find("not a Loner"), "only Loners")
 assert(s.command(b, "accept"):find("joined"), "accept")
+assert(has(s.ui_lines(a), "Q|in|Boris|1"), "squad listed in F6")
 assert(s.command(a, ""):find("Anna") and s.command(a, ""):find("Boris"), "both in the squad")
 assert(s.command(c, "accept"):find("no invitation"), "no invitation, no squad")
 -- Anna's own change of an attitude reaches Boris at half strength, not Cyril.
