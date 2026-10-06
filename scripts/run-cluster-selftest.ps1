@@ -21,7 +21,9 @@ param(
     [switch]$LoadOnly,
     # Load test on every map of -Maps at once: -Bots players on each, all in
     # one spot of their map (512 = 4 maps x 128).
-    [switch]$Spread
+    [switch]$Spread,
+    # Extra server command line, e.g. "-mem_profile" (memory by call site).
+    [string]$ServerArgs = ""
 )
 $ErrorActionPreference = "Stop"
 # "-Maps a,b" through -File arrives as one string.
@@ -60,7 +62,7 @@ $stamp = Get-Date
 
 function Start-LocationServer($name, $port, $start) {
     $arguments = "-nosplashwindow -noprefetch -netcoop -dbg -multi_instance -logname selftest_$name -fsltx fsgame_selftest_server.ltx " +
-        "-netport $port -netcoop_start_location=$start -netcoop_world=selftest_$name -netcoop_cluster_selftest " +
+        "-netport $port -netcoop_start_location=$start -netcoop_world=selftest_$name -netcoop_cluster_selftest $ServerArgs " +
         "-start `"server(all/single/alife/new/portsv=$port/maxplayers=$maxPlayers)`" `"client(localhost/name=serverauthority/port=$port/portcl=$($port + 1))`""
     Start-Process -FilePath $server -ArgumentList $arguments -WorkingDirectory $Runtime -PassThru
 }
