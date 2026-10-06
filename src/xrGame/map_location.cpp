@@ -267,7 +267,9 @@ void CMapLocation::CalcPosition()
 	}
 	else
 	{
-		m_position_global = pObject->Position();
+		// An item in an inventory or a box is where its holder is (a task item
+		// another player picked up moves with that player).
+		m_position_global = pObject->H_Root()->Position();
 		m_cached.m_Position.set(m_position_global.x, m_position_global.z);
 	}
 }

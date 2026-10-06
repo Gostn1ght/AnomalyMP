@@ -518,6 +518,12 @@ function on_script_message(channel, data)
 	elseif channel == "player_state" then
 		use_player_state(data)
 		return
+	elseif channel == "taskpos" then
+		-- Where this player's task targets are now (server, every 2 s).
+		for id, x, y, z, lvl in string.gmatch(data or "", "(%d+) (%S+) (%S+) (%S+) ([%w_]+);") do
+			if netcoop_map_position_set then netcoop_map_position_set(tonumber(id), tonumber(x), tonumber(y), tonumber(z), lvl) end
+		end
+		return
 	elseif channel == "pda" then
 		-- The character's personal PDA (map pins) from the server.
 		if netcoop_pda then netcoop_pda.receive(data) end

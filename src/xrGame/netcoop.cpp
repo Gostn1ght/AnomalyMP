@@ -2989,6 +2989,62 @@ static void write_tasks(CGameTaskManager* manager, NET_Packet& P)
 	P.w_seek(count_pos, &count, sizeof(count));
 }
 
+// Where a task's target is now (owner 2026-10-06): an item a player picked
+// up is where that player is, an item put into a stash is at the stash. The
+// owner of the task gets the positions of targets that are not on their
+// client (far, offline); the client shows the task spot there and it moves
+// with the holder. Every 2 s, only when something moved.
+static bool world_object_position(xrServer* server, u16 id, Fvector& position, shared_str& level)
+{
+	if (id == 0xffff) return false;
+	CSE_Abstract* entity = server->ID_to_entity(id);
+	for (int depth = 0; entity && entity->ID_Parent != 0xffff && depth < 4; ++depth)
+	{
+		CSE_Abstract* parent = server->ID_to_entity(entity->ID_Parent);
+		if (!parent) break;
+		entity = parent;
+	}
+	if (entity && entity->ID_Parent == 0xffff)
+	{
+		position = entity->o_Position;
+		level = Level().name();
+		return true;
+	}
+	if (!ai().get_alife()) return false;
+	CSE_ALifeDynamicObject* object = ai().alife().objects().object(id, true);
+	for (int depth = 0; object && object->ID_Parent != 0xffff && depth < 4; ++depth)
+		object = ai().alife().objects().object(object->ID_Parent, true);
+	if (!object || !ai().get_game_graph() || !ai().game_graph().valid_vertex_id(object->m_tGraphID)) return false;
+	position = object->o_Position;
+	level = ai().game_graph().header().level(ai().game_graph().vertex(object->m_tGraphID)->level_id()).name();
+	return true;
+}
+
+static xr_map<u16, xr_string> s_sent_task_positions; // Actor id -> last "taskpos" data
+static u32 s_task_positions_next = 0;
+
+static void send_task_positions(xrServer* server, u16 actor_id, CGameTaskManager* manager)
+{
+	string4096 data = "";
+	vGameTasks& tasks = manager->GetGameTasks();
+	for (u32 i = 0; i < tasks.size(); ++i)
+	{
+		CGameTask* t = tasks[i].game_task;
+		if (!t || t->GetTaskState() != eTaskStateInProgress) continue;
+		Fvector position;
+		shared_str level;
+		if (!world_object_position(server, t->m_map_object_id, position, level)) continue;
+		string256 entry;
+		xr_sprintf(entry, "%u %.1f %.1f %.1f %s;", t->m_map_object_id, position.x, position.y, position.z, level.c_str());
+		if (xr_strlen(data) + xr_strlen(entry) >= sizeof(data) - 1) break;
+		xr_strcat(data, entry);
+	}
+	xr_string& sent = s_sent_task_positions[actor_id];
+	if (sent == data) return;
+	sent = data;
+	script_send_to_actor(actor_id, "taskpos", data);
+}
+
 void server_tasks_update(xrServer* server)
 {
 	if (!enabled() || !g_pGameLevel || !Level().Server)
@@ -3005,7 +3061,10 @@ void server_tasks_update(xrServer* server)
 		if (!smart_cast<CActor*>(Level().Objects.net_Find(it->first)))
 			gone.push_back(it->first);
 	for (u32 i = 0; i < gone.size(); ++i)
+	{
 		server_release_task_manager(gone[i]);
+		s_sent_task_positions.erase(gone[i]);
+	}
 
 	xr_vector<TaskPlayer> players;
 	CollectTaskPlayers collect;
@@ -3044,6 +3103,8 @@ void server_tasks_update(xrServer* server)
 		NET_Packet P;
 		if (manager)
 			write_tasks(manager, P);
+		if (manager && now >= s_task_positions_next)
+			send_task_positions(server, players[i].actor, manager);
 		bind_script_actor(NULL);
 		if (!manager)
 			continue;
@@ -3055,6 +3116,7 @@ void server_tasks_update(xrServer* server)
 		sent = crc;
 		server->SendTo(players[i].client, P, net_flags(TRUE, TRUE));
 	}
+	if (now >= s_task_positions_next) s_task_positions_next = now + 2000;
 }
 
 // ---------------------------------------------------------------------------
