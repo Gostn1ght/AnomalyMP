@@ -462,6 +462,7 @@ u32 s_wanted = 0;
 u32 s_last_start = 0;
 u32 s_last_report = 0;
 string256 s_address = "127.0.0.1";
+u32 s_first = 0; // -netcoop_bots_first: several bot processes, distinct logins
 bool s_command_line_checked = false;
 
 void check_command_line()
@@ -479,6 +480,8 @@ void check_command_line()
 	LPCSTR a = strstr(Core.Params, "-netcoop_bots_addr ");
 	if (a)
 		sscanf_s(a + xr_strlen("-netcoop_bots_addr "), "%255s", address, (unsigned)sizeof(address));
+	if (LPCSTR f = strstr(Core.Params, "-netcoop_bots_first "))
+		sscanf_s(f + xr_strlen("-netcoop_bots_first "), "%u", &s_first);
 	bots_set(count, address);
 }
 
@@ -570,7 +573,7 @@ void bots_frame()
 	if (s_bots.size() < s_wanted && now - s_last_start >= 250)
 	{
 		s_last_start = now;
-		NetcoopBot* b = xr_new<NetcoopBot>(u32(s_bots.size()) + 1);
+		NetcoopBot* b = xr_new<NetcoopBot>(s_first + u32(s_bots.size()) + 1);
 		s_bots.push_back(b);
 		b->start(s_address, now);
 	}

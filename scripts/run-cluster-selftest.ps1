@@ -18,7 +18,10 @@ param(
     # bots join the first one and walk the level changers from there.
     [string[]]$Maps = @("k00_marsh", "l01_escape"),
     # Load test: only the Great Swamp server, no cluster, bots stay there.
-    [switch]$LoadOnly
+    [switch]$LoadOnly,
+    # Load test on every map of -Maps at once: -Bots players on each, all in
+    # one spot of their map (512 = 4 maps x 128).
+    [switch]$Spread
 )
 $ErrorActionPreference = "Stop"
 # "-Maps a,b" through -File arrives as one string.
@@ -36,7 +39,10 @@ Get-ChildItem $appdata -Force -ErrorAction SilentlyContinue | Where-Object { $_.
     Remove-Item -Recurse -Force
 Remove-Item (Join-Path $Runtime "appdata\selftest_bots\logs") -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $logs | Out-Null
-if ($LoadOnly) { $Maps = @($Maps[0]) }
+if ($Spread) { $LoadOnly = $true }
+elseif ($LoadOnly) { $Maps = @($Maps[0]) }
+# The server counts its own local client as a player.
+$maxPlayers = [Math]::Max(32, $Bots + 1)
 # Start sections from the generated plan (GAMMA or netcoop\start_levels.ltx).
 $launch = @{}; $section = $null
 foreach ($line in Get-Content (Join-Path $PSScriptRoot "netcoop-cluster\netcoop_cluster.ltx.full")) {
@@ -55,7 +61,7 @@ $stamp = Get-Date
 function Start-LocationServer($name, $port, $start) {
     $arguments = "-nosplashwindow -noprefetch -netcoop -dbg -multi_instance -logname selftest_$name -fsltx fsgame_selftest_server.ltx " +
         "-netport $port -netcoop_start_location=$start -netcoop_world=selftest_$name -netcoop_cluster_selftest " +
-        "-start `"server(all/single/alife/new/portsv=$port/maxplayers=32)`" `"client(localhost/name=serverauthority/port=$port/portcl=$($port + 1))`""
+        "-start `"server(all/single/alife/new/portsv=$port/maxplayers=$maxPlayers)`" `"client(localhost/name=serverauthority/port=$port/portcl=$($port + 1))`""
     Start-Process -FilePath $server -ArgumentList $arguments -WorkingDirectory $Runtime -PassThru
 }
 
@@ -85,20 +91,26 @@ try {
         Write-Host "$map loaded: $loaded"
     }
     $marsh = $serverLogs[0]
-    $botArgs = "-nosplashwindow -netcoop -dbg -noprefetch -multi_instance -logname selftest_bots -fsltx fsgame_selftest_bots.ltx " +
-        "-netcoop_bots $Bots -netcoop_bots_addr 127.0.0.1/port=$($ports[$Maps[0]])"
-    $processes += Start-Process -FilePath $client -ArgumentList $botArgs -WorkingDirectory $Runtime -PassThru
-    Write-Host "bots started; running $Minutes min"
+    # One bot process per loaded map in -Spread, logins nbot_<first+n> apart.
+    $botMaps = if ($Spread) { $Maps } else { @($Maps[0]) }
+    $first = 0
+    foreach ($map in $botMaps) {
+        $botArgs = "-nosplashwindow -netcoop -dbg -noprefetch -multi_instance -logname selftest_bots_$map -fsltx fsgame_selftest_bots.ltx " +
+            "-netcoop_bots $Bots -netcoop_bots_first $first -netcoop_bots_addr 127.0.0.1/port=$($ports[$map])"
+        $processes += Start-Process -FilePath $client -ArgumentList $botArgs -WorkingDirectory $Runtime -PassThru
+        $first += $Bots
+    }
+    Write-Host "$($Bots * $botMaps.Count) bots started on $($botMaps -join ', '); running $Minutes min"
     Start-Sleep -Seconds ($Minutes * 60)
 }
 finally {
     foreach ($p in $processes) { if ($p -and -not $p.HasExited) { Stop-Process -Id $p.Id -Force } }
 }
 
-$botLog = Get-ChildItem (Join-Path $Runtime "appdata\selftest_bots\logs") -Filter "*selftest_bots*.log" |
-    Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$botLogs = @(Get-ChildItem (Join-Path $Runtime "appdata\selftest_bots\logs") -Filter "*selftest_bots*.log" -ErrorAction SilentlyContinue |
+    Where-Object { $_.LastWriteTime -gt $stamp })
 $serverLines = $serverLogs | ForEach-Object { Get-Content $_ }
-$botLines = if ($botLog) { Get-Content $botLog.FullName } else { @() }
+$botLines = @($botLogs | ForEach-Object { Get-Content $_.FullName })
 $summary = [ordered]@{
     leaves = @($serverLines | Select-String "\[cluster\] .* leaves for").Count
     arrivals = @($serverLines | Select-String "\[cluster\] .* arrived from").Count
@@ -112,6 +124,12 @@ $summary = [ordered]@{
     fatal = @($serverLines + $botLines | Select-String -CaseSensitive "FATAL ERROR|Expression\s*:").Count
 }
 $summary.GetEnumerator() | ForEach-Object { "{0,-14} {1}" -f $_.Key, $_.Value }
-"last bot reports:"; $botLines | Select-String "wanted:" | Select-Object -Last 3 | ForEach-Object { $_.Line }
-"last server metrics:"; Get-Content $marsh | Select-String "\[metrics\] server" | Select-Object -Last 3 | ForEach-Object { $_.Line }
-"logs: $($serverLogs -join ' ; ') ; $($botLog.FullName)"
+foreach ($log in $botLogs) {
+    "last bot reports ($($log.Name)):"
+    Get-Content $log.FullName | Select-String "wanted:" | Select-Object -Last 3 | ForEach-Object { $_.Line }
+}
+foreach ($log in $serverLogs) {
+    "last server metrics ($(Split-Path $log -Leaf)):"
+    Get-Content $log | Select-String "\[metrics\] server|\[profile\]" | Select-Object -Last 4 | ForEach-Object { $_.Line }
+}
+"logs: $($serverLogs -join ' ; ') ; $(($botLogs | ForEach-Object FullName) -join ' ; ')"
