@@ -26,7 +26,10 @@ param(
     [string]$ServerArgs = "",
     # Bot processes per map: one process parses every bot's traffic on one
     # thread (128 bots at full rate starved it, 2026-10-06).
-    [int]$BotProcesses = 1
+    [int]$BotProcesses = 1,
+    # Extra bot command line, e.g. "-netcoop_fake_loss=5 -netcoop_fake_lag=120"
+    # (a bad network for every bot, doc 43 D11).
+    [string]$BotArgs = ""
 )
 $ErrorActionPreference = "Stop"
 # "-Maps a,b" through -File arrives as one string.
@@ -103,7 +106,7 @@ try {
         for ($part = 0; $part -lt $BotProcesses; $part++) {
             $count = [Math]::Floor($Bots / $BotProcesses) + $(if ($part -lt $Bots % $BotProcesses) { 1 } else { 0 })
             $botArgs = "-nosplashwindow -netcoop -dbg -noprefetch -multi_instance -logname selftest_bots_$map`_$part -fsltx fsgame_selftest_bots.ltx " +
-                "-netcoop_bots $count -netcoop_bots_first $first -netcoop_bots_addr 127.0.0.1/port=$($ports[$map])"
+                "-netcoop_bots $count -netcoop_bots_first $first -netcoop_bots_addr 127.0.0.1/port=$($ports[$map]) $BotArgs"
             $processes += Start-Process -FilePath $client -ArgumentList $botArgs -WorkingDirectory $Runtime -PassThru
             $first += $count
         }

@@ -3,6 +3,30 @@
 #include "SteamNetServer.h"
 #include "ip_address.h"
 
+// A bad network for tests (doc 43 D11): -netcoop_fake_loss=<percent> and
+// -netcoop_fake_lag=<ms> on a client process (the load bots) make every
+// connection of that process lose, delay and reorder packets both ways,
+// through the library's own network simulation.
+static void steamnet_fake_network()
+{
+	static bool applied = false;
+	if (applied) return;
+	applied = true;
+	float loss = 0.f;
+	int lag = 0;
+	if (LPCSTR o = strstr(Core.Params, "-netcoop_fake_loss=")) loss = float(atof(o + xr_strlen("-netcoop_fake_loss=")));
+	if (LPCSTR o = strstr(Core.Params, "-netcoop_fake_lag=")) lag = atoi(o + xr_strlen("-netcoop_fake_lag="));
+	if (loss <= 0.f && lag <= 0) return;
+	ISteamNetworkingUtils* utils = SteamNetworkingUtils();
+	utils->SetGlobalConfigValueFloat(k_ESteamNetworkingConfig_FakePacketLoss_Send, loss);
+	utils->SetGlobalConfigValueFloat(k_ESteamNetworkingConfig_FakePacketLoss_Recv, loss);
+	utils->SetGlobalConfigValueInt32(k_ESteamNetworkingConfig_FakePacketLag_Send, lag / 2);
+	utils->SetGlobalConfigValueInt32(k_ESteamNetworkingConfig_FakePacketLag_Recv, lag - lag / 2);
+	utils->SetGlobalConfigValueFloat(k_ESteamNetworkingConfig_FakePacketReorder_Send, loss);
+	utils->SetGlobalConfigValueInt32(k_ESteamNetworkingConfig_FakePacketReorder_Time, 15);
+	Msg("[SteamNetClient] test network: %.1f%% loss and reorder each way, %d ms added round trip", loss, lag);
+}
+
 SteamNetClient* s_pCallbackInstance = nullptr;
 
 // NetAnomaly: several clients in one process (load-test bots). Callbacks are
@@ -140,6 +164,7 @@ bool SteamNetClient::CreateConnection(ClientConnectionOptions & connectOpt)
 	Msg("[SteamNetClient] Connecting to server at %s", szAddr);
 
 
+	steamnet_fake_network();
 	SteamNetworkingConfigValue_t options[3];
 	options[0].SetPtr(k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged,
 		(void*)ClSteamNetConnectionStatusChangedCallback);
