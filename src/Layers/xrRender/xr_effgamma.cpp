@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "xr_effgamma.h"
+#include "../../xrEngine/IGame_Persistent.h"
 
 #if defined(USE_DX10) || defined(USE_DX11)
 
@@ -9,9 +10,12 @@ void CGammaControl::Update()
 	{
 		DXGI_GAMMA_CONTROL_CAPABILITIES GC;
 		DXGI_GAMMA_CONTROL G;
-		IDXGIOutput* pOutput;
+		IDXGIOutput* pOutput = nullptr;
 
-		CHK_DX(HW.m_pSwapChain->GetContainingOutput(&pOutput));
+		// No monitor to adjust: the dedicated server (a WARP device has no
+		// output, and a hardware one must not change the player's gamma).
+		if (g_dedicated_server || !HW.m_pSwapChain || FAILED(HW.m_pSwapChain->GetContainingOutput(&pOutput)) || !pOutput)
+			return;
 		HRESULT hr = pOutput->GetGammaControlCapabilities(&GC);
 		if (SUCCEEDED(hr))
 		{
