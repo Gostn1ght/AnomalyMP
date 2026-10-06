@@ -1101,7 +1101,7 @@ local SAFE_STORY_NPCS = { -- story id = radius, m
 	bar_dolg_leader = 30,
 	mil_smart_terrain_7_7_freedom_leader_stalker = 30,
 }
--- Safe zones that are a faction's base (doc 47 §6): there the leader, the
+-- Safe zones that are a faction's base (doc 47 section 6): there the leader, the
 -- deputies and members the leader allowed place furniture and items freely
 -- (indoors or not). A restrictor zone belongs to the base of the nearest of
 -- these within 150 m.

@@ -34,7 +34,7 @@ bool eligible(const ReplicationRecord& record,u16 owner,const Fvector& eye,u32 t
  struct Owner {u16 ID;} object{owner};
  struct Client {Owner* owner;} client{&object};auto CL=&client;
  struct Server {u32 m_aoi_tick;} instance{tick};auto server=&instance;
- Chunk c{record.id,record.player,{record.x,record.y,record.z}};
+ Chunk c{record.id,record.player,{record.x,record.y,record.z}}; const u32 far_scale=1; // no overload here
 ''' + cadence + r'''
  return (server->m_aoi_tick+c.id)%every==0;
 }
