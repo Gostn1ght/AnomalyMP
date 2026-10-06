@@ -388,6 +388,8 @@ ini_sys.r_bool_ex=function() return false end
 hour=10
 game.CTime=function() return {} end
 game.get_game_time=function() return {diffSec=function() return hour * 3600 end} end
+-- defined above the extracted part in the server script
+hours_since_2012=function() return game.get_game_time():diffSec(game.CTime()) / 3600 end
 local function always() return 0 end
 local box=make_box(700,{make_item(701,'bread',1)})
 assert(stash_visit(box, function() return 0.99 end)=="no visit",'rare: 8%')

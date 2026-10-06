@@ -33,7 +33,7 @@ function Wait-For($pattern, $what, $after = 0) {
     while ((Get-Date) -lt $deadline) {
         $text = Log-Text
         if ($text.Length -gt $after -and $text.Substring($after) -match $pattern) { return $Matches }
-        if ($text -match "FATAL ERROR") { throw "server crashed while waiting for $what" }
+        if ($text -match "FATAL ERROR|(?m)^stack trace:") { throw "server crashed while waiting for $what" }
         Start-Sleep -Seconds 3
     }
     throw "timed out waiting for $what"
