@@ -44,6 +44,19 @@ for path in sorted(root.rglob("*.script")):
             if bad_spec.search(m.group(1)):
                 problems.append(f"{path.relative_to(root)}:{n + 1}: printf format other than %s (GAMMA prints it literally)")
 
+# Every overlay script must at least compile (a broken string or a stray
+# `end` disables the whole module in the game without a test noticing).
+try:
+    from lupa.lua51 import LuaRuntime
+    lua = LuaRuntime()
+    compile_chunk = lua.eval("function(code, name) local f, err = loadstring(code, name); return err end")
+    for path in sorted(root.rglob("*.script")):
+        err = compile_chunk(path.read_text(encoding="utf-8", errors="replace"), str(path.name))
+        if err:
+            problems.append(f"{path.relative_to(root)}: does not compile: {err}")
+except ImportError:
+    print("lupa missing: syntax check skipped")
+
 if problems:
     print("\n".join(problems))
     sys.exit(1)

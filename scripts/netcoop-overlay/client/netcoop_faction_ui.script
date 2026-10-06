@@ -1,0 +1,220 @@
+-- Faction window (doc 47 §7): F6. My faction, applications, contracts,
+-- the wanted list and, for leaders and deputies, applications and members.
+-- The server sends the data (channel "faction_ui", netcoop_factions.ui_payload);
+-- every button is a "faction ..."/"contract ..." command, then a refresh.
+local OPEN_KEY = DIK_keys.DIK_F6
+local ROWS = 12
+local TABS = { "faction", "contracts", "wanted", "manage" }
+local wnd, data = nil, nil
+
+local function tr(id) return game.translate_string(id) end
+local function title_of(faction) return tr("st_netcoop_fac_" .. faction) end
+
+local function split(line)
+	local out = {}
+	for field in string.gmatch(line .. "|", "([^|]*)|") do out[#out + 1] = field end
+	return out
+end
+
+local function parse(text)
+	local d = { factions = {}, apps = {}, members = {}, contracts = {}, bounties = {} }
+	for line in string.gmatch(text or "", "[^\n]+") do
+		local f = split(line)
+		if f[1] == "S" then d.faction, d.role, d.rank, d.admin = f[2], f[3], f[4], f[5] == "1"
+		elseif f[1] == "F" then d.factions[#d.factions + 1] = { id = f[2], reason = f[3] }
+		elseif f[1] == "A" then d.apps[#d.apps + 1] = { char = f[2], name = f[3], rank = f[4] }
+		elseif f[1] == "M" then d.members[#d.members + 1] = { char = f[2], name = f[3], role = f[4], furniture = f[5] == "1" }
+		elseif f[1] == "C" then d.contracts[#d.contracts + 1] = { faction = f[2], index = tonumber(f[3]) or 0, kind = f[4],
+			targets = f[5], progress = f[6], count = f[7], done = tonumber(f[8]) or 0 }
+		elseif f[1] == "B" then d.bounties[#d.bounties + 1] = { name = f[2], reward = f[3], hours = f[4] } end
+	end
+	return d
+end
+
+-- The server's reason, in the game's language.
+local function reason_text(reason)
+	if reason == "" then return nil end
+	if reason == "member" then return tr("st_netcoop_fui_member") end
+	if reason == "applied" then return tr("st_netcoop_fui_applied") end
+	if reason:find("already a member") then return tr("st_netcoop_fui_member") end
+	if reason:find("Zone's judgement") then return tr("st_netcoop_fui_auto") end
+	if reason:find("wanted") then return tr("st_netcoop_fui_wanted") end
+	local n = reason:match("^complete (%d+) of")
+	if n then return string.format(tr("st_netcoop_fui_contracts"), n) end
+	local rank = reason:match("^rank (%d+) required")
+	if rank then return string.format(tr("st_netcoop_fui_rank"), rank) end
+	return reason
+end
+
+local function send(command)
+	if netcoop_command then netcoop_command(command) end
+end
+
+class "netcoop_faction_wnd" (CUIScriptWnd)
+
+function netcoop_faction_wnd:__init() super()
+	self:SetWndRect(Frect():set(0, 0, 1024, 768))
+	self:SetAutoDelete(false)
+	self.tab = "faction"
+	local xml = CScriptXmlInit()
+	xml:ParseFile("ui_netcoop_faction.xml")
+	xml:InitStatic("shade", self)
+	xml:InitStatic("frame", self)
+	self.title = xml:InitStatic("title", self)
+	self.body = xml:InitStatic("body", self)
+	self.hint = xml:InitStatic("hint", self)
+	self.hint:TextControl():SetText(tr("st_netcoop_fui_hint"))
+	self.tabs = {}
+	for i, name in ipairs(TABS) do
+		local b = xml:Init3tButton("tab", self)
+		b:SetWndPos(vector2():set(192 + (i - 1) * 160, 136))
+		b:TextControl():SetText(tr("st_netcoop_fui_tab_" .. name))
+		self:Register(b, "tab_" .. name)
+		self:AddCallback("tab_" .. name, ui_events.BUTTON_CLICKED, function() self.tab = name; self:Fill() end, self)
+		self.tabs[name] = b
+	end
+	self.rows = {}
+	for r = 1, ROWS do
+		local y = 240 + (r - 1) * 33
+		local row = { text = xml:InitStatic("row_text", self), buttons = {}, actions = {} }
+		row.text:SetWndPos(vector2():set(192, y))
+		for b = 1, 3 do
+			local button = xml:Init3tButton("row_button", self)
+			button:SetWndPos(vector2():set(572 + (b - 1) * 88, y + 1))
+			local id = string.format("row_%d_%d", r, b)
+			self:Register(button, id)
+			self:AddCallback(id, ui_events.BUTTON_CLICKED, function()
+				local command = row.actions[b]
+				if command then send(command); send("faction ui") end
+			end, self)
+			row.buttons[b] = button
+		end
+		self.rows[r] = row
+	end
+end
+
+function netcoop_faction_wnd:Row(r, text, buttons)
+	local row = self.rows[r]
+	if not row then return end
+	row.text:TextControl():SetText(text or "")
+	row.text:Show(text ~= nil)
+	for b = 1, 3 do
+		local spec = buttons and buttons[b]
+		row.actions[b] = spec and spec[2] or nil
+		row.buttons[b]:Show(spec ~= nil)
+		if spec then row.buttons[b]:TextControl():SetText(spec[1]) end
+	end
+end
+
+function netcoop_faction_wnd:Fill()
+	for r = 1, ROWS do self:Row(r, nil) end
+	local d = data
+	if not d then
+		self.title:TextControl():SetText(tr("st_netcoop_fui_loading"))
+		self.body:TextControl():SetText("")
+		return
+	end
+	local manager = d.admin or d.role == "leader" or d.role == "deputy"
+	self.tabs.manage:Show(manager)
+	if self.tab == "manage" and not manager then self.tab = "faction" end
+	self.title:TextControl():SetText(string.format(tr("st_netcoop_fui_title"), title_of(d.faction or "stalker"),
+		tr("st_netcoop_fui_role_" .. (d.role or "member")), tostring(d.rank or 0)))
+	local r = 0
+	if self.tab == "faction" then
+		self.body:TextControl():SetText(tr("st_netcoop_fui_faction_body"))
+		for _, f in ipairs(d.factions) do
+			r = r + 1
+			local why = reason_text(f.reason)
+			local text = title_of(f.id) .. (why and ("  -  " .. why) or "")
+			local buttons = nil
+			if not why then buttons = { { tr("st_netcoop_fui_apply"), "faction apply " .. f.id } } end
+			if f.reason == "member" and f.id ~= "stalker" then buttons = { { tr("st_netcoop_fui_leave"), "faction leave" } } end
+			self:Row(r, text, buttons)
+		end
+	elseif self.tab == "contracts" then
+		self.body:TextControl():SetText(tr("st_netcoop_fui_contracts_body"))
+		for _, c in ipairs(d.contracts) do
+			r = r + 1
+			local text
+			if c.index > 0 then
+				text = string.format(tr("st_netcoop_fui_contract_active"), title_of(c.faction), c.index,
+					tr("st_netcoop_fui_kind_" .. c.kind), c.targets, c.kind == "fetch" and "-" or c.progress, c.count)
+			else
+				text = string.format(tr("st_netcoop_fui_contract_none"), title_of(c.faction), c.done)
+			end
+			self:Row(r, text, { { tr("st_netcoop_fui_take"), "contract take" }, { tr("st_netcoop_fui_turn_in"), "contract done" } })
+		end
+	elseif self.tab == "wanted" then
+		self.body:TextControl():SetText(#d.bounties > 0 and tr("st_netcoop_fui_wanted_body") or tr("st_netcoop_fui_nobody_wanted"))
+		for _, b in ipairs(d.bounties) do
+			r = r + 1
+			self:Row(r, string.format(tr("st_netcoop_fui_bounty"), b.name, b.reward, b.hours))
+		end
+	elseif self.tab == "manage" then
+		self.body:TextControl():SetText(tr("st_netcoop_fui_manage_body"))
+		for _, a in ipairs(d.apps) do
+			r = r + 1
+			self:Row(r, string.format(tr("st_netcoop_fui_app"), a.name, a.rank), {
+				{ tr("st_netcoop_fui_accept"), "faction accept " .. a.char }, { tr("st_netcoop_fui_reject"), "faction reject " .. a.char } })
+		end
+		for _, m in ipairs(d.members) do
+			r = r + 1
+			local buttons = nil
+			if m.role ~= "leader" then
+				buttons = {
+					{ tr("st_netcoop_fui_expel"), "faction expel " .. m.char },
+					{ m.role == "deputy" and tr("st_netcoop_fui_undeputy") or tr("st_netcoop_fui_deputy"),
+						"faction deputy " .. m.char .. (m.role == "deputy" and " off" or "") },
+					{ m.furniture and tr("st_netcoop_fui_nofurniture") or tr("st_netcoop_fui_furniture"),
+						"faction furniture " .. m.char .. (m.furniture and " off" or "") } }
+			end
+			self:Row(r, string.format(tr("st_netcoop_fui_member_row"), m.name, tr("st_netcoop_fui_role_" .. m.role)), buttons)
+		end
+	end
+end
+
+function netcoop_faction_wnd:Close()
+	if self:IsShown() then self:HideDialog() end
+end
+
+function netcoop_faction_wnd:OnKeyboard(dik, action)
+	if action == ui_events.WINDOW_KEY_PRESSED and (dik == DIK_keys.DIK_ESCAPE or dik == OPEN_KEY) then
+		self:Close()
+		return true
+	end
+	return CUIScriptWnd.OnKeyboard(self, dik, action)
+end
+
+-- netcoop_client_compat.on_script_message("faction_ui", ...)
+function receive(text)
+	data = parse(text)
+	if wnd and wnd:IsShown() then wnd:Fill() end
+end
+
+function toggle()
+	if not (db.actor and db.actor:alive()) then return end
+	if wnd and wnd:IsShown() then wnd:Close(); return end
+	if not actor_menu.is_hud_free() then return end
+	if not wnd then wnd = netcoop_faction_wnd() end
+	wnd:Fill()
+	wnd:ShowDialog(true)
+	send("faction ui")
+end
+
+local function on_before_key_press(dik, bind, disabled, flags)
+	if dik ~= OPEN_KEY or disabled then return end
+	toggle()
+	flags.ret_value = false
+end
+
+local function on_destroy()
+	if wnd then wnd:Close() end
+	wnd, data = nil, nil
+end
+
+function on_game_start()
+	if netcoop_pure_client and netcoop_pure_client() then
+		RegisterScriptCallback("on_before_key_press", on_before_key_press)
+		RegisterScriptCallback("actor_on_net_destroy", on_destroy)
+	end
+end

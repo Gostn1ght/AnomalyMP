@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<w>
+    <shade x="0" y="0" width="1024" height="768" stretch="1">
+        <texture a="170" r="0" g="0" b="0">ui_icons_PDA_tooltips</texture>
+    </shade>
+    <frame x="172" y="84" width="680" height="600" stretch="1">
+        <texture a="235" r="22" g="22" b="18">ui_icons_PDA_tooltips</texture>
+    </frame>
+    <title x="192" y="96" width="640" height="34">
+        <text r="218" g="190" b="125" font="letterica18" align="l" vert_align="c"/>
+    </title>
+    <tab x="192" y="136" width="150" height="32" stretch="1">
+        <text align="c" vert_align="c" font="letterica16"/>
+        <texture>ui_button_ordinary</texture>
+    </tab>
+    <body x="192" y="178" width="640" height="56">
+        <text r="200" g="200" b="180" font="letterica16" align="l" vert_align="t" complex_mode="1"/>
+    </body>
+    <row_text x="192" y="0" width="380" height="30">
+        <text r="230" g="225" b="200" font="letterica16" align="l" vert_align="c"/>
+    </row_text>
+    <row_button x="0" y="0" width="84" height="28" stretch="1">
+        <text align="c" vert_align="c" font="letterica16"/>
+        <texture>ui_button_ordinary</texture>
+    </row_button>
+    <hint x="192" y="644" width="640" height="30">
+        <text r="160" g="170" b="133" font="letterica16" align="c" vert_align="c"/>
+    </hint>
+</w>

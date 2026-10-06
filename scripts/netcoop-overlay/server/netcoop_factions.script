@@ -310,7 +310,10 @@ function command(obj, args, admin)
 	local verb, rest = string.match(args or "", "^(%S*)%s*(.*)$")
 	local mine = current_faction(obj)
 	local function result(ok, message) return (ok and "* " or "! ") .. tostring(message or (ok and "done" or "failed")) end
-	if verb == "" or verb == "status" then
+	if verb == "ui" then
+		if netcoop_send_to_actor then netcoop_send_to_actor(obj:id(), "faction_ui", ui_payload(obj, admin)) end
+		return ""
+	elseif verb == "" or verb == "status" then
 		local role = role_in(mine, char_of(obj)) or "member"
 		return string.format("~ %s, %s, rank %s", faction_title(mine), role, tostring(obj:character_rank()))
 	elseif verb == "apply" then
@@ -334,6 +337,52 @@ function command(obj, args, admin)
 		return result(set_furniture(obj, mine, char, flag ~= "off", admin))
 	end
 	return "! faction status|apply <faction>|leave|apps|members|accept <char>|reject <char>|expel <char>|deputy <char> [off]|furniture <char> [off]"
+end
+
+---------------------------------------------------------------- window data (client netcoop_faction_ui)
+-- One line per row, fields separated by "|" (removed from free text):
+-- S|faction|role|rank|admin   F|faction|reason ("" = may apply, "member")
+-- A|char|name|rank            M|char|name|role|furniture(0/1)
+-- C|faction|index|kind|targets|progress|count|done   B|name|reward|hours
+local function clean(text) return (tostring(text or ""):gsub("[|\n\r]", " ")) end
+local UI_FACTIONS = { "stalker", "csky", "freedom", "dolg", "ecolog", "killer", "army", "monolith", "bandit", "isg", "greh" }
+
+function ui_payload(obj, admin)
+	local mine, char = current_faction(obj), char_of(obj)
+	local role = role_in(mine, char) or "member"
+	local lines = { table.concat({ "S", mine, role, tostring(math.floor(obj:character_rank())), admin and "1" or "0" }, "|") }
+	for _, faction in ipairs(UI_FACTIONS) do
+		local reason = faction == mine and "member" or (apply_problem(obj, faction) or "")
+		if faction_record(faction).apps[char] then reason = "applied" end
+		lines[#lines + 1] = table.concat({ "F", faction, clean(reason) }, "|")
+	end
+	if may_manage(obj, mine, admin) then
+		local record = faction_record(mine)
+		for app_char, app in pairs(record.apps) do
+			lines[#lines + 1] = table.concat({ "A", app_char, clean(app.name), tostring(app.rank or 0) }, "|")
+		end
+		for member_char, member in pairs(record.members) do
+			lines[#lines + 1] = table.concat({ "M", member_char, clean(member.name), member.role or "member", member.furniture and "1" or "0" }, "|")
+		end
+	end
+	local contracts = netcoop_contracts
+	if contracts and contracts.definition then
+		for _, faction in ipairs({ "freedom", "dolg", "csky", "ecolog", "stalker" }) do
+			local state = store_get("contracts", char)[faction] or {}
+			local current = state.active
+			local def = current and contracts.definition(faction, current.index)
+			lines[#lines + 1] = table.concat({ "C", faction, tostring(current and current.index or 0), def and def.kind or "",
+				def and table.concat(def.targets, "/") or "", tostring(current and current.progress or 0),
+				tostring(def and def.count or 0), tostring(state.done or 0) }, "|")
+		end
+	end
+	if netcoop_store_keys and netcoop_ranks and netcoop_ranks.bounty_of then
+		for wanted in string.gmatch(netcoop_store_keys("bounties"), "%S+") do
+			local b = netcoop_ranks.bounty_of(wanted)
+			if b then lines[#lines + 1] = table.concat({ "B", clean(b.name), tostring(b.reward), tostring(math.floor((b["until"] - now()) / 3600)) }, "|") end
+		end
+	end
+	return table.concat(lines, "\n")
 end
 
 ---------------------------------------------------------------- keeping online Actors in their faction

@@ -518,6 +518,9 @@ function on_script_message(channel, data)
 	elseif channel == "player_state" then
 		use_player_state(data)
 		return
+	elseif channel == "faction_ui" then
+		if netcoop_faction_ui then netcoop_faction_ui.receive(data) end
+		return
 	elseif channel == "player_rank" then
 		-- Rank and reputation are kept by the server (doc 47 §3).
 		local rank, reputation = string.match(data or "", "^(%-?[%d%.]+)|(%-?[%d%.]+)$")

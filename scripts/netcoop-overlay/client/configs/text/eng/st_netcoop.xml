@@ -528,4 +528,160 @@
   <string id="st_netcoop_bounty_collected">
     <text>%s collected the bounty on %s</text>
   </string>
+  <string id="st_netcoop_fac_stalker">
+    <text>Loners</text>
+  </string>
+  <string id="st_netcoop_fac_csky">
+    <text>Clear Sky</text>
+  </string>
+  <string id="st_netcoop_fac_freedom">
+    <text>Freedom</text>
+  </string>
+  <string id="st_netcoop_fac_dolg">
+    <text>Duty</text>
+  </string>
+  <string id="st_netcoop_fac_ecolog">
+    <text>Ecologists</text>
+  </string>
+  <string id="st_netcoop_fac_killer">
+    <text>Mercenaries</text>
+  </string>
+  <string id="st_netcoop_fac_army">
+    <text>Military</text>
+  </string>
+  <string id="st_netcoop_fac_monolith">
+    <text>Monolith</text>
+  </string>
+  <string id="st_netcoop_fac_bandit">
+    <text>Bandits</text>
+  </string>
+  <string id="st_netcoop_fac_isg">
+    <text>ISG</text>
+  </string>
+  <string id="st_netcoop_fac_greh">
+    <text>Sin</text>
+  </string>
+  <string id="st_netcoop_fac_renegade">
+    <text>Renegades</text>
+  </string>
+  <string id="st_netcoop_fui_title">
+    <text>%s, %s, rank %s</text>
+  </string>
+  <string id="st_netcoop_fui_loading">
+    <text>Loading...</text>
+  </string>
+  <string id="st_netcoop_fui_hint">
+    <text>F6 or Esc - close</text>
+  </string>
+  <string id="st_netcoop_fui_tab_faction">
+    <text>Factions</text>
+  </string>
+  <string id="st_netcoop_fui_tab_contracts">
+    <text>Contracts</text>
+  </string>
+  <string id="st_netcoop_fui_tab_wanted">
+    <text>Wanted</text>
+  </string>
+  <string id="st_netcoop_fui_tab_manage">
+    <text>Management</text>
+  </string>
+  <string id="st_netcoop_fui_role_member">
+    <text>member</text>
+  </string>
+  <string id="st_netcoop_fui_role_deputy">
+    <text>deputy</text>
+  </string>
+  <string id="st_netcoop_fui_role_leader">
+    <text>leader</text>
+  </string>
+  <string id="st_netcoop_fui_faction_body">
+    <text>You join a faction only by your own application; its leader decides.</text>
+  </string>
+  <string id="st_netcoop_fui_member">
+    <text>your faction</text>
+  </string>
+  <string id="st_netcoop_fui_applied">
+    <text>application sent</text>
+  </string>
+  <string id="st_netcoop_fui_auto">
+    <text>only by the Zone's judgement</text>
+  </string>
+  <string id="st_netcoop_fui_wanted">
+    <text>you are wanted</text>
+  </string>
+  <string id="st_netcoop_fui_contracts">
+    <text>%s more contracts of its contact</text>
+  </string>
+  <string id="st_netcoop_fui_rank">
+    <text>rank %s required</text>
+  </string>
+  <string id="st_netcoop_fui_apply">
+    <text>Apply</text>
+  </string>
+  <string id="st_netcoop_fui_leave">
+    <text>Leave</text>
+  </string>
+  <string id="st_netcoop_fui_contracts_body">
+    <text>Take and hand in contracts next to the faction's contact.</text>
+  </string>
+  <string id="st_netcoop_fui_contract_active">
+    <text>%s #%s: %s %s (%s/%s)</text>
+  </string>
+  <string id="st_netcoop_fui_contract_none">
+    <text>%s: %s/10 done</text>
+  </string>
+  <string id="st_netcoop_fui_kind_hunt">
+    <text>hunt</text>
+  </string>
+  <string id="st_netcoop_fui_kind_kill">
+    <text>eliminate</text>
+  </string>
+  <string id="st_netcoop_fui_kind_fetch">
+    <text>bring</text>
+  </string>
+  <string id="st_netcoop_fui_take">
+    <text>Take</text>
+  </string>
+  <string id="st_netcoop_fui_turn_in">
+    <text>Hand in</text>
+  </string>
+  <string id="st_netcoop_fui_wanted_body">
+    <text>Renegades wanted for killing their own, neutrals and stalkers.</text>
+  </string>
+  <string id="st_netcoop_fui_nobody_wanted">
+    <text>Nobody is wanted.</text>
+  </string>
+  <string id="st_netcoop_fui_bounty">
+    <text>%s - %s RU, %s h left</text>
+  </string>
+  <string id="st_netcoop_fui_manage_body">
+    <text>Applications and members of your faction.</text>
+  </string>
+  <string id="st_netcoop_fui_app">
+    <text>Application: %s, rank %s</text>
+  </string>
+  <string id="st_netcoop_fui_accept">
+    <text>Accept</text>
+  </string>
+  <string id="st_netcoop_fui_reject">
+    <text>Reject</text>
+  </string>
+  <string id="st_netcoop_fui_member_row">
+    <text>%s - %s</text>
+  </string>
+  <string id="st_netcoop_fui_expel">
+    <text>Expel</text>
+  </string>
+  <string id="st_netcoop_fui_deputy">
+    <text>Deputy</text>
+  </string>
+  <string id="st_netcoop_fui_undeputy">
+    <text>No deputy</text>
+  </string>
+  <string id="st_netcoop_fui_furniture">
+    <text>Furniture</text>
+  </string>
+  <string id="st_netcoop_fui_nofurniture">
+    <text>No furniture</text>
+  </string>
 </string_table>

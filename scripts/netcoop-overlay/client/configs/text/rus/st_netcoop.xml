@@ -528,4 +528,160 @@
   <string id="st_netcoop_bounty_collected">
     <text>%s получил награду за голову %s</text>
   </string>
+  <string id="st_netcoop_fac_stalker">
+    <text>Одиночки</text>
+  </string>
+  <string id="st_netcoop_fac_csky">
+    <text>Чистое Небо</text>
+  </string>
+  <string id="st_netcoop_fac_freedom">
+    <text>Свобода</text>
+  </string>
+  <string id="st_netcoop_fac_dolg">
+    <text>Долг</text>
+  </string>
+  <string id="st_netcoop_fac_ecolog">
+    <text>Экологи</text>
+  </string>
+  <string id="st_netcoop_fac_killer">
+    <text>Наёмники</text>
+  </string>
+  <string id="st_netcoop_fac_army">
+    <text>Военные</text>
+  </string>
+  <string id="st_netcoop_fac_monolith">
+    <text>Монолит</text>
+  </string>
+  <string id="st_netcoop_fac_bandit">
+    <text>Бандиты</text>
+  </string>
+  <string id="st_netcoop_fac_isg">
+    <text>ИИГ</text>
+  </string>
+  <string id="st_netcoop_fac_greh">
+    <text>Грех</text>
+  </string>
+  <string id="st_netcoop_fac_renegade">
+    <text>Ренегаты</text>
+  </string>
+  <string id="st_netcoop_fui_title">
+    <text>%s, %s, ранг %s</text>
+  </string>
+  <string id="st_netcoop_fui_loading">
+    <text>Загрузка...</text>
+  </string>
+  <string id="st_netcoop_fui_hint">
+    <text>F6 или Esc - закрыть</text>
+  </string>
+  <string id="st_netcoop_fui_tab_faction">
+    <text>Группировки</text>
+  </string>
+  <string id="st_netcoop_fui_tab_contracts">
+    <text>Контракты</text>
+  </string>
+  <string id="st_netcoop_fui_tab_wanted">
+    <text>Розыск</text>
+  </string>
+  <string id="st_netcoop_fui_tab_manage">
+    <text>Управление</text>
+  </string>
+  <string id="st_netcoop_fui_role_member">
+    <text>участник</text>
+  </string>
+  <string id="st_netcoop_fui_role_deputy">
+    <text>заместитель</text>
+  </string>
+  <string id="st_netcoop_fui_role_leader">
+    <text>лидер</text>
+  </string>
+  <string id="st_netcoop_fui_faction_body">
+    <text>Вступить можно только подав заявку самому; решение принимает лидер группировки.</text>
+  </string>
+  <string id="st_netcoop_fui_member">
+    <text>ваша группировка</text>
+  </string>
+  <string id="st_netcoop_fui_applied">
+    <text>заявка подана</text>
+  </string>
+  <string id="st_netcoop_fui_auto">
+    <text>только по решению Зоны</text>
+  </string>
+  <string id="st_netcoop_fui_wanted">
+    <text>вы в розыске</text>
+  </string>
+  <string id="st_netcoop_fui_contracts">
+    <text>нужно ещё %s контрактов контакта</text>
+  </string>
+  <string id="st_netcoop_fui_rank">
+    <text>нужен ранг %s</text>
+  </string>
+  <string id="st_netcoop_fui_apply">
+    <text>Заявка</text>
+  </string>
+  <string id="st_netcoop_fui_leave">
+    <text>Выйти</text>
+  </string>
+  <string id="st_netcoop_fui_contracts_body">
+    <text>Брать и сдавать контракты нужно рядом с контактом группировки.</text>
+  </string>
+  <string id="st_netcoop_fui_contract_active">
+    <text>%s #%s: %s %s (%s/%s)</text>
+  </string>
+  <string id="st_netcoop_fui_contract_none">
+    <text>%s: выполнено %s/10</text>
+  </string>
+  <string id="st_netcoop_fui_kind_hunt">
+    <text>охота:</text>
+  </string>
+  <string id="st_netcoop_fui_kind_kill">
+    <text>устранить:</text>
+  </string>
+  <string id="st_netcoop_fui_kind_fetch">
+    <text>принести:</text>
+  </string>
+  <string id="st_netcoop_fui_take">
+    <text>Взять</text>
+  </string>
+  <string id="st_netcoop_fui_turn_in">
+    <text>Сдать</text>
+  </string>
+  <string id="st_netcoop_fui_wanted_body">
+    <text>Ренегаты в розыске за убийства своих, нейтралов и сталкеров.</text>
+  </string>
+  <string id="st_netcoop_fui_nobody_wanted">
+    <text>Никто не в розыске.</text>
+  </string>
+  <string id="st_netcoop_fui_bounty">
+    <text>%s - %s RU, осталось %s ч</text>
+  </string>
+  <string id="st_netcoop_fui_manage_body">
+    <text>Заявки и состав вашей группировки.</text>
+  </string>
+  <string id="st_netcoop_fui_app">
+    <text>Заявка: %s, ранг %s</text>
+  </string>
+  <string id="st_netcoop_fui_accept">
+    <text>Принять</text>
+  </string>
+  <string id="st_netcoop_fui_reject">
+    <text>Отклонить</text>
+  </string>
+  <string id="st_netcoop_fui_member_row">
+    <text>%s - %s</text>
+  </string>
+  <string id="st_netcoop_fui_expel">
+    <text>Исключить</text>
+  </string>
+  <string id="st_netcoop_fui_deputy">
+    <text>Зам</text>
+  </string>
+  <string id="st_netcoop_fui_undeputy">
+    <text>Снять зама</text>
+  </string>
+  <string id="st_netcoop_fui_furniture">
+    <text>Мебель</text>
+  </string>
+  <string id="st_netcoop_fui_nofurniture">
+    <text>Без мебели</text>
+  </string>
 </string_table>
