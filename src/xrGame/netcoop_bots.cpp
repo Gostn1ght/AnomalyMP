@@ -211,6 +211,8 @@ public:
 	State state() const { return m_state; }
 	LPCSTR transfer() const { return m_transfer[0] ? m_transfer : nullptr; }
 	u32 index() const { return m_index; }
+	bool played() const { return m_played; }
+	u32 failed_at() const { return m_failed_at; }
 	u32 take_bytes()
 	{
 		const u32 b = m_rx_bytes;
@@ -234,12 +236,16 @@ private:
 	{
 		m_state = s;
 		m_state_time = now;
+		if (s == st_playing)
+			m_played = true;
 	}
 
 	void fail(LPCSTR why)
 	{
 		if (m_state != st_failed)
 			Msg("! [Lost Zone][bots] %s: %s", m_login, why);
+		if (m_state != st_failed)
+			m_failed_at = bot_now();
 		m_state = st_failed;
 	}
 
@@ -433,6 +439,8 @@ private:
 	string256 m_transfer = {};
 	State m_state = st_connecting;
 	u32 m_state_time = 0;
+	u32 m_failed_at = 0;
+	bool m_played = false;
 	bool m_stopped = false;
 	bool m_joined = false;
 	bool m_ready_sent = false;
@@ -578,8 +586,22 @@ void bots_frame()
 		b->start(s_address, now);
 	}
 
+	// A join that failed before playing is retried, as the player's client
+	// reconnects: a handshake lost under load is not a lost player.
+	static xr_map<u32, u32> retries;
 	for (NetcoopBot*& b : s_bots)
 	{
+		if (b->state() == NetcoopBot::st_failed && !b->played() && now - b->failed_at() > 3000 && retries[b->index()] < 3)
+		{
+			const u32 attempt = ++retries[b->index()];
+			Msg("[Lost Zone][bots] nbot_%03u retries (%u)", b->index(), attempt);
+			NetcoopBot* again = xr_new<NetcoopBot>(b->index());
+			b->stop();
+			s_dead.push_back({b, now});
+			b = again;
+			b->start(s_address, now);
+			continue;
+		}
 		b->update(now);
 		if (LPCSTR target = b->transfer())
 		{

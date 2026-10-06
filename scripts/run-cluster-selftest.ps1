@@ -121,6 +121,7 @@ $summary = [ordered]@{
     bot_moves = @($botLines | Select-String "\[bots\] .* goes to").Count
     bot_plays = @($botLines | Select-String "\[bots\] .* plays Actor").Count
     bot_failures = @($botLines | Select-String "^! \[Lost Zone\]\[bots\]").Count
+    bot_retries = @($botLines | Select-String "\[bots\] nbot_\d+ retries").Count
     fatal = @($serverLines + $botLines | Select-String -CaseSensitive "FATAL ERROR|Expression\s*:").Count
 }
 $summary.GetEnumerator() | ForEach-Object { "{0,-14} {1}" -f $_.Key, $_.Value }
