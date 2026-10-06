@@ -405,6 +405,7 @@ struct netcoop_prewarm_track
 	Fvector last;
 	u32 time;
 	Fvector ahead;
+	float speed;
 	bool moving;
 };
 static xr_map<u16, netcoop_prewarm_track> s_netcoop_prewarm;
@@ -472,19 +473,17 @@ static void netcoop_prewarm_update()
 		if (track.moving)
 		{
 			++moving;
+			fastest = _max(fastest, track.speed);
 			s_netcoop_prewarm_points.push_back(track.ahead);
 		}
 		if (now - track.time < 500)
 			continue;
 		Fvector velocity;
 		velocity.sub(e->o_Position, track.last).div(float(now - track.time) / 1000.f);
-		const float speed = velocity.magnitude();
-		track.moving = speed > 1.5f && speed < 40.f;
+		track.speed = velocity.magnitude();
+		track.moving = track.speed > 1.5f && track.speed < 40.f;
 		if (track.moving)
-		{
 			track.ahead.mad(e->o_Position, velocity, lead);
-			fastest = _max(fastest, speed);
-		}
 		track.last = e->o_Position;
 		track.time = now;
 	}

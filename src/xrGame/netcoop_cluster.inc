@@ -73,16 +73,20 @@ static bool cluster_read_line(LPCSTR path, xr_string& line)
 	return true;
 }
 
-static bool cluster_write_line(LPCSTR path, LPCSTR line)
+// durable = false for heartbeats (lease renewals, clock, status): still an
+// atomic replace, but not flushed to the disk. A crash leaves at most an old
+// heartbeat, which expires anyway; the flush cost tens of ms on a hard disk on
+// the main thread (9% of the frame with 16 players, profile 2026-10-07).
+static bool cluster_write_line(LPCSTR path, LPCSTR line, bool durable = true)
 {
 	string_path temp;
 	xr_sprintf(temp, "%s.%u.tmp", path, GetCurrentProcessId());
 	FILE* f = fopen(temp, "wb");
 	if (!f) return false;
 	fputs(line, f);
-	const bool ok = !ferror(f) && fflush(f) == 0 && _commit(_fileno(f)) == 0;
+	const bool ok = !ferror(f) && fflush(f) == 0 && (!durable || _commit(_fileno(f)) == 0);
 	if (fclose(f) != 0 || !ok) { DeleteFileA(temp); return false; }
-	if (!MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) { DeleteFileA(temp); return false; }
+	if (!MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | (durable ? MOVEFILE_WRITE_THROUGH : 0))) { DeleteFileA(temp); return false; }
 	return true;
 }
 
@@ -144,7 +148,7 @@ static void cluster_status_write(xrServer* server)
 	string_path dir, file; cluster_dir(dir);
 	xr_sprintf(file, "%sstatus_%u.txt", dir, cluster_port());
 	string128 line; xr_sprintf(line, "%u %u %u", cluster_now(), players, cluster_capacity());
-	cluster_write_line(file, line);
+	cluster_write_line(file, line, false);
 }
 
 // "" when the server on that port can take one more player, else the reason.
@@ -249,12 +253,13 @@ static bool cluster_lease_holder(LPCSTR login, u32& port, u32& stamp)
 	return cluster_read_line(path, line) && sscanf(line.c_str(), "%u %u", &port, &stamp) == 2;
 }
 
-static bool cluster_lease_write(LPCSTR login)
+// durable for the claim at login; the renewals every 10 s are heartbeats.
+static bool cluster_lease_write(LPCSTR login, bool durable = true)
 {
 	if (s_cluster_ownership.find(cluster_login_key(login)) == s_cluster_ownership.end()) return false;
 	string_path path; cluster_file("online", login, -1, path);
 	string64 line; xr_sprintf(line, "%u %u", cluster_port(), cluster_now());
-	return cluster_write_line(path, line);
+	return cluster_write_line(path, line, durable);
 }
 
 // Removes the lease only while it is still ours: the target server may have
@@ -704,7 +709,7 @@ struct ClusterHeartbeat
 		if ((last && now - last < 10000) || !*budget) return;
 		--*budget;
 		last = now;
-		cluster_lease_write(CL->netcoop_login.c_str());
+		cluster_lease_write(CL->netcoop_login.c_str(), false);
 	}
 };
 
@@ -737,7 +742,7 @@ static void cluster_clock_update()
 	string_path dir, file; cluster_dir(dir);
 	xr_sprintf(file, "%sclock_%u.txt", dir, cluster_port());
 	string128 line; xr_sprintf(line, "%llu %llu %f", now, own, normal);
-	cluster_write_line(file, line);
+	cluster_write_line(file, line, false);
 	// The most advanced fresh clock, projected to this moment.
 	double target = double(own);
 	string_path mask; xr_sprintf(mask, "%sclock_*.txt", dir);
