@@ -18,10 +18,18 @@ root = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser()
 p.add_argument("--runtime", default=str(root.parent / "gamma-runtime"))
 p.add_argument("--host", default="127.0.0.1")
+# Owner 2026-10-06: labs/underground and the Generators stay closed for now;
+# their level changers answer "this part of the Zone is not open yet".
+CLOSED = ["jupiter_underground", "l03u_agr_underground", "l04u_labx18", "l08u_brainlab", "l10u_bunker",
+          "l12u_control_monolith", "l12u_sarcofag", "l13u_warlab", "labx8", "l13_generators"]
+p.add_argument("--closed", default=",".join(CLOSED), help="maps without a server (comma list, '' = none)")
+p.add_argument("--always-on", default="k00_marsh,l01_escape",
+               help="maps whose servers always run; the others start on demand")
 args = p.parse_args()
 runtime = Path(args.runtime)
 
-levels = sorted(d.name for d in (runtime / "gamedata/levels").iterdir() if d.is_dir())
+closed = {m for m in args.closed.split(",") if m}
+levels = sorted(d.name for d in (runtime / "gamedata/levels").iterdir() if d.is_dir() and d.name not in closed)
 arrivals = {}
 for line in (root / "scripts/netcoop-cluster/changers_dump.txt").read_text(encoding="cp1251", errors="replace").splitlines():
     parts = line.strip().split("|")
@@ -67,5 +75,9 @@ plan = ["; Location cluster: one dedicated server per map (generated, then edit 
 plan += [f"{level} = {args.host}:{ports[level]}" for level in levels]
 plan += ["", "[launch]", "; map = start location section (GAMMA or netcoop\\start_levels.ltx)"]
 plan += [f"{level} = {launch[level]}" for level in levels]
+always = {m for m in args.always_on.split(",") if m}
+plan += ["", "[on_demand]", "; 1 = the server starts when a player heads there and stops after 10 idle minutes"]
+plan += [f"{level} = {0 if level in always else 1}" for level in levels]
+plan += ["", "; closed for now: " + ", ".join(sorted(closed))]
 (root / "scripts/netcoop-cluster/netcoop_cluster.ltx.full").write_text("\n".join(plan) + "\n", encoding="cp1251", newline="\r\n")
 print(f"{len(levels)} maps, {sum(1 for l in levels if launch[l].startswith('lz_'))} generated start points")

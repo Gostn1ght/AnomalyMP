@@ -684,4 +684,7 @@
   <string id="st_netcoop_fui_nofurniture">
     <text>Без мебели</text>
   </string>
+  <string id="st_netcoop_passage_starting">
+    <text>Сервер этой локации запускается. Попробуйте через 1-2 минуты.</text>
+  </string>
 </string_table>

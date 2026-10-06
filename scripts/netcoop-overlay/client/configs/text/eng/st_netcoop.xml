@@ -684,4 +684,7 @@
   <string id="st_netcoop_fui_nofurniture">
     <text>No furniture</text>
   </string>
+  <string id="st_netcoop_passage_starting">
+    <text>The server of that location is starting. Try again in 1-2 minutes.</text>
+  </string>
 </string_table>

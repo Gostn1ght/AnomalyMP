@@ -37,7 +37,8 @@ foreach ($map in $plan["locations"].Keys) {
     if (-not $start) { Write-Host "skip $map`: no [launch] start section"; continue }
     # The first two servers keep the worlds they had before the full plan.
     $world = switch ($map) { "k00_marsh" { "zone" } "l01_escape" { "zone_escape" } default { "zone_$map" } }
-    $servers += @{ Name = $map; Port = [int]$port; Start = $start; World = $world }
+    $onDemand = $plan["on_demand"] -and $plan["on_demand"][$map] -eq "1"
+    $servers += @{ Name = $map; Port = [int]$port; Start = $start; World = $world; OnDemand = $onDemand }
 }
 if (-not $servers.Count) { throw "no maps of this machine in $planPath" }
 
@@ -52,6 +53,7 @@ function Start-Location($s) {
     $log = if ($s.Name -eq "k00_marsh") { "srv" } else { "srv_$($s.Name)" }
     $arguments = "-nosplashwindow -netcoop -dbg -multi_instance -logname $log -fsltx fsgame_server.ltx " +
         "-netport $($s.Port) -netcoop_start_location=$($s.Start) -netcoop_world=$($s.World) " +
+        $(if ($s.OnDemand) { "-netcoop_idle_exit=600 " } else { "" }) +
         "-start `"server(all/single/alife/new/portsv=$($s.Port)/maxplayers=$perServer)`" " +
         "`"client(localhost/name=serverauthority/port=$($s.Port)/portcl=$($s.Port + 1))`""
     $p = Start-Process -FilePath $exe -ArgumentList $arguments -WorkingDirectory $Runtime -WindowStyle Hidden -PassThru
@@ -66,14 +68,27 @@ function Start-Location($s) {
     return $p
 }
 
-Write-Host ("{0} map(s) on this machine: {1}" -f $servers.Count, (($servers | ForEach-Object { $_.Name }) -join ", "))
+Write-Host ("{0} map(s) on this machine: {1}" -f $servers.Count, (($servers | ForEach-Object { $_.Name + $(if ($_.OnDemand) { " (on demand)" } else { "" }) }) -join ", "))
+$wakeDir = Join-Path $Runtime "appdata\server\netcoop_cluster"
 $running = @{}
-foreach ($s in $servers) { $running[$s.Name] = Start-Location $s }
+# Always-on maps start now; on-demand maps when a server asks for them
+# (wake_<map>.txt: a player is heading there) and exit by themselves when idle.
+foreach ($s in $servers) { if (-not $s.OnDemand) { $running[$s.Name] = Start-Location $s } }
 while ($true) {
-    Start-Sleep -Seconds 10
+    Start-Sleep -Seconds 5
     foreach ($s in $servers) {
         $p = $running[$s.Name]
-        if ($p.HasExited) {
+        $wake = Join-Path $wakeDir "wake_$($s.Name).txt"
+        if ($s.OnDemand) {
+            if ((-not $p -or $p.HasExited) -and (Test-Path $wake)) {
+                Remove-Item $wake -Force -ErrorAction SilentlyContinue
+                Write-Host ("{0:HH:mm:ss} {1} requested" -f (Get-Date), $s.Name)
+                $running[$s.Name] = Start-Location $s
+            } elseif ($p -and $p.HasExited) {
+                Write-Host ("{0:HH:mm:ss} {1} stopped (code {2}); starts again on demand" -f (Get-Date), $s.Name, $p.ExitCode)
+                $running.Remove($s.Name)
+            } elseif (Test-Path $wake) { Remove-Item $wake -Force -ErrorAction SilentlyContinue }
+        } elseif ($p.HasExited) {
             Write-Host ("{0:HH:mm:ss} {1} exited with code {2}; restarting" -f (Get-Date), $s.Name, $p.ExitCode)
             $running[$s.Name] = Start-Location $s
         }

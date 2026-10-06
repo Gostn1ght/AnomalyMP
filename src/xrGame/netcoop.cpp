@@ -1578,11 +1578,19 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
         return;
     }
     xr_string redirect;
-    if (cluster_route(server, a->login.c_str(), pending->slot, redirect))
+    bool location_starting = false;
+    if (cluster_route(server, a->login.c_str(), pending->slot, redirect, &location_starting))
     {
         cluster_lease_release(a->login.c_str());
         cluster_send_redirect(server, CL, redirect.c_str());
         CL->netcoop_login = NULL;
+        return;
+    }
+    if (location_starting)
+    {
+        cluster_lease_release(a->login.c_str());
+        CL->netcoop_login = NULL;
+        reject(server, CL, "Your character's location is starting; log in again in 1-2 minutes");
         return;
     }
     if (!character_select(CL, pending->slot, pending->character_name.c_str(), pending->faction.c_str(), pending->economy, pending->loadout.c_str()))
@@ -3194,7 +3202,7 @@ void client_on_script(NET_Packet& P)
 		static const struct { LPCSTR reason, key; } reasons[] = {
 			{"not inside", "st_netcoop_passage_not_inside"}, {"passage is closed", "st_netcoop_passage_closed"},
 			{"no server runs", "st_netcoop_passage_no_server"}, {"is offline", "st_netcoop_passage_offline"},
-			{"is full", "st_netcoop_passage_full"}, {"still loading", "st_netcoop_passage_loading"},
+			{"is full", "st_netcoop_passage_full"}, {"is starting", "st_netcoop_passage_starting"}, {"still loading", "st_netcoop_passage_loading"},
 			{"could not be saved", "st_netcoop_passage_save_failed"},
 		};
 		LPCSTR key = "st_netcoop_passage_unavailable";

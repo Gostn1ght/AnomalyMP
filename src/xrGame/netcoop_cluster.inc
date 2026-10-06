@@ -161,6 +161,30 @@ static LPCSTR cluster_target_problem(u32 port)
 	return "";
 }
 
+// ---- servers on demand -----------------------------------------------------
+// [on_demand] map = 1 in netcoop_cluster.ltx: the map's server runs only while
+// needed. A player heading there (level changer, or a login of a character
+// saved there) writes netcoop_cluster/wake_<map>.txt; the machine's watchdog
+// starts the server, which saves and exits after -netcoop_idle_exit seconds
+// without players.
+static bool cluster_on_demand(LPCSTR level)
+{
+	string_path path;
+	FS.update_path(path, "$app_data_root$", "netcoop_cluster.ltx");
+	if (!level || GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) return false;
+	CInifile ini(path, TRUE, TRUE, FALSE);
+	return ini.line_exist("on_demand", level) && ini.r_u32("on_demand", level) == 1;
+}
+
+static void cluster_wake(LPCSTR level)
+{
+	string_path dir, file; cluster_dir(dir);
+	xr_sprintf(file, "%swake_%s.txt", dir, level);
+	string32 line; xr_sprintf(line, "%u", cluster_now());
+	cluster_write_line(file, line);
+	Msg("[Lost Zone][cluster] wake request for %s", level);
+}
+
 static bool cluster_secret()
 {
 	if (!s_cluster_secret.empty()) return true;
@@ -453,7 +477,7 @@ static bool cluster_on_login(xrClientData* CL, LPCSTR login, u8 slot, xr_string&
 
 // A character saved on another map of the cluster plays there: the entry
 // server sends the client on instead of moving the character to its own map.
-static bool cluster_route(xrServer* server, LPCSTR login, u8 slot, xr_string& redirect)
+static bool cluster_route(xrServer* server, LPCSTR login, u8 slot, xr_string& redirect, bool* starting = nullptr)
 {
 	Character* character = slot ? character_load(login, slot) : nullptr;
 	if (!character || !character->initialized || character->respawn || !character->actor.B.count) return false;
@@ -472,6 +496,12 @@ static bool cluster_route(xrServer* server, LPCSTR login, u8 slot, xr_string& re
 	// Its map's server is down or full: play here (the arrival point of this map).
 	if (cluster_target_problem(port)[0])
 	{
+		if (starting && strstr(cluster_target_problem(port), "offline") && cluster_on_demand(level))
+		{
+			cluster_wake(level);
+			*starting = true;
+			return false;
+		}
 		Msg("[Lost Zone][cluster] %s stays here: %s (%s)", login, cluster_target_problem(port), level);
 		return false;
 	}
@@ -552,7 +582,15 @@ static bool cluster_move(xrServer* server, xrClientData* CL, CLevelChanger* chan
 		return cluster_refuse(server, CL, "no server runs that map yet"), false;
 	if (port == cluster_port()) return cluster_refuse(server, CL, "cluster config points the map at this server"), false;
 	if (LPCSTR problem = cluster_target_problem(port))
-		if (problem[0]) return cluster_refuse(server, CL, problem), false;
+		if (problem[0])
+		{
+			if (strstr(problem, "offline") && cluster_on_demand(level))
+			{
+				cluster_wake(level);
+				return cluster_refuse(server, CL, "the server of that map is starting"), false;
+			}
+			return cluster_refuse(server, CL, problem), false;
+		}
 	const u16 actor_id = CL->owner->ID;
 	if (s_character_restore.find(actor_id) != s_character_restore.end())
 		return cluster_refuse(server, CL, "the character is still loading"), false;
@@ -723,9 +761,44 @@ static void cluster_clock_update()
 
 // server_frame_update: leases of everyone here every 10 s; players that got
 // their redirect are disconnected after a short grace for the message.
+bool world_store_save_now(LPCSTR reason); // netcoop_world_store.inc
+static u32 s_cluster_idle_since = 0;
+static bool s_cluster_quitting = false;
+
+struct ClusterCountOnline
+{
+	u32* count;
+	void operator()(IClient* client) const
+	{
+		xrClientData* CL = static_cast<xrClientData*>(client);
+		if (CL && !CL->flags.bLocal && CL->owner) ++*count;
+	}
+};
+
+// -netcoop_idle_exit=<seconds>: an on-demand server saves its world and
+// exits after that long without players (the watchdog starts it again).
+static void cluster_idle_exit(xrServer* server, u32 now)
+{
+	LPCSTR option = strstr(Core.Params, "-netcoop_idle_exit=");
+	if (!option || s_cluster_quitting) return;
+	const u32 limit = u32(atoi(option + xr_strlen("-netcoop_idle_exit="))) * 1000;
+	u32 players = 0;
+	ClusterCountOnline count = {&players};
+	server->ForEachClientDo(count);
+	if (players || !world_store_admission_open()) { s_cluster_idle_since = now; return; }
+	if (!s_cluster_idle_since) s_cluster_idle_since = now;
+	if (!limit || now - s_cluster_idle_since < limit) return;
+	if (!world_store_save_now("idle exit")) { s_cluster_idle_since = now - limit + 60000; return; } // retry in a minute
+	s_cluster_quitting = true;
+	Msg("[Lost Zone][cluster] no players for %u s: world saved, server exits", limit / 1000);
+	FlushLog();
+	Console->Execute("quit");
+}
+
 static void cluster_update(xrServer* server)
 {
 	const u32 now = real_time_ms();
+	cluster_idle_exit(server, now);
 	if (now - s_cluster_clock_check >= 5000)
 	{
 		s_cluster_clock_check = now;
