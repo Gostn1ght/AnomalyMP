@@ -296,6 +296,8 @@ void server_on_item_action(xrServer* server, xrClientData* CL, NET_Packet& P);
 // further packets are ignored until the disconnect.
 void server_on_change_level(xrServer* server, xrClientData* CL, NET_Packet& P);
 bool server_client_leaving(xrClientData* CL);
+// Server: a player's Actor died; Lua netcoop_ranks.on_player_death(victim, killer).
+void server_on_player_death(CObject* victim, CObject* killer);
 // A task given on this map, or one without a recorded map (single server).
 bool server_task_here(const char* origin);
 // Server: cancels a task (task_manager set_task_cancelled) whose target is a

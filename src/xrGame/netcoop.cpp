@@ -3637,6 +3637,15 @@ void snapshot_clock_advance(u32 now)
 bool netcoop_is_player_actor(u16 id); // game_sv_single.cpp
 namespace netcoop
 {
+void server_on_player_death(CObject* victim, CObject* killer)
+{
+	if (!victim || !server_player_copy(victim)) return;
+	::luabind::functor<void> handler;
+	if (!ai().script_engine().functor("netcoop_ranks.on_player_death", handler)) return;
+	try { handler(int(victim->ID()), int(killer ? killer->ID() : 65535)); }
+	catch (...) { Msg("! [Lost Zone] netcoop_ranks.on_player_death failed"); }
+}
+
 bool server_player_copy(const CObject* object)
 {
 	return object && enabled() && !pure_client() && g_pGameLevel && Level().Server && object->ID() != 0 &&

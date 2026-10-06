@@ -1,0 +1,184 @@
+----------------------------------------------------------------------
+-- Ranks, reputation, personal attitudes, renegades, bounties (doc 47 §3-5)
+----------------------------------------------------------------------
+-- The engine already gives a player rank, reputation and the victim
+-- faction's attitude for killing a stalker (relation_registry KILL), but on
+-- the server's copy of the player only: the client never saw it, and the
+-- attitudes were keyed by the Actor's id, new on every login. GAMMA gives
+-- mutant kills to its single Actor only. This module:
+--   * credits mutant kills to the killing player (GAMMA killed_monsters);
+--   * sends rank and reputation to the player's client;
+--   * keeps each character's attitudes of the factions across logins;
+--   * counts kills of the player's own faction, neutrals and players: too
+--     many in 12 hours (3 game days), or the own faction's attitude at or
+--     below -1500, make the player a renegade, wanted for 7 days with a
+--     reward that grows with what they did; another player who kills them
+--     collects it.
+
+local MONSTER_RANK = 50 / 16  -- GAMMA: killed_monsters rank 50, divided twice by 4
+local RENEGADE_KILLS, RENEGADE_GOODWILL = 5, -1500
+local KILL_WINDOW = 12 * 3600  -- real seconds (3 game days at time factor 6)
+local BOUNTY_TIME = 7 * 24 * 3600
+local COMMUNITIES = { "stalker", "bandit", "csky", "dolg", "freedom", "army", "killer", "ecolog",
+	"monolith", "renegade", "greh", "isg" }
+
+local function store() return netcoop_factions end
+local function now() return os.time() end
+local function char_of(obj) return obj and netcoop_actor_character and netcoop_actor_character(obj:id()) or "" end
+local function faction_of(obj) return ((character_community(obj) or ""):gsub("^actor_", "")) end
+local function player_of(id)
+	local obj = id and id ~= 65535 and level.object_by_id(id)
+	return obj and char_of(obj) ~= "" and obj or nil
+end
+
+---------------------------------------------------------------- bounties
+function bounty_of(char)
+	local b = store().store_get("bounties", char)
+	return b.reward and (b["until"] or 0) > now() and b or nil
+end
+
+local function announce(text)
+	for id in string.gmatch(netcoop_players and netcoop_players() or "", "%d+") do
+		if netcoop_send_to_actor then netcoop_send_to_actor(tonumber(id), "bounty_news", text) end
+	end
+end
+
+local function make_renegade(obj, char, kills)
+	if faction_of(obj) == "renegade" then return end
+	local name = obj:character_name()
+	store().force_join("renegade", char, name)
+	local reward = 5000 + 2500 * kills + math.floor(obj:character_rank() / 10)
+	store().store_update("bounties", char, function(data)
+		data.name, data.reward, data.kills, data["until"] = name, reward, kills, now() + BOUNTY_TIME
+		return true
+	end)
+	printf("[Lost Zone][ranks] %s became a renegade; bounty %s RU", char, tostring(reward))
+	announce(string.format("%s|%s", name, tostring(reward)))
+end
+
+---------------------------------------------------------------- bad kills
+local function own_goodwill(obj)
+	local faction = faction_of(obj)
+	if not (relation_registry and relation_registry.community_goodwill) then return 0 end
+	return relation_registry.community_goodwill(faction, obj:id()) or 0
+end
+
+local function enemies(a, b)
+	return xr_conditions and xr_conditions.is_factions_enemies and xr_conditions.is_factions_enemies(nil, nil, { a, b }) or false
+end
+
+-- A killing of the player's own faction or of neutrals (NPC or player).
+local function bad_kill(killer, victim_faction)
+	local killer_faction = faction_of(killer)
+	if killer_faction == "renegade" or victim_faction == "renegade" then return false end
+	if victim_faction == killer_faction then return true end
+	return not enemies(killer_faction, victim_faction)
+end
+
+local function record(killer)
+	local char = char_of(killer)
+	if char == "" then return end
+	local count = 0
+	store().store_update("ratings", char, function(data)
+		local recent = {}
+		for _, t in ipairs(data.kills or {}) do if now() - t < KILL_WINDOW then recent[#recent + 1] = t end end
+		recent[#recent + 1] = now()
+		data.kills = recent
+		count = #recent
+		return true
+	end)
+	if count >= RENEGADE_KILLS or own_goodwill(killer) <= RENEGADE_GOODWILL then make_renegade(killer, char, count) end
+end
+
+---------------------------------------------------------------- deaths
+function on_monster_death(victim, killer)
+	local player = killer and player_of(killer:id())
+	if player then player:change_character_rank(MONSTER_RANK) end
+end
+
+function on_npc_death(victim, killer)
+	local player = killer and player_of(killer:id())
+	if player and victim and bad_kill(player, faction_of(victim)) then record(player) end
+end
+
+-- Engine (CActor::Die on the server): a player died, maybe by a player.
+function on_player_death(victim_id, killer_id)
+	local victim, killer = player_of(victim_id), player_of(killer_id)
+	if not (victim and killer) or victim_id == killer_id then return end
+	local victim_char = char_of(victim)
+	local bounty = bounty_of(victim_char)
+	if bounty then
+		-- One payment per bounty: the record is removed before paying.
+		local paid = store().store_update("bounties", victim_char, function(data)
+			if not data.reward then return false end
+			for k in pairs(data) do data[k] = nil end
+			return true
+		end)
+		if paid then
+			killer:give_money(bounty.reward)
+			printf("[Lost Zone][ranks] %s collected the bounty on %s: %s RU", char_of(killer), victim_char, tostring(bounty.reward))
+			announce(string.format("%s|0|%s", bounty.name or victim_char, killer:character_name()))
+		end
+		return
+	end
+	if bad_kill(killer, faction_of(victim)) then record(killer) end
+end
+
+---------------------------------------------------------------- per player state
+local seen = {}       -- char -> Actor id last restored
+local next_sync, next_save = 0, 0
+
+local function restore(obj, char)
+	local saved = store().store_get("goodwill", char)
+	if relation_registry and relation_registry.set_community_goodwill then
+		for community, value in pairs(saved) do
+			if type(value) == "number" then relation_registry.set_community_goodwill(community, obj:id(), value) end
+		end
+	end
+end
+
+local function capture(obj, char)
+	if not (relation_registry and relation_registry.community_goodwill) then return end
+	local values = {}
+	for _, community in ipairs(COMMUNITIES) do values[community] = relation_registry.community_goodwill(community, obj:id()) or 0 end
+	store().store_update("goodwill", char, function(data)
+		for k, v in pairs(values) do data[k] = v end
+		return true
+	end)
+end
+
+function update()
+	local t = time_global()
+	if t < next_sync then return end
+	next_sync = t + 5000
+	local save = t >= next_save
+	if save then next_save = t + 60000 end
+	for id in string.gmatch(netcoop_players and netcoop_players() or "", "%d+") do
+		local obj = level.object_by_id(tonumber(id))
+		local char = obj and char_of(obj)
+		if char and char ~= "" then
+			if seen[char] ~= obj:id() then seen[char] = obj:id(); restore(obj, char)
+			elseif save then capture(obj, char) end
+			if netcoop_send_to_actor then
+				netcoop_send_to_actor(obj:id(), "player_rank", string.format("%s|%s", tostring(obj:character_rank()), tostring(obj:character_reputation())))
+			end
+		end
+	end
+end
+
+function command(obj)
+	local lines = {}
+	for char in string.gmatch(netcoop_store_keys and netcoop_store_keys("bounties") or "", "%S+") do
+		local b = bounty_of(char)
+		if b then
+			lines[#lines + 1] = string.format("%s - %s RU, %s h left", tostring(b.name), tostring(b.reward), tostring(math.floor((b["until"] - now()) / 3600)))
+		end
+	end
+	return "~ " .. (#lines > 0 and table.concat(lines, "\n") or "nobody is wanted")
+end
+
+function on_game_start()
+	if not (netcoop_enabled and netcoop_enabled()) or (netcoop_pure_client and netcoop_pure_client()) then return end
+	RegisterScriptCallback("monster_on_death_callback", on_monster_death)
+	RegisterScriptCallback("npc_on_death_callback", on_npc_death)
+end

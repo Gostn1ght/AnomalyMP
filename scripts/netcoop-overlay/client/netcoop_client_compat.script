@@ -518,6 +518,22 @@ function on_script_message(channel, data)
 	elseif channel == "player_state" then
 		use_player_state(data)
 		return
+	elseif channel == "player_rank" then
+		-- Rank and reputation are kept by the server (doc 47 §3).
+		local rank, reputation = string.match(data or "", "^(%-?[%d%.]+)|(%-?[%d%.]+)$")
+		local actor = db.actor
+		if actor and rank then
+			actor:set_character_rank(math.floor(tonumber(rank)))
+			actor:set_character_reputation(math.floor(tonumber(reputation)))
+		end
+		return
+	elseif channel == "bounty_news" then
+		local name, reward, hunter = string.match(data or "", "^([^|]*)|(%d+)|?(.*)$")
+		if name then
+			if reward == "0" then show_text(string.format(game.translate_string("st_netcoop_bounty_collected"), hunter, name))
+			else show_text(string.format(game.translate_string("st_netcoop_bounty_new"), name, reward)) end
+		end
+		return
 	elseif channel == "faction" then
 		-- The server changed this character's faction (doc 47).
 		local actor = db.actor

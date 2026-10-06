@@ -522,4 +522,10 @@
   <string id="st_netcoop_faction_changed">
     <text>Your faction is now:</text>
   </string>
+  <string id="st_netcoop_bounty_new">
+    <text>Wanted: %s, reward %s RU</text>
+  </string>
+  <string id="st_netcoop_bounty_collected">
+    <text>%s collected the bounty on %s</text>
+  </string>
 </string_table>

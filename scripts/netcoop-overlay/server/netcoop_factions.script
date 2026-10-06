@@ -251,6 +251,12 @@ function set_furniture(obj, faction, char, allowed, admin)
 	end)
 end
 
+-- The Zone's judgement (netcoop_ranks): renegades are made, not accepted.
+-- Leaving the old faction also ends a leadership or deputy role there.
+function force_join(faction, char, name)
+	return join(faction, char, name)
+end
+
 -- Admin: the leader of a faction is a player's character the admin names.
 function set_leader(faction, login, slot)
 	if not known(faction) then return false, "unknown faction" end

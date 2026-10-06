@@ -958,6 +958,8 @@ void CActor::Die(CObject* who)
 		m_DangerSnd.stop();
 	}
 
+	if (netcoop::enabled() && !netcoop::pure_client())
+		netcoop::server_on_player_death(this, who); // ranks, renegades, bounties (doc 47)
 	if (netcoop::enabled())
 	{
 		// Netcoop: no game-over. On the server there is no UI at all (it

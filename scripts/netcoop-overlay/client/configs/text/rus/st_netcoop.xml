@@ -522,4 +522,10 @@
   <string id="st_netcoop_faction_changed">
     <text>Ваша группировка теперь:</text>
   </string>
+  <string id="st_netcoop_bounty_new">
+    <text>В розыске: %s, награда %s RU</text>
+  </string>
+  <string id="st_netcoop_bounty_collected">
+    <text>%s получил награду за голову %s</text>
+  </string>
 </string_table>
