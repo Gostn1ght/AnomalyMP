@@ -833,3 +833,24 @@ an initially undiscovered hazard, no stationary fight repetition and final
 arrival stopping 19 windows. New AI decisions after a resolved fight/hazard,
 coarse duration policy and native authority/hydration/AOI adapters remain open.
 Actions for this continuation follow-up pending after push.
+
+## Tracked capture and logout wallet ownership
+
+a9c913f7f backend 37414060576 SUCCESS Windows+Linux (179); full native
+be790c22c / 37412839020 SUCCESS. These precede the following native patch.
+
+Character capture now resolves only an existing tracked immutable cache entry;
+pending restores, absent links/cache cannot insert an empty default Character.
+An actual helper fixture checks missing/repointed keys, pending state and the
+valid cache pointer. Transport disconnect now queues only the remote Actor ID,
+without reading restore/account maps or writing accounts. Main-thread cleanup
+commits the slot-1 wallet after successful synchronous character capture and
+before releasing its account ownership. Secondary slots preserve the shared
+wallet. Missing capture/trader/account or account-file failure holds logout and
+retries with the existing once-per-second backoff; moved sources do not rewrite
+a target wallet. Actual wallet helper + disconnect fault/retry fixtures added.
+Only Python syntax checked locally; native Actions pending after push.
+
+This is the remote tracked-player logout path. Safe cancellation/rollback of
+unfinished target inventory and coherent cross-host world/player transaction
+remain open; no native runtime installation or ALife teardown change made.

@@ -1654,9 +1654,6 @@ void server_on_client_disconnect(xrClientData* CL)
 {
 	if (!enabled() || !CL)
 		return;
-	store_money(CL);
-	accounts_save();
-
 	// Remove the player's Actor instead of migrating it to the server, so a
 	// reconnect does not leave an abandoned body in the world. This runs on
 	// the transport thread; the game object is destroyed from server_update.
@@ -1666,6 +1663,27 @@ void server_on_client_disconnect(xrClientData* CL)
 		s_pending_actor_destroy.push_back(CL->owner->ID);
 		s_pending_lock.Leave();
 	}
+}
+
+// Only main-thread cleanup may read character restore/account maps. The
+// transport callback queues an Actor ID; it must not capture a half-restored
+// wallet or race the character/account caches while disconnecting.
+static bool character_account_money_commit(xrServer* server, u16 actor_id)
+{
+	Character* character = character_tracked_for_save(actor_id);
+	if (!character) return false;
+	if (character->slot != 1) return true;
+	CSE_ALifeTraderAbstract* trader = smart_cast<CSE_ALifeTraderAbstract*>(server->game->get_entity_from_eid(actor_id));
+	Account* account = account_find(character->account.c_str());
+	if (!trader || !account) return false;
+	if (!account->has_money || account->money != trader->m_dwMoney)
+	{
+		account->has_money = true;
+		account->money = trader->m_dwMoney;
+		account->touched = true;
+		s_accounts_dirty = true;
+	}
+	return accounts_save();
 }
 
 // The disconnected client no longer exists, so the server takes over the
@@ -1711,7 +1729,7 @@ static void destroy_pending_actors(xrServer* server)
                     s_pending_lock.Leave();
                     continue;
                 }
-                if (!character_save_actor(ids[i], nullptr, false))
+                if (!character_save_actor(ids[i], nullptr, false) || !character_account_money_commit(server, ids[i]))
                 {
                     // Disk/capture failure must not turn logout into inventory
                     // loss. Retain the tracked Actor and account ownership,

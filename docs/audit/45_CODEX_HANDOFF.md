@@ -445,3 +445,23 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   stationary fight loops. Local full 179 PASS. Actions pending after push.
   Next open work: AI decisions after outcomes and native adapter adoption;
   do not turn on NPC transit or native authority merely because fixtures pass.
+
+- a9c913f7f backend 37414060576 SUCCESS Windows+Linux (179).
+- Coordination before edit: Codex is tightening character_save_actor's cache
+  lookup, so a missing immutable capture cannot create a default Character.
+  Areas: netcoop_characters.inc and actual restore/caller fixture. No actor
+  teardown/runtime/replication edits. Push native only after 37412839020 ends.
+
+- 37412839020 full DX11 SUCCESS. Before native push Codex is also moving
+  disconnect wallet commits onto main-thread Actor cleanup: the transport
+  callback currently touches restore/account maps concurrently. Wallet save
+  refusal must retain Actor/account ownership, like character-save refusal.
+  Areas: netcoop.cpp and actual player-transfer/wallet fixture. No replication,
+  ALife teardown or runtime installation changes.
+
+- Prepared native patch: existing-only character cache helper refuses pending/
+  missing/repointed capture; no operator[] insertion on save. Transport callback
+  no longer reads restore/account maps or saves wallet. Main-thread tracked
+  slot-1 logout commits wallet only after character capture, before ownership
+  release; account failure retains Actor/dirty wallet and retries. Actual
+  cache/wallet/disconnect fixtures expanded; syntax only locally, Actions next.

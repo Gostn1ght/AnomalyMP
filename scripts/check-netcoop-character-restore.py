@@ -26,7 +26,11 @@ assert spawn_caller.index("s_character_restore[CL->owner->ID]") < spawn_caller.i
 assert spawn_caller.index("if (!character_spawn_saved_items(") < spawn_caller.index("restore.inventory_complete = true")
 assert spawn_caller.count("if (!spawned) return;") == 2
 save = characters[characters.index("static bool character_save_actor("):characters.index("void server_character_save_actor(")]
-assert "s_character_restore.find(actor_id)" in save
+start = characters.index("static Character* character_tracked_for_save(")
+tracked = characters[start:characters.index("// Captures the Actor",start)]
+assert "s_character_restore.find(actor_id)" in tracked
+assert "s_characters[" not in save and "s_characters[" not in tracked
+assert save.index("character_tracked_for_save(actor_id)") < save.index("if (!tracked") < save.index("Character& character = *tracked") < save.index("character_capture_progress(")
 server = (root / "src/xrGame/xrServer.cpp").read_text(encoding="utf-8")
 assert server.index("GetCurrentThreadId() != m_netcoop_main_thread") < server.index("server_character_accepts(CL, type)") < server.index("case M_CL_INPUT:")
 assert "type != M_CL_INPUT && !netcoop::server_character_accepts(CL, type)" in server
@@ -146,7 +150,7 @@ struct SInvItemPlace {u16 value=0,type=eItemPlaceSlot,slot_id=1;};
 ''' + enums + r'''
 xr_map<xr_string,Character>s_characters;
 xr_map<u16,xr_string>s_actor_character;
-''' + declarations + '\nstatic const u32 task_origin_marker=0x524f434e;\n' + progress + gate + spawn + update + '\nvoid receive_input(NET_Packet& P,xrClientData* CL){switch(M_CL_INPUT){\n' + input_case + '\ndefault:break;}}\n' + r'''
+''' + declarations + '\nstatic const u32 task_origin_marker=0x524f434e;\n' + progress + gate + spawn + update + tracked + '\nvoid receive_input(NET_Packet& P,xrClientData* CL){switch(M_CL_INPUT){\n' + input_case + '\ndefault:break;}}\n' + r'''
 NET_Packet input_packet(u32 sequence,u16 flags=ACTOR_DEFS::mcJump,float yaw=0,float pitch=0){
  NET_Packet packet;u32 position=2;
  auto write=[&](const auto& value){std::memcpy(packet.B.data+position,&value,sizeof(value));position+=u32(sizeof(value));};
@@ -183,6 +187,17 @@ std::vector<u8> saved(u32 count=1,bool footer=true){
  return data;
 }
 void reset(CActor& actor){clear_tasks(&fixture_manager);fixture_manager.changed=0;fixture_available=true;fixture_throw=false;fixture_restore_calls=0;fixture_restored.clear();fixture_clock=0;fixture_events.clear();fixture_item_states.clear();s_characters.clear();s_actor_character.clear();s_character_restore.clear();fixture_runtime.Objects.entries.clear();fixture_runtime.Objects.entries[actor.ID()]=&actor;assert(fixture_scope_depth==0);}
+void save_cache_cases(CActor& actor){
+ reset(actor);assert(!character_tracked_for_save(actor.ID()) && s_characters.empty());
+ s_actor_character[actor.ID()]="tester:1";
+ assert(!character_tracked_for_save(actor.ID()) && s_characters.empty());
+ auto& cached=s_characters["tester:1"];cached.progress={9,8,7};
+ s_character_restore[actor.ID()]={};
+ assert(!character_tracked_for_save(actor.ID()) && cached.progress==std::vector<u8>({9,8,7}));
+ s_character_restore.clear();assert(character_tracked_for_save(actor.ID())==&cached);
+ s_actor_character[actor.ID()]="missing:2";
+ assert(!character_tracked_for_save(actor.ID()) && s_characters.size()==1);
+}
 void progress_cases(CActor& actor){
  Character character;character.progress=saved();const auto prior=character.progress;
  fixture_available=false;assert(!character_restore_progress(character,&actor));assert(fixture_manager.changed==0 && fixture_restore_calls==0);
@@ -237,7 +252,7 @@ void inventory_cases(xrClientData& client){
  {Game game;xrServer server{&game};CharacterRestore restore;character.items[1].parent=3;assert(!character_spawn_saved_items(&server,&client,character,restore));assert(game.begun==0);}
  {Game game;xrServer server{&game};CharacterRestore restore;character.items.resize(513);assert(!character_spawn_saved_items(&server,&client,character,restore));assert(game.begun==0);}
 }
-int main(){input_cases();CActor actor;CSE_Abstract owner;xrClientData client{&owner,1};reset(actor);progress_cases(actor);admission_cases(actor,client);inventory_cases(client);clear_tasks(&fixture_manager);
+int main(){input_cases();CActor actor;CSE_Abstract owner;xrClientData client{&owner,1};save_cache_cases(actor);reset(actor);progress_cases(actor);admission_cases(actor,client);inventory_cases(client);clear_tasks(&fixture_manager);
  std::cout<<"PASS actual target restore: inventory creation/parent/state completeness, pending gameplay refusal, progress hook failure/retry, task/origin bounds and wrap-safe admission\n";
 }
 '''

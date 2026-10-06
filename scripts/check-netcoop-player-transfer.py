@@ -19,6 +19,11 @@ engine = (root/"src/xrGame/netcoop.cpp").read_text(encoding="utf-8")
 start = engine.index('static void store_money(xrClientData* CL)\n{')
 end = engine.index('\nvoid server_on_client_disconnect(', start)
 money = engine[start:end].replace('static void store_money(', 'static void captured_store_money(')
+disconnect_callback = engine[end:engine.index('static bool character_account_money_commit(',end)]
+assert 'store_money(CL)' not in disconnect_callback and 'accounts_save()' not in disconnect_callback
+wallet_start = engine.index('static bool character_account_money_commit(')
+wallet_end = engine.index('// The disconnected client no longer exists',wallet_start)
+wallet_body = engine[wallet_start:wallet_end]
 characters = (root/"src/xrGame/netcoop_characters.inc").read_text(encoding="utf-8")
 inventory_start = characters.index('static bool character_inventory_complete(')
 inventory_end = characters.index('\nstatic void character_capture_items(',inventory_start)
@@ -92,6 +97,7 @@ void run(){
 disconnect_start = engine.index('static void destroy_pending_actors(xrServer* server)\n{')
 disconnect_end = engine.index('\nstruct StoreMoney',disconnect_start)
 disconnect_body = engine[disconnect_start:disconnect_end]
+assert disconnect_body.index('!character_save_actor(ids[i], nullptr, false) || !character_account_money_commit(server, ids[i])') < disconnect_body.index('cluster_lease_release(login.c_str())')
 give_start = engine.index('static void give_to_server(xrServer* server, CSE_Abstract* entity, u32 depth)\n{')
 give_body = engine[give_start:disconnect_start].replace('give_to_server(', 'captured_give_to_server(')
 disconnect_fixture = r'''
@@ -114,16 +120,17 @@ std::map<u16,u32>s_actor_destroy_retry;u32 fixture_retry_clock=0;
 u32 real_time_ms(){return fixture_retry_clock;}
 std::map<u16,xr_string>s_actor_character;
 struct Leaving {u16 actor=0;};std::map<u32,Leaving>s_cluster_leaving;
-bool save_ok=true;int saves=0,gives=0,releases=0,tasks=0;
+bool save_ok=true,wallet_ok=true;int saves=0,gives=0,releases=0,tasks=0,wallet_saves=0;
 bool cluster_actor_leaving(u16 actor){for(const auto& entry:s_cluster_leaving)if(entry.second.actor==actor)return true;return false;}
 bool character_save_actor(u16,std::nullptr_t,bool){++saves;return save_ok;}
+bool character_account_money_commit(xrServer*,u16){++wallet_saves;return wallet_ok;}
 void cluster_lease_release(LPCSTR){++releases;}
 void server_release_task_manager(u16){++tasks;}
 void Msg(const char*,...){}
 '''+give_body+r'''
 void give_to_server(xrServer* server,CSE_Abstract* entity,u32 depth){++gives;captured_give_to_server(server,entity,depth);}
 '''+disconnect_body+r'''
-void reset(CActor& actor){actor.destroyed=false;actor.alive=true;runtime.Objects.actor=&actor;saves=gives=releases=tasks=0;save_ok=true;s_pending_actor_destroy={7};s_actor_character={{u16(7),"tester:1"}};s_cluster_leaving.clear();s_actor_destroy_retry.clear();fixture_retry_clock=0;}
+void reset(CActor& actor){actor.destroyed=false;actor.alive=true;runtime.Objects.actor=&actor;saves=gives=releases=tasks=wallet_saves=0;save_ok=wallet_ok=true;s_pending_actor_destroy={7};s_actor_character={{u16(7),"tester:1"}};s_cluster_leaving.clear();s_actor_destroy_retry.clear();fixture_retry_clock=0;}
 void run(){
  Game game;xrServer server{&game,{}};CActor actor;
  reset(actor);save_ok=false;destroy_pending_actors(&server);
@@ -148,6 +155,11 @@ void run(){
  reset(actor);fixture_retry_clock=0xfffffff0u;save_ok=false;destroy_pending_actors(&server);
  save_ok=true;fixture_retry_clock+=999u;destroy_pending_actors(&server);assert(saves==1 && releases==0);
  fixture_retry_clock+=1u;destroy_pending_actors(&server);assert(saves==2 && releases==1 && actor.destroyed && s_actor_destroy_retry.empty());
+ reset(actor);wallet_ok=false;destroy_pending_actors(&server);
+ assert(saves==1 && wallet_saves==1 && releases==0 && !actor.destroyed && s_pending_actor_destroy.size()==1);
+ wallet_ok=true;fixture_retry_clock=999;destroy_pending_actors(&server);assert(saves==1 && wallet_saves==1 && releases==0);
+ fixture_retry_clock=1000;destroy_pending_actors(&server);
+ assert(saves==2 && wallet_saves==2 && releases==1 && actor.destroyed && s_pending_actor_destroy.empty());
  // Match the deepest valid inventory preflight: the ninth leaf also migrates
  // to the server, so no supported child retains a disconnected client owner.
  std::vector<CSE_Abstract> children(9);CSE_Abstract* parent=&game.entity;
@@ -155,6 +167,37 @@ void run(){
  give_to_server(&server,&game.entity,0);
  for(const auto& child:children)assert(child.owner==&server.client);
  std::cout<<"PASS actual disconnect cleanup: failed tracked save retains actor/inventory/ownership for retry; success releases and destroys once; corpses and moved/untracked actors keep their policies\n";
+}
+}
+'''
+wallet_fixture = r'''
+namespace wallet_fixture {
+struct Character {u8 slot=1;std::string account="tester";};
+Character cached;bool tracked=true,has_account=true,pending=false,commit_ok=true;
+Character* character_tracked_for_save(u16){return tracked && !pending?&cached:nullptr;}
+struct CSE_Abstract {virtual ~CSE_Abstract()=default;};
+struct CSE_ALifeTraderAbstract:CSE_Abstract {u32 m_dwMoney=50;};
+template<class T>T smart_cast(CSE_Abstract* entity){return dynamic_cast<T>(entity);}
+struct Game {CSE_Abstract* entity=nullptr;CSE_Abstract* get_entity_from_eid(u16){return entity;}};
+struct xrServer {Game* game;};
+struct Account {bool has_money=false,touched=false;u32 money=20;};
+Account wallet;bool s_accounts_dirty=false;int commits=0;
+Account* account_find(const char* login){assert(std::string(login)=="tester");return has_account?&wallet:nullptr;}
+bool accounts_save(){++commits;if(commit_ok){wallet.touched=false;s_accounts_dirty=false;}return commit_ok;}
+''' + wallet_body + r'''
+void reset(){cached.slot=1;tracked=has_account=commit_ok=true;pending=false;wallet={};s_accounts_dirty=false;commits=0;}
+void run(){
+ CSE_ALifeTraderAbstract actor;Game game{&actor};xrServer server{&game};
+ reset();pending=true;assert(!character_account_money_commit(&server,7));assert(wallet.money==20 && commits==0);
+ reset();tracked=false;assert(!character_account_money_commit(&server,7));assert(wallet.money==20 && commits==0);
+ reset();has_account=false;assert(!character_account_money_commit(&server,7));assert(commits==0);
+ reset();game.entity=nullptr;assert(!character_account_money_commit(&server,7));assert(commits==0);game.entity=&actor;
+ reset();cached.slot=2;assert(character_account_money_commit(&server,7));assert(wallet.money==20 && commits==0);
+ reset();commit_ok=false;assert(!character_account_money_commit(&server,7));
+ assert(wallet.money==50 && wallet.touched && s_accounts_dirty && commits==1);
+ commit_ok=true;assert(character_account_money_commit(&server,7));
+ assert(wallet.money==50 && !wallet.touched && !s_accounts_dirty && commits==2);
+ std::cout<<"PASS actual main-thread logout wallet: pending/missing/secondary slot held, commit failure retains dirty state and retries\n";
 }
 }
 '''
@@ -262,12 +305,13 @@ void script_send_to_actor(u16,const char*,const char*){events+='N';assert(s_acto
 void Msg(const char*,...){}
 '''+f'\nstatic const u32 cluster_status_ttl_s = {status_ttl};\n'+status_body+money+r'''
 void store_money(xrClientData* client){events+='M';assert(!server_client_leaving(client));captured_store_money(client);}
-'''+inventory_fixture+disconnect_fixture+progress_fixture+body+r'''
+'''+inventory_fixture+disconnect_fixture+progress_fixture+wallet_fixture+body+r'''
 void reset(){events.clear();refusal.clear();saved_destination=0;s_cluster_leaving.clear();s_character_restore.clear();s_actor_character[7]=1;ticket_ok=save_ok=location_ok=accounts_ok=status_ok=true;target_status="100 0 16";}
 int main(){
  inventory_fixture::run();
  disconnect_fixture::run();
  progress_fixture::run();
+ wallet_fixture::run();
  xrServer server;Owner owner;xrClientData client;client.owner=&owner;CLevelChanger changer;
  reset();ticket_ok=false;
  assert(!cluster_move(&server,&client,&changer));

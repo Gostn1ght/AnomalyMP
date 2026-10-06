@@ -682,19 +682,27 @@ static void character_capture_items(xrServer* server, Character& character, CSE_
 // A level changer's arrival point on another map (netcoop_cluster.inc).
 struct CharacterDestination { GameGraph::_GRAPH_ID game_vertex; u32 level_vertex; Fvector position, angles; };
 
+static Character* character_tracked_for_save(u16 actor_id)
+{
+	if (s_character_restore.find(actor_id) != s_character_restore.end()) return nullptr;
+	const auto key = s_actor_character.find(actor_id);
+	if (key == s_actor_character.end()) return nullptr;
+	const auto found = s_characters.find(key->second);
+	return found == s_characters.end() ? nullptr : &found->second;
+}
+
 // Captures the Actor into its character and writes the file; with a
 // destination the saved position is that point instead of the current one.
 static bool character_save_actor(u16 actor_id, const CharacterDestination* destination, bool background = false)
 {
-	auto key = s_actor_character.find(actor_id);
-	if (key == s_actor_character.end() || !g_pGameLevel || !Level().Server) return false;
-	Character& character = s_characters[key->second];
+	Character* tracked = character_tracked_for_save(actor_id);
+	if (!tracked || !g_pGameLevel || !Level().Server) return false;
+	Character& character = *tracked;
 	xrServer* server = Level().Server;
 	CSE_Abstract* actor = server->game->get_entity_from_eid(actor_id);
 	CActor* runtime = smart_cast<CActor*>(Level().Objects.net_Find(actor_id));
 	CSE_ALifeCreatureActor* entity = smart_cast<CSE_ALifeCreatureActor*>(actor);
 	if (!entity || !runtime) return false;
-	if (s_character_restore.find(actor_id) != s_character_restore.end()) return false;
 	if (runtime->g_Alive())
 	{
 		xr_vector<u16> visited; visited.push_back(actor_id);
