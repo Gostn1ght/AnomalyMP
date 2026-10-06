@@ -3,16 +3,19 @@ import hashlib
 import json
 import time
 
-from .plans import reservations
+from .plans import reservations, stash_root
 from .store import Conflict, Invalid, Unavailable, canonical, finite, identifier
 
 
 class Planner:
-    def __init__(self, world, encounters, hazards):
+    def __init__(self, world, encounters, hazards, scavenging=None):
         if encounters.world is not world or hazards.world is not world or encounters.offline is not hazards.offline:
             raise Conflict("contact planners must share one world and offline representation")
+        if scavenging is not None and (scavenging.world is not world or scavenging.offline is not encounters.offline or scavenging.catalog is not encounters.catalog):
+            raise Conflict("stash discovery must share contact authority, representation and catalog")
         self.world,self.store = world,world.store
         self.encounters,self.hazards = encounters,hazards
+        self.scavenging = scavenging
         self.policy = None
         encounters.offline.scheduler.handlers.setdefault("OfflineContactsWindow",self.window_in)
         encounters.offline.scheduler.handlers.setdefault("OfflineContactsRefresh",self.refresh_in)
@@ -168,6 +171,8 @@ class Planner:
     def resources(option):
         if option["type"]=="offline_combat":
             return {option["first_id"],option["second_id"]},set()
+        if option["type"]=="offline_scavenge":
+            return {option["root_id"]},{option["stash_id"]}
         return {option["entity_id"]},{option["hazard_id"]}
 
     @staticmethod
@@ -195,11 +200,16 @@ class Planner:
         unrestricted = (set(),set(),0)
         combat = self.encounters.location_in(tx,actor,command_id,payload,now,True,unrestricted)
         hazard = self.hazards.location_in(tx,actor,command_id,payload,now,True,unrestricted)
-        options = combat["options"]+hazard["options"]
+        scavenge=self.scavenging.options_in(tx,payload,now) if self.scavenging else {"options":[],"candidates":0}
+        options = combat["options"]+hazard["options"]+scavenge["options"]
         if moving_only:
             active = {row["entity_id"] for row in self.active_routes_in(tx,payload["location"])}
             options = [option for option in options if self.resources(option)[0]&active]
         for event,plan in pending:
+            if event["type"]=="StashVisited":
+                options.append({"type":"offline_scavenge","root_id":stash_root(plan),"stash_id":plan["stash_id"],
+                                "due_ms":event["due_world_ms"],"existing":event["id"]})
+                continue
             keys = ("first_id","second_id") if event["type"]=="OfflineCombat" else ("entity_id","hazard_id")
             options.append({"type":"offline_combat" if event["type"]=="OfflineCombat" else "offline_hazard",
                             "due_ms":event["due_world_ms"],"existing":event["id"],**{key:plan[key] for key in keys}})
@@ -232,10 +242,15 @@ class Planner:
             request = {**option,"event_id":event_id}
             if option["type"]=="offline_combat":
                 result = self.encounters.schedule_in(tx,request,planning_now=now)
-            else:
+            elif option["type"]=="offline_hazard":
                 result = self.hazards.schedule_in(tx,request,planning_now=now)
                 if result["event_id"] is None or abs(result["due_ms"]-option["due_ms"])>1e-6:
                     raise Conflict("combined hazard discovery and capture disagree")
+            else:
+                if self.scavenging is None:
+                    raise Conflict("stash planner is unavailable")
+                result=self.scavenging.schedule_in(tx,request,planning_now=now)
             contacts.append({**result,"due_ms":option["due_ms"],"type":option["type"],"retained":False})
         return {"contacts":contacts,"cancelled_plans":cancelled,"preempted_plans":preempted,
-                "deferred_contacts":deferred,"combat_candidates":combat["candidate_pairs"],"hazard_candidates":hazard["candidates"]}
+                "deferred_contacts":deferred,"combat_candidates":combat["candidate_pairs"],"hazard_candidates":hazard["candidates"],
+                "scavenge_candidates":scavenge["candidates"]}

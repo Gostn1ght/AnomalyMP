@@ -486,3 +486,14 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   Same-location/time PENDING refreshes coalesce with journal links; later
   sources after APPLIED get new IDs. Local full 188 PASS (tests, not tasks),
   backend Actions pending after push. New AI choices/native bridge still open.
+
+- 0fca6dd9f backend 37416191989 SUCCESS Windows+Linux (188).
+  268caa26d full DX11 37414908195 SUCCESS, Foundation 37414908176 SUCCESS.
+- Automatic stash discovery integrated into shared contact Planner/HTTP with
+  same authority/catalog. Actual NPC/group-offset paths; earlier combat/hazard
+  wins shared root, stash reservations prevent simultaneous visits. Protection,
+  per-NPC + per-stash cooldown, existing light item IDs only; no new loot/respawn.
+  Bounded discovery and streamed visit admission; guarded oversize rollback/retry
+  and forbidden weapon exclusion. Local full 198 PASS, Actions pending after push.
+  Native adapter/new AI route choices/4 LOD/AOI remain open. No native launch,
+  installation, runtime overwrite, automatic NPC transit or whole-stage closure.

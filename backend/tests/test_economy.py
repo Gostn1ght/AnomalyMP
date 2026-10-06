@@ -305,6 +305,65 @@ class EconomyTest(unittest.TestCase):
         self.assert_visit_cancelled_without_mutation(item)
         with self.assertRaises(Conflict):
             self.visit(due=30_000_000)
+
+    def test_visit_capture_limit_refuses_before_second_item_and_retries_atomically(self):
+        self.setup_visit()
+        items=["0"*32,"1"*32]
+        with self.store.transaction() as tx:
+            for item in items:
+                tx.execute("INSERT INTO item VALUES(?,?,'NPC',?,2,1,?)",
+                           (item,"food",self.npc,json.dumps({"payload":"я"*2000,"condition":.8})))
+        self.visit();self.ns=100_000_000
+        before=self.store.events()
+        self.scavenging.capture_limit=1024
+        from contextlib import contextmanager
+        original_transaction=self.store.transaction
+        class Guarded:
+            def __init__(self,tx):
+                self.tx=tx
+            def execute(self,query,*args):
+                cursor=self.tx.execute(query,*args)
+                if query=="SELECT * FROM item WHERE kind='NPC' AND holder=? ORDER BY id LIMIT 64":
+                    def first_only():
+                        yield next(iter(cursor))
+                        raise AssertionError("visit read beyond an oversized first item")
+                    return first_only()
+                return cursor
+        @contextmanager
+        def guarded_transaction():
+            with original_transaction() as tx:
+                yield Guarded(tx)
+        self.store.transaction=guarded_transaction
+        try:
+            with self.assertRaises(Conflict):
+                self.scheduler.run_due(budget_ms=1000)
+        finally:
+            self.store.transaction=original_transaction
+        self.assertEqual(self.store.events(),before)
+        self.assertEqual(self.store.db.execute("SELECT state FROM scheduled_event WHERE type='StashVisited'").fetchone()[0],"PENDING")
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM item WHERE kind='NPC' AND holder=? AND version=1",(self.npc,)).fetchone()[0],2)
+        self.assertEqual(self.store.db.execute("SELECT version FROM container WHERE id=?",(self.stash,)).fetchone()[0],1)
+        for entity_id,key in ((self.npc,"last_scavenge_ms"),(self.stash,"last_npc_visit_ms")):
+            self.assertNotIn(key,json.loads(self.store.db.execute("SELECT state FROM entity WHERE id=?",(entity_id,)).fetchone()[0]))
+        self.scavenging.capture_limit=4*1024*1024
+        self.assertEqual(self.scheduler.run_due(budget_ms=1000),1)
+        self.assertEqual(self.scheduler.run_due(budget_ms=1000),0)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM item WHERE kind='STASH' AND holder=? AND version=2",(self.stash,)).fetchone()[0],1)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM item").fetchone()[0],2)
+
+    def test_ineligible_large_weapon_does_not_enter_deposit_capture(self):
+        self.setup_visit()
+        food=self.visit_food()
+        weapon="0"*32
+        with self.store.transaction() as tx:
+            tx.execute("INSERT INTO item VALUES(?,?,'NPC',?,1,1,?)",
+                       (weapon,"wpn_ak",self.npc,json.dumps({"payload":"x"*5000})))
+        self.visit();self.ns=100_000_000
+        self.scavenging.capture_limit=1024
+        self.assertEqual(self.scheduler.run_due(budget_ms=1000),1)
+        rows={row["id"]:row for row in self.store.db.execute("SELECT * FROM item")}
+        self.assertEqual((rows[food]["kind"],rows[food]["holder"]),("STASH",self.stash))
+        self.assertEqual((rows[weapon]["kind"],rows[weapon]["holder"],rows[weapon]["version"]),("NPC",self.npc,1))
         with self.store.transaction() as tx:
             tx.execute("UPDATE quest SET state=? WHERE character_id=? AND id='retrieve'",(json.dumps({"status":"COMPLETED"}),self.player))
         # Releasing a quest pin allows a later genuine visit, not a reroll.

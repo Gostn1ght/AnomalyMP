@@ -5,10 +5,18 @@ from .capture import CaptureBudget
 from .store import Unavailable, canonical
 
 
+def stash_root(plan):
+    if "root_id" in plan:
+        return plan["root_id"]
+    motion=plan.get("positions")
+    group=motion[0].get("group") if motion else None
+    return group["id"] if group else plan["npc_id"]
+
+
 def reservations(world, tx, location, validators, details=None):
     # Stream payloads; a row limit alone could fetch hundreds of MiB before
     # checking the aggregate byte admission. Absent validators hold their jobs.
-    rows = tx.execute("SELECT * FROM scheduled_event WHERE state='PENDING' AND type IN ('OfflineCombat','OfflineHazard') "
+    rows = tx.execute("SELECT * FROM scheduled_event WHERE state='PENDING' AND type IN ('OfflineCombat','OfflineHazard','StashVisited') "
                       "AND json_extract(payload,'$.location')=? ORDER BY id LIMIT 513",(location,))
     roots,hazards,cancelled = set(),set(),0
     budget = CaptureBudget(8*1024*1024)
@@ -27,9 +35,11 @@ def reservations(world, tx, location, validators, details=None):
             continue
         if event["type"]=="OfflineCombat":
             roots.update((plan["first_id"],plan["second_id"]))
-        else:
+        elif event["type"]=="OfflineHazard":
             roots.add(plan["entity_id"])
             hazards.add(plan["hazard_id"])
+        else:
+            roots.add(stash_root(plan));hazards.add(plan["stash_id"])
         if details is not None:
             details.append((event,plan))
     return roots,hazards,cancelled

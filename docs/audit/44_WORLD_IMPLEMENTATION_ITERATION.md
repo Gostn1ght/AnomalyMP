@@ -901,3 +901,36 @@ real arrival→later encounter, source rollback, delayed refresh restart,
 large stationary population refusal avoidance and simultaneous/later-source
 coalescing cases. These are test counts, not closed task-43 requirements.
 Backend Actions pending after push; native adapters/AI decisions still open.
+
+## Automatic route-based stash discovery
+
+Previous validation is now confirmed: 0fca6dd9f backend 37416191989 SUCCESS
+Windows+Linux (188 tests); 268caa26d full DX11 37414908195 SUCCESS, including
+Foundation 37414908176. No runtime installation performed by Codex.
+
+Combined Planner now accepts the same-world/same-representation/same-catalog
+Scavenging authority. Actual offline NPC paths, including moving group-member
+formation offsets, discover accessible unlocked non-quest stashes. Configured
+source commands, horizon windows and causal outcome refresh schedule visits
+without an explicit stash_visit command. Mutants, protected/locked/quest stashes
+are excluded. Shared root/stash reservations select the earliest contact against
+combat/hazards; valid existing captures retain EventID/RNG. NPC and stash each
+have a cooldown; outcomes only move actual ledger items with unchanged IDs,
+quantity and item state. Deposits exclude all weapons, armor and artifacts.
+No new loot/respawn/TTL or new AI route choices are introduced.
+
+Discovery admission: 256 stashes/256 NPC, shared 8 MiB encoded state,
+8192 trajectory segments, 4096 candidates and ContactIndex work budget.
+Visit reads up to 64 take and 64 deposit rows as cursors with aggregate 4 MiB
+encoded capture admission. Trusted constructor can lower this limit. Oversize
+holds the whole event without item/owner/cooldown/journal mutation; no truncation.
+Ineligible deposit categories skip state parsing/admission. These are admission
+bounds, not a total-RSS guarantee.
+
+Full local suite 198 PASS: actual route -> stash -> later hazard, earlier hazard
+preemption, protection, NPC-global cooldown, group offsets/root reservations,
+retained capture identity and planning-journal rollback; guarded oversized first
+item refuses before a second read, later retry applies once; oversized weapon
+cannot block an eligible light deposit. Counts refer to tests, not task-43 closure.
+Backend Actions pending after push. Native authority/AI/AOI/LOD adapters remain
+open; native NPC transit stays opt-in and existing packages are not overwritten.

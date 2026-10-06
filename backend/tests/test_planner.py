@@ -15,6 +15,7 @@ from lostzone.offline import Offline
 from lostzone.ownership import Ownership
 from lostzone.planner import Planner
 from lostzone.scheduler import Scheduler
+from lostzone.scavenging import Scavenging
 from lostzone.store import Unavailable
 
 
@@ -475,6 +476,118 @@ class PlannerTest(unittest.TestCase):
         self.assertEqual(len(refreshes),2)
         self.assertTrue(all(row["state"]=="APPLIED" for row in refreshes))
         self.assertEqual(len({row["id"] for row in refreshes}),2)
+
+    def enable_stash_discovery(self,position=None,policy="NPC_ACCESSIBLE",chance=10000):
+        self.catalog=Catalog({"food":{"category":"FOOD","price":100,"weight_g":100},
+                              "armor":{"category":"ARMOR","price":1000,"weight_g":1000},
+                              "wpn":{"category":"WEAPON","price":1000,"weight_g":1000}})
+        self.encounters.catalog=self.hazards.catalog=self.catalog
+        self.scavenging=Scavenging(self.world,self.offline,self.catalog,{"chance_bp":chance,"radius":1})
+        self.planner=Planner(self.world,self.encounters,self.hazards,self.scavenging)
+        stash,item=uid(),uid()
+        with self.store.transaction() as tx:
+            tx.execute("INSERT INTO entity VALUES(?,'STASH','cordon','offline:cordon',?,1,1,?)",
+                       (stash,self.store.epoch,json.dumps({"position":position or [-7,0,0]})))
+            tx.execute("INSERT INTO container VALUES(?,?,'public',64,1,'{}')",(stash,policy))
+            tx.execute("INSERT INTO item VALUES(?,'food','NPC',?,2,1,?)",(item,self.first,json.dumps({"condition":.8})))
+        return stash,item
+
+    def test_automatic_stash_contact_moves_existing_light_items_before_later_hazard(self):
+        stash,item=self.enable_stash_discovery()
+        self.enable_auto();self.reroute()
+        contact=self.store.db.execute("SELECT * FROM scheduled_event WHERE type='StashVisited'").fetchone()
+        self.assertEqual(contact["due_world_ms"],20000)
+        self.ns=5_000_000_000;self.scheduler.run_due(budget_ms=1000)
+        row=self.store.db.execute("SELECT * FROM item WHERE id=?",(item,)).fetchone()
+        self.assertEqual((row["kind"],row["holder"],row["quantity"]),("STASH",stash,2))
+        self.assertEqual(json.loads(row["state"])["condition"],.8)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM item").fetchone()[0],1)
+        self.assertEqual(self.store.db.execute("SELECT alive FROM entity WHERE id=?",(self.first,)).fetchone()[0],0)
+        self.assertEqual(self.store.db.execute("SELECT due_world_ms FROM scheduled_event WHERE type='OfflineHazard' AND state='APPLIED'").fetchone()[0],40000)
+
+    def test_earlier_hazard_excludes_later_stash_looting(self):
+        stash,item=self.enable_stash_discovery(position=[-3,0,0])
+        result=self.plan()
+        self.assertEqual(result["contacts"][0]["type"],"offline_hazard")
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='StashVisited'").fetchone()[0],0)
+        self.assertEqual(self.store.db.execute("SELECT holder FROM item WHERE id=?",(item,)).fetchone()[0],self.first)
+
+    def test_protected_locked_and_quest_stashes_are_excluded_from_discovery(self):
+        stash,_=self.enable_stash_discovery(policy="PLAYER_ONLY")
+        self.assertFalse(any(contact["type"]=="offline_scavenge" for contact in self.plan()["contacts"]))
+        with self.store.transaction() as tx:
+            tx.execute("UPDATE container SET policy='NPC_ACCESSIBLE' WHERE id=?",(stash,))
+            tx.execute("UPDATE entity SET state=? WHERE id=?",(json.dumps({"position":[-7,0,0],"locked":True}),stash))
+        self.assertFalse(any(contact["type"]=="offline_scavenge" for contact in self.plan()["contacts"]))
+        from lostzone.quests import Quests
+        quests=Quests(self.world,{"stash":{"steps":[{"type":"ContainerOpened","target":stash}],"requirements":[{"entity_id":stash}]}})
+        with self.store.transaction() as tx:
+            tx.execute("UPDATE entity SET state=? WHERE id=?",(json.dumps({"position":[-7,0,0]}),stash))
+        character=uid();fence=self.world.claim_location("a",uid(),"cordon")["fence"]
+        Ownership(self.world).create_entity("a",uid(),character,"CHARACTER","cordon",fence,{"position":[0,0,0]},account="quest-player")
+        quests.grant("a",uid(),character,fence,"stash")
+        self.assertFalse(any(contact["type"]=="offline_scavenge" for contact in self.plan()["contacts"]))
+
+    def test_stash_visit_preserves_carried_armor_and_weapons(self):
+        stash,food=self.enable_stash_discovery()
+        with self.store.transaction() as tx:
+            tx.execute("DELETE FROM item WHERE id=?",(food,))
+            for section in ("armor","wpn"):
+                tx.execute("INSERT INTO item VALUES(?,?,'NPC',?,1,1,'{}')",(uid(),section,self.first))
+        self.plan();self.ns=2_001_000_000;self.scheduler.run_due(budget_ms=1000)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM item WHERE kind='NPC' AND holder=?",(self.first,)).fetchone()[0],2)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM item WHERE kind='STASH' AND holder=?",(stash,)).fetchone()[0],0)
+
+    def test_npc_global_visit_cooldown_prevents_looting_another_stash_immediately(self):
+        self.enable_stash_discovery()
+        self.plan();self.ns=2_001_000_000;self.scheduler.run_due(budget_ms=1000)
+        second=uid()
+        with self.store.transaction() as tx:
+            tx.execute("INSERT INTO entity VALUES(?,'STASH','cordon','offline:cordon',?,1,1,?)",
+                       (second,self.store.epoch,json.dumps({"position":[-6,0,0]})))
+            tx.execute("INSERT INTO container VALUES(?,'NPC_ACCESSIBLE','public',64,1,'{}')",(second,))
+        result=self.plan()
+        self.assertFalse(any(contact["type"]=="offline_scavenge" for contact in result["contacts"]))
+
+    def test_group_member_stash_discovery_uses_formation_offset_and_reserves_root(self):
+        stash,_=self.enable_stash_discovery(position=[-12,0,0])
+        group=uid()
+        with self.store.transaction() as tx:
+            state=json.loads(tx.execute("SELECT state FROM entity WHERE id=?",(self.first,)).fetchone()[0])
+            state["position"]=[-15,0,0]
+            tx.execute("UPDATE entity SET state=?,version=version+1 WHERE id=?",(json.dumps(state),self.first))
+            tx.execute("UPDATE route SET active=0 WHERE entity_id=?",(self.first,))
+            tx.execute("UPDATE scheduled_event SET state='CANCELLED' WHERE type='RouteArrived' AND aggregate_id=?",("entity:"+self.first,))
+            tx.execute("INSERT INTO entity VALUES(?,'GROUP','cordon','offline:cordon',?,1,1,?)",
+                       (group,self.store.epoch,json.dumps({"position":[-10,0,0],"faction":"duty","member_ids":[self.first]})))
+            tx.execute("INSERT INTO group_member VALUES(?,?)",(group,self.first))
+        self.offline.start_route("admin",uid(),group,1,[[-10,0,0],[10,0,0]],1,42)
+        result=self.plan()
+        self.assertEqual([(row["type"],row["due_ms"]) for row in result["contacts"]],[("offline_scavenge",20000)])
+        payload=json.loads(self.state(result["contacts"][0]["event_id"])["payload"])
+        self.assertEqual((payload["root_id"],payload["npc_id"],payload["stash_id"]),(group,self.first,stash))
+
+    def test_existing_stash_reservation_keeps_event_id_and_rng_across_replanning(self):
+        self.enable_stash_discovery()
+        first=self.plan()["contacts"][0];original=self.state(first["event_id"])["payload"]
+        result=self.plan(seed=999)
+        self.assertEqual([(row["event_id"],row["retained"]) for row in result["contacts"]],[(first["event_id"],True)])
+        self.assertEqual(self.state(first["event_id"])["payload"],original)
+
+    def test_stash_and_route_roll_back_together_on_visit_capture_failure(self):
+        self.enable_stash_discovery();self.enable_auto()
+        before=dict(self.store.db.execute("SELECT * FROM route WHERE entity_id=?",(self.first,)).fetchone())
+        original=self.store.event
+        def fail(tx,aggregate,kind,*args,**kwargs):
+            if kind=="StashVisitPlanned":
+                raise RuntimeError("injected automatic stash capture failure")
+            return original(tx,aggregate,kind,*args,**kwargs)
+        self.store.event=fail
+        with self.assertRaises(RuntimeError):
+            self.reroute()
+        self.store.event=original
+        self.assertEqual(dict(self.store.db.execute("SELECT * FROM route WHERE entity_id=?",(self.first,)).fetchone()),before)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='StashVisited'").fetchone()[0],0)
 
 
 if __name__=="__main__":

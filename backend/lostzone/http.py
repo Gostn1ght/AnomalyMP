@@ -104,7 +104,7 @@ class Dispatcher:
         self.scavenging = Scavenging(world, self.offline, self.catalog, scavenging_rules)
         self.encounters = Encounters(world, self.offline, self.catalog)
         self.hazards = Hazards(world, self.offline, self.catalog)
-        self.planner = Planner(world,self.encounters,self.hazards)
+        self.planner = Planner(world,self.encounters,self.hazards,self.scavenging)
         if planning_policy is not None:
             self.planner.enable_automatic(planning_policy)
 
