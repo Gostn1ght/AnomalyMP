@@ -161,30 +161,6 @@ static LPCSTR cluster_target_problem(u32 port)
 	return "";
 }
 
-// ---- servers on demand -----------------------------------------------------
-// [on_demand] map = 1 in netcoop_cluster.ltx: the map's server runs only while
-// needed. A player heading there (level changer, or a login of a character
-// saved there) writes netcoop_cluster/wake_<map>.txt; the machine's watchdog
-// starts the server, which saves and exits after -netcoop_idle_exit seconds
-// without players.
-static bool cluster_on_demand(LPCSTR level)
-{
-	string_path path;
-	FS.update_path(path, "$app_data_root$", "netcoop_cluster.ltx");
-	if (!level || GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) return false;
-	CInifile ini(path, TRUE, TRUE, FALSE);
-	return ini.line_exist("on_demand", level) && ini.r_u32("on_demand", level) == 1;
-}
-
-static void cluster_wake(LPCSTR level)
-{
-	string_path dir, file; cluster_dir(dir);
-	xr_sprintf(file, "%swake_%s.txt", dir, level);
-	string32 line; xr_sprintf(line, "%u", cluster_now());
-	cluster_write_line(file, line);
-	Msg("[Lost Zone][cluster] wake request for %s", level);
-}
-
 static bool cluster_secret()
 {
 	if (!s_cluster_secret.empty()) return true;
@@ -209,6 +185,30 @@ static bool cluster_secret()
 	}
 	s_cluster_secret = line;
 	return true;
+}
+
+// ---- servers on demand -----------------------------------------------------
+// [on_demand] map = 1 in netcoop_cluster.ltx: the map's server runs only while
+// needed. A player heading there (level changer, or a login of a character
+// saved there) writes netcoop_cluster/wake_<map>.txt; the machine's watchdog
+// starts the server, which saves and exits after -netcoop_idle_exit seconds
+// without players.
+static bool cluster_on_demand(LPCSTR level)
+{
+	string_path path;
+	FS.update_path(path, "$app_data_root$", "netcoop_cluster.ltx");
+	if (!level || GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) return false;
+	CInifile ini(path, TRUE, TRUE, FALSE);
+	return ini.line_exist("on_demand", level) && ini.r_u32("on_demand", level) == 1;
+}
+
+static void cluster_wake(LPCSTR level)
+{
+	string_path dir, file; cluster_dir(dir);
+	xr_sprintf(file, "%swake_%s.txt", dir, level);
+	string32 line; xr_sprintf(line, "%u", cluster_now());
+	cluster_write_line(file, line);
+	Msg("[Lost Zone][cluster] wake request for %s", level);
 }
 
 static bool hmac_sha256_hex(const xr_string& key, const xr_string& data, xr_string& out)

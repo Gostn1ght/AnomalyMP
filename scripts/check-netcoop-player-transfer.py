@@ -281,6 +281,7 @@ void cluster_dir(string_path& path){std::snprintf(path,sizeof(path),"cluster/");
 bool cluster_read_line(const char*,xr_string& value){value=target_status;return status_ok;}
 std::string events, refusal;int saved_destination=0;
 bool cluster_location(const char*,std::string& host,u32& port){host="localhost";port=1277;return location_ok;}
+bool cluster_on_demand(const char*){return false;} void cluster_wake(const char*){} // servers on demand: none here
 void cluster_refuse(xrServer*,xrClientData*,const char* message){refusal=message;events+='R';}
 struct ClusterLeaving{u16 actor=0;u32 since=0;std::string level;};
 std::map<u32,ClusterLeaving>s_cluster_leaving;
