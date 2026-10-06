@@ -23,7 +23,10 @@ param(
     # one spot of their map (512 = 4 maps x 128).
     [switch]$Spread,
     # Extra server command line, e.g. "-mem_profile" (memory by call site).
-    [string]$ServerArgs = ""
+    [string]$ServerArgs = "",
+    # Bot processes per map: one process parses every bot's traffic on one
+    # thread (128 bots at full rate starved it, 2026-10-06).
+    [int]$BotProcesses = 1
 )
 $ErrorActionPreference = "Stop"
 # "-Maps a,b" through -File arrives as one string.
@@ -97,10 +100,13 @@ try {
     $botMaps = if ($Spread) { $Maps } else { @($Maps[0]) }
     $first = 0
     foreach ($map in $botMaps) {
-        $botArgs = "-nosplashwindow -netcoop -dbg -noprefetch -multi_instance -logname selftest_bots_$map -fsltx fsgame_selftest_bots.ltx " +
-            "-netcoop_bots $Bots -netcoop_bots_first $first -netcoop_bots_addr 127.0.0.1/port=$($ports[$map])"
-        $processes += Start-Process -FilePath $client -ArgumentList $botArgs -WorkingDirectory $Runtime -PassThru
-        $first += $Bots
+        for ($part = 0; $part -lt $BotProcesses; $part++) {
+            $count = [Math]::Floor($Bots / $BotProcesses) + $(if ($part -lt $Bots % $BotProcesses) { 1 } else { 0 })
+            $botArgs = "-nosplashwindow -netcoop -dbg -noprefetch -multi_instance -logname selftest_bots_$map`_$part -fsltx fsgame_selftest_bots.ltx " +
+                "-netcoop_bots $count -netcoop_bots_first $first -netcoop_bots_addr 127.0.0.1/port=$($ports[$map])"
+            $processes += Start-Process -FilePath $client -ArgumentList $botArgs -WorkingDirectory $Runtime -PassThru
+            $first += $count
+        }
     }
     Write-Host "$($Bots * $botMaps.Count) bots started on $($botMaps -join ', '); running $Minutes min"
     Start-Sleep -Seconds ($Minutes * 60)
