@@ -526,6 +526,14 @@ bool server_character_load_actor(xrClientData* CL, CSE_Abstract* actor)
 		trader->m_character_name = character->name;
 		trader->m_character_name_str = character->name;
 		if (!character->initialized) trader->set_character_profile(shared_str((xr_string("actor_") + character->faction).c_str()));
+		// The faction may have changed since the Actor was saved (accepted,
+		// expelled, renegade; doc 47): the character's faction wins.
+		else if (!character->faction.empty())
+		{
+			const CHARACTER_COMMUNITY_INDEX index = CHARACTER_COMMUNITY::IdToIndex(
+				shared_str((xr_string("actor_") + character->faction).c_str()), CHARACTER_COMMUNITY_INDEX(-1), true);
+			if (index != CHARACTER_COMMUNITY_INDEX(-1)) trader->m_community_index = index;
+		}
 	}
 	CSE_ALifeCreatureActor* creature = smart_cast<CSE_ALifeCreatureActor*>(actor);
 	// Saves from another server map retain inventory and progress, but use

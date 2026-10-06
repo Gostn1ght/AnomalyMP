@@ -271,6 +271,12 @@ LPCSTR script_players();
 // Lua (server, location cluster): "map map ..." served by other servers of
 // the cluster; empty without netcoop_cluster.ltx.
 LPCSTR script_cluster_maps();
+// Lua (server): shared cluster records (netcoop_shared_store.inc, doc 47).
+LPCSTR script_store_read(LPCSTR bucket, LPCSTR key);
+bool script_store_swap(LPCSTR bucket, LPCSTR key, LPCSTR expected, LPCSTR value);
+LPCSTR script_store_keys(LPCSTR bucket);
+LPCSTR script_actor_character(u16 actor_id);
+bool script_set_character_faction(u16 actor_id, LPCSTR faction);
 // Lua (server): NPC transit records (netcoop_transit.script) for a map's
 // server. Publish only after the source checkpoint. Reads are nondestructive;
 // acknowledge only after the target checkpoint includes its durable receipt.

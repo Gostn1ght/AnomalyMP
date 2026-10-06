@@ -22,6 +22,7 @@
 #include "Level.h"
 #include "Actor.h"
 #include "Actor_Flags.h"
+#include "character_community.h"
 #include "ui_base.h"
 #include "string_table.h"
 #include "xr_level_controller.h"
@@ -1262,6 +1263,7 @@ static void reject(xrServer* server, xrClientData* CL, LPCSTR message)
 }
 
 #include "netcoop_cluster.inc"
+#include "netcoop_shared_store.inc"
 
 // The server's PBKDF2 (60000 rounds) took ~100 ms of a frame for every
 // login; with many players joining the world stuttered for everyone. It runs
