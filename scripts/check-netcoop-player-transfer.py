@@ -28,7 +28,7 @@ assert save_body.index('character_inventory_complete(server, actor, 0, visited)'
 assert save_body.index('if (!character_capture_progress(character, runtime)) return false;') < save_body.index('entity->m_dwMoney = runtime->get_money()') < save_body.index('character.items.clear()')
 assert save_body.count('character_capture_progress(character, runtime)') == 1
 progress_start = engine.index('static bool character_capture_progress(Character& character, CActor* actor)\n{')
-progress_end = engine.index('\nstatic void character_restore_progress(', progress_start)
+progress_end = engine.index('\nstatic bool character_restore_progress(', progress_start)
 progress_body = engine[progress_start:progress_end]
 progress_fixture = r'''
 namespace progress_fixture {
@@ -285,6 +285,8 @@ int main(){
  captured_store_money(&client); // old source disconnect after target spending
  assert(account.money==20 && !account.touched && !s_accounts_dirty);
  reset();s_character_restore[7]=1;assert(!cluster_move(&server,&client,&changer));assert(events=="R");
+ account.money=20;account.touched=false;s_accounts_dirty=false;
+ captured_store_money(&client);assert(account.money==20 && !account.touched && !s_accounts_dirty);
  reset();location_ok=false;assert(!cluster_move(&server,&client,&changer));assert(events=="R");
  reset();status_ok=false;assert(!cluster_move(&server,&client,&changer));assert(events=="R" && saved_destination==0 && s_cluster_leaving.empty());
  reset();target_status="0 0 16";assert(!cluster_move(&server,&client,&changer));assert(events=="R" && refusal.find("offline")!=std::string::npos);

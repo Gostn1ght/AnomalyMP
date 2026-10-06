@@ -16,10 +16,31 @@ struct Character
 };
 static xr_map<xr_string, Character> s_characters;
 static xr_map<u16, xr_string> s_actor_character;
-struct CharacterRestore { xr_vector<std::pair<u16, u16>> places; };
+struct CharacterRestore
+{
+	xr_vector<std::pair<u16, u16>> places, entities; // runtime item -> expected parent
+	bool inventory_complete = false, attempted = false;
+	u32 last_attempt = 0;
+};
 static xr_map<u16, CharacterRestore> s_character_restore;
 static bool character_capture_progress(Character& character, CActor* actor);
-static void character_restore_progress(Character& character, CActor* actor);
+static bool character_restore_progress(Character& character, CActor* actor);
+
+bool server_character_accepts(xrClientData* CL, u16 type)
+{
+	if (!CL || !CL->owner || s_character_restore.find(CL->owner->ID) == s_character_restore.end()) return true;
+	switch (type)
+	{
+	case M_CL_INPUT: case M_CL_UPDATE: case M_EVENT: case M_EVENT_PACK:
+	case M_MOVE_PLAYERS_RESPOND: case M_GAMEMESSAGE: case M_PLAYER_FIRE:
+	case M_NETCOOP_TRADE: case M_NETCOOP_CAMPFIRE: case M_NETCOOP_ITEM_ACTION:
+	case M_NETCOOP_TRANSFER: case M_NETCOOP_ITEM_REPORT: case M_NETCOOP_TALK:
+	case M_NETANOMALY_CMD:
+		return false;
+	default:
+		return true; // connection/ready ACKs still work; level changer reports its loading refusal
+	}
+}
 
 
 static xr_string character_key(LPCSTR account, u8 slot)
@@ -514,30 +535,46 @@ bool server_character_load_actor(xrClientData* CL, CSE_Abstract* actor)
 		ai().get_level_graph() && ai().level_graph().valid_vertex_id(creature->m_tNodeID) && _valid(creature->o_Position);
 }
 
+static bool character_spawn_saved_items(xrServer* server, xrClientData* CL, const Character& character, CharacterRestore& restore)
+{
+	if (character.items.size() > 512) return false;
+	for (u32 i = 0; i < character.items.size(); ++i)
+		if (character.items[i].parent > i) return false;
+	xr_vector<u16> parents; parents.push_back(CL->owner->ID);
+	for (const Character::Item& saved : character.items)
+	{
+		CSE_Abstract* item = server->game->spawn_begin(saved.section.c_str());
+		if (!item) return false;
+		NET_Packet packet = saved.spawn;
+		if (!item->Spawn_Read(packet)) { F_entity_Destroy(item); return false; }
+		item->ID = item->ID_Phantom = 0xffff;
+		item->ID_Parent = parents[saved.parent];
+		item->s_flags.assign(M_SPAWN_OBJECT_LOCAL);
+		CSE_Abstract* spawned = server->game->spawn_end(item, CL->ID);
+		if (!spawned) return false;
+		item_state_restore(spawned->ID, saved.state);
+		restore.entities.push_back(std::make_pair(spawned->ID, parents[saved.parent]));
+		parents.push_back(spawned->ID);
+		if (!saved.parent && saved.place) restore.places.push_back(std::make_pair(spawned->ID, saved.place));
+	}
+	return true;
+}
+
 void server_character_spawn_items(xrClientData* CL)
 {
 	if (!CL || !CL->owner || !CL->netcoop_login.size()) return;
+	if (s_actor_character.find(CL->owner->ID) != s_actor_character.end()) return;
+	CharacterRestore& restore = s_character_restore[CL->owner->ID];
 	Character* character = character_load(CL->netcoop_login.c_str(), CL->netcoop_character_slot);
 	if (!character) return;
 	s_actor_character[CL->owner->ID] = character_key(character->account.c_str(), character->slot);
 	xrServer* server = Level().Server;
-	xr_vector<u16> parents; parents.push_back(CL->owner->ID);
 	if (character->initialized)
 	{
-		CharacterRestore& restore = s_character_restore[CL->owner->ID];
-		for (const Character::Item& saved : character->items)
+		if (!character_spawn_saved_items(server, CL, *character, restore))
 		{
-			CSE_Abstract* item = server->game->spawn_begin(saved.section.c_str());
-			NET_Packet packet = saved.spawn;
-			if (!item->Spawn_Read(packet)) { F_entity_Destroy(item); return; }
-			item->ID = item->ID_Phantom = 0xffff;
-			item->ID_Parent = parents[saved.parent];
-			item->s_flags.assign(M_SPAWN_OBJECT_LOCAL);
-			CSE_Abstract* spawned = server->game->spawn_end(item, CL->ID);
-			if (!spawned) return;
-			item_state_restore(spawned->ID, saved.state);
-			parents.push_back(spawned->ID);
-			if (!saved.parent && saved.place) restore.places.push_back(std::make_pair(spawned->ID, saved.place));
+			Msg("! [Lost Zone] inventory restore incomplete for actor %u; preserving saved character", CL->owner->ID);
+			return;
 		}
 	}
 	else
@@ -549,9 +586,12 @@ void server_character_spawn_items(xrClientData* CL)
 			string128 section; _GetItem(character->loadout.c_str(), i, section); _Trim(section);
 			starter_cells+=storage_section_cost(section);
 			CSE_Abstract* item = server->game->spawn_begin(section);
+			if (!item) return;
 			item->ID_Parent = CL->owner->ID;
 			item->s_flags.assign(M_SPAWN_OBJECT_LOCAL);
-			server->game->spawn_end(item, CL->ID);
+			CSE_Abstract* spawned = server->game->spawn_end(item, CL->ID);
+			if (!spawned) return;
+			restore.entities.push_back(std::make_pair(spawned->ID, CL->owner->ID));
 		}
 		// Match freeplay's ammunition allowance for each selected firearm.
         string_path path;
@@ -575,16 +615,20 @@ void server_character_spawn_items(xrClientData* CL)
                     if (starter_cells+ammo_cells>storage_capacity(false)) break;
                     starter_cells+=ammo_cells;
                     CSE_Abstract* item = server->game->spawn_begin(ammo);
+                    if (!item) return;
                     CSE_ALifeItemAmmo* bullets = smart_cast<CSE_ALifeItemAmmo*>(item);
-                    if (!bullets) { F_entity_Destroy(item); break; }
+                    if (!bullets) { F_entity_Destroy(item); return; }
                     bullets->a_elapsed = u16(_min(remaining, box)); remaining -= bullets->a_elapsed;
                     item->ID_Parent = CL->owner->ID; item->s_flags.assign(M_SPAWN_OBJECT_LOCAL);
-                    server->game->spawn_end(item, CL->ID);
+                    CSE_Abstract* spawned = server->game->spawn_end(item, CL->ID);
+                    if (!spawned) return;
+                    restore.entities.push_back(std::make_pair(spawned->ID, CL->owner->ID));
                 }
             }
         }
         character->initialized = true;
 	}
+	restore.inventory_complete = true;
 	Msg("[Lost Zone] character '%s' slot %u loaded for %s", character->name.c_str(), character->slot, character->account.c_str());
 }
 
@@ -697,21 +741,32 @@ static bool character_save_actor(u16 actor_id, const CharacterDestination* desti
 
 void server_character_save_actor(u16 actor_id) { character_save_actor(actor_id, nullptr, true); }
 
-static void characters_update(xrServer* server)
+static void characters_restore_update()
 {
 	for (auto it = s_character_restore.begin(); it != s_character_restore.end();)
 	{
 		CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(it->first));
 		if (!actor) { ++it; continue; }
+		if (!it->second.inventory_complete) { ++it; continue; }
 		bool ready = true;
-		for (const auto& place : it->second.places)
+		for (const auto& expected : it->second.entities)
 		{
-			CGameObject* item = smart_cast<CGameObject*>(Level().Objects.net_Find(place.first));
-			if (!item || item->H_Parent() != actor) { ready = false; break; }
+			CGameObject* item = smart_cast<CGameObject*>(Level().Objects.net_Find(expected.first));
+			if (!item || !item->H_Parent() || item->H_Parent()->ID() != expected.second) { ready = false; break; }
 		}
 		if (!ready) { ++it; continue; }
 		const auto key = s_actor_character.find(actor->ID());
-		if (key != s_actor_character.end()) character_restore_progress(s_characters[key->second], actor);
+		if (key == s_actor_character.end()) { ++it; continue; }
+		const auto character = s_characters.find(key->second);
+		if (character == s_characters.end()) { ++it; continue; }
+		const u32 now = real_time_ms();
+		if (it->second.attempted && u32(now - it->second.last_attempt) < 1000) { ++it; continue; }
+		it->second.attempted = true; it->second.last_attempt = now;
+		if (!character_restore_progress(character->second, actor))
+		{
+			Msg("! [Lost Zone] progress restore still pending for actor %u; gameplay and saving held", actor->ID());
+			++it; continue;
+		}
 		// Clear automatic spawn placements, then restore slots before the belt
 		// so the outfit's capacity is available to equipped artefacts.
 		for (u32 pass = 0; pass < 3; ++pass)
@@ -728,6 +783,11 @@ static void characters_update(xrServer* server)
 			}
 		it = s_character_restore.erase(it);
 	}
+}
+
+static void characters_update(xrServer* server)
+{
+	characters_restore_update();
 	struct Save
 	{
 		void operator()(IClient* client)

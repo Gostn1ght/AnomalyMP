@@ -391,3 +391,21 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   applied. Preserve old physical capture/history and resolve due dependencies
   before changing routes/representation. Do not enable an unproven timer scan
   as a substitute for that barrier or claim native chunk/LOD adoption.
+
+- Resume verification: 5b444d198 DX11 37386643593 and Foundation 37386643524
+  SUCCESS; 1b56f2e6c DX11 37389490303 SUCCESS. These include the last Codex
+  native fixes; Claude recorded installation of 5b444d1 for owner testing.
+- Coordination before edit: Codex is fixing target character restore refusal
+  (Lua failure currently swallowed), complete saved inventory admission and
+  pending-character gameplay packet gating. Areas: netcoop.cpp,
+  netcoop_characters.inc/netcoop.h, narrow OnMessage gate in xrServer.cpp,
+  Actions restore fixture. No replication policy/world-store/runtime edits.
+
+- Prepared target restore barrier: whole saved/starter inventory tracks runtime
+  parentage and complete creation; progress returns false for missing/throwing
+  Lua or invalid scalar/footer envelopes. Pending entry retained/retried once
+  per second, gameplay packets/task publication/autosave/wallet held.
+  Actual helper/caller fixture added to Actions; Python syntax only locally.
+  No invisible spawn/full task-binary validation/arbitrary Lua rollback claim.
+  Permanent failures stay held for repair/restart; unfinished-login cancellation
+  needs safe runtime item rollback before releasing account ownership.

@@ -1634,6 +1634,7 @@ static void store_money(xrClientData* CL)
 {
 	if (!CL || server_client_leaving(CL) || !CL->netcoop_login.size() || !CL->owner || CL->netcoop_character_slot != 1)
 		return;
+	if (s_character_restore.find(CL->owner->ID) != s_character_restore.end()) return;
 	CSE_ALifeTraderAbstract* trader = smart_cast<CSE_ALifeTraderAbstract*>(CL->owner);
 	if (!trader)
 		return;
@@ -2790,38 +2791,49 @@ static bool character_capture_progress(Character& character, CActor* actor)
 	return true;
 }
 
-static void character_restore_progress(Character& character, CActor* actor)
+static bool character_restore_progress(Character& character, CActor* actor)
 {
-	if (character.progress.empty()) return;
+	if (character.progress.empty()) return true;
+	if (character.progress.size() < 4 || character.progress.size() > 1048576) return false;
 	ServerVictimScope scope(actor);
+	::luabind::functor<void> restore;
+	if (!ai().script_engine().functor("netcoop_server_compat.restore_character_state", restore)) return false;
 	IReader reader(character.progress.data(), character.progress.size());
 	const u32 count = reader.r_u32();
-	if (count > 512) return;
+	if (count > 512) return false;
+	if (reader.elapsed() < 8) return false;
 	CGameTaskManager* manager = server_task_manager(actor->ID());
 	clear_tasks(manager);
 	vGameTasks& tasks = manager->GetGameTasks();
 	for (u32 i = 0; i < count; ++i) { SGameTaskKey task; task.load(reader); tasks.push_back(task); }
+	if (reader.elapsed() < 8) return false;
 	load_data(actor->m_known_info_registry->registry().objects(), reader);
+	if (reader.elapsed() < 4) return false;
 	const u32 size = reader.r_u32();
-	if (size > reader.elapsed()) return;
+	if (size > reader.elapsed()) return false;
 	luabind::internal_string state(reinterpret_cast<const char*>(reader.pointer()), size);
 	reader.advance(size);
-	if (reader.elapsed() >= 8 && reader.r_u32() == task_origin_marker)
+	if (reader.elapsed())
 	{
+		if (reader.elapsed() < 8 || reader.r_u32() != task_origin_marker) return false;
 		const u32 origins = reader.r_u32();
-		for (u32 i = 0; i < origins && i < 512 && reader.elapsed() > 0; ++i)
+		if (origins != count) return false;
+		for (u32 i = 0; i < origins; ++i)
 		{
 			shared_str id, origin;
-			reader.r_stringZ(id); reader.r_stringZ(origin);
+			if (!memchr(reader.pointer(), 0, reader.elapsed())) return false;
+			reader.r_stringZ(id);
+			if (!memchr(reader.pointer(), 0, reader.elapsed())) return false;
+			reader.r_stringZ(origin);
 			for (SGameTaskKey& task : tasks)
 				if (task.task_id == id && task.game_task) task.game_task->m_netcoop_origin = origin;
 		}
+		if (reader.elapsed()) return false;
 	}
-	::luabind::functor<void> restore;
-	if (ai().script_engine().functor("netcoop_server_compat.restore_character_state", restore))
-		try { restore(actor->lua_game_object(), state); }
-		catch (...) { Msg("! [Lost Zone] cannot restore character script state for %u", actor->ID()); }
+	try { restore(actor->lua_game_object(), state); }
+	catch (...) { Msg("! [Lost Zone] cannot restore character script state for %u", actor->ID()); return false; }
 	manager->MarkChanged();
+	return true;
 }
 // ---------------------------------------------------------------------------
 // task list replication
@@ -2844,6 +2856,7 @@ struct CollectTaskPlayers
 		xrClientData* CL = static_cast<xrClientData*>(client);
 		if (!CL || CL->flags.bLocal || CL->netcoop_role == role_none || !CL->owner)
 			return;
+		if (s_character_restore.find(CL->owner->ID) != s_character_restore.end()) return;
 		if (!smart_cast<CSE_ALifeCreatureActor*>(CL->owner))
 			return;
 		TaskPlayer p;

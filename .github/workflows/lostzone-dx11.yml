@@ -71,6 +71,8 @@ jobs:
           python scripts/check-netcoop-session-ownership.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-commits.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-netcoop-character-restore.py
       - name: Check actor packet compatibility
         shell: pwsh
         run: ./scripts/check-actor-packet.ps1

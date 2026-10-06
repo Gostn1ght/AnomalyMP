@@ -1,0 +1,195 @@
+"""Actual target character progress/inventory admission and gameplay gate."""
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import os
+import re
+import subprocess
+
+if os.environ.get("GITHUB_ACTIONS") != "true":
+    raise SystemExit("Native checks must run in GitHub Actions")
+root = Path(__file__).resolve().parents[1]
+engine = (root / "src/xrGame/netcoop.cpp").read_text(encoding="utf-8")
+characters = (root / "src/xrGame/netcoop_characters.inc").read_text(encoding="utf-8")
+start = engine.index("static bool character_restore_progress(Character& character, CActor* actor)\n{")
+progress = engine[start:engine.index("// ---------------------------------------------------------------------------\n// task list replication",start)]
+start = characters.index("struct CharacterRestore\n{")
+declarations = characters[start:characters.index("static bool character_capture_progress(",start)]
+start = characters.index("bool server_character_accepts(")
+gate = characters[start:characters.index("static xr_string character_key(",start)]
+start = characters.index("static bool character_spawn_saved_items(")
+spawn = characters[start:characters.index("void server_character_spawn_items(",start)]
+start = characters.index("static void characters_restore_update()\n{")
+update = characters[start:characters.index("static void characters_update(",start)]
+spawn_caller = characters[characters.index("void server_character_spawn_items("):characters.index("// Refuse the whole checkpoint")]
+assert spawn_caller.index("s_actor_character.find(CL->owner->ID)") < spawn_caller.index("character_load(")
+assert spawn_caller.index("s_character_restore[CL->owner->ID]") < spawn_caller.index("character_load(")
+assert spawn_caller.index("if (!character_spawn_saved_items(") < spawn_caller.index("restore.inventory_complete = true")
+assert spawn_caller.count("if (!spawned) return;") == 2
+save = characters[characters.index("static bool character_save_actor("):characters.index("void server_character_save_actor(")]
+assert "s_character_restore.find(actor_id)" in save
+server = (root / "src/xrGame/xrServer.cpp").read_text(encoding="utf-8")
+assert server.index("GetCurrentThreadId() != m_netcoop_main_thread") < server.index("server_character_accepts(CL, type)") < server.index("case M_CL_INPUT:")
+packet_names = sorted(set(re.findall(r"\bM_[A-Z_]+\b",gate)))
+enums = "enum PacketType {" + ",".join(packet_names+["M_CLIENTREADY","M_CLIENT_REQUEST_CONNECTION_DATA","M_CHANGE_LEVEL","M_CHAT_MESSAGE"]) + "};\n"
+source = r'''
+#include <cassert>
+#include <cstdint>
+#include <cstring>
+#include <string>
+#include <vector>
+#include <map>
+#include <memory>
+#include <iostream>
+#include <algorithm>
+using u8=unsigned char;using u16=unsigned short;using u32=unsigned int;
+using shared_str=std::string;using xr_string=std::string;
+template<class T>using xr_vector=std::vector<T>;
+template<class K,class V>using xr_map=std::map<K,V>;
+template<class T,class P>T smart_cast(P* value){return dynamic_cast<T>(value);}
+void Msg(const char*,...){}
+struct IReader {
+ const u8* data;size_t length,position=0;
+ IReader(const void* bytes,size_t size):data(static_cast<const u8*>(bytes)),length(size){}
+ size_t elapsed()const{return length-position;}
+ const void* pointer()const{return data+position;}
+ u32 r_u32(){assert(elapsed()>=4);u32 value=0;for(u32 i=0;i<4;++i)value|=u32(data[position++])<<(i*8);return value;}
+ void advance(size_t count){assert(count<=elapsed());position+=count;}
+ void r_stringZ(shared_str& value){auto start=static_cast<const char*>(pointer());assert(memchr(start,0,elapsed()));value=start;advance(value.size()+1);}
+};
+struct GameTask {shared_str m_netcoop_origin;};
+struct SGameTaskKey {
+ shared_str task_id;GameTask* game_task=nullptr;
+ void load(IReader& reader){reader.r_stringZ(task_id);reader.r_u32();game_task=new GameTask;}
+};
+using vGameTasks=std::vector<SGameTaskKey>;
+struct CGameTaskManager {vGameTasks entries;int changed=0;vGameTasks& GetGameTasks(){return entries;}void MarkChanged(){++changed;}};
+CGameTaskManager fixture_manager;
+CGameTaskManager* server_task_manager(u16){return &fixture_manager;}
+void clear_tasks(CGameTaskManager* manager){for(auto& key:manager->entries)delete key.game_task;manager->entries.clear();manager->MarkChanged();}
+struct Info {u32 value=0;Info& registry(){return *this;}u32& objects(){return value;}};
+void load_data(u32& value,IReader& reader){value=reader.r_u32();}
+struct NET_Packet {bool readable=true;void w_u16(u16){}void w_u8(u8){}};
+std::vector<int>fixture_events;
+struct CGameObject {
+ virtual ~CGameObject()=default;u16 id=7;CGameObject* parent=nullptr;
+ u16 ID()const{return id;}CGameObject* H_Parent()const{return parent;}
+ static void u_EventGen(NET_Packet&,int kind,u16){fixture_events.push_back(kind);}
+ static void u_EventSend(NET_Packet&){}
+};
+struct CActor:CGameObject {Info info;Info* m_known_info_registry=&info;int* lua_game_object(){return nullptr;}};
+int fixture_scope_depth=0;
+struct ServerVictimScope {explicit ServerVictimScope(CActor*){++fixture_scope_depth;}~ServerVictimScope(){--fixture_scope_depth;}};
+bool fixture_available=true,fixture_throw=false;int fixture_restore_calls=0;std::string fixture_restored;
+namespace luabind {using internal_string=std::string;
+ template<class T>struct functor {void operator()(int*,const internal_string& state){++fixture_restore_calls;if(fixture_throw)throw 1;fixture_restored=state;}};
+}
+struct ScriptEngine {bool functor(const char*,luabind::functor<void>&){return fixture_available;}};
+struct AI {ScriptEngine scripts;ScriptEngine& script_engine(){return scripts;}};
+AI fixture_ai;AI& ai(){return fixture_ai;}
+struct Flags {void assign(int){}};
+struct CSE_Abstract {
+ u16 ID=7,ID_Phantom=0xffff,ID_Parent=0xffff;Flags s_flags;
+ bool Spawn_Read(NET_Packet& packet){return packet.readable;}
+};
+struct xrClientData {CSE_Abstract* owner;int ID=1;};
+struct Character {std::vector<u8>progress;
+ struct Item {std::string section="item";u16 parent=0,place=0;NET_Packet spawn;std::vector<u8>state;};
+ std::vector<Item>items;
+};
+std::map<u16,std::vector<u8>>fixture_item_states;
+void item_state_restore(u16 id,const std::vector<u8>& bytes){fixture_item_states[id]=bytes;}
+void F_entity_Destroy(CSE_Abstract* entity){delete entity;}
+struct Game {
+ std::vector<std::unique_ptr<CSE_Abstract>>created;int begun=0,ended=0,fail_begin=0,fail_end=0;
+ CSE_Abstract* spawn_begin(const char*){++begun;if(fail_begin==begun)return nullptr;return new CSE_Abstract;}
+ CSE_Abstract* spawn_end(CSE_Abstract* entity,int){++ended;if(fail_end==ended){delete entity;return nullptr;}entity->ID=u16(100+ended);created.emplace_back(entity);return entity;}
+};
+struct xrServer {Game* game;};
+struct StubObjects {std::map<u16,CGameObject*> entries;CGameObject* net_Find(u16 id){auto it=entries.find(id);return it==entries.end()?nullptr:it->second;}};
+struct Runtime {StubObjects Objects;};
+Runtime fixture_runtime;Runtime& Level(){return fixture_runtime;}
+u32 fixture_clock=0;u32 real_time_ms(){return fixture_clock;}
+enum {M_SPAWN_OBJECT_LOCAL=1,eItemPlaceSlot=1,eItemPlaceBelt=2,GEG_PLAYER_ITEM2RUCK=10,GEG_PLAYER_ITEM2SLOT=11,GEG_PLAYER_ITEM2BELT=12};
+struct SInvItemPlace {u16 value=0,type=eItemPlaceSlot,slot_id=1;};
+''' + enums + r'''
+xr_map<xr_string,Character>s_characters;
+xr_map<u16,xr_string>s_actor_character;
+''' + declarations + '\nstatic const u32 task_origin_marker=0x524f434e;\n' + progress + gate + spawn + update + r'''
+void number(std::vector<u8>& data,u32 value){for(u32 i=0;i<4;++i)data.push_back(u8(value>>(i*8)));}
+void text(std::vector<u8>& data,const std::string& value){data.insert(data.end(),value.begin(),value.end());data.push_back(0);}
+std::vector<u8> saved(u32 count=1,bool footer=true){
+ std::vector<u8> data;number(data,count);
+ for(u32 i=0;i<count;++i){text(data,"quest"+std::to_string(i));number(data,1);}
+ number(data,123);number(data,6);data.insert(data.end(),{'s','c','r','i','p','t'});
+ if(footer){number(data,task_origin_marker);number(data,count);for(u32 i=0;i<count;++i){text(data,"quest"+std::to_string(i));text(data,"source-map");}}
+ return data;
+}
+void reset(CActor& actor){clear_tasks(&fixture_manager);fixture_manager.changed=0;fixture_available=true;fixture_throw=false;fixture_restore_calls=0;fixture_restored.clear();fixture_clock=0;fixture_events.clear();fixture_item_states.clear();s_characters.clear();s_actor_character.clear();s_character_restore.clear();fixture_runtime.Objects.entries.clear();fixture_runtime.Objects.entries[actor.ID()]=&actor;assert(fixture_scope_depth==0);}
+void progress_cases(CActor& actor){
+ Character character;character.progress=saved();const auto prior=character.progress;
+ fixture_available=false;assert(!character_restore_progress(character,&actor));assert(fixture_manager.changed==0 && fixture_restore_calls==0);
+ fixture_available=true;fixture_throw=true;assert(!character_restore_progress(character,&actor));assert(character.progress==prior);
+ fixture_throw=false;assert(character_restore_progress(character,&actor));assert(fixture_restored=="script" && actor.info.value==123);
+ assert(fixture_manager.entries.size()==1 && fixture_manager.entries[0].game_task->m_netcoop_origin=="source-map");
+ character.progress=saved(0,false);assert(character_restore_progress(character,&actor));
+ character.progress=saved(512);assert(character_restore_progress(character,&actor));assert(fixture_manager.entries.size()==512);
+ character.progress=saved(513);assert(!character_restore_progress(character,&actor));
+ character.progress={1,2,3};assert(!character_restore_progress(character,&actor));
+ character.progress={0,0,0,0};assert(!character_restore_progress(character,&actor));
+ character.progress.assign(1048577,0);assert(!character_restore_progress(character,&actor));
+ character.progress=saved();character.progress.pop_back();assert(!character_restore_progress(character,&actor));
+ character.progress=saved();character.progress.push_back(9);assert(!character_restore_progress(character,&actor));
+ character.progress=saved(0,false);number(character.progress,task_origin_marker);number(character.progress,1);assert(!character_restore_progress(character,&actor));
+ character.progress=saved(0,false);character.progress.push_back(1);assert(!character_restore_progress(character,&actor));
+ character.progress.clear();assert(character_restore_progress(character,&actor));assert(fixture_scope_depth==0);
+}
+void admission_cases(CActor& actor,xrClientData& client){
+ reset(actor);s_actor_character[actor.ID()]="tester:1";s_characters["tester:1"].progress=saved();
+ auto& pending=s_character_restore[actor.ID()];
+ characters_restore_update();assert(s_character_restore.size()==1 && fixture_restore_calls==0);
+ pending.inventory_complete=true;CGameObject root_item,child;root_item.id=100;root_item.parent=&actor;child.id=101;child.parent=&root_item;
+ pending.entities={{u16(100),actor.ID()},{u16(101),u16(100)}};pending.places={{u16(100),u16(1)}};
+ fixture_runtime.Objects.entries[100]=&root_item;
+ characters_restore_update();assert(s_character_restore.size()==1 && fixture_restore_calls==0);
+ fixture_runtime.Objects.entries[101]=&child;child.parent=&actor;
+ characters_restore_update();assert(s_character_restore.size()==1 && fixture_restore_calls==0);
+ child.parent=&root_item;fixture_throw=true;
+ characters_restore_update();assert(s_character_restore.size()==1 && fixture_restore_calls==1 && fixture_events.empty());
+ assert(!server_character_accepts(&client,M_CL_INPUT) && !server_character_accepts(&client,M_CL_UPDATE));
+ assert(!server_character_accepts(&client,M_EVENT_PACK) && !server_character_accepts(&client,M_NETCOOP_ITEM_REPORT));
+ assert(server_character_accepts(&client,M_CLIENTREADY) && server_character_accepts(&client,M_CLIENT_REQUEST_CONNECTION_DATA));
+ assert(server_character_accepts(&client,M_CHANGE_LEVEL) && server_character_accepts(&client,M_CHAT_MESSAGE));
+ fixture_throw=false;fixture_clock=999;characters_restore_update();assert(fixture_restore_calls==1 && s_character_restore.size()==1);
+ fixture_clock=1000;characters_restore_update();assert(fixture_restore_calls==2 && s_character_restore.empty() && fixture_events.size()==2);
+ assert(server_character_accepts(&client,M_CL_INPUT) && server_character_accepts(nullptr,M_EVENT));
+ reset(actor);s_character_restore[actor.ID()].inventory_complete=true;characters_restore_update();assert(s_character_restore.size()==1);
+ reset(actor);s_actor_character[actor.ID()]="tester:1";s_characters["tester:1"].progress=saved();s_character_restore[actor.ID()].inventory_complete=true;
+ fixture_clock=0xfffffff0u;fixture_available=false;characters_restore_update();assert(s_character_restore.size()==1);
+ fixture_available=true;fixture_clock+=999u;characters_restore_update();assert(s_character_restore.size()==1);
+ fixture_clock+=1u;characters_restore_update();assert(s_character_restore.empty());
+}
+void inventory_cases(xrClientData& client){
+ Character character;Character::Item first,second;first.place=1;first.state={1,2};second.parent=1;second.state={3,4};character.items={first,second};
+ {Game game;xrServer server{&game};CharacterRestore restore;assert(character_spawn_saved_items(&server,&client,character,restore));
+  assert(restore.entities.size()==2 && restore.places.size()==1);assert(game.created[0]->ID_Parent==client.owner->ID && game.created[1]->ID_Parent==game.created[0]->ID);
+  assert(fixture_item_states[game.created[1]->ID]==second.state);}
+ {Game game;game.fail_end=2;xrServer server{&game};CharacterRestore restore;assert(!character_spawn_saved_items(&server,&client,character,restore));assert(restore.entities.size()==1 && !restore.inventory_complete);}
+ {Game game;game.fail_begin=1;xrServer server{&game};CharacterRestore restore;assert(!character_spawn_saved_items(&server,&client,character,restore));assert(restore.entities.empty());}
+ {Game game;xrServer server{&game};CharacterRestore restore;character.items[0].spawn.readable=false;assert(!character_spawn_saved_items(&server,&client,character,restore));assert(restore.entities.empty());character.items[0].spawn.readable=true;}
+ {Game game;xrServer server{&game};CharacterRestore restore;character.items[1].parent=3;assert(!character_spawn_saved_items(&server,&client,character,restore));assert(game.begun==0);}
+ {Game game;xrServer server{&game};CharacterRestore restore;character.items.resize(513);assert(!character_spawn_saved_items(&server,&client,character,restore));assert(game.begun==0);}
+}
+int main(){CActor actor;CSE_Abstract owner;xrClientData client{&owner,1};reset(actor);progress_cases(actor);admission_cases(actor,client);inventory_cases(client);clear_tasks(&fixture_manager);
+ std::cout<<"PASS actual target restore: inventory creation/parent/state completeness, pending gameplay refusal, progress hook failure/retry, task/origin bounds and wrap-safe admission\n";
+}
+'''
+with TemporaryDirectory(prefix="character-restore-") as tmp:
+    cpp = Path(tmp) / "check.cpp"
+    exe = Path(tmp) / ("check.exe" if os.name == "nt" else "check")
+    cpp.write_text(source,encoding="utf-8")
+    if os.name == "nt":
+        command = ["cl","/nologo","/std:c++17","/EHsc","/W4","/WX","/O2",str(cpp),"/Fe:"+str(exe),"/Fo:"+str(Path(tmp)/"check.obj")]
+    else:
+        command = ["g++","-std=c++17","-Wall","-Wextra","-Werror","-O2",str(cpp),"-o",str(exe)]
+    subprocess.run(command,check=True,cwd=tmp)
+    subprocess.run([str(exe)],check=True,cwd=tmp,timeout=30)

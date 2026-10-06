@@ -712,3 +712,39 @@ failed-logout backoff from its passing standalone fixture.
 4b8a20285 backend 37385808762 SUCCESS Windows+Linux (148 tests), including
 the casualty-state projection optimization. Full native 37385428435 remains
 in progress; current proven native package is ad4725002/37382384355.
+
+## Target character restore admission
+
+On resume, 5b444d198 DX11 37386643593 and Foundation 37386643524 SUCCESS;
+1b56f2e6c DX11 37389490303 SUCCESS. Claude recorded installing 5b444d1 for
+owner testing, with 28 transitions/no refusals and a stop-time reconnect timeout.
+These packages include Codex's prior logout backoff and temp cleanup.
+
+New target restore no longer treats a missing/throwing Lua restore as success.
+The restore entry remains pending until the complete saved inventory has been
+created, every runtime item has its expected parent (including nested/ruck
+items), and task/info/script/origin restoration returns true. Missing immutable
+cache cannot create an empty default Character. Legacy no-origin/empty-progress
+saves remain accepted. Task count/one-MiB/scalar/footer/terminated-origin bounds
+refuse invalid envelopes. Retry throttled once/second with u32-wrap-safe elapsed
+time; placement and task publication follow successful progress application.
+
+The main-thread packet path refuses gameplay input/update/events and item,
+trade/talk/transfer/text RPCs from pending Actors. Connection/ready ACKs still
+work; map transitions retain their existing localized loading refusal. Autosave
+and wallet capture cannot overwrite the durable source snapshot while pending.
+Duplicate spawn-items calls cannot reissue inventory. Starter selections/ammo
+also track every runtime item and refuse failed creation.
+
+Actual extracted GCC/MSVC restore fixture added to Actions: missing/throwing
+hooks, retry/time wrap, legacy/512/513 bounds, malformed footer, missing/wrong
+item parents, partial spawn failure and cached parent/count preflight; protocol
+gate and caller wiring tested. Existing transfer fixture checks pending wallet
+retention. Only Python syntax checked locally; native execution remains Actions.
+
+This is a save/gameplay admission barrier, not invisible spawn replication,
+full per-task native binary validation or transactional rollback of arbitrary
+Lua mutations. Runtime task/info projections can change while the Actor remains
+pending; the old durable file is held. Permanent spawn/corrupt-state failure
+stays held for repair/restart; cancellation/rollback of an unfinished target
+login and actual live admission acceptance remain open.
