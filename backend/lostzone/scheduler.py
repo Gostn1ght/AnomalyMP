@@ -6,7 +6,7 @@ and encounter resolvers must register their own ownership-aware handlers.
 import json
 import time
 
-from .store import Conflict, Invalid, canonical, finite, identifier, persistent_id, positive
+from .store import Conflict, Invalid, Unavailable, canonical, finite, identifier, persistent_id, positive
 
 
 class Scheduler:
@@ -14,6 +14,40 @@ class Scheduler:
         self.world, self.store = world, world.store
         self.handlers = world.scheduler_handlers
         self.handlers.setdefault("TimelinePhase",self.timeline_phase)
+        world.mutation_drain = self.drain_due_in
+
+    def apply_event_in(self, tx, row, now):
+        handler = self.handlers.get(row["type"])
+        if handler is None:
+            raise UnavailableHandler(row["type"])
+        result, applied = handler(tx, row)
+        tx.execute("UPDATE scheduled_event SET state=?,result=? WHERE id=? AND state='PENDING'",
+                   ("APPLIED" if applied else "CANCELLED", canonical(result), row["id"]))
+        self.store.event(tx, row["aggregate_id"], "ScheduledEventApplied" if applied else "ScheduledEventCancelled",
+                         {"event_id": row["id"], "result": result, "applied_world_ms": now},
+                         row["due_world_ms"], committed_ms=now)
+
+    def drain_due_in(self, tx, cutoff, limit=64, budget_ms=5):
+        """Resolve earlier dependencies inside the caller's mutation transaction.
+
+        Exhaustion refuses the entire command, including this catch-up. The
+        background runner can commit separate bounded batches before a retry.
+        Handlers must not recursively enter a world mutation or replan their
+        currently PENDING event; automatic resolver replanning is not enabled.
+        """
+        finite(cutoff)
+        if type(limit) is not int or not 1 <= limit <= 256 or not 0 < budget_ms <= 1000:
+            raise Invalid("invalid scheduler work budget")
+        self.store.require_epoch(tx)
+        start, count = time.monotonic(), 0
+        while True:
+            row = tx.execute("SELECT * FROM scheduled_event WHERE state='PENDING' AND due_world_ms<=? ORDER BY due_world_ms,priority,id LIMIT 1", (cutoff,)).fetchone()
+            if row is None:
+                return count
+            if count >= limit or (time.monotonic()-start)*1000 >= budget_ms:
+                raise Unavailable("earlier world events require background catch-up before mutation")
+            self.apply_event_in(tx, row, cutoff)
+            count += 1
 
     def schedule_in(self, tx, event_id, due_ms, aggregate, version, event_type, payload, priority=0):
         persistent_id(event_id)
@@ -44,15 +78,7 @@ class Scheduler:
                 row = tx.execute("SELECT * FROM scheduled_event WHERE state='PENDING' AND due_world_ms<=? ORDER BY due_world_ms,priority,id LIMIT 1", (now,)).fetchone()
                 if row is None:
                     break
-                handler = self.handlers.get(row["type"])
-                if handler is None:
-                    raise UnavailableHandler(row["type"])
-                result, applied = handler(tx, row)
-                tx.execute("UPDATE scheduled_event SET state=?,result=? WHERE id=? AND state='PENDING'",
-                           ("APPLIED" if applied else "CANCELLED", canonical(result), row["id"]))
-                self.store.event(tx, row["aggregate_id"], "ScheduledEventApplied" if applied else "ScheduledEventCancelled",
-                                 {"event_id": row["id"], "result": result, "applied_world_ms": now},
-                                 row["due_world_ms"], committed_ms=now)
+                self.apply_event_in(tx, row, now)
             count += 1
         return count
 

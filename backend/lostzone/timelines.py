@@ -48,7 +48,7 @@ class Timelines:
                                            {"name": name, "timeline_id": timeline_id, "phase": phase})
             event = self.store.event(tx, "world:" + name, "TimelineScheduled", payload, self.world.now())
             return {"timeline_id": timeline_id, "version": version + 1, "event": event}
-        return self.store.command(actor, command_id, payload, apply)
+        return self.store.command(actor, command_id, payload, self.world.mutation(apply))
 
     @staticmethod
     def event_id(name, timeline_id, phase):

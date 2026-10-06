@@ -15,6 +15,8 @@ class World:
         self.scale_handlers = []
         self.quest_death_queue = None
         self.scheduler_handlers = {}
+        self.mutation_drain = None
+        self._mutation_cut = None
         self.plan_validators = {}
         if store.epoch is not None:
             raise Conflict("world service already bootstrapped")
@@ -51,12 +53,36 @@ class World:
     def now(self):
         with self.store.lock:
             self.store.require_epoch(self.store.db)
+            if self._mutation_cut is not None:
+                return self._mutation_cut
             now = self.monotonic()
             if now < self._last_ns:
                 raise Unavailable("monotonic clock regressed")
             self._last_ns = now
             result = self._anchor_ms + (now - self._anchor_ns) / 1_000_000 * self._scale
             return finite(result)
+
+    def mutation(self, apply):
+        """Hold one world instant and settle due events before state replacement.
+
+        Store.command invokes this only after authorization/idempotency checks,
+        while its exclusive transaction lock is held. Failures roll back both
+        dependency resolution and the command; the frozen clock always clears.
+        """
+        def guarded(tx):
+            if self._mutation_cut is not None:
+                raise Unavailable("recursive world mutation during event resolution")
+            cutoff = self.now()
+            self._mutation_cut = cutoff
+            try:
+                if self.mutation_drain is None:
+                    from .scheduler import Scheduler
+                    Scheduler(self)
+                self.mutation_drain(tx, cutoff)
+                return apply(tx)
+            finally:
+                self._mutation_cut = None
+        return guarded
 
     def real_ms(self):
         # Single-host lease clock. A wall-clock rollback closes mutation
@@ -103,7 +129,7 @@ class World:
                        (name, version + 1, encoded))
             event = self.store.event(tx, "world:" + name, "WorldStateChanged", payload, self.now())
             return {"name": name, "version": version + 1, "event": event}
-        return self.store.command(actor, command_id, payload, apply)
+        return self.store.command(actor, command_id, payload, self.mutation(apply))
 
     def set_scale(self, actor, command_id, value):
         finite(value, 0.001, 1000)
@@ -112,12 +138,14 @@ class World:
             now = self.now()
             anchor_ns = self._last_ns
             def apply(tx):
+                nonlocal now, anchor_ns
+                now, anchor_ns = self.now(), self._last_ns
                 for handler in self.scale_handlers:
                     handler(tx, self._scale, value, now)
                 tx.execute("UPDATE world SET world_ms=?,scale=?,sequence=sequence+1 WHERE singleton=1", (now, value))
                 event = self.store.event(tx, "world", "ScaleChanged", {"scale": value}, now)
                 return {"world_ms": now, "scale": value, "event": event}
-            result = self.store.command(actor, command_id, {"type": "scale", "value": value}, apply)
+            result = self.store.command(actor, command_id, {"type": "scale", "value": value}, self.mutation(apply))
             # A retry after later changes returns its old result without
             # rebasing to that stale result or applying the scale twice.
             current = self.store.db.execute("SELECT scale FROM world WHERE singleton=1").fetchone()[0]

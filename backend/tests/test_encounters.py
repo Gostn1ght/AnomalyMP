@@ -110,6 +110,30 @@ class EncounterTest(unittest.TestCase):
         self.assertEqual(self.row(self.second)["alive"],1)
         self.assertEqual(json.loads(self.store.db.execute("SELECT state FROM item WHERE id=?",(self.weapon,)).fetchone()[0])["rounds"],30)
 
+    def test_late_diplomacy_change_preserves_already_due_fight(self):
+        self.schedule();self.ns=200_000_000
+        self.world.set_state("admin",uid(),"relations",1,{"hostile":[]})
+        self.assertEqual(self.result()["casualties"],[self.second])
+        self.assertEqual(self.row(self.second)["alive"],0)
+        self.assertLess(json.loads(self.store.db.execute("SELECT state FROM item WHERE id=?",(self.weapon,)).fetchone()[0])["rounds"],30)
+        evidence = [event for event in self.store.events() if event["type"]=="OfflineEncounterResolved"]
+        self.assertEqual((evidence[0]["world_ms"],self.result()["occurred_ms"]),(1000,1000))
+        self.assertEqual(self.scheduler.run_due(budget_ms=1000),0)
+
+    def test_stale_hydration_cannot_cancel_due_fight_and_retry_uses_resolved_capture(self):
+        self.schedule();self.ns=200_000_000
+        with self.assertRaises(Conflict):
+            self.offline.hydrate("a",uid(),self.first,"cordon",self.fence,2)
+        # CAS failure rolls the dependency back too. Background catch-up
+        # commits it before the adapter reads and retries the latest version.
+        self.assertEqual(self.row(self.second)["alive"],1)
+        self.assertEqual(self.store.db.execute("SELECT state FROM scheduled_event WHERE id=?",(self.event,)).fetchone()[0],"PENDING")
+        self.assertEqual(self.scheduler.run_due(budget_ms=1000),1)
+        result = self.offline.hydrate("a",uid(),self.first,"cordon",self.fence,self.row(self.first)["version"])
+        self.assertEqual(result["entities"][0]["writer"],"a")
+        self.assertEqual(self.row(self.second)["alive"],0)
+        self.assertEqual(self.result()["casualties"],[self.second])
+
     def test_resolution_failure_rolls_back_ammo_health_death_and_evidence(self):
         self.schedule()
         self.ns=100_000_000

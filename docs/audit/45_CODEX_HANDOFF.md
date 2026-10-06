@@ -409,3 +409,16 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   No invisible spawn/full task-binary validation/arbitrary Lua rollback claim.
   Permanent failures stay held for repair/restart; unfinished-login cancellation
   needs safe runtime item rollback before releasing account ownership.
+
+- b3fbca66e Foundation 37410997235 SUCCESS GCC/MSVC, full DX11 37410997168
+  SUCCESS. No Codex runtime installation. Follow-up keeps pending net_Ready
+  metadata and validates/consumes input sequence without queuing movement, so
+  a restore longer than the 10,000-command window cannot lock out control.
+  Actual decoder fixture covers 12,000 commands, malformed/replay/angles/window,
+  wrap and first-ready input. Native follow-up awaiting Actions after push.
+- Backend world-state/scale/timeline/route/dehydrate/hydrate admission now
+  settles prior due events at one frozen cut in the command transaction.
+  Atomic refusal on stale capture/error/64-event or 5-ms exhaustion, background
+  batches unblock retry. Local suite 159 PASS. No automatic contact planner
+  or native AOI/LOD adoption enabled; resolver execution fencing/duration and
+  native authority bridge still open. Backend Actions pending after push.

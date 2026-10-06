@@ -748,3 +748,37 @@ Lua mutations. Runtime task/info projections can change while the Actor remains
 pending; the old durable file is held. Permanent spawn/corrupt-state failure
 stays held for repair/restart; cancellation/rollback of an unfinished target
 login and actual live admission acceptance remain open.
+
+## Pending restore transport continuity
+
+b3fbca66e Foundation 37410997235 SUCCESS on GCC/MSVC; full DX11
+37410997168 SUCCESS. Target admission barrier has a compiled package.
+Follow-up preserves M_CL_UPDATE's net_Ready metadata while refusing its Actor
+payload. Pending M_CL_INPUT reaches the actual bounded decoder and advances
+only a valid sequence; movement queue, jump edge and last movement receive
+time remain held. Dropping the packet before decoding exceeded the 10,000
+forward window during long retries and permanently refused later movement.
+Actual decoder fixture now sends 12,000 pending commands, malformed/replayed/
+oversized/out-of-window/nonfinite inputs and u32 wrap, then checks the first
+ready input is queued. Native follow-up execution remains Actions only.
+
+## Event-time barrier before abstract state replacement
+
+World state/diplomacy, scale, timeline replacement, routes and representation
+commands now drain earlier scheduled dependencies in the same transaction at
+one frozen world instant. Shared real resolvers are used; due combat cannot
+be silently cancelled by a later hydration/diplomacy/route change. Mutation
+starts only after authorization and idempotency lookup. Version conflicts or
+resolver errors roll back dependency effects/evidence too; adapters must run
+background catch-up and retry the latest capture rather than bypassing CAS.
+
+Drain admission is bounded to 64 events / 5 ms. Remaining backlog refuses the
+command without partial commit; the background runner commits bounded batches
+to unblock a retry. Frozen time clears on every exit, and scale rebasing uses
+the captured clock anchor even when a resolver takes time. Missing handlers
+and recursive mutation refuse admission. Local complete suite: 159 PASS.
+
+This does not enable automatic contact rediscovery or recurring coarse fights,
+nor install a native World Transfer/AOI/LOD adapter. A resolver replan must not
+cancel its own still-PENDING event; execution fencing and time/duration policy
+remain prerequisites. Native follow-up and backend Actions results pending.

@@ -86,7 +86,7 @@ class TimelineTest(unittest.TestCase):
                                 {"WARNING": 100, "ACTIVE": 200, "PEAK": 300, "ENDED": 400},
                                 {"intensity": 1, "seed": 123})
         self.ns = 7 * 3600 * 1_000_000_000
-        self.world.set_state("admin", uid(), "territory", 0, {"faction": "duty"})
+        self.world.sample()
         floor = self.world.now()
         self.assertEqual(self.scheduler.run_due(limit=2, budget_ms=1000), 2)
         self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE state='PENDING'").fetchone()[0], 2)
