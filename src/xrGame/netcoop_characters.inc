@@ -31,7 +31,10 @@ bool server_character_accepts(xrClientData* CL, u16 type)
 	if (!CL || !CL->owner || s_character_restore.find(CL->owner->ID) == s_character_restore.end()) return true;
 	switch (type)
 	{
-	case M_CL_INPUT: case M_CL_UPDATE: case M_EVENT: case M_EVENT_PACK:
+	case M_CL_UPDATE:
+		CL->net_Ready = TRUE; // acknowledge connection readiness, never apply the unfinished actor payload
+		return false;
+	case M_CL_INPUT: case M_EVENT: case M_EVENT_PACK:
 	case M_MOVE_PLAYERS_RESPOND: case M_GAMEMESSAGE: case M_PLAYER_FIRE:
 	case M_NETCOOP_TRADE: case M_NETCOOP_CAMPFIRE: case M_NETCOOP_ITEM_ACTION:
 	case M_NETCOOP_TRANSFER: case M_NETCOOP_ITEM_REPORT: case M_NETCOOP_TALK:

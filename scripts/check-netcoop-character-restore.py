@@ -29,6 +29,13 @@ save = characters[characters.index("static bool character_save_actor("):characte
 assert "s_character_restore.find(actor_id)" in save
 server = (root / "src/xrGame/xrServer.cpp").read_text(encoding="utf-8")
 assert server.index("GetCurrentThreadId() != m_netcoop_main_thread") < server.index("server_character_accepts(CL, type)") < server.index("case M_CL_INPUT:")
+assert "type != M_CL_INPUT && !netcoop::server_character_accepts(CL, type)" in server
+start = server.index("case M_CL_INPUT:")
+input_case = server[start:server.index("case M_UPDATE:", start)]
+assert input_case.index("m_last_received_sequence = cmd.sequence") < input_case.index("server_character_accepts(CL, M_CL_INPUT)") < input_case.index("m_last_input_receive_time =") < input_case.index("m_pending_inputs.push_back")
+messages = (root / "src/xrServerEntities/xrMessages.h").read_text(encoding="utf-8")
+input_types = messages[messages.index("struct ActorInputCommand"):messages.index("enum\n")]
+input_case = input_case.replace("netcoop::server_character_accepts", "server_character_accepts")
 packet_names = sorted(set(re.findall(r"\bM_[A-Z_]+\b",gate)))
 enums = "enum PacketType {" + ",".join(packet_names+["M_CLIENTREADY","M_CLIENT_REQUEST_CONNECTION_DATA","M_CHANGE_LEVEL","M_CHAT_MESSAGE"]) + "};\n"
 source = r'''
@@ -41,12 +48,24 @@ source = r'''
 #include <memory>
 #include <iostream>
 #include <algorithm>
+#include <cmath>
+#include <deque>
+#include <limits>
 using u8=unsigned char;using u16=unsigned short;using u32=unsigned int;
+constexpr bool TRUE=true;
 using shared_str=std::string;using xr_string=std::string;
 template<class T>using xr_vector=std::vector<T>;
 template<class K,class V>using xr_map=std::map<K,V>;
 template<class T,class P>T smart_cast(P* value){return dynamic_cast<T>(value);}
 void Msg(const char*,...){}
+''' + input_types + r'''
+namespace ACTOR_DEFS {constexpr u16 mcJump=16,kM1InputIntentFlags=31;}
+constexpr float PI_MUL_2=6.283185307f,PI_DIV_2=1.570796327f;
+bool _valid(float value){return std::isfinite(value);}
+float _abs(float value){return std::abs(value);}
+float angle_normalize_signed(float value){return std::remainder(value,PI_MUL_2);}
+void clamp(float& value,float low,float high){value=std::max(low,std::min(high,value));}
+struct DeviceStub {u32 dwTimeGlobal=123;};DeviceStub Device;
 struct IReader {
  const u8* data;size_t length,position=0;
  IReader(const void* bytes,size_t size):data(static_cast<const u8*>(bytes)),length(size){}
@@ -68,7 +87,13 @@ CGameTaskManager* server_task_manager(u16){return &fixture_manager;}
 void clear_tasks(CGameTaskManager* manager){for(auto& key:manager->entries)delete key.game_task;manager->entries.clear();manager->MarkChanged();}
 struct Info {u32 value=0;Info& registry(){return *this;}u32& objects(){return value;}};
 void load_data(u32& value,IReader& reader){value=reader.r_u32();}
-struct NET_Packet {bool readable=true;void w_u16(u16){}void w_u8(u8){}};
+struct NET_Packet {
+ bool readable=true;struct Buffer {u32 count=16;u8 data[32]={};}B;u32 position=2;
+ u32 r_tell()const{return position;}
+ template<class T>void read(T& value){assert(position+sizeof(T)<=B.count);std::memcpy(&value,B.data+position,sizeof(T));position+=u32(sizeof(T));}
+ void r_u32(u32& value){read(value);}void r_u16(u16& value){read(value);}void r_float(float& value){read(value);}
+ void w_u16(u16){}void w_u8(u8){}
+};
 std::vector<int>fixture_events;
 struct CGameObject {
  virtual ~CGameObject()=default;u16 id=7;CGameObject* parent=nullptr;
@@ -88,10 +113,17 @@ struct AI {ScriptEngine scripts;ScriptEngine& script_engine(){return scripts;}};
 AI fixture_ai;AI& ai(){return fixture_ai;}
 struct Flags {void assign(int){}};
 struct CSE_Abstract {
+ virtual ~CSE_Abstract()=default;
  u16 ID=7,ID_Phantom=0xffff,ID_Parent=0xffff;Flags s_flags;
  bool Spawn_Read(NET_Packet& packet){return packet.readable;}
 };
-struct xrClientData {CSE_Abstract* owner;int ID=1;};
+struct CSE_ALifeCreatureActor:CSE_Abstract {};
+struct xrClientData {
+ CSE_Abstract* owner;int ID=1;bool net_Ready=false;
+ u32 m_last_received_sequence=0,m_last_input_receive_time=0;bool m_pending_jump_edge=false;
+ std::deque<ActorInputCommand> m_pending_inputs;
+ explicit xrClientData(CSE_Abstract* entity,int client_id=1):owner(entity),ID(client_id){}
+};
 struct Character {std::vector<u8>progress;
  struct Item {std::string section="item";u16 parent=0,place=0;NET_Packet spawn;std::vector<u8>state;};
  std::vector<Item>items;
@@ -114,7 +146,33 @@ struct SInvItemPlace {u16 value=0,type=eItemPlaceSlot,slot_id=1;};
 ''' + enums + r'''
 xr_map<xr_string,Character>s_characters;
 xr_map<u16,xr_string>s_actor_character;
-''' + declarations + '\nstatic const u32 task_origin_marker=0x524f434e;\n' + progress + gate + spawn + update + r'''
+''' + declarations + '\nstatic const u32 task_origin_marker=0x524f434e;\n' + progress + gate + spawn + update + '\nvoid receive_input(NET_Packet& P,xrClientData* CL){switch(M_CL_INPUT){\n' + input_case + '\ndefault:break;}}\n' + r'''
+NET_Packet input_packet(u32 sequence,u16 flags=ACTOR_DEFS::mcJump,float yaw=0,float pitch=0){
+ NET_Packet packet;u32 position=2;
+ auto write=[&](const auto& value){std::memcpy(packet.B.data+position,&value,sizeof(value));position+=u32(sizeof(value));};
+ write(sequence);write(flags);write(yaw);write(pitch);return packet;
+}
+void input_cases(){
+ CSE_ALifeCreatureActor owner;xrClientData client(&owner);s_character_restore[owner.ID]={};
+ for(u32 sequence=1;sequence<=12000;++sequence){auto packet=input_packet(sequence);receive_input(packet,&client);}
+ assert(client.m_last_received_sequence==12000 && client.m_pending_inputs.empty());
+ assert(client.m_last_input_receive_time==0 && !client.m_pending_jump_edge);
+ auto reject=[&](NET_Packet packet){receive_input(packet,&client);assert(client.m_last_received_sequence==12000 && client.m_pending_inputs.empty());};
+ reject(input_packet(12000));reject(input_packet(11999));reject(input_packet(22001));
+ reject(input_packet(12001,0x8000));reject(input_packet(12001,0,std::numeric_limits<float>::quiet_NaN()));
+ reject(input_packet(12001,0,100));reject(input_packet(12001,0,0,std::numeric_limits<float>::infinity()));
+ auto short_packet=input_packet(12001);--short_packet.B.count;reject(short_packet);
+ auto extra_packet=input_packet(12001);++extra_packet.B.count;reject(extra_packet);
+ s_character_restore.clear();auto ready=input_packet(12001);receive_input(ready,&client);
+ assert(client.m_last_received_sequence==12001 && client.m_pending_inputs.size()==1);
+ assert(client.m_last_input_receive_time==Device.dwTimeGlobal && client.m_pending_jump_edge);
+ client.m_pending_inputs.clear();client.m_pending_jump_edge=false;client.m_last_input_receive_time=0;
+ client.m_last_received_sequence=0xfffffff0u;s_character_restore[owner.ID]={};
+ for(u32 i=1;i<=32;++i){auto packet=input_packet(0xfffffff0u+i);receive_input(packet,&client);}
+ assert(client.m_last_received_sequence==16 && client.m_pending_inputs.empty() && !client.m_pending_jump_edge);
+ s_character_restore.clear();auto wrapped=input_packet(17);receive_input(wrapped,&client);
+ assert(client.m_pending_inputs.size()==1 && client.m_last_received_sequence==17);
+}
 void number(std::vector<u8>& data,u32 value){for(u32 i=0;i<4;++i)data.push_back(u8(value>>(i*8)));}
 void text(std::vector<u8>& data,const std::string& value){data.insert(data.end(),value.begin(),value.end());data.push_back(0);}
 std::vector<u8> saved(u32 count=1,bool footer=true){
@@ -155,7 +213,7 @@ void admission_cases(CActor& actor,xrClientData& client){
  characters_restore_update();assert(s_character_restore.size()==1 && fixture_restore_calls==0);
  child.parent=&root_item;fixture_throw=true;
  characters_restore_update();assert(s_character_restore.size()==1 && fixture_restore_calls==1 && fixture_events.empty());
- assert(!server_character_accepts(&client,M_CL_INPUT) && !server_character_accepts(&client,M_CL_UPDATE));
+ assert(!server_character_accepts(&client,M_CL_INPUT) && !server_character_accepts(&client,M_CL_UPDATE) && client.net_Ready);
  assert(!server_character_accepts(&client,M_EVENT_PACK) && !server_character_accepts(&client,M_NETCOOP_ITEM_REPORT));
  assert(server_character_accepts(&client,M_CLIENTREADY) && server_character_accepts(&client,M_CLIENT_REQUEST_CONNECTION_DATA));
  assert(server_character_accepts(&client,M_CHANGE_LEVEL) && server_character_accepts(&client,M_CHAT_MESSAGE));
@@ -179,7 +237,7 @@ void inventory_cases(xrClientData& client){
  {Game game;xrServer server{&game};CharacterRestore restore;character.items[1].parent=3;assert(!character_spawn_saved_items(&server,&client,character,restore));assert(game.begun==0);}
  {Game game;xrServer server{&game};CharacterRestore restore;character.items.resize(513);assert(!character_spawn_saved_items(&server,&client,character,restore));assert(game.begun==0);}
 }
-int main(){CActor actor;CSE_Abstract owner;xrClientData client{&owner,1};reset(actor);progress_cases(actor);admission_cases(actor,client);inventory_cases(client);clear_tasks(&fixture_manager);
+int main(){input_cases();CActor actor;CSE_Abstract owner;xrClientData client{&owner,1};reset(actor);progress_cases(actor);admission_cases(actor,client);inventory_cases(client);clear_tasks(&fixture_manager);
  std::cout<<"PASS actual target restore: inventory creation/parent/state completeness, pending gameplay refusal, progress hook failure/retry, task/origin bounds and wrap-safe admission\n";
 }
 '''

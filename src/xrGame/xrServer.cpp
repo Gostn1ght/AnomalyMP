@@ -820,7 +820,9 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
     if (!CL->flags.bLocal && netcoop::enabled())
     {
         if (netcoop::server_client_leaving(CL)) return 0; // frozen until it reconnects elsewhere
-        if (!netcoop::server_character_accepts(CL, type)) return 0; // saved inventory/progress must be complete first
+        // Input still validates/advances its sequence while restore is pending.
+        // Otherwise a long restore exceeds the forward window and locks out movement.
+        if (type != M_CL_INPUT && !netcoop::server_character_accepts(CL, type)) return 0;
         if (type == M_CHANGE_LEVEL && CL->netcoop_role != netcoop::role_none)
         {
             netcoop::server_on_change_level(this, CL, P);
@@ -869,6 +871,7 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
 		if (is_sequence_newer(cmd.sequence, CL->m_last_received_sequence) && 
 		    is_sequence_in_forward_window(cmd.sequence, CL->m_last_received_sequence)) {
 			CL->m_last_received_sequence = cmd.sequence;
+			if (!netcoop::server_character_accepts(CL, M_CL_INPUT)) break;
 			CL->m_last_input_receive_time = Device.dwTimeGlobal;
 			if (cmd.mstate & ACTOR_DEFS::mcJump)
 				CL->m_pending_jump_edge = true;
