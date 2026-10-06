@@ -1,0 +1,115 @@
+----------------------------------------------------------------------
+-- Corpses disappear (owner 2026-10-06)
+----------------------------------------------------------------------
+-- GAMMA's release_body_manager measures its distance to db.actor, which on
+-- the dedicated server is the hidden anchor Actor at the map's start: near
+-- the start corpses were never removed, elsewhere a corpse could vanish
+-- under a player who was searching it. On the server this module replaces it:
+--   * an NPC's or mutant's corpse goes (with what it carries) CORPSE_TIME
+--     after death, once no player is within PLAYER_RANGE;
+--   * above MAX_CORPSES on the map the oldest go first, still never next to
+--     a player;
+--   * story characters and corpses with quest items stay (as in GAMMA).
+-- Death times live in the world save (alife_storage_manager), so the clock
+-- of a corpse continues after a server restart.
+
+local CORPSE_TIME = 10 * 60      -- real seconds after death
+local PLAYER_RANGE = 30          -- m: a corpse next to a player is kept
+local MAX_CORPSES = 40
+local CHECK_EVERY = 30000        -- ms
+
+local next_check = 0
+local scanned = false
+
+local function deaths()
+	local state = alife_storage_manager.get_state()
+	state.netcoop_corpses = state.netcoop_corpses or {}
+	return state.netcoop_corpses
+end
+
+local function note_death(victim)
+	if victim and victim.id then deaths()[victim:id()] = os.time() end
+end
+
+local function player_positions()
+	local list = {}
+	for id in string.gmatch(netcoop_players and netcoop_players() or "", "%d+") do
+		local obj = level.object_by_id(tonumber(id))
+		if obj then list[#list + 1] = obj:position() end
+	end
+	return list
+end
+
+local function near_player(pos, players)
+	for _, p in ipairs(players) do
+		if p:distance_to_sqr(pos) <= PLAYER_RANGE * PLAYER_RANGE then return true end
+	end
+	return false
+end
+
+local function protected(id)
+	if get_object_story_id(id) then return true end
+	local obj = level.object_by_id(id)
+	if obj and utils_item and utils_item.has_quest_item and utils_item.has_quest_item(obj) then return true end
+	return false
+end
+
+-- Once per process: corpses of the loaded world that have no time yet (made
+-- before this module) start their clock now.
+local function scan_existing(sim, list)
+	local here = level.name()
+	local gg = game_graph()
+	for i = 1, 65534 do
+		local se = sim:object(i)
+		if se and not list[i] and (IsStalker(nil, se:clsid()) or IsMonster(nil, se:clsid())) and se.alive and not se:alive()
+			and gg:vertex(se.m_game_vertex_id) and alife():level_name(gg:vertex(se.m_game_vertex_id):level_id()) == here then
+			list[i] = os.time()
+		end
+	end
+end
+
+function update()
+	local t = time_global()
+	if t < next_check then return end
+	next_check = t + CHECK_EVERY
+	local sim = alife()
+	if not sim then return end
+	local list = deaths()
+	if not scanned then scanned = true; scan_existing(sim, list) end
+	local players = player_positions()
+	local now = os.time()
+	local corpses, order = 0, {}
+	for id, died in pairs(list) do
+		local se = sim:object(id)
+		if not se or (se.alive and se:alive()) then
+			list[id] = nil -- gone already (looted body released, or not a corpse)
+		else
+			corpses = corpses + 1
+			order[#order + 1] = { id = id, died = died, se = se }
+		end
+	end
+	table.sort(order, function(a, b) return a.died < b.died end)
+	local over = corpses - MAX_CORPSES
+	local released = 0
+	for _, c in ipairs(order) do
+		local old = now - c.died >= CORPSE_TIME
+		if (old or over > 0) and not near_player(c.se.position, players) and not protected(c.id) then
+			safe_release_manager.release(c.se)
+			list[c.id] = nil
+			released = released + 1
+			over = over - 1
+		end
+	end
+	if released > 0 then printf("[Lost Zone][corpses] %s corpse(s) removed, %s left", tostring(released), tostring(corpses - released)) end
+end
+
+function on_game_start()
+	if not (netcoop_enabled and netcoop_enabled()) or (netcoop_pure_client and netcoop_pure_client()) then return end
+	RegisterScriptCallback("npc_on_death_callback", note_death)
+	RegisterScriptCallback("monster_on_death_callback", note_death)
+	-- GAMMA's cleaner measures to the hidden anchor Actor here: off.
+	pcall(function()
+		release_body_manager.Crelease_body.clear = function() end
+		release_body_manager.get_release_body_manager().clear = function() end
+	end)
+end

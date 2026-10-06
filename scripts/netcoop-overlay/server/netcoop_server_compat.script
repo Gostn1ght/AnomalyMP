@@ -966,7 +966,7 @@ function on_game_start()
 	if AddUniqueCall and ProcessEventQueue then
 		AddUniqueCall(server_event_queue)
 		AddUniqueCall(server_world_loop)
-		AddUniqueCall(function() process_pending_inventory(); owned_objects_update(); stash_visits_update(); keep_switch_distance(); if netcoop_transit then netcoop_transit.update() end; if netcoop_factions then netcoop_factions.update_online() end; if netcoop_ranks then netcoop_ranks.update() end; if netcoop_squads then netcoop_squads.update() end; return false end)
+		AddUniqueCall(function() process_pending_inventory(); owned_objects_update(); stash_visits_update(); keep_switch_distance(); if netcoop_transit then netcoop_transit.update() end; if netcoop_factions then netcoop_factions.update_online() end; if netcoop_ranks then netcoop_ranks.update() end; if netcoop_squads then netcoop_squads.update() end; if netcoop_corpses then netcoop_corpses.update() end; return false end)
 		printf("[Lost Zone] server time event queue installed")
 	end
 	-- base-game's NPC vision hook reads db.actor (torch, flashlight) for every
