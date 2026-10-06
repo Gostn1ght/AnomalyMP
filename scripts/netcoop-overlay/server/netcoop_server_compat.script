@@ -500,6 +500,33 @@ server_debug_file = function()
 	if get_console then get_console():execute("flush") end
 end
 
+-- NPC voices with no player near (2026-10-06): GAMMA's sound themes measure
+-- the distance to db.actor for the PDA copy of a line, and an NPC update
+-- with no player to bind ended in a Lua panic that took the server down
+-- (sound_theme.script:217) once smart terrains gave online NPCs their jobs
+-- on an empty server. The hidden anchor Actor stands in for db.actor, as in
+-- the world tick; a failing line is logged, never fatal.
+local voice_errors = 0
+local function with_anchor(name, f)
+	return function(...)
+		if rawget(db, "actor") then return f(...) end
+		db.actor = level.object_by_id(0)
+		local r = {pcall(f, ...)}
+		db.actor = nil
+		if r[1] then return unpack(r, 2) end
+		voice_errors = voice_errors + 1
+		if voice_errors <= 20 then printf("[Lost Zone] NPC voice error in %s: %s", name, tostring(r[2])) end
+	end
+end
+
+function install_npc_voices()
+	if not xr_sound or xr_sound.netcoop_voices then return end
+	xr_sound.netcoop_voices = true
+	for _, name in ipairs({"set_sound_play", "play_sound_looped"}) do
+		if type(xr_sound[name]) == "function" then xr_sound[name] = with_anchor(name, xr_sound[name]) end
+	end
+end
+
 local world_errors = 0
 local function server_world_loop()
 	-- This level call continues even with no connected players. World
@@ -960,6 +987,7 @@ function on_game_start()
 		sound_theme.load_sound()
 		printf("[Lost Zone] server NPC sound themes loaded")
 	end
+	install_npc_voices()
 	-- SMR reads its options through MCM; log what the server actually sees
 	-- (a civil war setting would turn every stalker against its own squad).
 	local ok, res = pcall(function()
