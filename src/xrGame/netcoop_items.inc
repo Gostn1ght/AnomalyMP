@@ -296,6 +296,8 @@ void server_items_update(xrServer* server)
 					item_state::dequantize(current.condition));
 			if (record.owner != 0xffff) save_actors.push_back(record.owner);
 			if (owner != 0xffff) save_actors.push_back(owner);
+			// From the ground, a box or a body into a player's inventory.
+			if (record.owner == 0xffff && owner != 0xffff) world_store_note_taken(owner);
 			record.owner = owner;
 			record.sent = current;
 			++record.version;

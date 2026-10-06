@@ -720,6 +720,17 @@ static bool character_save_actor(u16 actor_id, const CharacterDestination* desti
 {
 	Character* tracked = character_tracked_for_save(actor_id);
 	if (!tracked || !g_pGameLevel || !Level().Server) return false;
+	// Items taken from the world since the last world commit: writing the
+	// character first would duplicate them if the server died before the
+	// world was saved (on the ground again and in the inventory). Background
+	// saves wait for the world save (requested now); a final save (logout,
+	// level changer) saves the world first.
+	if (!world_store_takes_committed(actor_id))
+	{
+		if (background) { world_store_request_save(); return false; }
+		world_store_save_now("player items");
+		if (!world_store_takes_committed(actor_id)) Msg("! [Lost Zone] world save before character save failed; saving the character anyway");
+	}
 	Character& character = *tracked;
 	xrServer* server = Level().Server;
 	CSE_Abstract* actor = server->game->get_entity_from_eid(actor_id);

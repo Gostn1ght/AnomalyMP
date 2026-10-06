@@ -24,6 +24,20 @@ static const u32 world_save_period_ms = 300000;
 static bool s_world_loaded = false;
 static bool s_world_cleanup_pending = false;
 static u32 s_world_last_save = 0;
+static bool world_store_name(string64& out);
+static u32 s_world_commits = 0;              // successful world commits in this process
+static bool s_world_save_requested = false;   // a character waits for a world commit
+static xr_map<u16, u32> s_world_taken;        // player Actor -> commit count when it took an item
+
+static void world_store_note_taken(u16 actor_id) { s_world_taken[actor_id] = s_world_commits; }
+static void world_store_request_save() { s_world_save_requested = true; }
+static bool world_store_takes_committed(u16 actor_id)
+{
+	string64 world;
+	if (!world_store_name(world)) return true; // no persistent world: nothing to order
+	auto taken = s_world_taken.find(actor_id);
+	return taken == s_world_taken.end() || s_world_commits > taken->second;
+}
 static u32 s_world_previous_players = 0;
 static bool s_world_committed = false;
 static u32 s_world_last_attempt = 0;
@@ -327,6 +341,8 @@ bool world_store_save_now(LPCSTR reason)
 	}
 	s_world_last_save = real_time_ms();
 	s_world_committed = true;
+	++s_world_commits;
+	s_world_save_requested = false;
 	Msg("[NetAnomaly][world] saved %s (%s) in %u ms", save, reason, timer.GetElapsed_ms());
 	return true;
 }
@@ -365,6 +381,9 @@ static void world_store_update(xrServer* server)
 		return;
 	}
 	if (counter.count == 0 && s_world_previous_players > 0) world_store_save_now("last player left");
+	// Characters with items from the world wait for this; at most once a minute.
+	else if (s_world_save_requested && now - s_world_last_save >= 60000 &&
+		now - s_world_last_attempt >= world_save_retry_ms) world_store_save_now("player items");
 	else if (now - s_world_last_save >= world_save_period_ms &&
 		now - s_world_last_attempt >= world_save_retry_ms) world_store_save_now("periodic");
 	s_world_previous_players = counter.count;

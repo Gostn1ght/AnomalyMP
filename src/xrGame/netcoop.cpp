@@ -1208,6 +1208,12 @@ static u32 storage_capacity(bool safe);
 static u32 storage_section_cost(LPCSTR section);
 static void item_state_for_save(u16 id, xr_vector<u8>& out);
 static void item_state_restore(u16 id, const xr_vector<u8>& saved);
+// netcoop_world_store.inc: a character that took items from the world is
+// written only after the world commit that no longer has them (doc 43 G08).
+static bool world_store_takes_committed(u16 actor_id);
+static void world_store_request_save();
+bool world_store_save_now(LPCSTR reason);
+static void world_store_note_taken(u16 actor_id);
 #include "netcoop_characters.inc"
 #include "netcoop_storage.inc"
 #include "netcoop_pda.inc"
