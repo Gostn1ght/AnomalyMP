@@ -425,8 +425,16 @@ local function in_cluster()
 	end
 	return cluster_weather
 end
+-- Game hours since 2012-01-01. diffSec returns a float: counted from year 0
+-- (about 6e10 s) it moved in ~1.1-hour steps, which broke the emission
+-- schedule and the weather hour (2026-10-06); from 2012 it is exact to seconds.
+local function hours_since_2012()
+	local base = game.CTime()
+	if base.set then base:set(2012, 1, 1, 0, 0, 0, 0) end
+	return game.get_game_time():diffSec(base) / 3600
+end
 local function cluster_hour()
-	return math.floor(game.get_game_time():diffSec(game.CTime()) / 3600)
+	return math.floor(hours_since_2012())
 end
 local function hour_seed(hour) math.randomseed((hour % 1000003) * 7919 + 104729) end
 local function install_cluster_weather(wm)
@@ -1382,7 +1390,7 @@ local function visit_state()
 end
 
 local function game_hours()
-	return game.get_game_time():diffSec(game.CTime()) / 3600
+	return hours_since_2012()
 end
 
 -- World stash ids, rebuilt every game hour (boxes are few and static).

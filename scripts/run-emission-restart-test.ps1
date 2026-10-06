@@ -53,8 +53,8 @@ function Run-Lua($code, $what) {
     if ($m[1] -ne "result") { throw "$what failed on the server: $($m[2])" }
     return $m[2]
 }
-$frequency = "ui_options.set('alife/event/emission_frequency', 1); ui_options.set('alife/event/emission_state', true); return 'frequency ' .. tostring(ui_options.get('alife/event/emission_frequency'))"
-$phase = "local s = alife_storage_manager.get_state(); return 'PHASE ' .. string.format('%.0f', netcoop_emission.current_elapsed()) .. ' slot ' .. tostring(s.netcoop_emission_slot) .. ' done ' .. tostring(s.netcoop_emission_done)"
+$frequency = "ui_options.set('alife/event/emission_frequency', 1); ui_options.set('alife/event/emission_state', true); return 'frequency ' .. tostring(ui_options.get('alife/event/emission_frequency')) .. ' hours ' .. string.format('%.3f', game.get_game_time():diffSec(game.CTime()) / 3600)"
+$phase = "local s = alife_storage_manager.get_state(); return 'PHASE ' .. string.format('%.0f', netcoop_emission.current_elapsed()) .. ' slot ' .. tostring(s.netcoop_emission_slot) .. ' done ' .. tostring(s.netcoop_emission_done) .. ' hours ' .. string.format('%.3f', game.get_game_time():diffSec(game.CTime()) / 3600)"
 
 $p = Start-Marsh "a"
 try {
