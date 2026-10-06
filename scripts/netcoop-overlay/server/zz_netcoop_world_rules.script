@@ -42,8 +42,44 @@ local function section_limit(smart, params)
     return value > 0 and math.max(1, math.ceil(value)) or 0
 end
 
+-- No squad appears in front of a player: GAMMA measured the respawn radius
+-- to db.actor only, the hidden anchor Actor on the dedicated server.
+local function player_near(smart)
+    local radius = smart.respawn_radius or 150
+    local pos = smart.position
+    if not pos then return false end
+    for id in string.gmatch(netcoop_players and netcoop_players() or "", "%d+") do
+        local obj = level.object_by_id(tonumber(id))
+        if obj and obj:position():distance_to_sqr(pos) < radius * radius then return true end
+    end
+    return false
+end
+
+-- Cluster: this server's copy of another map is not its world (that map's
+-- server owns it); spawning there only fills memory. Checked once per smart.
+local cluster_file_present = nil
+local smart_here = {}
+local function on_this_map(smart)
+    if cluster_file_present == nil then
+        local path = getFS and getFS():update_path("$app_data_root$", "netcoop_cluster.ltx")
+        local file = path and io.open(path, "r")
+        if file then file:close() end
+        cluster_file_present = file ~= nil
+    end
+    if not cluster_file_present then return true end
+    local known = smart_here[smart.id]
+    if known == nil then
+        local gg, sim = game_graph(), alife()
+        local vertex = gg and smart.m_game_vertex_id and gg:vertex(smart.m_game_vertex_id)
+        known = not vertex or sim:level_name(vertex:level_id()) == level.name()
+        smart_here[smart.id] = known
+    end
+    return known
+end
+
 local function respawn_once(original, smart, ...)
     if not (smart.respawn_params and smart.already_spawned) then return original(smart, ...) end
+    if not on_this_map(smart) or player_near(smart) then return end
     local totals = spawned_totals(smart)
     local held, before = {}, {}
     for k, params in pairs(smart.respawn_params) do
@@ -174,8 +210,30 @@ function release_foreign_population()
     return #doomed
 end
 
+-- Online smart terrains are updated by their game object's binder
+-- (bind_smart_terrain: se_smart_terrain:update) - which does not run on the
+-- dedicated server: the map's own smarts never updated, so they never
+-- respawned (no mutants at all) nor ran their per-update logic. Offline
+-- ones are updated by ALife and were fine. Every second, the online smarts
+-- of this map get their update here.
+local next_smart_update = 0
+local function update_online_smarts()
+    if time_global() < next_smart_update then return false end
+    next_smart_update = time_global() + 1000
+    for _, smart in pairs(SIMBOARD and SIMBOARD.smarts or {}) do
+        local s = smart.smrt
+        if s and s.online and s.update then pcall(s.update, s) end
+    end
+    return false
+end
+local smart_updates_installed = false
+
 function install()
     if not cooperative() then return end
+    if not smart_updates_installed and AddUniqueCall then
+        smart_updates_installed = true
+        AddUniqueCall(update_online_smarts)
+    end
     disable_spawners()
     keep_squads_on_their_map()
     if release_foreign_population() == nil and AddUniqueCall and not release_pending then

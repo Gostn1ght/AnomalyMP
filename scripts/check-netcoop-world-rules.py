@@ -228,13 +228,13 @@ SIMBOARD = {start_position_filled = false, squads = {}}
 lua.execute(source)
 lua.execute(r'''
 on_game_start()
-assert(#released == 0 and #calls == 1, "a new world waits for its population")
+assert(#released == 0 and #calls == 2, "a new world waits for its population (and online smarts get their updates)")
 -- As in GAMMA: SIMBOARD.squads maps id -> true, the objects come from alife.
 squad_objects = {[10] = squad(10, 1, {11, 12}), [20] = squad(20, 2, {21, 22}), [30] = squad(30, 2, {31})}
 SIMBOARD.squads = {[10] = true, [20] = true, [30] = true}
 SIMBOARD.start_position_filled = true
 now = 6000
-assert(calls[1]() == true)
+assert(calls[2]() == true)
 local set = {}
 for _, id in ipairs(released) do set[id] = true end
 assert(set[20] and set[21] and set[22], "a generic squad of another map is released")
