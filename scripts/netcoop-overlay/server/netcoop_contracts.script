@@ -1,0 +1,221 @@
+----------------------------------------------------------------------
+-- Contracts of the faction contacts (doc 47 §2, doc 43 I01/I02/I06)
+----------------------------------------------------------------------
+-- Each contact (Lukash, Voronin, the Clear Sky leader, Semenov, Wolf) has a
+-- chain of 10 contracts (contracts.ltx), taken in order, one at a time, at
+-- the contact. Hunts and kills count the player's own kills on any location
+-- server; fetches are handed over at the contact. The state lives in the
+-- cluster's shared store, not on one location server (I01); the server
+-- checks every condition (I02); finishing a contract writes "done" with a
+-- compare-and-swap before paying, so the reward is paid exactly once (I06).
+--
+-- Store: bucket "contracts", key = char:
+--   { [faction] = { done = n, active = { index = i, progress = k } } }
+
+local CONTACT_REACH = 6 -- metres to the contact for taking and handing in
+local cfg
+local function config()
+	cfg = cfg or ini_file("netcoop\\contracts.ltx")
+	return cfg
+end
+local function factions() return netcoop_factions end
+
+local function char_of(obj) return netcoop_actor_character and netcoop_actor_character(obj:id()) or "" end
+
+local function split(text, sep)
+	local out = {}
+	for part in string.gmatch(text or "", "[^" .. sep .. "]+") do
+		out[#out + 1] = part:match("^%s*(.-)%s*$")
+	end
+	return out
+end
+
+-- Contract `index` of a faction: { kind, targets = {...}, count, money, goodwill, rank }.
+function definition(faction, index)
+	if not (config():section_exist(faction)) then return nil end
+	local line = config():r_string_ex(faction, tostring(index))
+	if not line then return nil end
+	local f = split(line, ",")
+	if #f < 6 then return nil end
+	return { kind = f[1], targets = split(f[2], "|"), count = tonumber(f[3]) or 1,
+		money = tonumber(f[4]) or 0, goodwill = tonumber(f[5]) or 0, rank = tonumber(f[6]) or 0 }
+end
+
+function completed(char, faction)
+	local state = factions().store_get("contracts", char)[faction]
+	return state and state.done or 0
+end
+
+local function active(char, faction)
+	local state = factions().store_get("contracts", char)[faction]
+	return state and state.active or nil
+end
+
+-- The contact of a faction standing within reach of the player, or nil.
+local function contact_near(obj, faction)
+	local profile = config():r_string_ex(faction, "contact")
+	if not profile then return nil end
+	local pos = obj:position()
+	for _, id in ipairs(db.OnlineStalkers or {}) do
+		local npc = level.object_by_id(id)
+		if npc and npc:alive() and npc.profile_name and npc:profile_name() == profile and npc:position():distance_to(pos) <= CONTACT_REACH then
+			return npc
+		end
+	end
+	return nil
+end
+
+-- The faction whose contact the player is talking to (standing next to).
+local function faction_at(obj)
+	for _, faction in ipairs({ "freedom", "dolg", "csky", "ecolog", "stalker" }) do
+		if contact_near(obj, faction) then return faction end
+	end
+	return nil
+end
+
+local function describe(def)
+	local what = table.concat(def.targets, "/")
+	if def.kind == "hunt" then return string.format("hunt %s x%s", what, tostring(def.count)) end
+	if def.kind == "kill" then return string.format("eliminate %s x%s", what, tostring(def.count)) end
+	return string.format("bring %s x%s", what, tostring(def.count))
+end
+
+---------------------------------------------------------------- actions
+function take(obj, faction)
+	if not contact_near(obj, faction) then return false, "talk to the contact in person" end
+	local char = char_of(obj)
+	if char == "" then return false, "character unknown" end
+	local index
+	local ok, message = factions().store_update("contracts", char, function(data)
+		local state = data[faction] or { done = 0 }
+		data[faction] = state
+		if state.active then return false, "finish the current contract first" end
+		index = (state.done or 0) + 1
+		if not definition(faction, index) then return false, "no more contracts here" end
+		state.active = { index = index, progress = 0 }
+		return true
+	end)
+	if not ok then return false, message end
+	printf("[Lost Zone][contracts] %s took %s #%s", char, faction, tostring(index))
+	return true, string.format("contract %s: %s", tostring(index), describe(definition(faction, index)))
+end
+
+local function items_matching(obj, targets, count)
+	local found = {}
+	obj:iterate_inventory(function(_, item)
+		if #found >= count then return end
+		local section = item:section()
+		for _, t in ipairs(targets) do
+			if section == t then found[#found + 1] = item; return end
+		end
+	end, obj)
+	return found
+end
+
+-- Finish the active contract at the contact: payment exactly once.
+function finish(obj, faction)
+	if not contact_near(obj, faction) then return false, "talk to the contact in person" end
+	local char = char_of(obj)
+	local current = active(char, faction)
+	if not current then return false, "no active contract here" end
+	local def = definition(faction, current.index)
+	if not def then return false, "unknown contract" end
+	local items
+	if def.kind == "fetch" then
+		items = items_matching(obj, def.targets, def.count)
+		if #items < def.count then return false, string.format("bring %s more", tostring(def.count - #items)) end
+	elseif (current.progress or 0) < def.count then
+		return false, string.format("progress %s/%s", tostring(current.progress or 0), tostring(def.count))
+	end
+	-- Commit "done" first: a repeated request or another server finds no
+	-- active contract and pays nothing.
+	local ok, message = factions().store_update("contracts", char, function(data)
+		local state = data[faction]
+		if not (state and state.active and state.active.index == current.index) then return false, "already finished" end
+		state.active = nil
+		state.done = math.max(state.done or 0, current.index)
+		return true
+	end)
+	if not ok then return false, message end
+	if items then for _, item in ipairs(items) do alife_release_id(item:id()) end end
+	if def.money > 0 then obj:give_money(def.money) end
+	if def.rank > 0 then obj:change_character_rank(def.rank) end
+	if def.goodwill ~= 0 and relation_registry and relation_registry.change_community_goodwill then
+		relation_registry.change_community_goodwill(faction, obj:id(), def.goodwill)
+	end
+	printf("[Lost Zone][contracts] %s finished %s #%s", char, faction, tostring(current.index))
+	return true, string.format("contract %s done: %s RU", tostring(current.index), tostring(def.money))
+end
+
+---------------------------------------------------------------- kill counting
+local function credit(killer, check)
+	local char = killer and netcoop_actor_character and netcoop_actor_character(killer:id()) or ""
+	if char == "" then return end
+	for faction, state in pairs(factions().store_get("contracts", char)) do
+		local current = state.active
+		local def = current and definition(faction, current.index)
+		if def and check(def) and (current.progress or 0) < def.count then
+			factions().store_update("contracts", char, function(data)
+				local s = data[faction]
+				if not (s and s.active and s.active.index == current.index) then return false end
+				s.active.progress = math.min(def.count, (s.active.progress or 0) + 1)
+				return true
+			end)
+		end
+	end
+end
+
+local function has_target(def, value)
+	for _, t in ipairs(def.targets) do if value and string.find(value, t, 1, true) then return true end end
+	return false
+end
+
+function on_monster_death(victim, killer)
+	if not (victim and killer) then return end
+	local section = victim:section()
+	credit(killer, function(def) return def.kind == "hunt" and has_target(def, section) end)
+end
+
+function on_npc_death(victim, killer)
+	if not (victim and killer) then return end
+	local community = (character_community(victim) or ""):gsub("^actor_", "")
+	credit(killer, function(def)
+		if def.kind ~= "kill" then return false end
+		for _, t in ipairs(def.targets) do if t == community then return true end end
+		return false
+	end)
+end
+
+---------------------------------------------------------------- text interface
+function command(obj, args)
+	if not obj then return "! your Actor is not on the server" end
+	local verb = string.match(args or "", "^(%S*)")
+	local faction = faction_at(obj)
+	local char = char_of(obj)
+	local function result(ok, message) return (ok and "* " or "! ") .. tostring(message) end
+	if verb == "take" then
+		if not faction then return "! stand next to a faction contact" end
+		return result(take(obj, faction))
+	elseif verb == "done" or verb == "finish" then
+		if not faction then return "! stand next to a faction contact" end
+		return result(finish(obj, faction))
+	end
+	local lines = {}
+	for _, f in ipairs({ "freedom", "dolg", "csky", "ecolog", "stalker" }) do
+		local current = active(char, f)
+		local def = current and definition(f, current.index)
+		if def then
+			lines[#lines + 1] = string.format("%s #%s: %s (%s/%s)", f, tostring(current.index), describe(def),
+				tostring(def.kind == "fetch" and "-" or (current.progress or 0)), tostring(def.count))
+		elseif completed(char, f) > 0 then
+			lines[#lines + 1] = string.format("%s: %s/10 done", f, tostring(completed(char, f)))
+		end
+	end
+	return "~ " .. (#lines > 0 and table.concat(lines, "\n") or "no contracts; talk to a faction contact (contract take)")
+end
+
+function on_game_start()
+	if not (netcoop_enabled and netcoop_enabled()) or (netcoop_pure_client and netcoop_pure_client()) then return end
+	RegisterScriptCallback("monster_on_death_callback", on_monster_death)
+	RegisterScriptCallback("npc_on_death_callback", on_npc_death)
+end

@@ -60,6 +60,10 @@ local function update(bucket, key, change)
 	return false, "busy, try again"
 end
 
+-- Shared with netcoop_contracts / netcoop_ranks.
+function store_update(bucket, key, change) return update(bucket, key, change) end
+function store_get(bucket, key) return deserialize(netcoop_store_read(bucket, key)) or {} end
+
 local function faction_record(faction)
 	local data = deserialize(netcoop_store_read("factions", faction)) or {}
 	data.members, data.apps = data.members or {}, data.apps or {}

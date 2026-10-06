@@ -122,6 +122,11 @@ function on_client_command(cid, name, entity_id, text, role)
 		if not netcoop_factions then return "! factions are not installed" end
 		return netcoop_factions.command(server_actor(entity_id), args, admin)
 
+	elseif cmd == "contract" or cmd == "contracts" then
+		-- Faction contacts' contracts (doc 47): take/done next to the contact.
+		if not netcoop_contracts then return "! contracts are not installed" end
+		return netcoop_contracts.command(server_actor(entity_id), args)
+
 	elseif cmd == "money" then
 		local obj = server_actor(entity_id)
 		if not obj then return "! your Actor is not on the server" end

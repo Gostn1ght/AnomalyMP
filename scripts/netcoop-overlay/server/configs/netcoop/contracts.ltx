@@ -1,0 +1,72 @@
+; Lost Zone contracts of the five faction contacts (doc 47, owner 2026-10-06).
+; A chain of 10 per faction, taken in order from the contact, one at a time.
+; type: hunt  - kill `count` mutants whose section contains one of `target`
+;       kill  - kill `count` stalkers of the factions in `target` (NPC or player)
+;       fetch - hand over `count` items of the sections in `target`
+; money: RU; goodwill: the faction's attitude to the player; rank: rank points.
+; Joining CS, Freedom and Duty needs `contracts` of them (factions.ltx).
+
+[freedom]
+contact = mil_smart_terrain_7_7_freedom_leader_stalker
+1 = hunt, dog|pseudodog, 8, 3000, 60, 20
+2 = fetch, mutant_part_dog_tail, 5, 4000, 60, 20
+3 = kill, bandit, 5, 6000, 80, 30
+4 = hunt, boar|flesh, 6, 5000, 80, 30
+5 = fetch, af_medusa|af_vyvert|af_blood, 2, 9000, 120, 50
+6 = hunt, snork, 5, 9000, 120, 50
+7 = kill, dolg, 4, 12000, 150, 70
+8 = hunt, bloodsucker, 3, 14000, 150, 70
+9 = fetch, af_soul|af_night_star|af_fireball, 1, 18000, 200, 90
+10 = hunt, chimera|gigant|controller, 1, 25000, 250, 120
+
+[dolg]
+contact = bar_dolg_leader
+1 = hunt, dog|pseudodog, 8, 3000, 60, 20
+2 = fetch, mutant_part_dog_heart, 3, 4000, 60, 20
+3 = kill, bandit, 5, 6000, 80, 30
+4 = hunt, pseudodog, 4, 6000, 80, 30
+5 = hunt, snork, 4, 9000, 120, 50
+6 = fetch, mutant_part_heart_bloodsucker, 1, 10000, 120, 50
+7 = kill, freedom, 4, 12000, 150, 70
+8 = hunt, bloodsucker, 3, 14000, 150, 70
+9 = hunt, controller|burer, 1, 20000, 200, 90
+10 = kill, monolith, 5, 25000, 250, 120
+
+[csky]
+contact = mar_smart_terrain_base_stalker_leader_marsh
+1 = hunt, flesh|boar, 6, 2500, 60, 20
+2 = kill, renegade, 5, 5000, 80, 30
+3 = fetch, mutant_part_flesh_eye, 4, 4000, 60, 20
+4 = hunt, dog|pseudodog, 8, 5000, 80, 30
+5 = fetch, af_electra_sparkler|af_gravi|af_mincer_meat, 2, 9000, 120, 50
+6 = kill, bandit, 6, 9000, 120, 50
+7 = hunt, bloodsucker, 2, 12000, 150, 70
+8 = fetch, mutant_part_lurker_eye, 2, 12000, 150, 70
+9 = hunt, chimera, 1, 20000, 200, 90
+10 = kill, monolith, 4, 25000, 250, 120
+
+[ecolog]
+contact = yan_ecolog_semenov
+1 = fetch, mutant_part_flesh_eye, 3, 4000, 60, 20
+2 = fetch, af_medusa|af_vyvert, 2, 7000, 80, 30
+3 = fetch, mutant_part_krovosos_jaw, 1, 8000, 80, 30
+4 = fetch, af_gravi|af_mincer_meat, 2, 10000, 120, 50
+5 = fetch, mutant_part_controller_glass, 1, 15000, 150, 70
+6 = fetch, af_night_star|af_soul, 1, 15000, 150, 70
+7 = fetch, mutant_part_chimera_claw, 1, 18000, 200, 90
+8 = fetch, mutant_part_brain_burer, 1, 18000, 200, 90
+9 = fetch, af_fireball, 2, 22000, 200, 90
+10 = fetch, mutant_part_heart_chimera, 1, 30000, 250, 120
+
+[stalker]
+contact = esc_2_12_stalker_wolf
+1 = hunt, dog|tushkano, 6, 1500, 40, 15
+2 = hunt, flesh|boar, 6, 2500, 40, 15
+3 = kill, bandit, 4, 4000, 60, 20
+4 = fetch, mutant_part_dog_tail, 4, 3500, 60, 20
+5 = hunt, pseudodog, 3, 5000, 80, 30
+6 = hunt, snork, 3, 7000, 80, 30
+7 = fetch, af_medusa|af_vyvert|af_blood, 2, 8000, 100, 40
+8 = kill, renegade, 5, 9000, 100, 40
+9 = hunt, bloodsucker, 2, 12000, 120, 50
+10 = hunt, chimera|gigant|controller|burer, 1, 20000, 150, 70
