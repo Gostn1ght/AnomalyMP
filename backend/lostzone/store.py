@@ -65,7 +65,7 @@ def canonical(value, limit=1024 * 1024):
 
 SCHEMA = """
 CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-INSERT INTO metadata VALUES ('schema','3');
+INSERT INTO metadata VALUES ('schema','4');
 CREATE TABLE world (
  singleton INTEGER PRIMARY KEY CHECK(singleton=1), world_id TEXT NOT NULL,
  seed TEXT NOT NULL, epoch INTEGER NOT NULL CHECK(epoch>0),
@@ -93,7 +93,7 @@ CREATE TABLE item (
  id TEXT PRIMARY KEY, section TEXT NOT NULL, kind TEXT NOT NULL,
  holder TEXT NOT NULL, quantity INTEGER NOT NULL CHECK(quantity>0),
  version INTEGER NOT NULL CHECK(version>0), state TEXT NOT NULL);
-CREATE INDEX item_holder ON item(kind,holder);
+CREATE INDEX item_holder ON item(kind,holder,id);
 CREATE TABLE character (
  id TEXT PRIMARY KEY REFERENCES entity(id), account TEXT NOT NULL,
  session_fence INTEGER NOT NULL CHECK(session_fence>0), state TEXT NOT NULL);
@@ -179,6 +179,12 @@ CREATE TABLE route(entity_id TEXT PRIMARY KEY REFERENCES entity(id),version INTE
 UPDATE metadata SET value='3' WHERE key='schema';
 """
 
+MIGRATE_V3 = """
+DROP INDEX item_holder;
+CREATE INDEX item_holder ON item(kind,holder,id);
+UPDATE metadata SET value='4' WHERE key='schema';
+"""
+
 
 class Store:
     def __init__(self, path):
@@ -223,7 +229,10 @@ class Store:
             if row and row[0] == "2":
                 self.db.executescript("BEGIN IMMEDIATE;\n" + MIGRATE_V2 + "\nCOMMIT;")
                 row = self.db.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()
-            if not row or row[0] != "3":
+            if row and row[0] == "3":
+                self.db.executescript("BEGIN IMMEDIATE;\n" + MIGRATE_V3 + "\nCOMMIT;")
+                row = self.db.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()
+            if not row or row[0] != "4":
                 raise Unavailable("unsupported database schema")
             if self.db.execute("PRAGMA foreign_key_check").fetchone() is not None:
                 raise Unavailable("database ownership references are inconsistent")

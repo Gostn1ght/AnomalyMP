@@ -538,3 +538,16 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   Full file-name enumeration still linear; no runtime install/launch/default
   NPC transit changes or H09/H10 whole-stage closure. New binding fallback
   preserves older installed runtime compatibility until its upgrade.
+
+- 24b36893b Foundation37420952363 SUCCESS GCC/MSVC; DX11 37420952355
+  checks/Windows actual fixtures SUCCESS, compiling. No native push to cancel it.
+- Backend corpse cleanup now64 rows/4 MiB admission per atomic batch, durable
+  continuation with actor/fence/version; final corpse_removed only when empty.
+  Pickup, quest pin/stale owner checked each batch. Removed corpse inventory
+  cannot accept new items; repeated removal no-op. Schema4 ordered holder index,
+  atomic v1-v4 migrations/snapshot wire1 preserved. Full local216 PASS including
+  actual migration process crash, query plan, partial progression/restart and
+  queue/journal/oversize faults. Backend Actions pending after push.
+  Native body removal must await complete; retention/engine adoption remain open.
+- Temporary test folder tmpmcn9mpdo cleanup blocked by automatic review; no
+  detailed reason or bypass. Unclosed probe corrected; successful216 run unaffected.

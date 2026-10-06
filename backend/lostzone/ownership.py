@@ -3,10 +3,12 @@
 Runtime callers are trusted location servers, not player clients. Runtime
 distance/combat checks remain mandatory in the engine adapter.
 """
+import hashlib
 import json
 import uuid
 
 from .store import Conflict, Invalid, canonical, identifier, persistent_id, positive
+from .capture import CaptureBudget
 
 ENTITY_KINDS = frozenset(("CHARACTER", "NPC", "MUTANT", "GROUP", "STASH", "CONTAINER",
                          "CORPSE", "ANOMALY", "ARTIFACT", "DOOR", "TRAP", "TRADER",
@@ -18,6 +20,7 @@ POLICIES = frozenset(("PUBLIC", "PLAYER_ONLY", "QUEST_PROTECTED", "NPC_ACCESSIBL
 class Ownership:
     def __init__(self, world):
         self.world, self.store = world, world.store
+        world.scheduler_handlers.setdefault("CorpseCleanupBatch",self.cleanup_batch)
 
     def create_entity(self, actor, command_id, entity_id, kind, location, fence, state,
                       account=None, policy=None, owner=None, capacity=64):
@@ -210,6 +213,8 @@ class Ownership:
                     "STASH": ("STASH",), "CONTAINER": ("CONTAINER",), "TRADE": ("TRADER",)}
         if row["kind"] not in expected[kind] or (kind == "CORPSE" and row["alive"]):
             raise Conflict("containment kind does not match holder")
+        if kind == "CORPSE" and json.loads(row["state"]).get("corpse_removed",False):
+            raise Conflict("corpse inventory no longer exists")
         if kind in ("PLAYER", "NPC") and not row["alive"]:
             raise Conflict("living inventory holder is dead")
         box = tx.execute("SELECT * FROM container WHERE id=?", (holder,)).fetchone()
@@ -348,26 +353,66 @@ class Ownership:
         payload = {"type": "corpse_cleanup", "id": entity_id, "fence": fence, "version": version}
         def apply(tx):
             row = self.require_entity(tx, actor, entity_id, fence, version)
-            if row["alive"]:
-                raise Conflict("living entity cannot be cleaned up")
-            if self.quest_required(tx,entity_id):
-                raise Conflict("corpse is still required by an active quest")
-            state = json.loads(row["state"])
-            state["corpse_removed"] = True
-            items = tx.execute("SELECT id FROM item WHERE kind='CORPSE' AND holder=?", (entity_id,)).fetchall()
-            # A tombstone remains. Gameplay items have no expiry or cleanup
-            # path here; this operation changes containment, never item IDs.
-            for item in tx.execute("SELECT * FROM item WHERE kind='CORPSE' AND holder=?", (entity_id,)).fetchall():
-                item_state = json.loads(item["state"])
-                item_state.update(drop_position=state.get("position"), dropped_from_corpse=entity_id)
-                tx.execute("UPDATE item SET kind='WORLD',holder=?,state=?,version=version+1 WHERE id=?",
-                           (row["location"], canonical(item_state), item["id"]))
-            tx.execute("UPDATE entity SET state=?,version=version+1 WHERE id=?", (canonical(state), entity_id))
-            event = self.store.event(tx, "entity:" + entity_id, "CorpseRemoved",
-                                     {**payload, "items": [item[0] for item in items]}, self.world.now())
-            return {"id": entity_id, "version": version + 1, "items": [item[0] for item in items], "event": event}
+            return self.cleanup_in(tx,row,payload,self.world.now())
         return self.store.command(actor, command_id, payload, apply,
                                   authorize=lambda tx:self.authorize_entity(tx,actor,entity_id,fence))
+
+    def cleanup_in(self, tx, row, payload, at):
+        if row["alive"]:
+            raise Conflict("living entity cannot be cleaned up")
+        if self.quest_required(tx,row["id"]):
+            raise Conflict("corpse is still required by an active quest")
+        budget=CaptureBudget(4*1024*1024)
+        budget.consume(row["state"])
+        state=json.loads(row["state"])
+        if state.get("corpse_removed",False) and tx.execute("SELECT 1 FROM item WHERE kind='CORPSE' AND holder=? LIMIT 1",(row["id"],)).fetchone() is None:
+            return {"id":row["id"],"version":row["version"],"items":[],"event":None,"complete":True,"next_event":None}
+        admitted=[]
+        # Ordered holder index avoids sorting the entire inventory before its
+        # first row. Admit before mutation so cursor updates cannot skip items.
+        for item in tx.execute("SELECT * FROM item WHERE kind='CORPSE' AND holder=? ORDER BY id LIMIT 64",(row["id"],)):
+            try:
+                budget.consume(item["state"])
+            except Conflict:
+                if not admitted:
+                    raise
+                break
+            admitted.append(item)
+        for item in admitted:
+            item_state=json.loads(item["state"])
+            item_state.update(drop_position=state.get("position"),dropped_from_corpse=row["id"])
+            tx.execute("UPDATE item SET kind='WORLD',holder=?,state=?,version=version+1 WHERE id=?",
+                       (row["location"],canonical(item_state,limit=4*1024*1024),item["id"]))
+        complete=tx.execute("SELECT 1 FROM item WHERE kind='CORPSE' AND holder=? LIMIT 1",(row["id"],)).fetchone() is None
+        state["corpse_removed"]=complete
+        if complete:
+            state.pop("corpse_cleanup_pending",None)
+        else:
+            state["corpse_cleanup_pending"]=True
+        version=positive(row["version"]+1)
+        tx.execute("UPDATE entity SET state=?,version=? WHERE id=?",(canonical(state),version,row["id"]))
+        following=None
+        if not complete:
+            from .scheduler import Scheduler
+            following=hashlib.sha256(f"corpse-cleanup:{row['id']}:{row['writer']}:{row['fence']}:{version}".encode("utf-8")).hexdigest()[:32]
+            Scheduler(self.world).schedule_in(tx,following,at,"entity:"+row["id"],version,"CorpseCleanupBatch",
+                                             {"actor":row["writer"],"entity_id":row["id"],"fence":row["fence"]},priority=30)
+        ids=[item["id"] for item in admitted]
+        event=self.store.event(tx,"entity:"+row["id"],"CorpseRemoved" if complete else "CorpseCleanupProgress",
+                               {**payload,"items":ids,"complete":complete,"next_event":following},at,committed_ms=self.world.now())
+        return {"id":row["id"],"version":version,"items":ids,"event":event,"complete":complete,"next_event":following}
+
+    def cleanup_batch(self, tx, event):
+        capture=json.loads(event["payload"])
+        try:
+            row=self.require_entity(tx,capture["actor"],capture["entity_id"],capture["fence"],event["expected_version"])
+        except Conflict:
+            return {"reason":"corpse cleanup writer/capture changed"},False
+        if row["alive"] or self.quest_required(tx,row["id"]):
+            # A new owner or a new quest pin requires another explicit cleanup
+            # request. Never block unrelated world catch-up behind this job.
+            return {"reason":"corpse cleanup protection changed"},False
+        return self.cleanup_in(tx,row,{"type":"corpse_cleanup_batch","source_event":event["id"]},event["due_world_ms"]),True
 
     def location_state(self, actor, location, fence):
         with self.store.lock:

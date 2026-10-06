@@ -1006,3 +1006,39 @@ Windows actual queue fixture extended for corrupt-ID reporting, next/wrap,
 unchanged legacy behavior and repair, checked for Python syntax only locally.
 Native compilation/execution and full DX11 are reserved for GitHub Actions.
 NPC transit remains opt-in; no live install/launch or task H09/H10 closure.
+
+## Durable bounded corpse inventory detach
+
+Native 24b36893b Foundation 37420952363 SUCCESS GCC/MSVC, including actual
+Windows fair mailbox/corruption/repair fixture. Full DX11 37420952355 checks
+and Windows fixtures SUCCESS; engine compiling. No native push during this run.
+
+Backend corpse_cleanup now admits at most64 ordered rows and4 MiB encoded
+state, then moves admitted existing items in one transaction. A partial result
+contains complete=false/next_event and durable CorpseCleanupBatch priority30
+continues with captured writer/fence/version in separate transactions. Only the
+last batch sets corpse_removed=true. Item IDs/quantity/condition/ammo/attachments
+are preserved; gameplay loot has no TTL. Pickup between batches changes the
+actual ledger once. Each batch rechecks quest protection and current authority;
+new pins/stale owners cancel their continuation instead of blocking unrelated
+scheduler work. A fresh cleanup request after protection/recovery resumes what
+remains. Repeated cleanup of an already empty removed body is a no-op, and a
+removed body cannot receive items into a nonexistent inventory.
+
+DB schema4 adds ordered holder index(kind,holder,id), avoiding an inventory-wide
+sort before the first bounded cursor row. Atomic v3 migration replaces the old
+index; v1/v2 chaining continues through v4. Snapshot wire schema1 unchanged.
+Admission bound is not total RSS or hard handler-duration guarantee; native
+adapter must await complete before physically deleting a body. Automatic corpse
+retention scheduling/native adoption still remain open.
+
+Full local216 PASS:130-item progression/restart, exactly one final removal,
+no duplicate retry/new-CommandID removal, concurrent logical pickup, quest pin
+between batches and recovery, retired writer cancellation, byte-bounded Cyrillic
+states without truncation, continuation/journal fault rollback, guarded oversized
+first-state refusal, actual EXPLAIN plan without temp sorting, v3 data migration
+and child-process crash before migration commit with old index/schema intact.
+Backend Actions pending after push. Temporary fixture folder tmpmcn9mpdo from
+an earlier unclosed probe remains: automatic review rejected its recursive
+cleanup (blocked by policy, no more detailed reason). Probe closure fixed; no
+retry/bypass. This does not affect project/runtime data or successful216 run.

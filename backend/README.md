@@ -26,6 +26,23 @@
 - Consistent backend snapshot/checksum/journal watermark. Снимок
   не содержит ALife/Lua; общий engine/backend recovery впереди.
 
+`corpse_cleanup` переносит до 64 оставшихся вещей и до 4 MiB encoded state
+за транзакцию. Если вещи остались, ответ содержит `complete=false` и `next_event`;
+durable `CorpseCleanupBatch` продолжает работу отдельными транзакциями. Тело
+помечается `corpse_removed=true` только после последнего переноса. ID/stack/
+condition/ammo/attachments сохраняются, TTL вещей не вводится. Подбор вещи
+игроком между партиями учитывается по действительному ledger. Квестовая защита,
+writer/fence/version проверяются каждой партией. При новом quest pin или смене
+владельца старое продолжение отменяется; после разрешения защиты новый владелец
+повторяет cleanup с текущей version. Уже удалённое тело не принимает вещи в
+невидимый inventory и не публикует второй CorpseRemoved по новому CommandID.
+Native adapter должен дождаться `complete`, прежде чем убрать физическое тело.
+
+DB schema v4 атомарно заменяет индекс item_holder на `(kind,holder,id)`:
+потоковое чтение по владельцу/ID не сортирует весь большой инвентарь. Миграции
+v1→v4 сохраняют данные и IDs; формат backend snapshot остаётся schema1.
+Предел encoded admission не является обещанием времени партии или полного RSS.
+
 Ownership принимает доверенный server principal. Дистанция pickup,
 input/combat restrictions, safe placement и hidden target spawn должны
 проверяться engine adapter; backend не принимает их из player client.

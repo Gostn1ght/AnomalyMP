@@ -51,7 +51,7 @@ W4–W12; поздние номера W8–W12 в первоначальном �
 - [ ] A04. Частично: backend Player Persistence с транзакциями; game bridge впереди.
 - [ ] A05. Частично: backend Quest Service; GAMMA adapter впереди.
 - [ ] A06. Частично: Transfer/Session Service; hidden engine spawn/release впереди.
-- [ ] A07. Частично: SQLite WAL, schema migrations v1→v3, crash tests;
+- [ ] A07. Частично: SQLite WAL, schema migrations v1→v4, crash tests;
   coherent engine/backend recovery впереди.
 - [ ] A08. Event/Message Bus: повторная доставка, inbox/outbox,
   дедупликация, порядок и повтор после отключения.
@@ -424,7 +424,8 @@ Simulation Catch-Up, звуковые события/следы. Контрак�
   предмет не зависает, не проваливается, не оказывается внутри стены.
 - [ ] L12. Persistent stash: содержимое, lock/owner/version/discovery/quest links.
 - [ ] L13. Loot seed фиксируется при создании; открытие/рестарт не reroll.
-- [ ] L14. NPC редко посещают тайники, реально/аналитически добираются
+- [ ] L14. Частично: backend route discovery/редкость/общие contact reserves
+  реализованы; native AI/ledger adapter и live приёмка ещё нужны. NPC редко посещают тайники, реально/аналитически добираются
   до них и забирают/кладут вещи через atomic MoveItem.
 - [ ] L15. Stash access: PlayerOnly/QuestProtected/NPCAccessible/FactionAccessible.
 - [ ] L16. Scavenging ограничен carry capacity/needs/value/faction;
@@ -435,7 +436,9 @@ Simulation Catch-Up, звуковые события/следы. Контрак�
 - [ ] L19. Corpse: entity ID, death time/cause, inventory и quest association.
 - [ ] L20. Ragdoll→static→abstract corpse без постоянной удалённой physics.
 - [ ] L21. Частично: native online/offline detach и backend cleanup есть;
-  engine tombstone/quest adapter и gameplay recovery впереди. Corpse cleanup сохраняет death tombstone и переводит **все
+  backend переносит вещи durable партиями до 64/4 MiB, завершает тело только
+  после последней партии; engine tombstone/quest adapter и gameplay recovery
+  впереди. Corpse cleanup сохраняет death tombstone и переводит **все
   оставшиеся вещи** на землю с теми же IDs; quest bodies имеют special policy.
 - [ ] L22. Loot generation policy зависит от world events/economy/выброса,
   а не ухода игрока или рестарта; не подменяет rare stash visits.
