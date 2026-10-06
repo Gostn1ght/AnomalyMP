@@ -1964,9 +1964,31 @@ float server_luminocity(const CObject* object, float rendered)
 	return _max(rendered, light);
 }
 
+// Memory of a location server (owner 2026-10-06, doc 49 stage 6): the DLTX
+// cache keeps a parsed copy of every config file read while loading (~80 MB
+// with GAMMA) for a faster second read. A dedicated server reads them once:
+// a minute into the level the cache is dropped; files read later are
+// cached again as usual.
+static void server_drop_config_cache()
+{
+	static u32 level_start = 0;
+	static bool dropped = false;
+	if (dropped || !g_dedicated_server) return;
+	const u32 now = real_time_ms();
+	if (!level_start) level_start = now;
+	if (now - level_start < 60000) return;
+	dropped = true;
+	u64 files = 0, bytes = 0, sections = 0;
+	CInifile::GetCacheStats(files, bytes, sections);
+	CInifile::InvalidateCache();
+	Memory.mem_compact();
+	Msg("[Lost Zone][memory] config cache dropped: %llu files, %.1f MB", files, double(bytes) / 1024.0 / 1024.0);
+}
+
 void server_frame_update(xrServer* server)
 {
 	if (!enabled() || !g_pGameLevel) return;
+	server_drop_config_cache();
 	world_store_cleanup_loaded();
 	cache_player_positions();
 	server_campfires_update(server);
