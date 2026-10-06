@@ -103,6 +103,11 @@ function on_client_command(cid, name, entity_id, text, role)
 		end
 		return ""
 	end
+	-- The player's personal PDA (map pins), in chunks: no reply, no log line.
+	if cmd == "pda" then
+		if netcoop_pda_store then netcoop_pda_store.command(entity_id, args) end
+		return ""
+	end
 	printf("[Lost Zone] command '%s' from %s (%s)", cmd, tostring(name), tostring(role))
 
 	if cmd == "help" or cmd == "?" then

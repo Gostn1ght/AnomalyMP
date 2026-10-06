@@ -42,6 +42,7 @@ jobs:
           python scripts/check-netcoop-ranks.py
           python scripts/check-netcoop-squads.py
           python scripts/check-netcoop-corpses.py
+          python scripts/check-netcoop-pda.py
           python scripts/check-netcoop-emission.py
       - name: Check actual item interpolation
         run: python scripts/check-netcoop-physics.py

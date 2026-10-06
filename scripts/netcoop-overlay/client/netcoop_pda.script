@@ -1,0 +1,210 @@
+----------------------------------------------------------------------
+-- Personal PDA on a netcoop client (owner 2026-10-06)
+----------------------------------------------------------------------
+-- GAMMA's map pins (PAW, tasks_placeable_waypoints) spawn a server object
+-- (script_zone) for every pin through alife_create; a netcoop client has no
+-- ALife, so no pin could be placed. Here PAW gets client-side stand-ins:
+-- a pin is a local id (PIN_FIRST..PIN_LAST) with a position the engine shows
+-- on the map (netcoop_map_position_set), nothing is spawned on the server.
+-- The pins belong to the character: they are kept on the server (bucket
+-- "pda", netcoop_pda_store) and come back at the next login, on any
+-- computer. Other players never see them.
+
+local PIN_FIRST, PIN_LAST = 64000, 65500
+local CHUNK = 3000
+local fakes = {}            -- id -> { x, y, z, lv, gv, level }
+local loaded = false        -- the saved PDA has been applied (or there was none)
+local incoming = {}         -- chunks of the saved PDA from the server
+local last_sent = nil
+local next_check = 0
+
+local function paw() return rawget(_G, "tasks_placeable_waypoints") or tasks_placeable_waypoints end
+
+---------------------------------------------------------------- data
+local function serialize(value, depth)
+	depth = depth or 0
+	local kind = type(value)
+	if kind == "number" then return string.format("%.17g", value) end
+	if kind == "string" then return string.format("%q", value) end
+	if kind == "boolean" then return value and "true" or "false" end
+	if kind ~= "table" or depth > 8 then return "nil" end
+	local parts, keys = {}, {}
+	for k in pairs(value) do keys[#keys + 1] = k end
+	table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+	for _, k in ipairs(keys) do
+		local key = type(k) == "number" and ("[" .. string.format("%.17g", k) .. "]") or ("[" .. string.format("%q", tostring(k)) .. "]")
+		parts[#parts + 1] = key .. "=" .. serialize(value[k], depth + 1)
+	end
+	return "{" .. table.concat(parts, ",") .. "}"
+end
+
+local function deserialize(text)
+	if type(text) ~= "string" or text == "" then return nil end
+	local chunk = loadstring("return " .. text)
+	if not chunk then return nil end
+	setfenv(chunk, {})
+	local ok, value = pcall(chunk)
+	return ok and type(value) == "table" and value or nil
+end
+
+local function to_hex(s) return (string.gsub(s, ".", function(c) return string.format("%02x", string.byte(c)) end)) end
+local function from_hex(h) return (string.gsub(h, "%x%x", function(x) return string.char(tonumber(x, 16)) end)) end
+
+---------------------------------------------------------------- stand-ins for PAW
+local function fake_se(id)
+	local f = fakes[id]
+	if not f then return nil end
+	return {
+		id = id, parent_id = 65535, online = false,
+		position = vector():set(f.x, f.y, f.z),
+		m_level_vertex_id = f.lv, m_game_vertex_id = f.gv,
+		name = function() return "paw_pin_" .. id end,
+		section_name = function() return "script_zone" end,
+		clsid = function() return clsid.script_zone end,
+	}
+end
+
+local function object_se(id)
+	local obj = level.object_by_id(id)
+	if not obj then return fake_se(id) end
+	local parent = obj:parent()
+	return {
+		id = id, parent_id = parent and parent:id() or 65535, online = true,
+		position = obj:position(),
+		m_level_vertex_id = obj:level_vertex_id(), m_game_vertex_id = obj:game_vertex_id(),
+		name = function() return obj:name() end,
+		section_name = function() return obj:section() end,
+		clsid = function() return obj:clsid() end,
+		character_name = function() return obj.character_name and obj:character_name() or obj:name() end,
+	}
+end
+
+local function place(id, x, y, z, lv, gv, level_name)
+	fakes[id] = { x = x, y = y, z = z, lv = lv or 0, gv = gv or 0, level = level_name or level.name() }
+	if netcoop_map_position_set then netcoop_map_position_set(id, x, y, z, fakes[id].level) end
+end
+
+local function new_id()
+	for id = PIN_FIRST, PIN_LAST do
+		if not fakes[id] and not level.object_by_id(id) then return id end
+	end
+	return nil
+end
+
+local function stand_in_create(section, where, lv, gv)
+	if section ~= "script_zone" or not where then return nil end
+	local pos
+	if where.x ~= nil and where.z ~= nil then -- a vector
+		pos = where
+	elseif type(where) == "table" and where.position then
+		pos, lv, gv = where.position, where.m_level_vertex_id, where.m_game_vertex_id
+	elseif where.position then -- a game object
+		pos, lv, gv = where:position(), where:level_vertex_id(), where:game_vertex_id()
+	end
+	if not pos then return nil end
+	local id = new_id()
+	if not id then return nil end
+	place(id, pos.x, pos.y, pos.z, lv, gv)
+	return fake_se(id)
+end
+
+local function stand_in_release(se)
+	local id = se and se.id
+	if id and fakes[id] then
+		fakes[id] = nil
+		if netcoop_map_position_clear then netcoop_map_position_clear(id) end
+	end
+end
+
+local sim_stand_in = {
+	object = function(_, id) return object_se(id) end,
+	actor = function() return db.actor and object_se(db.actor:id()) end,
+	level_id = function()
+		local gg = game_graph and game_graph()
+		return db.actor and gg and gg:vertex(db.actor:game_vertex_id()):level_id() or 0
+	end,
+	level_name = function() return level.name() end,
+}
+
+local function install_paw()
+	local m = paw()
+	if not m then return false end
+	m.alife_create = stand_in_create
+	m.alife_object = object_se
+	m.alife_release = stand_in_release
+	m.alife = function() return sim_stand_in end
+	return true
+end
+
+---------------------------------------------------------------- saving to the character
+local function snapshot()
+	local m = paw()
+	if not m then return nil end
+	return {
+		fakes = fakes,
+		pawsys = {
+			current_waypoint = m.placed_waypoint, last_waypoint = m.last_waypoint,
+			is_scriptzone = m.waypoint_is_scriptzone, custom_name = m.custom_name,
+			custom_desc = m.custom_desc, welcome_msg_shown = m.welcome_msg_shown,
+			pins = m.pins,
+		},
+	}
+end
+
+local function save_if_changed()
+	local data = snapshot()
+	if not data then return end
+	local text = serialize(data)
+	if text == last_sent or #text > 65536 then return end
+	last_sent = text
+	local hex = to_hex(text)
+	local total = math.max(1, math.ceil(#hex / CHUNK))
+	for n = 1, total do
+		netcoop_command("pda put " .. n .. " " .. total .. " " .. string.sub(hex, (n - 1) * CHUNK + 1, n * CHUNK))
+	end
+end
+
+local function apply(text)
+	loaded = true
+	local data = deserialize(text)
+	local m = paw()
+	if not (data and m) then return end
+	for id, f in pairs(data.fakes or {}) do
+		id = tonumber(id)
+		if id and f.level then place(id, f.x, f.y, f.z, f.lv, f.gv, f.level) end
+	end
+	if data.pawsys and m.load_state then pcall(m.load_state, { pawsys = data.pawsys }) end
+	if m.show_all_pins then pcall(m.show_all_pins, true) end
+	last_sent = serialize(snapshot())
+end
+
+-- netcoop_client_compat: channel "pda", "n/total|hex".
+function receive(data)
+	local n, total, hex = string.match(data or "", "^(%d+)/(%d+)|(%x*)$")
+	n, total = tonumber(n), tonumber(total)
+	if not (n and total) then return end
+	if n == 1 then incoming = {} end
+	incoming[n] = hex
+	for i = 1, total do if not incoming[i] then return end end
+	local joined = table.concat(incoming)
+	incoming = {}
+	apply(from_hex(joined))
+end
+
+local function update()
+	local t = time_global()
+	if t < next_check then return end
+	next_check = t + 5000
+	if not loaded then
+		if netcoop_command then netcoop_command("pda get") end
+		next_check = t + 15000 -- ask again if the answer was lost
+		return
+	end
+	save_if_changed()
+end
+
+function on_game_start()
+	if not (netcoop_pure_client and netcoop_pure_client()) then return end
+	install_paw()
+	RegisterScriptCallback("actor_on_update", update)
+end

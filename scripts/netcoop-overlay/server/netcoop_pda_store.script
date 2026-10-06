@@ -1,0 +1,51 @@
+----------------------------------------------------------------------
+-- Personal PDA storage (owner 2026-10-06)
+----------------------------------------------------------------------
+-- Every player has a PDA of their own: the map pins they put (GAMMA's PAW)
+-- belong to the character, are seen by nobody else and come back on any
+-- computer. The client sends its PDA data in hex chunks ("pda put n total
+-- hex", commands are limited to 4 KB); the server keeps it in the cluster's
+-- shared store (bucket "pda", key = character) and sends it back in chunks
+-- on "pda get" (channel "pda", "n/total|hex").
+
+local CHUNK = 3000
+local MAX_HEX = 2 * 65536
+local pending = {} -- Actor id -> { total, parts = {} }
+
+local function char_of(id) return netcoop_actor_character and netcoop_actor_character(id) or "" end
+
+local function store(char, data)
+	for _ = 1, 8 do
+		local old = netcoop_store_read("pda", char)
+		if netcoop_store_swap("pda", char, old, data) then return true end
+	end
+	return false
+end
+
+local function send(id, data)
+	local total = math.max(1, math.ceil(#data / CHUNK))
+	for n = 1, total do
+		netcoop_send_to_actor(id, "pda", n .. "/" .. total .. "|" .. string.sub(data, (n - 1) * CHUNK + 1, n * CHUNK))
+	end
+end
+
+-- "pda put n total hex" / "pda get" from the player whose Actor is entity_id.
+function command(entity_id, args)
+	local char = char_of(entity_id)
+	if char == "" then return "" end
+	local verb, rest = string.match(args or "", "^(%S+)%s*(.*)$")
+	if verb == "get" then
+		send(entity_id, netcoop_store_read("pda", char) or "")
+	elseif verb == "put" then
+		local n, total, hex = string.match(rest, "^(%d+) (%d+) (%x*)$")
+		n, total = tonumber(n), tonumber(total)
+		if not (n and total and total >= 1 and n <= total and total * CHUNK <= MAX_HEX and #hex <= CHUNK) then return "" end
+		local p = pending[entity_id]
+		if n == 1 or not p or p.total ~= total then p = { total = total, parts = {} }; pending[entity_id] = p end
+		p.parts[n] = hex
+		for i = 1, total do if not p.parts[i] then return "" end end
+		pending[entity_id] = nil
+		store(char, table.concat(p.parts))
+	end
+	return ""
+end
