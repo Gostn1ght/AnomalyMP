@@ -444,8 +444,17 @@ void xrServer::SendUpdatePacketsToAll()
 // client then gets the objects near its Actor every tick and farther ones
 // less often (staggered by id), instead of every object every tick. Items
 // held by someone use the holder's position.
+// Overload policy (doc 43 M04/D05/D06): the server's own frame time, smoothed;
+// a slow server sends far objects less often before near ones suffer, and
+// every client has a byte budget per tick that only far objects give way to.
+static float s_aoi_frame_ms = 16.f;
+static const u32 aoi_client_budget = 16 * 1024; // bytes per client per tick (~480 KB/s at 30 Hz)
+
 void xrServer::SendUpdatesAOI()
 {
+	s_aoi_frame_ms = s_aoi_frame_ms * 0.95f + Device.fTimeDelta * 1000.f * 0.05f;
+	// 1 below ~30 fps, 2 below ~20 fps, 4 below ~12 fps.
+	const u32 far_scale = s_aoi_frame_ms > 80.f ? 4 : s_aoi_frame_ms > 50.f ? 2 : s_aoi_frame_ms > 33.f ? 2 : 1;
 	struct Chunk
 	{
 		u32 offset;
@@ -601,6 +610,7 @@ void xrServer::SendUpdatesAOI()
 		bool indexed;
 		u64 *candidate_checks, *full_checks, *grid_checks;
 		u32 *indexed_clients, *fallback_clients;
+		u32 far_scale;
 		void operator()(IClient* client)
 		{
 			xrClientData* CL = static_cast<xrClientData*>(client);
@@ -608,6 +618,7 @@ void xrServer::SendUpdatesAOI()
 				!CL->owner)
 				return;
 			const Fvector& eye = CL->owner->o_Position;
+			u32 client_bytes = 0;
 			NET_Packet P;
 			P.w_begin(M_UPDATE_OBJECTS);
 			netcoop_world::ReplicationSelection selection;
@@ -621,9 +632,15 @@ void xrServer::SendUpdatesAOI()
 				const std::size_t i = selection.valid ? selection.indices[cursor] : cursor;
 				const Chunk& c = chunks[i];
 				const float d = c.id == CL->owner->ID ? 0.f : eye.distance_to(c.position);
-				const u32 every = c.player ? (d < 300.f ? 1 : 2) : d < 50.f ? 1 : d < 150.f ? 2 : d < 300.f ? 4 : 16;
+				u32 every = c.player ? (d < 300.f ? 1 : 2) : d < 50.f ? 1 : d < 150.f ? 2 : d < 300.f ? 4 : 16;
+				// Overload and budget: never the nearby world (50 m) or nearby players.
+				const bool near = d < 50.f || (c.player && d < 150.f);
+				if (!near) every *= far_scale;
 				if ((server->m_aoi_tick + c.id) % every)
 					continue;
+				if (!near && client_bytes > aoi_client_budget)
+					continue; // staggered by id and tick, it goes out on a later tick
+				client_bytes += c.size;
 				if (P.B.count + c.size > packet_limit)
 				{
 					server->SendTo(CL->ID, P, net_flags(FALSE, TRUE));
@@ -638,7 +655,7 @@ void xrServer::SendUpdatesAOI()
 				*sent += P.B.count;
 			}
 		}
-	} send = {this, &sent_bytes, indexed, &candidate_checks, &full_checks, &grid_checks, &indexed_clients, &fallback_clients};
+	} send = {this, &sent_bytes, indexed, &candidate_checks, &full_checks, &grid_checks, &indexed_clients, &fallback_clients, far_scale};
 	ForEachClientDo(send);
 	if (use_index && (!m_replication_index_log || shadow_now-m_replication_index_log>=10000))
 	{
