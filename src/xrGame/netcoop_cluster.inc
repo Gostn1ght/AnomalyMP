@@ -31,7 +31,7 @@ static const u32 cluster_lease_ttl_s = 30, cluster_ticket_ttl_s = 180, cluster_l
 struct ClusterLeaving { u16 actor = 0; u32 since = 0; xr_string level; };
 static xr_map<u32, ClusterLeaving> s_cluster_leaving; // ClientID value -> leaving player
 static xr_map<u32, u32> s_cluster_redirected; // ClientID value -> time of a login redirect
-static u32 s_cluster_heartbeat = 0;
+static u32 s_cluster_heartbeat = 0, s_cluster_status = 0;
 static xr_string s_cluster_secret;
 
 static u32 cluster_now() { return u32(_time64(nullptr)); }
@@ -688,13 +688,23 @@ struct ClusterDisconnectLeaving
 	}
 };
 
+// Each lease write is a synced file replace (a few ms). All players at once
+// every 10 s took 128-player servers to 0.1-0.4 s frames (2026-10-06): the
+// leases are refreshed a few per call, each about every 10 s (TTL 30 s).
+static xr_map<xr_string, u32> s_cluster_lease_written;
 struct ClusterHeartbeat
 {
+	u32 now;
+	u32* budget;
 	void operator()(IClient* client) const
 	{
 		xrClientData* CL = static_cast<xrClientData*>(client);
-		if (CL && !CL->flags.bLocal && CL->owner && CL->netcoop_login.size() && !server_client_leaving(CL))
-			cluster_lease_write(CL->netcoop_login.c_str());
+		if (!CL || CL->flags.bLocal || !CL->owner || !CL->netcoop_login.size() || server_client_leaving(CL)) return;
+		u32& last = s_cluster_lease_written[cluster_login_key(CL->netcoop_login.c_str())];
+		if ((last && now - last < 10000) || !*budget) return;
+		--*budget;
+		last = now;
+		cluster_lease_write(CL->netcoop_login.c_str());
 	}
 };
 
@@ -804,11 +814,17 @@ static void cluster_update(xrServer* server)
 		s_cluster_clock_check = now;
 		cluster_clock_update();
 	}
-	if (now - s_cluster_heartbeat >= 10000)
+	if (now - s_cluster_status >= 10000)
+	{
+		s_cluster_status = now;
+		if (cluster_config_present()) cluster_status_write(server);
+		if (s_cluster_lease_written.size() > 1024) s_cluster_lease_written.clear(); // logins that left
+	}
+	if (now - s_cluster_heartbeat >= 250)
 	{
 		s_cluster_heartbeat = now;
-		if (cluster_config_present()) cluster_status_write(server);
-		ClusterHeartbeat heartbeat;
+		u32 budget = 4;
+		ClusterHeartbeat heartbeat = {now, &budget};
 		server->ForEachClientDo(heartbeat);
 	}
 	if (cluster_selftest())

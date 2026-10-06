@@ -172,9 +172,15 @@ void CRenderDevice::End(void)
 
 volatile u32 mt_Thread_marker = 0x12345678;
 
+// The secondary thread (ALife update, path builders, bullets, script GC):
+// the Lost Zone hitch sampler logs its stack too when the main thread waits.
+ENGINE_API HANDLE g_mt_thread_handle = 0;
+
 void mt_Thread(void* ptr)
 {
 	auto& device = *static_cast<CRenderDevice*>(ptr);
+	DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &g_mt_thread_handle,
+		THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE, 0);
 	while (true)
 	{
 		PROF_EVENT();

@@ -83,6 +83,9 @@ def main():
         for m in re.finditer(r"([\w.]+)\+([0-9a-fA-F]+)", raw):
             if m.group(1).lower() == module:
                 out += "\n      " + m.group(0) + " = " + name(int(m.group(2), 16))
+        # [hitch] stacks print absolute addresses of the exe (image base 0x140000000).
+        for m in re.finditer(r"(?<![\w+])(14[0-9a-fA-F]{7})\b", raw):
+            out += "\n      " + m.group(1) + " = " + name(int(m.group(1), 16) - BASE)
         print(out)
 
 

@@ -72,6 +72,9 @@
 
 extern xr_vector<CLevelChanger*> g_lchangers;
 
+// device.cpp: the engine's secondary thread (sampled on server hitches).
+extern ENGINE_API HANDLE g_mt_thread_handle;
+
 namespace netcoop
 {
 // ---------------------------------------------------------------------------
@@ -3316,15 +3319,15 @@ void wd_hook(lua_State* L, lua_Debug*)
 // unwound, without allocations or locks.
 HANDLE wd_main_thread = 0;
 
-u32 sample_main_stack(DWORD64* pcs, u32 max_pcs)
+u32 sample_stack(HANDLE thread, DWORD64* pcs, u32 max_pcs)
 {
-	if (!wd_main_thread || SuspendThread(wd_main_thread) == DWORD(-1))
+	if (!thread || SuspendThread(thread) == DWORD(-1))
 		return 0;
 	u32 count = 0;
 	CONTEXT ctx;
 	ZeroMemory(&ctx, sizeof(ctx));
 	ctx.ContextFlags = CONTEXT_FULL;
-	if (GetThreadContext(wd_main_thread, &ctx))
+	if (GetThreadContext(thread, &ctx))
 	{
 		while (count < max_pcs && ctx.Rip)
 		{
@@ -3338,17 +3341,18 @@ u32 sample_main_stack(DWORD64* pcs, u32 max_pcs)
 			RtlVirtualUnwind(UNW_FLAG_NHANDLER, image_base, ctx.Rip, fn, &ctx, &handler_data, &establisher, 0);
 		}
 	}
-	ResumeThread(wd_main_thread);
+	ResumeThread(thread);
 	return count;
 }
+u32 sample_main_stack(DWORD64* pcs, u32 max_pcs) { return sample_stack(wd_main_thread, pcs, max_pcs); }
 
 // Frames are written as module+offset (the game exe as a plain address at
 // its fixed base); scratchpad symhitch.py resolves them with the PDB. No
 // dbghelp in the process: its state is the crash handler's.
-void log_hitch(u32 frame, u32 ms, const DWORD64* pcs, u32 count)
+void log_hitch(u32 frame, u32 ms, const DWORD64* pcs, u32 count, LPCSTR tag = "hitch")
 {
 	string4096 line;
-	xr_sprintf(line, "[Lost Zone][hitch] frame %u at %u ms:", frame, ms);
+	xr_sprintf(line, "[Lost Zone][%s] frame %u at %u ms:", tag, frame, ms);
 	const HMODULE exe = GetModuleHandle(0);
 	for (u32 i = 0; i < count; ++i)
 	{
@@ -3394,7 +3398,12 @@ DWORD WINAPI wd_thread(void*)
 			DWORD64 pcs[24];
 			const u32 count = sample_main_stack(pcs, 24);
 			if (count && Device.dwFrame == frame)
+			{
 				log_hitch(frame, now - since, pcs, count);
+				// The main thread may be waiting for the secondary one.
+				const u32 mt_count = sample_stack(::g_mt_thread_handle, pcs, 24);
+				if (mt_count) log_hitch(frame, now - since, pcs, mt_count, "hitch-mt");
+			}
 		}
 		if (now - since < 20000 || wd_armed || !g_pGameLevel || wd_frame == frame)
 			continue;

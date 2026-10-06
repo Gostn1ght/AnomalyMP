@@ -1261,6 +1261,12 @@ CUISequencer* g_tutorial2 = NULL;
 
 void start_tutorial(LPCSTR name)
 {
+	// UI sequences (hints, videos) are the players' clients' business. On the
+	// dedicated server db.actor is the hidden anchor Actor: GAMMA's campfire
+	// hint started and stopped a UI sequence there over and over (XML loads in
+	// 0.1-0.4 s server hitches, 2026-10-06).
+	if (g_dedicated_server)
+		return;
 	if (g_tutorial)
 	{
 		VERIFY(!g_tutorial2);
