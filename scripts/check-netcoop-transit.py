@@ -359,6 +359,60 @@ assert len(escape.globals().created) == 1
 assert records["l01_escape"][copy_id][1] is False
 assert any("persistent identity already present" in line for line in escape.globals().logs.values())
 
+# Target proximity holds the intact mailbox before any entity/receipt/save.
+# Every connected player's distance is checked, including the exact boundary.
+marsh, escape = pair()
+assert marsh.globals().depart(lambda: 0) == "left"
+pending = dict(records["l01_escape"])
+escape.execute('''
+players[1] = {position = function() return {distance_to = function() return 1000 end} end}
+players[2] = {position = function() return {distance_to = function() return 150 end} end}
+''')
+assert escape.globals().arrive() == "entrance occupied"
+assert len(escape.globals().created) == 0
+assert records["l01_escape"] == pending
+escape.execute('assert(next(storage_state.netcoop_transit_v2.inbox) == nil)')
+restart(escape)
+assert escape.globals().arrive() == "entrance occupied"
+assert len(escape.globals().created) == 0
+assert records["l01_escape"] == pending
+escape.execute('players[2] = nil')
+assert escape.globals().arrive() == "arrived"
+assert len(escape.globals().created) == 1
+
+# A held entrance does not strand another entrance, nor does player arrival
+# after materialization interfere with an idempotent receipt/ACK retry.
+marsh, escape = pair()
+assert marsh.globals().depart(lambda: 0) == "left"
+original_id, original_record = next(iter(records["l01_escape"].items()))
+escape.globals().other_wire = original_record[0]
+escape.globals().other_id = "e"*32
+other_wire = escape.execute('''
+local r = assert(deserialize(other_wire)); r.id = other_id; r.from = "l02_garbage"
+r.lua.pid = string.format("%032x", 700)
+for i, member in ipairs(r.members) do
+    member.lua.pid = string.format("%032x", 700+i)
+    for j, item in ipairs(member.items) do item.lua.pid = string.format("%032x", 800+i*10+j) end
+end
+other = spawn("lc", 50, 2); other.dest = "l02_garbage"; other.position.x = 1000
+players[1] = {position = function() return {distance_to = function(_, pos) return pos.x end} end}
+return assert(serialize(r))
+''')
+records["l01_escape"]["e"*32] = (other_wire, False)
+assert escape.globals().arrive() == "entrance occupied"
+assert records["l01_escape"][original_id] == original_record
+fail_ack = True
+assert escape.globals().arrive() == "ack pending"
+assert len(escape.globals().created) == 1
+escape.execute('players[1] = {position = function() return {distance_to = function() return 0 end} end}')
+assert escape.globals().arrive() == "entrance occupied"
+fail_ack = False
+assert escape.globals().arrive() == "acknowledged"
+assert len(escape.globals().created) == 1
+escape.execute('players = {}')
+assert escape.globals().arrive() == "arrived"
+assert len(escape.globals().created) == 2
+
 # Strict parser rejects executable Lua, truncation, duplicates and resource
 # bombs without ever invoking a compiler or executing mailbox contents.
 escape.execute(r'''
@@ -374,7 +428,7 @@ local cycle = {}; cycle.self = cycle; assert(serialize(cycle) == nil)
 local text = assert(serialize({text = "Привет", flag = false, numbers = {1, -2, .1}}))
 assert(deserialize(text).text == "Привет" and deserialize(text).flag == false)
 ''')
-print("NPC transit PASS: paired checkpoints, crash/retry at source/publish/target/ack, intact inventory, stable IDs and supported Lua/native state, held exit/section, rollback, bounded non-executable wire, held-record rotation and target identity collision refusal")
+print("NPC transit PASS: paired checkpoints, crash/retry at source/publish/target/ack, intact inventory, stable IDs and supported Lua/native state, held exit/section, rollback, bounded non-executable wire, held-record rotation, target identity collision refusal and occupied entrance admission")
 escape.execute('command_line = function() return "-netcoop_cluster_selftest" end')
 assert escape.globals().arrive() == "ownership adapter required"
 assert escape.globals().depart(lambda: 0) == "ownership adapter required"

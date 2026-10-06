@@ -583,3 +583,12 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   admission before updates; refusal keeps old routes/arrivals/clock/anchor.
   Local full231 PASS with population/guarded-read faults and prior scale tests.
   Actions pending after push; chunked rescale/native authority/4 LOD still open.
+
+- 479914f98/37426282814 backend SUCCESS Windows+Linux(231).
+- NPC target arrival now holds mailbox before spawn if any connected player is
+  within150m of entrance (inclusive boundary). No receipt/checkpoint/ACK on hold;
+  cursor rotation allows other entrances, receipt retries never respawn or wait
+  on later player proximity. Actual Lua PASS incl restart, two-player boundary,
+  another entrance progress and delayed ACK. DX11 Actions next, no local native
+  build/install/launch. Proximity only, not PVS/optics/observed transit animation;
+  H10 still open and NPC transit still opt-in pending authoritative adapter.

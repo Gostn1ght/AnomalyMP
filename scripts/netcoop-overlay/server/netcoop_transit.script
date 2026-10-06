@@ -8,7 +8,7 @@
 local TRANSIT = {
 	check_ms = 600000, -- real time between looks for a departing squad
 	chance = 0.3,
-	player_clear = 150, -- no player this close to any member
+	player_clear = 150, -- no player this close to a departing member or arriving entrance
 	arrivals_ms = 15000, -- real time between looks for arriving squads
 }
 -- Cluster soak test (-netcoop_cluster_selftest): a squad leaves every minute.
@@ -451,6 +451,10 @@ function arrive()
     if not ok then printf("! [Lost Zone][transit] held record %s: %s", id, tostring(err)); return "record held" end
     local changer = changers()[record.from]
     if not changer then return "no entrance" end -- never substitute an unrelated exit
+    -- Keep the durable mailbox untouched while a player occupies the target
+    -- entrance. The cursor already advanced, so other records can still try.
+    -- A committed receipt above only retries checkpoint/ACK, never spawns again.
+    if players_near(changer.position, TRANSIT.player_clear) then return "entrance occupied" end
     local spawned = {}
     local restored, failure = pcall(function()
         local squad = alife_create(record.section, changer.position, changer.m_level_vertex_id, changer.m_game_vertex_id)

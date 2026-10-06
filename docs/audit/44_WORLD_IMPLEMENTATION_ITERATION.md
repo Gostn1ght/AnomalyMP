@@ -1122,3 +1122,21 @@ and all routes, guarded oversized first-point blob refusal before any later read
 plus existing mixed scales/movement/one-arrival consistency. Backend Actions
 pending after push. Shared/native world-clock adoption, actual4 LOD/AI/persistent
 registry and live acceptance still open; these counts are tests, not whole stages.
+
+## Occupied NPC target entrance admission
+
+479914f98 backend37426282814 SUCCESS Windows+Linux(231).
+Actual transit Lua now checks all connected players before creating a squad at
+its target entrance. A player at <=150m holds the durable mailbox unchanged;
+no partial entity, receipt, checkpoint or ACK. Existing cursor rotation allows
+another entrance to progress. Committed receipt replay remains above the guard
+and never spawns again when a player subsequently approaches.
+
+Actual two-VM Lua fixture PASS: inclusive boundary with a second nearby player,
+restart while occupied, unchanged pending wire/no new entities/inbox, eventual
+arrival after departure, another unoccupied entrance progress, delayed ACK while
+both entrances are occupied and exactly one materialization per record.
+This is a conservative proximity gate only, not visibility/PVS/optics demand or
+an observed walking transition. H10 and global NPC ownership/registry remain
+open, opt-in unchanged. Native compilation/package verification via Actions next;
+no local native execution or runtime installation.
