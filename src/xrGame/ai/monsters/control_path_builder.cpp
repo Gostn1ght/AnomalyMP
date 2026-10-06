@@ -293,7 +293,8 @@ bool CControlPathBuilder::can_use_distributed_computations(u32 option) const
 	// several frames; near players paths are built at once, as for the
 	// single player Actor watching (stage 10).
 	if (netcoop::enabled() && !netcoop::pure_client())
-		return netcoop::server_nearest_player_distance(inherited_com::m_object->Position()) > 80.f &&
+		return netcoop::server_nearest_player_distance(inherited_com::m_object->Position()) >
+			netcoop::server_ai_distance(netcoop::ai_distance_path) &&
 			inherited::can_use_distributed_computations(option);
 	if (!g_actor)
 		return true;

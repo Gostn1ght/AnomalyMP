@@ -343,9 +343,9 @@ float CCustomMonster::shedule_Scale()
 	if (!netcoop::enabled() || netcoop::pure_client())
 		return Device.vCameraPosition.distance_to(Position()) / 200.f;
 	const float distance = netcoop::server_nearest_player_distance(Position());
-	if (distance < 100.f && memory().enemy().selected())
+	if (distance < netcoop::server_ai_distance(netcoop::ai_distance_combat) && memory().enemy().selected())
 		return 0.f;
-	return distance / 200.f;
+	return distance / netcoop::server_ai_distance(netcoop::ai_distance_far);
 }
 
 void CCustomMonster::shedule_Update(u32 DT)

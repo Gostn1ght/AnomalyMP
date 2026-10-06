@@ -2,7 +2,8 @@
 # The Great Swamp server runs in cluster mode with an emission every few game
 # hours; every -Every minutes the test records the game time, the living
 # NPCs and mutants of the map, corpses, artefacts lying in the map, the
-# server's memory and the script errors so far. It fails on a crash, on
+# server's memory, the script errors so far and the world invariants (no item
+# without its holder, no squad member lost, no story id twice). It fails on a crash, on
 # script errors that keep growing, or on memory that keeps growing.
 #   powershell -File scripts\run-world-day-test.ps1 -Runtime ..\gamma-runtime -Minutes 150
 param(
@@ -57,8 +58,25 @@ for i = 1, 65534 do
         elseif se.parent_id == 65535 and IsArtefact(nil, cls) then arts = arts + 1 end
     end
 end
+-- Invariants of the whole world (M09): every object's parent exists, every
+-- member of a squad exists and points back to it, a story id names one object.
+local orphans, lost_members, story_dups, seen_story = 0, 0, 0, {}
+for i = 1, 65534 do
+    local se = sim:object(i)
+    if se then
+        if se.parent_id and se.parent_id ~= 65535 and not sim:object(se.parent_id) then orphans = orphans + 1 end
+        if se.squad_members then
+            for k in se:squad_members() do
+                local m = sim:object(k.id)
+                if not m or m.group_id ~= i then lost_members = lost_members + 1 end
+            end
+        end
+        local sid = get_object_story_id(i)
+        if sid then if seen_story[sid] then story_dups = story_dups + 1 end seen_story[sid] = true end
+    end
+end
 local s = alife_storage_manager.get_state()
-return string.format("DAY %s npcs=%d mutants=%d corpses=%d artefacts=%d emissions=%s", game.get_game_time():dateToString(game.CTime.DateToDay) .. " " .. game.get_game_time():timeToString(game.CTime.TimeToMinutes), npcs, mutants, corpses, arts, tostring(s.netcoop_emissions or 0))
+return string.format("DAY %s npcs=%d mutants=%d corpses=%d artefacts=%d emissions=%s orphans=%d lost_members=%d story_dups=%d", game.get_game_time():dateToString(game.CTime.DateToDay) .. " " .. game.get_game_time():timeToString(game.CTime.TimeToMinutes), npcs, mutants, corpses, arts, tostring(s.netcoop_emissions or 0), orphans, lost_members, story_dups)
 end)
 db.actor = previous
 return ok and res or ('probe error ' .. tostring(res))
@@ -86,6 +104,8 @@ Set-Content -Path $debugFile -Value "" -Encoding ascii
 $mem = $rows | ForEach-Object { if ($_ -match "private=(\d+)MB") { [int]$Matches[1] } }
 $err = $rows | ForEach-Object { if ($_ -match "errors=(\d+)") { [int]$Matches[1] } }
 $growth = $mem[-1] - $mem[[Math]::Min(2, $mem.Count - 1)]
+$broken = $rows | Where-Object { $_ -match "orphans=[1-9]|lost_members=[1-9]|story_dups=[1-9]|probe error" }
+if ($broken) { "FAIL: world invariants broken: $($broken[0])"; exit 1 }
 if (($err[-1] - $err[0]) -gt 20) { "FAIL: script errors keep growing ($($err[0]) -> $($err[-1]))"; exit 1 }
 if ($growth -gt 400) { "FAIL: memory grew by $growth MB over the run"; exit 1 }
 "PASS: $($rows.Count) samples, memory change $growth MB after warm-up, script errors $($err[0]) -> $($err[-1])"

@@ -242,6 +242,8 @@ float server_luminocity(const CObject* object, float rendered);
 // Server: distance to the nearest living player (positions cached each
 // frame); a large value when no player is online.
 float server_nearest_player_distance(const Fvector& position);
+enum { ai_distance_far, ai_distance_combat, ai_distance_path, ai_distance_count };
+float server_ai_distance(u32 kind);
 // The local Actor or, on the server, a player's Actor.
 bool is_player(const CObject* object);
 // Server: whether a player looks at an object (view cone, distance), for

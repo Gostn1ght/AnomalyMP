@@ -1892,6 +1892,33 @@ static void cache_player_positions()
 	}
 }
 
+// NPC AI by distance to the nearest player (doc 43 E03/E04), set on the
+// server's command line (metres):
+//   -netcoop_ai_far=<m>     the think interval grows to its longest at it (200)
+//   -netcoop_ai_combat=<m>  an NPC fighting within it thinks at the shortest (100)
+//   -netcoop_ai_path=<m>    paths are built at once within it, not in pieces (80)
+float server_ai_distance(u32 kind)
+{
+	static float distances[ai_distance_count] = {};
+	static bool read = false;
+	if (!read)
+	{
+		read = true;
+		const LPCSTR options[ai_distance_count] = {"-netcoop_ai_far=", "-netcoop_ai_combat=", "-netcoop_ai_path="};
+		const float defaults[ai_distance_count] = {200.f, 100.f, 80.f};
+		for (u32 i = 0; i < ai_distance_count; ++i)
+		{
+			LPCSTR option = strstr(Core.Params, options[i]);
+			const float value = option ? float(atof(option + xr_strlen(options[i]))) : 0.f;
+			distances[i] = value > 0.f ? value : defaults[i];
+		}
+		if (!pure_client())
+			Msg("[Lost Zone][ai] NPC AI by distance to the nearest player: longest think interval at %.0f m, fights within %.0f m and "
+				"paths within %.0f m at full rate", distances[ai_distance_far], distances[ai_distance_combat], distances[ai_distance_path]);
+	}
+	return kind < ai_distance_count ? distances[kind] : 200.f;
+}
+
 float server_nearest_player_distance(const Fvector& position)
 {
 	float best = 100000.f;
