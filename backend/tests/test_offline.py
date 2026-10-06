@@ -6,7 +6,8 @@ import unittest
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from lostzone import Store, World, Conflict
+from lostzone import Store, World, Conflict, Invalid
+from lostzone.store import canonical
 from lostzone.offline import Offline
 from lostzone.ownership import Ownership
 from lostzone.scheduler import Scheduler
@@ -46,6 +47,153 @@ class OfflineTest(unittest.TestCase):
         row = self.row()
         return self.offline.dehydrate("a", uid(), self.npc, "cordon", self.fence, row["version"],
                                       {self.npc: {"version": row["version"], "state": json.loads(row["state"])}})
+
+    def captured_group(self,payload="",dead_member=False):
+        second,group=uid(),uid()
+        self.ownership.create_entity("a",uid(),second,"NPC","cordon",self.fence,
+                                     {"position":[2,0,0],"health":.8,"payload":payload,"task":"guard"})
+        self.ownership.create_entity("a",uid(),group,"GROUP","cordon",self.fence,
+                                     {"position":[0,0,0],"member_ids":[self.npc,second]})
+        if dead_member:
+            self.ownership.kill("a",uid(),second,self.fence,1,"combat")
+        captures={value:{"version":self.row(value)["version"],"state":json.loads(self.row(value)["state"])}
+                  for value in (group,self.npc,second) if self.row(value)["alive"]}
+        self.offline.dehydrate("a",uid(),group,"cordon",self.fence,1,captures)
+        return group,second
+
+    def test_hydration_admission_refuses_large_member_without_partial_position_or_ownership(self):
+        group,second=self.captured_group("я"*2000)
+        self.offline.start_route("admin",uid(),group,2,[[0,0,0],[100,0,0]],1,42)
+        self.ns=2_000_000_000
+        before=[dict(self.row(value)) for value in (group,self.npc,second)]
+        route=dict(self.store.db.execute("SELECT * FROM route WHERE entity_id=?",(group,)).fetchone())
+        events=self.store.events();self.offline.hydration_limit=1024
+        with self.assertRaises(Invalid):
+            self.offline.hydrate("a",uid(),group,"cordon",self.fence,3)
+        self.assertEqual([dict(self.row(value)) for value in (group,self.npc,second)],before)
+        self.assertEqual(dict(self.store.db.execute("SELECT * FROM route WHERE entity_id=?",(group,)).fetchone()),route)
+        self.assertEqual(self.store.events(),events)
+        self.offline.hydration_limit=1024*1024
+        result=self.offline.hydrate("a",uid(),group,"cordon",self.fence,3)
+        positions={row["id"]:json.loads(row["state"])["position"] for row in result["entities"]}
+        self.assertEqual(positions,{group:[2,0,0],self.npc:[2,0,0],second:[4,0,0]})
+        self.assertEqual(json.loads(self.row(second)["state"])["payload"],"я"*2000)
+
+    def test_hydration_stops_before_loading_later_members_after_oversized_first_record(self):
+        group,second=self.captured_group()
+        with self.store.transaction() as tx:
+            state=json.loads(self.row()["state"]);state["payload"]="x"*3000
+            tx.execute("UPDATE entity SET state=? WHERE id=?",(json.dumps(state),self.npc))
+        self.offline.hydration_limit=1024
+        from contextlib import contextmanager
+        original=self.store.transaction
+        class Guarded:
+            def __init__(self,tx):
+                self.tx=tx
+            def execute(self,sql,*args):
+                if sql.startswith("SELECT id,kind,location,writer,fence,version,alive,") and args[0][0]==second:
+                    raise AssertionError("hydration read later member after admission overflow")
+                return self.tx.execute(sql,*args)
+        @contextmanager
+        def transaction():
+            with original() as tx:
+                yield Guarded(tx)
+        self.store.transaction=transaction
+        try:
+            with self.assertRaises(Invalid):
+                self.offline.hydrate("a",uid(),group,"cordon",self.fence,2)
+        finally:
+            self.store.transaction=original
+        self.assertEqual(self.row()["writer"],"offline:cordon")
+        self.assertEqual(self.row(second)["writer"],"offline:cordon")
+
+    def test_hydration_projects_only_living_members_and_keeps_permanent_casualty_roster(self):
+        group,dead=self.captured_group(dead_member=True)
+        before=dict(self.row(dead))
+        result=self.offline.hydrate("a",uid(),group,"cordon",self.fence,2)
+        self.assertEqual([row["id"] for row in result["entities"]],[group,self.npc])
+        self.assertEqual(dict(self.row(dead)),before)
+        self.assertEqual(json.loads(self.row(group)["state"])["member_ids"],[self.npc,dead])
+
+    def test_hydration_utf8_escaped_projection_boundary_and_one_byte_refusal(self):
+        group,_=self.captured_group('я"\\'*1000)
+        self.store.close();frozen=self.path.read_bytes();self.open()
+        result=self.offline.hydrate("a",uid(),group,"cordon",self.fence,2)
+        budget=len(canonical({"entities":result["entities"],"event":2**63-1}).encode("utf-8"))
+        self.assertGreater(budget,1024)
+        for delta in (0,-1):
+            self.store.close();self.path=Path(self.folder.name)/f"boundary-{delta}.db"
+            self.path.write_bytes(frozen);self.open();self.offline.hydration_limit=budget+delta
+            if delta==0:
+                self.assertEqual(self.offline.hydrate("a",uid(),group,"cordon",self.fence,2)["entities"],result["entities"])
+            else:
+                before=self.store.events()
+                with self.assertRaises(Invalid):
+                    self.offline.hydrate("a",uid(),group,"cordon",self.fence,2)
+                self.assertEqual(self.row(group)["writer"],"offline:cordon")
+                self.assertEqual(self.store.events(),before)
+
+    def test_hydration_journal_failure_rolls_back_projection_route_and_inventory(self):
+        group,second=self.captured_group()
+        item=uid()
+        with self.store.transaction() as tx:
+            tx.execute("INSERT INTO item VALUES(?,'wpn','NPC',?,2,1,?)",
+                       (item,self.npc,json.dumps({"condition":.75,"ammo":15,"attachments":["scope"]})))
+        inventory=dict(self.store.db.execute("SELECT * FROM item WHERE id=?",(item,)).fetchone())
+        self.offline.start_route("admin",uid(),group,2,[[0,0,0],[100,0,0]],1,42)
+        self.ns=2_000_000_000
+        before=[dict(self.row(value)) for value in (group,self.npc,second)]
+        events=self.store.events();original=self.store.event
+        def fail(tx,aggregate,kind,*args,**kwargs):
+            if kind=="HydrationClaimed":
+                raise RuntimeError("injected hydration journal failure")
+            return original(tx,aggregate,kind,*args,**kwargs)
+        self.store.event=fail
+        try:
+            with self.assertRaises(RuntimeError):
+                self.offline.hydrate("a",uid(),group,"cordon",self.fence,3)
+        finally:
+            self.store.event=original
+        self.assertEqual([dict(self.row(value)) for value in (group,self.npc,second)],before)
+        self.assertEqual(self.store.db.execute("SELECT active FROM route WHERE entity_id=?",(group,)).fetchone()[0],1)
+        self.assertEqual(self.store.events(),events)
+        self.assertEqual(dict(self.store.db.execute("SELECT * FROM item WHERE id=?",(item,)).fetchone()),inventory)
+        self.assertIsNone(self.world._mutation_cut)
+        self.offline.hydrate("a",uid(),group,"cordon",self.fence,3)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM entity").fetchone()[0],3)
+        self.assertEqual(dict(self.store.db.execute("SELECT * FROM item WHERE id=?",(item,)).fetchone()),inventory)
+
+    def test_foreign_member_refuses_hydration_before_parsing_its_invalid_state(self):
+        group,second=self.captured_group()
+        with self.store.transaction() as tx:
+            tx.execute("UPDATE entity SET writer='foreign',state='invalid-json' WHERE id=?",(second,))
+        before=[dict(self.row(value)) for value in (group,self.npc,second)]
+        with self.assertRaises(Conflict):
+            self.offline.hydrate("a",uid(),group,"cordon",self.fence,2)
+        self.assertEqual([dict(self.row(value)) for value in (group,self.npc,second)],before)
+
+    def test_shared_members_capture_stops_before_loading_later_oversized_members(self):
+        group,second=self.captured_group()
+        third=uid()
+        with self.store.transaction() as tx:
+            state=json.loads(self.row(group)["state"]);state["member_ids"].append(third)
+            tx.execute("UPDATE entity SET state=? WHERE id=?",(json.dumps(state),group))
+            tx.execute("INSERT INTO entity VALUES(?,'NPC','cordon','offline:cordon',?,1,1,?)",
+                       (third,self.store.epoch,json.dumps({"position":[3,0,0]})))
+            tx.execute("INSERT INTO group_member VALUES(?,?)",(group,third))
+            for member in (self.npc,second):
+                state=json.loads(self.row(member)["state"]);state["payload"]="x"*(2*1024*1024)
+                tx.execute("UPDATE entity SET state=? WHERE id=?",(json.dumps(state),member))
+        class Guarded:
+            def __init__(self,tx):
+                self.tx=tx
+            def execute(self,sql,*args):
+                if sql.startswith("SELECT id,kind,location,writer,fence,version,alive,") and args[0][0]==third:
+                    raise AssertionError("member capture continued after byte admission exhaustion")
+                return self.tx.execute(sql,*args)
+        with self.store.transaction() as tx:
+            with self.assertRaises(Conflict):
+                self.offline.members(Guarded(tx),self.row(group))
 
     def test_foreign_world_scheduler_is_refused_without_overwriting_handlers(self):
         other = Store(Path(self.folder.name)/"foreign.db")

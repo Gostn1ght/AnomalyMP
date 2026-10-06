@@ -9,6 +9,7 @@ import json
 import math
 
 from .ownership import Ownership
+from .capture import CaptureBudget
 from .store import Conflict, Invalid, canonical, finite, identifier, persistent_id, positive
 
 
@@ -34,18 +35,36 @@ def route_position(points, progress):
 
 
 class Offline:
-    def __init__(self, world, scheduler):
+    def __init__(self, world, scheduler, *, hydration_limit=1024*1024):
         if scheduler.world is not world:
             raise Conflict("offline scheduler belongs to another world authority")
+        if type(hydration_limit) is not int or not 1024<=hydration_limit<=1024*1024:
+            raise Invalid("invalid hydration result admission byte budget")
         self.world, self.store, self.scheduler = world, world.store, scheduler
+        self.hydration_limit=hydration_limit
         self.ownership = Ownership(world)
         scheduler.handlers["RouteArrived"] = self.arrived
         world.scale_handlers.append(self.scale_changed)
 
     def members(self, tx, root, limit=None):
-        result = [root]
+        result,budget=[],CaptureBudget(4*1024*1024)
+        for row in self.iter_members(tx,root,limit):
+            budget.consume(row["state"])
+            result.append(row)
+        return result
+
+    def iter_members(self, tx, root, limit=None):
+        count=1
+        yield root
         if root["kind"] == "GROUP":
-            for value in json.loads(root["state"])["member_ids"]:
+            members=json.loads(root["state"])["member_ids"]
+            if not isinstance(members,list) or not 1<=len(members)<=512:
+                raise Conflict("persistent group roster exceeds admission limit")
+            for member_id in members:
+                persistent_id(member_id)
+            if len(set(members))!=len(members):
+                raise Conflict("persistent group roster contains duplicate identities")
+            for value in members:
                 # Keep permanent casualty IDs in the roster, but do not load
                 # their potentially large state blobs for a living-members
                 # capture. SQLite evaluates the CASE before returning state.
@@ -55,10 +74,10 @@ class Offline:
                 if not row:
                     raise Conflict("persistent member disappeared")
                 if row["alive"]:
-                    result.append(row)
-                    if limit is not None and len(result)>limit:
+                    count+=1
+                    if limit is not None and count>limit:
                         raise Conflict("member capture exceeds admission limit")
-        return result
+                    yield row
 
     def dehydrate(self, actor, command_id, entity_id, location, fence, version, captures):
         persistent_id(entity_id)
@@ -223,16 +242,33 @@ class Offline:
                 raise Conflict("hydration destination is another location")
             if root["alive"] and root["kind"] != "GROUP" and tx.execute("SELECT 1 FROM group_member WHERE member_id=?", (entity_id,)).fetchone():
                 raise Conflict("hydrate the persistent group instead of one member")
-            self.write_positions(tx, root, self.position_at(tx, root, self.world.now()))
-            for member in self.members(tx, root):
-                self.require_offline(tx, member["id"])
-                tx.execute("UPDATE entity SET writer=?,fence=?,version=version+1 WHERE id=?", (actor, fence, member["id"]))
+            target=self.position_at(tx,root,self.world.now())
+            origin=point(json.loads(root["state"]).get("position"))
+            records=[]
+            # Reserve the largest possible journal sequence; exact projected
+            # row bytes (including escaped state strings) are admitted before
+            # retaining another member or changing ownership/position.
+            used=len(canonical({"entities":[],"event":2**63-1},limit=self.hydration_limit).encode("utf-8"))
+            for member in self.iter_members(tx,root):
+                if (member["location"],member["writer"],member["fence"])!=(location,"offline:"+location,self.store.epoch):
+                    raise Conflict("hydration member belongs to another authority")
+                state=json.loads(member["state"])
+                previous=point(state.get("position"))
+                state["position"]=[x+(p-o) for x,p,o in zip(target,previous,origin)]
+                record=dict(member)
+                record.update(writer=actor,fence=fence,version=positive(member["version"]+2),state=canonical(state))
+                used+=len(canonical(record,limit=self.hydration_limit).encode("utf-8"))+(1 if records else 0)
+                if used>self.hydration_limit:
+                    raise Invalid("hydration result exceeds admission byte budget")
+                records.append(record)
+            for record in records:
+                tx.execute("UPDATE entity SET state=?,writer=?,fence=?,version=? WHERE id=?",
+                           (record["state"],record["writer"],record["fence"],record["version"],record["id"]))
             tx.execute("UPDATE route SET active=0 WHERE entity_id=?", (entity_id,))
             event = self.store.event(tx, "entity:" + entity_id, "HydrationClaimed", payload, self.world.now())
             # Restoring ownership does not mean a runtime object is ready for
             # replication; engine must restore all captures/start Reduced AI.
-            return {"entities": [dict(tx.execute("SELECT * FROM entity WHERE id=?", (member["id"],)).fetchone())
-                                 for member in self.members(tx, root)], "event": event}
+            return {"entities":records,"event":event}
         return self.store.command(actor, command_id, payload, self.world.mutation(apply,change=(actor,command_id,payload)),
                                   authorize=lambda tx: self.world.require_location(tx, actor, location, fence))
 

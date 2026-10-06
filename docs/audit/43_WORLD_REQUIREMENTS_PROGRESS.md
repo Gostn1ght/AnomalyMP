@@ -179,7 +179,9 @@ move/erase, location scope, 128-bit IDs и capsule query. Native LOD policy
 - [ ] E09. PREWARM прогнозирует позицию/скорость/направление игрока,
   соседние ячейки и точки обзора.
 - [ ] E10. Очередь hydration с бюджетом, приоритетом и deadline.
-- [ ] E11. Загрузка persistent и abstract state до материализации.
+- [ ] E11. Частично: backend допускает полный projected hydration capture
+  по мере чтения до смены владельца; native materialization barrier ещё нужен.
+  Загрузка persistent и abstract state до материализации.
 - [ ] E12. Catch-up от LastSimulationTime до текущего WorldTime.
 - [ ] E13. Позиции групп на текущем участке маршрута рассчитываются
   аналитически, а не берутся из старой точки ухода игрока.

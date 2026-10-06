@@ -1070,3 +1070,33 @@ exposure, bounded1030-job sample/read-only projection, loaded transport backlog
 and regressed-clock diagnostics. Existing real CLI restart/bootstrap passes.
 Native authority/clock adoption and full-world readiness barrier remain open.
 Backend Actions pending after push. All native compilation stayed in GHA.
+
+## Streaming full hydration projection admission
+
+1495b17f0 backend37423433421 SUCCESS Windows+Linux(222). Native full
+24b36893b/37420952355 and Foundation37420952363 remain SUCCESS.
+
+Hydration now projects each living entity's complete state/formation position,
+writer/fence and version while streaming roster members. Escaped canonical
+UTF-8 row bytes plus the result envelope are admitted before retaining the next
+member or applying any position/ownership updates. Envelope conservatively
+reserves19 journal-sequence digits. Default result cap1 MiB unchanged; trusted
+Offline constructor can lower it. All projected entity updates, route stop and
+HydrationClaimed journal remain one transaction. Overrun/refusal rolls back
+causal catch-up too, never truncating membership or creating starter items.
+
+Shared members list construction has4 MiB encoded admission during reads;
+iter_members validates bounded unique persistent roster and avoids loading dead
+state with CASE. Casualty IDs persist. Authority is checked before parsing a
+foreign member's state. This is bounded encoded admission, not total RSS or a
+chunked legitimate-large-group protocol. Native full-state/Reduced/replication
+barriers and adapter adoption remain open.
+
+Full local229 PASS: oversized mid-route group preserves old ownership/positions/
+active route/journal; corrected budget retries with formation offsets intact;
+guarded later-member reads stop after first overflow; dead roster unchanged;
+actual escaped UTF-8 conservative boundary and one-byte refusal across DB clones;
+HydrationClaimed fault rolls positions/owner/route back with identical item ledger;
+foreign invalid state refused before parse; shared oversized-member streaming.
+Backend Actions pending after push. Matching native artifact download staged
+under ignored _build/artifacts/24b36893b; runtime install/launch not performed.

@@ -430,3 +430,22 @@ embedding может уменьшить `Transfers(..., checkpoint_limit=...)`, 
 Точные boundary/Unicode и early-read проверки подтверждают сохранение прежних
 владельцев и вещей. Большим группам нужен отдельный chunked handoff protocol,
 а не увеличение неограниченного capture; native bridge по-прежнему впереди.
+
+## Допуск восстановления отряда
+
+Hydrate строит будущие entity records по одному: фактические позиции/formation
+offset, прежнее полное state, новый writer/fence и version. Escaped canonical
+UTF-8 bytes допускаются до удержания следующего участника и до изменения
+положения/владельца. Default hydration result limit остаётся1 MiB; trusted
+`Offline(..., hydration_limit=...)` может уменьшить его. Envelope резервирует
+19 цифр journal sequence, поэтому ограничение консервативно на границе.
+Переполнение откатывает запрос вместе с его causal catch-up; список не обрезается.
+После полного допуска все entity updates, остановка маршрута и journal атомарны.
+
+Shared members capture также читает living state последовательно с4 MiB
+encoded admission; dead state не загружается через CASE, casualty IDs остаются
+в roster. Проверяются identity/roster и текущий writer до разбора чужого state.
+Hydration не создаёт новые inventory records. Большим legitimate captures нужен
+chunked admission protocol; увеличение неограниченного буфера не подменяет его.
+Это backend ownership claim, а не готовность физического NPC: native adapter
+ещё должен восстановить ledger/tasks, включить Reduced AI и разрешить replication.

@@ -562,3 +562,14 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   no payload/token/checkpoint/exception text. Clock failure yields null observed
   time, durable diagnostics retained. Full local222 PASS incl actual HTTP and
   existing real CLI restart. Actions pending after push; native adoption open.
+
+- 1495b17f0/37423433421 backend SUCCESS Windows+Linux(222).
+- Hydration projection now streams encoded rows/envelope admission before
+  position/writer changes, default1 MiB and conservative19-digit event reserve.
+  No truncated members/starter items. Shared members4 MiB admission, dead-state
+  CASE/roster preserved, foreign writer checked before parse. Local full229 PASS
+  including mid-route rollback/retry, guarded reads, clone byte boundary, journal
+  fault/item ledger preservation and permanent casualties. Actions next.
+  E11 partial only; chunked captures/native restore/Reduced/replication still open.
+- Native24b package download targets ignored _build/artifacts/24b36893b, no
+  runtime installation/launch/overwrite. Prior temp cleanup policy block unchanged.
