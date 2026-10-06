@@ -20,6 +20,7 @@ source = r'''
 #include <stdexcept>
 #include <iostream>
 #include <cstdint>
+#include <map>
 #define CHECK_OR_EXIT(condition, message) do { if(!(condition)) throw std::runtime_error(message); } while(false)
 #ifdef _WIN32
 #define NOMINMAX
