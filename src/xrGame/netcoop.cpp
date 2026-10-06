@@ -3374,17 +3374,77 @@ void log_hitch(u32 frame, u32 ms, const DWORD64* pcs, u32 count, LPCSTR tag = "h
 	Msg("%s", line);
 }
 
+// -netcoop_sample_profile: where the main thread spends its time. Every 10 ms
+// its stack is sampled; every 30 s the addresses seen most (inclusive: once
+// per sample at any depth, and self: top of stack) are logged as
+// [sample-profile] lines; tools/symaddr.py names them from the PDB.
+struct SampleProfile
+{
+	xr_unordered_map<DWORD64, u32> inclusive, self;
+	u32 samples = 0, started = 0;
+};
+
+void sample_profile_step(SampleProfile& profile, u32 now)
+{
+	DWORD64 pcs[32];
+	const u32 count = sample_main_stack(pcs, 32);
+	if (!count) return;
+	++profile.samples;
+	++profile.self[pcs[0]];
+	for (u32 i = 0; i < count; ++i)
+	{
+		bool seen = false;
+		for (u32 j = 0; j < i && !seen; ++j) seen = pcs[j] == pcs[i];
+		if (!seen) ++profile.inclusive[pcs[i]];
+	}
+	if (!profile.started) profile.started = now;
+	if (now - profile.started < 30000) return;
+	auto dump = [&](LPCSTR kind, xr_unordered_map<DWORD64, u32>& counts, u32 top)
+	{
+		xr_vector<std::pair<u32, DWORD64>> sorted;
+		for (const auto& entry : counts) sorted.push_back({entry.second, entry.first});
+		std::sort(sorted.begin(), sorted.end(), [](const std::pair<u32, DWORD64>& a, const std::pair<u32, DWORD64>& b) { return a.first > b.first; });
+		for (u32 i = 0; i < sorted.size() && i < top; ++i)
+		{
+			DWORD64 pc = sorted[i].second;
+			string256 line;
+			HMODULE module = 0;
+			GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCSTR)pc, &module);
+			if (!module || module == GetModuleHandle(0))
+				xr_sprintf(line, "%llx", pc);
+			else
+			{
+				string_path path;
+				GetModuleFileNameA(module, path, sizeof(path));
+				LPCSTR name = strrchr(path, '\\');
+				xr_sprintf(line, "%s+%llx", name ? name + 1 : path, pc - DWORD64(module));
+			}
+			Msg("[Lost Zone][sample-profile] %s %5.1f%% %s", kind, 100.f * sorted[i].first / profile.samples, line);
+		}
+	};
+	Msg("[Lost Zone][sample-profile] %u samples of the main thread in %u s", profile.samples, (now - profile.started) / 1000);
+	dump("self", profile.self, 40);
+	dump("incl", profile.inclusive, 80);
+	profile.inclusive.clear();
+	profile.self.clear();
+	profile.samples = 0;
+	profile.started = now;
+}
+
 DWORD WINAPI wd_thread(void*)
 {
 	u32 last_frame = Device.dwFrame;
 	u32 since = GetTickCount();
 	u32 sampled_frame = 0;
 	u32 next_sample = 0;
+	const bool sampling = strstr(Core.Params, "-netcoop_sample_profile") != nullptr;
+	SampleProfile profile;
 	for (;;)
 	{
 		Sleep(10);
 		const u32 frame = Device.dwFrame;
 		const u32 now = GetTickCount();
+		if (sampling && g_pGameLevel) sample_profile_step(profile, now);
 		if (frame != last_frame)
 		{
 			last_frame = frame;
