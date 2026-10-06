@@ -13,6 +13,7 @@
 #pragma warning(default:4995)
 #include "../xrRender/HW.h"
 #include "../../xrEngine/XR_IOConsole.h"
+#include "../../xrEngine/IGame_Persistent.h"
 #include "../../Include/xrAPI/xrAPI.h"
 #include "../xrRender/xrRender_console.h"
 
@@ -567,9 +568,14 @@ void CHW::CreateDevice(HWND hwnd, bool move_window)
     // create device
     ID3D11Device* device;
     ID3D11DeviceContext* context;
+    // The dedicated server renders nothing: a software (WARP) device keeps the
+    // GPU driver out of every location server and its buffers out of the
+    // video memory the player's client needs (-netcoop_gpu_device: hardware).
+    const D3D_DRIVER_TYPE driver_type = g_dedicated_server && !strstr(Core.Params, "-netcoop_gpu_device")
+        ? D3D_DRIVER_TYPE_WARP : D3D_DRIVER_TYPE_HARDWARE;
     R_CHK(D3D11CreateDevice(
         nullptr,
-        D3D_DRIVER_TYPE_HARDWARE,
+        driver_type,
         nullptr,
         create_device_flags,
         pFeatureLevels,
