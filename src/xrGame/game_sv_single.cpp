@@ -15,6 +15,10 @@
 #include "../xrEngine/no_single.h"
 #include "ai_space.h"
 #include "level_graph.h"
+#include "Level.h"
+#include "CustomMonster.h"
+#include "memory_manager.h"
+#include "enemy_manager.h"
 
 static void netcoop_forget_game(game_sv_Single* game);
 
@@ -510,6 +514,40 @@ float netcoop_nearest_actor_distance(const Fvector& position)
 		++it;
 	}
 	return best;
+}
+
+// Combat pin (doc 43 E18): an NPC or mutant fighting a player stays online
+// when the player steps back past the offline distance (a sniper's target
+// vanished mid-fight, a chase ended with the pursuer gone), up to
+// -netcoop_combat_pin=<m> (600 m) from that player.
+static u32 s_netcoop_pinned = 0, s_netcoop_pinned_log = 0;
+
+bool netcoop_combat_pinned(u16 id)
+{
+	if (!netcoop_mode() || !g_pGameLevel)
+		return false;
+	static float pin = -1.f;
+	if (pin < 0.f)
+	{
+		LPCSTR option = strstr(Core.Params, "-netcoop_combat_pin=");
+		pin = option ? _max(0.f, float(atof(option + xr_strlen("-netcoop_combat_pin=")))) : 600.f;
+	}
+	CCustomMonster* monster = smart_cast<CCustomMonster*>(Level().Objects.net_Find(id));
+	if (!monster || !monster->g_Alive())
+		return false;
+	const CEntityAlive* enemy = monster->memory().enemy().selected();
+	if (!enemy || !netcoop::is_player(enemy) || enemy->Position().distance_to(monster->Position()) > pin)
+		return false;
+	++s_netcoop_pinned;
+	const u32 now = Device.dwTimeGlobal;
+	if (now - s_netcoop_pinned_log > 30000)
+	{
+		Msg("[Lost Zone][ai] kept online while fighting a player: %s (%u checks since the last report)", monster->cName().c_str(),
+			s_netcoop_pinned);
+		s_netcoop_pinned_log = now;
+		s_netcoop_pinned = 0;
+	}
+	return true;
 }
 
 // True for an Actor spawned for a remote player (not the host's story Actor).

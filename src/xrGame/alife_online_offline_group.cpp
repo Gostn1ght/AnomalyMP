@@ -263,6 +263,8 @@ void CSE_ALifeOnlineOfflineGroup::try_switch_offline()
 
 		if (netcoop_nearest_actor_distance((*I).second->o_Position) <= alife().offline_distance())
 			return;
+		if (netcoop_combat_pinned((*I).second->ID))
+			return;
 	}
 
 	alife().switch_offline(this);
