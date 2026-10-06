@@ -62,6 +62,9 @@ enum ETradeDirection : u8
 };
 
 bool enabled(); // -netcoop on the command line
+// -netcoop_corpse_drop: a released corpse drops its inventory on the ground
+// (off: the corpse goes with its loot, as in freeplay; owner 2026-10-06).
+bool corpse_loot_drops();
 bool pure_client(); // netcoop process without a local server
 LPCSTR role_name(u8 role);
 

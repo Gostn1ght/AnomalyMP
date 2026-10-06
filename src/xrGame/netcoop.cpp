@@ -94,6 +94,14 @@ bool enabled()
 	return state == 1;
 }
 
+bool corpse_loot_drops()
+{
+	static int state = -1;
+	if (state < 0)
+		state = strstr(Core.Params, "-netcoop_corpse_drop") ? 1 : 0;
+	return state == 1;
+}
+
 bool pure_client()
 {
 	return enabled() && g_pGameLevel && !Level().Server;

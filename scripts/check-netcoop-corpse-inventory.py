@@ -75,7 +75,7 @@ struct CALifeSimulatorBase {
  void unregister_object(CSE_ALifeDynamicObject* value,bool) {registry.values.erase(value->ID);}
  void release(CSE_Abstract*,bool);
 };
-namespace netcoop {bool active=true;bool enabled(){return active;}}
+namespace netcoop {bool active=true;bool enabled(){return active;}bool corpse_loot_drops(){return true;}}
 ''' + release + r'''
 struct ClientID {};
 constexpr u16 GE_OWNERSHIP_REJECT=1,M_EVENT=2;

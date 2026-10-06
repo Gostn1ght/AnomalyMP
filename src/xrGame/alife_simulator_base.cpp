@@ -282,7 +282,9 @@ void CALifeSimulatorBase::release(CSE_Abstract* abstract, bool alife_query)
 	// Offline script cleanup has no network reject event. Detach the existing
 	// items into the graph at the body's position before unregistering it.
 	const auto creature = smart_cast<CSE_ALifeCreatureAbstract*>(object);
-	if (netcoop::enabled() && creature && creature->get_health() <= 0.f &&
+	// Owner 2026-10-06: a removed corpse takes its loot with it (nothing stays
+	// on the ground); dropping it is kept behind -netcoop_corpse_drop.
+	if (netcoop::enabled() && netcoop::corpse_loot_drops() && creature && creature->get_health() <= 0.f &&
 		!smart_cast<CSE_ALifeCreatureActor*>(object) && !object->children.empty())
 	{
 		if (!alife_query || object->m_bOnline)

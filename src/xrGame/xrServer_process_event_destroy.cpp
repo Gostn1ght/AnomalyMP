@@ -66,7 +66,7 @@ void xrServer::Process_event_destroy(NET_Packet& P, ClientID sender, u32 time, u
 	// Body cleanup must not recursively destroy its loot. Actors retain their
 	// separate death/disconnect path; this rule is for finite NPC/mutant bodies.
 	const auto creature = smart_cast<CSE_ALifeCreatureAbstract*>(e_dest);
-	if (netcoop::enabled() && creature && creature->get_health() <= 0.f &&
+	if (netcoop::enabled() && netcoop::corpse_loot_drops() && creature && creature->get_health() <= 0.f &&
 		!smart_cast<CSE_ALifeCreatureActor*>(e_dest) && !e_dest->children.empty())
 	{
 		if (!ai().get_alife()) return;
