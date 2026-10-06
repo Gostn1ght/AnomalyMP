@@ -450,6 +450,34 @@ void xrServer::SendUpdatePacketsToAll()
 static float s_aoi_frame_ms = 16.f;
 static const u32 aoi_client_budget = 16 * 1024; // bytes per client per tick (~480 KB/s at 30 Hz)
 
+// Unchanged state is not sent again (doc 43 D06): a resting item, a backpack
+// in another player's inventory or an idle object repeats the same bytes
+// every tick. Each client remembers what it got per object; the same bytes
+// go out again only as a keep-alive, at the far-tier rate. Updates are
+// unreliable, so a lost change is repaired by that keep-alive at the latest.
+static const u32 aoi_keepalive_ms = 500;
+struct AoiSent
+{
+	u32 hash;
+	u32 time;
+};
+struct AoiClientState
+{
+	xr_unordered_map<u16, AoiSent> sent;
+	u32 seen_tick = 0;
+};
+static xr_unordered_map<u32, AoiClientState> s_aoi_clients;
+static u32 s_aoi_unchanged = 0; // chunks not resent since the last log line
+static u32 s_aoi_log = 0;
+
+static u32 aoi_hash(const u8* data, u32 size)
+{
+	u32 h = 2166136261u;
+	for (u32 i = 0; i < size; ++i)
+		h = (h ^ data[i]) * 16777619u;
+	return h;
+}
+
 void xrServer::SendUpdatesAOI()
 {
 	s_aoi_frame_ms = s_aoi_frame_ms * 0.95f + Device.fTimeDelta * 1000.f * 0.05f;
@@ -611,6 +639,7 @@ void xrServer::SendUpdatesAOI()
 		u64 *candidate_checks, *full_checks, *grid_checks;
 		u32 *indexed_clients, *fallback_clients;
 		u32 far_scale;
+		u32* unchanged_skipped;
 		void operator()(IClient* client)
 		{
 			xrClientData* CL = static_cast<xrClientData*>(client);
@@ -619,6 +648,9 @@ void xrServer::SendUpdatesAOI()
 				return;
 			const Fvector& eye = CL->owner->o_Position;
 			u32 client_bytes = 0;
+			AoiClientState& memory = s_aoi_clients[CL->ID.value()];
+			memory.seen_tick = server->m_aoi_tick;
+			const u32 now = Device.dwTimeGlobal;
 			NET_Packet P;
 			P.w_begin(M_UPDATE_OBJECTS);
 			netcoop_world::ReplicationSelection selection;
@@ -633,13 +665,23 @@ void xrServer::SendUpdatesAOI()
 				const Chunk& c = chunks[i];
 				const float d = c.id == CL->owner->ID ? 0.f : eye.distance_to(c.position);
 				u32 every = c.player ? (d < 300.f ? 1 : 2) : d < 50.f ? 1 : d < 150.f ? 2 : d < 300.f ? 4 : 16;
-				// Overload and budget: never the nearby world (50 m) or nearby players.
-				const bool near = d < 50.f || (c.player && d < 150.f);
-				if (!near) every *= far_scale;
+				// Overload and budget: never players, never the nearby world (50 m).
+				const bool close_by = c.player || d < 50.f;
+				if (!close_by) every *= far_scale;
 				if ((server->m_aoi_tick + c.id) % every)
 					continue;
-				if (!near && client_bytes > aoi_client_budget)
+				if (!close_by && client_bytes > aoi_client_budget)
 					continue; // staggered by id and tick, it goes out on a later tick
+				const u32 hash = aoi_hash(&data[c.offset], c.size);
+				AoiSent& last = memory.sent[c.id];
+				// Players (and the own Actor: input acks) always go out at their rate.
+				if (!c.player && last.hash == hash && last.time && now - last.time < aoi_keepalive_ms)
+				{
+					++*unchanged_skipped;
+					continue;
+				}
+				last.hash = hash;
+				last.time = now ? now : 1;
 				client_bytes += c.size;
 				if (P.B.count + c.size > packet_limit)
 				{
@@ -655,8 +697,20 @@ void xrServer::SendUpdatesAOI()
 				*sent += P.B.count;
 			}
 		}
-	} send = {this, &sent_bytes, indexed, &candidate_checks, &full_checks, &grid_checks, &indexed_clients, &fallback_clients, far_scale};
+	} send = {this, &sent_bytes, indexed, &candidate_checks, &full_checks, &grid_checks, &indexed_clients, &fallback_clients, far_scale,
+		&s_aoi_unchanged};
 	ForEachClientDo(send);
+	// Forget clients that left (not served for ~10 s).
+	if (m_aoi_tick % 300 == 0)
+		for (auto it = s_aoi_clients.begin(); it != s_aoi_clients.end();)
+			it = m_aoi_tick - it->second.seen_tick > 300 ? s_aoi_clients.erase(it) : std::next(it);
+	if (Device.dwTimeGlobal - s_aoi_log >= 10000)
+	{
+		Msg("[Lost Zone][replication] unchanged not resent %.0f/s, frame %.1f ms, far x%u", float(s_aoi_unchanged) / 10.f,
+			s_aoi_frame_ms, far_scale);
+		s_aoi_unchanged = 0;
+		s_aoi_log = Device.dwTimeGlobal;
+	}
 	if (use_index && (!m_replication_index_log || shadow_now-m_replication_index_log>=10000))
 	{
 		m_replication_index_log = shadow_now;
