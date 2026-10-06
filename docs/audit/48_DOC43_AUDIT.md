@@ -4,7 +4,7 @@
 🔧 есть в коде/fixtures, в игре не проверено; 🟡 частично; ⬜ не сделано.
 Генерируется `tools/make-doc43-audit.py`.
 
-Итого: ✅ 10, 🔧 28, 🟡 63, ⬜ 87 из 188.
+Итого: ✅ 11, 🔧 26, 🟡 64, ⬜ 87 из 188.
 
 ## A
 
@@ -130,10 +130,10 @@
 | G07 Coherent capture barrier для clock, ALife, Lua и ItemLedger | ⬜ |  |
 | G08 Согласование world snapshot и player inventory commit | 🔧 | персонаж с предметами из мира пишется только после коммита мира (save ordering) |
 | G09 Transactional inbox/outbox; crash между commit и ACK | 🟡 | backend inbox/outbox |
-| G10 Recovery по валидному snapshot+journal с явной проверкой | 🔧 | точки краша в каждом шаге сохранения мира + scripts/run-world-crash-test.ps1 (ждёт сборку) |
+| G10 Recovery по валидному snapshot+journal с явной проверкой | 🟡 | восстановление по валидному снимку a/b + указатель с контрольными суммами проверено краш-тестом; журнала событий после снимка нет |
 | G11 Retention/compaction и миграция схем без потери persistent IDs | ⬜ |  |
 | G12 Первичный durable checkpoint до допуска игроков и важных действий | 🔧 | новый мир сохраняется через 30 с после старта; вход закрыт до первого сохранения |
-| G13 Native engine crash/kill/power-loss испытания на каждом шаге | 🔧 | точки краша в каждом шаге сохранения мира + scripts/run-world-crash-test.ps1 (ждёт сборку) |
+| G13 Native engine crash/kill/power-loss испытания на каждом шаге | ✅ | краш (TerminateProcess) в 4 точках сохранения мира на реальном сервере: после рестарта грузится последний полный коммит, мир идёт (run-world-crash-test.ps1, 2026-10-06); обрыв питания не моделируется |
 
 ## H
 
