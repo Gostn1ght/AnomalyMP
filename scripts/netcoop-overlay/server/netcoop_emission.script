@@ -7,7 +7,20 @@ local duration = 222
 
 local function manager() return surge_manager.get_surge_manager() end
 local function elapsed() return started_at and math.max(0, (time_global() - started_at) / 1000) or 0 end
+-- GAMMA fills level_weathers.valid_levels (surface maps: emissions, psi
+-- storms, campfires) when its weather manager resets for the Actor, which
+-- never happens on the dedicated server: the table stayed empty and no
+-- emission or psi storm ever started there (2026-10-06). Same rule, here.
+local function ensure_valid_levels()
+    local valid = level_weathers and level_weathers.valid_levels
+    if not valid or next(valid) then return end
+    local gini = game_ini()
+    for _, name in ipairs(utils_data.collect_section(gini, "level_maps_single")) do
+        if gini:r_string_ex(name, "weathers") == "atmosfear" then valid[name] = true end
+    end
+end
 local function valid_level()
+    ensure_valid_levels()
     local name = level.name()
     return level_weathers.valid_levels[name] == true and name ~= "l13_generators" and name ~= "l11_hospital"
 end
