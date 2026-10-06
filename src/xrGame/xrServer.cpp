@@ -501,10 +501,11 @@ void xrServer::SendUpdatesAOI()
 	static xr_vector<Chunk> chunks;
 	static xr_vector<netcoop_world::ReplicationRecord> index_records;
 	// Chunk stage 1 (doc 49): the spatial index picks each client's candidates
-	// (everything within 300 m, the far objects due this tick, all players)
-	// instead of every object of the map per client; same set as the full scan
-	// (fixture check-netcoop-replication-index.py). -netcoop_no_chunk_index: full scan.
-	const bool use_index = strstr(Core.Params, "-netcoop_no_chunk_index") == nullptr;
+	// (same set as the full scan, fixture check-netcoop-replication-index.py).
+	// Opt-in for now: it rebuilds its grid every tick and sorts per client, so
+	// with ~1700 objects and 64 players in one spot the server frame was
+	// 43-48 ms with it and 21-23 ms without (2026-10-06). Speed it up first.
+	const bool use_index = strstr(Core.Params, "-netcoop_chunk_index") != nullptr;
 	data.clear();
 	chunks.clear();
 	index_records.clear();
