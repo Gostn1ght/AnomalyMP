@@ -1,0 +1,84 @@
+"""Doc 48: honest status of every doc 43 item (ID -> status, evidence)."""
+import re
+from pathlib import Path
+
+root = Path(__file__).resolve().parents[1]
+doc = (root / "docs/audit/43_WORLD_REQUIREMENTS_PROGRESS.md").read_text(encoding="utf-8")
+items = re.findall(r"^- \[.\] ([A-M]\d\d)\. (.+)$", doc, re.M)
+
+V, C, P, N = "✅", "🔧", "🟡", "⬜"
+S = {}
+def mark(ids, status, note=""):
+    for i in ids.split():
+        S[i] = (status, note)
+
+mark("A01 A04 A05 A06 A07 A08", P, "backend World Service (Codex); engine только observer/частичные адаптеры")
+mark("A02", P, "процесс на карту; чужое generic население удаляется (live), но ALife всей Зоны всё ещё грузится")
+mark("A03", P, "lease аккаунта + файловые замки (работают по общей сетевой папке); межхостового fencing нет")
+mark("A09", P, "аккаунты, Firebase, observer token; нет единого gateway")
+mark("A10 A11", N)
+mark("B01 B02 B03 B04 B06 B07", C, "native fixtures в CI")
+mark("B05", V, "рестарт сервера: игровое время продолжилось (2026-10-06)")
+mark("B08", P, "backend WorldState; engine не потребляет")
+mark("B10", P, "кластерный календарь через файлы: отстающий догоняет ускорением (видно в live логах)")
+mark("B09 B11 B12 B13", N)
+mark("C01 C02 C03 C04", C, "SpatialGrid в shadow-режиме, fixtures")
+mark("C12 C13", P, "shadow сравнение и лог [chunk-shadow]")
+mark("C05 C06 C07 C08 C09 C10 C11", N)
+mark("D01 D05", P, "legacy AOI: дистанционные уровни частоты на клиента")
+mark("D11", P, "замер ботами: 16 игроков ~110 КБ/с на игрока; нет loss/reorder тестов")
+mark("D02 D03 D04 D06 D07 D08 D09 D10", N)
+mark("E01 E17", C, "LOD planner + hysteresis в shadow/fixtures")
+mark("E11", P, "backend projected hydration capture")
+mark("E02 E03 E04 E05 E06 E07 E08 E09 E10 E12 E13 E14 E15 E16 E18 E19 E20 E21", N)
+mark("F01 F03 F04 F05 F06 F07 F12", P, "backend ItemLedger/CAS/dedup/fault tests (Codex); native adapter нет")
+mark("F08", P, "condition/ammo/upgrades/item state сохраняются в персонаже и мире")
+mark("F10", P, "спавнеры и респавн отключены (live лог); tombstone в backend")
+mark("F11", P, "владелец/список доступа мебели и тайников (код)")
+mark("F02 F09", N)
+mark("G01", V, "сохранение мира и продолжение после рестарта на реальном сервере (2026-10-06, раньше не работало)")
+mark("G02 G03 G04", V, "fixtures + live: слот, pointer, sidecar, загрузка сохранённого мира")
+mark("G09", P, "backend inbox/outbox")
+mark("G05 G06 G07 G08 G10 G11 G12 G13", N)
+mark("H02 H03 H04 H14", V, "сотни переходов ботов на реальных серверах: lease, синхронный save в точке прибытия, HMAC ticket, заморозка")
+mark("H01", P, "статус/ёмкость серверов, лимит 128/512 (код); backend reservations")
+mark("H05 H07 H08", P, "native prepare/commit/claim + fixtures Codex; backend state machine")
+mark("H09", C, "адаптер NPC transit (Codex), по умолчанию выключен")
+mark("H11", P, "release чужого generic населения проверен live (129 отрядов)")
+mark("H12", P, "сотни переходов без аварий; нет инъекции сбоев на каждой стадии")
+mark("H13", P, "точка прибытия из level changer; нет проверки поверхности/AOI")
+mark("H15", P, "автопереподключение, причины отказа по-русски")
+mark("H06 H10", N)
+mark("I01 I02 I03", P, "backend quest state/CAS/requirements")
+mark("I04 I05 I06 I07", N, "в engine: задания чужой карты заморожены, generated с целью на другой карте отменяются")
+mark("J04", P, "общее детерминированное расписание выброса кластера (код + Lua тест)")
+mark("J05 J08", P, "фаза выброса для поздно вошедших и урон один раз на владельца (fixture)")
+mark("J01 J02 J03 J06 J07 J09 J10", N)
+mark("K01 K02 K03 K04 K05 K06 K07 K08 K12", P, "backend offline scheduler/routes/encounters (Codex); engine adapter нет")
+mark("K09 K10 K11 K13 K14", N)
+mark("L34", V, "spawners night/guards/bounty и replenishment отключены (live лог)")
+mark("L12 L14 L15 L18 L28 L37", P, "мебель/тайники/визиты в тайники/костры в серверном Lua (цикл заработал только 2026-10-06)")
+mark("L21 L35 L36", P, "backend corpse batches; TTL отключены; живые NPC сохраняются в мире (save теперь работает)")
+mark("L01 L02 L03 L04 L05 L06 L07 L08 L09 L10 L11 L13 L16 L17 L19 L20 L22 L23 L24 L25 L26 L27 L29 L30 L31 L32 L33 L38", N)
+mark("M01", P, "метрики кадра avg/max, профиль ai/replication/items")
+mark("M06", P, "16 ботов на сервер; нужно 32/64/128")
+mark("M02 M03 M04 M05 M07 M08 M09 M10", N)
+
+counts = {V: 0, C: 0, P: 0, N: 0}
+out = ["# 48. Аудит дока 43 (2026-10-06)", "",
+       "Честный статус каждого из 188 пунктов дока 43. ✅ проверено на реальных exe;",
+       "🔧 есть в коде/fixtures, в игре не проверено; 🟡 частично; ⬜ не сделано.",
+       "Генерируется `tools/make-doc43-audit.py`.", ""]
+section = None
+for i, text in items:
+    if i[0] != section:
+        section = i[0]
+        out += ["", f"## {section}", "", "| Пункт | Статус | Что есть |", "|---|---|---|"]
+    status, note = S.get(i, (N, ""))
+    counts[status] += 1
+    short = text.split(".")[0][:90].replace("|", "/")
+    out.append(f"| {i} {short} | {status} | {note} |")
+summary = f"Итого: ✅ {counts[V]}, 🔧 {counts[C]}, 🟡 {counts[P]}, ⬜ {counts[N]} из {len(items)}."
+out.insert(6, summary)
+(root / "docs/audit/48_DOC43_AUDIT.md").write_text("\n".join(out) + "\n", encoding="utf-8")
+print(summary)
