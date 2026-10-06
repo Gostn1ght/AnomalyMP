@@ -7,7 +7,7 @@ if os.environ.get("GITHUB_ACTIONS") != "true" or os.name != "nt":
     raise SystemExit("Windows native checks must run in GitHub Actions")
 root=Path(__file__).resolve().parents[1]
 engine=(root/"src/xrGame/netcoop.cpp").read_text(encoding="utf-8")
-a=engine.index('struct AccountsFileLock\n{');b=engine.index('\nstatic void accounts_read(',a)
+a=engine.index('struct ClusterFileLock\n{');b=engine.index('\nstatic void accounts_read(',a)
 lock=engine[a:b]
 a=engine.index('static bool accounts_save()\n{');b=engine.index('\nstatic Account* account_find(',a)
 save=engine[a:b]
@@ -28,14 +28,18 @@ using u8=unsigned char;using u32=unsigned int;using LPCSTR=const char*;using str
 template<size_t N>void xr_sprintf(char(&out)[N],const char* format,...) {va_list args;va_start(args,format);vsnprintf(out,N,format,args);va_end(args);}
 void Msg(const char*,...){}
 bool timeout_lock=false,fail_mutex=false,fail_flush=false,fail_rename=false;int releases=0,refreshes=0;
-HANDLE checked_mutex(LPSECURITY_ATTRIBUTES attributes,BOOL owned,LPCSTR name){return fail_mutex?nullptr:CreateMutexA(attributes,owned,name);}
-DWORD checked_wait(HANDLE handle,DWORD timeout){return timeout_lock?WAIT_TIMEOUT:WaitForSingleObject(handle,timeout);}
-BOOL checked_release(HANDLE handle){++releases;return ReleaseMutex(handle);}
+// The cluster lock is a lock file; timeout/creation failure = it cannot be opened.
+HANDLE checked_lock_file(LPCSTR path,DWORD access,DWORD share,LPSECURITY_ATTRIBUTES sa,DWORD disposition,DWORD flags,HANDLE t){
+ if(timeout_lock||fail_mutex){SetLastError(ERROR_SHARING_VIOLATION);return INVALID_HANDLE_VALUE;}
+ return CreateFileA(path,access,share,sa,disposition,flags,t);}
+BOOL checked_close(HANDLE handle){++releases;return CloseHandle(handle);}
+struct{void update_path(char* out,const char*,const char* file){std::snprintf(out,260,"%s",file);}}FS;
+void Sleep_checked(DWORD){}
 int checked_commit(int fd){return fail_flush?-1:_commit(fd);}
 BOOL checked_move(LPCSTR from,LPCSTR to,DWORD flags){return fail_rename?FALSE:MoveFileExA(from,to,flags);}
-#define CreateMutexA checked_mutex
-#define WaitForSingleObject checked_wait
-#define ReleaseMutex checked_release
+#define CreateFileA checked_lock_file
+#define CloseHandle checked_close
+#define Sleep Sleep_checked
 #define _commit checked_commit
 #define MoveFileExA checked_move
 struct Account{

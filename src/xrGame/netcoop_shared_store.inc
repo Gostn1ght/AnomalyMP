@@ -10,15 +10,9 @@ static const u32 store_value_limit = 65536;
 
 struct StoreLock
 {
-	HANDLE mutex;
+	ClusterFileLock lock; // netcoop.cpp: works across machines sharing app data
 	bool owned;
-	StoreLock() : mutex(CreateMutexA(nullptr, FALSE, "Local\\LostZoneSharedStore")), owned(false)
-	{
-		if (!mutex) return;
-		const DWORD wait = WaitForSingleObject(mutex, 5000);
-		owned = wait == WAIT_OBJECT_0 || wait == WAIT_ABANDONED;
-	}
-	~StoreLock() { if (mutex) { if (owned) ReleaseMutex(mutex); CloseHandle(mutex); } }
+	StoreLock() : lock("shared_store"), owned(lock.held) {}
 };
 
 static bool store_name_valid(LPCSTR name)

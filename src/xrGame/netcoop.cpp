@@ -936,20 +936,41 @@ static bool accounts_file_stamp(FILETIME& stamp)
 	return true;
 }
 
+// A lock every server of the location cluster honours, also on other
+// machines that share $app_data_root$ over the network: an exclusively
+// opened lock file that disappears when closed (and when the process dies).
+// A named mutex spans one machine only.
+struct ClusterFileLock
+{
+	HANDLE file = INVALID_HANDLE_VALUE;
+	bool held = false;
+	explicit ClusterFileLock(LPCSTR name, u32 timeout_ms = 5000)
+	{
+		string_path dir, path;
+		FS.update_path(dir, "$app_data_root$", "netcoop_locks\\");
+		CreateDirectoryA(dir, nullptr);
+		xr_sprintf(path, "%s%s.lock", dir, name);
+		const u32 started = GetTickCount();
+		for (;;)
+		{
+			file = CreateFileA(path, GENERIC_WRITE, 0, nullptr, OPEN_ALWAYS,
+				FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, nullptr);
+			if (file != INVALID_HANDLE_VALUE) { held = true; return; }
+			if (GetTickCount() - started >= timeout_ms) return;
+			Sleep(5);
+		}
+	}
+	~ClusterFileLock() { if (file != INVALID_HANDLE_VALUE) CloseHandle(file); }
+	ClusterFileLock(const ClusterFileLock&) = delete;
+	ClusterFileLock& operator=(const ClusterFileLock&) = delete;
+};
+
 // One writer at a time across the location server processes.
 struct AccountsFileLock
 {
-	HANDLE mutex;
+	ClusterFileLock lock;
 	bool held;
-	AccountsFileLock() : mutex(CreateMutexA(nullptr, FALSE, "Local\\LostZoneAccountsFile")), held(false)
-	{
-		if (mutex)
-		{
-			const DWORD result = WaitForSingleObject(mutex, 5000);
-			held = result == WAIT_OBJECT_0 || result == WAIT_ABANDONED;
-		}
-	}
-	~AccountsFileLock() { if (mutex) { if (held) ReleaseMutex(mutex); CloseHandle(mutex); } }
+	AccountsFileLock() : lock("accounts"), held(lock.held) {}
 };
 
 static void accounts_read(Accounts& out)

@@ -396,8 +396,43 @@ static bool cluster_name_valid(LPCSTR name)
 
 // finish_auth, after the password: the cluster lease, the ticket and a fresh
 // character from disk (another server may have changed the file).
+// Players online in the whole cluster (fresh status files of all servers).
+static u32 cluster_total_players()
+{
+	string_path dir, mask; cluster_dir(dir);
+	xr_sprintf(mask, "%sstatus_*.txt", dir);
+	u32 total = 0;
+	WIN32_FIND_DATAA found;
+	HANDLE search = FindFirstFileA(mask, &found);
+	if (search == INVALID_HANDLE_VALUE) return 0;
+	do
+	{
+		string_path path; xr_sprintf(path, "%s%s", dir, found.cFileName);
+		xr_string line; u32 stamp = 0, players = 0, capacity = 0;
+		if (cluster_read_line(path, line) && sscanf(line.c_str(), "%u %u %u", &stamp, &players, &capacity) == 3 &&
+			cluster_now() <= stamp + cluster_status_ttl_s)
+			total += players;
+	} while (FindNextFileA(search, &found));
+	FindClose(search);
+	return total;
+}
+
 static bool cluster_on_login(xrClientData* CL, LPCSTR login, u8 slot, xr_string& error)
 {
+	// The whole Zone takes at most [cluster] max_players (default 512).
+	if (cluster_config_present())
+	{
+		string_path config;
+		FS.update_path(config, "$app_data_root$", "netcoop_cluster.ltx");
+		CInifile ini(config, TRUE, TRUE, FALSE);
+		const u32 cap = ini.line_exist("cluster", "max_players") ? ini.r_u32("cluster", "max_players") : 512;
+		if (cap && cluster_total_players() >= cap)
+		{
+			string128 text; xr_sprintf(text, "The Zone is full (%u stalkers); try again later", cap);
+			error = text;
+			return false;
+		}
+	}
 	if (!cluster_claim_session(login, error)) return false;
 	character_commits_flush();
 	xr_string prefix = login; to_lower(prefix); prefix += ":";

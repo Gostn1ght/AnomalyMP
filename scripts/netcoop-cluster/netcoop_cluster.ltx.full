@@ -1,0 +1,77 @@
+; Location cluster: one dedicated server per map (generated, then edit hosts).
+; host = the address clients use for that map; a machine runs the maps whose
+; host is its own (netcoop_cluster_watchdog.ps1). All machines share app data.
+[cluster]
+max_players = 512
+per_server = 128
+
+[locations]
+jupiter = 127.0.0.1:1301
+jupiter_underground = 127.0.0.1:1303
+k00_marsh = 127.0.0.1:1267
+k01_darkscape = 127.0.0.1:1305
+k02_trucks_cemetery = 127.0.0.1:1307
+l01_escape = 127.0.0.1:1277
+l02_garbage = 127.0.0.1:1309
+l03_agroprom = 127.0.0.1:1311
+l03u_agr_underground = 127.0.0.1:1313
+l04_darkvalley = 127.0.0.1:1315
+l04u_labx18 = 127.0.0.1:1317
+l05_bar = 127.0.0.1:1319
+l06_rostok = 127.0.0.1:1321
+l07_military = 127.0.0.1:1323
+l08_yantar = 127.0.0.1:1325
+l08u_brainlab = 127.0.0.1:1327
+l09_deadcity = 127.0.0.1:1329
+l10_limansk = 127.0.0.1:1331
+l10_radar = 127.0.0.1:1333
+l10_red_forest = 127.0.0.1:1335
+l10u_bunker = 127.0.0.1:1337
+l11_hospital = 127.0.0.1:1339
+l11_pripyat = 127.0.0.1:1341
+l12_stancia = 127.0.0.1:1343
+l12_stancia_2 = 127.0.0.1:1345
+l12u_control_monolith = 127.0.0.1:1347
+l12u_sarcofag = 127.0.0.1:1349
+l13_generators = 127.0.0.1:1351
+l13u_warlab = 127.0.0.1:1353
+labx8 = 127.0.0.1:1355
+pripyat = 127.0.0.1:1357
+y04_pole = 127.0.0.1:1359
+zaton = 127.0.0.1:1361
+
+[launch]
+; map = start location section (GAMMA or netcoop\start_levels.ltx)
+jupiter = yanov_depo_monolith
+jupiter_underground = lz_jupiter_underground
+k00_marsh = hidden_base
+k01_darkscape = lz_k01_darkscape
+k02_trucks_cemetery = tc_central_tower
+l01_escape = rookie_village
+l02_garbage = train_hangar
+l03_agroprom = research_institute
+l03u_agr_underground = lz_l03u_agr_underground
+l04_darkvalley = eastern_factory
+l04u_labx18 = lz_l04u_labx18
+l05_bar = makeshift_barracks
+l06_rostok = construction_site
+l07_military = military_base
+l08_yantar = sakharovs_bunker
+l08u_brainlab = lz_l08u_brainlab
+l09_deadcity = abandoned_school
+l10_limansk = lz_l10_limansk
+l10_radar = brain_scorcher
+l10_red_forest = bridge_red_forest_mon
+l10u_bunker = lz_l10u_bunker
+l11_hospital = lz_l11_hospital
+l11_pripyat = cultural_center
+l12_stancia = l13_generators
+l12_stancia_2 = lz_l12_stancia_2
+l12u_control_monolith = lz_l12u_control_monolith
+l12u_sarcofag = lz_l12u_sarcofag
+l13_generators = lz_l13_generators
+l13u_warlab = lz_l13u_warlab
+labx8 = lz_labx8
+pripyat = river_port
+y04_pole = lz_y04_pole
+zaton = abandoned_sawmill

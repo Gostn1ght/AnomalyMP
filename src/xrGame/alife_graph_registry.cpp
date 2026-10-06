@@ -90,7 +90,15 @@ void CALifeGraphRegistry::update(CSE_ALifeDynamicObject* object)
 				string_path config_path;
 				FS.update_path(config_path, "$game_config$", "plugins\\new_game_start_locations.ltx");
 				R_ASSERT3(FS.exist(config_path), "Missing GAMMA start locations file", config_path);
-				CInifile starts(config_path, TRUE);
+				CInifile gamma_starts(config_path, TRUE);
+				// Maps without a GAMMA start (labs, Limansk, Hospital...) start at a
+				// level changer's arrival point: netcoop\start_levels.ltx, generated
+				// from the Zone's level changers (tools/make-cluster-plan.py).
+				string_path cluster_path;
+				FS.update_path(cluster_path, "$game_config$", "netcoop\\start_levels.ltx");
+				const bool gamma_has = gamma_starts.section_exist(section);
+				CInifile* cluster_starts = !gamma_has && FS.exist(cluster_path) ? xr_new<CInifile>(cluster_path, TRUE) : nullptr;
+				CInifile& starts = gamma_has || !cluster_starts ? gamma_starts : *cluster_starts;
 				R_ASSERT3(starts.section_exist(section), "Unknown netcoop start location", section);
 				const u32 graph_id = starts.r_u32(section, "gvid");
 				R_ASSERT2(graph_id < ai().game_graph().header().vertex_count(), "Invalid start game graph vertex");
@@ -104,6 +112,7 @@ void CALifeGraphRegistry::update(CSE_ALifeDynamicObject* object)
 				m_actor->o_Position = position;
 				Msg("[Lost Zone] Dedicated new game start: %s, graph=%u, level_vertex=%u, position=%.2f %.2f %.2f",
 					section, graph_id, level_id, position.x, position.y, position.z);
+				if (cluster_starts) xr_delete(cluster_starts);
 			}
 		}
 	}
