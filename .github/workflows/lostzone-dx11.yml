@@ -37,6 +37,7 @@ jobs:
           python scripts/check-netcoop-transit.py
           python scripts/check-netcoop-lua-scope.py
           python scripts/check-netcoop-factions.py
+          python scripts/check-netcoop-cluster-weather.py
           python scripts/check-netcoop-emission.py
       - name: Check actual item interpolation
         run: python scripts/check-netcoop-physics.py

@@ -417,8 +417,15 @@ static u32 cluster_total_players()
 	return total;
 }
 
+bool world_store_admission_open(); // netcoop_world_store.inc
+
 static bool cluster_on_login(xrClientData* CL, LPCSTR login, u8 slot, xr_string& error)
 {
+	if (!world_store_admission_open())
+	{
+		error = "The world is still being prepared; try again in a minute";
+		return false;
+	}
 	// The whole Zone takes at most [cluster] max_players (default 512).
 	if (cluster_config_present())
 	{

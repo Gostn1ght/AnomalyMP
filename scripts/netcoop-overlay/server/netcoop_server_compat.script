@@ -409,6 +409,41 @@ function set_server_weather(name, now)
 	weather_sent, weather_next, weather_forced = nil, 0, now and true or false
 	return string.format("* weather %s%s for all players", name, now and " (now)" or "")
 end
+-- Location cluster (doc 43 J01-J03): one weather for the whole Zone. GAMMA
+-- picks the next weather cycle at random every game hour, so every server
+-- had its own sky. With a cluster each server derives the cycle from the
+-- shared calendar: the chain is replayed from a fixed start over the last
+-- 24 game hours with an hour-seeded random, and presets within the hour use
+-- the same seed, so all servers agree whenever they started.
+local cluster_weather
+local function in_cluster()
+	if cluster_weather == nil then
+		local path = getFS and getFS():update_path("$app_data_root$", "netcoop_cluster.ltx")
+		local file = path and io.open(path, "r")
+		cluster_weather = file ~= nil
+		if file then file:close() end
+	end
+	return cluster_weather
+end
+local function cluster_hour()
+	return math.floor(game.get_game_time():diffSec(game.CTime()) / 3600)
+end
+local function hour_seed(hour) math.randomseed((hour % 1000003) * 7919 + 104729) end
+local function install_cluster_weather(wm)
+	if wm.__netcoop_cluster or not in_cluster() or type(wm.get_next_weather_cycle) ~= "function" then return end
+	wm.__netcoop_cluster = true
+	local next_cycle = wm.get_next_weather_cycle
+	wm.get_next_weather_cycle = function(self, current)
+		local hour, cycle = cluster_hour(), "clear"
+		for h = hour - 24, hour do
+			hour_seed(h)
+			local ok, value = pcall(next_cycle, self, cycle)
+			if ok and value then cycle = value end
+		end
+		return cycle
+	end
+end
+
 local function server_world_tick()
 	local now = time_global()
 	if now < world_next then return end
@@ -420,7 +455,10 @@ local function server_world_tick()
 
 	local wm = level_weathers and level_weathers.get_weather_manager()
 	if not wm then return end
+	install_cluster_weather(wm)
+	if in_cluster() then hour_seed(cluster_hour()) end
 	local ok, err = pcall(wm.update, wm)
+	if in_cluster() then math.randomseed(os.time() + time_global()) end
 	if not ok then printf("[Lost Zone] weather update error: %s", tostring(err)) end
 	local weather = wm.weather_file or (level.get_weather and level.get_weather()) or ""
 	if weather ~= "" and (weather ~= weather_sent or now >= weather_next) then

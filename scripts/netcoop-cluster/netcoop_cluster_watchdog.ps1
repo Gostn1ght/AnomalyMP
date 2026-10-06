@@ -60,7 +60,7 @@ function Start-Location($s) {
     $since = Get-Date
     while (((Get-Date) - $since).TotalSeconds -lt $LoadTimeoutSeconds -and -not $p.HasExited) {
         $file = Find-Log $s
-        if ($file -and $file.LastWriteTime -gt $since -and (Select-String -Path $file.FullName -Pattern "[Lost Zone][clock] server game" -SimpleMatch -Quiet)) { break }
+        if ($file -and $file.LastWriteTime -gt $since -and (Select-String -Path $file.FullName -Pattern "\[world\] saved \S+ \(bootstrap\)|loading saved world" -Quiet)) { break }
         Start-Sleep -Seconds 5
     }
     return $p

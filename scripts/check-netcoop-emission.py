@@ -133,4 +133,25 @@ e.update_world(); assert(factor==10, "starts at the scheduled hour")
 now=now+223000; e.update_world(); assert(factor==6)
 now=now+1000; e.update_world(); assert(factor==6, "once per slot")
 ''')
+lua.execute('''
+-- Restart during an emission (doc 43 J05): a fresh module resumes at the phase.
+local e1 = netcoop_emission
+local at = e1.scheduled_start(150, 24)
+store = {}
+factor = 6; now = (at*3600 - 100000)*1000/6 + 1000
+e1.update_world(); assert(factor == 10, "started")
+local saved = store
+netcoop_emission = {}
+''')
+lua.execute('setfenv(assert(loadstring(...)), setmetatable(netcoop_emission,{__index=_G}))()',
+            (root/'server/netcoop_emission.script').read_text())
+lua.execute('''
+local e2 = netcoop_emission
+e2.reset_cluster_mode()
+now = now + 60000 * 6 / 10  -- one real minute of emission passed in game time
+factor = 6
+e2.update_world()
+assert(factor == 10, "the restarted server resumes the emission")
+assert(broadcast:match("|1|"), "and tells clients it is active: " .. tostring(broadcast))
+''')
 print('PASS: shared clock, shelter IDs, per-owner protection, late join, single respawn and client presentation')

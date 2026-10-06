@@ -332,6 +332,13 @@ bool world_store_save_now(LPCSTR reason)
 }
 
 // Every server_update: periodic save, and one when the last player leaves.
+// Logins wait for the first committed world (a persistent world only).
+bool world_store_admission_open()
+{
+	string64 world;
+	return !world_store_name(world) || s_world_committed;
+}
+
 static void world_store_update(xrServer* server)
 {
 	string64 world;
@@ -348,6 +355,15 @@ static void world_store_update(xrServer* server)
 	server->ForEachClientDo(counter);
 	const u32 now = real_time_ms();
 	if (!s_world_last_save) s_world_last_save = now;
+	// A new world is committed once before any player is admitted (doc 43
+	// G12): 30 s after start, when the initial population is in place.
+	if (!s_world_committed)
+	{
+		if (now - s_world_last_save >= 30000 && now - s_world_last_attempt >= world_save_retry_ms)
+			world_store_save_now("bootstrap");
+		s_world_previous_players = counter.count;
+		return;
+	}
 	if (counter.count == 0 && s_world_previous_players > 0) world_store_save_now("last player left");
 	else if (now - s_world_last_save >= world_save_period_ms &&
 		now - s_world_last_attempt >= world_save_retry_ms) world_store_save_now("periodic");

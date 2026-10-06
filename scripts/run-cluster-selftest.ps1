@@ -51,7 +51,7 @@ function Wait-Loaded($name) {
     while ((Get-Date) -lt $deadline) {
         $log = Find-Log $name
         # The periodic clock line starts once the level and ALife run.
-        if ($log -and (Select-String -Path $log.FullName -Pattern "[Lost Zone][clock] server game" -SimpleMatch -Quiet)) { return $log.FullName }
+        if ($log -and (Select-String -Path $log.FullName -Pattern "\[world\] saved \S+ \(bootstrap\)|loading saved world" -Quiet)) { return $log.FullName }
         if ($log -and (Select-String -Path $log.FullName -Pattern "FATAL ERROR" -SimpleMatch -Quiet)) { throw "server $name crashed while loading: $($log.FullName)" }
         Start-Sleep -Seconds 10
     }
