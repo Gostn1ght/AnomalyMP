@@ -232,7 +232,7 @@
 | L25 Лёгкая экология меняет опасность маршрутов и события без Full AI | ⬜ |  |
 | L26 Trader money/inventory/supply/demand/restock с configurable economy | 🟡 | торговцы GAMMA пополняются раз в N игровых часов (eco factor) и на сервере; динамического спроса/предложения нет |
 | L27 Поставки/караваны/редкость связаны с world events и ledger | ⬜ |  |
-| L28 Campfire active/fuel/start/end: состояние рассчитывается по времени; | 🟡 | мебель/тайники/визиты в тайники/костры в серверном Lua (цикл заработал только 2026-10-06) |
+| L28 Campfire active/fuel/start/end: состояние рассчитывается по времени; | 🟡 | реальный сервер: на свежем мире все 38 костров Болот потушены (требование владельца); зажигают NPC/игроки по правилам GAMMA; расчёт топлива по времени нет |
 | L29 Door open/lock/destroyed state сохраняется и влияет на offline route | ⬜ |  |
 | L30 Важные destructibles сохраняют INTACT/DAMAGED/DESTROYED | ⬜ |  |
 | L31 Trap owner/type/armed/charges и offline trigger с version check | ⬜ |  |
