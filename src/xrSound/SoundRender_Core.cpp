@@ -24,6 +24,11 @@ float psSoundVFactor = 1.0f;
 float psSoundVMusic = 1.f;
 float psSoundVMusicFactor = 1.f;
 int psSoundCacheSizeMB = 256;
+// x_ray.cpp. The dedicated server mixes no audio: GAMMA's cache size took
+// 512 MB of every location server (-mem_profile, 2026-10-06). Sounds still
+// play there for AI hearing; the cache only holds decoded PCM for mixing.
+extern bool g_dedicated_server;
+static int sound_cache_mb() { return g_dedicated_server ? 8 : psSoundCacheSizeMB; }
 
 float snd_efx_environment_change_time = 1.66f;
 
@@ -76,7 +81,7 @@ void CSoundRender_Core::_initialize(int stage)
 
 	// Cache
 	cache_bytes_per_line = (sdef_target_block / 8) * 276400 / 1000;
-	cache.initialize(psSoundCacheSizeMB * 1024, cache_bytes_per_line);
+	cache.initialize(sound_cache_mb() * 1024, cache_bytes_per_line);
 
 	bReady = TRUE;
 
@@ -162,7 +167,7 @@ void CSoundRender_Core::env_unload()
 void CSoundRender_Core::_restart()
 {
 	cache.destroy();
-	cache.initialize(psSoundCacheSizeMB * 1024, cache_bytes_per_line);
+	cache.initialize(sound_cache_mb() * 1024, cache_bytes_per_line);
 	env_apply();
 }
 
