@@ -1,0 +1,148 @@
+-- Owner 2026-10-06: remove legacy story, keep traders and five faction contacts.
+-- New Lost Zone contracts use a separate namespace; no legacy task is admitted.
+local guarded, scan, pending = {}, 1, {}
+local cfg
+local function enabled() return netcoop_enabled and netcoop_enabled() end
+local function config()
+    cfg = cfg or ini_file("netcoop\\sandbox.ltx")
+    return cfg
+end
+local function profile(obj)
+    return obj and obj.profile_name and obj:profile_name() or ""
+end
+local function policy(obj)
+    return config():r_string_ex("legacy_profiles", profile(obj))
+end
+function mini_profile(obj)
+    return config():r_string_ex("mini_profiles", profile(obj))
+end
+function configure_trader(npc)
+    if not enabled() then return end
+    local trade = mini_profile(npc)
+    if trade and trade_manager and trade_manager.trade_init then
+        trade_manager.trade_init(npc, trade)
+        if npc.invulnerable then npc:invulnerable(false) end
+    end
+end
+function quest_section(section)
+    if not (ini_sys and ini_sys:section_exist(section)) then return false end
+    return ini_sys:r_bool_ex(section,"quest_item",false) == true or ini_sys:r_string_ex(section,"kind") == "i_quest"
+end
+local function ordinary(section)
+    return quest_section(section) and "bandage" or section
+end
+function sanitize_cache(id)
+    local caches = treasure_manager and treasure_manager.caches
+    local text = caches and caches[id]
+    if type(text) ~= "string" then return end
+    local items = {}
+    for section in text:gmatch("[^,]+") do items[#items+1] = ordinary(section:match("^%s*(.-)%s*$")) end
+    caches[id] = table.concat(items,",") -- preserve ordinary loot/order, never reroll
+end
+local function inspect(se)
+    local sim = alife()
+    if IsStalker and IsStalker(nil,se:clsid()) then
+        local p = policy(se)
+        local story = get_object_story_id and get_object_story_id(se.id)
+        local traded = trade_manager and trade_manager.get_trade_profile and trade_manager.get_trade_profile(se.id,"cfg_ltx")
+        if not traded and (p == "remove" or (story and p ~= "trader" and p ~= "mini")) then
+            alife_release(se)
+            return
+        end
+        return
+    end
+    if se:clsid() == clsid.inventory_box_s then
+        sanitize_cache(se.id)
+        -- Story boxes become ordinary one-time caches, with no story gate.
+        if (get_object_story_id and get_object_story_id(se.id)) or se:name():find("quest",1,true) then
+            local state = alife_storage_manager and alife_storage_manager.get_state()
+            if state then
+                state.netcoop_plain_stashes = state.netcoop_plain_stashes or {}
+                if state.netcoop_plain_stashes[se.id] ~= se:name() then
+                    local caches = treasure_manager and treasure_manager.caches
+                    if caches and (caches[se.id] == nil or caches[se.id] == false) then caches[se.id] = "bandage,conserva,ammo_9x18_fmj" end
+                    state.netcoop_plain_stashes[se.id] = se:name()
+                end
+            end
+        end
+        return
+    end
+    if not quest_section(se:section_name()) then return end
+    local parent = sim:object(se.parent_id or 65535)
+    local replacement
+    if parent and parent:clsid() == clsid.inventory_box_s then
+        replacement = alife_create("bandage",se.position,se.m_level_vertex_id,se.m_game_vertex_id,parent.id,false)
+        if not replacement then return end -- retain original until replacement is admitted
+    end
+    local ok = pcall(alife_release,se)
+    if not ok or sim:object(se.id) then
+        if replacement then alife_release(replacement) end
+        error("legacy item removal held")
+    end
+end
+local function block(owner,name)
+    local old = owner and owner[name]
+    if type(old) ~= "function" or guarded[old] then return end
+    local off = function(...) if not enabled() then return old(...) end end
+    guarded[off] = true; owner[name] = off
+end
+function install()
+    if not enabled() then return end
+    block(task_manager and task_manager.CRandomTask,"give_task")
+    block(xr_effects,"give_task")
+    block(xr_effects,"set_active_task")
+    block(task_manager,"task_callback") -- old completion must not grant rewards
+    for _,name in ipairs({"get_first_available_task","get_first_finished_task","drx_sl_generate_random_sl_task",
+                          "drx_sl_generate_change_factions_task","npc_give_first_available_ordered_task",
+                          "drx_sl_get_mechanic_task","set_finished_task_complete","drx_sl_set_finished_task_complete",
+                          "drx_sl_set_finished_cf_task_complete"}) do block(axr_task_manager,name) end
+    block(tasks_fate,"prepare_dead_squad")
+    local tm = task_manager and task_manager.get_task_manager and task_manager.get_task_manager()
+    if tm and tm.task_info then
+        for id in pairs(tm.task_info) do
+            if not tostring(id):match("^lz_contract_") then
+                tm.task_info[id] = nil
+                if db and db.actor and task then db.actor:set_task_state(task.fail,id) end
+            end
+        end
+    end
+end
+function update()
+    if not enabled() then return end
+    install()
+    if netcoop_pure_client and netcoop_pure_client() then return end
+    if not alife then return end
+    local sim = alife()
+    -- Initial pass is bounded across updates; newly registered objects enqueue
+    -- separately, so no perpetual 65k scan or item TTL is introduced.
+    for _=1,256 do
+        if scan > 65534 then break end
+        local se = sim:object(scan); scan = scan+1
+        if se then inspect(se) end
+    end
+    local count = 0
+    for id in pairs(pending) do
+        pending[id] = nil
+        local se = sim:object(id); if se then inspect(se) end
+        count=count+1; if count >= 64 then break end
+    end
+end
+function registered(se) if se and se.id then pending[se.id] = true end end
+function character_init(id,data)
+    if enabled() then data.start_dialog = "dm_init_trader" end
+end
+function character_dialogs(id,list)
+    if not enabled() then return end
+    local keep = {dm_init_trader=true,dm_add_trade=true,dm_tech_repair=true,dm_tech_upgrade=true}
+    for _,dialog in ipairs(list:get_dialogs()) do if not keep[dialog] then list:remove(dialog) end end
+    list:add("dm_init_trader")
+end
+function on_game_start()
+    if not enabled() then return end
+    RegisterScriptCallback("on_game_load",function() scan=1; install() end)
+    RegisterScriptCallback("server_entity_on_register",registered)
+    RegisterScriptCallback("npc_on_net_spawn",configure_trader)
+    RegisterScriptCallback("on_specific_character_init",character_init)
+    RegisterScriptCallback("on_specific_character_dialog_list",character_dialogs)
+    install()
+end

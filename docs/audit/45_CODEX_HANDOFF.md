@@ -602,3 +602,13 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   pin/restart and actual HTTP scope/roles/expiry/query rejection. I03 partial.
   Actions next; native subscriber/delta/busy-world stability/query CPU open.
   21ea79c1c/37427274553 DX11 checks SUCCESS, engine compiling; no runtime action.
+
+- OWNER OVERRIDE 2026-10-06: remove old story/quests and quest-only items; replace
+  quest loot in stashes with ordinary consumables. Preserve existing traders.
+  Latest amendment: keep a small selected set of former quest NPCs as faction
+  mini-traders, with NEW difficult contracts designed from scratch. Old quest
+  requirements in43/42 are superseded for legacy story, not justification to
+  retain it. Codex edits dedicated sandbox Lua/trade profiles and narrow trade
+  hook in server_compat; no replication/interest/runtime install/launch changes.
+  General backend quest transaction machinery can support the new contracts;
+  old story content/definitions must not be used as new contracts.

@@ -33,6 +33,7 @@ jobs:
           python scripts/check-netcoop-ai.py
           python scripts/check-netcoop-items.py
           python scripts/check-netcoop-world-rules.py
+          python scripts/check-netcoop-sandbox.py
           python scripts/check-netcoop-transit.py
           python scripts/check-netcoop-lua-scope.py
           python scripts/check-netcoop-emission.py
