@@ -497,3 +497,12 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   and forbidden weapon exclusion. Local full 198 PASS, Actions pending after push.
   Native adapter/new AI route choices/4 LOD/AOI remain open. No native launch,
   installation, runtime overwrite, automatic NPC transit or whole-stage closure.
+
+- 1dd83e4c3 / 37417841819 Windows SUCCESS (198), Linux failed in existing
+  HTTP delivery test: response arrived before workers finished bounded socket
+  drain/close, legitimate overload503 versus expected400. Test now synchronizes
+  cleanup admission; new gated real-socket regression proves response delivery
+  does not prematurely free slots and normal admission resumes. Product worker
+  cap unchanged. Local full 199 PASS, follow-up Actions pending.
+  Task-43 H historical TTL description marked superseded; current native/backend
+  proof and open hidden spawn/cross-host/NPC/1000-transfer acceptance documented.

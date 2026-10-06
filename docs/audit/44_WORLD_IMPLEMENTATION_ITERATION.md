@@ -934,3 +934,13 @@ item refuses before a second read, later retry applies once; oversized weapon
 cannot block an eligible light deposit. Counts refer to tests, not task-43 closure.
 Backend Actions pending after push. Native authority/AI/AOI/LOD adapters remain
 open; native NPC transit stays opt-in and existing packages are not overwritten.
+
+1dd83e4c3 backend 37417841819: Windows SUCCESS (198); Linux failed in
+pre-existing HTTP early-rejection test (503 instead of 400). Response delivery
+can precede bounded socket drain/worker release, so the next request may correctly
+hit two-worker admission. Delivery regression now waits for bounded worker cleanup
+without a scheduling sleep; a gated real-socket test separately proves delivered
+responses do not free worker slots early and admission recovers after cleanup.
+No worker-bound weakening or stash resolver change. Local complete suite 199 PASS;
+Actions follow-up pending. Task-43 H history now explicitly superseded by current
+OS ownership/restore/wallet/2PC scope and remaining native acceptance requirements.

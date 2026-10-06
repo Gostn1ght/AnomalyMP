@@ -129,9 +129,47 @@ class HttpTest(unittest.TestCase):
 
     def test_early_rejection_delivers_response_with_an_unread_post_body(self):
         for _ in range(8):
-            self.assertEqual(self.call("POST", "/v1/command", raw='{}', token=None)[0],401)
-            self.assertEqual(self.call("POST", "/v1/command", raw='{}', headers={"Content-Type":"text/plain"})[0],400)
-            self.assertEqual(self.call("POST", "/v1/command", raw='x'*65537)[0],413)
+            for expected,args in ((401,{"raw":"{}","token":None}),
+                                  (400,{"raw":"{}","headers":{"Content-Type":"text/plain"}}),
+                                  (413,{"raw":"x"*65537})):
+                # A received response does not mean the bounded worker has
+                # finished draining/closing its socket. Isolate delivery from
+                # overload admission, rather than relying on OS scheduling.
+                self.wait_idle_workers()
+                self.assertEqual(self.call("POST", "/v1/command", **args)[0],expected)
+
+    def wait_idle_workers(self):
+        acquired=0
+        try:
+            for _ in range(2):
+                self.assertTrue(self.server._slots.acquire(timeout=2),"HTTP worker cleanup did not finish")
+                acquired+=1
+        finally:
+            for _ in range(acquired):
+                self.server._slots.release()
+
+    def test_response_delivery_does_not_release_a_worker_before_socket_cleanup(self):
+        gate=threading.Event();closing=queue.Queue()
+        original=self.server.shutdown_request
+        def held_cleanup(request):
+            closing.put(True)
+            if not gate.wait(2):
+                raise AssertionError("cleanup gate was not released")
+            original(request)
+        self.server.shutdown_request=held_cleanup
+        try:
+            for _ in range(2):
+                self.assertEqual(self.call("GET","/v1/clock")[0],200)
+                closing.get(timeout=2)
+            # The accept thread also closes overload sockets. Restore its
+            # closer while both admitted workers remain at the captured gate.
+            self.server.shutdown_request=original
+            self.assertEqual(self.call("GET","/v1/clock")[0],503)
+        finally:
+            self.server.shutdown_request=original
+            gate.set()
+        self.wait_idle_workers()
+        self.assertEqual(self.call("GET","/v1/clock")[0],200)
 
     def test_request_backpressure_rate_and_worker_bound(self):
         self.server.rate_limit = RateLimit(rate=0, burst=1)

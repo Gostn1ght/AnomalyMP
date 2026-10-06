@@ -283,7 +283,7 @@ G02–G04 проверены `check-netcoop-world-store.py` и
 Текущий переход внутри одного engine/обычные netcoop запросы не
 подменяют этот межсерверный handoff.
 
-Статус 2026-10-05 (Claude, первый рабочий вариант, в игре не проверен):
+Исторический статус 2026-10-05 (Claude, первый рабочий вариант):
 кластер локаций `src/xrGame/netcoop_cluster.inc`. Один dedicated процесс на
 карту из одной runtime папки (общие accounts/characters), адреса карт в
 `$app_data_root$/netcoop_cluster.ltx` (пример `scripts/netcoop-cluster/`).
@@ -311,6 +311,33 @@ G02–G04 проверены `check-netcoop-world-store.py` и
 H11 (каждый процесс пока ведёт свою копию ALife: NPC других карт там
 офлайн и игрокам не видны; story-объекты совпадают по story id, задания на
 обычные объекты другой карты пока не переносятся), H12 нагрузочная приёмка.
+
+Актуализация 2026-10-06; этот абзац заменяет старое описание TTL lease выше.
+Native ownership аккаунта удерживается exclusive OS file lock в общей runtime
+папке: TTL больше не позволяет другому процессу забрать живого владельца.
+При падении процесса OS освобождает lock; это не межхостовый fencing. Native
+переход сохраняет персонажа синхронно, target перечитывает файл, одноразовый
+HMAC ticket привязан к переходу. Пока inventory parentage, Lua/task/info restore
+не завершены, target не принимает игровые действия/autosave/wallet mutations;
+валидная input sequence продолжает обновляться, чтобы долгий restore не
+блокировал управление после завершения. Logout capture/wallet failure удерживает
+Actor/ownership и повторяется с backoff. Wallet commit вынесен из transport
+callback в main-thread cleanup. Character/account файлы ещё не единый commit.
+
+Backend дополнительно реализует capacity reservations, transfer state machine
+Prepare/Claim/Commit/Release/Abort/Status, immutable checkpoint, command dedup и
+fault/restart проверки. Это отдельная authority; native player adapter ещё нужен.
+Native NPC mailbox/receipt-before-ACK остаётся opt-in: полного общего persistent
+registry/fencing/full mod-state adapter нет. Prune чужой generic ALife population
+проверен в runtime (H11-lite), но не заменяет единственного глобального NPC owner.
+Поэтому ни H, ни W8 целиком не закрыты. H01 очередь, H06 hidden target spawn,
+H09/H10 полноценный NPC/squad handoff, H12 1000 аварийных переходов, H13 surface/
+готовность AOI и межхостовое fencing/recovery остаются открытыми.
+
+Native доказательства: Foundation 37414908176 и полная DX11 37414908195
+SUCCESS на 268caa26d. Билд произведён GitHub Actions; установка последнего
+пакета и live acceptance этим результатом не утверждаются. Подробности и
+история фактических runtime проверок — в документах 44/45.
 
 ## I. Межлокационные задания
 
