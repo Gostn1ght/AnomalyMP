@@ -2007,6 +2007,52 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 	case GE_MONEY:
 		return false; // money changes only on the server
 
+	// Damage, deaths, kills, game events, teleports, visuals, restrictions
+	// and frozen physics are the server's (doc 43 A11): a player's bullets are
+	// simulated on the server and the client's are visual only, so an honest
+	// client never sends these. A forged GE_HIT killed any NPC, GE_GAME_EVENT
+	// carried GAME_EVENT_ON_HIT past that, GE_DIE/GE_ASSIGN_KILLER named any
+	// killer (run-cheat-test.ps1).
+	case GE_HIT:
+	case GE_HIT_STATISTIC:
+	case GE_DIE:
+	case GE_ASSIGN_KILLER:
+	case GE_GAME_EVENT:
+	case GE_TELEPORT_OBJECT:
+	case GE_CHANGE_POS:
+	case GE_CHANGE_VISUAL:
+	case GE_TRADER_FLAGS:
+	case GE_FREEZE_OBJECT:
+	case GE_ADD_RESTRICTION:
+	case GE_REMOVE_RESTRICTION:
+	case GE_REMOVE_ALL_RESTRICTIONS:
+		return false;
+
+	case GE_TRANSFER_AMMO:
+		{
+			// The handler asserts that the taker belongs to the sender: a
+			// forged one took the whole server down.
+			CSE_Abstract* dest = server->game->get_entity_from_eid(destination);
+			return dest && dest->owner == CL;
+		}
+
+	case GE_DESTROY:
+	case GE_INSTALL_UPGRADE:
+	case GE_ADDON_ATTACH:
+	case GE_ADDON_DETACH:
+		{
+			// Only an item the sender's own Actor carries.
+			CSE_Abstract* item = server->game->get_entity_from_eid(destination);
+			return item && CL->owner && item->ID_Parent == CL->owner->ID;
+		}
+
+	case GE_INFO_TRANSFER:
+		{
+			// Only to the sender's own Actor (never another player or an NPC).
+			CSE_Abstract* dest = server->game->get_entity_from_eid(destination);
+			return dest && dest == CL->owner;
+		}
+
 	case GEG_PLAYER_ITEM_EAT:
 	case GEG_PLAYER_ITEM2SLOT:
 	case GEG_PLAYER_ITEM2BELT:

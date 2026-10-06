@@ -5,6 +5,7 @@
 #include "xrMessages.h"
 #include "game_base.h"
 #include "actor_defs.h"
+#include "alife_space.h"
 
 // NetAnomaly load test (doc 38, target 128 players per server).
 //
@@ -205,6 +206,11 @@ public:
 			m_last_send = now;
 			send_movement(now);
 		}
+		if (m_state == st_playing && m_cheat_target != 0xffff && !m_cheated && now - m_state_time > 15000)
+		{
+			m_cheated = true;
+			send_cheats();
+		}
 		Flush_Send_Buffer();
 	}
 
@@ -385,6 +391,54 @@ private:
 		}
 	}
 
+	// -netcoop_bots_cheat=<id> (run-cheat-test.ps1, doc 43 A11): the first
+	// bot sends what an honest client never does: a deadly hit on that
+	// object, the same hit as a game event, its death, a "transfer" that
+	// asserted on the server, and its destruction. The server must refuse
+	// them all and stay up; the object must stay alive.
+	void send_cheats()
+	{
+		const u16 target = m_cheat_target;
+		auto header = [&](NET_Packet& P, u16 event, u16 dest)
+		{
+			P.w_begin(M_EVENT);
+			P.w_u32(0);
+			P.w_u16(event);
+			P.w_u16(dest);
+		};
+		auto hit_body = [&](NET_Packet& P)
+		{
+			P.w_u16(m_actor); // who
+			P.w_u16(m_actor); // weapon
+			P.w_dir(Fvector().set(0.f, 0.f, 1.f));
+			P.w_float(1000.f); // power
+			P.w_u16(0); // bone
+			P.w_vec3(Fvector().set(0.f, 0.f, 0.f));
+			P.w_float(0.f); // impulse
+			P.w_u16(0); // aim bullet
+			P.w_u16(u16(ALife::eHitTypeWound));
+			P.w_u32(0); // bullet
+		};
+		NET_Packet P;
+		header(P, GE_HIT, target);
+		hit_body(P);
+		send_reliable(P);
+		header(P, GE_GAME_EVENT, 0);
+		P.w_u16(GAME_EVENT_ON_HIT);
+		P.w_u16(target);
+		hit_body(P);
+		send_reliable(P);
+		header(P, GE_DIE, target);
+		P.w_u16(m_actor);
+		send_reliable(P);
+		header(P, GE_TRANSFER_AMMO, target);
+		P.w_u16(target);
+		send_reliable(P);
+		header(P, GE_DESTROY, target);
+		send_reliable(P);
+		Msg("[Lost Zone][bots] %s sent forged hit, game-event hit, death, ammo transfer and destroy for %u", m_login, target);
+	}
+
 	void send_movement(u32 now)
 	{
 		const float dt = float(now - m_last_move) * 0.001f;
@@ -456,6 +510,10 @@ private:
 	u32 m_rx_bytes = 0;
 	u32 m_last_update = 0;
 	u32 m_max_update_gap = 0;
+
+public:
+	u16 m_cheat_target = 0xffff;
+	bool m_cheated = false;
 };
 
 struct DeadBot
@@ -582,6 +640,9 @@ void bots_frame()
 	{
 		s_last_start = now;
 		NetcoopBot* b = xr_new<NetcoopBot>(s_first + u32(s_bots.size()) + 1);
+		if (s_bots.empty())
+			if (LPCSTR c = strstr(Core.Params, "-netcoop_bots_cheat="))
+				b->m_cheat_target = u16(atoi(c + xr_strlen("-netcoop_bots_cheat=")));
 		s_bots.push_back(b);
 		b->start(s_address, now);
 	}
