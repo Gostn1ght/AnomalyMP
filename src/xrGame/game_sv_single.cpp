@@ -408,6 +408,7 @@ struct netcoop_prewarm_track
 	bool moving;
 };
 static xr_map<u16, netcoop_prewarm_track> s_netcoop_prewarm;
+static xr_vector<Fvector> s_netcoop_prewarm_points; // where the moving players will be
 
 static void netcoop_forget_game(game_sv_Single* game)
 {
@@ -416,6 +417,7 @@ static void netcoop_forget_game(game_sv_Single* game)
 	s_netcoop_game = NULL;
 	s_netcoop_actor_ids.clear();
 	s_netcoop_prewarm.clear();
+	s_netcoop_prewarm_points.clear();
 }
 
 // PREWARM (doc 43 E09): a moving player also stands where they will be in
@@ -446,6 +448,7 @@ static void netcoop_prewarm_update()
 	const u32 now = Device.dwTimeGlobal;
 	u32 moving = 0;
 	float fastest = 0.f;
+	s_netcoop_prewarm_points.clear();
 	for (xr_map<u16, netcoop_prewarm_track>::iterator it = s_netcoop_prewarm.begin(); it != s_netcoop_prewarm.end();)
 	{
 		if (std::find(s_netcoop_actor_ids.begin(), s_netcoop_actor_ids.end(), it->first) == s_netcoop_actor_ids.end())
@@ -467,7 +470,10 @@ static void netcoop_prewarm_update()
 			continue;
 		}
 		if (track.moving)
+		{
 			++moving;
+			s_netcoop_prewarm_points.push_back(track.ahead);
+		}
 		if (now - track.time < 500)
 			continue;
 		Fvector velocity;
@@ -509,11 +515,10 @@ float netcoop_nearest_actor_distance(const Fvector& position)
 			continue;
 		}
 		best = _min(best, e->o_Position.distance_to(position));
-		xr_map<u16, netcoop_prewarm_track>::const_iterator track = s_netcoop_prewarm.find(*it);
-		if (track != s_netcoop_prewarm.end() && track->second.moving)
-			best = _min(best, track->second.ahead.distance_to(position));
 		++it;
 	}
+	for (const Fvector& ahead : s_netcoop_prewarm_points)
+		best = _min(best, ahead.distance_to(position));
 	return best;
 }
 
