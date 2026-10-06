@@ -128,6 +128,9 @@ end
 local seen = {}       -- char -> Actor id last restored
 local next_sync, next_save = 0, 0
 
+-- netcoop_squads: attitudes of this Actor are the character's own now.
+function restored(char, id) return char ~= nil and seen[char] == id end
+
 local function restore(obj, char)
 	local saved = store().store_get("goodwill", char)
 	if relation_registry and relation_registry.set_community_goodwill then

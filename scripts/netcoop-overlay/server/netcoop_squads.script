@@ -1,0 +1,226 @@
+----------------------------------------------------------------------
+-- Loner squads (doc 47 section 4, stage 8)
+----------------------------------------------------------------------
+-- Loners have no leader and no faction politics: each loner is on their own.
+-- Players of the Loners may form a squad, only by consent: one invites, the
+-- other accepts. In a squad, what one member does to a faction's attitude
+-- reaches the other members at half strength (not the full effect).
+-- A member who leaves the Loners (joins a faction, becomes a renegade) leaves
+-- the squad.
+--
+-- Store (cluster shared, netcoop_factions.store_*):
+--   bucket "squads", key = squad id: { members = { [char] = name }, invites = { [char] = time } }
+--   bucket "squad_of", key = char: { id = squad id }
+
+local MAX_MEMBERS = 6
+local SHARE = 0.5
+local INVITE_TIME = 600 -- real seconds
+local LONERS = "stalker"
+local COMMUNITIES = { "stalker", "bandit", "csky", "dolg", "freedom", "army", "killer", "ecolog",
+	"monolith", "renegade", "greh", "isg" }
+
+local function store() return netcoop_factions end
+local function now() return os.time() end
+local function char_of(obj) return obj and netcoop_actor_character and netcoop_actor_character(obj:id()) or "" end
+local function faction_of(obj) return ((character_community(obj) or ""):gsub("^actor_", "")) end
+
+local function squad_id_of(char)
+	return char ~= "" and store().store_get("squad_of", char).id or nil
+end
+
+function members_of(id)
+	return id and store().store_get("squads", id).members or {}
+end
+
+local function online()
+	local list = {}
+	for id in string.gmatch(netcoop_players and netcoop_players() or "", "%d+") do
+		local obj = level.object_by_id(tonumber(id))
+		local char = obj and char_of(obj)
+		-- Only after netcoop_ranks restored the character's attitudes: that
+		-- restore is not a change made by the player.
+		local ready = not (netcoop_ranks and netcoop_ranks.restored) or netcoop_ranks.restored(char, obj and obj:id())
+		if char and char ~= "" and ready then list[char] = obj end
+	end
+	return list
+end
+
+local function find_online(name)
+	local wanted = string.lower(name or "")
+	for char, obj in pairs(online()) do
+		if string.lower(char) == wanted or string.lower(obj:character_name() or "") == wanted then return char, obj end
+	end
+	return nil
+end
+
+local function notify(obj, text)
+	if obj and netcoop_send_to_actor then netcoop_send_to_actor(obj:id(), "squad", text) end
+end
+
+local function leave(char)
+	local id = squad_id_of(char)
+	if not id then return false, "you are not in a squad" end
+	store().store_update("squads", id, function(data)
+		data.members = data.members or {}
+		data.members[char] = nil
+		return true
+	end)
+	store().store_update("squad_of", char, function(data)
+		data.id = nil
+		return true
+	end)
+	return true, "you left the squad"
+end
+
+---------------------------------------------------------------- commands
+local function invite(obj, char, target_name)
+	if faction_of(obj) ~= LONERS then return "! only Loners form squads" end
+	local target, target_obj = find_online(target_name)
+	if not target then return "! no such player online: " .. tostring(target_name) end
+	if target == char then return "! you cannot invite yourself" end
+	if faction_of(target_obj) ~= LONERS then return "! " .. target_obj:character_name() .. " is not a Loner" end
+	if squad_id_of(target) then return "! " .. target_obj:character_name() .. " is already in a squad" end
+	local id = squad_id_of(char) or char
+	local ok, message = store().store_update("squads", id, function(data)
+		data.members, data.invites = data.members or {}, data.invites or {}
+		if not data.members[char] then data.members[char] = obj:character_name() end
+		local count = 0
+		for _ in pairs(data.members) do count = count + 1 end
+		if count >= MAX_MEMBERS then return false, "the squad is full (" .. MAX_MEMBERS .. ")" end
+		data.invites[target] = now()
+		return true
+	end)
+	if not ok then return "! " .. tostring(message) end
+	store().store_update("squad_of", char, function(data) data.id = id; return true end)
+	notify(target_obj, "invite|" .. obj:character_name())
+	return "~ invited " .. target_obj:character_name() .. "; they answer with: squad accept"
+end
+
+local function accept(obj, char)
+	if faction_of(obj) ~= LONERS then return "! only Loners form squads" end
+	if squad_id_of(char) then return "! you are already in a squad; squad leave first" end
+	-- The newest open invitation.
+	local best, best_at
+	for id in string.gmatch(netcoop_store_keys and netcoop_store_keys("squads") or "", "%S+") do
+		local at = (store().store_get("squads", id).invites or {})[char]
+		if at and now() - at <= INVITE_TIME and (not best_at or at > best_at) then best, best_at = id, at end
+	end
+	if not best then return "! no invitation (they last " .. math.floor(INVITE_TIME / 60) .. " min)" end
+	local ok, message = store().store_update("squads", best, function(data)
+		data.members, data.invites = data.members or {}, data.invites or {}
+		if not data.invites[char] then return false, "the invitation was withdrawn" end
+		data.invites[char] = nil
+		local count = 0
+		for _ in pairs(data.members) do count = count + 1 end
+		if count >= MAX_MEMBERS then return false, "the squad is full" end
+		data.members[char] = obj:character_name()
+		return true
+	end)
+	if not ok then return "! " .. tostring(message) end
+	store().store_update("squad_of", char, function(data) data.id = best; return true end)
+	local live = online()
+	for member in pairs(members_of(best)) do
+		if member ~= char then notify(live[member], "joined|" .. obj:character_name()) end
+	end
+	return "~ you joined the squad"
+end
+
+local function decline(char)
+	for id in string.gmatch(netcoop_store_keys and netcoop_store_keys("squads") or "", "%S+") do
+		store().store_update("squads", id, function(data)
+			if not (data.invites and data.invites[char]) then return false end
+			data.invites[char] = nil
+			return true
+		end)
+	end
+	return "~ invitations declined"
+end
+
+local function show(char)
+	local id = squad_id_of(char)
+	if not id then return "~ you are not in a squad. squad invite <name> - invite a Loner; squad accept - join" end
+	local live, names = online(), {}
+	for member, name in pairs(members_of(id)) do
+		names[#names + 1] = tostring(name) .. (live[member] and "" or " (offline)")
+	end
+	table.sort(names)
+	return "~ squad: " .. table.concat(names, ", ")
+end
+
+-- "squad ..." from a player (netanomaly_server.on_client_command).
+function command(obj, args)
+	if not obj then return "! your Actor is not on the server" end
+	local char = char_of(obj)
+	if char == "" then return "! no character" end
+	local verb, rest = string.match(args or "", "^(%S*)%s*(.-)%s*$")
+	if verb == "invite" then return invite(obj, char, rest) end
+	if verb == "accept" then return accept(obj, char) end
+	if verb == "decline" then return decline(char) end
+	if verb == "leave" then
+		local _, message = leave(char)
+		return "~ " .. message
+	end
+	return show(char)
+end
+
+---------------------------------------------------------------- shared attitudes
+-- Every few seconds: each online member's own change of a faction's attitude
+-- since the last look reaches the other online members at SHARE strength.
+-- The shared part is not seen as their own change (no echo back).
+local last = {} -- char -> { community = goodwill }
+local next_check = 0
+
+local function goodwill(obj, community)
+	return relation_registry and relation_registry.community_goodwill and relation_registry.community_goodwill(community, obj:id()) or 0
+end
+
+function update()
+	local t = time_global()
+	if t < next_check then return end
+	next_check = t + 3000
+	if not (relation_registry and relation_registry.set_community_goodwill) then return end
+	local live = online()
+	local deltas = {}
+	for char, obj in pairs(live) do
+		local before = last[char]
+		if before then
+			for _, community in ipairs(COMMUNITIES) do
+				local d = goodwill(obj, community) - (before[community] or 0)
+				if d ~= 0 then
+					deltas[char] = deltas[char] or {}
+					deltas[char][community] = d
+				end
+			end
+		end
+	end
+	for char, changes in pairs(deltas) do
+		local obj = live[char]
+		local id = faction_of(obj) == LONERS and squad_id_of(char)
+		if id then
+			for member in pairs(members_of(id)) do
+				local mate = live[member]
+				if member ~= char and mate and faction_of(mate) == LONERS then
+					for community, d in pairs(changes) do
+						local share = d > 0 and math.floor(d * SHARE) or -math.floor(-d * SHARE)
+						if share ~= 0 then
+							relation_registry.set_community_goodwill(community, mate:id(), goodwill(mate, community) + share)
+						end
+					end
+				end
+			end
+		end
+	end
+	for char, obj in pairs(live) do
+		-- Out of the Loners: out of the squad.
+		if faction_of(obj) ~= LONERS and squad_id_of(char) then
+			leave(char)
+			printf("[Lost Zone][squads] %s left the squad (not a Loner)", char)
+		end
+		local values = {}
+		for _, community in ipairs(COMMUNITIES) do values[community] = goodwill(obj, community) end
+		last[char] = values
+	end
+	for char in pairs(last) do
+		if not live[char] then last[char] = nil end
+	end
+end

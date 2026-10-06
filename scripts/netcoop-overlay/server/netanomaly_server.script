@@ -127,6 +127,10 @@ function on_client_command(cid, name, entity_id, text, role)
 		if not netcoop_contracts then return "! contracts are not installed" end
 		return netcoop_contracts.command(server_actor(entity_id), args)
 
+	elseif cmd == "squad" then
+		-- Loner squads (doc 47 stage 8): invite, accept, leave.
+		if not netcoop_squads then return "! squads are not installed" end
+		return netcoop_squads.command(server_actor(entity_id), args)
 	elseif cmd == "bounty" or cmd == "wanted" then
 		if not netcoop_ranks then return "! ranks are not installed" end
 		return netcoop_ranks.command(server_actor(entity_id))
