@@ -1042,3 +1042,31 @@ Backend Actions pending after push. Temporary fixture folder tmpmcn9mpdo from
 an earlier unclosed probe remains: automatic review rejected its recursive
 cleanup (blocked by policy, no more detailed reason). Probe closure fixed; no
 retry/bypass. This does not affect project/runtime data or successful216 run.
+
+## Recovery readiness and bounded authenticated diagnostics
+
+6682357ba backend 37421890399 SUCCESS Windows+Linux (216).
+24b36893b full DX1137420952355 SUCCESS, matching client/server/overlay artifact
+produced; Foundation37420952363 SUCCESS GCC/MSVC. No runtime installation.
+
+Backend transport checks due backlog at startup. Worker success opens admission
+only if no overdue PENDING event remains after its bounded batch. Future events
+are not recovery backlog. Resolver failure keeps normal commands/bootstrap
+closed, with safe error-class diagnostics, until successful processing/recheck.
+This prevents partial catch-up being advertised as ready. Counts report processed
+including cancelled events, not gameplay task completion.
+
+Authenticated admin GET/v1/status bypasses only the readiness gate, not role,
+rate or worker bounds. It reads durable world metadata and a1024+1 pending
+metadata sample, first held event/handler presence, worker error class, processed
+count and last cycle age. No event payload/checkpoint/token or exception text is
+returned. Location/observer denied. Clock regression still exposes durable
+metadata with observed world time/due count null; status does not checkpoint or
+change journal. This is bounded diagnostic admission, not an exact global census.
+
+Full local222 PASS: actual HTTP admin-only status while held, normal mutation
+refusal,65-event two-cycle readiness, missing resolver/repair without token
+exposure, bounded1030-job sample/read-only projection, loaded transport backlog
+and regressed-clock diagnostics. Existing real CLI restart/bootstrap passes.
+Native authority/clock adoption and full-world readiness barrier remain open.
+Backend Actions pending after push. All native compilation stayed in GHA.

@@ -12,7 +12,8 @@ import unittest
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from lostzone import Store, World, Invalid
+from lostzone import Store, World, Invalid, Unavailable
+from lostzone.scheduler import UnavailableHandler
 from lostzone.http import Credentials, Dispatcher, RateLimit, Server
 from lostzone.__main__ import create_config, create_bridge_config
 
@@ -144,6 +145,87 @@ class HttpTest(unittest.TestCase):
         self.assertEqual(self.call("GET", "/v1/location?id=garbage&fence=1")[0], 403)
         self.server.ready.clear()
         self.assertEqual(self.call("GET", "/v1/clock")[0], 503)
+
+    def test_recovery_status_is_admin_only_and_remains_readable_while_held(self):
+        self.server.worker_failed(RuntimeError("private token "+"z"*48))
+        for token,status in ((None,401),("b"*48,403),("d"*48,403),("a"*48,200)):
+            self.wait_idle_workers()
+            response=self.call("GET","/v1/status",token=token)
+            self.assertEqual(response[0],status)
+        result=response[1]["result"]
+        self.assertFalse(result["admission_ready"])
+        self.assertEqual(result["worker_error_type"],"RuntimeError")
+        self.assertNotIn("z"*48,json.dumps(result))
+        self.assertEqual(self.command("location_claim",{"location":"cordon"},token="a"*48)[0],503)
+
+    def test_partial_catchup_keeps_admission_closed_until_all_due_events_finish(self):
+        scheduler=self.server.dispatcher.timelines.scheduler
+        scheduler.handlers["ReadinessFixture"]=lambda tx,event:({},True)
+        with self.store.transaction() as tx:
+            for _ in range(65):
+                scheduler.schedule_in(tx,uuid.uuid4().hex,0,"fixture",1,"ReadinessFixture",{})
+        self.server.worker_succeeded(0)
+        self.assertFalse(self.server.ready.is_set())
+        processed=scheduler.run_due(limit=64,budget_ms=1000)
+        self.assertEqual(processed,64);self.server.worker_succeeded(processed)
+        self.assertFalse(self.server.ready.is_set())
+        self.assertEqual(self.call("GET","/v1/bootstrap")[0],503)
+        status,result=self.call("GET","/v1/status",token="a"*48)
+        self.assertEqual(status,200);self.assertEqual(result["result"]["due_sample_count"],1)
+        self.server.worker_succeeded(scheduler.run_due(budget_ms=1000))
+        self.assertTrue(self.server.ready.is_set())
+        self.assertEqual(self.call("GET","/v1/bootstrap")[0],200)
+        self.assertEqual(self.server.recovery_status()["events_processed"],65)
+
+    def test_missing_resolver_status_identifies_held_event_without_disclosing_payload(self):
+        scheduler=self.server.dispatcher.timelines.scheduler;event_id=uuid.uuid4().hex
+        with self.store.transaction() as tx:
+            scheduler.schedule_in(tx,event_id,0,"fixture",1,"MissingResolverFixture",{"private_token":"secret-transfer-token"})
+        try:
+            scheduler.run_due(budget_ms=1000)
+        except UnavailableHandler as error:
+            self.server.worker_failed(error)
+        else:
+            self.fail("missing resolver must hold its event")
+        result=self.call("GET","/v1/status",token="a"*48)[1]["result"]
+        self.assertEqual(result["worker_error_type"],"UnavailableHandler")
+        self.assertEqual(result["oldest_pending"]["id"],event_id)
+        self.assertFalse(result["oldest_pending"]["handler_registered"])
+        self.assertNotIn("secret-transfer-token",json.dumps(result))
+        scheduler.handlers["MissingResolverFixture"]=lambda tx,event:({},True)
+        self.server.worker_succeeded(scheduler.run_due(budget_ms=1000))
+        self.assertTrue(self.server.ready.is_set())
+        self.assertIsNone(self.server.recovery_status()["worker_error_type"])
+
+    def test_recovery_status_samples_bounded_metadata_and_preserves_durable_state(self):
+        scheduler=self.server.dispatcher.timelines.scheduler
+        with self.store.transaction() as tx:
+            for _ in range(1030):
+                scheduler.schedule_in(tx,uuid.uuid4().hex,1e9,"fixture",1,"FutureFixture",{"hidden":"payload"})
+        before=tuple(self.store.db.execute("SELECT * FROM world").fetchone())
+        result=self.call("GET","/v1/status",token="a"*48)[1]["result"]
+        self.assertEqual((result["pending_sample_count"],result["pending_has_more"],result["due_sample_count"]),(1024,True,0))
+        self.assertEqual(tuple(self.store.db.execute("SELECT * FROM world").fetchone()),before)
+        self.assertNotIn("payload",json.dumps(result))
+
+    def test_loaded_due_backlog_is_not_ready_when_a_transport_starts(self):
+        scheduler=self.server.dispatcher.timelines.scheduler
+        with self.store.transaction() as tx:
+            scheduler.schedule_in(tx,uuid.uuid4().hex,0,"fixture",1,"StartupFixture",{})
+        second=Server(("127.0.0.1",0),self.server.dispatcher,self.credentials)
+        try:
+            self.assertFalse(second.ready.is_set())
+        finally:
+            second.server_close()
+
+    def test_recovery_status_is_available_even_when_monotonic_clock_is_held(self):
+        self.server.worker_failed(Unavailable("clock regression"))
+        self.world._last_ns+=1_000_000_000_000
+        status,response=self.call("GET","/v1/status",token="a"*48)
+        self.assertEqual(status,200)
+        self.assertIsNone(response["result"]["observed_world_ms"])
+        self.assertIsNone(response["result"]["due_sample_count"])
+        self.assertFalse(response["result"]["admission_ready"])
 
     def test_early_rejection_delivers_response_with_an_unread_post_body(self):
         for _ in range(8):

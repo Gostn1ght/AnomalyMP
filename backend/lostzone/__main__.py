@@ -92,13 +92,13 @@ def run(path, port_override=None):
             last = time.monotonic()
             while not stop.wait(1):
                 try:
-                    server.dispatcher.timelines.scheduler.run_due(limit=64, budget_ms=10)
+                    processed=server.dispatcher.timelines.scheduler.run_due(limit=64, budget_ms=10)
                     if time.monotonic() - last >= 5:
                         world.sample()
                         last = time.monotonic()
-                    server.ready.set()
-                except Exception:
-                    server.ready.clear()
+                    server.worker_succeeded(processed)
+                except Exception as error:
+                    server.worker_failed(error)
         checkpoint = threading.Thread(target=checkpoints, name="world-checkpoint")
         checkpoint.start()
         worker = threading.Thread(target=server.serve_forever, name="world-http")

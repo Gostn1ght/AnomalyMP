@@ -240,10 +240,15 @@ class Handler(BaseHTTPRequestHandler):
             if not self.server.rate_limit.allow(principal.actor):
                 self.respond(429, {"error": "server request limit reached"})
                 return
+            uri = urlsplit(self.path)
+            if method == "GET" and uri.path == "/v1/status":
+                if principal.role != "admin":
+                    raise PermissionError("recovery status is restricted to administrators")
+                self.respond(200,{"result":self.server.recovery_status()})
+                return
             if not self.server.ready.is_set():
                 self.respond(503, {"error": "world authority is recovering"})
                 return
-            uri = urlsplit(self.path)
             dispatcher = self.server.dispatcher
             if method == "GET":
                 if uri.path == "/v1/clock":
@@ -319,8 +324,62 @@ class Server(socketserver.ThreadingMixIn, HTTPServer):
         self.rate_limit = RateLimit()
         self.ready = threading.Event()
         self.ready.set()
+        self._status_lock=threading.Lock()
+        self._last_cycle_ns=None
+        self._events_processed=0
+        self._worker_error_type=None
         self._slots = threading.BoundedSemaphore(max_workers)
         super().__init__(address, Handler)
+        try:
+            self.worker_succeeded(0)
+        except BaseException:
+            self.server_close()
+            raise
+
+    def worker_succeeded(self, processed):
+        if type(processed) is not int or not 0<=processed<=256:
+            raise Invalid("invalid checkpoint worker event count")
+        world=self.dispatcher.world
+        with world.store.lock:
+            world.store.require_epoch(world.store.db)
+            pending=world.store.db.execute("SELECT 1 FROM scheduled_event WHERE state='PENDING' AND due_world_ms<=? LIMIT 1",(world.now(),)).fetchone()
+            with self._status_lock:
+                self._last_cycle_ns=time.monotonic_ns()
+                self._events_processed+=processed
+                self._worker_error_type=None
+                if pending is None:
+                    self.ready.set()
+                else:
+                    self.ready.clear()
+
+    def worker_failed(self, error):
+        with self._status_lock:
+            # Exception text can contain private paths, arguments or tokens.
+            # Keep only its class; the pending event identifies what is held.
+            self._worker_error_type=type(error).__name__
+            self.ready.clear()
+
+    def recovery_status(self):
+        world=self.dispatcher.world
+        with world.store.lock:
+            world.store.require_epoch(world.store.db)
+            durable=world.store.db.execute("SELECT world_id,epoch,world_ms,event_highwater,revision FROM world WHERE singleton=1").fetchone()
+            rows=world.store.db.execute("SELECT id,type,aggregate_id,due_world_ms,priority,expected_version FROM scheduled_event "
+                                        "WHERE state='PENDING' ORDER BY due_world_ms,priority,id LIMIT 1025").fetchall()
+            try:
+                now=world.now()
+            except Unavailable:
+                now=None
+            oldest=dict(rows[0]) if rows else None
+            if oldest is not None:
+                oldest["handler_registered"]=oldest["type"] in world.scheduler_handlers
+            with self._status_lock:
+                return {"schema":1,"admission_ready":self.ready.is_set(),"world":dict(durable),"observed_world_ms":now,
+                        "pending_sample_count":min(len(rows),1024),"pending_has_more":len(rows)>1024,
+                        "due_sample_count":sum(row["due_world_ms"]<=now for row in rows[:1024]) if now is not None else None,
+                        "oldest_pending":oldest,"worker_error_type":self._worker_error_type,
+                        "events_processed":self._events_processed,
+                        "last_cycle_age_ms":(time.monotonic_ns()-self._last_cycle_ns)/1_000_000 if self._last_cycle_ns is not None else None}
 
     def process_request(self, request, address):
         if not self._slots.acquire(blocking=False):

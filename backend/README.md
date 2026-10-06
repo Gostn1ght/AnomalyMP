@@ -61,6 +61,21 @@ grant fence: после expiry/takeover для нового захвата ну�
 Эти guards относятся к backend. Engine adapter должен сверять текущие session/
 entity generations; исторический command result не является свежим snapshot.
 
+Готовность HTTP проверяется по отсутствию **просроченных pending событий**,
+включая старт транспорта после загрузки базы. Успешная ограниченная партия
+не открывает admission, если backlog ещё остался. Future события не мешают
+готовности; ошибки resolver удерживают её до успешного восстановления.
+
+Admin `GET /v1/status` остаётся доступным при recovery. Ответ содержит readiness,
+durable world metadata, класс последней ошибки worker, возраст последнего
+успешного прохода, число обработанных событий и metadata первого pending
+события/наличие handler. Очередь читается ограниченной выборкой1024+1, поэтому
+pending_sample_count/due_sample_count — размеры выборки, не точные глобальные
+счётчики при pending_has_more=true. Payload/token/checkpoint и exception text
+не раскрываются. Location/observer не имеют доступа; обычные команды остаются
+закрыты при recovery. Если monotonic clock недоступен, durable status читается,
+observed_world_ms/due_sample_count возвращаются null. Status не изменяет journal.
+
 ## Проверки
 
 ```powershell

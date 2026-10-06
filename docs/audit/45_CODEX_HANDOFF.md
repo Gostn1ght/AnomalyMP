@@ -551,3 +551,14 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   Native body removal must await complete; retention/engine adoption remain open.
 - Temporary test folder tmpmcn9mpdo cleanup blocked by automatic review; no
   detailed reason or bypass. Unclosed probe corrected; successful216 run unaffected.
+
+- 6682357ba /37421890399 backend SUCCESS Windows+Linux(216).
+  24b36893b full DX11/37420952355 SUCCESS; Foundation37420952363 SUCCESS.
+  Matching client/server/overlay artifact available. No runtime install/launch.
+- Backend readiness now checks due backlog at startup and after every bounded
+  worker batch. Remaining overdue events keep normal admission closed; future
+  events don't. Safe admin-only /v1/status remains readable in recovery, with
+  metadata sample1024+1/first pending/error class/last cycle/processed count;
+  no payload/token/checkpoint/exception text. Clock failure yields null observed
+  time, durable diagnostics retained. Full local222 PASS incl actual HTTP and
+  existing real CLI restart. Actions pending after push; native adoption open.
