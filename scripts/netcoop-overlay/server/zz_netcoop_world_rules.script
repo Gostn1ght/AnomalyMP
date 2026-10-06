@@ -22,8 +22,51 @@ local function keep_inventory_from_purge(owner, name)
     owner[name] = guarded
 end
 
+-- Freeplay population, then no replenishment (owner 2026-10-05/06). In
+-- freeplay a map's population (all its mutants, part of its stalkers) comes
+-- from smart terrain respawn during the first game hours; blocking respawn
+-- entirely left the maps without mutants. Each respawn section of a smart
+-- may spawn as many squads, in total over the world's life, as its freeplay
+-- limit; once it has, dead squads are not replaced.
+local function spawned_totals(smart)
+    local state = alife_storage_manager.get_state()
+    state.netcoop_spawned = state.netcoop_spawned or {}
+    state.netcoop_spawned[smart.id] = state.netcoop_spawned[smart.id] or {}
+    return state.netcoop_spawned[smart.id]
+end
+
+local function section_limit(smart, params)
+    local actor = db.actor or level.object_by_id(0)
+    local ok, picked = pcall(xr_logic.pick_section_from_condlist, actor, smart, params.num)
+    local value = ok and tonumber(picked) or 0
+    return value > 0 and math.max(1, math.ceil(value)) or 0
+end
+
+local function respawn_once(original, smart, ...)
+    if not (smart.respawn_params and smart.already_spawned) then return original(smart, ...) end
+    local totals = spawned_totals(smart)
+    local held, before = {}, {}
+    for k, params in pairs(smart.respawn_params) do
+        local current = smart.already_spawned[k]
+        if current and current.num then
+            before[k] = current.num
+            -- This section filled once already: it looks full to GAMMA now.
+            if (totals[k] or 0) >= section_limit(smart, params) then
+                held[k] = current.num
+                current.num = 1000000
+            end
+        end
+    end
+    local ok, err = pcall(original, smart, ...)
+    for k, num in pairs(held) do smart.already_spawned[k].num = num end
+    for k, num in pairs(before) do
+        local now = smart.already_spawned[k] and smart.already_spawned[k].num
+        if not held[k] and now and now > num then totals[k] = (totals[k] or 0) + (now - num) end
+    end
+    if not ok then error(err) end
+end
+
 function on_try_respawn(smart, flags)
-    if cooperative() and flags then flags.disabled = true end
 end
 
 -- Other mods add NPCs/mutants from nothing on a timer or on the Actor's
@@ -167,12 +210,12 @@ function install()
     if class and type(class.try_respawn) == "function" and not blocked_methods[class.try_respawn] then
         local original = class.try_respawn
         local guarded = function(self, ...)
-            if cooperative() then return end
+            if cooperative() then return respawn_once(original, self, ...) end
             return original(self, ...)
         end
         blocked_methods[guarded] = true
         class.try_respawn = guarded
-        printf("[Lost Zone][world] NPC/mutant replenishment disabled; initial population and surviving squads preserved")
+        printf("[Lost Zone][world] smart respawn fills each section to its freeplay limit once; dead squads are not replaced")
     end
     local storage = alife_storage_manager
     local saver = storage and storage.CALifeStorageManager_before_save

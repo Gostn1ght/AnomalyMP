@@ -10,30 +10,49 @@ cooperative = true; spawns = 0; initial = 0; quest = 0; callbacks = {}
 function netcoop_enabled() return cooperative end
 function printf() end
 function RegisterScriptCallback(kind, fn) callbacks[kind] = fn end
-smart_terrain = {se_smart_terrain = {try_respawn = function() spawns = spawns + 1 end}}
+state = {}
+alife_storage_manager = {get_state = function() return state end}
+db = {actor = {}}
+xr_logic = {pick_section_from_condlist = function(_, _, value) return value end}
+-- GAMMA's respawn: a section spawns while fewer of its squads are alive than its limit.
+function gamma_respawn(self)
+    for k, p in pairs(self.respawn_params) do
+        if self.already_spawned[k].num < tonumber(p.num) then
+            self.already_spawned[k].num = self.already_spawned[k].num + 1
+            spawns = spawns + 1
+            return
+        end
+    end
+end
+smart_terrain = {se_smart_terrain = {try_respawn = gamma_respawn}}
 SIMBOARD = {create_squad = function() quest = quest + 1 end,
     fill_start_position = function() initial = initial + 1 end}
 ''')
 lua.execute(source)
 lua.execute(r'''
 on_game_start()
-local flags = {disabled = false}
-callbacks.on_try_respawn({}, flags); assert(flags.disabled)
-for i=1,100 do smart_terrain.se_smart_terrain.try_respawn({}) end
-assert(spawns == 0, "dead members must not be replenished")
+local smart = {id = 7, respawn_params = {mutants = {num = "2"}, stalkers = {num = "1"}},
+    already_spawned = {mutants = {num = 0}, stalkers = {num = 0}}}
+for i = 1, 10 do smart_terrain.se_smart_terrain.try_respawn(smart) end
+assert(spawns == 3, "the freeplay population fills once: " .. spawns)
+-- Every squad dies: nothing is replenished.
+smart.already_spawned.mutants.num = 0; smart.already_spawned.stalkers.num = 0
+for i = 1, 10 do smart_terrain.se_smart_terrain.try_respawn(smart) end
+assert(spawns == 3, "dead squads must not be replenished")
+assert(smart.already_spawned.mutants.num == 0, "GAMMA's own counters are left as they were")
 SIMBOARD.fill_start_position(); SIMBOARD.create_squad()
 assert(initial == 1 and quest == 1, "initial and scripted squads retain their separate creation paths")
 local wrapped = smart_terrain.se_smart_terrain.try_respawn
 for i=1,10 do callbacks.on_game_load() end
 assert(wrapped == smart_terrain.se_smart_terrain.try_respawn, "install is idempotent")
-smart_terrain.se_smart_terrain.try_respawn = function() spawns = spawns + 1 end
-callbacks.on_game_load(); smart_terrain.se_smart_terrain.try_respawn({})
-assert(spawns == 0, "guard survives a mod replacing the method on load")
+smart_terrain.se_smart_terrain.try_respawn = gamma_respawn
+callbacks.on_game_load(); smart_terrain.se_smart_terrain.try_respawn(smart)
+assert(spawns == 3, "guard survives a mod replacing the method on load")
 cooperative = false
-flags.disabled = false; callbacks.on_try_respawn({}, flags); assert(not flags.disabled)
-smart_terrain.se_smart_terrain.try_respawn({}); assert(spawns == 1, "single-player retains original population policy")
+smart.already_spawned.mutants.num = 0
+smart_terrain.se_smart_terrain.try_respawn(smart); assert(spawns == 4, "single-player retains original population policy")
 ''')
-print("Actual server world rules: no NPC/mutant replenishment, preserved initial population, idempotent reload guard PASS")
+print("Actual server world rules: each smart section fills to its freeplay limit once, dead squads are not replaced, idempotent reload guard PASS")
 
 lua = LuaRuntime(unpack_returned_tuples=True)
 lua.execute(r'''
