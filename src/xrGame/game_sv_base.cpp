@@ -265,25 +265,21 @@ struct player_exporter
 		to_ps = to_playerstate;
 	};
 
-	void __stdcall count_players(IClient* client)
-	{
-		xrClientData* tmp_client = static_cast<xrClientData*>(client);
-		if (!tmp_client->net_Ready ||
-			(tmp_client->ps->IsSkip() && tmp_client->ID != to_client))
-		{
-			return;
-		}
-		++counter;
-	}
-
 	void __stdcall export_players(IClient* client)
 	{
+		// A joining client can be net_Ready before its player state exists
+		// (crash with 128 players joining, 2026-10-06), and all players go into
+		// one 16 KB packet: stop before it overflows (release builds do not
+		// check). The count is written afterwards.
 		xrClientData* tmp_client = static_cast<xrClientData*>(client);
-		if (!tmp_client->net_Ready ||
+		if (!tmp_client->net_Ready || !tmp_client->ps ||
 			(tmp_client->ps->IsSkip() && tmp_client->ID != to_client))
 		{
 			return;
 		}
+		if (p_to_send->B.count + 1024 >= NET_PacketSizeLimit)
+			return;
+		++counter;
 
 		game_PlayerState* curr_ps = tmp_client->ps;
 
@@ -314,17 +310,16 @@ void game_sv_GameState::net_Export_State(NET_Packet& P, ClientID to)
 
 	xrClientData* tmp_client = static_cast<xrClientData*>(
 		m_server->GetClientByID(to));
-	game_PlayerState* tmp_ps = tmp_client->ps;
+	game_PlayerState* tmp_ps = tmp_client ? tmp_client->ps : nullptr;
 
 	player_exporter tmp_functor(to, tmp_ps, &P);
-	fastdelegate::FastDelegate1<IClient*, void> pcounter;
-	pcounter.bind(&tmp_functor, &player_exporter::count_players);
 	fastdelegate::FastDelegate1<IClient*, void> exporter;
 	exporter.bind(&tmp_functor, &player_exporter::export_players);
 
-	m_server->ForEachClientDo(pcounter);
-	P.w_u16(tmp_functor.counter);
+	const u32 counter_position = P.w_tell();
+	P.w_u16(0);
 	m_server->ForEachClientDo(exporter);
+	P.w_seek(counter_position, &tmp_functor.counter, sizeof(tmp_functor.counter));
 
 	net_Export_GameTime(P);
 }
