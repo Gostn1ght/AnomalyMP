@@ -4,7 +4,7 @@
 🔧 есть в коде/fixtures, в игре не проверено; 🟡 частично; ⬜ не сделано.
 Генерируется `tools/make-doc43-audit.py`.
 
-Итого: ✅ 10, 🔧 22, 🟡 59, ⬜ 97 из 188.
+Итого: ✅ 10, 🔧 28, 🟡 63, ⬜ 87 из 188.
 
 ## A
 
@@ -65,13 +65,13 @@
 | D01 Персональный AOI/relevant set каждого подключённого игрока | 🟡 | legacy AOI: дистанционные уровни частоты на клиента |
 | D02 Relevance policy для видимых, owner-only и global сущностей | ⬜ |  |
 | D03 Spawn baseline до delta, SpawnAck и generation handshake | ⬜ |  |
-| D04 Старые пакеты/reused engine u16 ID не применяются к новой | ⬜ |  |
+| D04 Старые пакеты/reused engine u16 ID не применяются к новой | 🟡 | u16 ID переиспользуются по LRU блоков (десятки тысяч спавнов до повтора); generation handshake нет |
 | D05 Distance-based update rates: близкие, дальние видимые, | 🟡 | legacy AOI: дистанционные уровни частоты на клиента |
-| D06 Byte/packet budget, coalescing дальних deltas, bounded queues | ⬜ |  |
+| D06 Byte/packet budget, coalescing дальних deltas, bounded queues | 🔧 | бюджет байт на клиента за тик для дальних; неизменённое состояние не пересылается (пульс 0,5 с) |
 | D07 Клиентская interpolation для редких distant updates | ⬜ |  |
 | D08 Состояния оптики/камеры используются только как безопасный | ⬜ |  |
-| D09 Despawn из AOI не означает уничтожение world entity | ⬜ |  |
-| D10 Replication gate: неподготовленная сущность не видна игроку | ⬜ |  |
+| D09 Despawn из AOI не означает уничтожение world entity | 🔧 | AOI только меняет частоту обновлений, сущности мира не удаляются (по коду) |
+| D10 Replication gate: неподготовленная сущность не видна игроку | 🟡 | net_Ready и готовность снимка клиента (gamma_snapshot_ready) перед отправкой |
 | D11 Проверки loss/reorder/reconnect, AOI churn, bytes/player/sec | 🟡 | замер ботами: 16 игроков ~110 КБ/с на игрока; нет loss/reorder тестов |
 
 ## E
@@ -80,8 +80,8 @@
 |---|---|---|
 | E01 SimulationLodManager с Full/Reduced/Coarse/Statistical | 🔧 | LOD planner + hysteresis в shadow/fixtures |
 | E02 LOD0: полноценные AI, perception, путь, бой, пули, гранаты, | ⬜ |  |
-| E03 LOD1: NPC продолжают движение/патруль и базовые действия | ⬜ |  |
-| E04 Конфиг частот AI для Full/Reduced; дешёвые perception/path | ⬜ |  |
+| E03 LOD1: NPC продолжают движение/патруль и базовые действия | 🟡 | частота AI по расстоянию до ближайшего игрока (0-200 м), бой рядом с игроком - всегда полная; не в конфиге |
+| E04 Конфиг частот AI для Full/Reduced; дешёвые perception/path | 🟡 | частота AI по расстоянию до ближайшего игрока (0-200 м), бой рядом с игроком - всегда полная; не в конфиге |
 | E05 Дальние взаимодействия без детальной баллистики/physics, | ⬜ |  |
 | E06 LOD2: GroupState, маршруты, ресурсы и состояние каждого | ⬜ |  |
 | E07 LOD3: события и аналитические состояния без тика каждого NPC | ⬜ |  |
@@ -128,12 +128,12 @@
 | G05 Durable event journal важных изменений после snapshot | ⬜ |  |
 | G06 Idempotent replay и snapshot event watermark | ⬜ |  |
 | G07 Coherent capture barrier для clock, ALife, Lua и ItemLedger | ⬜ |  |
-| G08 Согласование world snapshot и player inventory commit | ⬜ |  |
+| G08 Согласование world snapshot и player inventory commit | 🔧 | персонаж с предметами из мира пишется только после коммита мира (save ordering) |
 | G09 Transactional inbox/outbox; crash между commit и ACK | 🟡 | backend inbox/outbox |
-| G10 Recovery по валидному snapshot+journal с явной проверкой | ⬜ |  |
+| G10 Recovery по валидному snapshot+journal с явной проверкой | 🔧 | точки краша в каждом шаге сохранения мира + scripts/run-world-crash-test.ps1 (ждёт сборку) |
 | G11 Retention/compaction и миграция схем без потери persistent IDs | ⬜ |  |
 | G12 Первичный durable checkpoint до допуска игроков и важных действий | 🔧 | новый мир сохраняется через 30 с после старта; вход закрыт до первого сохранения |
-| G13 Native engine crash/kill/power-loss испытания на каждом шаге | ⬜ |  |
+| G13 Native engine crash/kill/power-loss испытания на каждом шаге | 🔧 | точки краша в каждом шаге сохранения мира + scripts/run-world-crash-test.ps1 (ждёт сборку) |
 
 ## H
 
@@ -151,7 +151,7 @@
 | H10 Наблюдаемый переход реально проигрывается; ненаблюдаемый | ⬜ |  |
 | H11 Ограничить ALife/GAMMA initializers своей локацией прежде, | 🟡 | release чужого generic населения проверен live (129 отрядов) |
 | H12 Приёмка: 1000 переходов с аварией в каждой стадии, | 🟡 | сотни переходов без аварий; нет инъекции сбоев на каждой стадии |
-| H13 Transition endpoints и безопасные destination spawn points: | 🟡 | точка прибытия из level changer; нет проверки поверхности/AOI |
+| H13 Transition endpoints и безопасные destination spawn points: | 🟡 | точка прибытия из level changer + привязка к AI-сетке; занятая точка - ближайшая свободная по кольцам |
 | H14 Freeze/admission policy не оставляет персонажа одновременно | ✅ | сотни переходов ботов на реальных серверах: lease, синхронный save в точке прибытия, HMAC ticket, заморозка |
 | H15 Понятные клиентские состояния ожидания/ошибки/reconnect, | 🟡 | автопереподключение, причины отказа по-русски |
 
@@ -251,9 +251,9 @@
 | M01 Метрики frame p50/p95/p99/max: AI/physics/replication/IO отдельно | 🟡 | метрики кадра avg/max, профиль ai/replication/items |
 | M02 Metrics по LOD/chunks/online entities и очереди hydration | ⬜ |  |
 | M03 Prewarm latency/deadline и достаточный reserved budget | ⬜ |  |
-| M04 При перегрузке сначала дальняя replication/Reduced/Coarse, | ⬜ |  |
+| M04 При перегрузке сначала дальняя replication/Reduced/Coarse, | 🔧 | перегрузка: сначала реже дальние объекты (x2/x4 по кадру сервера), игроки и ближние 50 м никогда |
 | M05 Bounded backlog, event age, admission limits и cooldown возврата качества | ⬜ |  |
-| M06 Тесты 32/64/128 настоящих игровых sessions в hot location | 🟡 | 16 ботов на сервер; нужно 32/64/128 |
+| M06 Тесты 32/64/128 настоящих игровых sessions в hot location | 🟡 | боты-игроки в одной точке: 32 - кадр 15 мс; 64 - 37 мс, 10,7 МБ/с; 128 - обвал: все спавнились в одной точке (исправлено, перепроверка) |
 | M07 512 sessions по 25 локациям; пустые локации остаются abstract, | 🟡 | план кластера на все 33 карты (порты, стартовые точки, лимиты), сторож по плану; нужна многомашинная установка и боты |
 | M08 Суточный сценарий NPC/loot/stashes/emission/trade/transfer | ⬜ |  |
 | M09 Инварианты zero duplicate IDs/one owner, bounded RSS/backlog, | ⬜ |  |
