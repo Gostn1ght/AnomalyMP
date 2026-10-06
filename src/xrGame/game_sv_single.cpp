@@ -402,6 +402,87 @@ static void netcoop_forget_game(game_sv_Single* game)
 		return;
 	s_netcoop_game = NULL;
 	s_netcoop_actor_ids.clear();
+	s_netcoop_prewarm.clear();
+}
+
+// PREWARM (doc 43 E09): a moving player also stands where they will be in
+// a few seconds (-netcoop_prewarm=<s>, 4 by default, 0 turns it off), so
+// NPCs, mutants and items ahead of a running player are switched online
+// and ready before the player gets there, not when they are already close.
+// The speed is measured over half a second; a teleport is not a movement.
+struct netcoop_prewarm_track
+{
+	Fvector last;
+	u32 time;
+	Fvector ahead;
+	bool moving;
+};
+static xr_map<u16, netcoop_prewarm_track> s_netcoop_prewarm;
+static u32 s_netcoop_prewarm_frame = u32(-1);
+static u32 s_netcoop_prewarm_log = 0;
+
+static float netcoop_prewarm_seconds()
+{
+	static float seconds = -1.f;
+	if (seconds < 0.f)
+	{
+		LPCSTR option = strstr(Core.Params, "-netcoop_prewarm=");
+		seconds = option ? _max(0.f, float(atof(option + xr_strlen("-netcoop_prewarm=")))) : 4.f;
+	}
+	return seconds;
+}
+
+static void netcoop_prewarm_update()
+{
+	if (s_netcoop_prewarm_frame == Device.dwFrame || !s_netcoop_game)
+		return;
+	s_netcoop_prewarm_frame = Device.dwFrame;
+	const float lead = netcoop_prewarm_seconds();
+	const u32 now = Device.dwTimeGlobal;
+	u32 moving = 0;
+	float fastest = 0.f;
+	for (xr_map<u16, netcoop_prewarm_track>::iterator it = s_netcoop_prewarm.begin(); it != s_netcoop_prewarm.end();)
+	{
+		if (std::find(s_netcoop_actor_ids.begin(), s_netcoop_actor_ids.end(), it->first) == s_netcoop_actor_ids.end())
+			it = s_netcoop_prewarm.erase(it);
+		else
+			++it;
+	}
+	for (u32 i = 0; lead > 0.f && i < s_netcoop_actor_ids.size(); ++i)
+	{
+		CSE_Abstract* e = s_netcoop_game->get_entity_from_eid(s_netcoop_actor_ids[i]);
+		if (!e)
+			continue;
+		netcoop_prewarm_track& track = s_netcoop_prewarm[s_netcoop_actor_ids[i]];
+		if (!track.time || now < track.time)
+		{
+			track.last = e->o_Position;
+			track.time = now;
+			track.moving = false;
+			continue;
+		}
+		if (track.moving)
+			++moving;
+		if (now - track.time < 500)
+			continue;
+		Fvector velocity;
+		velocity.sub(e->o_Position, track.last).div(float(now - track.time) / 1000.f);
+		const float speed = velocity.magnitude();
+		track.moving = speed > 1.5f && speed < 40.f;
+		if (track.moving)
+		{
+			track.ahead.mad(e->o_Position, velocity, lead);
+			fastest = _max(fastest, speed);
+		}
+		track.last = e->o_Position;
+		track.time = now;
+	}
+	if (moving && now - s_netcoop_prewarm_log > 30000)
+	{
+		s_netcoop_prewarm_log = now;
+		Msg("[Lost Zone][prewarm] %u moving player(s), up to %.1f m/s: the world %.0f s ahead of them goes online early", moving,
+			fastest, lead);
+	}
 }
 
 float netcoop_nearest_actor_distance(const Fvector& position)
@@ -413,6 +494,7 @@ float netcoop_nearest_actor_distance(const Fvector& position)
 	if (!s_netcoop_game)
 		return best;
 
+	netcoop_prewarm_update();
 	for (xr_vector<u16>::iterator it = s_netcoop_actor_ids.begin(); it != s_netcoop_actor_ids.end();)
 	{
 		CSE_Abstract* e = s_netcoop_game->get_entity_from_eid(*it);
@@ -422,6 +504,9 @@ float netcoop_nearest_actor_distance(const Fvector& position)
 			continue;
 		}
 		best = _min(best, e->o_Position.distance_to(position));
+		xr_map<u16, netcoop_prewarm_track>::const_iterator track = s_netcoop_prewarm.find(*it);
+		if (track != s_netcoop_prewarm.end() && track->second.moving)
+			best = _min(best, track->second.ahead.distance_to(position));
 		++it;
 	}
 	return best;
