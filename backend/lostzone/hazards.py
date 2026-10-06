@@ -140,7 +140,7 @@ class Hazards:
                 "motion":self.offline.position_capture(tx,root)}
         plan["capture_hash"] = hashlib.sha256(canonical(plan).encode("utf-8")).hexdigest()
         self.offline.scheduler.schedule_in(tx,event_id,at,"entity:"+entity_id,entity_version,"OfflineHazard",plan)
-        self.store.event(tx,"entity:"+entity_id,"OfflineHazardPlanned",{**payload,"due_ms":at,"capture_hash":plan["capture_hash"]},now)
+        self.store.event(tx,"entity:"+entity_id,"OfflineHazardPlanned",{**payload,"due_ms":at,"capture_hash":plan["capture_hash"]},now,committed_ms=self.world.now())
         return {"event_id":event_id,"due_ms":at,"capture_hash":plan["capture_hash"]}
 
     def capture_valid(self, tx, plan):

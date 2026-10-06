@@ -1,5 +1,6 @@
 """One atomic earliest-contact admission across combat and physical hazards."""
 import hashlib
+import json
 import time
 
 from .plans import reservations
@@ -13,6 +14,7 @@ class Planner:
         self.world,self.store = world,world.store
         self.encounters,self.hazards = encounters,hazards
         self.policy = None
+        encounters.offline.scheduler.handlers.setdefault("OfflineContactsWindow",self.window_in)
 
     def enable_automatic(self, policy):
         """Install trusted backend contact discovery on semantic mutations.
@@ -32,6 +34,7 @@ class Planner:
             raise Conflict("automatic contacts already have a world authority")
         self.policy = dict(policy)
         self.world.mutation_observers["offline_contacts"] = self.changed_in
+        self.encounters.offline.scheduler.handlers["OfflineContactsWindow"] = self.window_in
 
     def changed_in(self, tx, actor, command_id, change):
         kind = change["type"]
@@ -59,11 +62,57 @@ class Planner:
                                                "purpose":"mutation-contact"}).encode("utf-8")).hexdigest()
             payload = {"type":"offline_plan","location":location,"horizon_ms":self.policy["horizon_ms"],
                        "radius":self.policy["radius"],"seed":int(digest[:16],16)}
+            self.cancel_windows_in(tx,location)
             result = self.plan_in(tx,"world:contacts",digest[:32],payload)
             self.store.event(tx,"location:"+location,"ContactsReplanned",
                              {"source_actor":actor,"source_command":command_id,"change":kind,**result},self.world.now())
+            self.schedule_window_in(tx,location,self.world.now(),digest,0)
             if (time.monotonic()-start)*1000>self.policy["budget_ms"]:
                 raise Unavailable("automatic planning time budget exhausted")
+
+    def cancel_windows_in(self, tx, location):
+        rows = tx.execute("SELECT id,aggregate_id FROM scheduled_event WHERE state='PENDING' AND type='OfflineContactsWindow' AND json_extract(payload,'$.location')=? LIMIT 26",(location,)).fetchall()
+        if len(rows)>25:
+            raise Unavailable("automatic planning continuation backlog exhausted")
+        for row in rows:
+            result = {"reason":"semantic mutation replans this location"}
+            tx.execute("UPDATE scheduled_event SET state='CANCELLED',result=? WHERE id=?",(canonical(result),row["id"]))
+            self.store.event(tx,row["aggregate_id"],"ScheduledEventCancelled",{"event_id":row["id"],"result":result},self.world.now())
+
+    def active_routes_in(self, tx, location):
+        return tx.execute("SELECT r.entity_id,r.arrival_ms FROM route r JOIN entity e ON e.id=r.entity_id "
+                          "WHERE r.active=1 AND e.alive=1 AND e.location=? AND e.writer='offline:'||e.location AND e.fence=?",
+                          (location,self.store.epoch))
+
+    def schedule_window_in(self, tx, location, started, source, generation):
+        # One location continuation, only while an actual route extends beyond
+        # this planning window. Arrival/contact handlers keep their priority.
+        end = finite(started+self.policy["horizon_ms"])
+        if not any(row["arrival_ms"]>end for row in self.active_routes_in(tx,location)):
+            return None
+        event_id = hashlib.sha256(f"contacts-window:{source}:{generation}:{location}".encode("utf-8")).hexdigest()[:32]
+        payload = {"location":location,"source":source,"generation":generation,"policy":self.policy}
+        self.encounters.offline.scheduler.schedule_in(tx,event_id,end,"location:"+location,1,"OfflineContactsWindow",payload,priority=20)
+        return event_id
+
+    def window_in(self, tx, event):
+        capture=json.loads(event["payload"])
+        if self.policy is None or any(self.policy[key]!=capture["policy"][key] for key in ("horizon_ms","radius")):
+            raise Unavailable("restore the captured automatic planning policy before catch-up")
+        location,at=capture["location"],event["due_world_ms"]
+        if not any(row["arrival_ms"]>at for row in self.active_routes_in(tx,location)):
+            return {"reason":"no continuing physical routes"},False
+        started=time.monotonic()
+        digest=hashlib.sha256(f"contacts-pass:{event['id']}:{self.world.seed}".encode("utf-8")).hexdigest()
+        payload={"type":"offline_plan","location":location,"horizon_ms":self.policy["horizon_ms"],
+                 "radius":self.policy["radius"],"seed":int(digest[:16],16)}
+        # The due instant, not current wall processing time: delayed catch-up
+        # must still discover an encounter crossed during an earlier window.
+        result=self.plan_in(tx,"world:contacts",digest[:32],payload,planning_now=at,moving_only=True)
+        following=self.schedule_window_in(tx,location,at,capture["source"],capture["generation"]+1)
+        if (time.monotonic()-started)*1000>self.policy["budget_ms"]:
+            raise Unavailable("automatic continuation work budget exhausted")
+        return {"location":location,"window_ms":at,"next_event":following,**result},True
 
     @staticmethod
     def resources(option):
@@ -86,10 +135,10 @@ class Planner:
         payload = {"type":"offline_plan","location":location,"horizon_ms":horizon_ms,"seed":seed,"radius":radius}
         return self.store.command(actor,command_id,payload,lambda tx:self.plan_in(tx,actor,command_id,payload))
 
-    def plan_in(self, tx, actor, command_id, payload):
+    def plan_in(self, tx, actor, command_id, payload, planning_now=None, moving_only=False):
         pending = []
         _,_,cancelled = reservations(self.world,tx,payload["location"],self.world.plan_validators,pending)
-        now = self.world.now()
+        now = self.world.now() if planning_now is None else finite(planning_now)
         # Existing valid captures are options, not unconditional reservations:
         # a newly placed earlier trap may preempt a later firefight. Discover
         # both types before scheduling anything, at the same planning instant.
@@ -97,6 +146,9 @@ class Planner:
         combat = self.encounters.location_in(tx,actor,command_id,payload,now,True,unrestricted)
         hazard = self.hazards.location_in(tx,actor,command_id,payload,now,True,unrestricted)
         options = combat["options"]+hazard["options"]
+        if moving_only:
+            active = {row["entity_id"] for row in self.active_routes_in(tx,payload["location"])}
+            options = [option for option in options if self.resources(option)[0]&active]
         for event,plan in pending:
             keys = ("first_id","second_id") if event["type"]=="OfflineCombat" else ("entity_id","hazard_id")
             options.append({"type":"offline_combat" if event["type"]=="OfflineCombat" else "offline_hazard",

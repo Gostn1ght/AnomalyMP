@@ -809,3 +809,27 @@ after the final verification; strict task 43 criteria are unchanged.
 Final local verification: 171 PASS, including a real authenticated HTTP route
 command that creates the captured trap contact/journal without an explicit
 planning command. Automatic subscriber Actions pending after push.
+
+## Durable planning horizons
+
+38d674d0d backend 37413594493 SUCCESS Windows+Linux (171); native
+37412839020 still compiling with successful checks. The automatic backend
+planner now extends a long route with one durable OfflineContactsWindow per
+location, only while physical travel continues beyond the configured horizon.
+The resolver discovers from its original due time, not delayed World.now(),
+and moving-root filtering avoids repeated stationary coarse firefights.
+Contact/arrival/window priority is 0/10/20; completed routes stop the chain.
+
+Semantic mutation cancels/replaces its location's old window in the same
+transaction. Windows persist/replay across restart; missing/changed semantic
+policy holds the job rather than skipping its past. Work budgets can change
+without changing captured horizon/radius. Source/generation IDs and pass RNG
+remain deterministic. Planner registration cannot replace an enabled window
+authority with an unconfigured instance. No schema migration is needed.
+
+Local complete suite 179 PASS: delayed crossed trap, restart, replacement,
+missing-policy repair, continuation failure/retry, late route admission versus
+an initially undiscovered hazard, no stationary fight repetition and final
+arrival stopping 19 windows. New AI decisions after a resolved fight/hazard,
+coarse duration policy and native authority/hydration/AOI adapters remain open.
+Actions for this continuation follow-up pending after push.

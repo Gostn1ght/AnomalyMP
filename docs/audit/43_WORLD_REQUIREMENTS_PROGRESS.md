@@ -90,7 +90,8 @@ W4–W12; поздние номера W8–W12 в первоначальном �
   сейчас это тестируемое ядро, а не межсерверная синхронизация.
 - [ ] B11. Event-time highwater и replay: восстановленное время не
   откатывает уже подтверждённые мировые события.
-- [ ] B12. Общий barrier для смены scale/recovery; календарь, движение
+- [ ] B12. Частично: backend event-time mutation/scale barrier реализован;
+  общий engine/recovery barrier ещё нужен. Календарь, движение
   и запланированные события меняют масштаб согласованно.
 - [ ] B13. ClockSync: asymmetric delay, loss/reorder, длительный разрыв
   связи и рестарт настоящего World Service/Location Server.
@@ -349,10 +350,13 @@ H11 (каждый процесс пока ведёт свою копию ALife: 
 Основание: event-driven simulation, causality, deterministic simulation,
 Simulation Catch-Up, звуковые события/следы. Контракты: 42 §12; W11.
 
-- [ ] K01. OfflineScheduler с событиями прибытия вместо постоянного ticking.
-- [ ] K02. Route/start/arrival/speed: положение в любой момент аналитически.
-- [ ] K03. GroupState сохраняет всех конкретных членов и их состояния.
-- [ ] K04. Analytic encounters при пересечении маршрутов во времени.
+- [ ] K01. Частично: backend scheduler/arrival/durable planning windows;
+  native adoption нужен, постоянного ticking NPC в backend нет.
+- [ ] K02. Частично: backend analytic route/start/arrival/speed; engine adapter нужен.
+- [ ] K03. Частично: backend GroupState хранит конкретных членов/потери;
+  полная native hydration состояния ещё нужна.
+- [ ] K04. Частично: backend actual member contacts и configured mutation
+  subscriber/durable horizons; native outcomes и последующее AI решение впереди.
 - [ ] K05. Детерминированный seed из world/event/chunk/day и simulation version.
 - [ ] K06. Результат фиксируется до применения и не зависит от первого игрока.
 - [ ] K07. Потери, ранения, ammo/medical расход, победители и контроль точки.
@@ -361,7 +365,8 @@ Simulation Catch-Up, звуковые события/следы. Контрак�
   тела, вещи, раненые, победивший отряд и изменённое состояние территории.
 - [ ] K10. Дальний звук привязан к реальному событию, направлению и дистанции.
 - [ ] K11. Косметические blood/shell effects отдельно от persistent loot.
-- [ ] K12. Catch-up по важным событиям; семь часов не проигрываются по ticks.
+- [ ] K12. Частично: bounded backend catch-up и captured-time continuation;
+  большая live native приёмка ещё нужна. Семь часов не проигрываются по ticks.
 - [ ] K13. Full↔Coarse boundary у события не разрешает бой дважды.
 - [ ] K14. Приёмка: 20 минут без игроков, другой первый наблюдатель,
   одинаковые input/seed на двух серверах и большой catch-up.

@@ -238,6 +238,97 @@ class PlannerTest(unittest.TestCase):
         with self.assertRaises(Conflict):
             replacement.enable_automatic(self.planner.policy)
         self.assertEqual(self.world.mutation_observers["offline_contacts"],self.planner.changed_in)
+        self.assertEqual(self.scheduler.handlers["OfflineContactsWindow"],self.planner.window_in)
+
+    def windows(self,state="PENDING"):
+        return self.store.db.execute("SELECT * FROM scheduled_event WHERE type='OfflineContactsWindow' AND state=? ORDER BY due_world_ms",(state,)).fetchall()
+
+    def test_durable_windows_discover_crossed_trap_when_processing_is_late(self):
+        self.enable_auto(horizon_ms=10000);self.reroute()
+        self.assertEqual(self.pending_contacts(),[])
+        self.assertEqual([row["due_world_ms"] for row in self.windows()],[10000])
+        self.ns=5_000_000_000 # now=50000, contact=40000 in a prior window
+        self.scheduler.run_due(budget_ms=1000)
+        hazards=self.store.db.execute("SELECT * FROM scheduled_event WHERE type='OfflineHazard'").fetchall()
+        self.assertEqual(len(hazards),1)
+        self.assertEqual((hazards[0]["due_world_ms"],hazards[0]["state"]),(40000,"APPLIED"))
+        self.assertEqual(self.store.db.execute("SELECT alive FROM entity WHERE id=?",(self.first,)).fetchone()[0],0)
+        self.assertEqual(self.windows(),[])
+
+    def test_windows_resume_from_captured_due_time_after_restart(self):
+        self.enable_auto(horizon_ms=10000);self.reroute()
+        original=dict(self.windows()[0])
+        self.store.close();self.open();self.enable_auto(horizon_ms=10000)
+        self.assertEqual(dict(self.windows()[0]),original)
+        self.ns=5_000_000_000;self.scheduler.run_due(budget_ms=1000)
+        self.assertEqual(self.store.db.execute("SELECT alive FROM entity WHERE id=?",(self.first,)).fetchone()[0],0)
+
+    def test_new_route_atomically_replaces_its_location_window(self):
+        self.enable_auto(horizon_ms=10000);self.reroute()
+        original=self.windows()[0]
+        self.reroute(points=[[-10,0,0],[-10,0,20]],version=3)
+        self.assertEqual(self.state(original["id"])["state"],"CANCELLED")
+        self.assertEqual(len(self.windows()),1)
+        self.assertNotEqual(self.windows()[0]["id"],original["id"])
+
+    def test_missing_captured_policy_holds_window_without_skipping_history(self):
+        self.enable_auto(horizon_ms=10000);self.reroute()
+        original=self.windows()[0]
+        self.store.close();self.open();self.ns=5_000_000_000
+        with self.assertRaises(Unavailable):
+            self.scheduler.run_due(budget_ms=1000)
+        self.assertEqual(self.state(original["id"])["state"],"PENDING")
+        self.assertEqual(self.pending_contacts(),[])
+        self.enable_auto(horizon_ms=10000);self.scheduler.run_due(budget_ms=1000)
+        self.assertEqual(self.store.db.execute("SELECT alive FROM entity WHERE id=?",(self.first,)).fetchone()[0],0)
+
+    def test_window_never_repeats_stationary_fights_after_route_resolution(self):
+        self.change(self.trap,armed=False)
+        self.enable_auto(horizon_ms=10000);self.reroute()
+        self.ns=30_000_000_000;self.scheduler.run_due(budget_ms=1000)
+        fights=self.store.db.execute("SELECT * FROM scheduled_event WHERE type='OfflineCombat'").fetchall()
+        self.assertEqual(len(fights),1)
+        self.assertEqual(fights[0]["state"],"APPLIED")
+        self.assertEqual(self.windows(),[])
+
+    def test_final_arrival_stops_windows_without_an_actor_tick_loop(self):
+        self.change(self.trap,armed=False)
+        self.world.set_state("admin",uid(),"relations",1,{"hostile":[]})
+        self.enable_auto(horizon_ms=10000);self.reroute()
+        self.ns=30_000_000_000;self.scheduler.run_due(budget_ms=1000)
+        self.assertEqual(self.windows(),[])
+        self.assertEqual(self.store.db.execute("SELECT active FROM route WHERE entity_id=?",(self.first,)).fetchone()[0],0)
+        self.assertEqual(len(self.windows("APPLIED")),19)
+
+    def test_late_route_replacement_cannot_skip_previously_undiscovered_hazard(self):
+        self.enable_auto(horizon_ms=10000);self.reroute()
+        original=dict(self.windows()[0]);self.ns=5_000_000_000
+        with patch("lostzone.scheduler.time.monotonic",return_value=0):
+            with self.assertRaises(Conflict):
+                self.reroute(points=[[-5,0,0],[-5,0,20]],version=3)
+        self.assertEqual(dict(self.windows()[0]),original)
+        self.assertEqual(self.store.db.execute("SELECT alive FROM entity WHERE id=?",(self.first,)).fetchone()[0],1)
+        self.scheduler.run_due(budget_ms=1000)
+        self.assertEqual(self.store.db.execute("SELECT alive FROM entity WHERE id=?",(self.first,)).fetchone()[0],0)
+        self.assertEqual(self.pending_contacts(),[])
+
+    def test_continuation_capture_failure_keeps_pending_job_and_retries_once(self):
+        self.enable_auto(horizon_ms=10000);self.reroute();self.ns=5_000_000_000
+        original=self.store.event
+        def fail(tx,aggregate,kind,*args,**kwargs):
+            if kind=="OfflineHazardPlanned":
+                raise RuntimeError("injected continuation capture failure")
+            return original(tx,aggregate,kind,*args,**kwargs)
+        self.store.event=fail
+        with self.assertRaises(RuntimeError):
+            self.scheduler.run_due(budget_ms=1000)
+        self.store.event=original
+        self.assertEqual([row["due_world_ms"] for row in self.windows()],[30000])
+        self.assertEqual(self.pending_contacts(),[])
+        self.assertEqual(self.store.db.execute("SELECT alive FROM entity WHERE id=?",(self.first,)).fetchone()[0],1)
+        self.scheduler.run_due(budget_ms=1000)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='OfflineHazard'").fetchone()[0],1)
+        self.assertEqual(self.store.db.execute("SELECT alive FROM entity WHERE id=?",(self.first,)).fetchone()[0],0)
 
     def test_automatic_hydration_cancels_future_abstract_capture(self):
         old=self.plan()["contacts"][0];self.enable_auto()

@@ -434,3 +434,14 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   install, native population/replication edits or claimed task-43 closure.
 - Automatic subscriber complete local suite 171 PASS, including the real
   authenticated HTTP route->hazard discovery transaction. Actions pending.
+
+- 38d674d0d backend 37413594493 SUCCESS Windows+Linux (171).
+  Native 37412839020 still compiling with successful checks; no native push.
+- Durable OfflineContactsWindow follow-up: one continuation per location
+  while a physical route extends beyond the configured horizon; discovery
+  starts at captured due time despite late processing. Atomic source mutation
+  replacement, restart/missing-policy refusal, deterministic generation/RNG,
+  priority 20 after contact0/arrival10. Moving-root filter/no routes stops
+  stationary fight loops. Local full 179 PASS. Actions pending after push.
+  Next open work: AI decisions after outcomes and native adapter adoption;
+  do not turn on NPC transit or native authority merely because fixtures pass.
