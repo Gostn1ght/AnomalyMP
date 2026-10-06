@@ -805,10 +805,65 @@ static void cluster_idle_exit(xrServer* server, u32 now)
 	Console->Execute("quit");
 }
 
+// -netcoop_hibernate=<seconds> (owner's request 2026-10-06): a location
+// without players stays up instead of exiting. After that long empty it
+// saves its world, gives its physical memory back to the system (the
+// working set goes to the page file) and runs about 10 frames a second.
+// The first client that connects wakes it: no level load, only the pages
+// that are touched come back. Its status file keeps it a live target.
+static bool s_cluster_hibernating = false;
+static u32 s_cluster_empty_since = 0, s_cluster_trimmed = 0;
+
+struct ClusterCountConnected
+{
+	u32* count;
+	void operator()(IClient* client) const
+	{
+		if (client && !client->flags.bLocal) ++*count; // joining players count too
+	}
+};
+
+static void cluster_hibernate(xrServer* server, u32 now)
+{
+	LPCSTR option = strstr(Core.Params, "-netcoop_hibernate=");
+	if (!option || s_cluster_quitting) return;
+	const u32 after = u32(atoi(option + xr_strlen("-netcoop_hibernate="))) * 1000;
+	u32 clients = 0;
+	ClusterCountConnected count = {&clients};
+	server->ForEachClientDo(count);
+	if (clients || !world_store_admission_open())
+	{
+		if (s_cluster_hibernating)
+		{
+			s_cluster_hibernating = false;
+			Msg("[Lost Zone][cluster] a player is coming: the server wakes up");
+		}
+		s_cluster_empty_since = now;
+		return;
+	}
+	if (!s_cluster_empty_since) s_cluster_empty_since = now;
+	if (!s_cluster_hibernating)
+	{
+		if (!after || now - s_cluster_empty_since < after) return;
+		if (!world_store_save_now("hibernate")) { s_cluster_empty_since = now - after + 60000; return; }
+		s_cluster_hibernating = true;
+		s_cluster_trimmed = 0;
+		Msg("[Lost Zone][cluster] no players for %u s: world saved, the server hibernates", after / 1000);
+	}
+	// Trim at once and then every minute (ALife touches some pages again).
+	if (!s_cluster_trimmed || now - s_cluster_trimmed >= 60000)
+	{
+		s_cluster_trimmed = now;
+		SetProcessWorkingSetSize(GetCurrentProcess(), SIZE_T(-1), SIZE_T(-1));
+	}
+	Sleep(100);
+}
+
 static void cluster_update(xrServer* server)
 {
 	const u32 now = real_time_ms();
 	cluster_idle_exit(server, now);
+	cluster_hibernate(server, now);
 	if (now - s_cluster_clock_check >= 5000)
 	{
 		s_cluster_clock_check = now;

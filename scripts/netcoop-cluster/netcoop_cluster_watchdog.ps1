@@ -66,8 +66,12 @@ function Start-Location($s) {
     $log = if ($s.Name -eq "k00_marsh") { "srv" } else { "srv_$($s.Name)" }
     $arguments = "-nosplashwindow -noprefetch -netcoop -dbg -multi_instance -logname $log -fsltx fsgame_server.ltx " +
         "-netport $($s.Port) -netcoop_start_location=$($s.Start) -netcoop_world=$($s.World) " +
-        $(if ($s.OnDemand) { "-netcoop_idle_exit=600 " } else { "" }) +
-        "-start `"server(all/single/alife/new/portsv=$($s.Port)/maxplayers=$perServer)`" " +
+        # Empty for 2 min: hibernate (world saved, RAM returned, wakes on connect).
+        # On-demand maps exit only after 6 h empty, or when Make-Room needs memory.
+        "-netcoop_hibernate=120 " +
+        $(if ($s.OnDemand) { "-netcoop_idle_exit=21600 " } else { "" }) +
+        # +1: the server's own local client takes a slot.
+        "-start `"server(all/single/alife/new/portsv=$($s.Port)/maxplayers=$($perServer + 1))`" " +
         "`"client(localhost/name=serverauthority/port=$($s.Port)/portcl=$($s.Port + 1))`""
     $p = Start-Process -FilePath $exe -ArgumentList $arguments -WorkingDirectory $Runtime -WindowStyle Hidden -PassThru
     try { $p.PriorityClass = "BelowNormal" } catch {}
