@@ -1140,3 +1140,26 @@ This is a conservative proximity gate only, not visibility/PVS/optics demand or
 an observed walking transition. H10 and global NPC ownership/registry remain
 open, opt-in unchanged. Native compilation/package verification via Actions next;
 no local native execution or runtime installation.
+
+## Location-scoped persistent quest requirements
+
+Backend GET /v1/quest-requirements authenticates location role, allowlist and
+current location lease before a same-cut bounded causal catch-up/projection.
+64-row pages reference existing entity IDs, current location/death/version/
+writer/fence and quest version. No NPC creation/full state/definition/wallet.
+Inactive quests excluded; alive_required=false pins still represented on dead
+entities. Migration follows registry location, prepared transfers report their
+transfer writer rather than suggesting activation authority.
+
+Keyset cursor is(character,quest,entity), with required epoch/revision cut on
+continuation. Any journal change or restart refuses stale scan with409; consumer
+must restart and replace only a complete coherent set. No long-lived snapshots,
+delta stream or query-time guarantee claimed; busy-world starvation/native
+subscriber and cross-host gateway remain open. I03 partial only.
+
+Full local238 PASS:66 references across two characters/four metadata dimensions
+paged64+2 without omission/clones/private state; NPC migration, prepared writer,
+stale cut, death settled before projection, quest body preserved, restart epoch,
+invalid cursors/current lease, actual HTTP scope/roles/expiry/revision contracts.
+Backend Actions next. Native21ea79c1c/37427274553 Lua checks SUCCESS, engine
+compiling; no additional native push or runtime installation/launch.

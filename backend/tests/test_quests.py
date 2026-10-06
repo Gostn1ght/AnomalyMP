@@ -6,7 +6,7 @@ import unittest
 import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from lostzone import Store, World, Conflict
+from lostzone import Store, World, Conflict, Invalid
 from lostzone.ownership import Ownership
 from lostzone.transfers import Transfers
 from lostzone.quests import Quests
@@ -208,6 +208,87 @@ class QuestTest(unittest.TestCase):
         self.assertEqual(self.quest_state("legacy_64")["status"],"FAILED")
         self.assertEqual(self.quest_state("legacy_0")["status"],"ACTIVE")
         self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM world_event WHERE type='EntityDied'").fetchone()[0],1)
+
+    def test_location_requirements_pages_existing_links_without_state_or_clones(self):
+        player2, third = uid(), uid()
+        self.ownership.create_entity("a",uid(),player2,"CHARACTER","cordon",self.a,{"money":0},account="second")
+        self.ownership.create_entity("b",uid(),third,"NPC","jupiter",self.b,{"secret":"not in projection"})
+        targets = [self.target,self.unique,third]
+        definitions = {f"page_{i:03d}":{"steps":[{"type":"EntityDied","target":self.target}],
+                                       "requirements":[{"entity_id":target} for target in targets]} for i in range(11)}
+        self.quests = Quests(self.world,definitions)
+        for character in (self.player,player2):
+            for quest in definitions:
+                self.quests.grant("a",uid(),character,self.a,quest)
+        before = self.store.db.execute("SELECT COUNT(*) FROM entity").fetchone()[0]
+        first = self.quests.location_requirements("b","jupiter",self.b)
+        self.assertEqual(len(first["requirements"]),64)
+        self.assertIsNotNone(first["next_after"])
+        second = self.quests.location_requirements("b","jupiter",self.b,after=first["next_after"],
+                                                   epoch=first["epoch"],revision=first["revision"])
+        self.assertEqual(len(second["requirements"]),2)
+        self.assertIsNone(second["next_after"])
+        keys = [(r["character_id"],r["quest_id"],r["entity_id"]) for r in first["requirements"]+second["requirements"]]
+        self.assertEqual(keys,sorted((c,q,t) for c in (self.player,player2) for q in definitions for t in targets))
+        self.assertNotIn("secret",json.dumps(first))
+        self.assertNotIn("state",first["requirements"][0])
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM entity").fetchone()[0],before)
+        self.assertEqual(self.quests.location_requirements("a","cordon",self.a)["requirements"],[])
+
+    def test_location_requirement_cut_refuses_change_and_migration_relocates_link(self):
+        self.quests.grant("a",uid(),self.player,self.a,"jupiter_task")
+        first = self.quests.location_requirements("b","jupiter",self.b)
+        prepared = self.transfers.prepare("b",uid(),self.unique,"jupiter",self.b,"cordon",1)
+        frozen = self.quests.location_requirements("b","jupiter",self.b)["requirements"][0]
+        self.assertEqual(frozen["writer"],"transfer:"+prepared["transfer_id"])
+        self.transfers.claim("a",uid(),prepared["token"],self.a)
+        self.transfers.commit("a",uid(),prepared["transfer_id"],self.a)
+        with self.assertRaisesRegex(Conflict,"snapshot changed"):
+            self.quests.location_requirements("b","jupiter",self.b,after=[self.player,"a",self.unique],
+                                             epoch=first["epoch"],revision=first["revision"])
+        self.assertEqual(self.quests.location_requirements("b","jupiter",self.b)["requirements"],[])
+        target = self.quests.location_requirements("a","cordon",self.a)["requirements"]
+        self.assertEqual([(r["entity_id"],r["writer"],r["fence"]) for r in target],[(self.unique,"a",self.a)])
+
+    def test_location_requirements_settle_death_before_projection_and_keep_quest_body(self):
+        definitions = {"live":self.definition,"body":{"steps":[{"type":"EntityDied","target":self.target}],
+                      "requirements":[{"entity_id":self.unique,"alive_required":False}]}}
+        self.quests = Quests(self.world,definitions)
+        for quest in definitions:
+            self.quests.grant("a",uid(),self.player,self.a,quest)
+        self.ownership.kill("b",uid(),self.unique,self.b,1,"combat")
+        self.assertEqual(self.quest_state("live")["status"],"ACTIVE")
+        result = self.quests.location_requirements("b","jupiter",self.b)
+        self.assertEqual(self.quest_state("live")["status"],"FAILED")
+        self.assertEqual([(r["quest_id"],r["alive"],r["alive_required"]) for r in result["requirements"]],[("body",0,0)])
+        with self.assertRaises(Conflict):
+            self.ownership.cleanup_corpse("b",uid(),self.unique,self.b,2)
+
+    def test_location_requirement_cursor_validates_cut_and_current_lease(self):
+        for args in ({"after":[]},{"after":[self.player,"q",self.unique]},
+                     {"epoch":1},{"epoch":True,"revision":1},{"epoch":1,"revision":0},
+                     {"after":["bad","q",self.unique],"epoch":1,"revision":1}):
+            with self.assertRaises(Invalid):
+                self.quests.location_requirements("b","jupiter",self.b,**args)
+        with self.assertRaises(Conflict):
+            self.quests.location_requirements("a","jupiter",self.b)
+        with self.assertRaises(Conflict):
+            self.quests.location_requirements("b","jupiter",self.b+1)
+
+    def test_location_requirement_restart_fences_old_cut_without_respawn(self):
+        self.quests.grant("a",uid(),self.player,self.a,"jupiter_task")
+        first = self.quests.location_requirements("b","jupiter",self.b)
+        path = self.store.path
+        self.store.close()
+        self.store = Store(path)
+        self.world = World(self.store)
+        self.quests = Quests(self.world,{"jupiter_task":self.definition})
+        with self.assertRaises(Conflict):
+            self.quests.location_requirements("b","jupiter",self.b,epoch=first["epoch"],revision=first["revision"])
+        current = self.quests.location_requirements("b","jupiter",self.b)
+        self.assertGreater(current["epoch"],first["epoch"])
+        self.assertEqual([r["entity_id"] for r in current["requirements"]],[self.unique])
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM entity").fetchone()[0],3)
 
 
 if __name__ == "__main__":

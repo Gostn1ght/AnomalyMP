@@ -10,10 +10,12 @@ import threading
 import time
 import unittest
 import uuid
+from urllib.parse import urlencode
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lostzone import Store, World, Invalid, Unavailable
 from lostzone.scheduler import UnavailableHandler
+from lostzone.quests import Quests
 from lostzone.http import Credentials, Dispatcher, RateLimit, Server
 from lostzone.__main__ import create_config, create_bridge_config
 
@@ -75,6 +77,47 @@ class HttpTest(unittest.TestCase):
         self.assertEqual(self.command("quest_reconcile", {})[0],403)
         self.assertEqual(self.command("trade", {"location": "garbage"})[0], 403)
         self.assertEqual(self.call("GET", "/v1/events")[0], 404)
+
+    def test_real_http_location_quest_requirements_are_scoped_and_versioned(self):
+        _, claimed = self.command("location_claim", {"location":"cordon"})
+        fence = claimed["result"]["fence"]
+        d = self.server.dispatcher
+        player, npc = uuid.uuid4().hex, uuid.uuid4().hex
+        d.ownership.create_entity("cordon-server",uuid.uuid4().hex,player,"CHARACTER","cordon",fence,
+                                  {"money":500,"password":"private"},account="quest-player")
+        d.ownership.create_entity("cordon-server",uuid.uuid4().hex,npc,"NPC","cordon",fence,{"secret":"private npc"})
+        d.quests = Quests(self.world,{"test_task":{"steps":[{"type":"EntityDied","target":npc}],
+                                                  "requirements":[{"entity_id":npc}]}})
+        d.quests.grant("cordon-server",uuid.uuid4().hex,player,fence,"test_task")
+        path = "/v1/quest-requirements?"+urlencode({"location":"cordon","fence":fence})
+        self.wait_idle_workers()
+        status, response = self.call("GET",path)
+        self.assertEqual(status,200)
+        result = response["result"]
+        self.assertEqual(result["requirements"][0]["entity_id"],npc)
+        self.assertEqual(result["requirements"][0]["quest_version"],1)
+        self.assertNotIn("private",json.dumps(response))
+        for token,expected in (("c"*48,403),("d"*48,403),("a"*48,403),("x"*48,401)):
+            self.wait_idle_workers()
+            self.assertEqual(self.call("GET",path,token=token)[0],expected)
+        # A causally committed update invalidates a continuation cut.
+        d.ownership.update_entity("cordon-server",uuid.uuid4().hex,npc,fence,1,{"health":.5})
+        continued = path+"&"+urlencode({"after":json.dumps([player,"test_task",npc]),
+                                         "epoch":result["epoch"],"revision":result["revision"]})
+        self.wait_idle_workers()
+        self.assertEqual(self.call("GET",continued)[0],409)
+        with self.store.transaction() as tx:
+            tx.execute("UPDATE location_lease SET expires_ms=0 WHERE location='cordon'")
+        self.wait_idle_workers()
+        self.assertEqual(self.call("GET",path)[0],409)
+
+    def test_real_http_quest_requirement_query_rejects_invalid_cursor_and_duplicates(self):
+        prefix = "/v1/quest-requirements?location=cordon&fence=1"
+        suffixes = ("&epoch=1","&after=[]","&after=null","&revision=1&epoch=1&after=%5B%5D",
+                    "&fence=2","&after=","&unknown=1","&epoch=", "&revision=0&epoch=1")
+        for suffix in suffixes:
+            self.wait_idle_workers()
+            self.assertEqual(self.call("GET",prefix+suffix)[0],400,suffix)
 
     def test_observer_bridge_credential_cannot_claim_or_mutate_world(self):
         self.assertEqual(self.call("GET","/v1/bootstrap",token="d"*48)[0],200)

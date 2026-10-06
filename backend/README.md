@@ -454,3 +454,20 @@ chunked admission protocol; увеличение неограниченного 
 8192 маршрута/8 MiB encoded points. Переполнение удерживает прежние часы,
 маршруты и arrivals целиком. Это не chunked rescale больших миров и не предел
 времени обработчика; native clock/LOD adoption ещё нужны.
+
+Location Server читает `GET /v1/quest-requirements?location=cordon&fence=1`
+с собственными credentials и актуальным lease. Ответ содержит до64 активных
+requirements: существующие entity IDs/location/alive/version/writer/fence и
+quest version, без полного state/definition/wallet. Это ссылки для reconciliation,
+не разрешение спавнить NPC или обходить его ownership. Требования следуют за
+текущей location в registry; failed/completed quests отсутствуют. Due consequences
+применяются при одном frozen WorldTime до проекции, с обычным bounded catch-up.
+
+Если `next_after` задан, передайте его JSON-массивом в URL-encoded `after`,
+также `epoch` и `revision` из ответа. Любой committed journal change/restart
+даёт409 и требует повторного полного сканирования. Получатель заменяет свой
+набор только после завершённого согласованного сканирования; читать отдельную
+страницу как полный список нельзя. Это консервативная revision check, не
+долгоживущий snapshot token: busy worlds потребуют delta subscription. Лимит
+строк ограничивает ответ, не утверждает bounded SQL CPU при большой таблице.
+Native quest adapter и сетевой TLS gateway по-прежнему впереди.

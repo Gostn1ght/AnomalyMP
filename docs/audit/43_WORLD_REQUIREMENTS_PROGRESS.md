@@ -349,7 +349,9 @@ SUCCESS на 268caa26d. Билд произведён GitHub Actions; устан
 
 - [ ] I01. Quest state хранится вне конкретного Location Server.
 - [ ] I02. Progression/version/CAS и авторитетная проверка условий.
-- [ ] I03. Entity requirements доставляются нужной локации.
+- [ ] I03. Частично: backend authenticated location-scoped requirements pages
+  (64 rows, epoch/revision cut) следуют за существующими IDs при migration/death;
+  native subscriber/apply и live cross-location приёмка ещё нужны.
 - [ ] I04. Quest NPC связан с существующим PersistentID, без клонирования.
 - [ ] I05. Offline death/migration согласованы с заданием.
 - [ ] I06. Reward transaction идемпотентна и не выдаёт награду повторно.

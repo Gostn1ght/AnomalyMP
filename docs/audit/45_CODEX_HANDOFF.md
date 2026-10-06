@@ -592,3 +592,13 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   another entrance progress and delayed ACK. DX11 Actions next, no local native
   build/install/launch. Proximity only, not PVS/optics/observed transit animation;
   H10 still open and NPC transit still opt-in pending authoritative adapter.
+
+- Backend location-scoped quest requirement projection: authenticated location
+  role/allowlist/current lease,64 metadata rows, frozen-time due consequences,
+  existing IDs/current registry location/death/version/writer/quest version.
+  Cursor(character,quest,entity)+epoch/revision refuses mixed/stale scans;
+  consumer replaces only completed scan, no spawn permission or private state.
+  Local full238 PASS incl66-row pagination, migration/frozen writer, death/body
+  pin/restart and actual HTTP scope/roles/expiry/query rejection. I03 partial.
+  Actions next; native subscriber/delta/busy-world stability/query CPU open.
+  21ea79c1c/37427274553 DX11 checks SUCCESS, engine compiling; no runtime action.

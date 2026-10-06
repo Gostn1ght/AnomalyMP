@@ -226,3 +226,43 @@ class Quests:
             self.ownership.require_entity(self.store.db, actor, character_id, fence, alive=True)
             rows = self.store.db.execute("SELECT r.*,e.location,e.alive,e.version AS entity_version FROM quest_requirement r JOIN entity e ON e.id=r.entity_id WHERE r.character_id=? ORDER BY quest_id,entity_id", (character_id,)).fetchall()
             return [dict(row) for row in rows]
+
+    def location_requirements(self, actor, location, fence, *, after=None, epoch=None, revision=None):
+        """Bounded current references for a location, never a spawn permission.
+
+        Continuations belong to one authority epoch/journal revision. Any
+        committed change requires a fresh scan, rather than silently mixing
+        requirements before/after a migration, failure or new quest grant.
+        """
+        identifier(location)
+        positive(fence, "location fence")
+        if after is not None:
+            if not isinstance(after, list) or len(after) != 3:
+                raise Invalid("invalid quest requirement cursor")
+            persistent_id(after[0]); identifier(after[1]); persistent_id(after[2])
+            if epoch is None or revision is None:
+                raise Invalid("quest requirement continuation needs a snapshot cut")
+        if (epoch is None) != (revision is None):
+            raise Invalid("quest requirement cut needs both epoch and revision")
+        if epoch is not None:
+            positive(epoch, "authority epoch"); positive(revision, "world revision")
+        def project(tx):
+            cut = tx.execute("SELECT epoch,revision FROM world WHERE singleton=1").fetchone()
+            if epoch is not None and (epoch, revision) != (cut["epoch"], cut["revision"]):
+                raise Conflict("quest requirement snapshot changed; restart the scan")
+            rows = tx.execute(
+                "SELECT r.*,q.version AS quest_version,e.location,e.alive,e.version AS entity_version,e.writer,e.fence "
+                "FROM quest_requirement r JOIN quest q ON q.character_id=r.character_id AND q.id=r.quest_id "
+                "JOIN entity e ON e.id=r.entity_id WHERE e.location=? "
+                "AND COALESCE(json_extract(q.state,'$.status'),'ACTIVE')='ACTIVE' "
+                "AND (r.character_id,r.quest_id,r.entity_id)>(?,?,?) "
+                "ORDER BY r.character_id,r.quest_id,r.entity_id LIMIT 65",
+                (location, *(after or ["", "", ""]))).fetchall()
+            page = [dict(row) for row in rows[:64]]
+            cursor = [page[-1][key] for key in ("character_id", "quest_id", "entity_id")] if len(rows)>64 else None
+            return {"schema":1,"location":location,"epoch":cut["epoch"],"revision":cut["revision"],
+                    "world_ms":self.world.now(),"requirements":page,"next_after":cursor}
+        with self.store.transaction() as tx:
+            self.store.require_epoch(tx)
+            self.world.require_location(tx, actor, location, fence)
+            return self.world.mutation(project)(tx)

@@ -267,6 +267,22 @@ class Handler(BaseHTTPRequestHandler):
                     location, fence = query.get("id", [""])[0], int(query.get("fence", ["0"])[0])
                     dispatcher.allowed(principal, location)
                     result = dispatcher.ownership.location_state(principal.actor, location, fence)
+                elif uri.path == "/v1/quest-requirements":
+                    if principal.role != "location":
+                        raise PermissionError("quest requirements are restricted to location authorities")
+                    query = parse_qs(uri.query, strict_parsing=True, keep_blank_values=True)
+                    if set(query)-{"location","fence","after","epoch","revision"} or any(len(v)!=1 for v in query.values()):
+                        raise Invalid("invalid quest requirement query")
+                    location = query.get("location", [""])[0]
+                    dispatcher.allowed(principal, location)
+                    after = strict_json(query["after"][0].encode("utf-8")) if "after" in query else None
+                    if "after" in query and not isinstance(after, list):
+                        raise Invalid("quest requirement cursor must be an array")
+                    result = dispatcher.quests.location_requirements(
+                        principal.actor, location, int(query.get("fence", ["0"])[0]),
+                        after=after,
+                        epoch=int(query["epoch"][0]) if "epoch" in query else None,
+                        revision=int(query["revision"][0]) if "revision" in query else None)
                 else:
                     self.respond(404, {"error": "unknown or unavailable endpoint"})
                     return
