@@ -542,8 +542,23 @@ bool server_character_load_actor(xrClientData* CL, CSE_Abstract* actor)
 		ai().valid_game_vertex(ai().game_graph().current_level_vertex()) &&
 		ai().game_graph().vertex(creature->m_tGraphID)->level_id() ==
 		ai().game_graph().vertex(ai().game_graph().current_level_vertex())->level_id();
-	return character->initialized && !character->respawn && same_level &&
+	const bool placed = character->initialized && !character->respawn && same_level &&
 		ai().get_level_graph() && ai().level_graph().valid_vertex_id(creature->m_tNodeID) && _valid(creature->o_Position);
+	// A saved or arrival point far above or below its level vertex (a level
+	// changer's destination, an old save) would put the player in the air or
+	// under the ground: stand on the vertex instead (doc 43 H13).
+	if (placed)
+	{
+		const Fvector ground = ai().level_graph().vertex_position(creature->m_tNodeID);
+		if (_abs(ground.y - creature->o_Position.y) > 3.f || ground.distance_to_xz(creature->o_Position) > 5.f)
+		{
+			Msg("[Lost Zone] %s: position %.1f %.1f %.1f is off its level vertex, placed at %.1f %.1f %.1f",
+				character->name.c_str(), creature->o_Position.x, creature->o_Position.y, creature->o_Position.z,
+				ground.x, ground.y, ground.z);
+			creature->o_Position = ground;
+		}
+	}
+	return placed;
 }
 
 static bool character_spawn_saved_items(xrServer* server, xrClientData* CL, const Character& character, CharacterRestore& restore)
