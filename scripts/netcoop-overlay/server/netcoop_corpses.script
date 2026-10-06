@@ -53,8 +53,15 @@ local function protected(id)
 	return false
 end
 
+-- Any dead creature but a player. GAMMA's IsMonster() knows the client
+-- classes only; server objects of mutants have their own (*_s), so mutant
+-- corpses were never recognised (2026-10-06).
 local function is_corpse(se)
-	return se and (IsStalker(nil, se:clsid()) or IsMonster(nil, se:clsid())) and se.alive and not se:alive()
+	if not (se and se.alive) or se.id == 0 then return false end
+	local cls = se:clsid()
+	if cls == clsid.actor or cls == clsid.script_actor then return false end
+	local ok, alive = pcall(se.alive, se)
+	return ok and alive == false
 end
 
 -- Corpses of this map in the loaded world (not only the tracked ones: some

@@ -28,6 +28,7 @@ level = {name = function() return "k00_marsh" end, object_by_id = function(id)
     if players[id] then return {position = function() return players[id] end} end end}
 function netcoop_players() local t = {} for id in pairs(players) do t[#t + 1] = id end return table.concat(t, " ") end
 function IsStalker(_, cls) return cls == 1 end
+clsid = {actor = 100, script_actor = 101}
 function IsMonster() return false end
 function get_object_story_id(id) return story[id] end
 ''')

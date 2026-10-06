@@ -53,7 +53,7 @@ for i = 1, 65534 do
     if se and se.m_game_vertex_id and gg:vertex(se.m_game_vertex_id) and sim:level_name(gg:vertex(se.m_game_vertex_id):level_id()) == here then
         local cls = se:clsid()
         if IsStalker(nil, cls) and se.id ~= 0 then if se:alive() then npcs = npcs + 1 else corpses = corpses + 1 end
-        elseif IsMonster(nil, cls) then if se:alive() then mutants = mutants + 1 else corpses = corpses + 1 end
+        elseif se.alive and cls ~= clsid.actor and cls ~= clsid.script_actor then if se:alive() then mutants = mutants + 1 else corpses = corpses + 1 end
         elseif se.parent_id == 65535 and IsArtefact(nil, cls) then arts = arts + 1 end
     end
 end
