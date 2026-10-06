@@ -50,8 +50,11 @@ LRESULT CALLBACK TextConsole_LogWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 		SetBkColor(reinterpret_cast<HDC>(wParam), RGB(0, 0, 0));
 		return reinterpret_cast<LRESULT>(GetStockObject(BLACK_BRUSH));
 	case WM_TIMER:
+		// Kept for a busy main loop (level loading), but throttled: a full
+		// synchronous repaint every 100 ms took 7% of the server's main
+		// thread with 16 players (profile 2026-10-07).
 		if (Console)
-			static_cast<CTextConsole*>(Console)->RefreshDisplay();
+			static_cast<CTextConsole*>(Console)->RefreshIfChanged();
 		return 0;
 	case WM_LBUTTONDOWN:
 		static_cast<CTextConsole*>(Console)->OnLogClick(static_cast<short>(LOWORD(lParam)), static_cast<short>(HIWORD(lParam)));

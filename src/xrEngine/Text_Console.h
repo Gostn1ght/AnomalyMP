@@ -65,6 +65,9 @@ public:
 	void AddString(LPCSTR string);
 	void OnPaint();
 	void RefreshDisplay();
+	// RefreshDisplay at most once a second when lines were added, every 2 s
+	// for the dashboard otherwise; nothing while minimised or hidden.
+	void RefreshIfChanged();
 	void FocusCommandInput();
 	void ScrollLog(int rows);
 	void OnLogClick(int x, int y);

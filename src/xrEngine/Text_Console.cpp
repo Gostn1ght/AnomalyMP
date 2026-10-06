@@ -555,6 +555,11 @@ inherited::IR_OnKeyboardPress( dik );
 void CTextConsole::OnFrame()
 {
 	inherited::OnFrame();
+	RefreshIfChanged();
+}
+
+void CTextConsole::RefreshIfChanged()
+{
 	// The dedicated server has no renderer-driven present loop for this window.
 	// Redrawing the log is synchronous GDI work on the main thread: only when
 	// lines were added, at most twice a second (and once a second anyway for
