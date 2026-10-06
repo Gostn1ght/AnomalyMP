@@ -24,7 +24,10 @@ function netcoop_players() local t = {} for id in pairs(players) do t[#t + 1] = 
 function IsStalker() return true end
 function IsMonster() return false end
 function get_object_story_id(id) return story[id] end
-safe_release_manager = {release = function(se) for id, o in pairs(objects) do if o == se then objects[id] = nil; released[#released + 1] = id end end end}
+queued = {}
+safe_release_manager = {release = function(se) queued[#queued + 1] = se end, execute_destroy_callback = function()
+    for _, se in ipairs(queued) do for id, o in pairs(objects) do if o == se then objects[id] = nil; released[#released + 1] = id end end end
+    queued = {} end}
 ''')
 g = lua.globals()
 g.netcoop_corpses = lua.table()
@@ -37,14 +40,15 @@ players[1] = {x = 5, distance_to_sqr = function(self, o) return (self.x - o.x)^2
 tick = 100000; c.update()                        -- first look: clocks start now
 assert(#released == 0, "nothing removed at once")
 clock = clock + 11 * 60; tick = tick + 31000; c.update()
+c.update()
 assert(objects[10], "a corpse next to a player stays")
 assert(not objects[11], "an old corpse far from players goes")
 assert(objects[12], "a story corpse stays")
-players[1] = nil; tick = tick + 31000; c.update()
+players[1] = nil; tick = tick + 31000; c.update(); c.update()
 assert(not objects[10], "it goes once the player left")
 -- Over the cap the oldest go first, even if young.
 for i = 100, 145 do corpse(i, 1000 + i); state.netcoop_corpses[i] = clock + i end -- death callbacks
-tick = tick + 31000; c.update()
+tick = tick + 31000; c.update(); c.update()
 local left = 0 for id in pairs(objects) do left = left + 1 end
 assert(left == 40 and objects[12] and not objects[100] and objects[145], "capped at 40, oldest first, story kept: " .. left)
 ''')

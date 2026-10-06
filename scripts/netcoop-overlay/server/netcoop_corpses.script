@@ -5,7 +5,7 @@
 -- the dedicated server is the hidden anchor Actor at the map's start: near
 -- the start corpses were never removed, elsewhere a corpse could vanish
 -- under a player who was searching it. On the server this module replaces it:
---   * an NPC's or mutant's corpse goes (with what it carries) CORPSE_TIME
+--   * an NPC's or mutant's corpse goes (with what it carries) corpse_time
 --     after death, once no player is within PLAYER_RANGE;
 --   * above MAX_CORPSES on the map the oldest go first, still never next to
 --     a player;
@@ -13,7 +13,7 @@
 -- Death times live in the world save (alife_storage_manager), so the clock
 -- of a corpse continues after a server restart.
 
-local CORPSE_TIME = 10 * 60      -- real seconds after death
+corpse_time = 10 * 60            -- real seconds after death (tests may lower it)
 local PLAYER_RANGE = 30          -- m: a corpse next to a player is kept
 local MAX_CORPSES = 40
 local CHECK_EVERY = 30000        -- ms
@@ -69,6 +69,13 @@ local function scan_existing(sim, list)
 end
 
 function update()
+	-- GAMMA's queued releases (safe_release_manager) start from actor_on_reinit,
+	-- which never fires for the server's hidden anchor Actor: nothing it
+	-- queued was ever released on the server. Run the queue every frame here
+	-- (it returns at once when empty; a second runner is harmless).
+	if safe_release_manager and safe_release_manager.execute_destroy_callback then
+		safe_release_manager.execute_destroy_callback()
+	end
 	local t = time_global()
 	if t < next_check then return end
 	next_check = t + CHECK_EVERY
@@ -92,7 +99,7 @@ function update()
 	local over = corpses - MAX_CORPSES
 	local released = 0
 	for _, c in ipairs(order) do
-		local old = now - c.died >= CORPSE_TIME
+		local old = now - c.died >= corpse_time
 		if (old or over > 0) and not near_player(c.se.position, players) and not protected(c.id) then
 			safe_release_manager.release(c.se)
 			list[c.id] = nil

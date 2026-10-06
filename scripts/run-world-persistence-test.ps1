@@ -124,7 +124,15 @@ try {
     Start-Sleep -Seconds 5
     $after = Run-Lua (State-Lua $npc $box $ground) "state after restart"
     Write-Host "after:   $after"
+    # Corpses disappear (owner 2026-10-06): with a 1 s lifetime the corpse and
+    # its loot go at the next check (30 s); the container and the ground item stay.
+    Run-Lua "netcoop_corpses.corpse_time = 1; return 'corpse time 1 s'" "corpse time" | Out-Null
+    Start-Sleep -Seconds 40
+    $gone = Run-Lua (State-Lua $npc $box $ground) "state after corpse removal"
+    Write-Host "removed: $gone"
 } finally { if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force } }
 Set-Content -Path $debugFile -Value "" -Encoding ascii
 if ($after -ne $before) { "FAIL: the world came back different"; exit 1 }
-"PASS: corpse $npc with its loot and the artefact it carried, the container and the ground artefact came back id for id after a restart"
+$expected = $before -replace "corpse=true alive=false items=\[[^\]]*\]", "corpse=false alive=nil items=[]"
+if ($gone -ne $expected) { "FAIL: the corpse did not disappear with its loot (expected: $expected)"; exit 1 }
+"PASS: corpse $npc with its loot and artefact, the container and the ground artefact came back id for id after a restart; then the corpse disappeared with its loot, the rest stayed"
