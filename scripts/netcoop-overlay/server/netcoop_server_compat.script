@@ -1101,6 +1101,17 @@ local SAFE_STORY_NPCS = { -- story id = radius, m
 	bar_dolg_leader = 30,
 	mil_smart_terrain_7_7_freedom_leader_stalker = 30,
 }
+-- Safe zones that are a faction's base (doc 47 §6): there the leader, the
+-- deputies and members the leader allowed place furniture and items freely
+-- (indoors or not). A restrictor zone belongs to the base of the nearest of
+-- these within 150 m.
+local SAFE_ZONE_FACTION = {
+	mar_base_owl_stalker_trader = "csky",
+	mar_base_stalker_tech = "csky",
+	mar_base_stalker_barmen = "csky",
+	bar_dolg_leader = "dolg",
+	mil_smart_terrain_7_7_freedom_leader_stalker = "freedom",
+}
 local sent_spots = {} -- actor id -> true once its stash spots were sent
 
 local function owned()
@@ -1138,9 +1149,23 @@ local function in_safe_zone(pos)
 	return nil
 end
 
-local function furniture_forbidden(pos)
+local function zone_faction(pos)
+	local best, best_d
+	for story_id, faction in pairs(SAFE_ZONE_FACTION) do
+		local npc = get_story_object and get_story_object(story_id)
+		local d = npc and npc:position():distance_to(pos)
+		if d and d <= 150 and (not best_d or d < best_d) then best, best_d = faction, d end
+	end
+	return best
+end
+
+local function furniture_forbidden(pos, actor)
 	local zone = in_safe_zone(pos)
-	if zone then return "furniture cannot be placed in a safe zone (" .. zone .. ")" end
+	if zone then
+		local faction = zone_faction(pos)
+		if faction and actor and netcoop_factions and netcoop_factions.may_place_in_zone(actor, faction) then return nil end
+		return "furniture cannot be placed in a safe zone (" .. zone .. ")"
+	end
 	if not indoor(pos) then return "furniture can be placed only indoors" end
 	return nil
 end
@@ -1157,7 +1182,7 @@ local function furniture_place(actor, item, args, login)
 	if pos:distance_to(actor:position()) > FURNITURE_REACH then return "too far to place" end
 	local section = ini_sys:r_string_ex(item:section(), "placeable_section")
 	if not section then return "this item is not furniture" end
-	local why = furniture_forbidden(pos)
+	local why = furniture_forbidden(pos, actor)
 	if why then return why end
 	local pf = placeable_furniture
 	if not (pf and pf.create_object) then return "furniture is not loaded on the server" end
