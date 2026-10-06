@@ -53,7 +53,7 @@ if (-not $LoadOnly) {
 $stamp = Get-Date
 
 function Start-LocationServer($name, $port, $start) {
-    $arguments = "-nosplashwindow -netcoop -dbg -multi_instance -logname selftest_$name -fsltx fsgame_selftest_server.ltx " +
+    $arguments = "-nosplashwindow -noprefetch -netcoop -dbg -multi_instance -logname selftest_$name -fsltx fsgame_selftest_server.ltx " +
         "-netport $port -netcoop_start_location=$start -netcoop_world=selftest_$name -netcoop_cluster_selftest " +
         "-start `"server(all/single/alife/new/portsv=$port/maxplayers=32)`" `"client(localhost/name=serverauthority/port=$port/portcl=$($port + 1))`""
     Start-Process -FilePath $server -ArgumentList $arguments -WorkingDirectory $Runtime -PassThru

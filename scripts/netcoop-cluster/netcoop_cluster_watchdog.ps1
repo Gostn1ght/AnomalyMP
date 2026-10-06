@@ -64,7 +64,7 @@ function Find-Log($s) {
 
 function Start-Location($s) {
     $log = if ($s.Name -eq "k00_marsh") { "srv" } else { "srv_$($s.Name)" }
-    $arguments = "-nosplashwindow -netcoop -dbg -multi_instance -logname $log -fsltx fsgame_server.ltx " +
+    $arguments = "-nosplashwindow -noprefetch -netcoop -dbg -multi_instance -logname $log -fsltx fsgame_server.ltx " +
         "-netport $($s.Port) -netcoop_start_location=$($s.Start) -netcoop_world=$($s.World) " +
         $(if ($s.OnDemand) { "-netcoop_idle_exit=600 " } else { "" }) +
         "-start `"server(all/single/alife/new/portsv=$($s.Port)/maxplayers=$perServer)`" " +
