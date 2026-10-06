@@ -14,6 +14,9 @@ param(
     [int]$Bots = 4,
     [int]$Minutes = 10,
     [int]$LoadTimeoutMinutes = 15,
+    # Maps of the cluster under test (start sections from the cluster plan);
+    # bots join the first one and walk the level changers from there.
+    [string[]]$Maps = @("k00_marsh", "l01_escape"),
     # Load test: only the Great Swamp server, no cluster, bots stay there.
     [switch]$LoadOnly
 )
@@ -31,7 +34,20 @@ Get-ChildItem $appdata -Force -ErrorAction SilentlyContinue | Where-Object { $_.
     Remove-Item -Recurse -Force
 Remove-Item (Join-Path $Runtime "appdata\selftest_bots\logs") -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $logs | Out-Null
-if (-not $LoadOnly) { Set-Content -Encoding ascii (Join-Path $appdata "netcoop_cluster.ltx") "[locations]`r`nk00_marsh  = 127.0.0.1:1367`r`nl01_escape = 127.0.0.1:1377`r`n" }
+if ($LoadOnly) { $Maps = @($Maps[0]) }
+# Start sections from the generated plan (GAMMA or netcoop\start_levels.ltx).
+$launch = @{}; $section = $null
+foreach ($line in Get-Content (Join-Path $PSScriptRoot "netcoop-cluster\netcoop_cluster.ltx.full")) {
+    $text = ($line -split ";", 2)[0].Trim()
+    if ($text -match "^\[(.+)\]$") { $section = $Matches[1]; continue }
+    if ($section -eq "launch" -and $text -match "^(\S+)\s*=\s*(\S+)$") { $launch[$Matches[1]] = $Matches[2] }
+}
+$ports = @{}; $i = 0
+foreach ($map in $Maps) { if (-not $launch[$map]) { throw "no start section for $map" }; $ports[$map] = 1367 + 10 * $i; $i++ }
+if (-not $LoadOnly) {
+    $plan = "[locations]`r`n" + (($Maps | ForEach-Object { "$_ = 127.0.0.1:$($ports[$_])" }) -join "`r`n") + "`r`n"
+    Set-Content -Encoding ascii (Join-Path $appdata "netcoop_cluster.ltx") $plan
+}
 $stamp = Get-Date
 
 function Start-LocationServer($name, $port, $start) {
@@ -58,19 +74,17 @@ function Wait-Loaded($name) {
     throw "server $name did not finish loading in $LoadTimeoutMinutes min"
 }
 
-$processes = @()
+$processes = @(); $serverLogs = @()
 try {
-    $processes += Start-LocationServer "marsh" 1367 "hidden_base"
-    $marsh = Wait-Loaded "marsh"
-    Write-Host "marsh loaded: $marsh"
-    $escape = $marsh
-    if (-not $LoadOnly) {
-        $processes += Start-LocationServer "escape" 1377 "rookie_village"
-        $escape = Wait-Loaded "escape"
-        Write-Host "escape loaded: $escape"
+    foreach ($map in $Maps) {
+        $processes += Start-LocationServer $map $ports[$map] $launch[$map]
+        $loaded = Wait-Loaded $map
+        $serverLogs += $loaded
+        Write-Host "$map loaded: $loaded"
     }
+    $marsh = $serverLogs[0]
     $botArgs = "-nosplashwindow -netcoop -dbg -noprefetch -multi_instance -logname selftest_bots -fsltx fsgame_selftest_bots.ltx " +
-        "-netcoop_bots $Bots -netcoop_bots_addr 127.0.0.1/port=1367"
+        "-netcoop_bots $Bots -netcoop_bots_addr 127.0.0.1/port=$($ports[$Maps[0]])"
     $processes += Start-Process -FilePath $client -ArgumentList $botArgs -WorkingDirectory $Runtime -PassThru
     Write-Host "bots started; running $Minutes min"
     Start-Sleep -Seconds ($Minutes * 60)
@@ -81,7 +95,7 @@ finally {
 
 $botLog = Get-ChildItem (Join-Path $Runtime "appdata\selftest_bots\logs") -Filter "*selftest_bots*.log" |
     Sort-Object LastWriteTime -Descending | Select-Object -First 1
-$serverLines = @($marsh, $escape) | ForEach-Object { Get-Content $_ }
+$serverLines = $serverLogs | ForEach-Object { Get-Content $_ }
 $botLines = if ($botLog) { Get-Content $botLog.FullName } else { @() }
 $summary = [ordered]@{
     leaves = @($serverLines | Select-String "\[cluster\] .* leaves for").Count
@@ -98,4 +112,4 @@ $summary = [ordered]@{
 $summary.GetEnumerator() | ForEach-Object { "{0,-14} {1}" -f $_.Key, $_.Value }
 "last bot reports:"; $botLines | Select-String "wanted:" | Select-Object -Last 3 | ForEach-Object { $_.Line }
 "last server metrics:"; Get-Content $marsh | Select-String "\[metrics\] server" | Select-Object -Last 3 | ForEach-Object { $_.Line }
-"logs: $marsh ; $escape ; $($botLog.FullName)"
+"logs: $($serverLogs -join ' ; ') ; $($botLog.FullName)"
