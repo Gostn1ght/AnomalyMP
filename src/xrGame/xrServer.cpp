@@ -9,6 +9,8 @@
 #include "netcoop_replication_index.h"
 #include "actor_defs.h"
 #include "actor.h"
+#include "Inventory.h"
+#include "inventory_item.h"
 
 #include "xrMessages.h"
 #include "xrServer_Objects_ALife_All.h"
@@ -492,6 +494,7 @@ void xrServer::SendUpdatesAOI()
 		u16 size;
 		u16 id;
 		bool player;
+		u16 owner_only; // a player's Actor id: only that client gets it; 0xffff: everyone
 		Fvector position;
 	};
 	static xr_vector<u8> data;
@@ -523,12 +526,25 @@ void xrServer::SendUpdatesAOI()
 		if (object_size == 0)
 			continue;
 		CSE_Abstract* root = &Test;
+		CSE_Abstract* top = &Test; // the root's direct child on the way
 		for (int depth = 0; depth < 4 && root->ID_Parent != 0xffff; ++depth)
 		{
 			CSE_Abstract* parent = ID_to_entity(root->ID_Parent);
 			if (!parent)
 				break;
+			top = root;
 			root = parent;
+		}
+		// Chunk stage 1 / doc 43 D02: what lies in a player's inventory is that
+		// player's business; others get only the item in hands (and what is
+		// inside it).
+		u16 owner_only = 0xffff;
+		if (root != &Test && root->owner != GetServerClient() && smart_cast<CSE_ALifeCreatureActor*>(root))
+		{
+			CActor* holder = smart_cast<CActor*>(Level().Objects.net_Find(root->ID));
+			PIItem active = holder ? holder->inventory().ActiveItem() : nullptr;
+			if (!active || active->object_id() != top->ID)
+				owner_only = root->ID;
 		}
 		Chunk c;
 		c.offset = u32(data.size());
@@ -537,6 +553,7 @@ void xrServer::SendUpdatesAOI()
 		// Other players are few and watched closely: they are sent every
 		// tick up to 300 m, every 2nd tick beyond (NPCs: 50/150/300 m tiers).
 		c.player = Test.owner != GetServerClient() && smart_cast<CSE_ALifeCreatureActor*>(&Test) != NULL;
+		c.owner_only = owner_only;
 		c.position = root->o_Position;
 		data.insert(data.end(), tmp.B.data, tmp.B.data + tmp.B.count);
 		chunks.push_back(c);
@@ -670,6 +687,8 @@ void xrServer::SendUpdatesAOI()
 			{
 				const std::size_t i = selection.valid ? selection.indices[cursor] : cursor;
 				const Chunk& c = chunks[i];
+				if (c.owner_only != 0xffff && c.owner_only != CL->owner->ID)
+					continue;
 				const float d = c.id == CL->owner->ID ? 0.f : eye.distance_to(c.position);
 				u32 every = c.player ? (d < 300.f ? 1 : 2) : d < 50.f ? 1 : d < 150.f ? 2 : d < 300.f ? 4 : 16;
 				// Overload and budget: never players, never the nearby world (50 m).
