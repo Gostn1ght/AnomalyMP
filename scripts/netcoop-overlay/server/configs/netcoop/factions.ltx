@@ -1,0 +1,73 @@
+; Factions for players (doc 47, owner 2026-10-06).
+; join: open            - anyone (loners; no leader)
+;       contracts       - after `contracts` contracts of the contact, apply; leader/deputy accepts
+;                         (no leader appointed yet: the contact accepts, i.e. any deputy/admin decision)
+;       leader          - apply; only the leader or a deputy accepts
+;       admin_or_leader - apply; only the leader or an admin accepts
+;       auto            - nobody applies (renegades: the Zone decides)
+; leader: no - the faction has no leader (loners)
+; zone: the faction's safe zone(s) where the leader places items/furniture
+
+[stalker]
+title = Одиночки
+join = open
+leader = no
+
+[csky]
+title = Чистое Небо
+join = contracts
+contracts = 5
+contact = mar_smart_terrain_base_stalker_leader_marsh
+contact_name = лидер Чистого Неба
+zone = mar_base_safe_zone
+
+[freedom]
+title = Свобода
+join = contracts
+contracts = 5
+contact = mil_smart_terrain_7_7_freedom_leader_stalker
+contact_name = Лукаш
+zone = mil_freedom_safe_zone
+
+[dolg]
+title = Долг
+join = contracts
+contracts = 5
+contact = bar_dolg_leader
+contact_name = генерал Воронин
+zone = bar_safe_zone
+
+[ecolog]
+title = Экологи
+join = admin_or_leader
+contact = yan_ecolog_semenov
+contact_name = профессор Семенов
+
+[killer]
+title = Наёмники
+join = leader
+
+[army]
+title = Военные
+join = leader
+
+[monolith]
+title = Монолит
+join = leader
+
+[bandit]
+title = Бандиты
+join = leader
+
+[isg]
+title = ИИГ
+join = leader
+
+[greh]
+title = Грех
+join = leader
+
+[renegade]
+title = Ренегаты
+join = auto
+leader = no

@@ -117,6 +117,11 @@ function on_client_command(cid, name, entity_id, text, role)
 	elseif cmd == "whoami" then
 		return string.format("~ %s, role %s, entity %s", tostring(name), tostring(role), tostring(entity_id))
 
+	elseif cmd == "faction" or cmd == "group" then
+		-- Faction membership (doc 47): apply, leave; leaders decide.
+		if not netcoop_factions then return "! factions are not installed" end
+		return netcoop_factions.command(server_actor(entity_id), args, admin)
+
 	elseif cmd == "money" then
 		local obj = server_actor(entity_id)
 		if not obj then return "! your Actor is not on the server" end
@@ -139,6 +144,13 @@ function on_client_command(cid, name, entity_id, text, role)
         if netcoop_registration_decide(login, approve) then return "* registration " .. login .. (approve and " approved" or " rejected") end
         return "! pending registration not found"
     end
+
+	if cmd == "faction_leader" then
+		local faction, login, slot = string.match(args, "^([%w_]+)%s+([%w_.%-]+)%s*(%d*)$")
+		if not faction then return "! usage: faction_leader <faction> <login> [slot]" end
+		local ok, message = netcoop_factions.set_leader(faction, login, slot)
+		return (ok and "* " or "! ") .. tostring(message)
+	end
 
 	if cmd == "spawn" then
 		local section, count = string.match(args, "^([%w_%.%-]+)%s*(%d*)$")

@@ -519,4 +519,7 @@
   <string id="st_netcoop_passage_unavailable">
     <text>This passage is unavailable.</text>
   </string>
+  <string id="st_netcoop_faction_changed">
+    <text>Your faction is now:</text>
+  </string>
 </string_table>

@@ -518,6 +518,14 @@ function on_script_message(channel, data)
 	elseif channel == "player_state" then
 		use_player_state(data)
 		return
+	elseif channel == "faction" then
+		-- The server changed this character's faction (doc 47).
+		local actor = db.actor
+		if actor and type(data) == "string" and data:match("^[%w_]+$") then
+			actor:set_character_community("actor_" .. data, 0, 0)
+			show_text(game.translate_string("st_netcoop_faction_changed") .. " " .. data)
+		end
+		return
 	elseif channel == "stash_spot" or channel == "stash_spot_remove" then
 		use_stash_spot(data, channel == "stash_spot_remove")
 		return

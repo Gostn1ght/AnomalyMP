@@ -519,4 +519,7 @@
   <string id="st_netcoop_passage_unavailable">
     <text>Переход недоступен.</text>
   </string>
+  <string id="st_netcoop_faction_changed">
+    <text>Ваша группировка теперь:</text>
+  </string>
 </string_table>

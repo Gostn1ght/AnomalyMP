@@ -17,7 +17,9 @@ decl = re.compile(r"^local\s+function\s+([A-Za-z_]\w*)|^local\s+([A-Za-z_]\w*(?:
 problems = []
 for path in sorted(root.rglob("*.script")):
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    code = [re.sub(r"--.*$", "", l) for l in lines]  # good enough: no '--' inside the names we look for
+    # Strip string literals, then comments: a name inside quotes is not a use.
+    strings = re.compile(r'"(?:[^"\\]|\\.)*"|' + r"'(?:[^'\\]|\\.)*'")
+    code = [re.sub(r"--.*$", "", strings.sub('""', l)) for l in lines]
     declared = {}  # name -> first top-level declaration line
     for n, line in enumerate(code):
         m = decl.match(line)

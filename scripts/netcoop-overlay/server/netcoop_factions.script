@@ -1,0 +1,342 @@
+----------------------------------------------------------------------
+-- Faction membership, leaders, deputies and applications (doc 47)
+----------------------------------------------------------------------
+-- A player joins a faction only by applying; a leader, deputy or admin (as
+-- the faction's policy says) accepts or rejects. Nobody is enrolled without
+-- applying. Records live in the cluster's shared store (netcoop_store_*), so
+-- every location server sees the same membership; the character's faction
+-- is applied to its Actor when it is online and saved in the character.
+--
+-- Store: bucket "factions", key = faction:
+--   { members = { [char] = { name, role = "member"|"deputy"|"leader", furniture, since } },
+--     apps    = { [char] = { name, at, rank } } }
+-- bucket "char_faction", key = char -> the faction the character belongs to.
+-- char = "login_slot" (netcoop_actor_character).
+
+local MAX_TRIES = 8
+local cfg
+local function config()
+	cfg = cfg or ini_file("netcoop\\factions.ltx")
+	return cfg
+end
+
+local function now() return os.time() end
+
+---------------------------------------------------------------- data
+local function serialize(value, depth)
+	depth = depth or 0
+	local kind = type(value)
+	if kind == "number" then return string.format("%.17g", value) end
+	if kind == "string" then return string.format("%q", value) end
+	if kind == "boolean" then return value and "true" or "false" end
+	if kind ~= "table" or depth > 6 then return "nil" end
+	local parts = {}
+	for k, v in pairs(value) do
+		local key = type(k) == "number" and ("[" .. string.format("%.17g", k) .. "]") or ("[" .. string.format("%q", tostring(k)) .. "]")
+		parts[#parts + 1] = key .. "=" .. serialize(v, depth + 1)
+	end
+	return "{" .. table.concat(parts, ",") .. "}"
+end
+
+function deserialize(text)
+	if type(text) ~= "string" or text == "" or #text > 65536 then return nil end
+	local chunk = loadstring("return " .. text)
+	if not chunk then return nil end
+	setfenv(chunk, {}) -- servers write these records; data only
+	local ok, value = pcall(chunk)
+	return ok and type(value) == "table" and value or nil
+end
+
+-- Read-modify-write with compare-and-swap; `change` edits the table and
+-- returns true to write, or false plus a message to stop.
+local function update(bucket, key, change)
+	for _ = 1, MAX_TRIES do
+		local old = netcoop_store_read(bucket, key)
+		local data = deserialize(old) or {}
+		local ok, message = change(data)
+		if not ok then return false, message end
+		if netcoop_store_swap(bucket, key, old, serialize(data)) then return true, message end
+	end
+	return false, "busy, try again"
+end
+
+local function faction_record(faction)
+	local data = deserialize(netcoop_store_read("factions", faction)) or {}
+	data.members, data.apps = data.members or {}, data.apps or {}
+	return data
+end
+
+---------------------------------------------------------------- policy
+local function known(faction)
+	return type(faction) == "string" and faction:match("^[%w_]+$") and config():section_exist(faction)
+end
+local function policy(faction, key, default)
+	local value = config():r_string_ex(faction, key)
+	return value ~= nil and value or default
+end
+local function faction_title(faction)
+	return game.translate_string(policy(faction, "title", faction))
+end
+
+local function current_faction(obj)
+	local community = character_community(obj) or ""
+	return community:gsub("^actor_", "")
+end
+
+local function char_of(obj) return netcoop_actor_character and netcoop_actor_character(obj:id()) or "" end
+local function login_of(obj) return netcoop_actor_login and netcoop_actor_login(obj:id()) or "" end
+
+local function role_in(faction, char)
+	local member = faction_record(faction).members[char]
+	return member and member.role or nil
+end
+
+-- May this player decide on applications / members of the faction?
+local function may_manage(obj, faction, admin)
+	local mode = policy(faction, "join", "leader")
+	if admin then return true end
+	local role = role_in(faction, char_of(obj))
+	return role == "leader" or role == "deputy"
+end
+
+---------------------------------------------------------------- applying a faction to a character
+local function set_character_faction(char, faction)
+	return update("char_faction", char, function(data)
+		data.faction = faction
+		return true
+	end)
+end
+
+-- Online characters get their faction now; offline ones at their next login
+-- (faction_update and the engine's character load).
+local function apply_now(char)
+	local wanted = (deserialize(netcoop_store_read("char_faction", char)) or {}).faction
+	if not wanted then return end
+	for id in string.gmatch(netcoop_players and netcoop_players() or "", "%d+") do
+		local obj = level.object_by_id(tonumber(id))
+		if obj and char_of(obj) == char and current_faction(obj) ~= wanted then
+			obj:set_character_community("actor_" .. wanted, 0, 0)
+			if netcoop_set_character_faction then netcoop_set_character_faction(obj:id(), wanted) end
+			if netcoop_send_to_actor then netcoop_send_to_actor(obj:id(), "faction", wanted) end
+			printf("[Lost Zone][factions] %s is now %s", char, wanted)
+		end
+	end
+end
+
+local function remove_member(faction, char)
+	return update("factions", faction, function(data)
+		data.members = data.members or {}
+		if not data.members[char] then return false, "not a member" end
+		data.members[char] = nil
+		return true
+	end)
+end
+
+local function join(faction, char, name, role)
+	local ok, message = update("factions", faction, function(data)
+		data.members, data.apps = data.members or {}, data.apps or {}
+		data.apps[char] = nil
+		data.members[char] = { name = name, role = role or "member", since = now() }
+		return true
+	end)
+	if not ok then return false, message end
+	-- One faction at a time: leave the previous one.
+	local previous = (deserialize(netcoop_store_read("char_faction", char)) or {}).faction
+	if previous and previous ~= faction and known(previous) then remove_member(previous, char) end
+	set_character_faction(char, faction)
+	apply_now(char)
+	return true
+end
+
+---------------------------------------------------------------- player actions
+-- Why this player cannot apply to the faction, or nil.
+function apply_problem(obj, faction)
+	if not known(faction) then return "unknown faction" end
+	local mode = policy(faction, "join", "leader")
+	if mode == "auto" then return "only by the Zone's judgement (renegades)" end
+	if current_faction(obj) == faction then return "already a member" end
+	if current_faction(obj) == "renegade" then
+		local bounty = netcoop_ranks and netcoop_ranks.bounty_of and netcoop_ranks.bounty_of(char_of(obj))
+		if bounty then return "you are wanted; wait until the bounty expires" end
+	end
+	local rank_need = tonumber(policy(faction, "min_rank", 0)) or 0
+	if obj:character_rank() < rank_need then return string.format("rank %s required", tostring(rank_need)) end
+	local contracts_need = tonumber(policy(faction, "contracts", 0)) or 0
+	if contracts_need > 0 then
+		local done = netcoop_contracts and netcoop_contracts.completed and netcoop_contracts.completed(char_of(obj), faction) or 0
+		if done < contracts_need then
+			return string.format("complete %s of %s contracts for %s first", tostring(contracts_need - done), tostring(contracts_need),
+				policy(faction, "contact_name", "the faction's contact"))
+		end
+	end
+	return nil
+end
+
+function apply(obj, faction)
+	local problem = apply_problem(obj, faction)
+	if problem then return false, problem end
+	local char, name = char_of(obj), obj:character_name()
+	if char == "" then return false, "character unknown" end
+	if policy(faction, "join", "leader") == "open" then
+		local ok, message = join(faction, char, name)
+		return ok, ok and ("you joined " .. faction) or message
+	end
+	local ok, message = update("factions", faction, function(data)
+		data.apps = data.apps or {}
+		data.apps[char] = { name = name, at = now(), rank = obj:character_rank() }
+		return true
+	end)
+	if ok then printf("[Lost Zone][factions] %s applied to %s", char, faction) end
+	return ok, ok and "application sent; the faction's leadership will decide" or message
+end
+
+function leave(obj)
+	local faction, char = current_faction(obj), char_of(obj)
+	if faction == "stalker" then return false, "you are a loner already" end
+	if faction == "renegade" then return false, "renegades cannot simply leave" end
+	if known(faction) then remove_member(faction, char) end
+	return join("stalker", char, obj:character_name())
+end
+
+---------------------------------------------------------------- leadership actions
+function decide(obj, faction, char, accept, admin)
+	if not known(faction) then return false, "unknown faction" end
+	local mode = policy(faction, "join", "leader")
+	if not may_manage(obj, faction, admin) then return false, "only the leader, a deputy or an admin decides" end
+	if mode == "admin_or_leader" and not admin and role_in(faction, char_of(obj)) == "deputy" then
+		return false, "only the leader or an admin enrolls in this faction"
+	end
+	local app = faction_record(faction).apps[char]
+	if not app then return false, "no such application" end
+	if not accept then
+		return update("factions", faction, function(data)
+			data.apps = data.apps or {}; data.apps[char] = nil; return true
+		end)
+	end
+	return join(faction, char, app.name)
+end
+
+function expel(obj, faction, char, admin)
+	if not may_manage(obj, faction, admin) then return false, "only the leader, a deputy or an admin expels" end
+	local role = role_in(faction, char)
+	if not role then return false, "not a member" end
+	if role == "leader" and not admin then return false, "the leader is changed by an admin" end
+	remove_member(faction, char)
+	return join("stalker", char, (faction_record("stalker").members[char] or {}).name or char)
+end
+
+function set_role(obj, faction, char, role, admin)
+	local mine = role_in(faction, char_of(obj))
+	if not admin and mine ~= "leader" then return false, "only the leader appoints deputies" end
+	return update("factions", faction, function(data)
+		local member = (data.members or {})[char]
+		if not member then return false, "not a member" end
+		if member.role == "leader" then return false, "that is the leader" end
+		member.role = role
+		return true
+	end)
+end
+
+function set_furniture(obj, faction, char, allowed, admin)
+	if not may_manage(obj, faction, admin) then return false, "only the leader or a deputy grants furniture" end
+	return update("factions", faction, function(data)
+		local member = (data.members or {})[char]
+		if not member then return false, "not a member" end
+		member.furniture = allowed or nil
+		return true
+	end)
+end
+
+-- Admin: the leader of a faction is a player's character the admin names.
+function set_leader(faction, login, slot)
+	if not known(faction) then return false, "unknown faction" end
+	if policy(faction, "leader", "yes") == "no" then return false, faction .. " has no leader" end
+	local char = string.lower(login) .. "_" .. tostring(tonumber(slot) or 1)
+	local ok, message = update("factions", faction, function(data)
+		data.members = data.members or {}
+		for _, member in pairs(data.members) do if member.role == "leader" then member.role = "member" end end
+		local member = data.members[char] or { name = login, since = now() }
+		member.role = "leader"
+		data.members[char] = member
+		if data.apps then data.apps[char] = nil end
+		return true
+	end)
+	if not ok then return false, message end
+	set_character_faction(char, faction)
+	apply_now(char)
+	printf("[Lost Zone][factions] %s is the leader of %s", char, faction)
+	return true, char .. " leads " .. faction
+end
+
+-- Furniture in a faction's safe zone (doc 47 §6): leader, deputies and
+-- members the leader allowed.
+function may_place_in_zone(obj, faction)
+	local member = faction_record(faction).members[char_of(obj)]
+	return member ~= nil and (member.role == "leader" or member.role == "deputy" or member.furniture == true)
+end
+
+---------------------------------------------------------------- text interface (commands)
+local function list_members(faction)
+	local out = {}
+	for char, member in pairs(faction_record(faction).members) do
+		out[#out + 1] = string.format("%s (%s)%s%s", tostring(member.name), char,
+			member.role ~= "member" and (" - " .. member.role) or "", member.furniture and " [furniture]" or "")
+	end
+	table.sort(out)
+	return table.concat(out, "\n")
+end
+local function list_apps(faction)
+	local out = {}
+	for char, app in pairs(faction_record(faction).apps) do
+		out[#out + 1] = string.format("%s (%s), rank %s", tostring(app.name), char, tostring(app.rank))
+	end
+	table.sort(out)
+	return #out > 0 and table.concat(out, "\n") or "no applications"
+end
+
+-- "faction ..." from a player (netanomaly_server.on_client_command).
+function command(obj, args, admin)
+	if not obj then return "! your Actor is not on the server" end
+	local verb, rest = string.match(args or "", "^(%S*)%s*(.*)$")
+	local mine = current_faction(obj)
+	local function result(ok, message) return (ok and "* " or "! ") .. tostring(message or (ok and "done" or "failed")) end
+	if verb == "" or verb == "status" then
+		local role = role_in(mine, char_of(obj)) or "member"
+		return string.format("~ %s, %s, rank %s", faction_title(mine), role, tostring(obj:character_rank()))
+	elseif verb == "apply" then
+		return result(apply(obj, rest))
+	elseif verb == "leave" then
+		return result(leave(obj))
+	elseif verb == "apps" then
+		if not may_manage(obj, mine, admin) then return "! only the leader or a deputy" end
+		return "~ " .. list_apps(mine)
+	elseif verb == "members" then
+		return "~ " .. list_members(mine)
+	elseif verb == "accept" or verb == "reject" then
+		return result(decide(obj, mine, rest, verb == "accept", admin))
+	elseif verb == "expel" then
+		return result(expel(obj, mine, rest, admin))
+	elseif verb == "deputy" then
+		local char, flag = string.match(rest, "^(%S+)%s*(%S*)$")
+		return result(set_role(obj, mine, char, flag == "off" and "member" or "deputy", admin))
+	elseif verb == "furniture" then
+		local char, flag = string.match(rest, "^(%S+)%s*(%S*)$")
+		return result(set_furniture(obj, mine, char, flag ~= "off", admin))
+	end
+	return "! faction status|apply <faction>|leave|apps|members|accept <char>|reject <char>|expel <char>|deputy <char> [off]|furniture <char> [off]"
+end
+
+---------------------------------------------------------------- keeping online Actors in their faction
+local next_check = 0
+function update_online()
+	if time_global() < next_check then return end
+	next_check = time_global() + 5000
+	for id in string.gmatch(netcoop_players and netcoop_players() or "", "%d+") do
+		local obj = level.object_by_id(tonumber(id))
+		local char = obj and char_of(obj)
+		if char and char ~= "" then
+			local wanted = (deserialize(netcoop_store_read("char_faction", char)) or {}).faction
+			if wanted and current_faction(obj) ~= wanted then apply_now(char) end
+		end
+	end
+end
