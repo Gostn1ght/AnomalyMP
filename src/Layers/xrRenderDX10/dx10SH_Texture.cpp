@@ -5,6 +5,7 @@
 
 #ifndef _EDITOR
 #include "../../xrEngine/render.h"
+#include "../../xrEngine/IGame_Persistent.h" // g_dedicated_server
 #endif
 
 #include "../../xrEngine/tntQAVI.h"
@@ -409,6 +410,12 @@ void CTexture::Load()
 	}
 
 	Preload();
+
+	// A dedicated server draws nothing. The DX9 loader skipped the images
+	// there, this DX11 one did not: a location server held 580 textures,
+	// ~2.2 GB, and spent ~20 s loading them (2026-10-06).
+	if (g_dedicated_server)
+		return;
 
 	bool bCreateView = true;
 
