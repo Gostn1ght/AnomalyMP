@@ -944,3 +944,8 @@ responses do not free worker slots early and admission recovers after cleanup.
 No worker-bound weakening or stash resolver change. Local complete suite 199 PASS;
 Actions follow-up pending. Task-43 H history now explicitly superseded by current
 OS ownership/restore/wallet/2PC scope and remaining native acceptance requirements.
+
+Final follow-up: d3da468b5 backend 37418041291 SUCCESS Windows+Linux
+(199 tests each). HTTP cleanup/delivery regression passes on both platforms.
+Stash discovery backend is verified; native adapter and whole W8-W12 stage
+acceptance remain open. No native package installation or launch performed.

@@ -506,3 +506,8 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   cap unchanged. Local full 199 PASS, follow-up Actions pending.
   Task-43 H historical TTL description marked superseded; current native/backend
   proof and open hidden spawn/cross-host/NPC/1000-transfer acceptance documented.
+
+- d3da468b5 / 37418041291 backend SUCCESS Windows+Linux (199 each).
+  Follow-up HTTP synchronization/gated cleanup tests passed. Stash discovery
+  backend verified, native adoption and W8-W12 whole-stage acceptance open.
+  Checkout clean after exact-file documentation commit; no runtime changes.
