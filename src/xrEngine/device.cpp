@@ -532,7 +532,10 @@ void CRenderDevice::on_idle()
 	Statistic->RenderTOTAL_Real.FrameStart();
 	Statistic->RenderTOTAL_Real.Begin();
 
-	if (b_is_Active && Begin())
+	// The dedicated server's window is a GDI text console (CTextConsole):
+	// rendering the level through D3D whenever that window was active only
+	// cost frame time (driver calls in 0.6 s server hitches, 2026-10-06).
+	if (b_is_Active && !g_dedicated_server && Begin())
 	{
 		START_PROFILE("Process seqRender");
 		seqRender.Process(rp_Render);
