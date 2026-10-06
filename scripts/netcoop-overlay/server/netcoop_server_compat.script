@@ -497,7 +497,21 @@ local function server_world_loop()
 	-- This level call continues even with no connected players. World
 	-- weather/emissions must finish when their initiating player leaves.
 	server_debug_file()
-	if not game_loaded then return false end
+	if not game_loaded then
+		-- The world runs without players too (emissions on schedule, weather,
+		-- corpse cleanup, factions): before, it waited for the first player
+		-- after every start, so an empty server's world stood still
+		-- (2026-10-06). The hidden anchor Actor stands in for db.actor, as in
+		-- the world tick below; a few seconds after the level is up.
+		if time_global() < 15000 then return false end
+		local previous = rawget(db, "actor")
+		if not previous then db.actor = any_player() or level.object_by_id(0) end
+		local ok, err = pcall(server_game_load)
+		db.actor = previous
+		if not ok then printf("[Lost Zone] world start without players failed: %s", tostring(err)) end
+		if not game_loaded then return false end
+		printf("[Lost Zone] world scripts running (no player needed)")
+	end
 	local previous = rawget(db, "actor")
 	if not previous then db.actor = any_player() or level.object_by_id(0) end
 	local ok, err = pcall(server_world_tick)
