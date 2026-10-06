@@ -399,6 +399,15 @@ static bool netcoop_mode()
 
 static game_sv_Single* s_netcoop_game = NULL;
 static xr_vector<u16> s_netcoop_actor_ids;
+// PREWARM: where each moving player will be (see netcoop_prewarm_update).
+struct netcoop_prewarm_track
+{
+	Fvector last;
+	u32 time;
+	Fvector ahead;
+	bool moving;
+};
+static xr_map<u16, netcoop_prewarm_track> s_netcoop_prewarm;
 
 static void netcoop_forget_game(game_sv_Single* game)
 {
@@ -414,14 +423,6 @@ static void netcoop_forget_game(game_sv_Single* game)
 // NPCs, mutants and items ahead of a running player are switched online
 // and ready before the player gets there, not when they are already close.
 // The speed is measured over half a second; a teleport is not a movement.
-struct netcoop_prewarm_track
-{
-	Fvector last;
-	u32 time;
-	Fvector ahead;
-	bool moving;
-};
-static xr_map<u16, netcoop_prewarm_track> s_netcoop_prewarm;
 static u32 s_netcoop_prewarm_frame = u32(-1);
 static u32 s_netcoop_prewarm_log = 0;
 
