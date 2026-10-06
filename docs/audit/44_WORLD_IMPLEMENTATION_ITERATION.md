@@ -877,3 +877,27 @@ Full local suite 182 PASS: exact UTF-8/escaped boundary and one-byte refusal,
 unchanged writer/items/journal on refusal, guarded first-oversized inventory
 and group-state reads. Large groups still require a chunked protocol/native
 adapter; this bounds encoded admission, not total RSS. Backend Actions pending.
+
+## Causal contact refresh after outcomes
+
+b54a82bda backend 37415278999 SUCCESS Windows+Linux (182). Native
+268caa26d / 37414908195 remains compiling with successful checks/Foundation.
+
+Scheduler now publishes configured causal observers only after source APPLIED
+projection/journal, in the same transaction. Route arrival, combat, hazard and
+stash outcomes queue OfflineContactsRefresh at their physical due time with
+priority=5. This prevents a participant's early arrival/version change from
+silently cancelling a valid later crossing. Refresh replaces the old planning
+window, validates captured policy, uses moving-root discovery and stops before
+population scanning when no physical route continues. No new AI route choices
+or repeated stationary fights are introduced. Queue failure rolls the source
+outcome back; delayed restart keeps refresh time/identity/capture.
+
+Same-location/same-time source outcomes coalesce one PENDING refresh. Each
+causal link is journaled; a later source after APPLIED receives a fresh ID.
+This avoids repeated full location passes for simultaneous outcomes without
+reusing a completed idempotency key. Local complete suite 188 PASS includes
+real arrival→later encounter, source rollback, delayed refresh restart,
+large stationary population refusal avoidance and simultaneous/later-source
+coalescing cases. These are test counts, not closed task-43 requirements.
+Backend Actions pending after push; native adapters/AI decisions still open.

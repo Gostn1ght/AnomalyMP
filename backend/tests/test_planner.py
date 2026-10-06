@@ -371,6 +371,111 @@ class PlannerTest(unittest.TestCase):
         self.assertEqual(self.pending_contacts(),[])
         self.assertIsNone(self.world._mutation_cut)
 
+    def arrival_then_contact(self):
+        self.change(self.trap,armed=False)
+        self.offline.start_route("admin",uid(),self.first,2,[[-10,0,0],[0,0,0]],10,42)
+        self.offline.start_route("admin",uid(),self.second,1,[[10,0,0],[0,0,0]],1,42)
+        self.enable_auto()
+        self.world.set_state("admin",uid(),"relations",1,{"hostile":[["duty","bandit"]]})
+        contact=self.pending_contacts()[0]
+        self.assertEqual(contact["due_world_ms"],90000)
+        arrival=self.store.db.execute("SELECT * FROM scheduled_event WHERE type='RouteArrived' AND state='PENDING' ORDER BY due_world_ms LIMIT 1").fetchone()
+        self.assertEqual(arrival["due_world_ms"],10000)
+        return contact,arrival
+
+    def test_arrival_replans_later_physical_fight_without_cancelling_its_source(self):
+        old,arrival=self.arrival_then_contact();self.ns=20_000_000_000
+        self.scheduler.run_due(budget_ms=1000)
+        self.assertEqual(self.state(arrival["id"])["state"],"APPLIED")
+        self.assertEqual(self.state(old["id"])["state"],"CANCELLED")
+        fights=self.store.db.execute("SELECT * FROM scheduled_event WHERE type='OfflineCombat' AND state='APPLIED'").fetchall()
+        self.assertEqual(len(fights),1)
+        self.assertEqual(fights[0]["due_world_ms"],90000)
+        self.assertEqual(self.pending_contacts(),[])
+        self.assertEqual(self.scheduler.run_due(budget_ms=1000),0)
+
+    def test_outcome_continuation_failure_rolls_back_source_arrival(self):
+        old,arrival=self.arrival_then_contact();self.ns=20_000_000_000
+        original=self.scheduler.schedule_in
+        def fail(tx,event_id,due,aggregate,version,kind,*args,**kwargs):
+            if kind=="OfflineContactsRefresh":
+                raise RuntimeError("injected causal continuation failure")
+            return original(tx,event_id,due,aggregate,version,kind,*args,**kwargs)
+        self.scheduler.schedule_in=fail
+        with self.assertRaises(RuntimeError):
+            self.scheduler.run_due(budget_ms=1000)
+        self.scheduler.schedule_in=original
+        self.assertEqual(self.state(arrival["id"])["state"],"PENDING")
+        self.assertEqual(self.state(old["id"])["state"],"PENDING")
+        self.assertEqual(self.store.db.execute("SELECT active FROM route WHERE entity_id=?",(self.first,)).fetchone()[0],1)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='OfflineContactsRefresh'").fetchone()[0],0)
+        self.scheduler.run_due(budget_ms=1000)
+        self.assertEqual(self.state(arrival["id"])["state"],"APPLIED")
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE type='OfflineCombat' AND state='APPLIED'").fetchone()[0],1)
+
+    def test_outcome_refresh_keeps_physical_time_across_delayed_restart(self):
+        old,arrival=self.arrival_then_contact();self.ns=20_000_000_000
+        self.assertEqual(self.scheduler.run_due(limit=1,budget_ms=1000),1)
+        self.assertEqual(self.state(arrival["id"])["state"],"APPLIED")
+        refresh=dict(self.store.db.execute("SELECT * FROM scheduled_event WHERE type='OfflineContactsRefresh'").fetchone())
+        self.assertEqual(refresh["due_world_ms"],10000)
+        self.store.close();self.open();self.enable_auto()
+        self.assertEqual(dict(self.state(refresh["id"])),refresh)
+        self.scheduler.run_due(budget_ms=1000)
+        self.assertEqual(self.state(old["id"])["state"],"CANCELLED")
+        fights=self.store.db.execute("SELECT due_world_ms FROM scheduled_event WHERE type='OfflineCombat' AND state='APPLIED'").fetchall()
+        self.assertEqual([row[0] for row in fights],[90000])
+
+    def test_outcome_refresh_stops_without_scanning_large_stationary_population(self):
+        self.arrival_then_contact();self.ns=20_000_000_000
+        self.assertEqual(self.scheduler.run_due(limit=3,budget_ms=1000),3)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM route WHERE active=1").fetchone()[0],0)
+        with self.store.transaction() as tx:
+            for index in range(300):
+                tx.execute("INSERT INTO entity VALUES(?,'NPC','cordon','offline:cordon',?,1,1,?)",
+                           (uid(),self.store.epoch,json.dumps({"health":1,"position":[10000+index,0,0]})))
+        # A full discovery pass would refuse its 256-root budget. No motion
+        # remains, so completing the causal job must not scan that population.
+        self.assertEqual(self.scheduler.run_due(budget_ms=1000),1)
+        self.assertEqual(self.scheduler.run_due(budget_ms=1000),0)
+        self.assertEqual(self.windows(),[])
+
+    def simultaneous_arrivals(self,legacy_priority=False):
+        self.change(self.trap,armed=False)
+        self.world.set_state("admin",uid(),"relations",1,{"hostile":[]})
+        self.offline.start_route("admin",uid(),self.first,2,[[-10,0,0],[0,0,0]],1,42)
+        self.offline.start_route("admin",uid(),self.second,1,[[10,0,0],[20,0,0]],1,42)
+        third=uid()
+        with self.store.transaction() as tx:
+            tx.execute("INSERT INTO entity VALUES(?,'NPC','cordon','offline:cordon',?,1,1,?)",
+                       (third,self.store.epoch,json.dumps({"health":1,"position":[-20,0,0]})))
+        self.offline.start_route("admin",uid(),third,1,[[-20,0,0],[20,0,0]],1,42)
+        self.enable_auto(horizon_ms=1000000)
+        self.world.set_state("admin",uid(),"relations",2,{"hostile":[]})
+        if legacy_priority:
+            with self.store.transaction() as tx:
+                tx.execute("UPDATE scheduled_event SET priority=0 WHERE type='RouteArrived' AND due_world_ms=100000")
+        self.ns=15_000_000_000
+
+    def test_simultaneous_source_outcomes_coalesce_pending_location_refresh(self):
+        self.simultaneous_arrivals(legacy_priority=True)
+        self.assertEqual(self.scheduler.run_due(budget_ms=1000),3)
+        refreshes=self.store.db.execute("SELECT * FROM scheduled_event WHERE type='OfflineContactsRefresh'").fetchall()
+        self.assertEqual(len(refreshes),1)
+        self.assertEqual(refreshes[0]["state"],"APPLIED")
+        links=[json.loads(row[0]) for row in self.store.db.execute("SELECT payload FROM world_event WHERE type='ContactsRefreshQueued' ORDER BY sequence")]
+        self.assertEqual([link["coalesced"] for link in links],[False,True])
+        self.assertEqual({link["refresh_event"] for link in links},{refreshes[0]["id"]})
+        self.assertEqual(len({link["source_event"] for link in links}),2)
+
+    def test_later_same_time_outcome_creates_new_refresh_after_previous_applied(self):
+        self.simultaneous_arrivals()
+        self.assertEqual(self.scheduler.run_due(budget_ms=1000),4)
+        refreshes=self.store.db.execute("SELECT * FROM scheduled_event WHERE type='OfflineContactsRefresh'").fetchall()
+        self.assertEqual(len(refreshes),2)
+        self.assertTrue(all(row["state"]=="APPLIED" for row in refreshes))
+        self.assertEqual(len({row["id"] for row in refreshes}),2)
+
 
 if __name__=="__main__":
     unittest.main()

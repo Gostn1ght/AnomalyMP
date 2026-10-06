@@ -15,6 +15,7 @@ class Planner:
         self.encounters,self.hazards = encounters,hazards
         self.policy = None
         encounters.offline.scheduler.handlers.setdefault("OfflineContactsWindow",self.window_in)
+        encounters.offline.scheduler.handlers.setdefault("OfflineContactsRefresh",self.refresh_in)
 
     def enable_automatic(self, policy):
         """Install trusted backend contact discovery on semantic mutations.
@@ -35,6 +36,8 @@ class Planner:
         self.policy = dict(policy)
         self.world.mutation_observers["offline_contacts"] = self.changed_in
         self.encounters.offline.scheduler.handlers["OfflineContactsWindow"] = self.window_in
+        self.encounters.offline.scheduler.handlers["OfflineContactsRefresh"] = self.refresh_in
+        self.world.scheduler_event_observers["offline_contacts"] = self.outcome_in
 
     def changed_in(self, tx, actor, command_id, change):
         kind = change["type"]
@@ -70,14 +73,61 @@ class Planner:
             if (time.monotonic()-start)*1000>self.policy["budget_ms"]:
                 raise Unavailable("automatic planning time budget exhausted")
 
-    def cancel_windows_in(self, tx, location):
+    def cancel_windows_in(self, tx, location, physical_ms=None):
         rows = tx.execute("SELECT id,aggregate_id FROM scheduled_event WHERE state='PENDING' AND type='OfflineContactsWindow' AND json_extract(payload,'$.location')=? LIMIT 26",(location,)).fetchall()
         if len(rows)>25:
             raise Unavailable("automatic planning continuation backlog exhausted")
         for row in rows:
             result = {"reason":"semantic mutation replans this location"}
             tx.execute("UPDATE scheduled_event SET state='CANCELLED',result=? WHERE id=?",(canonical(result),row["id"]))
-            self.store.event(tx,row["aggregate_id"],"ScheduledEventCancelled",{"event_id":row["id"],"result":result},self.world.now())
+            at=self.world.now() if physical_ms is None else physical_ms
+            self.store.event(tx,row["aggregate_id"],"ScheduledEventCancelled",{"event_id":row["id"],"result":result},at,committed_ms=self.world.now())
+
+    def outcome_in(self, tx, event, result):
+        if event["type"] not in ("RouteArrived","OfflineCombat","OfflineHazard","StashVisited"):
+            return
+        capture=json.loads(event["payload"])
+        location=capture.get("location")
+        if location is None:
+            row=tx.execute("SELECT location FROM entity WHERE id=?",(capture["entity_id"],)).fetchone()
+            if not row:
+                raise Conflict("arrived actor lost its persistent location")
+            location=row[0]
+        pending=tx.execute("SELECT id,payload FROM scheduled_event WHERE state='PENDING' AND type='OfflineContactsRefresh' "
+                           "AND due_world_ms=? AND json_extract(payload,'$.location')=? ORDER BY id LIMIT 1",
+                           (event["due_world_ms"],location)).fetchone()
+        if pending:
+            captured=json.loads(pending["payload"])
+            if any(self.policy[key]!=captured["policy"][key] for key in ("horizon_ms","radius")):
+                raise Unavailable("pending outcome refresh uses a different semantic policy")
+            event_id=pending["id"]
+        else:
+            event_id=hashlib.sha256(f"contacts-outcome:{self.world.world_id}:{event['id']}".encode("utf-8")).hexdigest()[:32]
+            payload={"location":location,"source_event":event["id"],"policy":self.policy}
+            self.encounters.offline.scheduler.schedule_in(tx,event_id,event["due_world_ms"],"location:"+location,1,
+                                                         "OfflineContactsRefresh",payload,priority=5)
+        self.store.event(tx,"location:"+location,"ContactsRefreshQueued",
+                         {"source_event":event["id"],"refresh_event":event_id,"coalesced":pending is not None},
+                         event["due_world_ms"],committed_ms=self.world.now())
+
+    def refresh_in(self, tx, event):
+        capture=json.loads(event["payload"])
+        if self.policy is None or any(self.policy[key]!=capture["policy"][key] for key in ("horizon_ms","radius")):
+            raise Unavailable("restore the captured automatic planning policy before refresh")
+        location,at=capture["location"],event["due_world_ms"]
+        started=time.monotonic()
+        self.cancel_windows_in(tx,location,at)
+        if not any(row["arrival_ms"]>at for row in self.active_routes_in(tx,location)):
+            return {"location":location,"source_event":capture["source_event"],"reason":"no continuing physical routes"},False
+        digest=hashlib.sha256(f"contacts-refresh:{event['id']}:{self.world.seed}".encode("utf-8")).hexdigest()
+        payload={"type":"offline_plan","location":location,"horizon_ms":self.policy["horizon_ms"],
+                 "radius":self.policy["radius"],"seed":int(digest[:16],16)}
+        result=self.plan_in(tx,"world:contacts",digest[:32],payload,planning_now=at,moving_only=True)
+        following=self.schedule_window_in(tx,location,at,digest,0)
+        if (time.monotonic()-started)*1000>self.policy["budget_ms"]:
+            raise Unavailable("automatic outcome refresh work budget exhausted")
+        return {"location":location,"source_event":capture["source_event"],"refresh_ms":at,
+                "next_event":following,**result},True
 
     def active_routes_in(self, tx, location):
         return tx.execute("SELECT r.entity_id,r.arrival_ms FROM route r JOIN entity e ON e.id=r.entity_id "

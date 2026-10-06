@@ -15,6 +15,7 @@ class World:
         self.scale_handlers = []
         self.quest_death_queue = None
         self.scheduler_handlers = {}
+        self.scheduler_event_observers = {}
         self.mutation_drain = None
         self.mutation_observers = {}
         self._mutation_cut = None

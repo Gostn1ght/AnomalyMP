@@ -26,6 +26,12 @@ class Scheduler:
         self.store.event(tx, row["aggregate_id"], "ScheduledEventApplied" if applied else "ScheduledEventCancelled",
                          {"event_id": row["id"], "result": result, "applied_world_ms": now},
                          row["due_world_ms"], committed_ms=now)
+        # Publish causal continuations only after the source projection is
+        # APPLIED, in this same transaction. A follow-up must not invalidate
+        # its own still-PENDING source during reservation discovery.
+        if applied:
+            for observer in self.world.scheduler_event_observers.values():
+                observer(tx, row, result)
 
     def drain_due_in(self, tx, cutoff, limit=64, budget_ms=5):
         """Resolve earlier dependencies inside the caller's mutation transaction.
@@ -33,7 +39,7 @@ class Scheduler:
         Exhaustion refuses the entire command, including this catch-up. The
         background runner can commit separate bounded batches before a retry.
         Handlers must not recursively enter a world mutation or replan their
-        currently PENDING event; automatic resolver replanning is not enabled.
+        currently PENDING event; continuations publish after its APPLIED write.
         """
         finite(cutoff)
         if type(limit) is not int or not 1 <= limit <= 256 or not 0 < budget_ms <= 1000:

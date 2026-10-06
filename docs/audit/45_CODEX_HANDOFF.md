@@ -476,3 +476,13 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   Native character/account files are still independent commits; coherent
   world/player crash transaction and every native transfer wallet path remain
   open. No new runtime installation or task-43 whole-stage closure claimed.
+
+- b54a82bda backend 37415278999 SUCCESS Windows+Linux (182).
+  Native 268caa26d/37414908195 still compiling; no native push.
+- Prepared causal outcome refresh: Scheduler invokes observers after APPLIED
+  within source Tx; RouteArrived/combat/hazard/stash queue physical-time
+  refresh priority5. Arrival no longer loses a later encounter; queue failure
+  rolls source back, restart preserves time, no active routes skips discovery.
+  Same-location/time PENDING refreshes coalesce with journal links; later
+  sources after APPLIED get new IDs. Local full 188 PASS (tests, not tasks),
+  backend Actions pending after push. New AI choices/native bridge still open.
