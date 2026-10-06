@@ -687,4 +687,10 @@
   <string id="st_netcoop_passage_starting">
     <text>Сервер этой локации запускается. Попробуйте через 1-2 минуты.</text>
   </string>
+  <string id="st_netcoop_squad_invite">
+    <text>%s приглашает вас в отряд. Принять: squad accept, отказаться: squad decline</text>
+  </string>
+  <string id="st_netcoop_squad_joined">
+    <text>%s вступил в отряд</text>
+  </string>
 </string_table>

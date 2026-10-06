@@ -687,4 +687,10 @@
   <string id="st_netcoop_passage_starting">
     <text>The server of that location is starting. Try again in 1-2 minutes.</text>
   </string>
+  <string id="st_netcoop_squad_invite">
+    <text>%s invites you to a squad. Accept: squad accept, decline: squad decline</text>
+  </string>
+  <string id="st_netcoop_squad_joined">
+    <text>%s joined the squad</text>
+  </string>
 </string_table>

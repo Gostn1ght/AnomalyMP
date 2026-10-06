@@ -537,6 +537,12 @@ function on_script_message(channel, data)
 			else show_text(string.format(game.translate_string("st_netcoop_bounty_new"), name, reward)) end
 		end
 		return
+	elseif channel == "squad" then
+		-- Loner squads (doc 47 stage 8): an invitation or a new member.
+		local kind, name = string.match(data or "", "^(%a+)|(.*)$")
+		if kind == "invite" then show_text(string.format(game.translate_string("st_netcoop_squad_invite"), name))
+		elseif kind == "joined" then show_text(string.format(game.translate_string("st_netcoop_squad_joined"), name)) end
+		return
 	elseif channel == "faction" then
 		-- The server changed this character's faction (doc 47).
 		local actor = db.actor
