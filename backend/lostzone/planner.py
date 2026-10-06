@@ -1,5 +1,6 @@
 """One atomic earliest-contact admission across combat and physical hazards."""
 import hashlib
+import time
 
 from .plans import reservations
 from .store import Conflict, Invalid, Unavailable, canonical, finite, identifier
@@ -11,6 +12,58 @@ class Planner:
             raise Conflict("contact planners must share one world and offline representation")
         self.world,self.store = world,world.store
         self.encounters,self.hazards = encounters,hazards
+        self.policy = None
+
+    def enable_automatic(self, policy):
+        """Install trusted backend contact discovery on semantic mutations.
+
+        Explicit opt-in: native runtime authority is not adopted by this flag.
+        No timer/per-actor scan, resolver recursion or immediate coarse-combat
+        repetition is introduced. Resolvers still stop routes for AI decisions.
+        """
+        if not isinstance(policy,dict) or set(policy) != {"horizon_ms","radius","max_locations","budget_ms"}:
+            raise Invalid("automatic planning requires a complete trusted work policy")
+        finite(policy["horizon_ms"],1,86_400_000);finite(policy["radius"],.1,200)
+        finite(policy["budget_ms"],1,1000)
+        if type(policy["max_locations"]) is not int or not 1<=policy["max_locations"]<=25:
+            raise Invalid("invalid automatic planning location budget")
+        existing = self.world.mutation_observers.get("offline_contacts")
+        if existing is not None:
+            raise Conflict("automatic contacts already have a world authority")
+        self.policy = dict(policy)
+        self.world.mutation_observers["offline_contacts"] = self.changed_in
+
+    def changed_in(self, tx, actor, command_id, change):
+        kind = change["type"]
+        if kind not in ("route_start","dehydrate","hydrate","scale") and not (kind=="world_state" and change["name"]=="relations"):
+            return
+        if kind in ("route_start","dehydrate","hydrate"):
+            if "location" in change:
+                locations = [change["location"]]
+            else:
+                row = tx.execute("SELECT location FROM entity WHERE id=?",(change["entity_id"],)).fetchone()
+                if not row:
+                    raise Conflict("changed actor lost its persistent location")
+                locations = [row[0]]
+        else:
+            locations = [row[0] for row in tx.execute("SELECT DISTINCT location FROM entity WHERE writer='offline:'||location ORDER BY location LIMIT ?",
+                                                     (self.policy["max_locations"]+1,))]
+        if len(locations)>self.policy["max_locations"]:
+            raise Unavailable("automatic planning location budget exhausted")
+        start = time.monotonic()
+        for location in locations:
+            # Domain-separated source command identity survives retry/restart;
+            # captures already reserved at equal time retain their original RNG.
+            digest = hashlib.sha256(canonical({"world":self.world.world_id,"seed":self.world.seed,
+                                               "actor":actor,"command":command_id,"location":location,
+                                               "purpose":"mutation-contact"}).encode("utf-8")).hexdigest()
+            payload = {"type":"offline_plan","location":location,"horizon_ms":self.policy["horizon_ms"],
+                       "radius":self.policy["radius"],"seed":int(digest[:16],16)}
+            result = self.plan_in(tx,"world:contacts",digest[:32],payload)
+            self.store.event(tx,"location:"+location,"ContactsReplanned",
+                             {"source_actor":actor,"source_command":command_id,"change":kind,**result},self.world.now())
+            if (time.monotonic()-start)*1000>self.policy["budget_ms"]:
+                raise Unavailable("automatic planning time budget exhausted")
 
     @staticmethod
     def resources(option):

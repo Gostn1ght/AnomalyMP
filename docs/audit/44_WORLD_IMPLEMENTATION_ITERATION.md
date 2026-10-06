@@ -782,3 +782,30 @@ This does not enable automatic contact rediscovery or recurring coarse fights,
 nor install a native World Transfer/AOI/LOD adapter. A resolver replan must not
 cancel its own still-PENDING event; execution fencing and time/duration policy
 remain prerequisites. Native follow-up and backend Actions results pending.
+
+## Configured contact subscriber
+
+be790c22c Foundation 37412839032 SUCCESS GCC/MSVC (actual input continuity
+fixture); backend 37412839047 SUCCESS Windows+Linux (159). DX11 37412839020
+checks SUCCESS, engine compilation in progress. No Codex runtime installation.
+
+Trusted optional `offline_planning` config now installs one automatic backend
+observer for route/dehydrate/hydrate/scale/relations. After earlier dependencies
+settle and the mutation applies, combined contact discovery runs at that same
+frozen instant in the transaction. New plans, stale cancellation and source
+change are atomic. Deterministic domain-separated source-command seed/identity,
+replay bypass, same-time retained RNG, max-25 locations and elapsed-work refusal
+are enforced. `ContactsReplanned` records source actor/command and result.
+
+Tests cover trap discovery without a separate plan command, route diversion,
+scale-rebased surface time, dehydration/hydration/diplomacy notifications,
+restart/replay identity, failure rollback, location/time exhaustion and duplicate
+authority refusal. This config is backend opt-in, not native world authority.
+Only the configured horizon is discovered: durable horizon continuation and
+AI-driven replan after resolution remain open. No timer/per-actor scan or
+instant resolver-recursion loop enabled. Full local/Actions results recorded
+after the final verification; strict task 43 criteria are unchanged.
+
+Final local verification: 171 PASS, including a real authenticated HTTP route
+command that creates the captured trap contact/journal without an explicit
+planning command. Automatic subscriber Actions pending after push.

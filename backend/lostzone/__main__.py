@@ -87,7 +87,7 @@ def run(path, port_override=None):
         world = World(store, world_id=config.get("world_id"), seed=config.get("seed"),
                       initial_ms=config.get("initial_ms", 0), scale=config.get("scale", 10))
         server = Server(("127.0.0.1", port), Dispatcher(world, key, config.get("quests", {}),
-                        config.get("items", {}), config.get("traders", {}), config.get("scavenging", {})), credentials)
+                        config.get("items", {}), config.get("traders", {}), config.get("scavenging", {}), config.get("offline_planning")), credentials)
         def checkpoints():
             last = time.monotonic()
             while not stop.wait(1):

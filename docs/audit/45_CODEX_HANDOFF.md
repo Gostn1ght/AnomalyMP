@@ -422,3 +422,15 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   batches unblock retry. Local suite 159 PASS. No automatic contact planner
   or native AOI/LOD adoption enabled; resolver execution fencing/duration and
   native authority bridge still open. Backend Actions pending after push.
+
+- be790c22c Foundation 37412839032 SUCCESS GCC/MSVC, backend 37412839047
+  SUCCESS Windows+Linux (159). DX11 37412839020 checks SUCCESS, compiling.
+  Do not cancel by a native push; upcoming backend/docs-only push is safe.
+- Prepared optional trusted `offline_planning` observer on route/dehydrate/
+  hydrate/scale/relations: same-cut/same-Tx discovery, deterministic source
+  identity, max-25 locations/time admission and journal. Default remains off
+  for native shadow authority. Only configured horizon is covered; durable
+  continuation and resolver/AI-driven replanning remain open. No runtime
+  install, native population/replication edits or claimed task-43 closure.
+- Automatic subscriber complete local suite 171 PASS, including the real
+  authenticated HTTP route->hazard discovery transaction. Actions pending.

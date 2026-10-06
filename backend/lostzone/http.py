@@ -93,7 +93,7 @@ class RateLimit:
 
 
 class Dispatcher:
-    def __init__(self, world, signing_key, quest_definitions=None, catalog=None, trade_profiles=None, scavenging_rules=None):
+    def __init__(self, world, signing_key, quest_definitions=None, catalog=None, trade_profiles=None, scavenging_rules=None, planning_policy=None):
         self.world, self.store = world, world.store
         self.ownership, self.transfers = Ownership(world), Transfers(world, signing_key)
         self.timelines = Timelines(world)
@@ -105,6 +105,8 @@ class Dispatcher:
         self.encounters = Encounters(world, self.offline, self.catalog)
         self.hazards = Hazards(world, self.offline, self.catalog)
         self.planner = Planner(world,self.encounters,self.hazards)
+        if planning_policy is not None:
+            self.planner.enable_automatic(planning_policy)
 
     @staticmethod
     def allowed(principal, location):

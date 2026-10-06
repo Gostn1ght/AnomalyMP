@@ -94,7 +94,7 @@ class Offline:
                            ("offline:" + location, self.store.epoch, canonical(state), row["id"]))
             event = self.store.event(tx, "entity:" + entity_id, "DehydrationCommitted", payload, self.world.now())
             return {"id": entity_id, "version": version + 1, "world_fence": self.store.epoch, "event": event}
-        return self.store.command(actor, command_id, payload, self.world.mutation(apply),
+        return self.store.command(actor, command_id, payload, self.world.mutation(apply,change=(actor,command_id,payload)),
                                   authorize=lambda tx: self.world.require_location(tx, actor, location, fence))
 
     def require_offline(self, tx, entity_id, version=None):
@@ -141,7 +141,7 @@ class Offline:
             event = self.store.event(tx, "entity:" + entity_id, "MovementStarted",
                                      {**payload, "route_version": route_version, "started_ms": now, "arrival_ms": arrival}, now)
             return {"id": entity_id, "version": version + 1, "route_version": route_version, "arrival_ms": arrival, "event": event}
-        return self.store.command(actor, command_id, payload, self.world.mutation(apply))
+        return self.store.command(actor, command_id, payload, self.world.mutation(apply,change=(actor,command_id,payload)))
 
     def schedule_arrival(self, tx, entity_id, version, arrival):
         event_id = hashlib.sha256(f"route-arrival:{entity_id}:{version}".encode("ascii")).hexdigest()[:32]
@@ -233,7 +233,7 @@ class Offline:
             # replication; engine must restore all captures/start Reduced AI.
             return {"entities": [dict(tx.execute("SELECT * FROM entity WHERE id=?", (member["id"],)).fetchone())
                                  for member in self.members(tx, root)], "event": event}
-        return self.store.command(actor, command_id, payload, self.world.mutation(apply),
+        return self.store.command(actor, command_id, payload, self.world.mutation(apply,change=(actor,command_id,payload)),
                                   authorize=lambda tx: self.world.require_location(tx, actor, location, fence))
 
     def scale_changed(self, tx, old_scale, new_scale, now):

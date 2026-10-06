@@ -16,6 +16,7 @@ class World:
         self.quest_death_queue = None
         self.scheduler_handlers = {}
         self.mutation_drain = None
+        self.mutation_observers = {}
         self._mutation_cut = None
         self.plan_validators = {}
         if store.epoch is not None:
@@ -62,7 +63,7 @@ class World:
             result = self._anchor_ms + (now - self._anchor_ns) / 1_000_000 * self._scale
             return finite(result)
 
-    def mutation(self, apply):
+    def mutation(self, apply, *, change=None):
         """Hold one world instant and settle due events before state replacement.
 
         Store.command invokes this only after authorization/idempotency checks,
@@ -79,7 +80,11 @@ class World:
                     from .scheduler import Scheduler
                     Scheduler(self)
                 self.mutation_drain(tx, cutoff)
-                return apply(tx)
+                result = apply(tx)
+                if change is not None:
+                    for observer in self.mutation_observers.values():
+                        observer(tx, *change)
+                return result
             finally:
                 self._mutation_cut = None
         return guarded
@@ -129,7 +134,7 @@ class World:
                        (name, version + 1, encoded))
             event = self.store.event(tx, "world:" + name, "WorldStateChanged", payload, self.now())
             return {"name": name, "version": version + 1, "event": event}
-        return self.store.command(actor, command_id, payload, self.mutation(apply))
+        return self.store.command(actor, command_id, payload, self.mutation(apply,change=(actor,command_id,payload)))
 
     def set_scale(self, actor, command_id, value):
         finite(value, 0.001, 1000)
@@ -145,7 +150,8 @@ class World:
                 tx.execute("UPDATE world SET world_ms=?,scale=?,sequence=sequence+1 WHERE singleton=1", (now, value))
                 event = self.store.event(tx, "world", "ScaleChanged", {"scale": value}, now)
                 return {"world_ms": now, "scale": value, "event": event}
-            result = self.store.command(actor, command_id, {"type": "scale", "value": value}, self.mutation(apply))
+            payload = {"type": "scale", "value": value}
+            result = self.store.command(actor, command_id, payload, self.mutation(apply,change=(actor,command_id,payload)))
             # A retry after later changes returns its old result without
             # rebasing to that stale result or applying the scale twice.
             current = self.store.db.execute("SELECT scale FROM world WHERE singleton=1").fetchone()[0]

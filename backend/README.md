@@ -301,3 +301,39 @@ Cyrillic и разделители. Отказ сохраняет прежние
 encoded admission, а не общей памяти процесса. Все сервисы движения, боя,
 опасностей и scavenging требуют один World со своим Scheduler: чужой world
 отклоняется до регистрации обработчиков или изменения state.
+
+Route/dehydrate/hydrate, world-state/дипломатия, scale и замена timelines теперь
+сначала разрешают уже наступившие scheduled events в той же транзакции, при
+одном зафиксированном времени. Поэтому поздний hydrate или смена дипломатии
+не отменяет бой, физически произошедший раньше команды. Будущие stale captures
+по-прежнему отменяются. До barrier выполняются authorization/idempotency checks.
+CAS conflict, ошибка resolver или превышение 64 событий / 5 ms откатывают всю
+команду вместе с catch-up; фоновый runner затем может завершить события, после
+чего adapter повторяет команду с актуальной версией. Это bounded admission,
+а не обещание завершения обработчика строго за 5 ms.
+
+Опциональная trusted настройка сервиса `offline_planning` включает подписку
+общего contact planner на route/dehydrate/hydrate/scale/relations commands:
+
+```json
+"offline_planning": {
+  "horizon_ms": 86400000,
+  "radius": 50,
+  "max_locations": 25,
+  "budget_ms": 100
+}
+```
+
+Пересчёт использует то же время и транзакцию, что изменение. Отмена старого
+capture, новый маршрут и новые контакты фиксируются либо откатываются вместе.
+Seed/EventID получаются из WorldID, seed мира и source command, replay не
+перебрасывает результат. `ContactsReplanned` содержит причину и source command.
+Отказ по лимиту локаций/времени сохраняет прежний маршрут/резервы/scale.
+Повторная регистрация authority отклоняется; включение не доступно клиентским
+HTTP-командам. Config загружается при старте backend, без него подписка выключена.
+
+Это один bounded проход на изменение, в пределах заданного horizon: durable
+продолжение за его пределами и replan после завершения боя/опасности требуют
+отдельного решения AI и execution fencing. Timer/per-NPC scans и бесконечные
+мгновенные бои не добавлены. Native world authority/AOI/LOD adapter этим флагом
+не включается; engine bridge остаётся read-only shadow.

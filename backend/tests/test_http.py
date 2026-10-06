@@ -92,6 +92,29 @@ class HttpTest(unittest.TestCase):
         self.assertEqual(self.call("POST", "/v1/command", raw='{}', headers={"Content-Type": "text/plain"})[0], 400)
         self.assertEqual(self.call("POST", "/v1/command", raw='{}', headers={"Transfer-Encoding": "chunked"})[0], 400)
 
+    def test_authenticated_route_http_command_discovers_hazard_atomically(self):
+        self.server.dispatcher.planner.enable_automatic({"horizon_ms":300000,"radius":1,"max_locations":25,"budget_ms":1000})
+        status,claimed=self.command("location_claim",{"location":"cordon"})
+        self.assertEqual(status,200);fence=claimed["result"]["fence"]
+        npc,trap=uuid.uuid4().hex,uuid.uuid4().hex
+        states = ((npc,"NPC",{"position":[0,0,0],"health":1}),
+                  (trap,"TRAP",{"position":[5,0,0],"hazard_type":"fire","radius":1,"armed":True,"charges":1,"damage_bp":10000}))
+        for entity_id,kind,state in states:
+            self.assertEqual(self.command("entity_create",{"entity_id":entity_id,"kind":kind,"location":"cordon","fence":fence,"state":state})[0],200)
+        for entity_id,kind,state in reversed(states):
+            self.assertEqual(self.command("dehydrate",{"entity_id":entity_id,"location":"cordon","fence":fence,"version":1,
+                                                       "captures":{entity_id:{"version":1,"state":state}}})[0],200)
+        key=uuid.uuid4().hex
+        status,result=self.command("route_start",{"entity_id":npc,"version":2,"points":[[0,0,0],[10,0,0]],"speed_real":1,"seed":42},token="a"*48,command_id=key)
+        self.assertEqual(status,200)
+        rows=self.store.db.execute("SELECT * FROM scheduled_event WHERE type='OfflineHazard'").fetchall()
+        self.assertEqual(len(rows),1)
+        self.assertEqual(json.loads(rows[0]["payload"])["hazard_id"],trap)
+        source=json.loads(self.store.db.execute("SELECT payload FROM world_event WHERE type='ContactsReplanned' ORDER BY sequence DESC LIMIT 1").fetchone()[0])
+        self.assertEqual((source["source_actor"],source["source_command"]),("admin",key))
+        self.assertEqual(source["contacts"][0]["event_id"],rows[0]["id"])
+        self.assertEqual(result["result"]["id"],npc)
+
     def test_clock_admin_snapshot_and_read_scope(self):
         status, clock = self.call("GET", "/v1/clock")
         self.assertEqual(status, 200)
