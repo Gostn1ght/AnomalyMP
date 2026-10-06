@@ -4262,6 +4262,23 @@ void metric_ai_reaction(u16 npc, u16 player)
 		player, reaction_ms < 0 ? "not seen," : "", reaction_ms);
 }
 
+// Frame time distribution of the 10 s metrics window (doc 43 M01): 1 ms
+// buckets, the last one is 250 ms and more.
+static u32 s_frame_hist[251] = {};
+
+static u32 frame_percentile(u32 total, float share)
+{
+	const u32 wanted = u32(ceilf(float(total) * share));
+	u32 seen = 0;
+	for (u32 i = 0; i < 251; ++i)
+	{
+		seen += s_frame_hist[i];
+		if (seen >= wanted && seen)
+			return i;
+	}
+	return 250;
+}
+
 void metrics_update()
 {
 	client_death_frame();
@@ -4273,6 +4290,7 @@ void metrics_update()
 		s_frame_ema += (float(_min(real_now - s_frame_last, 250u)) - s_frame_ema) * 0.05f;
 	s_frame_last = real_now;
 	++m.frames;
+	++s_frame_hist[_min(dt, 250u)];
 	m.frame_ms_sum += dt;
 	m.frame_ms_max = _max(m.frame_ms_max, dt);
 	if (dt > 33)
@@ -4307,6 +4325,10 @@ void metrics_update()
 		    m.puppet_frames, m.puppet_frames ? 100.f * m.extrap_frames / m.puppet_frames : 0.f, m.jumps, m.jump_max,
 		    m.acks, m.fixes, m.acks ? m.err_sum / m.acks : 0.f, m.err_max, m.owner_rejects, m.owner_reject_max,
 		    m.shots, m.sv_bytes / 1024.f / 10.f, m.sv_objects, m.sv_blocked);
+		if (m.frames)
+			Msg("[Lost Zone][frames] %s %u frames: p50 %u p95 %u p99 %u max %u ms", pure_client() ? "client" : "server", m.frames,
+				frame_percentile(m.frames, 0.5f), frame_percentile(m.frames, 0.95f), frame_percentile(m.frames, 0.99f),
+				m.frame_ms_max);
 		if (!pure_client())
 		{
 			const double to_ms = 1000.0 / double(CPU::qpc_freq) / 10.0; // per second of the 10 s window
@@ -4325,6 +4347,7 @@ void metrics_update()
 	}
 	s_ai_reactions = s_ai_reaction_sum = s_ai_reaction_max = s_ai_unseen = 0;
 	s_ai_notices = s_ai_notice_sum = s_ai_notice_max = 0;
+	memset(s_frame_hist, 0, sizeof(s_frame_hist));
 	for (u32 i = 0; i < prof_count; ++i) { s_prof_ticks[i] = 0; s_prof_calls[i] = 0; }
 	s_ai_updates = s_ai_interval_sum = s_ai_interval_max = 0;
 	if (s_ai_last_update.size() > 4096) s_ai_last_update.clear();

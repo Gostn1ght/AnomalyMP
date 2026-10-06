@@ -4,7 +4,7 @@
 🔧 есть в коде/fixtures, в игре не проверено; 🟡 частично; ⬜ не сделано.
 Генерируется `tools/make-doc43-audit.py`.
 
-Итого: ✅ 17, 🔧 34, 🟡 69, ⬜ 68 из 188.
+Итого: ✅ 19, 🔧 34, 🟡 68, ⬜ 67 из 188.
 
 ## A
 
@@ -86,7 +86,7 @@
 | E06 LOD2: GroupState, маршруты, ресурсы и состояние каждого | ⬜ |  |
 | E07 LOD3: события и аналитические состояния без тика каждого NPC | ⬜ |  |
 | E08 LOD выбирается по максимальному спросу всех наблюдателей | 🔧 | частота AI и онлайн-радиус ALife берутся по ближайшему из всех игроков (максимальный спрос наблюдателей) |
-| E09 PREWARM прогнозирует позицию/скорость/направление игрока, | 🔧 | PREWARM: движущийся игрок считается стоящим там, где будет через 4 с (-netcoop_prewarm); мир впереди выходит в онлайн заранее |
+| E09 PREWARM прогнозирует позицию/скорость/направление игрока, | 🔧 | PREWARM: движущийся игрок считается стоящим там, где будет через 4 с (-netcoop_prewarm); на реальном сервере с 16 ботами: 16 движущихся, ~4 м/с; «никто не появляется на глазах» ещё не замерено |
 | E10 Очередь hydration с бюджетом, приоритетом и deadline | ⬜ |  |
 | E11 Частично: backend допускает полный projected hydration capture | 🟡 | backend projected hydration capture |
 | E12 Catch-up от LastSimulationTime до текущего WorldTime | ⬜ |  |
@@ -112,7 +112,7 @@
 | F06 Частично: backend owner/version/CAS и текущая авторизация при | 🟡 | backend ItemLedger/CAS/dedup/fault tests (Codex); native adapter нет |
 | F07 CommandID/result: повтор запроса не повторяет выдачу или перенос | 🟡 | backend ItemLedger/CAS/dedup/fault tests (Codex); native adapter нет |
 | F08 Сохранение condition, attachments, ammo и индивидуального состояния | 🟡 | condition/ammo/upgrades/item state сохраняются в персонаже и мире |
-| F09 Unique NPC и члены обычных групп не клонируются при hydration | ⬜ |  |
+| F09 Unique NPC и члены обычных групп не клонируются при hydration | 🟡 | рестарт: живые NPC не клонируются и не теряются (77 из 77 тех же id, новых нет); гидрация по чанкам не сделана |
 | F10 Permanent death tombstone: смерть не превращается в respawn | 🟡 | спавнеры и респавн отключены (live лог); tombstone в backend |
 | F11 Quest-protected/PlayerOnly/FactionAccessible права доступа | 🟡 | владелец/список доступа мебели и тайников (код) |
 | F12 Fault injection: одновременный pickup, смерть+trade, | 🟡 | backend ItemLedger/CAS/dedup/fault tests (Codex); native adapter нет |
@@ -180,7 +180,7 @@
 | J07 Полный AI рядом; математическое укрытие/последствия далеко | 🟡 | реальный сервер: укрытия GAMMA загружены (264), укрывшиеся NPC выживают, открытые гибнут в конце выброса (run-emission-cover-test.ps1); офлайн-укрытия - по правилам GAMMA, без расчёта прибытия |
 | J08 Idempotent damage/death/anomaly/artifact effects одного выброса | 🟡 | фаза выброса для поздно вошедших и урон один раз на владельца (fixture) |
 | J09 Отмена stale abstract effect при переходе к наблюдаемой симуляции | ⬜ |  |
-| J10 Приёмка двух location servers, restart на каждой фазе, | 🟡 | рестарт сервера локации посреди выброса проверен на одном сервере; два сервера одновременно - нет |
+| J10 Приёмка двух location servers, restart на каждой фазе, | ✅ | два сервера (Болота+Кордон) в одном выбросе (разница 2 с); Кордон убит посреди выброса, после рестарта продолжил тот же выброс с его фазы, Болота не задело, оба записали завершение (run-emission-cluster-test.ps1, 2026-10-07); перезапущенный отстаёт по фазе ~40 с, пока часы догоняют кластер |
 
 ## K
 
@@ -239,7 +239,7 @@
 | L32 Persistence/Simulation/Replication classes реализованы в общих policies | ⬜ |  |
 | L33 Event связи emission→artifacts→NPC→trade, mutants→routes→loot, | ⬜ |  |
 | L34 Частично: штатный smart-terrain/SMR NPC/mutant replenishment | ✅ | spawners night/guards/bounty и replenishment отключены (live лог) |
-| L35 Сохранить полное состояние живых NPC/мутантов при restart | 🟡 | backend corpse batches; TTL отключены; живые NPC сохраняются в мире (save теперь работает) |
+| L35 Сохранить полное состояние живых NPC/мутантов при restart | ✅ | рестарт реального сервера: все 77 живых NPC и мутантов Болот вернулись с теми же id, секцией, группировкой, отрядом и всеми 235 предметами, рядом с местом сохранения (run-world-living-test.ps1, 2026-10-07) |
 | L36 Частично: release_item_manager и native inventory/weapon/grenade | 🟡 | backend corpse batches; TTL отключены; живые NPC сохраняются в мире (save теперь работает) |
 | L37 Новое наполнение тайников: редко, обычные consumables/materials/ammo; | 🟡 | мебель/тайники/визиты в тайники/костры в серверном Lua (цикл заработал только 2026-10-06) |
 | L38 Проверить цепочку artifact→NPC→corpse→player→trader→player | ⬜ |  |

@@ -17,7 +17,7 @@ $Runtime = (Resolve-Path $Runtime).Path
 $server = Join-Path $Runtime "dedicated\LostZoneServerDX11.exe"
 $appdata = Join-Path $Runtime "appdata\selftest"
 $logs = Join-Path $appdata "logs"
-$debugFile = Join-Path $Runtime "netcoop_debug.lua"
+$debugFile = Join-Path $Runtime "netcoop_debug_k00_marsh.lua"
 Get-ChildItem $appdata -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -notin @("user.ltx") } |
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $logs | Out-Null
