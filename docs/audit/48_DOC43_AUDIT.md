@@ -4,7 +4,7 @@
 🔧 есть в коде/fixtures, в игре не проверено; 🟡 частично; ⬜ не сделано.
 Генерируется `tools/make-doc43-audit.py`.
 
-Итого: ✅ 11, 🔧 28, 🟡 66, ⬜ 83 из 188.
+Итого: ✅ 16, 🔧 28, 🟡 65, ⬜ 79 из 188.
 
 ## A
 
@@ -186,10 +186,10 @@
 
 | Пункт | Статус | Что есть |
 |---|---|---|
-| K01 Частично: backend scheduler/arrival/durable planning windows; | 🟡 | backend offline scheduler/routes/encounters (Codex); engine adapter нет |
-| K02 Частично: backend analytic route/start/arrival/speed; engine adapter нужен | 🟡 | backend offline scheduler/routes/encounters (Codex); engine adapter нет |
-| K03 Частично: backend GroupState хранит конкретных членов/потери; | 🟡 | backend offline scheduler/routes/encounters (Codex); engine adapter нет |
-| K04 Частично: backend actual member contacts и configured mutation | 🟡 | backend offline scheduler/routes/encounters (Codex); engine adapter нет |
+| K01 Частично: backend scheduler/arrival/durable planning windows; | 🟡 | офлайн-бои отрядов GAMMA (OCS full simulation) работают на каждом сервере карты; детерминизма/seed нет |
+| K02 Частично: backend analytic route/start/arrival/speed; engine adapter нужен | 🟡 | офлайн-бои отрядов GAMMA (OCS full simulation) работают на каждом сервере карты; детерминизма/seed нет |
+| K03 Частично: backend GroupState хранит конкретных членов/потери; | 🟡 | офлайн-бои отрядов GAMMA (OCS full simulation) работают на каждом сервере карты; детерминизма/seed нет |
+| K04 Частично: backend actual member contacts и configured mutation | 🟡 | офлайн-бои отрядов GAMMA (OCS full simulation) работают на каждом сервере карты; детерминизма/seed нет |
 | K05 Детерминированный seed из world/event/chunk/day и simulation version | 🟡 | backend offline scheduler/routes/encounters (Codex); engine adapter нет |
 | K06 Результат фиксируется до применения и не зависит от первого игрока | 🟡 | backend offline scheduler/routes/encounters (Codex); engine adapter нет |
 | K07 Потери, ранения, ammo/medical расход, победители и контроль точки | 🟡 | backend offline scheduler/routes/encounters (Codex); engine adapter нет |
@@ -209,21 +209,21 @@
 | L02 Anomaly prewarm создаёт gameplay volumes до replication; | ⬜ |  |
 | L03 Route anomaly risk учитывает опыт, faction, экипировку и знания NPC | ⬜ |  |
 | L04 Детерминированные offline anomaly injuries/deaths/item consequences | ⬜ |  |
-| L05 ArtifactID и одно authoritative состояние world/inventory/container | ⬜ |  |
+| L05 ArtifactID и одно authoritative состояние world/inventory/container | ✅ | рестарт реального сервера: труп с тем же лутом и артефактом NPC, ящик, артефакт на земле - id в id (run-world-persistence-test.ps1, 2026-10-06) |
 | L06 ArtifactSpawnEvents после EmissionEnd определяются заранее, | ⬜ |  |
 | L07 Safe deterministic artifact placement при hydration | ⬜ |  |
 | L08 NPC ищут артефакты offline с equipment/experience/danger/task | ⬜ |  |
-| L09 Артефакт остаётся у NPC, затем в corpse inventory после смерти | ⬜ |  |
+| L09 Артефакт остаётся у NPC, затем в corpse inventory после смерти | ✅ | рестарт реального сервера: труп с тем же лутом и артефактом NPC, ящик, артефакт на земле - id в id (run-world-persistence-test.ps1, 2026-10-06) |
 | L10 GroundLootCluster уменьшает число активных entities; | ⬜ |  |
 | L11 Safe ground placement: поверхность, rotation и downward validation; | ⬜ |  |
 | L12 Persistent stash: содержимое, lock/owner/version/discovery/quest links | 🟡 | мебель/тайники/визиты в тайники/костры в серверном Lua (цикл заработал только 2026-10-06) |
-| L13 Loot seed фиксируется при создании; открытие/рестарт не reroll | ⬜ |  |
+| L13 Loot seed фиксируется при создании; открытие/рестарт не reroll | ✅ | рестарт реального сервера: труп с тем же лутом и артефактом NPC, ящик, артефакт на земле - id в id (run-world-persistence-test.ps1, 2026-10-06) |
 | L14 Частично: backend route discovery/редкость/общие contact reserves | 🟡 | мебель/тайники/визиты в тайники/костры в серверном Lua (цикл заработал только 2026-10-06) |
 | L15 Stash access: PlayerOnly/QuestProtected/NPCAccessible/FactionAccessible | 🟡 | мебель/тайники/визиты в тайники/костры в серверном Lua (цикл заработал только 2026-10-06) |
 | L16 Scavenging ограничен carry capacity/needs/value/faction; | ⬜ |  |
 | L17 Смена оружия NPC оставляет прежнее оружие с тем же item identity | ⬜ |  |
-| L18 Containers имеют authoritative inventory/owner/lock/version; | 🟡 | мебель/тайники/визиты в тайники/костры в серверном Lua (цикл заработал только 2026-10-06) |
-| L19 Corpse: entity ID, death time/cause, inventory и quest association | ⬜ |  |
+| L18 Containers имеют authoritative inventory/owner/lock/version; | ✅ | рестарт реального сервера: труп с тем же лутом и артефактом NPC, ящик, артефакт на земле - id в id (run-world-persistence-test.ps1, 2026-10-06) |
+| L19 Corpse: entity ID, death time/cause, inventory и quest association | ✅ | рестарт реального сервера: труп с тем же лутом и артефактом NPC, ящик, артефакт на земле - id в id (run-world-persistence-test.ps1, 2026-10-06) |
 | L20 Ragdoll→static→abstract corpse без постоянной удалённой physics | ⬜ |  |
 | L21 Частично: native online/offline detach и backend cleanup есть; | 🟡 | backend corpse batches; TTL отключены; живые NPC сохраняются в мире (save теперь работает) |
 | L22 Loot generation policy зависит от world events/economy/выброса, | ⬜ |  |
