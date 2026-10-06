@@ -12,6 +12,7 @@
 #include "ui/UIXmlInit.h"
 #include "ui/UIMap.h"
 #include "alife_simulator.h"
+#include "netcoop.h"
 #include "graph_engine.h"
 #include "actor.h"
 #include "ai_object_location.h"
@@ -255,11 +256,14 @@ void CMapLocation::CalcPosition()
 	CObject* pObject = Level().Objects.net_Find(m_objectID);
 	if (!pObject)
 	{
+		shared_str level;
 		if (m_owner_se_object)
 		{
 			m_position_global = m_owner_se_object->draw_level_position();
 			m_cached.m_Position.set(m_position_global.x, m_position_global.z);
 		}
+		else if (netcoop::pure_client() && netcoop::client_map_position(m_objectID, m_position_global, level))
+			m_cached.m_Position.set(m_position_global.x, m_position_global.z);
 	}
 	else
 	{
@@ -314,7 +318,13 @@ void CMapLocation::CalcLevelName()
 	}
 	else
 	{
-		m_cached.m_LevelName = Level().name();
+		shared_str level;
+		Fvector position;
+		if (netcoop::pure_client() && !Level().Objects.net_Find(m_objectID) &&
+			netcoop::client_map_position(m_objectID, position, level) && level.size())
+			m_cached.m_LevelName = level;
+		else
+			m_cached.m_LevelName = Level().name();
 	}
 }
 
@@ -334,7 +344,13 @@ bool CMapLocation::Update() //returns actual
 
 	CObject* pObject = Level().Objects.net_Find(m_objectID);
 
-	if (m_owner_se_object || (!IsGameTypeSingle() && pObject))
+	// A netcoop client has no ALife: its spots follow the replicated object,
+	// or a position the scripts registered for the id.
+	Fvector client_position;
+	shared_str client_level;
+	const bool client_spot = netcoop::pure_client() &&
+		(pObject || netcoop::client_map_position(m_objectID, client_position, client_level));
+	if (m_owner_se_object || (!IsGameTypeSingle() && pObject) || client_spot)
 	{
 		m_cached.m_Actuality = true;
 		if (IsGameTypeSingle())

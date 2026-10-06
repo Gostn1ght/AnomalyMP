@@ -1259,6 +1259,12 @@ u32 render_get_dx_level()
 CUISequencer* g_tutorial = NULL;
 CUISequencer* g_tutorial2 = NULL;
 
+// netcoop client map spots without ALife (see netcoop::client_map_position).
+static void netcoop_map_position_set_script(u16 id, float x, float y, float z, LPCSTR level)
+{
+	netcoop::client_map_position_set(id, Fvector().set(x, y, z), level);
+}
+
 void start_tutorial(LPCSTR name)
 {
 	// UI sequences (hints, videos) are the players' clients' business. On the
@@ -2819,7 +2825,9 @@ void CLevel::script_register(lua_State* L)
 		def("netcoop_rp_list", &netcoop::script_rp_list),
 		def("netcoop_rp_play", &netcoop::script_rp_play),
 		def("netcoop_rp_stop", &netcoop::script_rp_stop),
-		def("netcoop_rp_active", &netcoop::script_rp_active)
+		def("netcoop_rp_active", &netcoop::script_rp_active),
+		def("netcoop_map_position_set", &netcoop_map_position_set_script),
+		def("netcoop_map_position_clear", &netcoop::client_map_position_clear)
 	];
 
 	module(L, "weather")

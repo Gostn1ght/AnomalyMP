@@ -66,6 +66,12 @@ bool enabled(); // -netcoop on the command line
 // (off: the corpse goes with its loot, as in freeplay; owner 2026-10-06).
 bool corpse_loot_drops();
 bool pure_client(); // netcoop process without a local server
+// Map spots on a pure client (no ALife there): a spot is shown when its object
+// is on the client, or at a position the scripts gave for its id (the
+// player's own PDA pins, far task targets, stashes).
+void client_map_position_set(u16 id, const Fvector& position, LPCSTR level);
+void client_map_position_clear(u16 id);
+bool client_map_position(u16 id, Fvector& position, shared_str& level);
 LPCSTR role_name(u8 role);
 
 // Reads a zero-terminated string without asserting on malformed packets.

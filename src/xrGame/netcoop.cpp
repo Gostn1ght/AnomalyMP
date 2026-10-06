@@ -94,6 +94,34 @@ bool enabled()
 	return state == 1;
 }
 
+namespace
+{
+struct ClientMapPosition
+{
+	Fvector position;
+	shared_str level;
+};
+xr_map<u16, ClientMapPosition> s_client_map_positions;
+}
+
+void client_map_position_set(u16 id, const Fvector& position, LPCSTR level)
+{
+	ClientMapPosition& entry = s_client_map_positions[id];
+	entry.position = position;
+	entry.level = level && level[0] ? level : (g_pGameLevel ? *Level().name() : "");
+}
+
+void client_map_position_clear(u16 id) { s_client_map_positions.erase(id); }
+
+bool client_map_position(u16 id, Fvector& position, shared_str& level)
+{
+	const auto found = s_client_map_positions.find(id);
+	if (found == s_client_map_positions.end()) return false;
+	position = found->second.position;
+	level = found->second.level;
+	return true;
+}
+
 bool corpse_loot_drops()
 {
 	static int state = -1;
