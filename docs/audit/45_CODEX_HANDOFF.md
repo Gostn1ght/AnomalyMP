@@ -618,3 +618,22 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   hook in server_compat; no replication/interest/runtime install/launch changes.
   General backend quest transaction machinery can support the new contracts;
   old story content/definitions must not be used as new contracts.
+
+- 2026-10-06 13:40 (Claude) — нагрузка «все игроки в одной точке» (Болото, боты =
+  настоящие сетевые клиенты-игроки, NPC как во фриплее): 32 — кадр 15 мс, 4 МБ/с;
+  64 — 37 мс, 10,7 МБ/с, 2 таймаута рукопожатия; 128 — обвал: все новые персонажи
+  спавнились в одну точку (капсулы друг в друге → кадр 0,5–5 с → SteamNet 5003).
+  Исправлено: `netcoop_free_spawn_spot` (game_sv_single.cpp) — ближайшая свободная
+  точка по кольцам 1,5 м на AI-сетке. Перепроверка 128 после сборки.
+  Владелец: игроков НЕ замедлять (никаких 15/10 Гц для дальних игроков) — сделано:
+  игроки до 300 м каждый тик, overload/бюджет их не трогают. Неизменённое состояние
+  не-игроков не пересылается (пульс 0,5 с). Сервер не рендерит D3D при активном окне.
+  Новое: `run-cluster-selftest.ps1 -Spread` (по -Bots на каждую карту, 512 = 4×128 —
+  только на целевом ПК 20–30 ядер), `-netcoop_bots_first`, боты повторяют неудачный
+  вход до 3 раз; `run-world-crash-test.ps1` + `-netcoop_world_crash=<point>`
+  (before_alife/after_alife/pointer_temp/after_pointer) и `-netcoop_world_save_period`.
+  Отряды одиночек (`netcoop_squads.script`, вкладка F6 «Отряд»), ЗЗ гп для лидера/
+  замов/допущенных. Профайлер памяти `-mem_profile[=bytes]` + `tools/symaddr.py`
+  (PDB назван в exe LostZoneDX11.pdb — инструмент делает hardlink).
+  ВНИМАНИЕ: «shared strings: memory» в логе — это ЭКОНОМИЯ от общих строк, не расход.
+  До загрузки уровня процесс уже 1040 МБ (на старте DLL 226 МБ) — ищем профайлером.
