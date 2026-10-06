@@ -22,6 +22,8 @@ param(
     [switch]$WithClient
 )
 $ErrorActionPreference = "Stop"
+# "-Maps a,b" through -File arrives as one string.
+$Maps = @($Maps | ForEach-Object { $_ -split "," } | Where-Object { $_ })
 $exe = Join-Path $Runtime "dedicated\LostZoneServerDX11.exe"
 $planPath = Join-Path $Runtime "appdata\server\netcoop_cluster.ltx"
 if (-not (Test-Path $exe)) { throw "missing $exe" }

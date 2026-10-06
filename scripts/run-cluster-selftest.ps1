@@ -21,6 +21,8 @@ param(
     [switch]$LoadOnly
 )
 $ErrorActionPreference = "Stop"
+# "-Maps a,b" through -File arrives as one string.
+$Maps = @($Maps | ForEach-Object { $_ -split "," } | Where-Object { $_ })
 $Runtime = (Resolve-Path $Runtime).Path
 $server = Join-Path $Runtime "dedicated\LostZoneServerDX11.exe"
 $client = Join-Path $Runtime "bin\LostZoneClientDX11.exe"
