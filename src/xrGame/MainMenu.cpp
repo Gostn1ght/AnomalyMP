@@ -702,6 +702,15 @@ void CMainMenu::OnDownloadPatchSuccess()
 
 void CMainMenu::OnSessionTerminate(LPCSTR reason)
 {
+	// The dedicated server has no menu to return to (it crashed here when its
+	// own loopback client was dropped): exit cleanly, the watchdog restarts it.
+	if (g_dedicated_server)
+	{
+		Msg("! [Lost Zone] the server lost its own client (%s): exiting for a restart", reason ? reason : "");
+		FlushLog();
+		Console->Execute("quit");
+		return;
+	}
 	if (m_NeedErrDialog == SessionTerminate && (Device.dwTimeGlobal - m_start_time) < 8000)
 		return;
 

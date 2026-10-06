@@ -140,11 +140,17 @@ bool SteamNetClient::CreateConnection(ClientConnectionOptions & connectOpt)
 	Msg("[SteamNetClient] Connecting to server at %s", szAddr);
 
 
-	SteamNetworkingConfigValue_t options[2];
+	SteamNetworkingConfigValue_t options[3];
 	options[0].SetPtr(k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged,
 		(void*)ClSteamNetConnectionStatusChangedCallback);
 	// Limit the transport handshake, not level loading after connection.
 	options[1].SetInt32(k_ESteamNetworkingConfig_TimeoutInitial, 8000);
+	// The dedicated server's own client connects over loopback in the same
+	// process: losing it ends the server (2026-10-06, 128-player test on an
+	// overloaded PC). Local connections get two minutes, others 30 s.
+	const bool loopback = stricmp(connectOpt.server_name, "localhost") == 0 ||
+		!strncmp(connectOpt.server_name, "127.", 4) || !strcmp(connectOpt.server_name, "::1");
+	options[2].SetInt32(k_ESteamNetworkingConfig_TimeoutConnected, loopback ? 120000 : 30000);
 
 	// Экземпляр для маршрутизации колбэков обязан существовать ДО создания
 	// соединения. На листен-сервере обе стороны делят один
@@ -155,7 +161,7 @@ bool SteamNetClient::CreateConnection(ClientConnectionOptions & connectOpt)
 	// MSYS_CLIENT_DATA, а сервер выжидал все 60 секунд таймаута.
 	s_pCallbackInstance = this;
 
-	m_hConnection = m_pInterface->ConnectByIPAddress(serverAddr, 2, options);
+	m_hConnection = m_pInterface->ConnectByIPAddress(serverAddr, 3, options);
 	if (m_hConnection == k_HSteamNetConnection_Invalid)
 	{
 		Msg("! [SteamNetClient] Failed to create connection");

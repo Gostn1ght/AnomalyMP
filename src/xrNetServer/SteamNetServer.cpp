@@ -99,6 +99,9 @@ bool SteamNetServer::CreateConnection(GameDescriptionData& game_descr, ServerCon
 	// whose queue is late (HasSendQueueRoom).
 	SteamNetworkingUtils()->SetGlobalConfigValueInt32(k_ESteamNetworkingConfig_SendRateMin, 512 * 1024);
 	SteamNetworkingUtils()->SetGlobalConfigValueInt32(k_ESteamNetworkingConfig_SendRateMax, 4 * 1024 * 1024);
+	// A connected player is dropped after 30 s without traffic instead of the
+	// library's 10 s: load spikes (a crowd joining) cut whole servers off.
+	SteamNetworkingUtils()->SetGlobalConfigValueInt32(k_ESteamNetworkingConfig_TimeoutConnected, 30000);
 
 	// CREATE LISTENER
 	// То же самое, что на клиенте: экземпляр маршрутизации должен существовать
