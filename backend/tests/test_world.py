@@ -1,4 +1,5 @@
 import concurrent.futures
+from contextlib import contextmanager
 import hashlib
 import json
 from pathlib import Path
@@ -298,6 +299,88 @@ class WorldTest(unittest.TestCase):
         self.assertEqual(self.store.db.execute("SELECT alive FROM entity WHERE id=?", (members[1],)).fetchone()[0], 0)
         self.assertEqual(self.store.db.execute("SELECT location FROM entity WHERE id=?", (members[1],)).fetchone()[0], "cordon")
         self.assertEqual(self.store.db.execute("SELECT holder FROM item WHERE id=?", (item,)).fetchone()[0], members[0])
+
+    def test_transfer_checkpoint_exact_utf8_escaped_boundary_preserves_all_items(self):
+        npc=self.entity(state={"health":.75,"position":[1,2,3],"memory":'ключ\\"☢'*40})
+        item_ids=[self.item("NPC",npc,state={"condition":.8,"description":'еда\\"☢'*10}) for _ in range(3)]
+        expected={"ids":[npc],"entities":[dict(self.store.db.execute("SELECT * FROM entity WHERE id=?",(npc,)).fetchone())],
+                  "items":[dict(row) for row in self.store.db.execute("SELECT * FROM item WHERE holder=? ORDER BY id",(npc,))]}
+        encoded=json.dumps(expected,sort_keys=True,separators=(",",":"),ensure_ascii=False,allow_nan=False)
+        boundary=len(encoded.encode("utf-8"));self.assertGreater(boundary,1024)
+        refused=Transfers(self.world,b"test-key-"*4,checkpoint_limit=boundary-1)
+        before=len(self.store.events())
+        with self.assertRaises(Invalid):
+            refused.prepare("a",uid(),npc,"cordon",self.a,"garbage",1)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM transfer").fetchone()[0],0)
+        self.assertEqual(len(self.store.events()),before)
+        self.assertEqual(self.store.db.execute("SELECT writer,version FROM entity WHERE id=?",(npc,)).fetchone()[:],("a",1))
+        admitted=Transfers(self.world,b"test-key-"*4,checkpoint_limit=boundary)
+        result=admitted.prepare("a",uid(),npc,"cordon",self.a,"garbage",1)
+        actual=self.store.db.execute("SELECT checkpoint FROM transfer WHERE id=?",(result["transfer_id"],)).fetchone()[0]
+        self.assertEqual(actual,encoded)
+        self.assertEqual({row["id"] for row in json.loads(actual)["items"]},set(item_ids))
+
+    def test_transfer_large_first_item_refuses_before_fetching_remaining_inventory(self):
+        npc=self.entity()
+        for item_id in ("0"*31+"1","f"*32):
+            self.ownership.create_item("a",uid(),item_id,"food","cordon",self.a,"NPC",npc,state={"blob":"я"*3000})
+        transfers=Transfers(self.world,b"test-key-"*4,checkpoint_limit=1024)
+        original_transaction=self.store.transaction
+        fetched=[]
+        class TxView:
+            def __init__(self,tx):self.tx=tx
+            def execute(self,sql,args=()):
+                cursor=self.tx.execute(sql,args)
+                if sql.startswith("SELECT * FROM item WHERE holder=?"):
+                    def rows():
+                        for index,row in enumerate(cursor):
+                            if index:
+                                raise AssertionError("oversized capture read the next inventory row")
+                            fetched.append(row["id"])
+                            yield row
+                    return rows()
+                return cursor
+        @contextmanager
+        def guarded():
+            with original_transaction() as tx:
+                yield TxView(tx)
+        self.store.transaction=guarded
+        try:
+            with self.assertRaises(Invalid):
+                transfers.prepare("a",uid(),npc,"cordon",self.a,"garbage",1)
+        finally:
+            self.store.transaction=original_transaction
+        self.assertEqual(fetched,["0"*31+"1"])
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM transfer").fetchone()[0],0)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM item").fetchone()[0],2)
+        self.assertEqual(self.store.db.execute("SELECT writer,version FROM entity WHERE id=?",(npc,)).fetchone()[:],("a",1))
+
+    def test_group_transfer_admits_metadata_before_reading_bounded_member_states(self):
+        members=[self.entity(state={"health":.75,"memory":"я"*3000}) for _ in range(3)]
+        group=self.entity("GROUP",{"member_ids":members})
+        transfers=Transfers(self.world,b"test-key-"*4,checkpoint_limit=1024)
+        original_transaction=self.store.transaction;fetched=[]
+        class TxView:
+            def __init__(self,tx):self.tx=tx
+            def execute(self,sql,args=()):
+                if sql=="SELECT * FROM entity WHERE id=?" and args[0] in members:
+                    if fetched:
+                        raise AssertionError("group transfer fetched another large member before admission")
+                    fetched.append(args[0])
+                return self.tx.execute(sql,args)
+        @contextmanager
+        def guarded():
+            with original_transaction() as tx:
+                yield TxView(tx)
+        self.store.transaction=guarded
+        try:
+            with self.assertRaises(Invalid):
+                transfers.prepare("a",uid(),group,"cordon",self.a,"garbage",1)
+        finally:
+            self.store.transaction=original_transaction
+        self.assertEqual(fetched,[members[0]])
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM transfer").fetchone()[0],0)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM entity WHERE writer='a' AND version=1").fetchone()[0],4)
 
     def test_snapshot_consistency_and_integrity(self):
         npc = self.entity()

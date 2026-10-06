@@ -347,3 +347,14 @@ arrival=10, window=20; окно не мешает контакту в конеч
 Новое решение AI после завершения боя/опасности, отдельная длительность боя,
 укрытия и native world authority/AOI/LOD adapter ещё нужны. Engine bridge
 остаётся read-only shadow; этот config не переводит native ALife в Coarse.
+
+Transfer Prepare теперь читает entity/item checkpoint потоком и учитывает
+точный canonical UTF-8 размер с escaped JSON, IDs, metadata и разделителями
+до удержания превышающей лимит записи. Default limit остаётся 1 MiB; trusted
+embedding может уменьшить `Transfers(..., checkpoint_limit=...)`, клиентские
+команды этот параметр не задают. Проверка membership читает только metadata
+членов, затем state допускается по бюджету. Переполнение отклоняет Prepare
+до создания token/transfer и заморозки writer/session, не обрезая инвентарь.
+Точные boundary/Unicode и early-read проверки подтверждают сохранение прежних
+владельцев и вещей. Большим группам нужен отдельный chunked handoff protocol,
+а не увеличение неограниченного capture; native bridge по-прежнему впереди.

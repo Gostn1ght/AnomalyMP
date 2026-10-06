@@ -17,12 +17,39 @@ from .ownership import Ownership
 
 
 class Transfers:
-    def __init__(self, world, signing_key):
+    def __init__(self, world, signing_key, *, checkpoint_limit=1024*1024):
         if not isinstance(signing_key, bytes) or len(signing_key) < 32:
             raise Invalid("transfer signing key must contain at least 32 bytes")
+        if type(checkpoint_limit) is not int or not 1024<=checkpoint_limit<=1024*1024:
+            raise Invalid("invalid transfer checkpoint byte budget")
         self.world, self.store = world, world.store
         self.ownership = Ownership(world)
         self.key = signing_key
+        self.checkpoint_limit = checkpoint_limit
+
+    def checkpoint_in(self, tx, ids):
+        """Admit the exact escaped checkpoint envelope while streaming rows.
+
+        Large inventories/groups must not be fully retained before discovering
+        that the final one-MiB handoff is refused. No item/member is truncated.
+        """
+        capture={"entities":[],"items":[],"ids":ids}
+        used=len(canonical(capture,limit=self.checkpoint_limit).encode("utf-8"))
+        def admit(kind,row):
+            nonlocal used
+            if row is None:
+                raise Conflict("transfer capture entity disappeared")
+            record=dict(row)
+            used+=len(canonical(record,limit=self.checkpoint_limit).encode("utf-8"))+(1 if capture[kind] else 0)
+            if used>self.checkpoint_limit:
+                raise Invalid("transfer checkpoint exceeds admission byte budget")
+            capture[kind].append(record)
+        for entity_id in ids:
+            admit("entities",tx.execute("SELECT * FROM entity WHERE id=?",(entity_id,)).fetchone())
+        for entity_id in ids:
+            for row in tx.execute("SELECT * FROM item WHERE holder=? AND kind IN('PLAYER','NPC','CORPSE') ORDER BY id",(entity_id,)):
+                admit("items",row)
+        return canonical(capture,limit=self.checkpoint_limit)
 
     def sign(self, claims):
         encoded = base64.urlsafe_b64encode(canonical(claims).encode("utf-8")).rstrip(b"=")
@@ -81,31 +108,32 @@ class Transfers:
                     raise Invalid("invalid persistent group membership")
                 for member in members:
                     persistent_id(member)
-                    row = tx.execute("SELECT * FROM entity WHERE id=?", (member,)).fetchone()
+                    # Membership admission needs metadata, not every member's
+                    # potentially large state blob before checkpoint budgeting.
+                    row = tx.execute("SELECT id,kind,alive,writer,fence,location FROM entity WHERE id=?", (member,)).fetchone()
                     if not row or member == entity_id or row["kind"] not in ("NPC", "MUTANT"):
                         raise Conflict("invalid persistent group member")
                     # Casualty IDs remain in the roster, but a body stays
                     # where it died. It is never transported with a patrol.
                     if not row["alive"]:
                         continue
-                    row = self.ownership.require_entity(tx, actor, member, source_fence)
+                    if (row["writer"],row["fence"]) != (actor,source_fence):
+                        raise Conflict("entity writer/fence mismatch")
                     if row["location"] != source:
                         raise Conflict("group member is not owned by source")
                     ids.append(member)
                 if len(ids)==1:
                     raise Conflict("group has no living members to transfer")
-            entities = [dict(tx.execute("SELECT * FROM entity WHERE id=?", (value,)).fetchone()) for value in ids]
-            items = [dict(row) for value in ids for row in tx.execute("SELECT * FROM item WHERE holder=? AND kind IN('PLAYER','NPC','CORPSE') ORDER BY id", (value,))]
+            encoded_checkpoint = self.checkpoint_in(tx,ids)
             transfer_id = uuid.uuid4().hex
             expiry = self.world.real_ms() + ttl_ms
             claims = {"audience": "lostzone-transfer-v1", "world_id": self.world.world_id,
                       "transfer_id": transfer_id, "entity_id": entity_id,
                       "target": target, "expires_ms": expiry, "nonce": secrets.token_hex(16)}
             token = self.sign(claims)
-            checkpoint = {"entities": entities, "items": items, "ids": ids}
             tx.execute("INSERT INTO transfer VALUES(?,?,?,?,?,?,NULL,NULL,'PREPARED',?,?,?,?,?)",
                        (transfer_id, entity_id, source, target, actor, source_fence, expiry,
-                        hashlib.sha256(token.encode("ascii")).hexdigest(), canonical(checkpoint),
+                        hashlib.sha256(token.encode("ascii")).hexdigest(), encoded_checkpoint,
                         entity_version, self.store.epoch))
             for value in ids:
                 tx.execute("UPDATE entity SET writer=?,version=version+1 WHERE id=?", ("transfer:" + transfer_id, value))
@@ -113,7 +141,7 @@ class Transfers:
                        ("transfer:" + transfer_id, entity_id))
             tx.execute("UPDATE character SET session_fence=session_fence+1 WHERE id=?", (entity_id,))
             event = self.store.event(tx, "transfer:" + transfer_id, "TransferPrepared",
-                                     {**payload, "id": transfer_id, "checkpoint_hash": hashlib.sha256(canonical(checkpoint).encode("utf-8")).hexdigest()}, self.world.now())
+                                     {**payload, "id": transfer_id, "checkpoint_hash": hashlib.sha256(encoded_checkpoint.encode("utf-8")).hexdigest()}, self.world.now())
             return {"transfer_id": transfer_id, "state": "PREPARED", "token": token, "expires_ms": expiry, "event": event}
         return self.store.command(actor, command_id, payload, apply,
                                   authorize=lambda tx: self.world.require_location(tx, actor, source, source_fence))

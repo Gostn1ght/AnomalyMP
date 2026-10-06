@@ -465,3 +465,14 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   slot-1 logout commits wallet only after character capture, before ownership
   release; account failure retains Actor/dirty wallet and retries. Actual
   cache/wallet/disconnect fixtures expanded; syntax only locally, Actions next.
+
+- 45377df6c GCC pass, MSVC /WX caught account-variable shadowing a fixture
+  global; 268caa26d renamed it. Foundation 37414908176 SUCCESS GCC/MSVC;
+  DX11 37414908195 checks SUCCESS, compiling. No native push until it ends.
+- Backend Transfer Prepare now streams exact canonical checkpoint admission
+  before token/freeze, membership metadata before full blobs, reuses encoding.
+  Default one MiB unchanged, smaller trusted constructor budget. Local 182 PASS,
+  exact UTF-8 boundary and guarded early inventory/group reads; Actions pending.
+  Native character/account files are still independent commits; coherent
+  world/player crash transaction and every native transfer wallet path remain
+  open. No new runtime installation or task-43 whole-stage closure claimed.

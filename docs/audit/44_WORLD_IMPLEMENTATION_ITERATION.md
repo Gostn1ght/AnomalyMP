@@ -854,3 +854,26 @@ Only Python syntax checked locally; native Actions pending after push.
 This is the remote tracked-player logout path. Safe cancellation/rollback of
 unfinished target inventory and coherent cross-host world/player transaction
 remain open; no native runtime installation or ALife teardown change made.
+
+45377df6c GCC passed; MSVC rejected new helper variable `account` shadowing a
+fixture global with /W4 /WX. Renamed in 268caa26d. Foundation 37414908176
+SUCCESS GCC/MSVC including actual cache/wallet/disconnect refusal/retry.
+DX11 37414908195 checks SUCCESS, native compilation in progress. Character
+and account files still have separate commits; this does not close crash
+atomicity of a combined player/world ledger or every native transfer wallet path.
+
+## Streaming transfer checkpoint admission
+
+Prepare no longer retains every group's entity/item state before discovering
+the final checkpoint exceeds one MiB. Exact escaped canonical envelope/IDs/row
+bytes are admitted while reading cursors; oversized groups/inventories refuse
+before token/transfer/writer/session mutation, without truncating anything.
+Group membership uses metadata only before bounded full-state admission.
+Trusted constructor may lower checkpoint_limit for deployment/testing; no
+client override or increased default limit. Encoded checkpoint is reused for
+storage/checksum instead of repeated whole-capture encoding.
+
+Full local suite 182 PASS: exact UTF-8/escaped boundary and one-byte refusal,
+unchanged writer/items/journal on refusal, guarded first-oversized inventory
+and group-state reads. Large groups still require a chunked protocol/native
+adapter; this bounds encoded admission, not total RSS. Backend Actions pending.
