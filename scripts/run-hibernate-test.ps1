@@ -7,7 +7,8 @@
 param(
     [string]$Runtime = (Join-Path $PSScriptRoot "..\..\gamma-runtime"),
     [int]$HibernateAfter = 30,
-    [int]$TimeoutMinutes = 15
+    [int]$TimeoutMinutes = 15,
+    [string]$ServerArgs = ""
 )
 $ErrorActionPreference = "Stop"
 $Runtime = (Resolve-Path $Runtime).Path
@@ -44,7 +45,7 @@ function Memory($p) { $p.Refresh(); "{0} MB working set, {1} MB private" -f [int
 
 $arguments = "-nosplashwindow -noprefetch -netcoop -dbg -multi_instance -logname selftest_hibernate -fsltx fsgame_selftest_server.ltx " +
     "-netport 1367 -netcoop_start_location=hidden_base -netcoop_world=selftest_hibernate -netcoop_cluster_selftest " +
-    "-netcoop_hibernate=$HibernateAfter " +
+    "-netcoop_hibernate=$HibernateAfter $ServerArgs " +
     "-start `"server(all/single/alife/new/portsv=1367/maxplayers=8)`" `"client(localhost/name=serverauthority/port=1367/portcl=1368)`""
 $p = Start-Process -FilePath $server -ArgumentList $arguments -WorkingDirectory $Runtime -WindowStyle Hidden -PassThru
 $bots = $null
