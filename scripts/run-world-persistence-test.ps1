@@ -1,13 +1,13 @@
-# The living world survives a server restart, with the real game binaries
-# (doc 43 L05 L09 L13 L18 L19). On a fresh Great Swamp world the server
-# (through its local debug channel, netcoop_debug.lua):
-#   - gives the nearest ordinary NPC an artefact and kills it,
-#   - puts an item into a container and an artefact on the ground;
-# then records the state: the corpse and every item in it (ids and sections,
-# i.e. the death loot as generated), the container contents, the artefact on
-# the ground. After a world save the server is killed and started again; the
-# same state must come back, id for id: no reroll of the loot, no lost or
-# duplicated items, the artefact still in the corpse.
+# The world across a server restart, with the real game binaries (doc 43
+# L05 L18, corpses per the owner 2026-10-06). On a fresh Great Swamp world the
+# server (through its local debug channel, netcoop_debug.lua):
+#   - gives the nearest ordinary NPC an artefact and kills it (the corpse
+#     holds its freeplay loot and the artefact),
+#   - puts an item into a container and an artefact on the ground.
+# After a world save the server is killed and started again: the container
+# and the ground artefact come back id for id; the corpse is removed with its
+# loot (corpses go on a restart). Then another NPC is killed with the corpse
+# lifetime lowered from 40 minutes to 1 s: it goes with its loot too.
 #   powershell -File scripts\run-world-persistence-test.ps1 -Runtime ..\gamma-runtime
 param(
     [string]$Runtime = (Join-Path $PSScriptRoot "..\..\gamma-runtime"),
@@ -102,6 +102,13 @@ return "STATE corpse=" .. tostring(n ~= nil) .. " alive=" .. tostring(alive) .. 
 "@
 }
 
+function Item-Ids($state) {
+    ([regex]::Matches($state, "items=\[([^\]]*)\]")[0].Groups[1].Value -split "," | Where-Object { $_ } | ForEach-Object { ($_ -split ":")[0] }) -join ","
+}
+function Missing-Lua($ids) {
+    "local s = alife(); local left = {} for _, id in ipairs({$ids}) do if s:object(id) then left[#left + 1] = tostring(id) end end; return 'LEFT ' .. table.concat(left, ',')"
+}
+
 $p = Start-Marsh "a"
 try {
     Wait-For "\[world\] saved \S+ \(bootstrap\)" "the first world save" | Out-Null
@@ -111,7 +118,7 @@ try {
     $npc = $Matches[1]; $art = $Matches[2]; $box = $Matches[3]; $ground = $Matches[4]
     Start-Sleep -Seconds 8 # death loot is made at death
     $before = Run-Lua (State-Lua $npc $box $ground) "state before"
-    Write-Host "before:  $before"
+    Write-Host "before:   $before"
     if ($before -notmatch "corpse=true alive=false" -or $before -notmatch "$art`:af_medusa") { throw "the corpse does not hold the artefact: $before" }
     $len = (Log-Text).Length
     Wait-For "\[world\] saved \S+ \(periodic\)" "a world save after the setup" $len | Out-Null
@@ -120,19 +127,29 @@ try {
 $p = Start-Marsh "b"
 try {
     Wait-For "loading saved world" "the saved world" | Out-Null
-    Wait-For "\[Lost Zone\]\[clock\] server game" "the world running" | Out-Null
-    Start-Sleep -Seconds 5
+    Wait-For "\[corpses\] server start: \d+" "corpse removal at the start" | Out-Null
+    Start-Sleep -Seconds 10
     $after = Run-Lua (State-Lua $npc $box $ground) "state after restart"
-    Write-Host "after:   $after"
-    # Corpses disappear (owner 2026-10-06): with a 1 s lifetime the corpse and
-    # its loot go at the next check (30 s); the container and the ground item stay.
+    Write-Host "after:    $after"
+    $leftA = Run-Lua (Missing-Lua (Item-Ids $before)) "loot of the first corpse"
+    Write-Host "loot:     $leftA"
+    # 40 minutes without a player, shortened to 1 s.
+    $second = Run-Lua $setup "second NPC"
+    if ($second -notmatch "npc=(\d+)") { throw "second setup: $second" }
+    $npc2 = $Matches[1]
+    Start-Sleep -Seconds 8
+    $before2 = Run-Lua (State-Lua $npc2 -1 $ground) "second corpse"
+    Write-Host "second:   $before2"
     Run-Lua "netcoop_corpses.corpse_time = 1; return 'corpse time 1 s'" "corpse time" | Out-Null
-    Start-Sleep -Seconds 40
-    $gone = Run-Lua (State-Lua $npc $box $ground) "state after corpse removal"
-    Write-Host "removed: $gone"
+    Start-Sleep -Seconds 45
+    $gone2 = Run-Lua (State-Lua $npc2 -1 $ground) "second corpse after its time"
+    Write-Host "removed:  $gone2"
+    $leftB = Run-Lua (Missing-Lua (Item-Ids $before2)) "loot of the second corpse"
 } finally { if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force } }
 Set-Content -Path $debugFile -Value "" -Encoding ascii
-if ($after -ne $before) { "FAIL: the world came back different"; exit 1 }
-$expected = $before -replace "corpse=true alive=false items=\[[^\]]*\]", "corpse=false alive=nil items=[]"
-if ($gone -ne $expected) { "FAIL: the corpse did not disappear with its loot (expected: $expected)"; exit 1 }
-"PASS: corpse $npc with its loot and artefact, the container and the ground artefact came back id for id after a restart; then the corpse disappeared with its loot, the rest stayed"
+$kept = ($before -replace "^STATE corpse=true alive=false items=\[[^\]]*\] ", "")
+if ($after -ne "STATE corpse=false alive=nil items=[] $kept") { "FAIL: after the restart expected the corpse gone and '$kept', got: $after"; exit 1 }
+if ($leftA -ne "LEFT ") { "FAIL: the first corpse's loot was not removed with it: $leftA"; exit 1 }
+if ($gone2 -notmatch "^STATE corpse=false alive=nil items=\[\]") { "FAIL: the second corpse did not go after its time: $gone2"; exit 1 }
+if ($leftB -ne "LEFT ") { "FAIL: the second corpse's loot was not removed with it: $leftB"; exit 1 }
+"PASS: container and ground artefact came back id for id after a restart; corpses went with their loot on the restart and after their time without players"

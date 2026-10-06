@@ -62,6 +62,9 @@ local function cluster_due()
     return true, 0
 end
 
+-- Seconds into the running emission, -1 when none (tests, admin).
+function current_elapsed() return started_at and elapsed() or -1 end
+
 local function payload()
     return string.format("%d|%d|%.3f|%d", sequence, started_at and 1 or 0, elapsed(), duration)
 end
