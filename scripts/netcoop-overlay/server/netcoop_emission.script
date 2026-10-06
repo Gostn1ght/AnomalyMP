@@ -138,6 +138,11 @@ function install()
     if installed then return end
     installed = true
     local mgr = manager()
+    -- The shelters (GAMMA fills them in initialize() on the Actor's load,
+    -- which the server never has): without them pos_in_cover() said "no" and
+    -- every online NPC outside a surge-safe smart died at the end, sheltered
+    -- or not.
+    if mgr.init_surge_covers then pcall(mgr.init_surge_covers, mgr) end
     -- The dedicated server has no Actor binder to run the stock main loop.
     mgr.update = function() end
     mgr.start = function() return start() end
