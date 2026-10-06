@@ -44,7 +44,7 @@ bool checked_move(const char* from,const char* to,unsigned long flags) {
 #endif
 }
 #define MoveFileExA checked_move
-using u32=unsigned int; using u64=std::uint64_t; using LPCSTR=const char*;using LPSTR=char*;
+using u16=unsigned short; template<class K,class V> using xr_map=std::map<K,V>; using u32=unsigned int; using u64=std::uint64_t; using LPCSTR=const char*;using LPSTR=char*;
 using string64=char[64];using string128=char[128];using string256=char[256];using string_path=char[260];
 const char* SAVE_EXTENSION=".sav";
 template <size_t N> void xr_sprintf(char (&s)[N],const char* f,...) {
@@ -91,6 +91,7 @@ source += store[store.index("static const u32 world_save_period_ms"):store.index
 source += store[store.index("bool world_store_choose_start"):store.index("// Living player Actors")]
 source += store[store.index("bool world_store_save_now"):store.index("// Every server_update")]
 source += r'''
+void use_take_order() {world_store_note_taken(1);world_store_request_save();(void)world_store_takes_committed(1);}
 std::string contents(const char* file) {std::string s;std::ifstream(file)>>s;return s;}
 template<class F> void rejects(F f) {bool failed=false;try{f();}catch(const std::exception&){failed=true;}assert(failed);}
 int main() {
