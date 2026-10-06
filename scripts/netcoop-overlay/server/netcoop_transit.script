@@ -16,6 +16,7 @@ if command_line and string.find(command_line(), "-netcoop_cluster_selftest", 1, 
 	TRANSIT.check_ms, TRANSIT.chance = 60000, 1
 end
 local next_departure, next_arrival = 0, 0
+local arrival_cursor = ""
 local function transit_enabled()
     -- Each server still loads a whole-Zone ALife registry (H11). Until the
     -- shared persistent-identity/ownership adapter scopes that bootstrap,
@@ -400,6 +401,17 @@ local function validate(record, id)
         assert(type(entry.data) == "table" and type(entry.items) == "table" and #entry.items <= 4096, "invalid member state")
         for _, item in ipairs(entry.items) do entity(item); assert(type(item.data) == "table", "missing item state") end
     end
+    -- A different transfer nonce must not recreate identities already present
+    -- in this target registry. A retry of the same nonce uses its receipt above.
+    -- Retired source storage without an ALife object is not a live duplicate.
+    local state = storage()
+    for engine_id, saved in pairs(state.se_object) do
+        if type(saved) == "table" and ids[saved.netcoop_persistent_id] then
+            assert(type(engine_id) == "number" and engine_id == math.floor(engine_id) and
+                engine_id >= 0 and engine_id < 65535, "invalid identity registry entry")
+            assert(not alife():object(engine_id), "persistent identity already present on target")
+        end
+    end
 end
 
 -- Only receipts already present in a loaded checkpoint are durable. A new
@@ -421,10 +433,13 @@ function arrive()
             if not netcoop_transit_ack(level.name(), id) then return "ack pending" end
         end
     end
-    local text = netcoop_transit_take(level.name())
+    -- Older installed engines keep their legacy selector until upgraded.
+    -- New engines rotate held records without deleting or acknowledging them.
+    local text = netcoop_transit_next and netcoop_transit_next(level.name(), arrival_cursor) or netcoop_transit_take(level.name())
     if type(text) ~= "string" or text == "" then return "nothing" end
     local id, wire = text:sub(1, 32), text:sub(34)
     if not valid_id(id) or text:sub(33, 33) ~= "\n" then return "invalid record" end
+    arrival_cursor = id
     local receipt = journal.inbox[id]
     if receipt then
         assert(receipt.wire == wire, "transfer id conflict")

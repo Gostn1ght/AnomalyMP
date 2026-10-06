@@ -79,17 +79,18 @@ bool script_transit_put(LPCSTR level, LPCSTR id, LPCSTR content)
 	return true;
 }
 
-LPCSTR script_transit_take(LPCSTR level)
+static LPCSTR transit_select(LPCSTR level, LPCSTR after_id, bool report_invalid)
 {
 	static xr_string result;
 	result.clear();
-	if (!enabled() || !cluster_name_valid(level)) return "";
+	if (!enabled() || !cluster_name_valid(level) || !after_id ||
+		(after_id[0] && !transit_id_valid(after_id))) return "";
 	string_path dir, mask; cluster_transit_dir(dir);
 	xr_sprintf(mask, "%s%s_*.record", dir, level);
 	WIN32_FIND_DATAA found;
 	HANDLE search = FindFirstFileA(mask, &found);
 	if (search == INVALID_HANDLE_VALUE) return "";
-	xr_string first;
+	xr_string first, following;
 	do
 	{
 		const xr_string name = found.cFileName;
@@ -97,14 +98,28 @@ LPCSTR script_transit_take(LPCSTR level)
 		if (name.size() != prefix + 32 + 7 || name.substr(0, prefix) != xr_string(level) + "_") continue;
 		if (!transit_id_valid(name.substr(prefix, 32).c_str())) continue;
 		if (first.empty() || name < first) first = name;
+		if (name.substr(prefix, 32) > after_id && (following.empty() || name < following)) following = name;
 	} while (FindNextFileA(search, &found));
 	FindClose(search);
 	if (first.empty()) return "";
-	string_path path; xr_sprintf(path, "%s%s", dir, first.c_str());
+	const xr_string& selected = following.empty() ? first : following;
+	string_path path; xr_sprintf(path, "%s%s", dir, selected.c_str());
 	xr_string content;
-	if (!transit_read(path, content)) return ""; // corruption remains for inspection
-	result = first.substr(xr_strlen(level) + 1, 32) + "\n" + content;
+	if (!transit_read(path, content) && !report_invalid) return "";
+	// A cursor-aware caller receives even a corrupt record's ID, with an
+	// empty payload. Keep the file and let later records proceed on retry.
+	result = selected.substr(xr_strlen(level) + 1, 32) + "\n" + content;
 	return result.c_str();
+}
+
+LPCSTR script_transit_take(LPCSTR level)
+{
+	return transit_select(level, "", false);
+}
+
+LPCSTR script_transit_next(LPCSTR level, LPCSTR after_id)
+{
+	return transit_select(level, after_id, true);
 }
 
 bool script_transit_ack(LPCSTR level, LPCSTR id)

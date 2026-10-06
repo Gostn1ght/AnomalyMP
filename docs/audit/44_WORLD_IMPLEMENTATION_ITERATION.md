@@ -976,3 +976,33 @@ source entity/session/item/trade/quest results while source lease remains active
 real authenticated HTTP replay returns409 after takeover with one entity only.
 These are backend proofs, not whole F06/H07 stage closure. Actions pending after
 push. No native build/launch/install or shared runtime modifications.
+
+## NPC arrival fairness and local identity collision admission
+
+69213eabf backend 37420503094 SUCCESS Windows+Linux (205). The following is a
+native/Lua transit follow-up, independent of backend authority adoption.
+
+New script_transit_next(level, after_id) scans filename metadata, selects the
+next pending ID and wraps after the last. Reads remain nondestructive; even a
+raw corrupt/empty/oversized/NUL record returns its ID with an empty payload to
+cursor-aware Lua, without truncating or acknowledging/deleting its file.
+Each arrival attempt advances the cursor before validation/entrance/restore.
+An unsupported or corrupt head no longer strands later records; it is revisited
+on following rounds. Failed target checkpoint still holds new materialization.
+Legacy take API remains unchanged; old runtime without the new binding retains
+legacy selection until upgraded. Directory enumeration is still linear in
+pending records; this is not a new bounded disk index or compaction protocol.
+
+Before allocating target entities, Lua checks requested persistent squad/member/
+item IDs against the target's saved ID mapping and actual ALife objects. A new
+transfer nonce cannot recreate an identity still present on this target. Same
+nonce uses its durable receipt; retired storage without an actual object does
+not count as a live duplicate. This is local target admission, not global
+cross-host ownership/fencing or permanent-death registry adoption.
+
+Actual Lua script passed all prior source/publish/target/ACK/crash/rollback
+fixtures plus malformed-head rotation and distinct-nonce identity collision.
+Windows actual queue fixture extended for corrupt-ID reporting, next/wrap,
+unchanged legacy behavior and repair, checked for Python syntax only locally.
+Native compilation/execution and full DX11 are reserved for GitHub Actions.
+NPC transit remains opt-in; no live install/launch or task H09/H10 closure.

@@ -521,3 +521,20 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   legal/expiry/same-owner-new-fence/new-owner/handoff/real-HTTP proofs.
   Task43 F06 partial only; native adoption/generations/cross-host fencing open.
   Actions pending after push; no native runtime or replication changes.
+
+- 69213eabf backend 37420503094 SUCCESS Windows+Linux (205).
+- Coordination before native edit: Codex adds a fair non-destructive next-record
+  selector for NPC transit, with declaration/Lua binding in netcoop.h and
+  level_script.cpp only. Also reject incoming persistent IDs already present
+  in target ALife before spawn. Areas transit queue/Lua/actual fixtures; no
+  replication/interest/ALife initializer/runtime changes, default remains off.
+
+- NPC arrival follow-up prepared: new next(level,after_id) Lua binding rotates
+  held records without deleting/ACKing them, exposes corrupt ID with empty
+  payload and preserves legacy take. Actual Lua fixture PASS for held-head
+  progress and new-nonce target persistent-ID collision refusal before spawn.
+  Local mapping checked against ALife, not a global registry/fencing proof.
+  Windows actual queue fixture extended (syntax only locally); native CI next.
+  Full file-name enumeration still linear; no runtime install/launch/default
+  NPC transit changes or H09/H10 whole-stage closure. New binding fallback
+  preserves older installed runtime compatibility until its upgrade.

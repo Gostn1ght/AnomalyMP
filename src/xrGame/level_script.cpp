@@ -2797,6 +2797,7 @@ void CLevel::script_register(lua_State* L)
 		def("netcoop_transit_id", &netcoop::script_transit_id),
 		def("netcoop_transit_put", &netcoop::script_transit_put),
 		def("netcoop_transit_take", &netcoop::script_transit_take),
+		def("netcoop_transit_next", &netcoop::script_transit_next),
 		def("netcoop_transit_ack", &netcoop::script_transit_ack),
 		def("netcoop_pure_client", &netcoop::script_pure_client),
 		def("netcoop_enabled", &netcoop::enabled),

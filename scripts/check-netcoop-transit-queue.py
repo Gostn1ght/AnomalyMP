@@ -102,7 +102,26 @@ int main() {
  write_file(".\\mailbox\\transit\\map_legacy.lua.123.claimed","legacy");
  write_file(".\\mailbox\\transit\\map_incomplete.record.123.tmp","partial");
  assert(std::string(script_transit_take("map")).empty());
- std::cout<<"PASS actual Windows mailbox: nondestructive reads, durable ack/tombstones, retry/collision, rename faults, map/path validation, exact size/NUL/corruption bounds\n";
+ // Cursor selection exposes corrupt ID without a truncated payload, then
+ // rotates to a valid later record. Corruption remains for repair/inspection.
+ const std::string poison(32,'0'), valid=script_transit_id();
+ string_path poison_path;transit_path("map",poison.c_str(),"record",poison_path);
+ write_file(poison_path,std::string("a\0b",3));
+ assert(script_transit_put("map",valid.c_str(),"T0:"));
+ assert(std::string(script_transit_take("map")).empty()); // legacy unchanged
+ assert(script_transit_next("map","")==poison+"\n");
+ assert(script_transit_next("map",poison.c_str())==valid+"\nT0:");
+ assert(script_transit_next("map",valid.c_str())==poison+"\n");
+ assert(std::string(script_transit_next("map","../invalid")).empty());
+ assert(std::string(script_transit_next("../invalid",poison.c_str())).empty());
+ assert(GetFileAttributesA(poison_path)!=INVALID_FILE_ATTRIBUTES);
+ assert(script_transit_ack("map",valid.c_str()));
+ assert(script_transit_next("map",valid.c_str())==poison+"\n");
+ write_file(poison_path,"T0:");
+ assert(script_transit_next("map",valid.c_str())==poison+"\nT0:");
+ assert(script_transit_ack("map",poison.c_str()));
+ assert(std::string(script_transit_next("map",poison.c_str())).empty());
+ std::cout<<"PASS actual Windows mailbox: nondestructive reads, durable ack/tombstones, retry/collision, rename faults, map/path validation, exact size/NUL/corruption bounds, fair cursor selection/repair\n";
 }
 '''
 with TemporaryDirectory(prefix="transit-mailbox-") as tmp:

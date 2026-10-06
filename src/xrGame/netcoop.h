@@ -277,6 +277,9 @@ LPCSTR script_cluster_maps();
 LPCSTR script_transit_id();
 bool script_transit_put(LPCSTR level, LPCSTR id, LPCSTR content);
 LPCSTR script_transit_take(LPCSTR level);
+// Round-robin nondestructive selection after an ID, wrapping at the end.
+// Corrupt files return "id\n" so a held record cannot strand later squads.
+LPCSTR script_transit_next(LPCSTR level, LPCSTR after_id);
 bool script_transit_ack(LPCSTR level, LPCSTR id);
 // Server: may this player's account use the box/placed object (owner and access
 // list kept by netcoop_server_compat.can_access); true for anything unowned.

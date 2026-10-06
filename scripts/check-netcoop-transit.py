@@ -167,9 +167,17 @@ def vm(level, gv):
         wire, _ = records[target][key]
         records[target][key] = wire, True
         return True
+    def take_next(target, after):
+        queue=records.get(target) or {}
+        pending=[key for key in sorted(queue) if not queue[key][1]]
+        if not pending:
+            return ""
+        key=next((key for key in pending if key>after),pending[0])
+        return key+"\n"+queue[key][0]
     g.netcoop_transit_id = new_id
     g.netcoop_transit_put = put
     g.netcoop_transit_take = take
+    g.netcoop_transit_next = take_next
     g.netcoop_transit_ack = ack
     lua.execute(source)
     return lua
@@ -322,6 +330,35 @@ assert marsh.globals().depart(lambda: 0) == "nobody"
 marsh.execute('a.online = false; players[5] = {position = function() return {distance_to = function() return 10 end} end}')
 assert marsh.globals().depart(lambda: 0) == "nobody"
 
+# A malformed first record stays recoverable but no longer strands a valid
+# later squad. The bounded arrival attempt rotates and eventually retries it.
+marsh, escape = pair()
+assert marsh.globals().depart(lambda: 0) == "left"
+poison="0"*32
+records["l01_escape"][poison]=( "invalid wire",False)
+assert escape.globals().arrive() == "record held"
+assert len(escape.globals().created) == 0
+assert escape.globals().arrive() == "arrived"
+assert len(escape.globals().created) == 1
+assert escape.globals().arrive() == "record held"
+assert records["l01_escape"][poison] == ("invalid wire",False)
+
+# Changing a transfer nonce cannot duplicate persistent people or equipment
+# already materialized on this target. Same-nonce receipt retry remains valid.
+marsh, escape = pair()
+assert marsh.globals().depart(lambda: 0) == "left"
+assert escape.globals().arrive() == "arrived"
+original_id,original_record=next(iter(records["l01_escape"].items()))
+copy_id="f"*32
+escape.globals().copy_wire=original_record[0]
+escape.globals().copy_id=copy_id
+copy_wire=escape.execute('local r = assert(deserialize(copy_wire)); r.id = copy_id; return assert(serialize(r))')
+records["l01_escape"][copy_id]=(copy_wire,False)
+assert escape.globals().arrive() == "record held"
+assert len(escape.globals().created) == 1
+assert records["l01_escape"][copy_id][1] is False
+assert any("persistent identity already present" in line for line in escape.globals().logs.values())
+
 # Strict parser rejects executable Lua, truncation, duplicates and resource
 # bombs without ever invoking a compiler or executing mailbox contents.
 escape.execute(r'''
@@ -337,7 +374,7 @@ local cycle = {}; cycle.self = cycle; assert(serialize(cycle) == nil)
 local text = assert(serialize({text = "Привет", flag = false, numbers = {1, -2, .1}}))
 assert(deserialize(text).text == "Привет" and deserialize(text).flag == false)
 ''')
-print("NPC transit PASS: paired checkpoints, crash/retry at source/publish/target/ack, intact inventory, stable IDs and supported Lua/native state, held exit/section, rollback, bounded non-executable wire")
+print("NPC transit PASS: paired checkpoints, crash/retry at source/publish/target/ack, intact inventory, stable IDs and supported Lua/native state, held exit/section, rollback, bounded non-executable wire, held-record rotation and target identity collision refusal")
 escape.execute('command_line = function() return "-netcoop_cluster_selftest" end')
 assert escape.globals().arrive() == "ownership adapter required"
 assert escape.globals().depart(lambda: 0) == "ownership adapter required"
