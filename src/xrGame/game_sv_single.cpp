@@ -13,6 +13,8 @@
 #include "../xrEngine/x_ray.h"
 #include "../xrEngine/dedicated_server_only.h"
 #include "../xrEngine/no_single.h"
+#include "ai_space.h"
+#include "level_graph.h"
 
 static void netcoop_forget_game(game_sv_Single* game);
 
@@ -463,6 +465,56 @@ u16 netcoop_nearest_player_actor(const Fvector& position)
 	return best_id;
 }
 
+// Players arriving at one spot (new characters at the start point, a crowd
+// at a level changer) were spawned inside each other: 60+ character capsules
+// in one place took the server's physics to 0.5-5 s frames and SteamNet
+// dropped every connection (128-player load test, 2026-10-06). A spot taken
+// by another living player moves the newcomer to the nearest free point on
+// rings of 1.5 m around it, on the AI level graph (walkable ground).
+static bool netcoop_spot_taken(const Fvector& position)
+{
+	if (!s_netcoop_game)
+		return false;
+	for (u32 i = 0; i < s_netcoop_actor_ids.size(); ++i)
+	{
+		CSE_Abstract* e = s_netcoop_game->get_entity_from_eid(s_netcoop_actor_ids[i]);
+		CSE_ALifeCreatureAbstract* creature = smart_cast<CSE_ALifeCreatureAbstract*>(e);
+		if (creature && creature->g_Alive() && e->o_Position.distance_to_sqr(position) < 1.1f * 1.1f)
+			return true;
+	}
+	return false;
+}
+
+static void netcoop_free_spawn_spot(CSE_ALifeCreatureActor* actor)
+{
+	if (!netcoop_spot_taken(actor->o_Position) || !ai().get_level_graph())
+		return;
+	const Fvector center = actor->o_Position;
+	for (u32 ring = 1; ring <= 10; ++ring)
+	{
+		const float radius = 1.5f * float(ring);
+		const u32 points = 6 * ring;
+		for (u32 k = 0; k < points; ++k)
+		{
+			const float angle = PI_MUL_2 * (float(k) + 0.5f * float(ring & 1)) / float(points);
+			Fvector candidate;
+			candidate.set(center.x + radius * _cos(angle), center.y, center.z + radius * _sin(angle));
+			const u32 node = ai().level_graph().vertex_id(candidate);
+			if (!ai().level_graph().valid_vertex_id(node))
+				continue;
+			const Fvector ground = ai().level_graph().vertex_position(node);
+			if (_abs(ground.y - center.y) > 2.f || _sqr(ground.x - candidate.x) + _sqr(ground.z - candidate.z) > 1.f)
+				continue;
+			if (netcoop_spot_taken(ground))
+				continue;
+			actor->o_Position = ground;
+			actor->m_tNodeID = node;
+			return;
+		}
+	}
+	// A full 15 m circle: keep the spot (better crowded than in a wall).
+}
+
 CSE_ALifeCreatureActor* game_sv_Single::netcoop_host_actor()
 {
 	if (!m_server)
@@ -538,6 +590,7 @@ void game_sv_Single::netcoop_spawn_actor(ClientID id_who)
 	A->o_Position = pos;
 	A->o_Angle = host->o_Angle;
 	}
+	netcoop_free_spawn_spot(A);
 	Fvector pos = A->o_Position;
 
 

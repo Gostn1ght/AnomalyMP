@@ -44,7 +44,7 @@ bool checked_move(const char* from,const char* to,unsigned long flags) {
 #endif
 }
 #define MoveFileExA checked_move
-using u16=unsigned short; template<class K,class V> using xr_map=std::map<K,V>; using u32=unsigned int; using u64=std::uint64_t; using LPCSTR=const char*;using LPSTR=char*;
+using u16=unsigned short; void world_store_crash_point(const char*) {} template<class K,class V> using xr_map=std::map<K,V>; using u32=unsigned int; using u64=std::uint64_t; using LPCSTR=const char*;using LPSTR=char*;
 using string64=char[64];using string128=char[128];using string256=char[256];using string_path=char[260];
 const char* SAVE_EXTENSION=".sav";
 template <size_t N> void xr_sprintf(char (&s)[N],const char* f,...) {

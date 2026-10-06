@@ -20,6 +20,36 @@
 // - The world clock continues from the saved time (owner's choice pending:
 //   whether offline real time should pass; doc 41 section 21).
 
+// Crash tests (doc 43 G13): -netcoop_world_crash=<point> ends the process at
+// that point of a save, as a kill or power loss would; the next start must
+// load the last complete commit. Points: before_alife, after_alife,
+// pointer_temp, after_pointer. scripts/run-world-crash-test.ps1 uses them.
+static void world_store_crash_point(LPCSTR point)
+{
+	LPCSTR option = strstr(Core.Params, "-netcoop_world_crash=");
+	if (!option) return;
+	string64 wanted = "";
+	sscanf_s(option + xr_strlen("-netcoop_world_crash="), "%63[a-z_]", wanted, (unsigned)sizeof(wanted));
+	if (xr_strcmp(wanted, point)) return;
+	Msg("[NetAnomaly][world] crash test: terminating at %s", point);
+	FlushLog();
+	TerminateProcess(GetCurrentProcess(), 3);
+}
+
+// -netcoop_world_save_period=<seconds> (tests); 5 minutes otherwise.
+static u32 world_store_period_ms()
+{
+	static u32 period = 0;
+	if (!period)
+	{
+		u32 seconds = 0;
+		LPCSTR option = strstr(Core.Params, "-netcoop_world_save_period=");
+		if (option) sscanf_s(option + xr_strlen("-netcoop_world_save_period="), "%u", &seconds);
+		period = seconds >= 5 ? seconds * 1000 : 300000;
+	}
+	return period;
+}
+
 static const u32 world_save_period_ms = 300000;
 static bool s_world_loaded = false;
 static bool s_world_cleanup_pending = false;
@@ -180,6 +210,7 @@ static bool world_store_write_pointer(LPCSTR world, LPCSTR save)
 		static_cast<unsigned long long>(script.bytes), static_cast<unsigned long long>(script.hash));
 	const bool written = fwrite(manifest, 1, xr_strlen(manifest), f) == xr_strlen(manifest) && fflush(f) == 0 && _commit(_fileno(f)) == 0;
 	const bool closed = fclose(f) == 0;
+	world_store_crash_point("pointer_temp");
 	return written && closed && MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
 }
 
@@ -311,6 +342,7 @@ bool world_store_save_now(LPCSTR reason)
 	// first packet, so every world save failed (2026-10-06 selftest). The
 	// ALife snapshot is taken from the server entities.
 	LPCSTR stage = "alife snapshot";
+	world_store_crash_point("before_alife");
 	try
 	{
 		const_cast<CALifeSimulator*>(ai().get_alife())->save(save, false);
@@ -325,6 +357,7 @@ bool world_store_save_now(LPCSTR reason)
 		Msg("! [NetAnomaly][world] saving %s failed (%s) at %s", save, reason, stage);
 		return false;
 	}
+	world_store_crash_point("after_alife");
 	// GAMMA ignores some Lua file-write errors. Verify the exact encoded data,
 	// not merely a nonempty/stale sidecar, before committing the pair.
 	::luabind::functor<bool> script_snapshot_ready;
@@ -339,6 +372,7 @@ bool world_store_save_now(LPCSTR reason)
 		Msg("! [NetAnomaly][world] saved %s but could not point %s.current to it", save, world);
 		return false;
 	}
+	world_store_crash_point("after_pointer");
 	s_world_last_save = real_time_ms();
 	s_world_committed = true;
 	++s_world_commits;
@@ -384,7 +418,7 @@ static void world_store_update(xrServer* server)
 	// Characters with items from the world wait for this; at most once a minute.
 	else if (s_world_save_requested && now - s_world_last_save >= 60000 &&
 		now - s_world_last_attempt >= world_save_retry_ms) world_store_save_now("player items");
-	else if (now - s_world_last_save >= world_save_period_ms &&
+	else if (now - s_world_last_save >= world_store_period_ms() &&
 		now - s_world_last_attempt >= world_save_retry_ms) world_store_save_now("periodic");
 	s_world_previous_players = counter.count;
 }
