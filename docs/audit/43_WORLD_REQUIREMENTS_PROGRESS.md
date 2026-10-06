@@ -211,7 +211,9 @@ Unique NPC, anti-duplication. Контракты: 42 §3, §7; W6.
 - [ ] F04. Единый atomic MoveItem вместо независимых remove/add.
 - [ ] F05. WORLD/PLAYER/NPC/CORPSE/STASH/CONTAINER/TRADE/TRANSFER/DESTROYED
   участвуют в одном ownership контракте.
-- [ ] F06. Validate owner/version и CAS при каждом изменении.
+- [ ] F06. Частично: backend owner/version/CAS и текущая авторизация при
+  CommandID replay, включая lease grant/renew/abort и entity/session/item/
+  quest/trade paths. Native mutation adapter и общие generations ещё нужны.
 - [ ] F07. CommandID/result: повтор запроса не повторяет выдачу или перенос.
 - [ ] F08. Сохранение condition, attachments, ammo и индивидуального состояния.
 - [ ] F09. Unique NPC и члены обычных групп не клонируются при hydration.

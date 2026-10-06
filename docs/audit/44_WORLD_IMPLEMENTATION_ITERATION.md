@@ -949,3 +949,30 @@ Final follow-up: d3da468b5 backend 37418041291 SUCCESS Windows+Linux
 (199 tests each). HTTP cleanup/delivery regression passes on both platforms.
 Stash discovery backend is verified; native adapter and whole W8-W12 stage
 acceptance remain open. No native package installation or launch performed.
+
+## Current authority before command replay
+
+A durable successful command result is no longer returned to a retired local
+writer solely because its CommandID/payload match. Location creation/recovery,
+item creation, renew and transfer Abort validate current source/location lease
+before cache lookup. Entity mutation/death/corpse cleanup, disconnect/resume,
+quest grant/progress, item requester and trade participants check current entity
+writer/fence and location lease via metadata-only reads. Old CAS/alive/session
+state is not rechecked, preserving legal retries after the command's own effect.
+Source entity replies are refused after handoff even with a still-live source
+lease. These checks share Store.command's existing transaction/epoch barrier.
+
+LocationClaim has no caller fence, so a replay validator checks the saved grant's
+fence against the current lease before returning it. An expired/replaced grant
+requires a new CommandID to acquire another fence. Failed replay preserves all
+cached results, ownership, inventory, sessions, quests, transfers and journal.
+This does not turn historical cached payloads into fresh session/generation
+snapshots; native adapter adoption and cross-host ownership remain open.
+
+Full local suite 205 PASS: actual broad command sequences retry legally after
+own effects; expiry, same-principal new fence, new-principal recovery refuse
+old successes without durable mutation; completed character handoff refuses old
+source entity/session/item/trade/quest results while source lease remains active;
+real authenticated HTTP replay returns409 after takeover with one entity only.
+These are backend proofs, not whole F06/H07 stage closure. Actions pending after
+push. No native build/launch/install or shared runtime modifications.

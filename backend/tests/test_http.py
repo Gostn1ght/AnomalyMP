@@ -115,6 +115,24 @@ class HttpTest(unittest.TestCase):
         self.assertEqual(source["contacts"][0]["event_id"],rows[0]["id"])
         self.assertEqual(result["result"]["id"],npc)
 
+    def test_cached_location_success_is_rejected_over_http_after_lease_takeover(self):
+        _,claimed=self.command("location_claim",{"location":"cordon"})
+        fence=claimed["result"]["fence"]
+        key=uuid.uuid4().hex
+        args={"entity_id":uuid.uuid4().hex,"kind":"NPC","location":"cordon","fence":fence,
+              "state":{"position":[0,0,0],"health":1}}
+        original=self.command("entity_create",args,command_id=key)
+        self.assertEqual(original[0],200)
+        self.assertEqual(self.command("entity_create",args,command_id=key),original)
+        with self.store.transaction() as tx:
+            tx.execute("UPDATE location_lease SET expires_ms=0 WHERE location='cordon'")
+        _,replacement=self.command("location_claim",{"location":"cordon"},token="a"*48)
+        self.assertGreater(replacement["result"]["fence"],fence)
+        before=self.store.events()
+        self.assertEqual(self.command("entity_create",args,command_id=key)[0],409)
+        self.assertEqual(self.store.events(),before)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM entity").fetchone()[0],1)
+
     def test_clock_admin_snapshot_and_read_scope(self):
         status, clock = self.call("GET", "/v1/clock")
         self.assertEqual(status, 200)

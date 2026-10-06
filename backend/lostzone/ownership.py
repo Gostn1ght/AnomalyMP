@@ -65,7 +65,8 @@ class Ownership:
                            (entity_id, policy, owner or "public", capacity, encoded))
             event = self.store.event(tx, "entity:" + entity_id, "EntityCreated", payload, self.world.now())
             return {"id": entity_id, "version": 1, "event": event}
-        return self.store.command(actor, command_id, payload, apply)
+        return self.store.command(actor, command_id, payload, apply,
+                                  authorize=lambda tx:self.world.require_location(tx,actor,location,fence))
 
     def admission(self, tx, location, account=None, excluding=None):
         row = tx.execute("SELECT capacity FROM location_lease WHERE location=?", (location,)).fetchone()
@@ -103,6 +104,16 @@ class Ownership:
                 raise Conflict("character session is not active under this owner")
         return row
 
+    def authorize_entity(self, tx, actor, entity_id, fence):
+        # Replays validate current writer/lease, without testing the command's
+        # old CAS version or old alive/session state (which its own effect may
+        # have changed). Read only metadata, not an unbounded state blob.
+        persistent_id(entity_id);positive(fence,"fence")
+        row=tx.execute("SELECT location,writer,fence FROM entity WHERE id=?",(entity_id,)).fetchone()
+        if not row or (row["writer"],row["fence"])!=(actor,fence):
+            raise Conflict("entity writer/fence mismatch")
+        self.world.require_location(tx,actor,row["location"],fence)
+
     def update_entity(self, actor, command_id, entity_id, fence, version, state):
         if not isinstance(state, dict):
             raise Invalid("entity state must be an object")
@@ -118,7 +129,8 @@ class Ownership:
                 tx.execute("UPDATE character SET state=? WHERE id=?", (encoded, entity_id))
             event = self.store.event(tx, "entity:" + entity_id, "EntityStateChanged", payload, self.world.now())
             return {"id": entity_id, "version": version + 1, "event": event}
-        return self.store.command(actor, command_id, payload, apply)
+        return self.store.command(actor, command_id, payload, apply,
+                                  authorize=lambda tx:self.authorize_entity(tx,actor,entity_id,fence))
 
     def disconnect(self, actor, command_id, character_id, fence, version, state):
         if not isinstance(state, dict):
@@ -135,7 +147,8 @@ class Ownership:
             tx.execute("UPDATE player_session SET state='DISCONNECTED',fence=fence+1 WHERE character_id=?", (character_id,))
             event = self.store.event(tx, "entity:" + character_id, "SessionDisconnected", payload, self.world.now())
             return {"id": character_id, "version": version + 1, "event": event}
-        return self.store.command(actor, command_id, payload, apply)
+        return self.store.command(actor, command_id, payload, apply,
+                                  authorize=lambda tx:self.authorize_entity(tx,actor,character_id,fence))
 
     def resume(self, actor, command_id, character_id, location, fence, version):
         persistent_id(character_id)
@@ -159,7 +172,8 @@ class Ownership:
             session_fence = tx.execute("SELECT fence FROM player_session WHERE character_id=?", (character_id,)).fetchone()[0]
             return {"id": character_id, "version": version + 1, "session_fence": session_fence,
                     "state": json.loads(row["state"]), "event": event}
-        return self.store.command(actor, command_id, payload, apply)
+        return self.store.command(actor, command_id, payload, apply,
+                                  authorize=lambda tx:self.authorize_entity(tx,actor,character_id,fence))
 
     def recover_location(self, actor, command_id, location, fence):
         # A newly fenced owner adopts existing records; it does not reroll
@@ -178,7 +192,8 @@ class Ownership:
             event = self.store.event(tx, "location:" + location, "LocationRecovered",
                                      {**payload, "entities": [dict(row) for row in rows]}, self.world.now())
             return {"entities": [dict(row) for row in rows], "event": event}
-        return self.store.command(actor, command_id, payload, apply)
+        return self.store.command(actor, command_id, payload, apply,
+                                  authorize=lambda tx:self.world.require_location(tx,actor,location,fence))
 
     def endpoint(self, tx, actor, location, fence, kind, holder, requester=None):
         if kind not in ITEM_KINDS:
@@ -235,7 +250,8 @@ class Ownership:
                        (item_id, section, kind, holder, quantity, encoded))
             event = self.store.event(tx, "item:" + item_id, "ItemCreated", payload, self.world.now())
             return {"id": item_id, "version": 1, "event": event}
-        return self.store.command(actor, command_id, payload, apply)
+        return self.store.command(actor, command_id, payload, apply,
+                                  authorize=lambda tx:self.world.require_location(tx,actor,location,fence))
 
     @staticmethod
     def check_capacity(tx, kind, holder):
@@ -274,7 +290,10 @@ class Ownership:
                        (source_holder, target_holder))
             event = self.store.event(tx, "item:" + item_id, "ItemMoved", payload, self.world.now())
             return {"id": item_id, "version": version + 1, "event": event}
-        return self.store.command(actor, command_id, payload, apply)
+        def authorize(tx):
+            self.world.require_location(tx,actor,location,fence)
+            self.authorize_entity(tx,actor,requester,fence)
+        return self.store.command(actor, command_id, payload, apply,authorize=authorize)
 
     def kill(self, actor, command_id, entity_id, fence, version, cause):
         identifier(cause)
@@ -283,7 +302,8 @@ class Ownership:
         def apply(tx):
             row = self.require_entity(tx, actor, entity_id, fence, version, alive=True)
             return self.die_in(tx,row,cause,self.world.now(),payload)
-        return self.store.command(actor, command_id, payload, apply)
+        return self.store.command(actor, command_id, payload, apply,
+                                  authorize=lambda tx:self.authorize_entity(tx,actor,entity_id,fence))
 
     def die_in(self, tx, row, cause, occurred_ms, evidence):
         # Called only after the caller has validated its local/offline writer.
@@ -346,7 +366,8 @@ class Ownership:
             event = self.store.event(tx, "entity:" + entity_id, "CorpseRemoved",
                                      {**payload, "items": [item[0] for item in items]}, self.world.now())
             return {"id": entity_id, "version": version + 1, "items": [item[0] for item in items], "event": event}
-        return self.store.command(actor, command_id, payload, apply)
+        return self.store.command(actor, command_id, payload, apply,
+                                  authorize=lambda tx:self.authorize_entity(tx,actor,entity_id,fence))
 
     def location_state(self, actor, location, fence):
         with self.store.lock:

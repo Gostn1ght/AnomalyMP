@@ -511,3 +511,13 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   Follow-up HTTP synchronization/gated cleanup tests passed. Stash discovery
   backend verified, native adoption and W8-W12 whole-stage acceptance open.
   Checkout clean after exact-file documentation commit; no runtime changes.
+
+- Current backend replay authority tightened: Abort/location create/recover/
+  item create/renew check lease before cached result. Metadata-only entity writer
+  checks for update/death/cleanup/session/quest/requester/trade; stale source
+  denied after handoff even with live source lease. Legal retry excludes old
+  CAS/alive/session state. Claim replay validates saved grant fence; expired or
+  replaced grants require new CommandID. Local full 205 PASS, including broad
+  legal/expiry/same-owner-new-fence/new-owner/handoff/real-HTTP proofs.
+  Task43 F06 partial only; native adoption/generations/cross-host fencing open.
+  Actions pending after push; no native runtime or replication changes.

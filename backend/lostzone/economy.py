@@ -153,5 +153,8 @@ class Trade:
             event = self.store.event(tx, "item:" + item_id, "ItemTraded", {**payload,"price":price}, self.world.now())
             return {"item_id": item_id, "item_version": item_version+1, "character_version": character_version+1,
                     "trader_version": trader_version+1, "price": price, "character_money": wallets[0], "trader_money": wallets[1], "event": event}
-        return self.store.command(actor, command_id, payload, apply,
-                                  authorize=lambda tx: self.world.require_location(tx, actor, location, fence))
+        def authorize(tx):
+            self.world.require_location(tx,actor,location,fence)
+            for entity_id in (character_id,trader_id):
+                self.ownership.authorize_entity(tx,actor,entity_id,fence)
+        return self.store.command(actor, command_id, payload, apply,authorize=authorize)

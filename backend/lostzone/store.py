@@ -255,7 +255,7 @@ class Store:
                     self.db.execute("ROLLBACK")
                 raise
 
-    def command(self, actor, command_id, payload, apply, authorize=None):
+    def command(self, actor, command_id, payload, apply, authorize=None, validate_replay=None):
         identifier(actor)
         persistent_id(command_id)
         digest = hashlib.sha256(canonical(payload).encode("utf-8")).hexdigest()
@@ -268,7 +268,10 @@ class Store:
             if old:
                 if old["payload_hash"] != digest:
                     raise Conflict("idempotency key reused for another command")
-                return json.loads(old["result"])
+                result=json.loads(old["result"])
+                if validate_replay is not None:
+                    validate_replay(tx,result)
+                return result
             result = apply(tx)
             tx.execute("INSERT INTO command_result VALUES(?,?,?,?)",
                        (actor, command_id, digest, canonical(result)))

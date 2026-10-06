@@ -245,7 +245,12 @@ class Transfers:
             tx.execute("UPDATE transfer SET state='ABORTED' WHERE id=?", (transfer_id,))
             self.store.event(tx, "transfer:" + transfer_id, "TransferAborted", payload, self.world.now())
             return self.public(tx.execute("SELECT * FROM transfer WHERE id=?", (transfer_id,)).fetchone())
-        return self.store.command(actor, command_id, payload, apply)
+        def authorize(tx):
+            row=tx.execute("SELECT source FROM transfer WHERE id=?",(transfer_id,)).fetchone()
+            if not row:
+                raise Conflict("unknown transfer")
+            self.world.require_location(tx,actor,row[0],source_fence)
+        return self.store.command(actor, command_id, payload, apply,authorize=authorize)
 
     def status(self, actor, transfer_id):
         persistent_id(transfer_id)

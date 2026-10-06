@@ -32,6 +32,18 @@ input/combat restrictions, safe placement и hidden target spawn должны
 Population/item creation требует проверенного bootstrap, не пересоздания
 IDs при каждом подключении.
 
+Повтор CommandID не заменяет текущую авторизацию. Location create/recover/
+renew и abort проверяют действующий lease/fence до выдачи сохранённого ответа.
+Entity update/death/cleanup, session disconnect/resume, quest grant/progress,
+pickup и trade также проверяют текущего writer по metadata; старый source не
+получает entity result после handoff, даже если его собственный lease ещё жив.
+Старую CAS version и alive/session state повторно не проверяют: их мог изменить
+сам уже исполненный запрос. Поэтому законный retry сохраняет прежний ответ и
+не повторяет изменение. `location_claim` дополнительно сверяет сохранённый
+grant fence: после expiry/takeover для нового захвата нужен новый CommandID.
+Эти guards относятся к backend. Engine adapter должен сверять текущие session/
+entity generations; исторический command result не является свежим snapshot.
+
 ## Проверки
 
 ```powershell

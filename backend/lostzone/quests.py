@@ -148,7 +148,8 @@ class Quests:
                             int(requirement.get("alive_required", True)), requirement.get("policy", "FAIL")))
             self.store.event(tx, "quest:" + character_id + ":" + quest_id, "QuestGranted", payload, self.world.now())
             return self.public(tx.execute("SELECT * FROM quest WHERE character_id=? AND id=?", (character_id, quest_id)).fetchone())
-        return self.store.command(actor, command_id, payload, apply)
+        return self.store.command(actor, command_id, payload, apply,
+                                  authorize=lambda tx:self.ownership.authorize_entity(tx,actor,character_id,fence))
 
     def progress(self, actor, command_id, character_id, fence, quest_id, version, event_sequence):
         positive(version)
@@ -196,7 +197,8 @@ class Quests:
                        (stage, canonical(state), rewarded, character_id, quest_id))
             self.store.event(tx, "quest:" + character_id + ":" + quest_id, "QuestProgressed", payload, self.world.now())
             return self.public(tx.execute("SELECT * FROM quest WHERE character_id=? AND id=?", (character_id, quest_id)).fetchone())
-        return self.store.command(actor, command_id, payload, apply)
+        return self.store.command(actor, command_id, payload, apply,
+                                  authorize=lambda tx:self.ownership.authorize_entity(tx,actor,character_id,fence))
 
     def reward(self, tx, character, quest_id, reward):
         state = json.loads(character["state"])

@@ -182,7 +182,8 @@ class World:
                                      {"owner": actor, "fence": fence, "expires_ms": real + ttl_ms}, now)
             return {"location": location, "owner": actor, "fence": fence, "expires_ms": real + ttl_ms, "event": event}
         return self.store.command(actor, command_id, {"type": "claim_location", "location": location,
-                                                     "capacity": capacity, "ttl_ms": ttl_ms}, apply)
+                                                     "capacity": capacity, "ttl_ms": ttl_ms}, apply,
+                                  validate_replay=lambda tx,result:self.require_location(tx,actor,location,result["fence"]))
 
     def renew_location(self, actor, command_id, location, fence, ttl_ms=15000):
         positive(fence, "location fence")
@@ -195,7 +196,8 @@ class World:
             tx.execute("UPDATE location_lease SET expires_ms=? WHERE location=?", (expiry, location))
             return {"location": location, "fence": fence, "expires_ms": expiry}
         return self.store.command(actor, command_id, {"type": "renew", "location": location,
-                                                     "fence": fence, "ttl_ms": ttl_ms}, apply)
+                                                     "fence": fence, "ttl_ms": ttl_ms}, apply,
+                                  authorize=lambda tx:self.require_location(tx,actor,location,fence))
 
     def require_location(self, tx, actor, location, fence):
         row = tx.execute("SELECT * FROM location_lease WHERE location=?", (location,)).fetchone()
