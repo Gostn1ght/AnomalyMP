@@ -2,6 +2,11 @@
 
 2026-10-07, Codex. Follow-up to doc58, in easy/medium-first owner order.
 
+Latest outcome: fixed native four-bot/two-map loss+restart test PASS,
+32completed handoffs, all24item UIDs/state retained. Bounty timer fix installed
+in primary server scripts; new native exes remain private. Full64/max-view
+smoothness and the remaining doc43 stages are still open.
+
 ## Scope and setup
 
 Private probe `_build/live/state-loss-c6525f885`; original probe/results in
@@ -102,3 +107,58 @@ Fixed source5fdedbeedde4c8a2d0f54caba5f378dc0ad45cca:
 Foundation37653762284 SUCCESS GCC sanitizers/MSVC, DX1137653762280 checks SUCCESS;
 full engine/package still pending at this entry. Fixed-build probe staged in
 `_build/live/state-loss-fixed-5fdedbeed`, copied committed state, no new loot.
+
+## Medium follow-up after this native acceptance
+
+Portability of saved character/world checksums needs migration-aware work.
+Actual xrCore/crc32.cpp uses raw CRC32C with SSE4.2, but IEEE CRC32 plus final
+XOR in its fallback; even the empty-buffer checksums differ. Character packet
+and progress readers compare only the current host's crc32(). This probe's
+raw CRC32C decoder is correct for this host and does not prove cross-hardware
+recovery. Do not change global engine CRC casually: existing archives and save
+formats also consume it. Explicit format/compatibility fixtures come before
+any scoped migration. This issue remains open, separate from the bot fix.
+
+## Fixed package verification
+
+DX1137653762280 full engine/checks/package/upload SUCCESS.
+Artifact11497984354,189604134bytes, cache `_build/gha/queued-close-5fdedbeed`.
+ZIP SHA256 `4212f4a3e7b549e782c4f3a89d2e4b2cafa39777cdb19bb4bb96f61462b1f3cc`;
+both exe SHA256 `A0C3CAF6E439F31839F4ACE56D7E34CCC7F91E436A50F40C00C6C913C8ABFFD2`.
+Built-from, manifest and GitHub artifact digest verified. Missing third-party
+DLLs supplied only in the private probe from the previous verified runtime.
+Four-minute fixed-exe bad-network continuation started with copied committed
+world/account/character state; no cleanup or reseeding. Acceptance pending.
+
+## Fixed native acceptance (PASS)
+
+Four-minute continuation on matching5fded GHA exes: final4/4playing,
+0joining/connecting/terminal failures,32departures/32arrivals,3auth redirects,
+0admission errors/retries. EACH bot has4arrival records on EACH map. Both
+bot logs confirm5% loss/reorder/+120ms. Zero Lua/fatal/shader/save/refusal/
+lease errors. No client ClosedByPeer record in this successful run; the
+specific queued-target-plus-close race is deterministic in the actual-method
+GCC sanitizers/MSVC fixture, while native integration verifies the workload.
+Do not claim a controlled native race or graphical-client reproduction.
+
+18NCH7 observations per bot (includes starting committed state): ALL six
+items per bot, including regular PDA, exactly match the original pre-restart
+inventory in EVERY captured observation.24unique UIDs, no duplication; all
+condition/portions/ammo type+magazine/addon0/stack fields preserved. These are
+static inventories; client wear/fire/consumption, nonzero addons, mixed
+magazines and GAMMA Lua weapon-part state remain outside this acceptance.
+
+Both servers loaded saved worlds; no bootstrap. World-save counts:
+Marsh periodic8/last-player-left5; Cordon periodic6/last-player-left4.
+Native BountyRetireProbe recovered the ORIGINAL GAMMA spawn timer from the
+guard closure and reproduced ranks.script nil-actor failure under pcall,
+then verified fixed late-callback retirement and the unchanged state timer.
+This confirms the causal diagnosis, without muting unrelated ranks errors.
+
+Evidence retained: original failure+restart root acceptance.json/histories/
+checks/logs; fixed root acceptance.json/result.txt/inventory-history.json/
+inventory-checks.json and native logs. All probe processes stopped and debug
+channel empty. All four primary exe SHA256 remain FE829FF4... unchanged.
+Server/bot frame gaps and hitches still exist in logs; this is reliability
+and inventory acceptance, not smoothness/performance acceptance or an A/B.
+Historical doc48 counts remain frozen; no full188-stage completion claimed.

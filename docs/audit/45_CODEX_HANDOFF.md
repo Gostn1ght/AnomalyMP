@@ -24,6 +24,15 @@ Claude и Codex работают в одной папке `engine-steamnet` и �
 
 ## Правила владельца (обязательно)
 
+- Codex 2026-10-07, последний итог: source5fded GHA build37653762280 PASS;
+  четыре бота/две карты/5% loss/+120ms: 32/32 завершённых перехода, final4/4,
+  0 terminal/Lua/save ошибок. Все24 UID и полное encoded item state неизменны
+  после рестартов и переходов; native bounty cause/fix доказан (док59).
+  World-rules Lua установлен в primary; новые exe только private.
+  Сложная64/max-view плавность открыта. Следующая средняя задача: совместимость
+  checksum character/world между SSE4.2 CRC32C и IEEE fallback, с миграцией;
+  не менять общий crc32 движка без fixtures/совместимости архивов и сохранений.
+
 - Codex 2026-10-07: native BountyRetireProbe PASS (реальная event queue,
   старый spawn callback удалён, late callback завершён, state callback тот же).
   Ставлю только repo world-rules Lua в обе primary server/scripts после
