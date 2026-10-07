@@ -10,6 +10,9 @@ if os.environ.get("GITHUB_ACTIONS") != "true":
 root = Path(__file__).resolve().parents[1]
 engine = (root / "src/xrGame/netcoop.cpp").read_text(encoding="utf-8")
 characters = (root / "src/xrGame/netcoop_characters.inc").read_text(encoding="utf-8")
+items = (root / "src/xrGame/netcoop_items.inc").read_text(encoding="utf-8")
+start = items.index("static bool item_state_ready_for_save(u16 id)\n{")
+item_ready = items[start:items.index("static void item_state_for_save(", start)]
 start = engine.index("static bool character_restore_progress(Character& character, CActor* actor)\n{")
 progress = engine[start:engine.index("// ---------------------------------------------------------------------------\n// task list replication",start)]
 start = characters.index("struct CharacterRestore\n{")
@@ -144,13 +147,17 @@ struct xrServer {Game* game;};
 struct StubObjects {std::map<u16,CGameObject*> entries;CGameObject* net_Find(u16 id){auto it=entries.find(id);return it==entries.end()?nullptr:it->second;}};
 struct Runtime {StubObjects Objects;};
 Runtime fixture_runtime;Runtime& Level(){return fixture_runtime;}
+namespace item_state {struct State {std::uint64_t uid=0;};}
+struct ItemRecord {item_state::State sent;};
+xr_map<u16,ItemRecord> s_item_records;
+xr_map<u16,item_state::State> s_item_restore;
 u32 fixture_clock=0;u32 real_time_ms(){return fixture_clock;}
 enum {M_SPAWN_OBJECT_LOCAL=1,eItemPlaceSlot=1,eItemPlaceBelt=2,GEG_PLAYER_ITEM2RUCK=10,GEG_PLAYER_ITEM2SLOT=11,GEG_PLAYER_ITEM2BELT=12};
 struct SInvItemPlace {u16 value=0,type=eItemPlaceSlot,slot_id=1;};
 ''' + enums + r'''
 xr_map<xr_string,Character>s_characters;
 xr_map<u16,xr_string>s_actor_character;
-''' + declarations + '\nstatic const u32 task_origin_marker=0x524f434e;\n' + progress + gate + spawn + update + tracked + '\nvoid receive_input(NET_Packet& P,xrClientData* CL){switch(M_CL_INPUT){\n' + input_case + '\ndefault:break;}}\n' + r'''
+''' + declarations + item_ready + '\nstatic const u32 task_origin_marker=0x524f434e;\n' + progress + gate + spawn + update + tracked + '\nvoid receive_input(NET_Packet& P,xrClientData* CL){switch(M_CL_INPUT){\n' + input_case + '\ndefault:break;}}\n' + r'''
 NET_Packet input_packet(u32 sequence,u16 flags=ACTOR_DEFS::mcJump,float yaw=0,float pitch=0){
  NET_Packet packet;u32 position=2;
  auto write=[&](const auto& value){std::memcpy(packet.B.data+position,&value,sizeof(value));position+=u32(sizeof(value));};
@@ -186,7 +193,7 @@ std::vector<u8> saved(u32 count=1,bool footer=true){
  if(footer){number(data,task_origin_marker);number(data,count);for(u32 i=0;i<count;++i){text(data,"quest"+std::to_string(i));text(data,"source-map");}}
  return data;
 }
-void reset(CActor& actor){clear_tasks(&fixture_manager);fixture_manager.changed=0;fixture_available=true;fixture_throw=false;fixture_restore_calls=0;fixture_restored.clear();fixture_clock=0;fixture_events.clear();fixture_item_states.clear();s_characters.clear();s_actor_character.clear();s_character_restore.clear();fixture_runtime.Objects.entries.clear();fixture_runtime.Objects.entries[actor.ID()]=&actor;assert(fixture_scope_depth==0);}
+void reset(CActor& actor){clear_tasks(&fixture_manager);fixture_manager.changed=0;fixture_available=true;fixture_throw=false;fixture_restore_calls=0;fixture_restored.clear();fixture_clock=0;fixture_events.clear();fixture_item_states.clear();s_item_records.clear();s_item_restore.clear();s_characters.clear();s_actor_character.clear();s_character_restore.clear();fixture_runtime.Objects.entries.clear();fixture_runtime.Objects.entries[actor.ID()]=&actor;assert(fixture_scope_depth==0);}
 void save_cache_cases(CActor& actor){
  reset(actor);assert(!character_tracked_for_save(actor.ID()) && s_characters.empty());
  s_actor_character[actor.ID()]="tester:1";
@@ -226,7 +233,15 @@ void admission_cases(CActor& actor,xrClientData& client){
  characters_restore_update();assert(s_character_restore.size()==1 && fixture_restore_calls==0);
  fixture_runtime.Objects.entries[101]=&child;child.parent=&actor;
  characters_restore_update();assert(s_character_restore.size()==1 && fixture_restore_calls==0);
- child.parent=&root_item;fixture_throw=true;
+ child.parent=&root_item;
+ // Parents/runtime objects alone must not unlock saving or gameplay.
+ characters_restore_update();assert(s_character_restore.size()==1 && fixture_restore_calls==0);
+ assert(!character_tracked_for_save(actor.ID()) && !server_character_accepts(&client,M_CL_INPUT));
+ s_item_records[100].sent.uid=41;s_item_records[101].sent.uid=0;
+ characters_restore_update();assert(s_character_restore.size()==1 && fixture_restore_calls==0);
+ s_item_records[101].sent.uid=42;s_item_restore[101].uid=42;
+ characters_restore_update();assert(s_character_restore.size()==1 && fixture_restore_calls==0);
+ s_item_restore.erase(101);fixture_throw=true;
  characters_restore_update();assert(s_character_restore.size()==1 && fixture_restore_calls==1 && fixture_events.empty());
  assert(!server_character_accepts(&client,M_CL_INPUT) && !server_character_accepts(&client,M_CL_UPDATE) && client.net_Ready);
  assert(!server_character_accepts(&client,M_EVENT_PACK) && !server_character_accepts(&client,M_NETCOOP_ITEM_REPORT));

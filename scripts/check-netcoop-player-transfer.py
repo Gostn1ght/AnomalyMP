@@ -25,6 +25,9 @@ wallet_start = engine.index('static bool character_account_money_commit(')
 wallet_end = engine.index('// The disconnected client no longer exists',wallet_start)
 wallet_body = engine[wallet_start:wallet_end]
 characters = (root/"src/xrGame/netcoop_characters.inc").read_text(encoding="utf-8")
+items = (root/"src/xrGame/netcoop_items.inc").read_text(encoding="utf-8")
+item_ready_start = items.index('static bool item_state_ready_for_save(u16 id)\n{')
+item_ready_body = items[item_ready_start:items.index('static void item_state_for_save(',item_ready_start)]
 inventory_start = characters.index('static bool character_inventory_complete(')
 inventory_end = characters.index('\nstatic void character_capture_items(',inventory_start)
 inventory_body = characters[inventory_start:inventory_end]
@@ -203,26 +206,34 @@ void run(){
 '''
 inventory_fixture = r'''
 namespace inventory_fixture {
+namespace item_state {struct State {std::uint64_t uid=0;};}
+struct ItemRecord {item_state::State sent;};
+std::map<u16,ItemRecord> s_item_records;
+std::map<u16,item_state::State> s_item_restore;
 template<class T>using xr_vector=std::vector<T>;
 struct CSE_Abstract {virtual ~CSE_Abstract()=default;u16 ID=1,ID_Parent=0xffff;std::vector<u16>children;};
 struct CSE_ALifeInventoryItem:CSE_Abstract {};
 template<class T>T smart_cast(CSE_Abstract* item){return dynamic_cast<T>(item);}
 struct Game {std::map<u16,CSE_Abstract*>items;CSE_Abstract* get_entity_from_eid(u16 id){auto it=items.find(id);return it==items.end()?nullptr:it->second;}};
 struct xrServer {Game* game;};
-'''+inventory_body+r'''
+'''+item_ready_body+inventory_body+r'''
 struct Tree {
  Game game;xrServer server{&game};CSE_Abstract root;
  std::vector<std::unique_ptr<CSE_Abstract>>storage;
  CSE_Abstract* add(u16 id,CSE_Abstract* parent,bool inventory=true){
   std::unique_ptr<CSE_Abstract>item;
   if(inventory)item.reset(new CSE_ALifeInventoryItem);else item.reset(new CSE_Abstract);
+  s_item_records[id].sent.uid=id;
   item->ID=id;item->ID_Parent=parent->ID;parent->children.push_back(id);
   auto result=item.get();game.items[id]=result;storage.push_back(std::move(item));return result;
  }
  bool complete(){xr_vector<u16>visited{root.ID};return character_inventory_complete(&server,&root,0,visited);}
 };
 void run(){
- {Tree t;assert(t.complete());t.add(2,&t.root);assert(t.complete());}
+ {Tree t;assert(t.complete());t.add(2,&t.root);assert(t.complete());
+  s_item_records.erase(2);assert(!t.complete());s_item_records[2].sent.uid=0;assert(!t.complete());
+  s_item_records[2].sent.uid=2;s_item_restore[2].uid=2;assert(!t.complete());
+  s_item_restore.erase(2);assert(t.complete());}
  {Tree t;t.root.children.push_back(2);assert(!t.complete());}
  {Tree t;auto item=t.add(2,&t.root);item->ID_Parent=3;assert(!t.complete());}
  {Tree t;auto item=t.add(2,&t.root);item->ID=3;assert(!t.complete());}

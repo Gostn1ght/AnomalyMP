@@ -24,6 +24,13 @@ Claude и Codex работают в одной папке `engine-steamnet` и �
 
 ## Правила владельца (обязательно)
 
+- Codex 2026-10-07: NCH8 native migration PASS, но restart strict observer
+  поймал промежуточную запись nbot_002 с UID0/default medkit (rev60), затем
+  rev61 исправилась. Приёмку НЕ закрываю. Трогаю item readiness/character
+  restore+capture guards и actual-method fixtures: структура/parent уже
+  готовы раньше budgeted item scan, поэтому старый admission gate снимается
+  до применения saved UID/portions. Оригинальные logs/history сохраняю.
+
 - Codex 2026-10-07: следующая средняя задача — NCH8 с явным canonical raw
   CRC32C и чтением NCH3–7 обоих старых CPU вариантов. Трогаю character I/O,
   scoped helper/header, actual-reader/writer fixtures и CI/project registration.

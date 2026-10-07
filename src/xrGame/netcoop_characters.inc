@@ -684,6 +684,9 @@ static bool character_inventory_complete(xrServer* server, CSE_Abstract* parent,
 		if (id == 0xffff || visited.size() >= 513 || std::find(visited.begin(), visited.end(), id) != visited.end()) return false;
 		CSE_Abstract* item = server->game->get_entity_from_eid(id);
 		if (!item || item->ID != id || item->ID_Parent != parent->ID || !smart_cast<CSE_ALifeInventoryItem*>(item)) return false;
+		// A runtime child can attach before the budgeted item scan applies its
+		// saved UID/portions. Keep the previous snapshot until that scan finishes.
+		if (!item_state_ready_for_save(id)) return false;
 		visited.push_back(id);
 		if (!character_inventory_complete(server, item, depth + 1, visited)) return false;
 	}
@@ -756,7 +759,7 @@ static bool character_save_actor(u16 actor_id, const CharacterDestination* desti
 		xr_vector<u16> visited; visited.push_back(actor_id);
 		if (!character_inventory_complete(server, actor, 0, visited))
 		{
-			Msg("[Lost Zone] character save refused: inventory tree is incomplete, cyclic, or exceeds capture limits (actor %u)", actor_id);
+				Msg("[Lost Zone] character save refused: inventory tree/state is incomplete, cyclic, or exceeds capture limits (actor %u)", actor_id);
 			return false;
 		}
 	}
@@ -811,7 +814,8 @@ static void characters_restore_update()
 		for (const auto& expected : it->second.entities)
 		{
 			CGameObject* item = smart_cast<CGameObject*>(Level().Objects.net_Find(expected.first));
-			if (!item || !item->H_Parent() || item->H_Parent()->ID() != expected.second) { ready = false; break; }
+			if (!item || !item->H_Parent() || item->H_Parent()->ID() != expected.second ||
+				!item_state_ready_for_save(expected.first)) { ready = false; break; }
 		}
 		if (!ready) { ++it; continue; }
 		const auto key = s_actor_character.find(actor->ID());

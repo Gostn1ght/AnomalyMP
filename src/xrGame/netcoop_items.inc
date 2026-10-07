@@ -485,6 +485,13 @@ void server_on_item_report(xrServer* server, xrClientData* CL, NET_Packet& P)
 // ---- persistence ------------------------------------------------------------
 // Character saves keep the uid, portions and the cartridge sequence next to
 // the spawn packet of each item.
+static bool item_state_ready_for_save(u16 id)
+{
+	const auto found = s_item_records.find(id);
+	return found != s_item_records.end() && found->second.sent.uid != 0 &&
+		s_item_restore.find(id) == s_item_restore.end();
+}
+
 static void item_state_for_save(u16 id, xr_vector<u8>& out)
 {
 	out.clear();
