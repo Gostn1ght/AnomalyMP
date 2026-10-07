@@ -206,7 +206,7 @@ with TemporaryDirectory(prefix="actual-scheduler-") as tmp:
             exe = exe.with_suffix(".exe")
             command = ["cl", "/nologo", "/std:c++17", "/EHsc", "/W4", "/O2", *(["/DDEBUG"] if debug else []), *sources, "/Fe:"+str(exe)]
         else:
-            command = ["g++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-unused-variable",
+            command = ["g++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-unused-variable", "-Wno-unused-but-set-variable",
                        "-O1", "-g", "-fsanitize=address,undefined", "-fno-omit-frame-pointer", *(["-DDEBUG"] if debug else []), *sources, "-o", str(exe)]
         subprocess.run(command, check=True, cwd=folder)
         subprocess.run([str(exe)], check=True, cwd=folder, timeout=120)
