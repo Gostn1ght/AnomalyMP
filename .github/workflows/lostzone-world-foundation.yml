@@ -61,6 +61,7 @@ on:
       - 'scripts/check-netcoop-character-commits.py'
       - 'scripts/check-netcoop-character-restore.py'
       - 'scripts/check-netcoop-replication-index.py'
+      - 'scripts/fixtures/full-rate-cadence/**'
       - '.github/workflows/lostzone-world-foundation.yml'
   workflow_dispatch:
 

@@ -66,7 +66,7 @@ concurrent producer/report and reset/rollover on GCC+sanitizers and MSVC.
 This does not certify full transport lifecycle or race freedom of unrelated
 existing connection code. Native fixture compilation/execution is Actions only.
 
-Load clients were also drawing the main menu through the normal rendering gate.
+Load clients were also eligible to draw the main menu through the normal rendering gate.
 Reuse existing -netcoop_bots detection to skip Begin/seqRender/Present only for
 load clients, retaining OnFrame, networking/input and existing 10 ms cadence.
 Ordinary graphical clients and dedicated simulation are unaffected. Renderer
@@ -84,3 +84,13 @@ population reduction or new live checkmarks in the 188-stage audit.
 Existing profile_ai/metric_ai_update wraps CustomMonster Think; stalker overrides
 its schedule and Think path. Treating it as inclusive stalker Lua/planner/vision
 profile or deriving all-stalker AI cadence from it is incorrect.
+
+Diagnostic source9e256b9b2: Foundation 37593806445 PASS on MSVC and GCC; actual
+callback/probe fixture passed both OS. DX11 37593806421 still compiling at this
+recording point. Isolated repeat directories prepared with unchanged GAMMA
+fs_root/working directory. Host is an i5-2500K with four cores/four threads;
+shared-host load contention remains a material limit.
+
+Diagnostic DX11 37593806421 SUCCESS full checks/engine/package/upload. Matching
+client/server artifact 11469784291 (189954533 bytes); isolated native repeats
+follow before interpreting the two gap measurements.

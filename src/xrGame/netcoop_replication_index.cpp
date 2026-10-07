@@ -70,9 +70,14 @@ bool ReplicationIndex::prepare(const ReplicationRecord* records,std::size_t coun
             state.offsets[record.id]=offset;
             state.used_ids.push_back(record.id);
             state.xs[i]=record.x;state.ys[i]=record.y;state.zs[i]=record.z;
-            state.cells.push_back({cell_key(cell_of(record.x),cell_of(record.z)),offset});
-            state.buckets[record.id%16].push_back(offset);
+            // Globally selected every tick: no spatial lookup or stagger bucket
+            // can add another protected state to the result.
             if (record.full_rate) state.full_rate.push_back(offset);
+            else
+            {
+                state.cells.push_back({cell_key(cell_of(record.x),cell_of(record.z)),offset});
+                state.buckets[record.id%16].push_back(offset);
+            }
         }
         std::sort(state.cells.begin(),state.cells.end(),
             [](const State::Cell& a,const State::Cell& b){return a.key<b.key;});

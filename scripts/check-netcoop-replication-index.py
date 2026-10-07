@@ -2,6 +2,7 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import os
+import hashlib
 import subprocess
 
 if os.environ.get("GITHUB_ACTIONS") != "true":
@@ -10,9 +11,12 @@ if os.environ.get("GITHUB_ACTIONS") != "true":
 root = Path(__file__).resolve().parents[1]
 game = root / "src/xrGame"
 server = (game / "xrServer.cpp").read_text(encoding="utf-8")
-start = server.index("\t\t\t\tconst float d = c.id == CL->owner->ID")
+start = server.index("\t\t\t\tconst float d =")
 end = server.index("\t\t\t\tif ((server->m_aoi_tick + c.id) % every)", start)
 cadence = server[start:end]
+reference_path = root / "scripts/fixtures/full-rate-cadence/cadence.cpp"
+reference = reference_path.read_text(encoding="utf-8")
+assert hashlib.sha256(reference.encode("utf-8")).hexdigest() == "cbef7e47e7982084081bb30a8e6eb39a0a6db763cf979febf3af642fdee67537"
 source = r'''
 #include "netcoop_replication_index.h"
 #include <algorithm>
@@ -25,9 +29,10 @@ source = r'''
 #include <vector>
 using u16=std::uint16_t;using u32=std::uint32_t;
 using namespace netcoop_world;
+std::uint64_t distance_calls=0;
 struct Fvector {
  float x,y,z;
- float distance_to(const Fvector& p)const{return std::sqrt((x-p.x)*(x-p.x)+(y-p.y)*(y-p.y)+(z-p.z)*(z-p.z));}
+ float distance_to(const Fvector& p)const{++distance_calls;return std::sqrt((x-p.x)*(x-p.x)+(y-p.y)*(y-p.y)+(z-p.z)*(z-p.z));}
 };
 struct Chunk {u16 id;bool full_rate;Fvector position;};
 bool eligible(const ReplicationRecord& record,u16 owner,const Fvector& eye,u32 tick,u32 far_scale=1) {
@@ -48,7 +53,7 @@ std::size_t compare(ReplicationIndex& index,const std::vector<ReplicationRecord>
   if(eligible(records[offset],owner,eye,tick,far_scale))actual.push_back(offset);
  }
  for(std::size_t i=0;i<records.size();++i)
-  if(eligible(records[i],owner,eye,tick,far_scale))expected.push_back(u32(i));
+  if(legacy_eligible(records[i],owner,eye,tick,far_scale))expected.push_back(u32(i));
  assert(actual==expected);return selected.count;
 }
 int main() {
@@ -63,6 +68,9 @@ int main() {
   {9,true,-10000,0,0},{65535,false,9999,0,0},{10,false,-300,0,0}
  };
  assert(index.prepare(records.data(),records.size()));
+ distance_calls=0;assert(eligible(records[0],0,{100,0,0},1));assert(distance_calls==0);
+ assert(legacy_eligible(records[0],1,{100,0,0},1));assert(distance_calls==1);
+ distance_calls=0;(void)eligible(records[1],0,{100,0,0},1);assert(distance_calls==1);
  for(u32 tick=0;tick<64;++tick)compare(index,records,0,{0,0,0},tick);
  // Characters at every distance, including beyond the spatial sphere, must
  // remain candidates every tick under all overload scales. No byte budget deferral.
@@ -70,7 +78,7 @@ int main() {
  assert(index.prepare(protected_records.data(),protected_records.size()));
  for(u32 overload:{1u,2u,4u})for(u32 tick=0;tick<64;++tick){
   compare(index,protected_records,0,{0,0,0},tick,overload);
-  auto selected=index.select(0,0,0,0,tick);assert(selected.count==protected_records.size());
+  auto selected=index.select(0,0,0,0,tick);assert(selected.count==protected_records.size() && selected.spatial_candidates==0);
  }
  assert(index.prepare(records.data(),records.size()));
  for(u32 tick:{0xffffffffu,0xfffffffeu,0xfffffff0u})compare(index,records,65535,{0,0,0},tick);
@@ -100,10 +108,17 @@ int main() {
   }
  }
  assert(candidates<full_scan/4);
- std::cout<<"PASS: real grid candidates + native world cadence match full scan; characters/equipment always full rate, including overload, order, owner, float boundaries, tick overflow, moves/removals/reuse and fallback\n"
+ std::cout<<"PASS: real grid candidates + native world cadence match full scan; characters/equipment always full rate, including overload, order, owner, float boundaries, tick overflow, moves/removals/reuse and fallback; pinned pre-optimization predicate matches; protected distance calls and spatial candidates zero\n"
           <<"Synthetic candidate count "<<candidates<<" versus "<<full_scan<<" full checks; not a gameplay capacity/load test\n";
 }
 '''
+legacy_begin = source.index("bool eligible(")
+legacy_end = source.index("std::size_t compare(", legacy_begin)
+legacy = source[legacy_begin:legacy_end].replace("bool eligible(", "bool legacy_eligible(", 1)
+assert cadence in legacy
+legacy = legacy.replace(cadence, reference, 1)
+source = source[:legacy_end] + legacy + source[legacy_end:]
+
 with TemporaryDirectory(prefix="replication-index-") as tmp:
     cpp = Path(tmp) / "check.cpp"
     exe = Path(tmp) / ("check.exe" if os.name == "nt" else "check")

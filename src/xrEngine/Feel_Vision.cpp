@@ -184,37 +184,13 @@ namespace Feel
 	void Vision::o_trace(Fvector& P, float dt, float vis_threshold)
 	{
 		RQR.r_clear();
-		// Dedicated server crowd budget: an NPC traced a ray to every object in
-		// view on every update; with 64 players at a base that was the largest
-		// single cost of the server frame (8% in visibility rays, 2026-10-06).
-		// Objects within 30 m are traced every update, the others in turns,
-		// at most far_budget per update; an object not traced keeps its state.
-		// Players are always traced at any distance (owner 2026-10-07: NPCs
-		// must not get slower to notice a player because of an optimization).
-		// Actor classes: the engine's O_ACTOR and GAMMA's script actor S_ACTOR.
-		static const CLASS_ID actor_class = MK_CLSID('O', '_', 'A', 'C', 'T', 'O', 'R', ' ');
-		static const CLASS_ID script_actor_class = MK_CLSID('S', '_', 'A', 'C', 'T', 'O', 'R', ' ');
-		const u32 far_budget = 12;
-		const bool budgeted = g_dedicated_server && feel_visible.size() > far_budget;
-		const u32 count = u32(feel_visible.size());
-		const u32 first = budgeted ? m_trace_cursor % count : 0;
-		u32 far_traced = 0;
-		if (budgeted) m_trace_cursor += far_budget;
 		xr_vector<feel_visible_Item>::iterator I = feel_visible.begin(), E = feel_visible.end();
-		for (u32 index = 0; I != E; I++, index++)
+		for (; I != E; I++)
 		{
 			if (0 == I->O->CFORM())
 			{
 				I->fuzzy = -1;
 				continue;
-			}
-			if (budgeted && I->O->CLS_ID != actor_class && I->O->CLS_ID != script_actor_class && I->O->Position().distance_to_sqr(P) > 30.f * 30.f)
-			{
-				// In turn: the window [first, first + far_budget) of the list (wrapping).
-				const u32 slot = (index + count - first) % count;
-				if (slot >= far_budget || far_traced >= far_budget)
-					continue;
-				++far_traced;
 			}
 
 			// verify relation

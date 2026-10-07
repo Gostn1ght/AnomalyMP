@@ -22,7 +22,6 @@ namespace Feel
 		xr_vector<CObject*> query;
 		xr_vector<CObject*> diff;
 		collide::rq_results RQR;
-		u32 m_trace_cursor = 0; // dedicated server: round-robin of far traces
 		xr_vector<ISpatial*> r_spatial;
 		CObject const* m_owner;
 
