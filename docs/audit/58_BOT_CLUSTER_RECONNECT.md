@@ -54,3 +54,13 @@ not changed globally as a quick fix.
 
 No new completed marks in the historical188 audit;64/max-view smoothness
 and full cluster512 remain open.
+
+## Publication/validation status
+
+Local source commit `8ef6a25f5`: prepared fix/actual fixture plus save-error
+gate; local PowerShell regression and Python syntax check PASS. No local
+C++ compilation. GitHub rejected three pushes with Internal Server Error,
+including a per-command HTTP1.1 retry; remote branch remains81ae903c1.
+The public status page reported operational, so a global outage is not
+confirmed. This fix has no Actions/native result yet and is not installed
+as a new executable. All probe processes stopped; debug file empty.
