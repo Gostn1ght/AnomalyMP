@@ -10,6 +10,7 @@ import threading
 import time
 import unittest
 import uuid
+from unittest.mock import patch
 from urllib.parse import urlencode
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -209,13 +210,20 @@ class HttpTest(unittest.TestCase):
                 scheduler.schedule_in(tx,uuid.uuid4().hex,0,"fixture",1,"ReadinessFixture",{})
         self.server.worker_succeeded(0)
         self.assertFalse(self.server.ready.is_set())
-        processed=scheduler.run_due(limit=64,budget_ms=1000)
+        # This test exercises the batch limit and admission barrier. Slow fsync
+        # on CI must not turn it into an unrelated wall-time budget assertion.
+        with patch("lostzone.scheduler.time") as scheduler_clock:
+            scheduler_clock.monotonic.return_value=0
+            processed=scheduler.run_due(limit=64,budget_ms=1000)
         self.assertEqual(processed,64);self.server.worker_succeeded(processed)
         self.assertFalse(self.server.ready.is_set())
         self.assertEqual(self.call("GET","/v1/bootstrap")[0],503)
         status,result=self.call("GET","/v1/status",token="a"*48)
         self.assertEqual(status,200);self.assertEqual(result["result"]["due_sample_count"],1)
-        self.server.worker_succeeded(scheduler.run_due(budget_ms=1000))
+        with patch("lostzone.scheduler.time") as scheduler_clock:
+            scheduler_clock.monotonic.return_value=0
+            processed=scheduler.run_due(budget_ms=1000)
+        self.server.worker_succeeded(processed)
         self.assertTrue(self.server.ready.is_set())
         self.assertEqual(self.call("GET","/v1/bootstrap")[0],200)
         self.assertEqual(self.server.recovery_status()["events_processed"],65)
