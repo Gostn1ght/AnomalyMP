@@ -2,7 +2,6 @@
 #define XRSHEDULER_H_INCLUDED
 
 #include "ISheduled.h"
-#include "xrSchedulerTickets.h"
 
 class ENGINE_API CSheduler
 {
@@ -33,10 +32,15 @@ private:
 	xr_vector<Item> Items;
 	xr_vector<Item> ItemsProcessed;
 	xr_vector<ItemReg> Registration;
-	xr_unordered_map<ISheduled*, u64> ActiveItems;
-	xr_scheduler::TicketPool<ISheduled> Tickets;
+	struct ActiveItem
+	{
+		u64 generation;
+		BOOL realtime;
+	};
+	xr_unordered_map<ISheduled*, ActiveItem> ActiveItems;
 	struct OrderChange { ISheduled* after; u64 generation; };
 	xr_vector<OrderChange> OrderChanges;
+	u64 m_next_generation;
 	bool m_realtime_compaction_pending;
 	ISheduled* m_current_step_obj;
 	bool m_processing_now;

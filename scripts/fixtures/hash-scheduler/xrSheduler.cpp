@@ -19,7 +19,7 @@ void CSheduler::Initialize()
 {
 	m_current_step_obj = NULL;
 	m_processing_now = false;
-	Tickets.clear();
+	m_next_generation = 0;
 	m_realtime_compaction_pending = false;
 	ActiveItems.clear();
 	OrderChanges.clear();
@@ -46,7 +46,6 @@ void CSheduler::Destroy()
 	Items.clear();
 	ItemsProcessed.clear();
 	Registration.clear();
-	Tickets.clear();
 	ActiveItems.clear();
 	OrderChanges.clear();
 	m_realtime_compaction_pending = false;
@@ -76,7 +75,8 @@ void CSheduler::internal_Registration()
 
 bool CSheduler::active(const Item& item) const
 {
-    return Tickets.active(item.generation, item.Object);
+    const auto found = ActiveItems.find(item.Object);
+    return found != ActiveItems.end() && found->second.generation == item.generation;
 }
 
 void CSheduler::compact_realtime()
@@ -91,9 +91,9 @@ void CSheduler::internal_Register(ISheduled* O, BOOL RT)
 {
 	VERIFY(!O->shedule.b_locked);
 	R_ASSERT(ActiveItems.find(O) == ActiveItems.end());
-	const u64 generation = Tickets.activate(O, RT != FALSE);
-	try { ActiveItems.emplace(O, generation); }
-	catch (...) { Tickets.cancel(generation); throw; }
+	R_ASSERT(m_next_generation != u64(-1));
+	const u64 generation = ++m_next_generation;
+	ActiveItems.emplace(O, ActiveItem{generation, RT});
 	if (RT)
 	{
 		// Fill item structure
@@ -131,8 +131,7 @@ bool CSheduler::internal_Unregister(ISheduled* O, BOOL RT, bool warn_on_not_foun
     if (found == ActiveItems.end()) return false;
     // Do not erase a vector or touch O: this can run from O's destructor,
     // from its callback, or after a different callback destroyed O.
-    if (Tickets.realtime(found->second)) m_realtime_compaction_pending = true;
-    Tickets.cancel(found->second);
+    if (found->second.realtime) m_realtime_compaction_pending = true;
     ActiveItems.erase(found);
     if (m_current_step_obj == O) m_current_step_obj = NULL;
     return true;
@@ -196,7 +195,7 @@ void CSheduler::EnsureOrder(ISheduled* Before, ISheduled* After)
     if (m_processing_now)
     {
         const auto found = ActiveItems.find(After);
-        if (found != ActiveItems.end()) OrderChanges.push_back(OrderChange{After, found->second});
+        if (found != ActiveItems.end()) OrderChanges.push_back(OrderChange{After, found->second.generation});
         return;
     }
     internal_EnsureOrder(After);
@@ -252,7 +251,7 @@ void CSheduler::ProcessStep()
 		if (condition)
 		{
 			// Erase element
-			if (active(T)) internal_Unregister(T.Object, FALSE, false);
+			if (active(T)) ActiveItems.erase(T.Object);
 #ifdef DEBUG_SCHEDULER
             Msg("SCHEDULER: process unregister [%s][%x][%s]", *T.scheduled_name, T.Object, "false");
 #endif // DEBUG_SCHEDULER
@@ -417,7 +416,7 @@ void CSheduler::Update()
 	for (const auto& order : OrderChanges)
 	{
 		const auto found = ActiveItems.find(order.after);
-		if (found != ActiveItems.end() && found->second == order.generation) internal_EnsureOrder(order.after);
+		if (found != ActiveItems.end() && found->second.generation == order.generation) internal_EnsureOrder(order.after);
 	}
 	OrderChanges.clear();
 	Device.Statistic->Sheduler.End();

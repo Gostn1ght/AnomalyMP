@@ -794,3 +794,5 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   Next lossless work: profile pure reads first; actor binding functor/depth are
   already cached, and CPropertyStorage's public mutable vector prevents naive
   lookup caching. No added live checkmarks in the 188-point audit.
+
+- 2026-10-07 (Codex) — coordination before direct-ticket hot-loop edit: xrEngine/xrSheduler*, new scheduler ticket helper, actual scheduler CI fixture/project/workflow and documentation. Preserve callback frequency/order/intervals/budget and NPC quantity. Owner explicitly requires smooth, responsive NPCs throughout maximum visibility; distant-NPC live acceptance remains mandatory. No replication, runtime installation or native launch edits. Pinned hash-check baseline is native 3a95c0dce.

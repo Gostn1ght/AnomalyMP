@@ -25,6 +25,7 @@ host = r'''
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include "robin_hood.h"
 using u32=std::uint32_t;using u64=std::uint64_t;using BOOL=int;using LPCSTR=const char*;
 #define TRUE 1
 #define FALSE 0
@@ -43,7 +44,7 @@ struct DebugService{void fatal(const char*,int,const char*,const char*,...){std:
 inline DebugService Debug;
 using string1024=char[1024];
 template<class T> using xr_vector=std::vector<T>;
-template<class K,class V> using xr_unordered_map=std::unordered_map<K,V>;
+template<class K,class V> using xr_unordered_map=robin_hood::unordered_node_map<K,V>;
 struct shared_str {
  std::string value;shared_str()=default;shared_str(const char* s):value(s){}shared_str(std::string s):value(std::move(s)){}
  const char* c_str() const{return value.c_str();}const char* operator*()const{return c_str();}
@@ -70,11 +71,13 @@ template<class To,class From> To fast_dynamic_cast(From from){return dynamic_cas
 cases = r'''
 #include "stdafx.h"
 #include "ixray_reference_scheduler.h"
+#include "hash_reference_scheduler.h"
 #include "xrSchedulerRegistration.h"
 #include <chrono>
 EngineState Engine;
 extern float psShedulerCurrent,psShedulerTarget;
 extern float ixray_psShedulerCurrent,ixray_psShedulerTarget;
+extern float hash_psShedulerCurrent,hash_psShedulerTarget;
 struct Event{u32 id,at,dt;bool operator==(const Event& b)const{return id==b.id&&at==b.at&&dt==b.dt;}};
 std::vector<Event> trace;
 struct Object final:ISheduled {
@@ -92,7 +95,7 @@ struct Object final:ISheduled {
  }
 };
 void reset(){Engine.Sheduler.Initialize();Device.dwTimeGlobal=0;Device.dwFrame=10;fixture_cycles=0;
- psShedulerCurrent=psShedulerTarget=ixray_psShedulerCurrent=ixray_psShedulerTarget=10.f;trace.clear();}
+ psShedulerCurrent=psShedulerTarget=ixray_psShedulerCurrent=ixray_psShedulerTarget=hash_psShedulerCurrent=hash_psShedulerTarget=10.f;trace.clear();}
 void tick(u32 delta=50){Device.dwTimeGlobal+=delta;++Device.dwFrame;Engine.Sheduler.Update();}
 std::vector<u32> ids(){std::vector<u32> out;for(const auto& e:trace)out.push_back(e.id);return out;}
 void clear(){Engine.Sheduler.Update();Engine.Sheduler.Destroy();trace.clear();}
@@ -117,6 +120,35 @@ void differential(){
  Engine.Sheduler.Destroy();reset();auto current=cadence(Engine.Sheduler,psShedulerCurrent);
  assert(old.first==current.first);assert(old.second==current.second);
  std::cout<<"PASS IX-Ray differential: 64 realtime + 128 normal, 500 variable ticks, dt/order/budget/cadence identical ("<<current.first.size()<<" callbacks)\n";
+ Engine.Sheduler.Destroy();reset();HashReferenceScheduler hash_reference;
+ auto hash=cadence(hash_reference,hash_psShedulerCurrent);
+ assert(hash.first==current.first);assert(hash.second==current.second);Engine.Sheduler.Destroy();
+ std::cout<<"PASS hash-check baseline 3a95c0dce: same dt/order/budget/cadence\n";
+}
+void tickets(){
+ int a=0,b=0;xr_scheduler::TicketPool<int> pool;
+ assert(!pool.active(0,&a)&&!pool.cancel(0)&&!pool.active(~u64(0),&a));
+ const auto old=pool.activate(&a,true);assert(pool.active(old,&a)&&!pool.active(old,&b)&&pool.realtime(old));
+ assert(pool.cancel(old)&&!pool.cancel(old)&&!pool.active(old,&a));
+ const auto fresh=pool.activate(&a,false);assert(fresh!=old&&!pool.active(old,&a)&&pool.active(fresh,&a)&&!pool.realtime(fresh));
+ assert(!pool.cancel(old)&&pool.active(fresh,&a));assert(pool.cancel(fresh));
+ for(int i=0;i<100000;++i){auto ticket=pool.activate(&b,i%2);assert(pool.active(ticket,&b));assert(pool.cancel(ticket));}
+ assert(pool.slot_count()==1);
+ // Growing storage must preserve tickets; cancelling one slot cannot affect another.
+ std::vector<u64> live;for(int i=0;i<4096;++i)live.push_back(pool.activate(&a,i%2));
+ for(std::size_t i=0;i<live.size();++i){assert(pool.active(live[i],&a));if(i%2)assert(pool.cancel(live[i]));}
+ for(std::size_t i=0;i<live.size();i+=2){assert(pool.active(live[i],&a));assert(pool.cancel(live[i]));}
+ const auto high_water=pool.slot_count();
+ for(int i=0;i<4096;++i){auto ticket=pool.activate(&b,false);assert(pool.cancel(ticket));}
+ assert(pool.slot_count()==high_water);
+ xr_scheduler::TicketPool<int,std::uint8_t> small;
+ const auto first=small.activate(&a,true);assert(small.cancel(first));
+ for(int i=1;i<255;++i){auto ticket=small.activate(&a,false);assert(small.active(ticket,&a));assert(small.cancel(ticket));}
+ assert(small.slot_count()==1);const auto next=small.activate(&a,false);
+ assert(small.slot_count()==2&&!small.active(first,&a)&&!small.cancel(first)&&small.active(next,&a));
+ small.clear();assert(small.slot_count()==0&&!small.active(next,&a));
+ bool rejected=false;try{pool.activate(nullptr,false);}catch(const std::invalid_argument&){rejected=true;}assert(rejected);
+ std::cout<<"PASS direct tickets: stale address, invalid tickets, 100000 reuse cycles, generation exhaustion retires slot\n";
 }
 void realtime_lifetime(){
  reset();Object* a=new Object(1);Object* b=new Object(2);Object* c=new Object(3);
@@ -166,6 +198,22 @@ void batch_realtime_cancellation(){
  tick();assert(trace.size()==2048);objects.clear();trace.clear();tick();assert(trace.empty());clear();
  std::cout<<"PASS realtime cancellation: 2048 pending removals, one stable compaction, no stale callbacks\n";
 }
+void stale_order_and_not_needed(){
+ reset();Object a(50),c(52);alignas(Object) unsigned char space[sizeof(Object)];
+ auto* b=new(space)Object(51);Object* fresh=nullptr;
+ for(auto* o:{&a,b,&c}){o->unregister=[](ISheduled* p){Engine.Sheduler.Unregister(p);};Engine.Sheduler.Register(o,TRUE);}
+ a.update_hook=[&](Object& self){self.update_hook={};Engine.Sheduler.EnsureOrder(&a,b);b->~Object();
+  fresh=new(space)Object(53);fresh->unregister=[](ISheduled* p){Engine.Sheduler.Unregister(p);};
+  Engine.Sheduler.Register(fresh,TRUE);Engine.Sheduler.Unregister(&c);Engine.Sheduler.Register(&c,TRUE);};
+ tick();assert((ids()==std::vector<u32>{50}));trace.clear();tick();
+ assert((ids()==std::vector<u32>{50,53,52})); // stale order must not move replacement 53 behind c
+ fresh->~Object();for(auto* o:{&a,&c}){Engine.Sheduler.Unregister(o);o->unregister={};}clear();
+ reset();Object n(54);n.unregister=[](ISheduled* p){Engine.Sheduler.Unregister(p);};n.needed=false;
+ Engine.Sheduler.Register(&n);tick(1);tick();assert(trace.empty());
+ n.needed=true;Engine.Sheduler.Register(&n);tick(1);assert(trace.empty());tick();assert((ids()==std::vector<u32>{54}));
+ Engine.Sheduler.Unregister(&n);n.unregister={};clear();
+ std::cout<<"PASS recycled scheduler slots: stale deferred order rejected and not-needed cancellation permits re-registration\n";
+}
 struct Request{BOOL OP,RT;void* Object;std::size_t index;};
 std::vector<unsigned char> legacy_pairs(std::vector<Request> work){
  std::vector<unsigned char> out(work.size(),0);
@@ -186,8 +234,56 @@ void pairing(){
  assert(std::all_of(skipped.begin(),skipped.end(),[](unsigned char x){return x==1;}));
  std::cout<<"PASS registration: 10000 differential batches + 50000 cancelled objects, earliest-pair semantics preserved\n";
 }
-int main(){std::cout<<std::unitbuf;pairing();differential();realtime_lifetime();normal_lifetime();reused_address();ordering();batch_realtime_cancellation();
+int main(){std::cout<<std::unitbuf;tickets();pairing();differential();realtime_lifetime();normal_lifetime();reused_address();ordering();batch_realtime_cancellation();stale_order_and_not_needed();
  std::cout<<"PASS actual scheduler: self/other destruction, needed/scale cancellation, address reuse, stable realtime order; no cadence reduction\n";}
+'''
+
+# Timings exclude setup/registration/destruction and use an optimized binary
+# without sanitizers. This measures scheduler overhead, not a game frame or AI.
+benchmark = r'''
+#include "stdafx.h"
+#include "hash_reference_scheduler.h"
+#include <chrono>
+EngineState Engine;
+extern float psShedulerCurrent,psShedulerTarget;
+extern float hash_psShedulerCurrent,hash_psShedulerTarget;
+u64 callbacks=0;
+struct BenchObject final:ISheduled {
+ std::function<void(ISheduled*)> unregister;
+ ~BenchObject()override{if(unregister)unregister(this);}
+ float shedule_Scale()override{return 0.f;}
+ bool shedule_Needed()override{return true;}
+ shared_str shedule_Name()const override{return "benchmark";}
+ void shedule_Update(u32 dt)override{ISheduled::shedule_Update(dt);++callbacks;}
+};
+template<class Scheduler> std::pair<double,u64> measure(Scheduler& scheduler,u32 rt,u32 normal){
+ scheduler.Initialize();Device.dwTimeGlobal=0;Device.dwFrame=10;fixture_cycles=0;
+ psShedulerCurrent=psShedulerTarget=hash_psShedulerCurrent=hash_psShedulerTarget=10.f;
+ std::vector<std::unique_ptr<BenchObject>> objects;
+ for(u32 i=0;i<rt+normal;++i){objects.emplace_back(new BenchObject);auto& o=*objects.back();
+  o.unregister=[&scheduler](ISheduled* p){scheduler.Unregister(p);};scheduler.Register(&o,i<rt);}
+ scheduler.Update();callbacks=0;
+ const auto begin=std::chrono::steady_clock::now();
+ for(int frame=0;frame<10000;++frame){Device.dwTimeGlobal+=50;++Device.dwFrame;scheduler.Update();}
+ const double ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-begin).count();
+ const u64 count=callbacks;objects.clear();scheduler.Update();scheduler.Destroy();Engine.Sheduler.Destroy();
+ return {ms,count};
+}
+int main(){std::cout<<std::unitbuf;Engine.Sheduler.Initialize();
+ for(const auto population:{std::pair<u32,u32>{16,128},{64,128},{128,512},{64,0}}){
+  std::vector<double> old_times,new_times;u64 count=0;
+  for(int run=0;run<7;++run){HashReferenceScheduler reference;std::pair<double,u64> old,current;
+   if(run%2){current=measure(Engine.Sheduler,population.first,population.second);old=measure(reference,population.first,population.second);}
+   else{old=measure(reference,population.first,population.second);current=measure(Engine.Sheduler,population.first,population.second);}
+   assert(old.second==current.second&&current.second==u64(population.first+population.second)*10000);
+   old_times.push_back(old.first);new_times.push_back(current.first);count=current.second;
+  }
+  std::sort(old_times.begin(),old_times.end());std::sort(new_times.begin(),new_times.end());
+  std::cout<<"BENCH actual scheduler overhead rt="<<population.first<<" normal="<<population.second
+   <<" median7 hash_ms="<<old_times[3]<<" tickets_ms="<<new_times[3]
+   <<" ratio="<<new_times[3]/old_times[3]<<" callbacks="<<count<<" (10000 frames; not live game FPS)\n";
+ }
+}
 '''
 
 with TemporaryDirectory(prefix="actual-scheduler-") as tmp:
@@ -198,7 +294,8 @@ with TemporaryDirectory(prefix="actual-scheduler-") as tmp:
     (profiler/"profiler.h").write_text((root/"src/xrCore/profiler.h").read_text(encoding="utf-8"), encoding="utf-8")
     (folder/"stdafx.h").write_text(host, encoding="utf-8")
     (folder/"xr_object.h").write_text('#include "stdafx.h"\n', encoding="utf-8")
-    for name in ("xrSheduler.cpp", "xrSheduler.h", "ISheduled.cpp", "ISheduled.h", "xrSchedulerRegistration.h"):
+    (folder/"robin_hood.h").write_bytes((root/"src/3rd party/robin_hood/robin_hood.h").read_bytes())
+    for name in ("xrSheduler.cpp", "xrSheduler.h", "ISheduled.cpp", "ISheduled.h", "xrSchedulerRegistration.h", "xrSchedulerTickets.h"):
         (folder/name).write_text((root/"src/xrEngine"/name).read_text(encoding="utf-8"), encoding="utf-8")
     reference = root/"scripts/fixtures/ixray-scheduler"
     old_header = (reference/"xrSheduler.h").read_text(encoding="utf-8").replace("CSheduler", "IXRayReferenceScheduler").replace("XRSHEDULER_H_INCLUDED", "IXRAY_REFERENCE_SHEDULER_H")
@@ -211,8 +308,15 @@ with TemporaryDirectory(prefix="actual-scheduler-") as tmp:
         old_cpp = old_cpp.replace(symbol, "ixray_"+symbol)
     (folder/"ixray_reference_scheduler.h").write_text(old_header, encoding="utf-8")
     (folder/"ixray_reference_scheduler.cpp").write_text(old_cpp, encoding="utf-8")
+    reference = root/"scripts/fixtures/hash-scheduler"
+    old_header = (reference/"xrSheduler.h").read_text(encoding="utf-8").replace("CSheduler", "HashReferenceScheduler").replace("XRSHEDULER_H_INCLUDED", "HASH_REFERENCE_SHEDULER_H")
+    old_cpp = (reference/"xrSheduler.cpp").read_text(encoding="utf-8").replace('"xrSheduler.h"', '"hash_reference_scheduler.h"').replace("CSheduler", "HashReferenceScheduler")
+    for symbol in ("psShedulerCurrent", "psShedulerTarget", "psShedulerReaction", "g_bSheduleInProgress"):
+        old_cpp = old_cpp.replace(symbol, "hash_"+symbol)
+    (folder/"hash_reference_scheduler.h").write_text(old_header, encoding="utf-8")
+    (folder/"hash_reference_scheduler.cpp").write_text(old_cpp, encoding="utf-8")
     (folder/"cases.cpp").write_text(cases, encoding="utf-8")
-    sources = [str(folder/name) for name in ("cases.cpp", "xrSheduler.cpp", "ISheduled.cpp", "ixray_reference_scheduler.cpp")]
+    sources = [str(folder/name) for name in ("cases.cpp", "xrSheduler.cpp", "ISheduled.cpp", "ixray_reference_scheduler.cpp", "hash_reference_scheduler.cpp")]
     for debug in (False, True):
         exe = folder/("debug" if debug else "release")
         if os.name == "nt":
@@ -223,3 +327,10 @@ with TemporaryDirectory(prefix="actual-scheduler-") as tmp:
                        "-O1", "-g", "-fsanitize=address,undefined", "-fno-omit-frame-pointer", *(["-DDEBUG"] if debug else []), *sources, "-o", str(exe)]
         subprocess.run(command, check=True, cwd=folder)
         subprocess.run([str(exe)], check=True, cwd=folder, timeout=120)
+    (folder/"benchmark.cpp").write_text(benchmark, encoding="utf-8")
+    sources = [str(folder/name) for name in ("benchmark.cpp", "xrSheduler.cpp", "ISheduled.cpp", "hash_reference_scheduler.cpp")]
+    exe = folder/("benchmark.exe" if os.name == "nt" else "benchmark")
+    command = (["cl", "/nologo", "/std:c++17", "/EHsc", "/W4", "/O2", *sources, "/Fe:"+str(exe)] if os.name == "nt" else
+               ["g++", "-std=c++17", "-O3", *sources, "-o", str(exe)])
+    subprocess.run(command, check=True, cwd=folder)
+    subprocess.run([str(exe)], check=True, cwd=folder, timeout=120)

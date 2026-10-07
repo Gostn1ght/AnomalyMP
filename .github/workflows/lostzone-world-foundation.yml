@@ -6,10 +6,12 @@ on:
     paths:
       - 'src/xrEngine/xrSheduler*'
       - 'src/xrEngine/xrSchedulerRegistration.h'
+      - 'src/xrEngine/xrSchedulerTickets.h'
       - 'src/xrEngine/ISheduled*'
       - 'src/xrCore/profiler.h'
       - 'scripts/check-netcoop-scheduler.py'
       - 'scripts/fixtures/ixray-scheduler/**'
+      - 'scripts/fixtures/hash-scheduler/**'
       - 'src/xrGame/netcoop_world_clock.h'
       - 'src/xrGame/netcoop_world_authority.h'
       - 'src/xrGame/netcoop_alife_clock.h'
