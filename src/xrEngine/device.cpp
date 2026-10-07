@@ -559,6 +559,31 @@ void CRenderDevice::on_idle()
 	Statistic->RenderTOTAL_Real.FrameEnd();
 	Statistic->RenderTOTAL.accum = Statistic->RenderTOTAL_Real.accum;
 #endif // #ifndef DEDICATED_SERVER
+
+	// The dedicated server's frame pause was in IGame_Level::OnRender, which
+	// it no longer runs (no D3D level render, 2026-10-06): an empty location
+	// server spun a whole core with 1 ms frames (2026-10-07). A frame shorter
+	// than -netcoop_frame_ms (10 ms, 100 frames a second) sleeps the rest; a
+	// longer one does not sleep at all (it used to sleep 5 ms every frame).
+	if (g_dedicated_server)
+	{
+		static int frame_ms = -1;
+		if (frame_ms < 0)
+		{
+			LPCSTR option = strstr(Core.Params, "-netcoop_frame_ms=");
+			frame_ms = option ? atoi(option + xr_strlen("-netcoop_frame_ms=")) : 10;
+			if (frame_ms < 0 || frame_ms > 100) frame_ms = 10;
+		}
+		static u64 frame_begin = 0;
+		const u64 now = CPU::QPC();
+		if (frame_begin && frame_ms > 0)
+		{
+			const u64 spent = (now - frame_begin) * 1000 / CPU::qpc_freq;
+			if (spent < u64(frame_ms))
+				Sleep(DWORD(u64(frame_ms) - spent));
+		}
+		frame_begin = CPU::QPC();
+	}
 	Device.isRendering = false;
 
 	// *** Suspend threads
