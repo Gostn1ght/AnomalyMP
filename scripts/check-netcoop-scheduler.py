@@ -30,8 +30,13 @@ using u32=std::uint32_t;using u64=std::uint64_t;using BOOL=int;using LPCSTR=cons
 #define FALSE 0
 #define ENGINE_API
 #define IC inline
+#ifdef DEBUG
 #define VERIFY(x) assert(x)
 #define VERIFY2(x,...) assert(x)
+#else
+#define VERIFY(...) ((void)0)
+#define VERIFY2(...) ((void)0)
+#endif
 #define R_ASSERT(x) assert(x)
 #define PROF_EVENT(...)
 #define DEBUG_INFO "fixture", 0, "fixture"
