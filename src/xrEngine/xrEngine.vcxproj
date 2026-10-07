@@ -932,6 +932,7 @@
     <ClInclude Include="xrLevel.h" />
     <ClInclude Include="xrSASH.h" />
     <ClInclude Include="xrSheduler.h" />
+    <ClInclude Include="xrSchedulerRegistration.h" />
     <ClInclude Include="xrTheora_Stream.h" />
     <ClInclude Include="xrTheora_Surface.h" />
     <ClInclude Include="xrTheora_Surface_mmx.h" />

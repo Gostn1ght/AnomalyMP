@@ -4,6 +4,11 @@ on:
   push:
     branches: [menu-3d-hideout]
     paths:
+      - 'src/xrEngine/xrSheduler*'
+      - 'src/xrEngine/xrSchedulerRegistration.h'
+      - 'src/xrEngine/ISheduled*'
+      - 'scripts/check-netcoop-scheduler.py'
+      - 'scripts/fixtures/ixray-scheduler/**'
       - 'src/xrGame/netcoop_world_clock.h'
       - 'src/xrGame/netcoop_world_authority.h'
       - 'src/xrGame/netcoop_alife_clock.h'
@@ -65,6 +70,8 @@ jobs:
           python-version: '3.13'
       - name: Exercise actual clock and location follower
         run: python scripts/check-netcoop-world-clock.py
+      - name: Compare actual scheduler with pinned IX-Ray and check callback lifetimes
+        run: python scripts/check-netcoop-scheduler.py
       - name: Exercise actual spatial grid and player interests
         run: python scripts/check-netcoop-spatial-grid.py
       - name: Exercise simulation LOD and representation barriers
@@ -99,6 +106,8 @@ jobs:
         shell: cmd
         run: |
           call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          python scripts/check-netcoop-scheduler.py
+          if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-world-clock.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-spatial-grid.py

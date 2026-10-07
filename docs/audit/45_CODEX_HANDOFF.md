@@ -740,3 +740,15 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   трупы) → теперь предмет, сдвинувшийся на сервере (после 30 с оседания уровня),
   отправляется как предметы, спящий — раз в 60 с. `run-prop-test.ps1` PASS, бот
   `-netcoop_bots_watch=<id>`. Сборка c38376323 установлена; 16 ботов: p50 8–9 мс.
+
+- 2026-10-07 (Codex) — owner requests continuing lossless optimizations and
+  adapting IX-Ray scheduler. Coordination before edit: xrEngine/xrSheduler*,
+  ISheduled initialization, actual scheduler CI fixture/workflows and docs.
+  No replication/interest/runtime install/launch changes. Pinned IX-Ray stable
+  612b165c97d5e6a50ac0a6d1384ac8c95a63dda5 and develop
+  c55dacab6165c0f28fd09479043fcd89a9625357: same queue/interval/budget algorithm
+  already present; no claimed magic threading/crowd speedup from replacing it.
+  Adapt profiling/tolerant unregister and improve registration/lifetime safety,
+  retaining existing update intervals and full player/NPC work. Live64+ result
+  required before marking performance acceptance complete. Existing untracked
+  backend/tests/test_transfer_stress.py is preserved and not part of this edit.

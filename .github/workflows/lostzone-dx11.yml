@@ -68,6 +68,8 @@ jobs:
         shell: cmd
         run: |
           call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          python scripts/check-netcoop-scheduler.py
+          if errorlevel 1 exit /b %errorlevel%
           python scripts/check-windows-auth-api.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-transit-queue.py
@@ -98,6 +100,8 @@ jobs:
         run: |
           ./scripts/package-m1-dx11.ps1 -BuildBin ./_build/_game/bin_dbg -DestinationRoot ./lostzone-package
           Copy-Item -LiteralPath scripts/netcoop-overlay -Destination lostzone-package/overlay -Recurse
+          New-Item -ItemType Directory -Path lostzone-package/notices -Force | Out-Null
+          Copy-Item -LiteralPath scripts/fixtures/ixray-scheduler/LICENSE.md -Destination lostzone-package/notices/IX-Ray-LICENSE.md
           Copy-Item -LiteralPath scripts/start-lostzone-world.cmd -Destination lostzone-package/1-Server.cmd
           Copy-Item -LiteralPath _build/_game/bin_dbg/LostZoneDX11.pdb -Destination lostzone-package/bin/LostZoneClientDX11.pdb
           Copy-Item -LiteralPath _build/_game/bin_dbg/LostZoneDX11.pdb -Destination lostzone-package/dedicated/LostZoneServerDX11.pdb

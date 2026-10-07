@@ -12,7 +12,7 @@ private:
 		u32 dwTimeOfLastExecute;
 		shared_str scheduled_name;
 		ISheduled* Object;
-		u32 dwPadding; // for align-issues
+		u64 generation; // a cancelled/reused pointer cannot revive an old queue entry
 
 		IC bool operator <(Item& I)
 		{
@@ -32,6 +32,15 @@ private:
 	xr_vector<Item> Items;
 	xr_vector<Item> ItemsProcessed;
 	xr_vector<ItemReg> Registration;
+	struct ActiveItem
+	{
+		u64 generation;
+		BOOL realtime;
+	};
+	xr_unordered_map<ISheduled*, ActiveItem> ActiveItems;
+	struct OrderChange { ISheduled* after; u64 generation; };
+	xr_vector<OrderChange> OrderChanges;
+	u64 m_next_generation;
 	ISheduled* m_current_step_obj;
 	bool m_processing_now;
 
@@ -45,6 +54,8 @@ private:
 	void internal_Register(ISheduled* A, BOOL RT = FALSE);
 	bool internal_Unregister(ISheduled* A, BOOL RT, bool warn_on_not_found = true);
 	void internal_Registration();
+	bool active(const Item& item) const;
+	void internal_EnsureOrder(ISheduled* After);
 public:
 	u64 cycles_start;
 	u64 cycles_limit;

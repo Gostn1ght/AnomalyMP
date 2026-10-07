@@ -204,6 +204,9 @@
     <ClInclude Include="xrSheduler.h">
       <Filter>Interfaces\Sheduler</Filter>
     </ClInclude>
+    <ClInclude Include="xrSchedulerRegistration.h">
+      <Filter>Interfaces\Sheduler</Filter>
+    </ClInclude>
     <ClInclude Include="IRenderable.h">
       <Filter>Interfaces\Render</Filter>
     </ClInclude>
