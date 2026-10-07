@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "netcoop.h"
 #include "netcoop_bot_gap_probe.h"
+#include "netcoop_bot_target.h"
 #include <cstring>
 
 #include "xrNetServer/NET_Client.h"
@@ -162,6 +163,7 @@ public:
 
 	bool start(LPCSTR address, u32 now)
 	{
+		xr_strcpy(m_address, address); // retry the current map, not the initial spawn server
 		string512 options;
 		xr_sprintf(options, "%s/name=%s", address, m_login);
 		// ParseConnectionOptions writes the player's name into Core.UserName.
@@ -173,6 +175,15 @@ public:
 		if (!ok)
 			fail("cannot create the connection");
 		return ok;
+	}
+
+	bool queue_transfer(LPCSTR data)
+	{
+		BotTarget target;
+		if (!parse_bot_target(data, target)) return false;
+		xr_strcpy(m_transfer, target.address);
+		Msg("[Lost Zone][bots] %s goes to %s (%s)", m_login, target.level, m_transfer);
+		return true;
 	}
 
 	void stop()
@@ -236,6 +247,7 @@ public:
 
 	State state() const { return m_state; }
 	LPCSTR transfer() const { return m_transfer[0] ? m_transfer : nullptr; }
+	LPCSTR address() const { return m_address; }
 	u32 index() const { return m_index; }
 	bool played() const { return m_played; }
 	u32 failed_at() const { return m_failed_at; }
@@ -354,7 +366,7 @@ private:
 				string512 text;
 				if (!read_string(P, text, sizeof(text)))
 					text[0] = 0;
-				if (!ok)
+				if (!ok && (std::strncmp(text, "redirect|", 9) || !queue_transfer(text + 9)))
 					fail(text);
 			}
 			break;
@@ -380,13 +392,7 @@ private:
 				// map; bots_frame reconnects this bot there.
 				if (!xr_strcmp(channel, "netcoop_transfer"))
 				{
-					char host[128] = {}, level[64] = {};
-					u32 port = 0;
-					if (sscanf_s(data, "%127[^|]|%u|%63s", host, (unsigned)sizeof(host), &port, level, (unsigned)sizeof(level)) == 3)
-					{
-						xr_sprintf(m_transfer, "%s/port=%u", host, port);
-						Msg("[Lost Zone][bots] %s goes to %s (%s)", m_login, level, m_transfer);
-					}
+					queue_transfer(data);
 					break;
 				}
 				if (xr_strcmp(channel, "you"))
@@ -530,6 +536,7 @@ private:
 
 	u32 m_index;
 	string64 m_login;
+	string256 m_address = {};
 	string256 m_transfer = {};
 	State m_state = st_connecting;
 	u32 m_state_time = 0;
@@ -712,10 +719,11 @@ void bots_frame()
 			const u32 attempt = ++retries[b->index()];
 			Msg("[Lost Zone][bots] nbot_%03u retries (%u)", b->index(), attempt);
 			NetcoopBot* again = xr_new<NetcoopBot>(b->index());
+			string256 address; xr_strcpy(address, b->address());
 			b->stop();
 			s_dead.push_back({b, now});
 			b = again;
-			b->start(s_address, now);
+			b->start(address, now);
 			continue;
 		}
 		b->update(now);

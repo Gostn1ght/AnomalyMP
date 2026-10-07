@@ -35,7 +35,13 @@ foreach ($state in @('1 playing, 1 joining, 0 connecting, 0 failed', '1 playing,
 $duplicate = @(BotLog 'a' 1 2; BotLog 'b' 1 2)
 Assert (-not (Evaluate $duplicate).Passed) 'Duplicate bot process login ranges must fail'
 foreach ($errorLine in @('FATAL ERROR', 'combine_1.hlsl(39): error X3017: cannot implicitly convert',
-        '[Lost Zone] time event error: nil actor', '[Lost Zone] save_state handler failed: nil actor', 'character save failed')) {
+        '[Lost Zone] time event error: nil actor', '[Lost Zone] save_state handler failed: nil actor', 'character save failed',
+        '! [Lost Zone] character commit failed: file.bin', '[Lost Zone] character save refused: inventory tree is incomplete',
+        '! [Lost Zone] inventory restore incomplete for actor 123; preserving saved character',
+        '! [NetAnomaly][world] incomplete script snapshot test_a; keeping the previous commit',
+        '! [NetAnomaly][world] saving test_a failed (periodic) at alife snapshot',
+        '! [NetAnomaly][world] refusing save: committed pointer is corrupt/inaccessible',
+        '! [NetAnomaly][world] saved test_b but could not point test.current to it')) {
     Assert (-not (Evaluate $logs @($errorLine)).Passed) "Reject error record: $errorLine"
 }
 $transfer = @(BotLog 'a' 1 2; BotLog 'b' 3 2)

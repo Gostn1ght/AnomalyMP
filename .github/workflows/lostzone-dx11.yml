@@ -82,6 +82,8 @@ jobs:
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-bot-gap.py
           if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-netcoop-bot-target.py
+          if errorlevel 1 exit /b %errorlevel%
           python scripts/check-windows-auth-api.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-transit-queue.py

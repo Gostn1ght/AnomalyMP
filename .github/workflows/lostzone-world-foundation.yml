@@ -17,6 +17,8 @@ on:
       - 'src/xrServerEntities/xrMessages.h'
       - 'src/xrGame/netcoop_bots.cpp'
       - 'src/xrGame/netcoop_bot_gap_probe.h'
+      - 'src/xrGame/netcoop_bot_target.h'
+      - 'scripts/check-netcoop-bot-target.py'
       - 'scripts/check-netcoop-bot-gap.py'
       - 'src/xrGame/netcoop_world_authority.h'
       - 'src/xrGame/netcoop_alife_clock.h'
@@ -92,6 +94,8 @@ jobs:
         run: python scripts/check-netcoop-scheduler.py
       - name: Separate bot delivery and processing gaps
         run: python scripts/check-netcoop-bot-gap.py
+      - name: Retry bot handoffs on the current map and follow auth redirects
+        run: python scripts/check-netcoop-bot-target.py
       - name: Exercise actual spatial grid and player interests
         run: python scripts/check-netcoop-spatial-grid.py
       - name: Exercise simulation LOD and representation barriers
@@ -138,6 +142,8 @@ jobs:
           python scripts/check-netcoop-scheduler.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-bot-gap.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-netcoop-bot-target.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-world-clock.py
           if errorlevel 1 exit /b %errorlevel%

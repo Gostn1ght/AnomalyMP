@@ -73,9 +73,9 @@ No full overlay installer or native executable replacement was performed.
 
 ## Remaining limits
 
-Previous live logs also contain `itms_manager.save_state` nil-actor errors;
-this separate player-inventory callback is not fixed by the PDA guard.
-The new strict gate correctly refuses those runs. Logged caught-error totals
+Before the continuation below, live logs also contained `itms_manager.save_state`
+nil-actor errors; that separate hook needed its own guard. The strict gate
+correctly refuses those old runs. Logged caught-error totals
 may be capped by the compatibility module and are not exact occurrence counts.
 No measured FPS claim, no new completed marks in the historical 188-item
 audit, no primary executable promotion from these script fixes.
@@ -111,3 +111,23 @@ cleanup tests cover traversal and ancestor/subtree junctions.
 Native verification uses `_build/live/quick-item-save`, private scripts/world,
 two bot processes/four bots, and the already GHA-built fa5edb5f2 executable.
 Results and CI evidence will follow after the run.
+
+Continuation evidence: source81ae903c1 Foundation37639441808 SUCCESS and
+DX1137639441890 SUCCESS (23m9s, full engine/package/upload). Status verified
+on public Actions because local api.github.com connections were reset;
+package has not been downloaded/validated locally yet.
+
+Native quick-item-save: four unique bots, final4/4playing, zero terminal,
+Lua/fatal/shader/save/admission errors, production harness exit0. Native
+quick-transitions: both bootstrap saves, periodic saves8/4 and last-player-left
+saves3/3 on Marsh/Cordon, zero Lua/save/fatal/shader errors. The latter run
+failed for a test bot reconnect problem; doc58 tracks that separately.
+These native tests used the existing verified fa5edb5f2 exe and newly patched
+private scripts, not an unvalidated new package.
+
+Focused item-save guard installed in both prepared runtimes, with byte-preserving
+inverse comparison and backups under `_build/live/quick-item-save/primary-backup`.
+Original SHA256 `83E113D2C9F3FE2A230C7DE0E2425A2A0A5D33DFB2F7E539420C545EA7D51867`;
+installed `364F6BE9060DF649ACD686FF0C833ECBADEF329C0E0F0F0D5762A4ADBC9737BF`.
+No executable promotion. The strict evaluator also rejects world snapshot,
+pointer, character commit/refusal and incomplete inventory restore failures.

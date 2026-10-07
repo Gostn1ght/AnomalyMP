@@ -52,7 +52,7 @@ function Get-NetcoopSelftestResult {
         redirects = @($ServerLines | Select-String '\[cluster\] .* is sent to').Count
         refused = @($ServerLines | Select-String '\[cluster\] .*: (not inside|this passage|no server|the character|the server of that map)').Count
         lease_rejects = @($ServerLines | Select-String 'still on another location server').Count
-        save_failures = @($ServerLines | Select-String 'character save failed').Count
+        save_failures = @($ServerLines | Select-String 'character (save failed|commit failed|save refused)|inventory restore incomplete|\[world\] (refusing save|cannot clear inactive script snapshot|saving .* failed|incomplete script snapshot|saved .* could not point)').Count
         bot_moves = @($allBotLines | Select-String '\[bots\] .* goes to').Count
         admission_error_events = @($allBotLines | Select-String '! \[Lost Zone\]\[bots\]').Count
         admission_retries = @($allBotLines | Select-String '\[bots\] nbot_\d+ retries').Count
