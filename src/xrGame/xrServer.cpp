@@ -446,11 +446,11 @@ void xrServer::SendUpdatePacketsToAll()
 }
 
 // Netcoop area of interest. Every object is serialised once per tick; each
-// client then gets the objects near its Actor every tick and farther ones
-// less often (staggered by id), instead of every object every tick. Items
-// held by someone use the holder's position.
+// client gets creatures/players every tick at every distance. Other world
+// objects retain staggered distance tiers. Items held by someone use the
+// holder's position and inherit the creature's full-rate protection.
 // Overload policy (doc 43 M04/D05/D06): the server's own frame time, smoothed;
-// a slow server sends far objects less often before near ones suffer, and
+// a slow server sends distant non-creature objects less often, and
 // every client has a byte budget per tick that only far objects give way to.
 static float s_aoi_frame_ms = 16.f;
 static const u32 aoi_client_budget = 16 * 1024; // bytes per client per tick (~480 KB/s at 30 Hz)
@@ -494,6 +494,7 @@ void xrServer::SendUpdatesAOI()
 		u16 size;
 		u16 id;
 		bool player;
+		bool full_rate; // creature root, including held items; never distance/overload throttled
 		u16 owner_only; // a player's Actor id: only that client gets it; 0xffff: everyone
 		Fvector position;
 	};
@@ -551,14 +552,15 @@ void xrServer::SendUpdatesAOI()
 		c.offset = u32(data.size());
 		c.size = u16(tmp.B.count);
 		c.id = Test.ID;
-		// Other players are few and watched closely: they are sent every
-		// tick up to 300 m, every 2nd tick beyond (NPCs: 50/150/300 m tiers).
 		c.player = Test.owner != GetServerClient() && smart_cast<CSE_ALifeCreatureActor*>(&Test) != NULL;
+		// Do not thin moving/animated characters at maximum visibility or on
+		// heavy frames. Root protection also covers their displayed equipment.
+		c.full_rate = c.player || smart_cast<CSE_ALifeCreatureAbstract*>(root) != NULL;
 		c.owner_only = owner_only;
 		c.position = root->o_Position;
 		data.insert(data.end(), tmp.B.data, tmp.B.data + tmp.B.count);
 		chunks.push_back(c);
-		if (use_index) index_records.push_back({c.id,c.player,c.position.x,c.position.y,c.position.z});
+		if (use_index) index_records.push_back({c.id,c.full_rate,c.position.x,c.position.y,c.position.z});
 	}
 
 	const u32 packet_limit = 8 * 1024;
@@ -691,24 +693,28 @@ void xrServer::SendUpdatesAOI()
 				if (c.owner_only != 0xffff && c.owner_only != CL->owner->ID)
 					continue;
 				const float d = c.id == CL->owner->ID ? 0.f : eye.distance_to(c.position);
-				u32 every = c.player ? (d < 300.f ? 1 : 2) : d < 50.f ? 1 : d < 150.f ? 2 : d < 300.f ? 4 : 16;
-				// Overload and budget: never players, never the nearby world (50 m).
-				const bool close_by = c.player || d < 50.f;
+				u32 every = c.full_rate ? 1 : d < 50.f ? 1 : d < 150.f ? 2 : d < 300.f ? 4 : 16;
+				// Overload/budget never defer characters, their equipment or nearby objects.
+				const bool close_by = c.full_rate || d < 50.f;
 				if (!close_by) every *= far_scale;
 				if ((server->m_aoi_tick + c.id) % every)
 					continue;
 				if (!close_by && client_bytes > aoi_client_budget)
 					continue; // staggered by id and tick, it goes out on a later tick
-				const u32 hash = aoi_hash(&data[c.offset], c.size);
-				AoiSent& last = memory.sent[c.id];
-				// Players (and the own Actor: input acks) always go out at their rate.
-				if (!c.player && last.hash == hash && last.time && now - last.time < aoi_keepalive_ms)
+				// Full-rate states must repair packet loss next tick. Hash equality
+				// cannot safely suppress creature updates for the 500 ms keep-alive.
+				if (!c.full_rate)
 				{
-					++*unchanged_skipped;
-					continue;
+					const u32 hash = aoi_hash(&data[c.offset], c.size);
+					AoiSent& last = memory.sent[c.id];
+					if (last.hash == hash && last.time && now - last.time < aoi_keepalive_ms)
+					{
+						++*unchanged_skipped;
+						continue;
+					}
+					last.hash = hash;
+					last.time = now ? now : 1;
 				}
-				last.hash = hash;
-				last.time = now ? now : 1;
 				client_bytes += c.size;
 				if (P.B.count + c.size > packet_limit)
 				{
@@ -741,7 +747,7 @@ void xrServer::SendUpdatesAOI()
 	if (use_index && (!m_replication_index_log || shadow_now-m_replication_index_log>=10000))
 	{
 		m_replication_index_log = shadow_now;
-		Msg("[replication-index] objects=%u clients=%u fallback=%u selected=%llu full_scan=%llu grid_candidates=%llu (legacy cadence)",
+		Msg("[replication-index] objects=%u clients=%u fallback=%u selected=%llu full_scan=%llu grid_candidates=%llu (full-rate creatures; world tiers)",
 			u32(chunks.size()),indexed_clients,fallback_clients,candidate_checks,full_checks,grid_checks);
 	}
 	m_last_updates_size = sent_bytes;

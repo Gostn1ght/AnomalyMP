@@ -29,25 +29,26 @@ struct Fvector {
  float x,y,z;
  float distance_to(const Fvector& p)const{return std::sqrt((x-p.x)*(x-p.x)+(y-p.y)*(y-p.y)+(z-p.z)*(z-p.z));}
 };
-struct Chunk {u16 id;bool player;Fvector position;};
-bool eligible(const ReplicationRecord& record,u16 owner,const Fvector& eye,u32 tick) {
+struct Chunk {u16 id;bool full_rate;Fvector position;};
+bool eligible(const ReplicationRecord& record,u16 owner,const Fvector& eye,u32 tick,u32 far_scale=1) {
  struct Owner {u16 ID;} object{owner};
  struct Client {Owner* owner;} client{&object};auto CL=&client;
  struct Server {u32 m_aoi_tick;} instance{tick};auto server=&instance;
- Chunk c{record.id,record.player,{record.x,record.y,record.z}}; const u32 far_scale=1; // no overload here
+ Chunk c{record.id,record.full_rate,{record.x,record.y,record.z}};
 ''' + cadence + r'''
+ if(record.full_rate){assert(every==1&&close_by);}
  return (server->m_aoi_tick+c.id)%every==0;
 }
-std::size_t compare(ReplicationIndex& index,const std::vector<ReplicationRecord>& records,u16 owner,Fvector eye,u32 tick) {
+std::size_t compare(ReplicationIndex& index,const std::vector<ReplicationRecord>& records,u16 owner,Fvector eye,u32 tick,u32 far_scale=1) {
  const auto selected=index.select(owner,eye.x,eye.y,eye.z,tick);assert(selected.valid);
  std::vector<u32> actual,expected;
  for(std::size_t i=0;i<selected.count;++i) {
   const auto offset=selected.indices[i];assert(offset<records.size());
   if(i)assert(selected.indices[i-1]<offset);
-  if(eligible(records[offset],owner,eye,tick))actual.push_back(offset);
+  if(eligible(records[offset],owner,eye,tick,far_scale))actual.push_back(offset);
  }
  for(std::size_t i=0;i<records.size();++i)
-  if(eligible(records[i],owner,eye,tick))expected.push_back(u32(i));
+  if(eligible(records[i],owner,eye,tick,far_scale))expected.push_back(u32(i));
  assert(actual==expected);return selected.count;
 }
 int main() {
@@ -63,6 +64,15 @@ int main() {
  };
  assert(index.prepare(records.data(),records.size()));
  for(u32 tick=0;tick<64;++tick)compare(index,records,0,{0,0,0},tick);
+ // Characters at every distance, including beyond the spatial sphere, must
+ // remain candidates every tick under all overload scales. No byte budget deferral.
+ auto protected_records=records;for(auto& record:protected_records)record.full_rate=true;
+ assert(index.prepare(protected_records.data(),protected_records.size()));
+ for(u32 overload:{1u,2u,4u})for(u32 tick=0;tick<64;++tick){
+  compare(index,protected_records,0,{0,0,0},tick,overload);
+  auto selected=index.select(0,0,0,0,tick);assert(selected.count==protected_records.size());
+ }
+ assert(index.prepare(records.data(),records.size()));
  for(u32 tick:{0xffffffffu,0xfffffffeu,0xfffffff0u})compare(index,records,65535,{0,0,0},tick);
  assert(!index.select(0,std::numeric_limits<float>::quiet_NaN(),0,0,1).valid);
  auto bad=records;bad[1].id=bad[0].id;
@@ -77,7 +87,7 @@ int main() {
  for(u32 tick=0;tick<32;++tick)compare(index,records,65535,{-450,0,0},tick);
  std::mt19937 rng(7251);std::uniform_real_distribution<float> coord(-5000,5000);
  records.clear();
- for(u32 i=0;i<12000;++i)records.push_back({u16(i),i<64,coord(rng),coord(rng)/30,coord(rng)});
+ for(u32 i=0;i<12000;++i)records.push_back({u16(i),i<512,coord(rng),coord(rng)/30,coord(rng)});
  std::uint64_t candidates=0,full_scan=0;
  for(u32 frame=0;frame<32;++frame) {
   std::shuffle(records.begin(),records.end(),rng);
@@ -90,7 +100,7 @@ int main() {
   }
  }
  assert(candidates<full_scan/4);
- std::cout<<"PASS: real grid candidates + unchanged native cadence match full scan, order, players/owner, float boundaries, tick overflow, moves/removals/reuse and fallback\n"
+ std::cout<<"PASS: real grid candidates + native world cadence match full scan; characters/equipment always full rate, including overload, order, owner, float boundaries, tick overflow, moves/removals/reuse and fallback\n"
           <<"Synthetic candidate count "<<candidates<<" versus "<<full_scan<<" full checks; not a gameplay capacity/load test\n";
 }
 '''

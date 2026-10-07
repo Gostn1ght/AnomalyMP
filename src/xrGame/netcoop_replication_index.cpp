@@ -37,7 +37,7 @@ struct ReplicationIndex::State
     std::vector<Cell> cells;                      // sorted by key
     std::vector<float> xs, ys, zs;                // by offset
     std::array<std::vector<std::uint32_t>,16> buckets;
-    std::vector<std::uint32_t> players, selected, marks;
+    std::vector<std::uint32_t> full_rate, selected, marks;
     std::vector<std::uint32_t> offsets;           // id -> offset (65536), no_offset if absent
     std::vector<std::uint16_t> used_ids;          // ids set in offsets this frame
     std::uint32_t stamp = 0;
@@ -57,7 +57,7 @@ bool ReplicationIndex::prepare(const ReplicationRecord* records,std::size_t coun
         if (state.offsets.size()!=65536) state.offsets.assign(65536,no_offset);
         for (const auto id:state.used_ids) state.offsets[id]=no_offset;
         state.used_ids.clear();
-        state.cells.clear();state.players.clear();state.selected.clear();
+        state.cells.clear();state.full_rate.clear();state.selected.clear();
         state.xs.resize(count);state.ys.resize(count);state.zs.resize(count);
         state.marks.assign(count,0);state.stamp=0;
         for (auto& bucket:state.buckets) bucket.clear();
@@ -72,7 +72,7 @@ bool ReplicationIndex::prepare(const ReplicationRecord* records,std::size_t coun
             state.xs[i]=record.x;state.ys[i]=record.y;state.zs[i]=record.z;
             state.cells.push_back({cell_key(cell_of(record.x),cell_of(record.z)),offset});
             state.buckets[record.id%16].push_back(offset);
-            if (record.player) state.players.push_back(offset);
+            if (record.full_rate) state.full_rate.push_back(offset);
         }
         std::sort(state.cells.begin(),state.cells.end(),
             [](const State::Cell& a,const State::Cell& b){return a.key<b.key;});
@@ -99,7 +99,7 @@ ReplicationSelection ReplicationIndex::select(std::uint16_t observer,float x,flo
             state.selected.push_back(offset);
         };
         for (const auto offset:state.buckets[(16-tick%16)%16]) take(offset);
-        for (const auto offset:state.players) take(offset);
+        for (const auto offset:state.full_rate) take(offset);
         const std::uint32_t own=state.offsets[observer];
         if (own!=no_offset) take(own);
         // The 300 m sphere (3D test), over the rows of the covering cells.

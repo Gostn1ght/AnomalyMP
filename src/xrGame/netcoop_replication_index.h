@@ -8,7 +8,7 @@ namespace netcoop_world
 struct ReplicationRecord
 {
     std::uint16_t id;
-    bool player;
+    bool full_rate; // players, creatures and their displayed equipment
     float x,y,z;
 };
 struct ReplicationSelection
@@ -20,9 +20,10 @@ struct ReplicationSelection
 };
 // Single simulation thread. Indices address the current serialized frame and
 // expire on prepare/select. No durable identity, ownership or AOI admission.
-// Selection is a superset of the existing 1/2/4/16-tick cadence, including all
-// players and the observer's object. Apply the legacy distance predicate after
-// selection; objects beyond the near sphere still receive their usual updates.
+// Selection includes every full_rate record globally and the observer's object.
+// The remaining world records form a superset of the 1/2/4/16-tick cadence.
+// Apply the native distance predicate after selection; full-rate characters
+// remain included even beyond the near sphere under overload.
 class ReplicationIndex
 {
     struct State;
