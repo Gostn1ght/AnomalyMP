@@ -565,15 +565,21 @@ void CRenderDevice::on_idle()
 	// server spun a whole core with 1 ms frames (2026-10-07). A frame shorter
 	// than -netcoop_frame_ms (5 ms: the old pause, so snapshot timing stays as
 	// it was) sleeps the rest; a longer one does not sleep at all (it used to
-	// sleep 5 ms every frame).
-	if (g_dedicated_server)
+	// sleep 5 ms every frame). A load-bot process (-netcoop_bots, headless
+	// players) ran its menu ~1000 times a second and took the CPU of the PC
+	// that also runs the server under test: 10 ms frames there.
+	static int bots_process = -1;
+	if (bots_process < 0)
+		bots_process = strstr(Core.Params, "-netcoop_bots ") ? 1 : 0;
+	if (g_dedicated_server || bots_process)
 	{
 		static int frame_ms = -1;
 		if (frame_ms < 0)
 		{
+			const int normal = bots_process ? 10 : 5;
 			LPCSTR option = strstr(Core.Params, "-netcoop_frame_ms=");
-			frame_ms = option ? atoi(option + xr_strlen("-netcoop_frame_ms=")) : 5;
-			if (frame_ms < 0 || frame_ms > 100) frame_ms = 5;
+			frame_ms = option ? atoi(option + xr_strlen("-netcoop_frame_ms=")) : normal;
+			if (frame_ms < 0 || frame_ms > 100) frame_ms = normal;
 		}
 		static u64 frame_begin = 0;
 		const u64 now = CPU::QPC();
