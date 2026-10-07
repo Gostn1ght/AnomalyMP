@@ -160,6 +160,13 @@ void ordering(){
  tick();assert((ids()==std::vector<u32>{40,41,42}));trace.clear();tick();assert((ids()==std::vector<u32>{40,42,41}));
  for(auto* o:{&a,&b,&c}){Engine.Sheduler.Unregister(o);o->unregister={};}clear();
 }
+void batch_realtime_cancellation(){
+ reset();std::vector<std::unique_ptr<Object>> objects;
+ for(u32 i=0;i<2048;++i){objects.emplace_back(new Object(i));auto& o=*objects.back();
+  o.unregister=[](ISheduled* p){Engine.Sheduler.Unregister(p);};Engine.Sheduler.Register(&o,TRUE);}
+ tick();assert(trace.size()==2048);objects.clear();trace.clear();tick();assert(trace.empty());clear();
+ std::cout<<"PASS realtime cancellation: 2048 pending removals, one stable compaction, no stale callbacks\n";
+}
 struct Request{BOOL OP,RT;void* Object;std::size_t index;};
 std::vector<unsigned char> legacy_pairs(std::vector<Request> work){
  std::vector<unsigned char> out(work.size(),0);
@@ -180,7 +187,7 @@ void pairing(){
  assert(std::all_of(skipped.begin(),skipped.end(),[](unsigned char x){return x==1;}));
  std::cout<<"PASS registration: 10000 differential batches + 50000 cancelled objects, earliest-pair semantics preserved\n";
 }
-int main(){std::cout<<std::unitbuf;pairing();differential();realtime_lifetime();normal_lifetime();reused_address();ordering();
+int main(){std::cout<<std::unitbuf;pairing();differential();realtime_lifetime();normal_lifetime();reused_address();ordering();batch_realtime_cancellation();
  std::cout<<"PASS actual scheduler: self/other destruction, needed/scale cancellation, address reuse, stable realtime order; no cadence reduction\n";}
 '''
 

@@ -41,6 +41,7 @@ private:
 	struct OrderChange { ISheduled* after; u64 generation; };
 	xr_vector<OrderChange> OrderChanges;
 	u64 m_next_generation;
+	bool m_realtime_compaction_pending;
 	ISheduled* m_current_step_obj;
 	bool m_processing_now;
 
@@ -55,6 +56,7 @@ private:
 	bool internal_Unregister(ISheduled* A, BOOL RT, bool warn_on_not_found = true);
 	void internal_Registration();
 	bool active(const Item& item) const;
+	void compact_realtime();
 	void internal_EnsureOrder(ISheduled* After);
 public:
 	u64 cycles_start;

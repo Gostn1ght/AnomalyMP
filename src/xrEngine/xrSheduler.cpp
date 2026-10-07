@@ -19,6 +19,7 @@ void CSheduler::Initialize()
 	m_current_step_obj = NULL;
 	m_processing_now = false;
 	m_next_generation = 0;
+	m_realtime_compaction_pending = false;
 	ActiveItems.clear();
 	OrderChanges.clear();
 }
@@ -46,6 +47,7 @@ void CSheduler::Destroy()
 	Registration.clear();
 	ActiveItems.clear();
 	OrderChanges.clear();
+	m_realtime_compaction_pending = false;
 }
 
 void CSheduler::internal_Registration()
@@ -67,12 +69,21 @@ void CSheduler::internal_Registration()
     }
     // Keep the larger registration allocation for the next spawn/load batch.
     if (Registration.capacity() < work.capacity()) Registration.swap(work);
+    compact_realtime();
 }
 
 bool CSheduler::active(const Item& item) const
 {
     const auto found = ActiveItems.find(item.Object);
     return found != ActiveItems.end() && found->second.generation == item.generation;
+}
+
+void CSheduler::compact_realtime()
+{
+    if (!m_realtime_compaction_pending) return;
+    ItemsRT.erase(std::remove_if(ItemsRT.begin(), ItemsRT.end(),
+        [this](const Item& item) { return !active(item); }), ItemsRT.end());
+    m_realtime_compaction_pending = false;
 }
 
 void CSheduler::internal_Register(ISheduled* O, BOOL RT)
@@ -119,12 +130,9 @@ bool CSheduler::internal_Unregister(ISheduled* O, BOOL RT, bool warn_on_not_foun
     if (found == ActiveItems.end()) return false;
     // Do not erase a vector or touch O: this can run from O's destructor,
     // from its callback, or after a different callback destroyed O.
-    const bool realtime = found->second.realtime != FALSE;
+    if (found->second.realtime) m_realtime_compaction_pending = true;
     ActiveItems.erase(found);
     if (m_current_step_obj == O) m_current_step_obj = NULL;
-    if (realtime && !m_processing_now)
-        ItemsRT.erase(std::remove_if(ItemsRT.begin(), ItemsRT.end(),
-            [this](const Item& item) { return !active(item); }), ItemsRT.end());
     return true;
 }
 
@@ -389,8 +397,7 @@ void CSheduler::Update()
         m_current_step_obj = NULL;
         // Never dereference T after this callback: self-unregister/delete is legal.
     }
-    ItemsRT.erase(std::remove_if(ItemsRT.begin(), ItemsRT.end(),
-        [this](const Item& item) { return !active(item); }), ItemsRT.end());
+    compact_realtime();
 
 	// Normal (sheduled)
 	ProcessStep();
