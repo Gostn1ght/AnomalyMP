@@ -759,3 +759,13 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   eight actual process exits before/after each phase). Existing backend workflow
   discovers it on Linux/Windows. See 51_TRANSFER_STRESS.md; H12 stays partial
   until native source/target crash and hidden-spawn acceptance. No runtime edit.
+
+- 2026-10-07 (Codex) — IX-Ray scheduler fixtures PASS: World Foundation
+  37578376041, GCC+ASan/UBSan and MSVC, release/DEBUG, exact 32825 callback trace
+  against pinned IX-Ray, register-pair/lifetime/address-reuse tests. Native code
+  last changed at 9cbec96e8; DX11 run 37578375978 (87cbb2133) is building.
+  World Backend 37578376035 PASS 240 tests on both OS, including 1000 handoffs
+  and eight process crashes. Do not label the 64-player frame acceptance done.
+  Current backend cleanup policy corrected to DESTROYED leftover corpse loot
+  per latest owner rule; independent ground/player items preserved. 241 Python
+  tests local PASS; see 52_CORPSE_LOOT_POLICY.md, backend CI pending.

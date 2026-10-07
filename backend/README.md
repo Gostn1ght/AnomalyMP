@@ -16,8 +16,8 @@
 - Журнал с aggregate sequence; outbox, consumer ACK, atomic inbox
   и durable command results с проверкой совпадения payload.
 - Entity registry и ItemLedger: одна containment-запись на вещь;
-  version/access/capacity checks, постоянная смерть, все оставшиеся
-  вещи corpse→ground сохраняют IDs.
+  version/access/capacity checks, постоянная смерть; лут удаляемого трупа
+  становится DESTROYED, с сохранением IDs в журнале/ledger.
 - Персонажи, sessions и prepare/claim/commit/abort/status для handoff.
   Target reservation, подписанные tokens, claim recovery под новым
   location fence; claimed transfer не возвращается source по expiry.
@@ -26,11 +26,13 @@
 - Consistent backend snapshot/checksum/journal watermark. Снимок
   не содержит ALife/Lua; общий engine/backend recovery впереди.
 
-`corpse_cleanup` переносит до 64 оставшихся вещей и до 4 MiB encoded state
+`corpse_cleanup` удаляет из игры до 64 оставшихся вещей и до 4 MiB encoded state
 за транзакцию. Если вещи остались, ответ содержит `complete=false` и `next_event`;
 durable `CorpseCleanupBatch` продолжает работу отдельными транзакциями. Тело
-помечается `corpse_removed=true` только после последнего переноса. ID/stack/
-condition/ammo/attachments сохраняются, TTL вещей не вводится. Подбор вещи
+помечается `corpse_removed=true` только после последней партии. В ledger остаются
+terminal записи DESTROYED с ID/stack/condition/ammo/attachments: их нельзя
+подобрать, продать или создать заново с тем же ID; location_state их не отправляет.
+Отдельные вещи на земле не имеют TTL и не удаляются этой операцией. Подбор вещи
 игроком между партиями учитывается по действительному ledger. Квестовая защита,
 writer/fence/version проверяются каждой партией. При новом quest pin или смене
 владельца старое продолжение отменяется; после разрешения защиты новый владелец
@@ -153,8 +155,10 @@ abort, quest_grant/progress. World bootstrap согласован по DB transa
 
 Schema v1→v2→v3 мигрируется транзакционно, включая прежний состав групп;
 неизвестная/пустая существующая DB останавливает запуск. Gameplay items
-не имеют TTL. Смерть сохраняет tombstone, cleanup переносит весь corpse
-loot с прежними IDs/состояниями и сохранённой drop position.
+не имеют TTL. Смерть сохраняет tombstone, cleanup удаляет труп с оставшимся
+лутом; терминальные записи вещей сохраняют IDs/состояния для аудита и запрета
+повторного создания. Дедлайн 40 минут без игрока и cleanup при рестарте вызывает
+native adapter; сама команда backend не моделирует присутствие игроков.
 
 Quest definitions — доверенный config, не player-provided rewards.
 Квесты используют committed objective events, stable entity links,

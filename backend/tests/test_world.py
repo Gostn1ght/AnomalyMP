@@ -180,7 +180,7 @@ class WorldTest(unittest.TestCase):
         self.open()
         self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM item WHERE holder=?", (stash,)).fetchone()[0], 1)
 
-    def test_permanent_death_and_cleanup_preserve_every_item(self):
+    def test_permanent_death_and_cleanup_tombstone_remaining_loot(self):
         npc = self.entity()
         items = [self.item("NPC", npc) for _ in range(5)]
         self.ownership.kill("a", uid(), npc, self.a, 1, "combat")
@@ -191,7 +191,8 @@ class WorldTest(unittest.TestCase):
         row = self.store.db.execute("SELECT * FROM entity WHERE id=?", (npc,)).fetchone()
         self.assertEqual(row["alive"], 0)
         self.assertTrue(json.loads(row["state"])["corpse_removed"])
-        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM item WHERE kind='WORLD' AND holder='cordon'").fetchone()[0], 5)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM item WHERE kind='DESTROYED' AND holder=?",(npc,)).fetchone()[0], 5)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM item WHERE kind='WORLD' AND holder='cordon'").fetchone()[0], 0)
         with self.assertRaises(Conflict):
             self.ownership.create_entity("a", uid(), npc, "NPC", "cordon", self.a, {})
 

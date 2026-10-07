@@ -379,10 +379,11 @@ class Ownership:
                 break
             admitted.append(item)
         for item in admitted:
-            item_state=json.loads(item["state"])
-            item_state.update(drop_position=state.get("position"),dropped_from_corpse=row["id"])
-            tx.execute("UPDATE item SET kind='WORLD',holder=?,state=?,version=version+1 WHERE id=?",
-                       (row["location"],canonical(item_state,limit=4*1024*1024),item["id"]))
+            # Owner policy: remove the body WITH its remaining loot. Retain a
+            # terminal ledger row so the same PersistentID cannot be recreated.
+            # DESTROYED is not a legal endpoint for create/move or a live item.
+            tx.execute("UPDATE item SET kind='DESTROYED',version=version+1 WHERE id=?",
+                       (item["id"],))
         complete=tx.execute("SELECT 1 FROM item WHERE kind='CORPSE' AND holder=? LIMIT 1",(row["id"],)).fetchone() is None
         state["corpse_removed"]=complete
         if complete:
@@ -422,7 +423,7 @@ class Ownership:
                                              (location, actor, fence)).fetchall()
             # Inventory projection is derived from the single ledger. There
             # is no second authoritative inventory embedded in entity JSON.
-            items = self.store.db.execute("SELECT * FROM item WHERE (kind='WORLD' AND holder=?) OR holder IN (SELECT id FROM entity WHERE location=? AND writer=? AND fence=?) ORDER BY id",
+            items = self.store.db.execute("SELECT * FROM item WHERE kind!='DESTROYED' AND ((kind='WORLD' AND holder=?) OR holder IN (SELECT id FROM entity WHERE location=? AND writer=? AND fence=?)) ORDER BY id",
                                           (location, location, actor, fence)).fetchall()
             return {"entities": [dict(row, state=json.loads(row["state"])) for row in entities],
                     "items": [dict(row, state=json.loads(row["state"])) for row in items]}

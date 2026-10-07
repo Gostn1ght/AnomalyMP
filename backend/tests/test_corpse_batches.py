@@ -9,7 +9,7 @@ import uuid
 from unittest.mock import patch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-from lostzone import Store, World, Conflict
+from lostzone import Store, World, Conflict, Invalid
 from lostzone.ownership import Ownership
 from lostzone.scheduler import Scheduler
 from lostzone.quests import Quests
@@ -54,16 +54,17 @@ class CorpseBatchesTest(unittest.TestCase):
     def count(self,kind):
         return self.store.db.execute("SELECT COUNT(*) FROM item WHERE kind=?",(kind,)).fetchone()[0]
 
-    def assert_preserved(self,world_count=None):
-        if world_count is not None:
-            self.assertEqual(self.count("WORLD"),world_count)
+    def assert_ledger_retained(self,destroyed_count=None):
+        if destroyed_count is not None:
+            self.assertEqual(self.count("DESTROYED"),destroyed_count)
         rows=self.store.db.execute("SELECT * FROM item ORDER BY id").fetchall()
         self.assertEqual([row["id"] for row in rows],self.ids)
         for row in rows:
             state=json.loads(row["state"])
             self.assertEqual((row["quantity"],state["condition"],state["attachments"],state["ammo"]),(3,.51,["scope"],17))
-            if row["kind"]=="WORLD":
-                self.assertEqual((row["holder"],state["drop_position"],state["dropped_from_corpse"]),("cordon",[1,2,3],self.corpse))
+            if row["kind"]=="DESTROYED":
+                self.assertEqual(row["holder"],self.corpse)
+                self.assertNotIn("dropped_from_corpse",state)
 
     def test_large_inventory_finishes_in_durable_batches_and_retries_do_not_repeat(self):
         self.populate()
@@ -72,13 +73,13 @@ class CorpseBatchesTest(unittest.TestCase):
         self.assertFalse(self.state()["corpse_removed"])
         self.assertEqual(self.ownership.cleanup_corpse("a",key,self.corpse,self.fence,2),result)
         self.assertEqual(self.scheduler.run_due(limit=1,budget_ms=1000),1)
-        self.assertEqual((self.count("WORLD"),self.count("CORPSE")),(128,2))
+        self.assertEqual((self.count("DESTROYED"),self.count("CORPSE")),(128,2))
         self.assertFalse(self.state()["corpse_removed"])
         self.store.close();self.open()
         self.assertEqual(self.scheduler.run_due(budget_ms=1000),1)
         self.assertTrue(self.state()["corpse_removed"])
         self.assertNotIn("corpse_cleanup_pending",self.state())
-        self.assert_preserved(130)
+        self.assert_ledger_retained(130)
         self.assertEqual(self.scheduler.run_due(budget_ms=1000),0)
         self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM world_event WHERE type='CorpseRemoved'").fetchone()[0],1)
         before=self.store.events();self.assertTrue(self.cleanup()["complete"])
@@ -97,18 +98,18 @@ class CorpseBatchesTest(unittest.TestCase):
                 self.scheduler.run_due(limit=1,budget_ms=1000)
         finally:
             self.store.event=original
-        self.assertEqual((self.count("WORLD"),self.count("CORPSE")),(64,66))
+        self.assertEqual((self.count("DESTROYED"),self.count("CORPSE")),(64,66))
         self.assertEqual(self.store.events(),before)
         self.assertEqual(self.scheduler.run_due(budget_ms=1000),2)
-        self.assert_preserved(130)
+        self.assert_ledger_retained(130)
 
     def test_player_pickup_during_cleanup_is_not_duplicated_or_discarded(self):
         self.populate(131);self.cleanup()
         item=self.ids[-1]
         self.ownership.move_item("a",uid(),item,"cordon",self.fence,2,"CORPSE",self.corpse,"PLAYER",self.player,self.player)
         self.assertEqual(self.scheduler.run_due(budget_ms=1000),2)
-        self.assertEqual((self.count("WORLD"),self.count("PLAYER"),self.count("CORPSE")),(130,1,0))
-        self.assert_preserved(130)
+        self.assertEqual((self.count("DESTROYED"),self.count("PLAYER"),self.count("CORPSE")),(130,1,0))
+        self.assert_ledger_retained(130)
 
     def test_quest_pin_added_between_batches_holds_body_without_blocking_scheduler(self):
         quests=Quests(self.world,{"body":{"steps":[{"type":"EntityDied","target":self.corpse}],
@@ -117,20 +118,20 @@ class CorpseBatchesTest(unittest.TestCase):
         quests.grant("a",uid(),self.player,self.fence,"body")
         self.assertEqual(self.scheduler.run_due(budget_ms=1000),1)
         self.assertFalse(self.state()["corpse_removed"])
-        self.assertEqual((self.count("WORLD"),self.count("CORPSE")),(64,66))
+        self.assertEqual((self.count("DESTROYED"),self.count("CORPSE")),(64,66))
         self.assertEqual(self.scheduler.run_due(budget_ms=1000),0)
         quests.progress("a",uid(),self.player,self.fence,"body",1,self.death["event"])
         self.cleanup();self.scheduler.run_due(budget_ms=1000)
-        self.assertTrue(self.state()["corpse_removed"]);self.assert_preserved(130)
+        self.assertTrue(self.state()["corpse_removed"]);self.assert_ledger_retained(130)
 
     def test_old_cleanup_job_cannot_write_after_new_location_owner_recovers(self):
         self.populate();self.cleanup();self.utc+=16_000_000_000
         fresh=self.world.claim_location("new-a",uid(),"cordon")["fence"]
         self.ownership.recover_location("new-a",uid(),"cordon",fresh)
         self.assertEqual(self.scheduler.run_due(budget_ms=1000),1)
-        self.assertEqual((self.count("WORLD"),self.count("CORPSE")),(64,66))
+        self.assertEqual((self.count("DESTROYED"),self.count("CORPSE")),(64,66))
         self.cleanup("new-a",fresh);self.scheduler.run_due(budget_ms=1000)
-        self.assert_preserved(130)
+        self.assert_ledger_retained(130)
 
     def test_large_item_states_use_byte_bounded_batches_without_truncation(self):
         self.populate(14,"я"*150000)
@@ -138,7 +139,7 @@ class CorpseBatchesTest(unittest.TestCase):
         self.assertGreater(len(result["items"]),0);self.assertLess(len(result["items"]),14)
         self.assertFalse(result["complete"])
         self.scheduler.run_due(budget_ms=1000)
-        self.assert_preserved(14)
+        self.assert_ledger_retained(14)
         for row in self.store.db.execute("SELECT state FROM item"):
             self.assertEqual(json.loads(row[0])["payload"],"я"*150000)
 
@@ -146,7 +147,32 @@ class CorpseBatchesTest(unittest.TestCase):
         self.populate(1);self.cleanup()
         with self.assertRaises(Conflict):
             self.ownership.create_item("a",uid(),uid(),"food","cordon",self.fence,"CORPSE",self.corpse)
-        self.assert_preserved(1)
+        self.assert_ledger_retained(1)
+
+    def test_cleanup_destroys_only_remaining_loot_and_never_recreates_its_id(self):
+        self.populate(2)
+        taken,remaining=self.ids
+        self.ownership.move_item("a",uid(),taken,"cordon",self.fence,2,
+                                 "CORPSE",self.corpse,"PLAYER",self.player,self.player)
+        ground=uid()
+        self.ownership.create_item("a",uid(),ground,"medkit","cordon",self.fence,
+                                   state={"condition":.8,"position":[1,2,3]})
+        before={row["id"]:tuple(row) for row in self.store.db.execute("SELECT * FROM item WHERE id IN (?,?)",(taken,ground))}
+        self.assertTrue(self.cleanup()["complete"])
+        self.assertEqual(self.count("DESTROYED"),1)
+        self.assertEqual({row["id"] for row in self.ownership.location_state("a","cordon",self.fence)["items"]},{taken,ground})
+        self.store.close();self.open()
+        after={row["id"]:tuple(row) for row in self.store.db.execute("SELECT * FROM item WHERE id IN (?,?)",(taken,ground))}
+        self.assertEqual(before,after)
+        self.assertEqual({row["id"] for row in self.ownership.location_state("a","cordon",self.fence)["items"]},{taken,ground})
+        with self.assertRaises(Conflict):
+            self.ownership.create_item("a",uid(),remaining,"wpn","cordon",self.fence)
+        with self.assertRaises(Conflict):
+            self.ownership.move_item("a",uid(),remaining,"cordon",self.fence,3,
+                                     "WORLD","cordon","PLAYER",self.player,self.player)
+        with self.assertRaises(Invalid):
+            self.ownership.move_item("a",uid(),remaining,"cordon",self.fence,3,
+                                     "DESTROYED",self.corpse,"PLAYER",self.player,self.player)
 
     def test_continuation_queue_failure_rolls_back_first_batch_but_not_death(self):
         self.populate();before=self.store.events()
@@ -158,12 +184,12 @@ class CorpseBatchesTest(unittest.TestCase):
         with patch.object(Scheduler,"schedule_in",fail):
             with self.assertRaises(RuntimeError):
                 self.cleanup()
-        self.assertEqual((self.count("WORLD"),self.count("CORPSE")),(0,130))
+        self.assertEqual((self.count("DESTROYED"),self.count("CORPSE")),(0,130))
         self.assertFalse(self.state()["corpse_removed"])
         self.assertNotIn("corpse_cleanup_pending",self.state())
         self.assertEqual(self.store.events(),before)
         self.cleanup();self.scheduler.run_due(budget_ms=1000)
-        self.assert_preserved(130)
+        self.assert_ledger_retained(130)
 
     def test_oversized_first_state_refuses_before_reading_second_item(self):
         self.populate(2)
@@ -193,7 +219,7 @@ class CorpseBatchesTest(unittest.TestCase):
                 self.cleanup()
         finally:
             self.store.transaction=original_transaction
-        self.assertEqual((self.count("WORLD"),self.count("CORPSE")),(0,2))
+        self.assertEqual((self.count("DESTROYED"),self.count("CORPSE")),(0,2))
         self.assertFalse(self.state()["corpse_removed"])
         self.assertEqual(self.store.events(),before)
 
@@ -217,7 +243,7 @@ class CorpseBatchesTest(unittest.TestCase):
             self.assertEqual(probe.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()[0],"3")
             self.assertEqual([row[2] for row in probe.execute("PRAGMA index_info(item_holder)")],["kind","holder"])
             self.assertEqual(probe.execute("SELECT COUNT(*) FROM item WHERE kind='CORPSE'").fetchone()[0],2)
-        self.open();self.cleanup();self.assert_preserved(2)
+        self.open();self.cleanup();self.assert_ledger_retained(2)
 
     def test_v3_index_migration_preserves_data_and_avoids_inventory_sort(self):
         self.populate()
