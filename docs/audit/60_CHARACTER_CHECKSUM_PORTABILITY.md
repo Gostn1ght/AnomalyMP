@@ -43,3 +43,31 @@ oversized packet/count, every truncated prefix and trailing bytes.
 Canonical software results are compared with actual SSE4.2 CRC operations;
 global crc32 source is pinned unchanged. Native fixtures/full build/live probe
 are still pending; local Python syntax check only, no local native compilation.
+
+## CI and staged real-save migration
+
+Source ed08716d35ddbede33389e5d8f9e0785c405ef6c. Foundation37660141678
+SUCCESS GCC sanitizers/MSVC, including actual reader/durable writer and both
+actual xrCore CPU branches. DX1137660141680 checks SUCCESS; full engine pending.
+Native compilation happened only on GitHub Actions.
+
+Private `_build/live/checksum-ed08716d3` copies doc59's committed two-map
+world/account/character state and keeps all six items per bot. Inputs are real
+NCH7 files. Only checksum fields of bots002/004 are converted to legacy IEEE;
+bots001/003 remain raw CRC32C. Original bytes backed up in legacy-before/;
+legacy-inputs.json records hashes/regions and asserts no non-checksum byte
+changed. No new seed/loot, no primary world or account changes. Both legacy
+variants must admit, upgrade during ordinary saves to canonical NCH8, retain
+UID/state and survive a second restart. Native acceptance still pending.
+
+## Original-exe negative control (expected failure reproduced)
+
+Private `_build/live/checksum-before-5fdedbeed`, same staged real NCH7 input
+state, verified original GHA5fded exes A0C3CAF6...; two-minute four-bot test.
+General load gate correctly FAILED:2joined/2playing/2terminal failures,
+8admission errors/6bounded retries,6departures/6arrivals,2auth redirects,
+0Lua/fatal/shader/save errors. ONLY IEEE bots002/004 report cannot-read-character
+and character-unavailable rejection. Their file SHA256 remain exactly the
+prepared input hashes: no replacement with an empty character. CRC32C bots
+001/003 play normally. This is a causal negative control, not a load PASS.
+negative-acceptance.json and full logs retained. No probe processes remain.
