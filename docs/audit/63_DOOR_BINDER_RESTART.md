@@ -63,3 +63,51 @@ production selftest result helper. GHA native fixtures/full build and actual
 same-door restart plus furniture regression remain required. All primary
 executables still FE829..., no broad rollout. Locked/destructible/offline-route
 state and graphical64/max-view are not accepted by this scope.
+
+## Locked trader-door control also fails
+
+Private door-lock-before-ba82c7734 selects actual15923/esc_trader_door,
+visualdynamics/door/door_trader, two bodies/one joint. Stock configured
+xr_logic.switch_to_section ph_door@locked closes/locks it and sets the actual
+is_door_locked_for_npc flag. This is a controlled state fixture, not faction
+eligibility or player RPC proof. Predeclared gate requires state equality,
+NPC lock equality and same0.05m/0.04body-pose tolerances; a lock has no
+required translation/rotation. SAVE commits, SAME world loads, both bots1/1,
+no Lua/fatal/save errors. After restart: sectionph_door@close, lockedfalse
+and npc_lockedfalse. Native FAIL retained. No state threshold relaxed.
+
+Source780f3a9d87855c1e2d81e85ca9beff7995a4f1e4 published. Foundation
+37696320309 SUCCESS both OS (actual strict adapter/selection tests).
+DX1137696320404 native/script checks PASS; full engine building.
+Fresh door-restart-fixed-780f3a9d8, door-lock-fixed-780f3a9d8 and
+prop-table-regression-780f3a9d8 staged with exact source classifier overlay
+and unchanged predeclared comparators, no binaries yet. install-verified.py
+will verify cache metadata/hashes and supplement unchanged stock GAMMA DLLs.
+Fixed native results still pending. No primary promotion.
+
+## First fixed native result and rotated-joint correction
+
+780 Foundation37696320309 and DX1137696320404 SUCCESS. Artifact11516023907,
+ZIP7dd0802f8f01160a53015618ca1fbc1fdfd9f4c46079213dba0b17b103f3ed32;
+both exesE589A49A0EA31D01415D5362EC9A13897AE5ED8AD017CE0D691406BDEC7D5770.
+Verified package installed only in fresh private roots with matching overlay
+and stock supplementary DLLs. Actual wooden door15921 PASS: state remains
+ph_door@close, physically closed, two-body pose error0.005344m/0.007873rotation;
+bothphasebots1/1, no Lua/fatal/save errors.
+
+Trader15923 locked repeat preserves ph_door@locked/lockedtrue/npc_lockedtrue,
+but overall FAIL: leaf position1.991385m/rotation1.026359. Full failure retained
+in door-lock-fixed-780f3a9d8, never counted as complete lock/physics acceptance.
+Previous ba82 lock control also had a large leaf displacement1.969071m; this
+was not purely a lost lock flag. Furniture regression780not started: fix
+rotated-joint basis first, then rerun all same controls. All processes stopped.
+
+Actual source cause: CGameObject::net_Spawn uses setXYZ(E->o_Angle), while new
+pose adapter wrote getHPB. HPB puts yaw into x; setXYZ expects pitch there.
+A yaw90 frame builds its joint axes around the wrong rotation; restoring
+absolute bone transforms cannot repair those joint constraints. Change only
+adapter to getXYZ. Actual xrCore setHPB/getHPB/getXYZ/setXYZ routines now used
+in the capture fixture, plus actual adapter to existing spawn setXYZ roundtrip
+for identity, yaw90, coupled/negative angles and gimbal case. No core math,
+spawn, AI, physics integration or runtime layout change. New CI/native proofs
+pending; primary unchanged.

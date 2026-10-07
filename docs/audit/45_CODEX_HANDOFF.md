@@ -24,6 +24,16 @@ Claude и Codex работают в одной папке `engine-steamnet` и �
 
 ## Правила владельца (обязательно)
 
+- Codex BEFORE Euler correction:780 native wooden door15921 PASS state+both
+  body poses (0.005344m/0.007873rotation), but trader15923 lock test overall
+  FAIL despite script/NPC lock now retained: leaf shifted1.991m/rotation1.026.
+  Actual cause identified: adapter getHPB writes yaw into x, while existing
+  CGameObject::net_Spawn uses setXYZ(o_Angle), expecting pitch in x/yaw in y.
+  A yaw90 doorway spawns joints rotated90 around the wrong axis; saved global
+  bones cannot repair wrongly built joint axes. Scope: getXYZ and actual
+  xrCore matrix+actual adapter/spawn setXYZ roundtrip fixture, no spawn or
+  simulation changes. Preserve both failures, same native controls after GHA.
+
 - Codex BEFORE door logic changes: actual Cordon15921 wooden door, stock
   authoritative use callback ph_door@open→ph_door@close, physical close proven,
   SAVE committed, SAME retained world loads; restart resets script section to

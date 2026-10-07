@@ -13,6 +13,11 @@ start = prop.index("bool CPhysicObject::netcoop_capture_saved_physics(")
 capture = prop[start:prop.index("void CPhysicObject::net_Save(", start)]
 start = engine.index("static bool world_store_capture_physics_props()")
 select = engine[start:engine.index('#include "netcoop_world_store.inc"', start)]
+matrix = (root / "src/xrCore/_matrix.h").read_text(encoding="utf-8")
+start = matrix.index("ICF SelfRef setHPB(T h, T p, T b)")
+matrix_methods = matrix[start:matrix.index("IC void getXYZi(T&", start)]
+spawn = (root / "src/xrGame/GameObject.cpp").read_text(encoding="utf-8")
+assert "XFORM().setXYZ(E->o_Angle);" in spawn
 source = r'''
 #include <cassert>
 #include <cstdint>
@@ -24,14 +29,27 @@ source = r'''
 #include <cmath>
 #include <algorithm>
 #include <cstring>
+#include <limits>
 using u8=std::uint8_t;using u16=std::uint16_t;using u32=std::uint32_t;
 template<class T>using xr_vector=std::vector<T>;
 constexpr bool TRUE=true;constexpr u32 NET_PacketSizeLimit=16384;
 template<class T,class P>T smart_cast(P* p){return dynamic_cast<T>(p);}
 void Msg(const char*,...){}
-struct Fvector {float x=0,y=0,z=0;bool operator==(const Fvector& v)const{return x==v.x&&y==v.y&&z==v.z;}};
+struct Fvector {float x=0,y=0,z=0;void set(float a,float b,float c){x=a;y=b;z=c;}bool operator==(const Fvector& v)const{return x==v.x&&y==v.y&&z==v.z;}};
 bool _valid(const Fvector& v){return std::isfinite(v.x)&&std::isfinite(v.y)&&std::isfinite(v.z);}
-struct Matrix {Fvector angles;void getHPB(Fvector& out)const{out=angles;}};
+float _sin(float v){return std::sin(v);}float _cos(float v){return std::cos(v);}float _sqrt(float v){return std::sqrt(v);}
+#define IC inline
+#define ICF inline
+#define type_epsilon(type) std::numeric_limits<type>::epsilon()
+struct Matrix {using T=float;using Tvector=Fvector;using SelfRef=Matrix&;Fvector i,j,k,c;float _14_=0,_24_=0,_34_=0,_44_=1;
+ Matrix(){setXYZ(0.2f,1.570796327f,0.4f);}
+''' + matrix_methods + r'''
+};
+bool same_rotation(const Matrix& a,const Matrix& b){
+ for(auto pair:{std::pair<Fvector,Fvector>{a.i,b.i},{a.j,b.j},{a.k,b.k}})
+  if(std::fabs(pair.first.x-pair.second.x)>0.00001f || std::fabs(pair.first.y-pair.second.y)>0.00001f || std::fabs(pair.first.z-pair.second.z)>0.00001f)return false;
+ return true;
+}
 struct Flags {u8 value=0;void assign(u8 f){value=f;}void set(u8 f,bool b){value=b?u8(value|f):u8(value&~f);}};
 struct NET_Packet {
  struct {u32 count=99;} B;
@@ -76,7 +94,7 @@ struct CScriptBinder {CScriptBinderObject* attached_binder=nullptr;CScriptBinder
 struct CPhysicsShellHolder {void save(NET_Packet& p){p.w_u8(42);}};
 struct CPhysicObject:Object,CPHSkeleton,CScriptBinder,CPhysicsShellHolder {
  u16 id=7,simulated_count=2;bool destroyed=false,parented=false,shell=true;
- Fvector position{1,2,3};Matrix matrix{{4,5,6}};
+ Fvector position{1,2,3};Matrix matrix;
  u16 ID()const{return id;}u16 PHGetSyncItemsNumber()const{return simulated_count;}
  bool getDestroy()const{return destroyed;}bool H_Parent()const{return parented;}
  bool PPhysicsShell()const{return shell;}
@@ -100,7 +118,16 @@ int main(){
  entity.saved_bones.bones={99};
  assert(prop.netcoop_capture_saved_physics(&entity));
  assert(entity.saved_bones.bones==prop.bodies && entity._flags.value==5);
- assert(entity.o_Position==prop.position && entity.o_Angle==prop.matrix.angles);
+ Fvector expected_angles;prop.matrix.getXYZ(expected_angles);
+ assert(entity.o_Position==prop.position && entity.o_Angle==expected_angles);
+ Matrix spawned;spawned.setXYZ(entity.o_Angle);assert(same_rotation(spawned,prop.matrix));
+ // Actual xrCore Euler routines + actual adapter, including yaw90, coupled
+ // rotations, negative angles and the gimbal branch. Using getHPB here fails.
+ for(Fvector xyz:{Fvector{0,0,0},Fvector{0,1.570796327f,0},Fvector{0.3f,-1.2f,0.6f},Fvector{-0.8f,2.1f,-0.5f},Fvector{1.570796327f,0.4f,0.2f}}){
+  CPhysicObject rotated;CSE_ALifeObjectPhysic saved;
+  rotated.matrix.setXYZ(xyz);assert(rotated.netcoop_capture_saved_physics(&saved));
+  Matrix recovered;recovered.setXYZ(saved.o_Angle);assert(same_rotation(rotated.matrix,recovered));
+ }
  assert(entity.ID==7 && entity.parent==55 && entity.section=="prop" && entity.name=="original");
  assert(entity.source_id==123 && entity.startup=="door");
  prop.bodies={30,40};assert(prop.netcoop_capture_saved_physics(&entity));
@@ -120,7 +147,7 @@ int main(){
  prop.simulated_count=0;assert(!prop.netcoop_capture_saved_physics(&entity));
  prop.simulated_count=2044;assert(!prop.netcoop_capture_saved_physics(&entity));prop.simulated_count=2;
  prop.position.x=INFINITY;assert(!prop.netcoop_capture_saved_physics(&entity));prop.position.x=1;
- prop.matrix.angles.x=INFINITY;assert(!prop.netcoop_capture_saved_physics(&entity));prop.matrix.angles.x=4;
+ const float valid_kx=prop.matrix.k.x;prop.matrix.k.x=std::numeric_limits<float>::quiet_NaN();assert(!prop.netcoop_capture_saved_physics(&entity));prop.matrix.k.x=valid_kx;
  assert(prop.save_calls==calls);unchanged();
  assert((entity.client_data==std::vector<u8>{90,91})); // furniture keeps prior game data
  CPhysicObject door;CScriptBinderObject binder;CSE_ALifeObjectPhysic door_entity;

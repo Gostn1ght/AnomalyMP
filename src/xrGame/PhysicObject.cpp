@@ -340,7 +340,9 @@ bool CPhysicObject::netcoop_capture_saved_physics(CSE_Abstract* entity, bool cap
 		!PPhysicsShell() || !count || 37u + 8u * count >= NET_PacketSizeLimit)
 		return false;
 	Fvector angles;
-	XFORM().getHPB(angles);
+	// CGameObject::net_Spawn reconstructs o_Angle with setXYZ. HPB puts yaw
+	// into x and builds a rotated door's joints around the wrong axes.
+	XFORM().getXYZ(angles);
 	if (!_valid(Position()) || !_valid(angles)) return false;
 	NET_Packet packet;
 	packet.B.count = 0;
