@@ -29,7 +29,11 @@ param(
     [int]$BotProcesses = 1,
     # Extra bot command line, e.g. "-netcoop_fake_loss=5 -netcoop_fake_lag=120"
     # (a bad network for every bot, doc 43 D11).
-    [string]$BotArgs = ""
+    [string]$BotArgs = "",
+    # Bot processes below normal priority: on a PC that also runs the server
+    # the bots took the server's CPU (64 bots: frame p50 160 ms with only
+    # ~100 ms/s of server work, 2026-10-07).
+    [switch]$BotsBelowNormal
 )
 $ErrorActionPreference = "Stop"
 # "-Maps a,b" through -File arrives as one string.
@@ -107,7 +111,9 @@ try {
             $count = [Math]::Floor($Bots / $BotProcesses) + $(if ($part -lt $Bots % $BotProcesses) { 1 } else { 0 })
             $botArgs = "-nosplashwindow -netcoop -dbg -noprefetch -multi_instance -logname selftest_bots_$map`_$part -fsltx fsgame_selftest_bots.ltx " +
                 "-netcoop_bots $count -netcoop_bots_first $first -netcoop_bots_addr 127.0.0.1/port=$($ports[$map]) $BotArgs"
-            $processes += Start-Process -FilePath $client -ArgumentList $botArgs -WorkingDirectory $Runtime -PassThru
+            $botProcess = Start-Process -FilePath $client -ArgumentList $botArgs -WorkingDirectory $Runtime -PassThru
+            if ($BotsBelowNormal) { try { $botProcess.PriorityClass = "BelowNormal" } catch {} }
+            $processes += $botProcess
             $first += $count
         }
     }
