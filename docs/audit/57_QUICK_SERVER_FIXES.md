@@ -36,6 +36,41 @@ Local checks PASS:
 Both checks are wired into GitHub Actions on Windows before native build.
 Native verification and CI results are recorded below when available.
 
+## Native and CI evidence
+
+Source `765a708b0446d6ae5e878742c767191e568e57d7`:
+Foundation `37636526831` SUCCESS on Linux/Windows; the new actual PS/Lua
+step also passed in DX11 `37636526929` (native build pending at this entry).
+
+Private `_build/live/quick-pda-765a708b0` ran the previously verified GHA
+`fa5edb5f2` server exe, SHA256
+`794316757B231F71467194E358084588DB93963E0B0225346C412686AE212113`.
+Only private scripts/appdata differed. Debug probe armed the actual patched
+`pda.discover_spots` in the real `ScanForSpots` queue with no local actor.
+Ten consecutive timer resets and a second probe timer succeeded; zero
+time-event, fatal or debug errors. Native bootstrap world save succeeded.
+There was still one caught `itms_manager.save_state` error; this run certifies
+the PDA fix, not a completely error-free dedicated server. Probe stopped,
+debug file empty. `summary.json`, `probe.lua` and native log retained there.
+
+The strict evaluator also re-read archived `fa5edb5f2` live16/live64 logs:
+16/64 unique joins and final playing, zero terminal failures, 3/8 retries,
+21 caught Lua records each. Both correctly FAIL the new clean-run gate.
+
+Focused primary installation is limited to backed-up `server/scripts/pda.script`
+in both prepared runtimes; executable promotion still remains gated by the
+open 64-player/max-view acceptance. Installation results are appended after
+checking the byte-preserving change.
+
+Installed focused PDA patch in `gamma-runtime` and `LostZone-3D-Hideout` after
+stopping the private probe. Both original files SHA256
+`12A5D397F7D0C31632AAED6BB768633594C37EF3A7DB183511F5F85FA478D821`;
+both installed files SHA256
+`B5D9D08E3EE20E1551621A55977D559A8F5867DED2788098CF11BD81A543AF85`.
+Removing the inserted guard reproduced every original byte. Backups and
+`installed.json` retained under the private probe's `primary-backup/`.
+No full overlay installer or native executable replacement was performed.
+
 ## Remaining limits
 
 Previous live logs also contain `itms_manager.save_state` nil-actor errors;
