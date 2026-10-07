@@ -69,3 +69,54 @@ Publication recovered on retry: source8ef6a25f5 and docs c6525f885 pushed.
 Foundation37642993485 SUCCESS on GCC sanitizers/MSVC, including the actual
 bot methods/loop fixture. DX1137642993484 full build pending. The next native
 probe is staged with early seed arming before bot launch; acceptance still open.
+
+## Fixed native smoke acceptance (PASS)
+
+Native source c6525f885a7c4c5c562b65e543a1f76610686be8:
+Foundation37642993485 SUCCESS GCC sanitizers/MSVC; DX1137642993484 SUCCESS
+full engine/checks/package/upload. Artifact11494387347 (190063170bytes),
+`_build/gha/reconnect-c6525f885`: ZIP SHA256
+`06731640e6c6f4f83303fa73a621bc9575971300e43050dc9f313cb2860019fe`;
+both exe SHA256
+`7E616CA2282D5FCAF162B9C140FE8A0B6F03EC645CFC46DEC242BC1F7BE677A9`.
+Built-from/manifest/ZIP digest validated; missing third-party DLLs supplemented
+only in the private probe from the previous verified runtime.
+
+Private `_build/live/roundtrip-c6525f885`, two map servers/four bots in two
+dedicated BelowNormal bot processes. Three-minute round-trip run: final4/4
+playing,0terminal failures,2recovered admission timeouts,24departure records,
+22arrival records. Two departures were still in flight near shutdown; do not
+call all24 completed. Zero Lua/fatal/shader/save/refusal/lease errors.
+
+All four inventories seeded before the first departure (log order checked),
+each with2bandages/1bread plus the normal PDA. Native NCH7 snapshots captured
+14/15/11/10 times per bot; all four retained section/count/nonzero UID identity.
+This resolves the earlier late-seed fixture ambiguity for the tested scenario.
+
+Stopped both servers and bots, then restarted the SAME saved worlds and
+character files, without cleanup or additional seeding. Distinct log names
+retain original logs. Private restart driver waits for a real level clock,
+since 'loading saved world' alone announces loading before readiness.
+Two-minute post-restart run: final4/4playing,0terminal/admission failures,
+12departures/12arrivals,4server auth redirects correctly followed. Each bot
+arrived on both maps in each phase. Eight further NCH7 snapshots per bot;
+all four final inventories exactly match the pre-restart section/UID multiset
+(four items each). No Lua/fatal/shader/save/refusal/lease errors.
+
+World saves: before restart Marsh/Cordon bootstrap1/1,periodic8/4,
+last-player-left3/3; after restart periodic6/3,last-player-left1/2, no new
+bootstrap. Both logs confirm loading saved worlds. Test-only30s save period
+did not change the production300s default.
+
+Evidence: result.txt, restart-result.txt, phase1-server-logs/, phase1-bot-logs/,
+inventory-history.json, restart-inventory-history.json, inventory-checks.json,
+restart-inventory-checks.json and acceptance.json retained in the private root.
+An initial combined restart-preparation command was rejected by auto-review
+with only 'blocked by policy'; a safer variant retaining every file and using
+distinct logs was accepted and completed. No permissions or safety settings
+were changed. All probe processes stopped; debug channel empty.
+
+Scope: four bots/two maps/basic inventory identity through handoff/restart.
+No full item-condition/ammunition-state, all-map512, bad-network transition,
+or graphical/max-view64 smoothness acceptance claimed. Main exes remain
+unpromoted; primary script guards are installed as recorded in doc57.
