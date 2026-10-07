@@ -39,7 +39,7 @@ std::unordered_map. Импортируется фактический profiler.h
   исключены из времени; число callbacks обязано совпасть.
 
 Локально проверены только Python AST, project/filter XML и идентичность
-baseline исходников. Native fixture и benchmark: PASS в [Foundation 37584887106](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37584887106), commit 197c7d35d. GCC/Linux release+DEBUG с ASan/UBSan и MSVC/Windows release+DEBUG: точное сравнение IX-Ray и hash baseline, lifecycle, direct-slot tests прошли. Полная комбинированная DX11 сборка ожидается.
+baseline исходников. Native fixture и benchmark: PASS в [Foundation 37584887106](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37584887106), commit 197c7d35d. GCC/Linux release+DEBUG с ASan/UBSan и MSVC/Windows release+DEBUG: точное сравнение IX-Ray и hash baseline, lifecycle, direct-slot tests прошли. Полная комбинированная [DX11 сборка 37585365023](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37585365023) PASS: checks, engine, package/upload успешны; source d54030213.
 
 Изолированный benchmark Windows, медиана 7 прогонов по 10 000 кадров:
 16/128 — 113,278 → 92,351 мс; 64/128 — 129,764 → 95,7374 мс;
@@ -67,3 +67,12 @@ Microbenchmark измеряет накладные расходы планиро
 Live64 acceptance остаётся открытым; в аудит 188 пунктов новые ✅ не добавлены.
 
 Повторный комбинированный [Foundation 37585364939](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37585364939), d54030213: снова PASS на обеих OS. Windows 64/128: 128,514 → 110,017 мс (14,4%); Linux: 163,575 → 135,985 мс (16,9%). Разброс 14–26% на Windows между CI машинами подтверждает необходимость не выдавать microbenchmark за игровой FPS. В новом наборе сохранены все trace/lifecycle результаты.
+
+Финальный пакет LostZone-DX11-client-server (artifact 11466733728,
+189 509 686 байт) скачан в `_build/gha/scheduler-d54030213`.
+Проверены built-from.txt, совпадение обоих exe с sha256.txt и друг с другом,
+точное совпадение IX-Ray notice с исходной лицензией. Exe SHA256:
+36BA115085198F7B5BAF08E384AB306B2174FB19CA861EBFF6187498DCD57395.
+Runtime не устанавливался и игра не запускалась: live64/плавность дальних
+NPC остаются открытыми. Данная итерация закрывает source/CI/package проверки,
+не игровую производительность всех 188 требований.

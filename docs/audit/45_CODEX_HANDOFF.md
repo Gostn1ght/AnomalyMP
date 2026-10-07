@@ -800,3 +800,17 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
 - 2026-10-07 (Codex) — owner clarification: no visible frozen/jittery NPCs at maximum visibility. Coordination before foreign-region fix: xrServer.cpp AOI cadence and netcoop_replication_index cpp/h + actual predicate fixture. Existing NPC 1/2/4/16 tiers multiplied by overload conflict with this requirement. Protect creature roots (NPCs/mutants/actors and held objects) every tick at all distances, independent of budget/overload; index must include them globally. Also bypass lossy unchanged hash filtering for these live states. No AI callbacks/population reduction, no runtime install/launch. Native DX11 37584887087 will be superseded by the combined build for this owner-requested fix; Foundation 37584887106 already PASS direct tickets.
 
 - 2026-10-07 (Codex) — combined code d54030213: Foundation 37585364939 PASS on Linux/Windows (actual scheduler/reference/lifetime/ticket checks + actual AOI predicate/index full-rate differential). DX11 37585365023 is building. Windows overhead 64RT/128normal benchmark reduction varied 14.4–26.2% between CI runners (1.85–3.40 us per synthetic frame), NOT a gameplay FPS claim. All creatures/actors and their inventory-root states bypass distance/overload/byte-budget/hash suppression; traffic increases, measure it with live64. Bots do not render NPCs; watch flag tracks physics, so maximum-view smoothness requires a real graphical client. Docs53/54 record proof/limits, doc48 adds a historical-snapshot clarification without new live checkmarks. No running game processes observed; no runtime install/launch.
+
+- 2026-10-07 (Codex) — FINAL combined scheduler/creature replication source
+  d54030213cfbf950b5103ab0c275423242ed87a1: Foundation 37585364939 PASS both OS;
+  DX11 37585365023 SUCCESS checks/full engine/package/upload. Artifact
+  11466733728 (189509686 bytes) downloaded to _build/gha/scheduler-d54030213.
+  built-from, both exe manifest hashes and IX-Ray notice validated. Exe SHA256
+  36BA115085198F7B5BAF08E384AB306B2174FB19CA861EBFF6187498DCD57395.
+  No runtime install/launch. Keep real 16/64 load, traffic/send queue, distant
+  NPC movement/reactions and graphical client acceptance OPEN. Full-rate applies
+  after existing Net_Relevant/handshake/transport eligibility; do not claim a
+  delivery or AI/frame-time guarantee from a passing synthetic fixture. Actual
+  benchmarks measured scheduler overhead only, not the 110 ms game frame.
+  Current repository code/CI/package substeps complete; 188 live audit counts
+  unchanged. Next native runtime testing remains the recorded installation lane.
