@@ -779,3 +779,18 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   both OS. Runtime installation/live64 remains separate; original audit counts
   stay unchanged. Doc49 marks its historical 1–5 Hz Reduced AI proposal as
   superseded by owner's no-AI-degradation instruction.
+
+- 2026-10-07 (Codex) — completed source/CI/package scheduler iteration. Latest
+  native source 3a95c0dce includes xrCore/profiler.h explicitly (the full build,
+  rather than the previous PCH stub, exposed that missing dependency). Fixture
+  now imports the real profiler header. World Foundation 37580073705 PASS all
+  Linux/Windows release/DEBUG + sanitizers; DX11 37580073704 SUCCESS including
+  package/upload. Artifact 11464314210 downloaded to
+  _build/gha/scheduler-3a95c0dce; built-from and both exe hashes validated;
+  IX-Ray notice matches source. Exe SHA256
+  D41B3D55DE56BB62F3DBF6F30F46A4976A04985F88EE7251E43C65E9D6A8EEC5.
+  No runtime installation or native launch: keep live64 p50/p95/AI population
+  acceptance open. Current backend 241 tests PASS remains 37578839647.
+  Next lossless work: profile pure reads first; actor binding functor/depth are
+  already cached, and CPropertyStorage's public mutable vector prevents naive
+  lookup caching. No added live checkmarks in the 188-point audit.

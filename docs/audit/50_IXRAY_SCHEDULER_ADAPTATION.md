@@ -50,6 +50,7 @@ notices/IX-Ray-LICENSE.md.
 scripts/check-netcoop-scheduler.py компилирует настоящий xrSheduler.cpp и
 ISheduled.cpp вместе с закреплённым IX-Ray baseline. Подмена только host services:
 Device, часы/CPU, строки и отладочные функции; сами алгоритмы не переписаны в тест.
+profiler.h копируется из настоящего xrCore; PROF_EVENT не подменяется в host.
 Baseline переименован для совместной линковки; литерал 1000i64 преобразован в
 равнозначный 1000LL для GCC. Реализация проверяется MSVC и GCC, release/DEBUG;
 GCC дополнительно использует AddressSanitizer и UndefinedBehaviorSanitizer.
@@ -67,16 +68,22 @@ GCC дополнительно использует AddressSanitizer и Undefine
    дополнительный пакет 2048 realtime отмен со stable compaction.
 4. Полная DX11 сборка и упаковка клиента/сервера в GitHub Actions.
 
-CI [World Foundation 37579014305](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37579014305),
-commit c64e88fbc:
+CI [World Foundation 37580073705](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37580073705),
+commit 3a95c0dce:
 PASS на GCC/Linux (ASan/UBSan) и MSVC/Windows, release и DEBUG. В каждой из
 четырёх конфигураций совпали 32 825 callback; все проверки lifecycle/pairing
 также прошли, включая 2048 realtime отмен. Полная
-[DX11 сборка 37579014309](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37579014309)
-выявила пропущенный include xrCore/profiler.h. Он добавлен явно; fixture теперь
-копирует настоящий profiler.h вместо определения PROF_EVENT в host PCH.
-Для pinned baseline отдельно подключается profiler header, предоставляемый его
-исходным PCH. Повторные CI/DX11 результаты ожидаются.
+[DX11 сборка 37580073704](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37580073704)
+PASS, checks/engine/packaging/upload успешны. В production явно подключён
+xrCore/profiler.h. Для pinned baseline fixture отдельно подключает profiler
+header, предоставляемый исходным IX-Ray PCH.
+
+Artifact LostZone-DX11-client-server, ID 11464314210, скачан в
+_build/gha/scheduler-3a95c0dce. Проверены built-from.txt (полный SHA
+3a95c0dcedee3be79ac012b10c8e399a281f66df), SHA-256 обоих exe против манифеста
+и точное совпадение notices/IX-Ray-LICENSE.md с исходной лицензией. SHA-256
+клиента и сервера: D41B3D55DE56BB62F3DBF6F30F46A4976A04985F88EE7251E43C65E9D6A8EEC5.
+Runtime установка и live64 тест в этой итерации не выполнялись.
 
 В аудит 188 пунктов новые live ✅ не добавлены. После PASS fixtures требуется сравнение
 реальных exe до/после: 16/64 игроков, p50/p95 кадра, CPU, память, ошибки ИИ,
@@ -85,5 +92,10 @@ PASS на GCC/Linux (ASan/UBSan) и MSVC/Windows, release и DEBUG. В кажд�
 
 Следующий этап без ухудшения ИИ: искать повторные чистые чтения данных в Lua/С++
 по inclusive профилю сталкеров и кэшировать по точным версиям зависимостей.
+bind_script_actor уже разрешает Lua functor один раз; вложенная привязка акторов
+уже переиспользуется через depth, повторять этот кэш не нужно. В CPropertyStorage
+есть линейный поиск, но m_storage открыт для внешних записей: простой кэш без
+аудита этих записей некорректен. Результаты Lua evaluators нельзя считать чистыми
+без проверки их зависимостей и побочных эффектов.
 Общие результаты зрения разных NPC нельзя переиспользовать без равенства
 начала/конца луча, маски, исключений и ревизии геометрии.
