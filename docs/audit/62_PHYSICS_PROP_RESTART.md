@@ -1,5 +1,11 @@
 # 62. Physics prop restart acceptance (L29 scope)
 
+Current result (2026-10-08): **scoped table pose restart PASS** on ba82c7734
+GHA binaries. Old baseline returns to initial pose, 3.811m from its save;
+fixed retained restart differs from its save by0.000701m and0.004414rotation
+coefficient. Whole L29 remains partial: real doors/locks/destruction/offline
+routes and moving velocities are not accepted by this one-object test.
+
 2026-10-07, Codex. After owner's bounded64 instruction:64smoothness remains
 open (doc61); continue remaining tasks without changing normal runtime.
 
@@ -61,3 +67,73 @@ GHA fixture executes actual adapter/traversal with API doubles and tests metadat
 repeat replacement, malformed decode, overflow and selection. World-store fixture
 executes actual checkpoint with injected capture refusal/exception. Real native
 pose/restart proof still required; no runtime promotion or L29 completion yet.
+
+2026-10-08 CI: first source1c1d4e383 Linux PASS, Windows fixture build
+refused C4458 mock member shadowing and C4244 mock map key conversion under
+/WX. Runtime implementation unchanged. Warning-clean fixture successor
+ba82c7734a6b17796365d934cd9fad6fcb61a863: Foundation37688229874 SUCCESS
+on both OS. DX1137688230023 fixtures/checks PASS, full engine building.
+Private fixed root prop-restart-fixed-1c1d4e383 staged; its name references
+initial source, probe.json pins successor. Before-run acceptance tolerances
+0.05m per-body position and0.04 rotation-matrix coefficient (stock q8 codec).
+Same evaluator rejects original baseline3.811m/1.0084 rotation; all4pre-stop
+logs clean, bothphasebots1/1. Fixed native acceptance still pending.
+
+## Fixed build and first native run (not accepted)
+
+ba82 Foundation37688229874 and DX1137688230023 SUCCESS. Artifact11513411413,
+ZIP06a5546ef1c279a44cf590d465a6e62373ebf51a0f96df27e69ecfbd2a80dc6a;
+both exes844FA78596BDF3773F7CAEEED66936738505388004DCC7D60F74876B9D7657AF.
+Verified built-from/ZIP/manifest. Cache physics-save-ba82c7734. First private
+launch lacked stock GAMMA runtime libraries: no engine log/world reached,
+process stopped by exact owned path check, result-first-launch.txt retained.
+Missing discord/ICU/OpenAL/TBB DLLs copied unchanged from verified prior private
+probe; hashes in runtime-libraries.json. Main files unchanged.
+
+First fresh-world native run then ran both phases successfully. Nearest
+selection picked16838/mar_physic_object_0074 (two bodies, one fixed), rather
+than original16773table. Force yielded only0.000138m and0.071648rotation,
+below predeclared movement proof0.1m AND0.1rotation. Evaluator correctly FAILS
+overall (movement_proven=false), even though observed restart errors0.023828m
+and0.039708rotation fall inside stock-codec tolerances. All4pre-stop logs
+clean, bothphasebots1/1; phase1had1recovered initial disconnect/retry. Do not
+accept this as controlled bug closure or all hinged-door state proof. No
+threshold relaxed. Evidence/failed acceptance retained.
+
+Repeat prepared in NEW prop-table-fixed-ba82c7734, exact original table16773
+by ID/name/section/one movable nonbreakable body, same force/settle/checkpoint/
+same-world restart and unchanged comparator. Fixed native PASS still pending.
+
+## Controlled table restart PASS
+
+Private `_build/live/prop-table-fixed-ba82c7734`, same verified ba82 package,
+same GAMMA runtime/scripts/configs, fresh private appdata with user.ltx only.
+No owner state or retained probe erased. Both phases finished; all processes
+stopped and debug channel empty. Original failure and invalid nearest-prop
+run remain intact. `pose-acceptance.json` passed=true and
+`controlled-proof.json` records exact failed-baseline initial-pose equality.
+
+- ID16773/name mar_physic_object_0008/section physic_object, one nonbreakable
+  movable body. Initial FULL matrix equals old ff78 initial matrix byte for byte.
+- Same force(8000,1500,0),30s settle, actual netcoop_world_save, immediate pose,
+  SAME world/character retained restart,40s settle. No cleanup or reseeding.
+- Force changes position3.509865m and matrix rotation coefficients1.191007.
+  Moved/AtSave poses exactly equal. Checkpoint commits slot_b in178ms; restart
+  explicitly loads slot_b before later periodic saves. Those are actual native
+  checkpoints, not simulated IO fixtures.
+- Restart position error0.000700716m (about0.7mm); maximum rotation coefficient
+  error0.004413590, inside PREDECLARED0.05m/0.04stock-q8 tolerances. Every
+  body component checked; identity/body count and all floats checked as well.
+- Both phases final1/1playing, zero terminal failures. Phase1one recovered
+  disconnect/retry, phase2none; do not call all admission records error-free.
+  Four exact pre-stop logs:0fatal/Lua/shader/save/physics-capture failures.
+- GHA Foundation Linux+Windows and full DX11 build/package succeed on exact
+  ba82. Native adapter reuses the stock saved-bones codec; no world-format,
+  AI behavior/population/cadence, player cadence or physics integration change.
+
+Jointed model discovery shows the first16838 is a vise(tiski), not a door;
+other nearby joints are buckets, laptop, radio and projectors. Therefore
+neither native run proves an opened/locked actual door or route blocking.
+Settled furniture pose persistence is accepted; wider moving-body state,
+door binder/script state, destruction and offline routing remain separate.
+Primary four executable hashes still FE829FF4..., no primary promotion.

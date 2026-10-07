@@ -24,6 +24,37 @@ Claude и Codex работают в одной папке `engine-steamnet` и �
 
 ## Правила владельца (обязательно)
 
+- Codex 2026-10-08 FINAL scoped physics pose PASS: exact ba82c7734 GHA
+  Foundation37688229874 + DX1137688230023 SUCCESS, validated artifact11513411413;
+  both exes844FA785... Private prop-table-fixed-ba82c7734 tests ORIGINAL
+  table16773, initial matrix EXACTLY equals failed ff78 baseline. Force moves
+  3.509865m/rotation1.191007, saved/moved equal, SAME slot_b retained restart
+  error0.000701m/rotation0.004414 inside predeclared0.05m/0.04. Final1/1both
+  phases,0terminal/Lua/fatal/shader/save/capture errors;1recovered phase1retry.
+  First fixed nearest-prop run selected a vise16838, insufficient movement;
+  rejected acceptance retained, thresholds not relaxed. First private package
+  launch lacked supplementary GAMMA DLLs; stopped before any world/log,
+  stock libraries supplied with hashes. Detailed evidence/limits doc62.
+  Processes stopped, debug empty, four primaryFE829 exes unchanged. NO full
+  L29/188 or graphical64/max-view closure. Next: actual door on another map
+  (Marsh jointed props are vise/projectors, no door); check binder/lock state
+  and offline route separately, keep primary unchanged until rollout validation.
+
+- Codex 2026-10-08 resume after accidental poweroff: physics checkpoint source
+  ba82c7734a6b17796365d934cd9fad6fcb61a863 pushed. Foundation37688229874
+  SUCCESS GCC/sanitizers + MSVC. DX1137688230023 native checks PASS, full
+  engine building. First1c1 CI Windows failed only mock warnings under/WX;
+  successor changes fixture names/typed keys, not runtime. Capture actually
+  decodes SPHBonesData into temporary storage (same CSE_PHSkeleton codec),
+  then replaces bones/flags/root pose; metadata/source ID retained.
+  Private fixed root _build/live/prop-restart-fixed-1c1d4e383 prepared;
+  probe.json pins exact ba82. No binaries installed there yet. Next download
+  validated package (built-from+manifest), copy only bin/dedicated into that
+  new root, run run-prop-restart.ps1 then compare-pose.py. Original baseline
+  fails same strict comparator (3.811m, rotation1.0084); tolerances declared
+  before fixed run:0.05m/0.04matrix coefficient. Primary four exesFE829...
+  unchanged, no game process. L29 and64/max-view still OPEN.
+
 - Codex 2026-10-08, L29 baseline FAILED: prop16773 mar_physic_object_0008,
   actual world checkpoint committed, SAME world loaded, pose вернулась ТОЧНО
   в initial (3.811m от saved). До изменения кода записываю scope: PhysicObject
