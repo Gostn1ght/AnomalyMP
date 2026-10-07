@@ -111,3 +111,71 @@ in the capture fixture, plus actual adapter to existing spawn setXYZ roundtrip
 for identity, yaw90, coupled/negative angles and gimbal case. No core math,
 spawn, AI, physics integration or runtime layout change. New CI/native proofs
 pending; primary unchanged.
+
+2026-10-08 Euler source88d72cfeaa6ba9fce94175fbc8e61cfe82906c84 pushed.
+Foundation37700338252 SUCCESS Linux+Windows, actual xrCore matrix+adapter
+roundtrips PASS. DX1137700338212 script/native fixtures PASS, engine building.
+Fresh door-restart-xyz-88d72cfea, door-lock-xyz-88d72cfea and
+prop-table-xyz-88d72cfea staged with identical comparators and classifier
+overlay. No binaries installed yet. New install-verified.py pins source88d,
+cache door-xyz-88d72cfea and all three private roots, retains stock DLLs.
+Primary not changed; game processes stopped and debug channels consumed.
+
+## XYZ build and locked-door native acceptance
+
+Source88d72cfeaa6ba9fce94175fbc8e61cfe82906c84: Foundation37700338252
+and DX1137700338212 SUCCESS, including full engine/package upload.
+Artifact11518765311 validated against source and exe manifest;
+ZIP d5e4e3390c2bdda3552f0052bee31a10d6854445356a67883338e5412891834c,
+both exes 0AF38FFF87F1EC4FE722E6500EF53B774C78737A93CE3F86E800AD487E5BCF04.
+Matching binaries/classifier and retained stock supplementary DLLs installed
+only into the three fresh private XYZ roots. No primary rollout.
+
+door-lock-xyz-88d72cfea: native PASS. Original15923 full initial matrix
+EXACTLY equals the failed ba82 control. Stock configured transition changes
+ph_door@close/unlocked/NPC-unlocked to ph_door@locked/locked/NPC-locked.
+Manual checkpoint commits, SAME selftest_door_lock_a loads after restart.
+All script/physical/NPC flags match; both-body maximum position error
+0.006922010m and rotation coefficient0.011048217 are within the ORIGINAL
+0.05m/0.04 tolerances. No geometric movement required for this lock fixture.
+Four pre-stop logs, processes alive before stopping, final1/1 both phases;
+no retry/disconnect, Lua/fatal/shader/save/capture errors. Existing GAMMA
+NPC Loadouts warnings remain (blackops_secondary/wpn_usp_match and missing
+ammo_class variants); this is not a globally warning-free GAMMA acceptance.
+Full earlier failed poses and lock results remain retained. No client use
+distance/faction eligibility/destruction/offline-route acceptance.
+
+door-restart-xyz-88d72cfea: wooden15921 native PASS. Stock authoritative
+use_callback closes the initially open/unlocked door; physical rotation
+movement1.000946442 is well above the original0.2 requirement. Checkpoint
+commits, SAME selftest_door_restart_b loads; sectionph_door@close,
+closed/unlocked and physical closed state all retained. Both-body maximum
+position error0.007575226m/rotation0.00787269 satisfy the original tolerances.
+Final1/1 both phases, no terminal/Lua/fatal/shader/save/capture errors;
+one recovered disconnect/retry during phase1 admission, none phase2.
+Existing NPC Loadouts warnings remain. This proof invokes a stock server
+callback, not a graphical client RPC or player interaction-distance check.
+
+prop-table-xyz-88d72cfea: original table16773 native regression PASS. Full
+initial matrix EXACTLY equals the failed ff78 control. Same force moves
+3.398434400m/rotation1.329825997, Moved==AtSave, manual SAVE commits.
+SAME selftest_prop_restart_a loads; position error0.001266378m/rotation
+0.008451282 satisfy the original0.05m/0.04 thresholds. Final1/1both phases,
+no retries or terminal/Lua/fatal/shader/save/capture errors.
+
+Three-case native-summary.json records exact source/package, installed exe
+hashes, all12 pre-stop log and result hashes, original full initial matrix
+equality for trader/table, individual acceptance and recovered retries.
+All three cases PASS; one recovered admission retry total (wooden phase1).
+Existing NPC Loadouts warnings retained, no broad all-GAMMA-clean claim.
+No game processes remain, both debug channels empty, all four primary exes
+still FE829FF44D4A0D4CF2C122A0EB6EDF243B8FCB7D3ABC3872A4C949D553B8AC88.
+Primary worlds/accounts/scripts unchanged in this iteration. No deployment.
+
+Accepted scope: initialized real-door script closed-after-use and configured
+lock/NPC-lock state plus settled physical poses across same-world restart,
+with a nonbreakable furniture regression on the matching native GHA build.
+Overall L29 remains partial: destruction/fracture, full moving velocities,
+offline route enforcement, a separately saved open-door case, and actual
+graphical player interaction/RPC are
+still unverified.64/max-view/512 and historical188 audit totals unchanged.

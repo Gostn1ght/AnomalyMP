@@ -24,6 +24,29 @@ Claude и Codex работают в одной папке `engine-steamnet` и �
 
 ## Правила владельца (обязательно)
 
+- Codex 2026-10-08 FINAL door/prop native scope PASS: source88d72cfeaa6ba9fce94175fbc8e61cfe82906c84,
+  Foundation37700338252 + DX1137700338212 SUCCESS; artifact11518765311,
+  validated exact source/ZIP/exe manifest (both exes0AF38FFF...). Only private
+  roots door-lock-xyz-88d72cfea, door-restart-xyz-88d72cfea and
+  prop-table-xyz-88d72cfea installed. Trader15923: stock configured lock and
+  actual NPC lock survive SAME world restart; both-body error0.006922m/
+  rotation0.011048. Original full initial matrix equals failed ba82 control.
+  Wooden15921: stock server use callback closes initially open door; remains
+  ph_door@close/physically closed after SAME restart,0.007575m/0.007873.
+  Original table16773 full initial matrix equals ff78 failed control; force
+  moves3.398434m/rotation1.329826, pose retained0.001266m/0.008451 after
+  SAME restart. Original gates0.05m/0.04 unchanged, all3strictcomparators PASS.
+  Final1/1both phases of all3;0terminal/Lua/fatal/shader/save/capture errors,
+  one recovered admission retry (wooden phase1). Existing GAMMA NPC Loadouts
+  warnings retained. Doc63/native-summary.json records12 pre-stop log/result
+  hashes and exact package provenance. All processes stopped/debug empty;
+  all4primaryFE829 exes/worlds/accounts unchanged, no rollout. L29 remains
+  PARTIAL for destruction/fracture, moving velocities, offline-route
+  enforcement and graphical player RPC/use-distance.64/max-view/512 and
+  historical188 totals stay OPEN/unchanged. Next follow easy→medium→complex
+  ordering, preserve normal entry; do not install broad overlays/exes merely
+  from these3private cases. Prior failures/controls remain intact.
+
 - Codex BEFORE Euler correction:780 native wooden door15921 PASS state+both
   body poses (0.005344m/0.007873rotation), but trader15923 lock test overall
   FAIL despite script/NPC lock now retained: leaf shifted1.991m/rotation1.026.
