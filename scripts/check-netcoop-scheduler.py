@@ -130,11 +130,12 @@ void realtime_lifetime(){
 }
 void normal_lifetime(){
  reset();auto* a=new Object(10);a->unregister=[](ISheduled* p){Engine.Sheduler.Unregister(p);};
- a->scale_hook=[&](Object&){delete a;a=nullptr;};Engine.Sheduler.Register(a);tick();assert(trace.empty());clear();
+ a->scale_hook=[&](Object&){delete a;a=nullptr;};Engine.Sheduler.Register(a);tick(1);tick();assert(a==nullptr&&trace.empty());clear();
  reset();a=new Object(11);a->unregister=[](ISheduled* p){Engine.Sheduler.Unregister(p);};
- a->needed_hook=[&](Object&){delete a;a=nullptr;};Engine.Sheduler.Register(a);tick();assert(trace.empty());clear();
+ a->needed_hook=[&](Object&){delete a;a=nullptr;};Engine.Sheduler.Register(a);tick(1);tick();assert(a==nullptr&&trace.empty());clear();
  reset();a=new Object(12);a->unregister=[](ISheduled* p){Engine.Sheduler.Unregister(p);};
- a->update_hook=[&](Object&){delete a;a=nullptr;};Engine.Sheduler.Register(a);tick();trace.clear();tick();assert(trace.empty());clear();
+ a->update_hook=[&](Object&){delete a;a=nullptr;};Engine.Sheduler.Register(a);tick(1);tick();
+ assert(a==nullptr&&(ids()==std::vector<u32>{12}));trace.clear();tick();assert(trace.empty());clear();
 }
 void reused_address(){
  // Old normal heap entry survives unregister; placement-new proves generations,
@@ -179,7 +180,7 @@ void pairing(){
  assert(std::all_of(skipped.begin(),skipped.end(),[](unsigned char x){return x==1;}));
  std::cout<<"PASS registration: 10000 differential batches + 50000 cancelled objects, earliest-pair semantics preserved\n";
 }
-int main(){pairing();differential();realtime_lifetime();normal_lifetime();reused_address();ordering();
+int main(){std::cout<<std::unitbuf;pairing();differential();realtime_lifetime();normal_lifetime();reused_address();ordering();
  std::cout<<"PASS actual scheduler: self/other destruction, needed/scale cancellation, address reuse, stable realtime order; no cadence reduction\n";}
 '''
 
