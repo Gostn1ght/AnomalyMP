@@ -3707,6 +3707,7 @@ void script_watchdog_start()
 // Network smoothness and metrics (doc 38, stages 0 and 1)
 // ---------------------------------------------------------------------------
 #include "Weapon.h"
+#include "PhysicObject.h"
 #include "ai/stalker/ai_stalker.h"
 #include "memory_manager.h"
 #include "enemy_manager.h"
@@ -3744,6 +3745,7 @@ void server_physics_update(xrServer* server)
 			it = Level().Objects.net_Find(it->first) ? std::next(it) : s_physics_sent.erase(it);
 	struct FootContact { Fvector position, direction; };
 	xr_vector<FootContact> feet;
+	const xr_vector<FootContact> no_feet;
 	for (u32 n = 0; n < Level().Objects.o_count(); ++n)
 	{
 		CActor* actor = smart_cast<CActor*>(Level().Objects.o_get_by_iterator(n));
@@ -3766,13 +3768,28 @@ void server_physics_update(xrServer* server)
 		CPhysicsShellHolder* holder = smart_cast<CPhysicsShellHolder*>(object);
 		CEntityAlive* creature = smart_cast<CEntityAlive*>(object);
 		if (!holder || holder->getDestroy() || holder->H_Parent() || !holder->PPhysicsShell()) continue;
-		if (!smart_cast<CInventoryItem*>(object) && !(creature && !creature->g_Alive())) continue;
+		// Doors, barrels, crates and other physics props (CPhysicObject) were
+		// never sent: a door opened on the server stayed closed and solid on
+		// every client, and players ran into it and were pulled back
+		// (2026-10-07). A prop is followed once it has moved on the server;
+		// the hundreds that never move are left alone.
+		const bool item_or_corpse = smart_cast<CInventoryItem*>(object) || (creature && !creature->g_Alive());
+		const bool prop = !item_or_corpse && !creature && smart_cast<CPhysicObject*>(object);
+		if (!item_or_corpse && !prop) continue;
+		if (prop && s_physics_sent.find(holder->ID()) == s_physics_sent.end())
+		{
+			if (!holder->PPhysicsShell()->isEnabled()) continue;
+			Msg("[Lost Zone][physics] prop %s (%u) moved: its pose goes to the players", holder->cName().c_str(), holder->ID());
+		}
 		const u16 count = holder->PHGetSyncItemsNumber();
 		if (!count || count > 128) continue;
 		// Client replica colliders are fixed; only the authority integrates
 		// contact pushes. Walking against a body gives a small, mass-scaled
 		// impulse, never a position correction or an unvalidated client force.
-		for (const FootContact& foot : feet)
+		// Props are pushed by the server's Actor itself (doors swing as in
+		// the single player game).
+		const xr_vector<FootContact>& pushes = prop ? no_feet : feet;
+		for (const FootContact& foot : pushes)
 		{
 			for (u16 i = 0; i < count; ++i)
 			{
