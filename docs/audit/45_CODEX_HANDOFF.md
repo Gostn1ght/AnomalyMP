@@ -752,3 +752,10 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   retaining existing update intervals and full player/NPC work. Live64+ result
   required before marking performance acceptance complete. Existing untracked
   backend/tests/test_transfer_stress.py is preserved and not part of this edit.
+
+- 2026-10-07 (Codex) — separate backend handoff validation: finish the previously
+  untracked test_transfer_stress.py in its own commit; local Python run PASS
+  (1000 player/group commits, 250 aborts, transactional fault injection and
+  eight actual process exits before/after each phase). Existing backend workflow
+  discovers it on Linux/Windows. See 51_TRANSFER_STRESS.md; H12 stays partial
+  until native source/target crash and hidden-spawn acceptance. No runtime edit.
