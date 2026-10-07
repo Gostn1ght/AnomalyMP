@@ -131,3 +131,10 @@ Original SHA256 `83E113D2C9F3FE2A230C7DE0E2425A2A0A5D33DFB2F7E539420C545EA7D5186
 installed `364F6BE9060DF649ACD686FF0C833ECBADEF329C0E0F0F0D5762A4ADBC9737BF`.
 No executable promotion. The strict evaluator also rejects world snapshot,
 pointer, character commit/refusal and incomplete inventory restore failures.
+
+Source81ae artifact11491544969 subsequently downloaded and validated at
+`_build/gha/item-save-81ae903c1`: ZIP SHA256
+`f13edaebb59db959d6be347274a1d14c2b850e1eb8993ee466e0ed247d05edb6`;
+both exe SHA256
+`D132C8EAB7C0EB747D0BC958B94118B5B4FB7E920F0733160051BA1948E5858C`.
+Built-from/manifest/ZIP digest checked; no primary exe installation.

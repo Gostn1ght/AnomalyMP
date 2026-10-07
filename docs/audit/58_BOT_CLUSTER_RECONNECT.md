@@ -64,3 +64,8 @@ including a per-command HTTP1.1 retry; remote branch remains81ae903c1.
 The public status page reported operational, so a global outage is not
 confirmed. This fix has no Actions/native result yet and is not installed
 as a new executable. All probe processes stopped; debug file empty.
+
+Publication recovered on retry: source8ef6a25f5 and docs c6525f885 pushed.
+Foundation37642993485 SUCCESS on GCC sanitizers/MSVC, including the actual
+bot methods/loop fixture. DX1137642993484 full build pending. The next native
+probe is staged with early seed arming before bot launch; acceptance still open.
