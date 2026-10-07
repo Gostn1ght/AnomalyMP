@@ -2041,9 +2041,7 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 	case GE_ASSIGN_KILLER:
 	case GE_GAME_EVENT:
 	case GE_TELEPORT_OBJECT:
-	case GE_CHANGE_POS:
 	case GE_CHANGE_VISUAL:
-	case GE_TRADER_FLAGS:
 	case GE_FREEZE_OBJECT:
 	case GE_ADD_RESTRICTION:
 	case GE_REMOVE_RESTRICTION:
@@ -2069,10 +2067,30 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 		}
 
 	case GE_INFO_TRANSFER:
+	case GE_TRADER_FLAGS:
 		{
-			// Only to the sender's own Actor (never another player or an NPC).
+			// Only to the sender's own Actor (never another player or an NPC);
+			// trader flags carry the player's night vision state.
 			CSE_Abstract* dest = server->game->get_entity_from_eid(destination);
 			return dest && dest == CL->owner;
+		}
+
+	case GE_CHANGE_POS:
+		{
+			// A script dropping an item at a spot (DropItemAndTeleport): only
+			// the sender's own or just dropped item, next to the sender.
+			CSE_Abstract* item = server->game->get_entity_from_eid(destination);
+			CObject* actor = CL->owner ? Level().Objects.net_Find(CL->owner->ID) : NULL;
+			if (!item || !actor || P.r_elapsed() < sizeof(Fvector))
+				return false;
+			if (item->ID_Parent != 0xffff && item->ID_Parent != CL->owner->ID)
+				return false;
+			const u32 pos = P.r_pos;
+			Fvector target;
+			P.r_vec3(target);
+			P.r_pos = pos;
+			const Fvector& from = item->ID_Parent == 0xffff ? item->o_Position : actor->Position();
+			return _valid(target) && actor->Position().distance_to(target) <= 5.f && actor->Position().distance_to(from) <= 5.f;
 		}
 
 	case GEG_PLAYER_ITEM_EAT:
