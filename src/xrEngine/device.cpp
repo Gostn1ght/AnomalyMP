@@ -563,16 +563,17 @@ void CRenderDevice::on_idle()
 	// The dedicated server's frame pause was in IGame_Level::OnRender, which
 	// it no longer runs (no D3D level render, 2026-10-06): an empty location
 	// server spun a whole core with 1 ms frames (2026-10-07). A frame shorter
-	// than -netcoop_frame_ms (10 ms, 100 frames a second) sleeps the rest; a
-	// longer one does not sleep at all (it used to sleep 5 ms every frame).
+	// than -netcoop_frame_ms (5 ms: the old pause, so snapshot timing stays as
+	// it was) sleeps the rest; a longer one does not sleep at all (it used to
+	// sleep 5 ms every frame).
 	if (g_dedicated_server)
 	{
 		static int frame_ms = -1;
 		if (frame_ms < 0)
 		{
 			LPCSTR option = strstr(Core.Params, "-netcoop_frame_ms=");
-			frame_ms = option ? atoi(option + xr_strlen("-netcoop_frame_ms=")) : 10;
-			if (frame_ms < 0 || frame_ms > 100) frame_ms = 10;
+			frame_ms = option ? atoi(option + xr_strlen("-netcoop_frame_ms=")) : 5;
+			if (frame_ms < 0 || frame_ms > 100) frame_ms = 5;
 		}
 		static u64 frame_begin = 0;
 		const u64 now = CPU::QPC();
