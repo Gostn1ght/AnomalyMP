@@ -24,6 +24,54 @@ Claude и Codex работают в одной папке `engine-steamnet` и �
 
 ## Правила владельца (обязательно)
 
+- НОВЫЙ ПРИОРИТЕТ владельца 2026-10-07 после doc60 PASS: автономно сначала
+  максимально закрывать64игрока/плавность, потом остальные пункты. Это
+  заменяет прежний порядок easy→medium→hard и следующий L29 ниже. Не снижать
+  население/частоту ИИ/скорость игроков и не закрывать max-view только по ботам.
+
+- Последний итог Codex 2026-10-07: ff78b4197 GHA37665981680/37665981691 PASS;
+  private checksum-fixed-ff78b4197: mixed NCH7→NCH8 и retained restart PASS.
+  По20/20 переходов в каждом прогоне (40всего), final4/4 в обоих; 0ошибок.
+  96captured observations, все24UID/full encoded item state и5profile fields
+  совпали с оригиналом; startup SHA совпал с последним файлом предыдущего
+  прогона; storage revisions monotonic, никаких исключённых плохих записей.
+  Доказательства и предыдущие провалы сохранены; подробности/ограничения doc60.
+  Probe процессы остановлены, primary exe FE829FF4... без изменений.
+  Ниже pause/resume/pending записи исторические. Следующая средняя задача:
+  L29 — проверить сохранение открытых дверей/сдвинутых props после рестарта
+  в НОВОЙ private папке. Старый run-prop-test.ps1 удаляет appdata recursively;
+  его нельзя запускать на retained worlds, нужен безопасный isolated driver.
+  После средних задач — сложная64/max-view. Не закрывать её по bot reliability.
+
+- Возобновлено по просьбе владельца 2026-10-07. Foundation37665981691 и
+  DX1137665981680 завершились SUCCESS на exact sourceff78b4197. Скачиваю
+  проверенный пакет для подготовленного private fixed probe; затем mixed
+  NCH7 migration и retained NCH8 restart со строгим сравнением всех записей.
+  Предыдущая пауза ниже — историческая запись, запрет запуска снят владельцем.
+
+- ПАУЗА по прямой просьбе владельца 2026-10-07 21:21. Source исправления
+  item-readiness: ff78b4197c8ec08c42da6edc68b496ea56161318, уже pushed.
+  Foundation37665981691: Linux PASS, Windows ещё идёт; DX1137665981680:
+  checks PASS, full engine ещё идёт. Сборки не отменены. Игровых probe
+  процессов нет; новые тесты не запускать до просьбы продолжить.
+  Следующее действие после возобновления: проверить оба CI, скачать и
+  валидировать exact ff78 package через _build/live/quick-transitions/
+  fetch-artifact.py (API per-request resolve140.82.121.5; при необходимости
+  обновить через официальный HTTPS DNS), затем private fixed probe
+  _build/live/checksum-fixed-ff78b4197. Там уже подготовлены те же четыре
+  mixed NCH7 входа и оба сохранённых мира, bin/dedicated ещё нет.
+  install-verified-package.py ожидает cache _build/gha/checksum-fixed-ff78b4197,
+  run37665981680/sourceff78. Запустить run-checksum.ps1 с Runtime этой папки,
+  GameWorkingDirectory ../gamma-runtime, Bots4/BotProcesses2/Minutes3,
+  BotsBelowNormal, ServerArgs '-dedicated -netcoop_world_save_period=30',
+  BotArgs '-dedicated -netcoop_fake_loss=5 -netcoop_fake_lag=120'; параллельно
+  capture-items.py. После завершения inspect-upgrade.py, prepare-restart.ps1,
+  run-restart.ps1 (те же параметры) + capture-restart-items.py, затем
+  inspect-upgrade.py и final-acceptance.py. Нельзя исключать плохие observations.
+  Не пересоздавать legacy-before/inputs: они готовы. Старый провал и rev60
+  сохранены в _build/live/checksum-ed08716d3. Doc60 acceptance НЕ закрыта.
+  Все четыре primary exe остаются FE829FF4...; 64/max-view всё ещё OPEN.
+
 - Codex 2026-10-07: NCH8 native migration PASS, но restart strict observer
   поймал промежуточную запись nbot_002 с UID0/default medkit (rev60), затем
   rev61 исправилась. Приёмку НЕ закрываю. Трогаю item readiness/character

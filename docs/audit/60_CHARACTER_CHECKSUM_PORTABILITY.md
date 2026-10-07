@@ -1,7 +1,7 @@
 # 60. Character checksum portability (NCH8)
 
-2026-10-07, Codex. Medium follow-up to doc59; migration PASS, strict retained-world
-restart FAILED on an item-restoration timing window. Follow-up fix in progress.
+2026-10-07, Codex. Medium follow-up to doc59. Fixed sourceff78 native migration
+and retained-world restart PASS. Original ed087 restart failure retained below.
 
 ## Problem and scope
 
@@ -81,7 +81,7 @@ prepared input hashes: no replacement with an empty character. CRC32C bots
 001/003 play normally. This is a causal negative control, not a load PASS.
 negative-acceptance.json and full logs retained. No probe processes remain.
 
-## Native migration phase (PASS; restart pending)
+## Original ed087 migration phase (PASS; restart was pending at this entry)
 
 Matching ed087 GHA exes, retained saved worlds, four bots/two maps,
 three-minute workload, 5% loss/+120ms. All four old NCH7 characters admit;
@@ -109,7 +109,7 @@ upgrade-checks.json, result.txt and distinct checksum_selftest_* logs.
 Both servers are now restarting with those same NCH8 files and committed
 worlds. No cleanup/reseed; this second phase is still pending.
 
-## Strict restart comparison (FAILED; do not close acceptance)
+## Original ed087 strict restart comparison (FAILED)
 
 The three-minute restart workload admitted all four NCH8 characters and
 completed24departures/24arrivals with0terminal/admission/Lua/save errors.
@@ -136,3 +136,77 @@ and NPC/player movement/AI cadence stay unchanged. During pending restoration,
 the original snapshot stays protected. Actual admission and inventory-preflight
 fixtures exercise missing record, UID0 and queued restore, then successful
 release; no native compilation locally. Fixed CI/native rerun remains pending.
+
+Paused by the owner at21:21. Fix sourceff78b4197c8ec08c42da6edc68b496ea56161318
+is committed/pushed. Foundation37665981691 Linux PASS/Windows in progress;
+DX1137665981680 checks PASS/full engine in progress. Builds left running,
+no game processes. `_build/live/checksum-fixed-ff78b4197` contains the same
+verified mixed NCH7 inputs and saved worlds, with no exes installed yet.
+Resume steps recorded in doc45. No new native PASS claimed; primary exes unchanged.
+
+## Resumed fixed-build validation
+
+Owner resumed work. Both Foundation37665981691 (GCC/MSVC actual admission and
+inventory-preflight fixtures) and DX1137665981680 (full engine/checks/package)
+SUCCESS on sourceff78b4197c8ec08c42da6edc68b496ea56161318.
+Artifact11502549852 verified against exact source/built-from/manifest/digest.
+ZIP SHA256 `9a7bfd2c87bf5ce6a14a380a7fd73d2120ae201e7e8f16078111000db6263ef1`;
+both exe SHA256 `801763D6ABBAB37E35BE5E78A2A1481284AEBCF1CB3C3B9BB8BECD1C2DA0C641`.
+Cache `_build/gha/checksum-fixed-ff78b4197/validated.json`.
+
+Private `_build/live/checksum-fixed-ff78b4197` starts with byte-identical mixed
+NCH7 inputs and the same doc59 committed two-map worlds. Both original
+failures remain in their own directories. Three-minute migration, followed
+by same-world NCH8 restart and strict comparison of every captured observation,
+is in progress; no primary files changed and no acceptance claim yet.
+
+Fixed ff78 migration phase PASS:4unique/final4playing,20departures/20arrivals,
+3auth redirects,0terminal/admission/retry/Lua/fatal/shader/save/refusal/lease
+errors. Every bot has completed arrivals on BOTH maps. Twelve observations
+per bot: original mixed NCH7 plus11canonical NCH8. All24UID/full encoded item
+state/profile fields/request/signature match original; revisions advance
+36→47,38→49,37→48,26→37. Same-world NCH8 restart is running; its strict item
+comparison remains required before final acceptance.
+
+## Fixed migration and retained-world restart acceptance (PASS)
+
+Strict final-acceptance.py PASS on matching ff78 GHA exes in the private fixed
+probe. BOTH three-minute phases end4/4playing,0joining/connecting/terminal
+failures. Each phase completes20departures/20arrivals;40completed transfers
+in total. Every bot completes arrivals on BOTH maps in EACH phase. Zero
+admission errors/retries, Lua/fatal/shader/save/refusal/lease errors.
+Bad-network flags5% loss/+120ms remain on both bot processes in both phases.
+
+There are12captured observations per bot per phase (96total, including the
+unchanged first restart observation; not96distinct writes). ALL captured
+carried item state, including ordinary PDA and all24unique UIDs, matches the
+original NCH7 baseline. No failed record excluded. All5profile fields,
+empty safe contents and storage request/signature preserved; revisions remain
+monotonic36→47→58,38→49→60,37→48→59,26→37→48. Restart starts with exactly the
+previous phase's final file SHA256, no hidden edits/cleanup/reseed. Every
+restart observation is NCH8; full binary decoding validates canonical actor,
+item packet, progress and safe checksums plus exact EOF. Final files match too.
+
+Both phases load committed saved worlds, no bootstrap. World saves:
+migration Marsh periodic6/last-player-left4, Cordon3/4;
+restart Marsh7/3, Cordon5/2. Final route totals across phases are5arrivals
+per bot on EACH map. Private evidence: acceptance.json, phase1-inventory-history.json,
+phase1-inventory-checks.json, restart-inventory-history.json,
+restart-inventory-checks.json, upgrade-checks.json, both result files and logs.
+Original mixed-checksum rejection and the original UID0 snapshot remain retained.
+
+Scope: real mixed NCH7 checksum admission/upgrading and static carried-item
+state through two-map bad-network transfers/restart. Nonempty safe contents,
+CP1251 profiles and both actual CPU checksum branches are CI fixture coverage;
+this machine's native run uses SSE4.2. No firing/consumption/nonzero addons,
+mixed magazines or GAMMA Lua weapon-part/upgrades acceptance claimed. Item
+placement/parent IDs are separate from encoded item state and not compared as
+stable values across maps. Performance/graphical64/max-view remains OPEN:
+these logs still contain frame and callback hitches, not a smoothness PASS.
+
+All probe processes stopped. All four primary exe SHA256 remain
+`FE829FF44D4A0D4CF2C122A0EB6EDF243B8FCB7D3ABC3872A4C949D553B8AC88`.
+New exes/NCH8 files stay in private test copies; no production rollout.
+Historical doc48's188counters remain unchanged. Next medium acceptance:
+open-door/moved-prop state after restart (L29), with a fresh isolated probe;
+do not run the existing prop harness's recursive cleanup on retained state.
