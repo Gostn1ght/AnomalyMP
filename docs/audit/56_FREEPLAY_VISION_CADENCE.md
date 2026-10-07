@@ -57,3 +57,57 @@ The native fixture pins actual d540 Sender cadence, compares optimized/indexed
 eligibility to that previous predicate's full scan across float boundaries,
 overloads, tick wrap, handle reuse and moving objects, and instruments distance
 calls. These are exact redundant-work removals, independent of restoring vision.
+
+fa5edb5f23a4293e93029c95e8a78c29bc0bc526: Foundation37607469611 PASS both OS,
+DX11 37607469678 SUCCESS full checks/engine/package/upload. Package artifact
+11476356618 (189396278 bytes), downloaded _build/gha/vision-fa5edb5f2.
+Matching exe SHA256
+794316757B231F71467194E358084588DB93963E0B0225346C412686AE212113.
+Isolated acceptance _build/live/fa5edb5f2; original GAMMA fs_root preserved,
+separate appdata, both server/bot user.ltx seeded. Warm bot shader cache copied
+from completed9e16; renderer verifies cache CRC. Main runtime still unchanged.
+
+Combined native16: final16/16,16uniqueactors,0terminalfailures,3admissionretries.
+Default graphical load-client mode (render gate disabled) with valid user.ltx;
+no native fatal; existing caught PDA/handler messages remain as in doc55.
+64 experiment uses -dedicated on the load clients, same actual transport/actor
+handshake and payload. Dedicated startup omits menu work; this changes driver
+conditions relative to9e and cannot establish an A/B game FPS improvement.
+Still four processes below normal on shared four-core host, sampling enabled.
+No additional high-CPU PDB symbolization during steady windows this time.
+
+## Final native combined result
+
+fa64 dedicated load clients: 64unique actor IDs, final64/64,0terminalfailed,
+8admissionretries,0nativefatal. One population measurement before crowd move:
+48stalkers30mutants,42/23online. No final population measurement was captured
+before harness shutdown; do not claim before/after quantity equality from this
+run. Local debug moved only players close to13friendlyNPCs; NPCs were not moved
+or removed. This is denser and a different random fresh-world population than
+9e39/27 with8nearNPCs; no controlled performance A/B attribution.
+
+Last six near-NPC windows p50=57–76ms,p95=161–205ms,max355–646ms;
+p99prints250 in every window because engine histogram's last bucket is250ms
+AND ABOVE (netcoop.cpp4372). It is not an exact250ms percentile.
+Total sent8.2–10.6MB/s; lower traffic on slower frames is not a bandwidth
+optimization. Steady bot examples still have callback gaps0.3–1.05s and bot
+main-frame peaks0.53–1.07s. Omitting menu/renderer startup reduced bot private
+memory from~2GB to~0.55GB, but did not remove all gaps. Main server private
+memory~1.97GB still does not meet1.5GB goal. Budget blocked remained0; this does
+not prove zero transport queuing or smooth delivery.
+
+Last post-crowd main-thread profile2728samples/30s: inclusive scheduler74.3%,
+stalker45.1%,vision23.9%,Lua binder16.7%,planner10.1%. Sampling enabled;
+percentages overlap and are not additive. PDB symbolization ran after shutdown
+for this final test. Log/summary/profile retained under isolatedaccept64.
+Caught PDA event messages20/handler1 still present (limited logging), as in the
+older baseline. No visual max-range NPC movement/reaction acceptance. NO main
+runtime promotion; primary executables/worlds/accounts unchanged.
+
+Next lossless CPU work must target actual Lua pure reads/planner redundancy or
+independent static geometric computation with precise state/lifetime barriers.
+Do not parallelize observer-dependent Lua/material callbacks, share approximate
+rays from different NPC origins, cap traces or lower binder/AI frequencies.
+Bot receive/frame gaps need their own driver/transport profile; -dedicated has
+ruled out menu rendering as the only explanation. No capacity or188-stage
+completion claim follows from64successful handshakes.

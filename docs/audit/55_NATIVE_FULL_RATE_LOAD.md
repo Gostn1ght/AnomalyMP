@@ -94,3 +94,39 @@ shared-host load contention remains a material limit.
 Diagnostic DX11 37593806421 SUCCESS full checks/engine/package/upload. Matching
 client/server artifact 11469784291 (189954533 bytes); isolated native repeats
 follow before interpreting the two gap measurements.
+
+Correction from expanded log classification: d540 baseline has caught
+`time event error` messages (PDA ScanForSpots nil actor before remote players)
+and a caught callback failure; previous zero SCRIPT ERROR/fatal counters did
+not include these. Do not describe it as wholly error-free. Actual ALife switch
+distance in baseline and repeat logs is 650 m, not the older doc49 450 m figure.
+
+9e package both exe SHA256
+931A61B2D08B6E75D3084B84F17EEA81ED43D311B3AD4C2D7F44C060BD036AC7.
+First fresh repeat accept16 FAILED before bots connected: private preparation
+omitted bot user.ltx; default graphics hit GAMMA combine_1 shader X3017 during
+renderer initialization. Zero fatal/zero playing is not acceptance. Retained
+logs; accept16r2 uses previous successful GAMMA user.ltx on both sides. Native
+fa5edb5f2 Foundation37607469611 PASS GCC/MSVC actual index vs pinned cadence;
+protected distance calls/spatial candidates zero. Full DX11 37607469678 ongoing.
+
+9e accept16r2: 16 unique actor IDs, final16/16 playing, terminal_failed=0,
+one admission retry, fatal=0. Last six frame windows p50=6 ms, p95=14–17 ms,
+p99=34–43 ms, max=74–318 ms; sent2.63–2.75 MB/s. Last bot report examples
+show receive callback gaps99–272 ms and main bot frames47–326 ms, demonstrating
+both delivery and consumer contributions; not a smoothness certificate.
+Caught-event logger reached20 PDA messages; caught callback failures1. Counts
+are logged messages, not all occurrences because the logger caps repeats.
+64 repeat uses four processes below normal and -netcoop_sample_profile (timing
+includes sampling overhead). Private harness now avoids PowerShell's BotArgs /
+botArgs case-insensitive collision that duplicated previous commands as suffixes.
+
+9e64 diagnostic: final64/64,64 unique actors,0 terminal failures,4 admission
+retries,0fatal; caught-event messages20/handler1. Population measured before
+relocation39stalkers27mutants. Last six near-NPC windows p50=25–41ms,
+p95=84–114ms,max180–299ms; sent12.5–15.5MB/s. Steady examples show bot frame
+~0.87–1.4s, receive callback~0.5–1.4s. Larger late windows include shared-host
+analysis/PDB work and shutdown; do not use them as a clean gameplay benchmark.
+Main-thread sampling30s/2747samples: inclusive scheduler63.7%, stalker34.3%,
+vision20.6%, script-binder13.5%, action-planner10.2%. Percentages are inclusive,
+not additive or literal frame milliseconds. Retained logs/profile/summary.
