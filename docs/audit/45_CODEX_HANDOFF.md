@@ -24,6 +24,12 @@ Claude и Codex работают в одной папке `engine-steamnet` и �
 
 ## Правила владельца (обязательно)
 
+- Codex 2026-10-07: следующая средняя задача — NCH8 с явным canonical raw
+  CRC32C и чтением NCH3–7 обоих старых CPU вариантов. Трогаю character I/O,
+  scoped helper/header, actual-reader/writer fixtures и CI/project registration.
+  xrCore/crc32 и форматы архивов/мира оставляю без изменений; world digest уже
+  FNV64. Новый формат только private до native проверки миграции/рестарта.
+
 - Codex 2026-10-07, последний итог: source5fded GHA build37653762280 PASS;
   четыре бота/две карты/5% loss/+120ms: 32/32 завершённых перехода, final4/4,
   0 terminal/Lua/save ошибок. Все24 UID и полное encoded item state неизменны

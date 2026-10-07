@@ -96,18 +96,31 @@ static bool character_read_string(FILE* f, xr_string& value, u32 max_size)
 	return false;
 }
 
-static bool character_read_packet(FILE* f, NET_Packet& packet)
+static u32 character_checksum(const void* data, u32 size)
+{
+	// Keep the existing hardware speed on SSE4.2, use the same polynomial on
+	// older CPUs. Do not change xrCore CRC used by archives and other formats.
+	return (CPU::ID.feature & _CPU_FEATURE_SSE4_2) ? crc32(data, size) : save_checksum::crc32c(data, size);
+}
+
+static bool character_checksum_matches(const void* data, u32 size, u32 expected, bool legacy_crc)
+{
+	return character_checksum(data, size) == expected ||
+		(legacy_crc && save_checksum::legacy_ieee(data, size) == expected);
+}
+
+static bool character_read_packet(FILE* f, NET_Packet& packet, bool legacy_crc)
 {
 	u32 size, crc;
 	if (fread(&size, 4, 1, f) != 1 || fread(&crc, 4, 1, f) != 1 || size > sizeof(packet.B.data)) return false;
 	packet.B.count = size;
 	packet.r_pos = 0;
-	return (!size || fread(packet.B.data, 1, size, f) == size) && crc32(packet.B.data, size) == crc;
+	return (!size || fread(packet.B.data, 1, size, f) == size) && character_checksum_matches(packet.B.data, size, crc, legacy_crc);
 }
 
 static void character_write_packet(FILE* f, const NET_Packet& packet)
 {
-	const u32 size = packet.B.count, crc = crc32(packet.B.data, size);
+	const u32 size = packet.B.count, crc = character_checksum(packet.B.data, size);
 	fwrite(&size, 4, 1, f); fwrite(&crc, 4, 1, f);
 	if (size) fwrite(packet.B.data, 1, size, f);
 }
@@ -256,7 +269,7 @@ static bool character_save(Character& character, bool background = false)
 	if (!character_temp_path(path, background, temp)) return false;
 	FILE* f = fopen(temp, "wb");
 	if (!f) return false;
-	const u32 magic = 0x3748434e; // NCH7: item instance state; NCH3/4/5/6 remain readable
+	const u32 magic = 0x3848434e; // NCH8: CPU-independent checksum; NCH3..7 remain readable
 	fwrite(&magic, 4, 1, f);
 	fwrite(character.name.c_str(), 1, character.name.size() + 1, f);
 	fwrite(character.faction.c_str(), 1, character.faction.size() + 1, f);
@@ -275,7 +288,7 @@ static bool character_save(Character& character, bool background = false)
 		character_write_packet(f, item.spawn);
 		character_write_state(f, item.state);
 	}
-	const u32 size = u32(character.progress.size()), crc = crc32(character.progress.data(), size);
+	const u32 size = u32(character.progress.size()), crc = character_checksum(character.progress.data(), size);
 	fwrite(&size, 4, 1, f); fwrite(&crc, 4, 1, f);
 	if (size) fwrite(character.progress.data(), 1, size, f);
 	fwrite(&character.storage_revision,4,1,f);
@@ -320,24 +333,25 @@ static Character* character_load(LPCSTR account, u8 slot)
 	Character character;
 	character.account = account; character.slot = slot;
 	u32 magic = 0, count = 0;
-	bool ok = fread(&magic, 4, 1, f) == 1 && (magic == 0x3348434e || magic == 0x3448434e || magic == 0x3548434e || magic == 0x3648434e || magic == 0x3748434e) &&
+	bool ok = fread(&magic, 4, 1, f) == 1 && (magic == 0x3348434e || magic == 0x3448434e || magic == 0x3548434e || magic == 0x3648434e || magic == 0x3748434e || magic == 0x3848434e) &&
 		character_read_string(f, character.name, 63) && character_read_string(f, character.faction, 32) &&
 		character_read_string(f, character.loadout, 4096);
 	if (ok && magic >= 0x3548434e) ok = character_read_string(f, character.description, 512) && character_read_string(f, character.history, 1536);
+	const bool legacy_crc = magic < 0x3848434e;
 	if (ok)
 	{
 		character.economy = u8(fgetc(f));
 		const int initialized = fgetc(f), respawn = fgetc(f);
 		character.initialized = initialized == 1; character.respawn = respawn == 1;
 		if (initialized < 0 || initialized > 1 || respawn < 0 || respawn > 1) { fclose(f); return nullptr; }
-		ok = character_read_packet(f, character.actor) && fread(&count, 4, 1, f) == 1 && count <= 512;
+		ok = character_read_packet(f, character.actor, legacy_crc) && fread(&count, 4, 1, f) == 1 && count <= 512;
 	}
 	for (u32 i = 0; ok && i < count; ++i)
 	{
 		Character::Item item;
 		ok = character_read_string(f, item.section, 128) && fread(&item.parent, 2, 1, f) == 1 &&
 			item.parent <= i && (magic == 0x3348434e || fread(&item.place, 2, 1, f) == 1) &&
-			character_read_packet(f, item.spawn) && (magic < 0x3748434e || character_read_state(f, item.state)) &&
+			character_read_packet(f, item.spawn, legacy_crc) && (magic < 0x3748434e || character_read_state(f, item.state)) &&
 			pSettings->section_exist(item.section.c_str());
 		if (ok) character.items.push_back(std::move(item));
 	}
@@ -348,7 +362,7 @@ static Character* character_load(LPCSTR account, u8 slot)
 		if (ok)
 		{
 			character.progress.resize(size);
-			ok = (!size || fread(character.progress.data(), 1, size, f) == size) && crc32(character.progress.data(), size) == crc;
+			ok = (!size || fread(character.progress.data(), 1, size, f) == size) && character_checksum_matches(character.progress.data(), size, crc, legacy_crc);
 		}
 	}
     if (ok && magic>=0x3648434e)
@@ -360,7 +374,7 @@ static Character* character_load(LPCSTR account, u8 slot)
         {
             Character::Item item;
             ok=character_read_string(f,item.section,128) && fread(&item.parent,2,1,f)==1 && item.parent<=i &&
-                fread(&item.place,2,1,f)==1 && character_read_packet(f,item.spawn) &&
+                fread(&item.place,2,1,f)==1 && character_read_packet(f,item.spawn,legacy_crc) &&
                 (magic<0x3748434e || character_read_state(f,item.state)) && pSettings->section_exist(item.section.c_str());
             if (ok) character.safe.push_back(std::move(item));
         }

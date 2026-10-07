@@ -2511,6 +2511,9 @@
     <ClInclude Include="netcoop_bot_target.h">
       <Filter>AI\AComponents\DamageManager</Filter>
     </ClInclude>
+    <ClInclude Include="netcoop_save_checksum.h">
+      <Filter>AI\AComponents\DamageManager</Filter>
+    </ClInclude>
     <ClInclude Include="damage_manager_inline.h">
       <Filter>AI\AComponents\DamageManager</Filter>
     </ClInclude>

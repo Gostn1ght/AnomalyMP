@@ -49,6 +49,7 @@
 #include "WeaponAmmo.h"
 #include "eatable_item.h"
 #include "netcoop_item_state.h"
+#include "netcoop_save_checksum.h"
 #include "script_engine.h"
 #include "xrServer_Objects_ALife_Monsters.h"
 #include "game_base_space.h"

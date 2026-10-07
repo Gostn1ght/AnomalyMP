@@ -1029,6 +1029,7 @@
     <ClInclude Include="damage_manager.h" />
     <ClInclude Include="netcoop_bot_gap_probe.h" />
     <ClInclude Include="netcoop_bot_target.h" />
+    <ClInclude Include="netcoop_save_checksum.h" />
     <ClInclude Include="damage_manager_inline.h" />
     <ClInclude Include="danger_cover_location.h" />
     <ClInclude Include="danger_cover_location_inline.h" />

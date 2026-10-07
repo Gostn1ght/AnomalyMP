@@ -56,6 +56,9 @@ on:
       - 'scripts/check-netcoop-transit-queue.py'
       - 'src/xrGame/netcoop_cluster.inc'
       - 'src/xrGame/netcoop_characters.inc'
+      - 'src/xrGame/netcoop_save_checksum.h'
+      - 'src/xrCore/crc32.cpp'
+      - 'scripts/check-netcoop-character-checksum.py'
       - 'scripts/check-netcoop-player-transfer.py'
       - 'src/xrGame/netcoop.cpp'
       - 'scripts/check-netcoop-account-store.py'
@@ -118,6 +121,8 @@ jobs:
         run: python scripts/check-netcoop-character-commits.py
       - name: Exercise target character restore admission and failures
         run: python scripts/check-netcoop-character-restore.py
+      - name: Exercise actual character checksum portability and legacy migration
+        run: python scripts/check-netcoop-character-checksum.py
   clock-windows:
     runs-on: windows-2022
     timeout-minutes: 10
@@ -172,5 +177,7 @@ jobs:
           python scripts/check-netcoop-character-commits.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-restore.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-netcoop-character-checksum.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-alife-clock.py
