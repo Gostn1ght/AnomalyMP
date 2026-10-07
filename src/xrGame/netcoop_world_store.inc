@@ -341,10 +341,12 @@ bool world_store_save_now(LPCSTR reason)
 	// on the dedicated server it faulted inside Objects_net_Save before the
 	// first packet, so every world save failed (2026-10-06 selftest). The
 	// ALife snapshot is taken from the server entities.
-	LPCSTR stage = "alife snapshot";
+	LPCSTR stage = "physics props";
 	world_store_crash_point("before_alife");
 	try
 	{
+		if (!world_store_capture_physics_props()) return false;
+		stage = "alife snapshot";
 		const_cast<CALifeSimulator*>(ai().get_alife())->save(save, false);
 	}
 	catch (const std::exception& e)

@@ -30,6 +30,9 @@ on:
       - 'scripts/check-netcoop-world-clock.py'
       - 'src/xrGame/netcoop_world_store.inc'
       - 'scripts/check-netcoop-world-store.py'
+      - 'scripts/check-netcoop-physics-save.py'
+      - 'src/xrGame/PhysicObject.cpp'
+      - 'src/xrGame/PhysicObject.h'
       - 'src/xrGame/netcoop_spatial_grid.h'
       - 'src/xrGame/netcoop_simulation_lod.h'
       - 'src/xrGame/netcoop_world_bridge.h'
@@ -105,6 +108,8 @@ jobs:
         run: python scripts/check-netcoop-simulation-lod.py
       - name: Exercise read-only world bridge and wire protocol
         run: python scripts/check-netcoop-world-bridge.py
+      - name: Exercise physics-only prop checkpoints
+        run: python scripts/check-netcoop-physics-save.py
       - name: Exercise snapshot slot recovery
         run: python scripts/check-netcoop-world-store.py
       - name: Exercise corpse cleanup without deleting inventory
@@ -177,6 +182,8 @@ jobs:
           python scripts/check-netcoop-character-commits.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-restore.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-netcoop-physics-save.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-checksum.py
           if errorlevel 1 exit /b %errorlevel%

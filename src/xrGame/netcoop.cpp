@@ -30,6 +30,7 @@
 #include "Inventory.h"
 #include "PDA.h"
 #include "InventoryBox.h"
+#include "PhysicObject.h"
 #include "Torch.h"
 #include "ZoneCampfire.h"
 #include "alife_simulator.h"
@@ -1260,6 +1261,27 @@ static void world_store_note_taken(u16 actor_id);
 #include "netcoop_pda.inc"
 #include "netcoop_marks.inc"
 #include "netcoop_items.inc"
+// Called synchronously on the authority's world-checkpoint path. Offline
+// props already have their server state; capture only live physical props.
+static bool world_store_capture_physics_props()
+{
+	if (!Level().Server || !Level().Server->game) return false;
+	for (u32 n = 0; n < Level().Objects.o_count(); ++n)
+	{
+		CPhysicObject* prop = smart_cast<CPhysicObject*>(Level().Objects.o_get_by_iterator(n));
+		if (!prop || prop->getDestroy() || prop->H_Parent() ||
+			!prop->PPhysicsShell() || !prop->PHGetSyncItemsNumber()) continue;
+		CSE_Abstract* entity = Level().Server->game->get_entity_from_eid(prop->ID());
+		CSE_PHSkeleton* skeleton = smart_cast<CSE_PHSkeleton*>(entity);
+		if (skeleton && !skeleton->need_save()) continue;
+		if (!prop->netcoop_capture_saved_physics(entity))
+		{
+			Msg("! [NetAnomaly][world] cannot capture physics prop %u", prop->ID());
+			return false;
+		}
+	}
+	return true;
+}
 #include "netcoop_world_store.inc"
 #include "netcoop_campfire.inc"
 
@@ -3709,7 +3731,6 @@ void script_watchdog_start()
 // Network smoothness and metrics (doc 38, stages 0 and 1)
 // ---------------------------------------------------------------------------
 #include "Weapon.h"
-#include "PhysicObject.h"
 #include "ai/stalker/ai_stalker.h"
 #include "memory_manager.h"
 #include "enemy_manager.h"

@@ -65,7 +65,11 @@ struct Files {
  bool exist(const char* file) {return bool(std::ifstream(file));}
 } FS;
 bool fail_save=false,fail_script=false;int revision=0;std::string last_slot;
-bool script_matches=true;
+bool script_matches=true, fail_physics=false, throw_physics=false;
+bool world_store_capture_physics_props() {
+ if(throw_physics) throw std::runtime_error("injected physics capture error");
+ return !fail_physics;
+}
 namespace luabind { template<class R>struct functor { R operator()(const char*) {return script_matches;} }; }
 struct ScriptEngine {template<class T>bool functor(const char*,T&){return true;}};
 struct CALifeSimulator {
@@ -108,6 +112,15 @@ int main() {
  assert(world_store_choose_start(load,64,mode,64));
  assert(std::string(load)=="zone_b" && std::string(mode)=="load");
  assert(s_world_loaded && s_world_cleanup_pending);
+ // Capture faults must never call ALife save or replace the committed slot.
+ const std::string saved_slot=last_slot;
+ fail_physics=true;assert(!world_store_save_now("physics capture refused"));
+ assert(last_slot==saved_slot && contents("zone.current")=="zone_b");
+ assert(contents("zone_b.sav")=="2" && contents("zone_b.scoc")=="2");
+ fail_physics=false;throw_physics=true;assert(!world_store_save_now("physics capture threw"));
+ assert(last_slot==saved_slot && contents("zone.current")=="zone_b");
+ assert(contents("zone_b.sav")=="2" && contents("zone_b.scoc")=="2");
+ throw_physics=false;
  fail_save=true;revision=3;assert(!world_store_save_now("interrupted"));
  assert(last_slot=="zone_a" && contents("zone.current")=="zone_b");
  assert(contents("zone_b.sav")=="2"); // last committed world survives

@@ -24,6 +24,22 @@ Claude и Codex работают в одной папке `engine-steamnet` и �
 
 ## Правила владельца (обязательно)
 
+- Codex 2026-10-08, L29 baseline FAILED: prop16773 mar_physic_object_0008,
+  actual world checkpoint committed, SAME world loaded, pose вернулась ТОЧНО
+  в initial (3.811m от saved). До изменения кода записываю scope: PhysicObject
+  wrapper для стандартного CPHSkeleton::SaveNetState→CSE_PHSkeleton::load,
+  server-only capture перед ALife checkpoint; без inherited net_Save/Lua actor
+  hooks/общего ClientSave (раньше падал на dedicated). Actual adapter/selection
+  fixtures и fail-closed world-store case, компиляция только GHA. Primary не
+  менять. Original failure/logs/matrices сохранены в prop-restart-before-ff78b4197.
+
+- Codex перед L29: только native probe в НОВОЙ папке prop-restart-before-
+  ff78b4197, verified ff78 exes. Один игрок, выбираю движимый nonbreakable
+  obj_physic, сохраняю матрицы ВСЕХ физических тел до/после force и после
+  netcoop_world_save, затем restart SAME world/character без cleanup/reseed.
+  До результата source physics/world-store не менять; whole L29 не закрывать
+  только по совпадению object position (у hinged doors важны body rotations).
+
 - Codex doc61 bounded64 завершён: final64/64,4recovered admission retries,
   0terminal/Lua/fatal/save ошибок.45NPC/27mutants, все64 рядом с9friendlyNPC.
   Dense last6 p5013–14/p9570–96ms, main/callback gaps остаются большими.

@@ -329,6 +329,37 @@ void CPhysicObject::net_Destroy()
 	xr_delete(bones_snd_player);
 }
 
+bool CPhysicObject::netcoop_capture_saved_physics(CSE_Abstract* entity)
+{
+	CSE_ALifeObjectPhysic* target = smart_cast<CSE_ALifeObjectPhysic*>(entity);
+	const u16 count = PHGetSyncItemsNumber();
+	// SaveNetState has a 37-byte header and eight bytes per body. Refuse a
+	// packet overflow before entering the engine serializer (strict bound).
+	if (!target || target->ID != ID() || getDestroy() || H_Parent() ||
+		!PPhysicsShell() || !count || 37u + 8u * count >= NET_PacketSizeLimit)
+		return false;
+	Fvector angles;
+	XFORM().getHPB(angles);
+	if (!_valid(Position()) || !_valid(angles)) return false;
+	NET_Packet packet;
+	packet.B.count = 0;
+	// Physics only: never invoke inherited game-object or Lua save hooks.
+	CPHSkeleton::SaveNetState(packet);
+	packet.r_seek(0);
+	const u8 flags = packet.r_u8();
+	SPHBonesData bones;
+	bones.net_Load(packet);
+	if (!packet.r_eof() || bones.bones.size() != count) return false;
+	// Decode completely before replacing the previous entity state. Retain
+	// identity, section, parent, startup animation and fracture source ID.
+	target->saved_bones = bones;
+	target->_flags.assign(flags);
+	target->_flags.set(CSE_PHSkeleton::flSavedData, TRUE);
+	target->o_Position = Position();
+	target->o_Angle = angles;
+	return true;
+}
+
 void CPhysicObject::net_Save(NET_Packet& P)
 {
 	inherited::net_Save(P);
