@@ -1266,6 +1266,9 @@ static void world_store_note_taken(u16 actor_id);
 static bool world_store_capture_physics_props()
 {
 	if (!Level().Server || !Level().Server->game) return false;
+	::luabind::functor<bool> door_binder_ready;
+	const bool classify_doors = ai().script_engine().functor(
+		"zz_netcoop_world_rules.physics_door_binder_ready", door_binder_ready);
 	for (u32 n = 0; n < Level().Objects.o_count(); ++n)
 	{
 		CPhysicObject* prop = smart_cast<CPhysicObject*>(Level().Objects.o_get_by_iterator(n));
@@ -1274,7 +1277,8 @@ static bool world_store_capture_physics_props()
 		CSE_Abstract* entity = Level().Server->game->get_entity_from_eid(prop->ID());
 		CSE_PHSkeleton* skeleton = smart_cast<CSE_PHSkeleton*>(entity);
 		if (skeleton && !skeleton->need_save()) continue;
-		if (!prop->netcoop_capture_saved_physics(entity))
+		const bool capture_door_binder = classify_doors && door_binder_ready(prop->ID());
+		if (!prop->netcoop_capture_saved_physics(entity, capture_door_binder))
 		{
 			Msg("! [NetAnomaly][world] cannot capture physics prop %u", prop->ID());
 			return false;

@@ -9,6 +9,7 @@
 #include "../xrEngine/xr_collide_form.h"
 #include "../xrEngine/cf_dynamic_mesh.h"
 #include "PHSynchronize.h"
+#include "script_binder_object.h"
 #include "game_object_space.h"
 //#include "../xrphysics/PhysicsShellAnimator.h"
 #include "moving_bones_snd_player.h"
@@ -329,7 +330,7 @@ void CPhysicObject::net_Destroy()
 	xr_delete(bones_snd_player);
 }
 
-bool CPhysicObject::netcoop_capture_saved_physics(CSE_Abstract* entity)
+bool CPhysicObject::netcoop_capture_saved_physics(CSE_Abstract* entity, bool capture_door_binder)
 {
 	CSE_ALifeObjectPhysic* target = smart_cast<CSE_ALifeObjectPhysic*>(entity);
 	const u16 count = PHGetSyncItemsNumber();
@@ -343,15 +344,39 @@ bool CPhysicObject::netcoop_capture_saved_physics(CSE_Abstract* entity)
 	if (!_valid(Position()) || !_valid(angles)) return false;
 	NET_Packet packet;
 	packet.B.count = 0;
-	// Physics only: never invoke inherited game-object or Lua save hooks.
+	if (capture_door_binder)
+	{
+		CScriptBinderObject* binder = CScriptBinder::object();
+		if (!binder) return false;
+		// Stock CGameObject client-data layout, scoped to an initialized door.
+		// Do not call Actor/game-object net_Save or the binder's swallowing
+		// wrapper: a Lua save exception must keep the previous world commit
+		// and must not delete the live binder.
+		u32 chunk;
+		packet.w_chunk_open16(chunk);
+		CPhysicsShellHolder::save(packet);
+		binder->save(&packet);
+		packet.w_chunk_close16(chunk);
+		if (packet.B.count <= 3u || packet.B.count + 37u + 8u * count >= NET_PacketSizeLimit)
+			return false;
+	}
 	CPHSkeleton::SaveNetState(packet);
 	packet.r_seek(0);
+	xr_vector<u8> client_data;
+	if (capture_door_binder)
+	{
+		const u16 bytes = packet.r_u16();
+		if (bytes <= 1 || bytes > packet.r_elapsed()) return false;
+		client_data.resize(bytes);
+		packet.r(client_data.data(), bytes);
+	}
 	const u8 flags = packet.r_u8();
 	SPHBonesData bones;
 	bones.net_Load(packet);
 	if (!packet.r_eof() || bones.bones.size() != count) return false;
 	// Decode completely before replacing the previous entity state. Retain
 	// identity, section, parent, startup animation and fracture source ID.
+	if (capture_door_binder) target->client_data.swap(client_data);
 	target->saved_bones = bones;
 	target->_flags.assign(flags);
 	target->_flags.set(CSE_PHSkeleton::flSavedData, TRUE);

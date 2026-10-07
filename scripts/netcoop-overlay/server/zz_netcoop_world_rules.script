@@ -322,6 +322,18 @@ function install()
     end
 end
 
+-- Only initialized stock physics-door logic needs a binder checkpoint.
+-- Before the first player arrives, generic physics binders are not initialized;
+-- serializing those would have neither an active scheme nor its game time.
+function physics_door_binder_ready(id)
+    if not cooperative() or not db or not db.storage or not level then return false end
+    local obj = level.object_by_id(id)
+    local st = db.storage[id]
+    if not obj or obj:clsid() ~= clsid.obj_physic or not st or st.active_scheme ~= "ph_door" then return false end
+    local door = st.ph_door and st.ph_door.door_action
+    return door ~= nil and door.initialized == true and st.ini ~= nil
+end
+
 function script_snapshot_matches(save)
     local expected = encoded_snapshot
     encoded_snapshot = nil -- release the buffer after validation, including failure

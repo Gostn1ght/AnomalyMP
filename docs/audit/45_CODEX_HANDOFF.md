@@ -24,6 +24,19 @@ Claude и Codex работают в одной папке `engine-steamnet` и �
 
 ## Правила владельца (обязательно)
 
+- Codex BEFORE door logic changes: actual Cordon15921 wooden door, stock
+  authoritative use callback ph_door@open→ph_door@close, physical close proven,
+  SAVE committed, SAME retained world loads; restart resets script section to
+  ph_door@open and reopens it (rotation error1.008357). Native baseline FAIL,
+  logs clean, evidence _build/live/door-restart-before-ba82c7734 retained.
+  New scope: ONLY initialized ph_door props serialize their own generic binder
+  chunk plus shell enable byte into CSE client_data; physics adapter unchanged
+  for furniture. Call door binder directly so exceptions propagate (ordinary
+  CScriptBinder::save clears binder and hides errors). No Actor/task/inventory
+  net_Save, no whole ClientSave or simulation/AI changes. Stage classifier in
+  zz_netcoop_world_rules; actual adapter/selection/exception tests, GHA build
+  then SAME native door control and furniture regression, primary unchanged.
+
 - Codex 2026-10-08 FINAL scoped physics pose PASS: exact ba82c7734 GHA
   Foundation37688229874 + DX1137688230023 SUCCESS, validated artifact11513411413;
   both exes844FA785... Private prop-table-fixed-ba82c7734 tests ORIGINAL

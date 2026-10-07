@@ -4,6 +4,35 @@ from lupa.lua51 import LuaRuntime
 
 root = Path(__file__).resolve().parents[1]
 source = (root / "scripts/netcoop-overlay/server/zz_netcoop_world_rules.script").read_text()
+door_lua = LuaRuntime(unpack_returned_tuples=True)
+door_lua.execute('''
+cooperative = true
+function netcoop_enabled() return cooperative end
+objects = {}
+clsid = {obj_physic=1,script_actor=2}
+db = {storage={}}
+level = {object_by_id=function(id) return objects[id] end}
+''')
+door_lua.execute(source)
+door_lua.execute('''
+assert(not physics_door_binder_ready(7))
+objects[7] = {clsid=function() return 1 end}
+db.storage[7] = {active_scheme="ph_door",ini={},ph_door={door_action={initialized=true}}}
+assert(physics_door_binder_ready(7))
+objects[7].clsid = function() return 2 end
+assert(not physics_door_binder_ready(7), "Actor must never enter the door binder serializer")
+objects[7].clsid = function() return 1 end
+db.storage[7].ph_door.door_action.initialized = false
+assert(not physics_door_binder_ready(7), "bootstrap must not save uninitialized binders")
+db.storage[7].ph_door.door_action.initialized = true
+db.storage[7].active_scheme = "ph_idle"
+assert(not physics_door_binder_ready(7))
+db.storage[7].active_scheme = "ph_door";db.storage[7].ini=nil
+assert(not physics_door_binder_ready(7))
+db.storage[7].ini={};cooperative=false
+assert(not physics_door_binder_ready(7))
+''')
+print("Actual door binder classifier: initialized ph_door only, no Actor/idle/bootstrap/single-player PASS")
 lua = LuaRuntime(unpack_returned_tuples=True)
 lua.execute(r'''
 cooperative = true; spawns = 0; initial = 0; quest = 0; callbacks = {}

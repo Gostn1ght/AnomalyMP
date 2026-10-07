@@ -40,6 +40,7 @@ foreach ($errorLine in @('FATAL ERROR', 'combine_1.hlsl(39): error X3017: cannot
         '! [Lost Zone] inventory restore incomplete for actor 123; preserving saved character',
         '! [NetAnomaly][world] incomplete script snapshot test_a; keeping the previous commit',
         '! [NetAnomaly][world] saving test_a failed (periodic) at alife snapshot',
+        '! [NetAnomaly][world] cannot capture physics prop 15921',
         '! [NetAnomaly][world] refusing save: committed pointer is corrupt/inaccessible',
         '! [NetAnomaly][world] saved test_b but could not point test.current to it')) {
     Assert (-not (Evaluate $logs @($errorLine)).Passed) "Reject error record: $errorLine"
