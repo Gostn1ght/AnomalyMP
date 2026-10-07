@@ -105,6 +105,44 @@ print("Actual dropped-item guard: old/new queued callbacks, reload replacement, 
 
 lua = LuaRuntime(unpack_returned_tuples=True)
 lua.execute(r'''
+cooperative=true; callbacks={}; timers={}; spawn_reads=0; state_runs=0; other_runs=0
+db={}
+function netcoop_enabled() return cooperative end
+function printf() end
+function RegisterScriptCallback(kind,fn) callbacks[kind]=fn end
+function RemoveTimeEvent(id,name) timers[id .. name]=nil end
+function spawn_timer()
+    spawn_reads=spawn_reads+1
+    return db.actor:character_rank() -- reproduces GAMMA's actor-dependent timer
+end
+sim_squad_bounty={spawn_timer=spawn_timer,try_spawn=function() error('respawn forbidden') end,
+    state_timer=function() state_runs=state_runs+1; return false end}
+timers.cyclebounty_squad_spawn=sim_squad_bounty.spawn_timer -- captured before installation
+timers.cyclebounty_squad_state=sim_squad_bounty.state_timer
+timers.other=function() other_runs=other_runs+1 end
+''')
+lua.execute(source)
+lua.execute(r'''
+assert(not pcall(sim_squad_bounty.spawn_timer), 'unpatched nil actor timer reproduces failure')
+spawn_reads=0; on_game_start()
+assert(not timers.cyclebounty_squad_spawn, 'retire captured original spawn timer')
+assert(timers.cyclebounty_squad_state and timers.other)
+local guarded=sim_squad_bounty.spawn_timer
+for i=1,10 do assert(guarded()==true); callbacks.on_game_load() end
+assert(spawn_reads==0 and sim_squad_bounty.spawn_timer==guarded)
+timers.cyclebounty_squad_spawn=guarded
+assert(timers.cyclebounty_squad_spawn()==true, 'late registration retires itself')
+timers.cyclebounty_squad_state(); timers.other(); assert(state_runs==1 and other_runs==1)
+sim_squad_bounty.spawn_timer=spawn_timer
+timers.cyclebounty_squad_spawn=spawn_timer; callbacks.on_game_load()
+assert(not timers.cyclebounty_squad_spawn and sim_squad_bounty.spawn_timer()==true)
+cooperative=false; db.actor={character_rank=function() return 777 end}
+assert(sim_squad_bounty.spawn_timer()==777 and spawn_reads==1, 'single-player callback remains original')
+''')
+print('Actual world guard: old/late/replaced bounty spawn timers retired; existing squad state, unrelated timers and single-player callback preserved PASS')
+
+lua = LuaRuntime(unpack_returned_tuples=True)
+lua.execute(r'''
 function netcoop_enabled() return true end
 function printf() end
 function RegisterScriptCallback() end

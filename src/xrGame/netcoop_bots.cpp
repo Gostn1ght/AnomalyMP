@@ -216,15 +216,17 @@ public:
 			net_Syncronize();
 			set_state(st_joining, now);
 		}
+		// The source closes after sending a reliable handoff. Under packet loss
+		// or a long bot frame, both the handoff and close can arrive before this
+		// update: drain the queued target before treating the close as a failure.
+		receive(now);
+		if (m_state == st_failed || transfer())
+			return; // bots_frame reconnects after the receive queue is unlocked
 		if (net_isDisconnected())
 		{
 			fail("disconnected");
 			return;
 		}
-
-		receive(now);
-		if (m_state == st_failed)
-			return;
 
 		if (m_state != st_playing && now - m_state_time > bot_actor_timeout)
 		{

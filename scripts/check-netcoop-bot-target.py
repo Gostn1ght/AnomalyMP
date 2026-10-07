@@ -20,6 +20,7 @@ def block(marker):
 
 start_method = block('\tbool start(LPCSTR address, u32 now)')
 transfer_method = block('\tbool queue_transfer(LPCSTR data)')
+update_method = block('\tvoid update(u32 now)')
 auth = block('case M_NETCOOP_AUTH_RESULT:').split(':', 1)[1]
 retry_loop = block('\tfor (NetcoopBot*& b : s_bots)')
 source = r'''
@@ -33,7 +34,7 @@ source = r'''
 #include <string>
 #include <utility>
 #include <vector>
-using u8=std::uint8_t; using u32=std::uint32_t; using LPCSTR=const char*;
+using u8=std::uint8_t; using u16=std::uint16_t; using u32=std::uint32_t; using LPCSTR=const char*;
 using string64=char[64]; using string256=char[256]; using string512=char[512];
 template<std::size_t N> void xr_strcpy(char (&out)[N],const char* text){assert(std::strlen(text)<N);std::strcpy(out,text);}
 template<std::size_t N,typename... A> int xr_sprintf(char (&out)[N],const char* format,A... args){return std::snprintf(out,N,format,args...);}
@@ -49,15 +50,26 @@ struct NetcoopBot {
  enum State{st_connecting,st_joining,st_waiting_actor,st_playing,st_failed};
  u32 m_index,m_state_time=0,m_failed_at=0;string64 m_login={};string256 m_address={},m_transfer={};
  State m_state=st_connecting;bool m_played=false,stopped=false;std::string last_options;
+ bool m_stopped=false,closed=false,connect_failed=false,connect_completed=true,m_cheated=false;
+ u32 m_last_send=0,receive_calls=0,movement_calls=0,flush_calls=0;u16 m_cheat_target=0xffff;
+ std::string queued_target;struct Gap{void observe(u32){}}m_frame_gap;
  explicit NetcoopBot(u32 n):m_index(n){std::snprintf(m_login,sizeof(m_login),"nbot_%03u",n);}
  bool Connect(const char* options){last_options=options;xr_strcpy(Core.UserName,"temporary-connect-name");return connect_ok;}
  void fail(const char*){m_state=st_failed;m_failed_at=clock_now;}
- void stop(){stopped=true;}
- void update(u32){}
+ void stop(){stopped=true;m_stopped=true;}
+ bool net_isFails_Connect()const{return connect_failed;}
+ bool net_isCompleted_Connect()const{return connect_completed;}
+ bool net_isDisconnected()const{return closed;}
+ void net_Syncronize(){}
+ void set_state(State state,u32 now){m_state=state;m_state_time=now;if(state==st_playing)m_played=true;}
+ void receive(u32){++receive_calls;if(!queued_target.empty()){queue_transfer(queued_target.c_str());queued_target.clear();}}
+ void send_movement(u32){++movement_calls;}void send_cheats(){}
+ void Flush_Send_Buffer(){++flush_calls;}
+ static constexpr u32 bot_connect_timeout=30000,bot_actor_timeout=60000,bot_send_interval=50;
  State state()const{return m_state;}u32 index()const{return m_index;}bool played()const{return m_played;}
  u32 failed_at()const{return m_failed_at;}LPCSTR address()const{return m_address;}
  LPCSTR transfer()const{return m_transfer[0]?m_transfer:nullptr;}
-''' + start_method + '\n' + transfer_method + r'''
+''' + start_method + '\n' + transfer_method + '\n' + update_method + r'''
  void auth(u8 approved,const char* text){Packet P{approved,text};
 ''' + auth + r'''
  }
@@ -90,6 +102,27 @@ int main(){
  NetcoopBot accepted(103);accepted.auth(1,"OK");assert(accepted.state()!=NetcoopBot::st_failed&&!accepted.transfer());
  connect_ok=false;NetcoopBot immediate(104);assert(!immediate.start("host/port=1377",0));assert(std::string(immediate.address())=="host/port=1377");connect_ok=true;
 
+ // Native bad-network reproduction: the reliable target is already queued
+ // when the source's close callback marks the old connection disconnected.
+ auto* closing=new NetcoopBot(105);closing->start("127.0.0.1/port=1367",0);
+ closing->set_state(NetcoopBot::st_playing,0);closing->closed=true;
+ closing->queued_target="127.0.0.1|1377|l01_escape";s_bots.push_back(closing);
+ frame(100);assert(s_bots[0]!=closing&&closing->stopped&&closing->receive_calls==1);
+ assert(closing->movement_calls==0&&closing->flush_calls==0);
+ assert(std::string(s_bots[0]->address())=="127.0.0.1/port=1377");
+ for(auto* b:s_bots)delete b;s_bots.clear();for(auto entry:s_dead)delete entry.bot;s_dead.clear();
+ NetcoopBot disconnect(106);disconnect.set_state(NetcoopBot::st_playing,0);disconnect.closed=true;
+ disconnect.update(100);assert(disconnect.state()==NetcoopBot::st_failed&&!disconnect.transfer());
+ NetcoopBot invalid_close(107);invalid_close.set_state(NetcoopBot::st_playing,0);invalid_close.closed=true;
+ invalid_close.queued_target="host|0|map";invalid_close.update(100);
+ assert(invalid_close.state()==NetcoopBot::st_failed&&!invalid_close.transfer());
+ NetcoopBot playing(108);playing.set_state(NetcoopBot::st_playing,0);playing.update(100);
+ assert(playing.state()==NetcoopBot::st_playing&&playing.movement_calls==1&&playing.flush_calls==1);
+ NetcoopBot actor_timeout(109);actor_timeout.set_state(NetcoopBot::st_joining,0);actor_timeout.update(60001);
+ assert(actor_timeout.state()==NetcoopBot::st_failed);
+ NetcoopBot connect_timeout(110);connect_timeout.connect_completed=false;connect_timeout.update(30001);
+ assert(connect_timeout.state()==NetcoopBot::st_failed&&connect_timeout.receive_calls==0);
+
  // Reproduce native failure: timeout after moving to Cordon must retry Cordon.
  auto* old=new NetcoopBot(1);old->start("127.0.0.1/port=1377",0);old->fail("timeout");s_bots.push_back(old);
  frame(4000);assert(s_bots[0]!=old&&old->stopped);assert(std::string(s_bots[0]->address())=="127.0.0.1/port=1377");
@@ -103,7 +136,7 @@ int main(){
  // Keep the existing bounded retry policy and stable-playing disconnect behavior.
  exhausted->m_played=true;frame(20000);assert(s_bots[0]==exhausted);
  for(auto* b:s_bots)delete b;for(auto entry:s_dead)delete entry.bot;
- std::cout<<"PASS actual bot start/auth/transfer/retry loop: target address survives failed handoff, redirects queue reconnects, malformed targets reject, retry bounds and name restoration preserved\n";
+ std::cout<<"PASS actual bot start/update/auth/transfer/retry loop: queued handoff survives source close, ordinary disconnect still fails, movement/timeouts/retry bounds and target identity preserved\n";
 }
 '''
 with TemporaryDirectory() as temp:

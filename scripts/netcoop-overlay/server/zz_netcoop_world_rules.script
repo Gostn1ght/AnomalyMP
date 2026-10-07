@@ -115,6 +115,23 @@ local SPAWNERS = {
     {"sim_squad_bounty", "try_spawn", nil},
 }
 local disabled_spawners = {}
+local guarded_bounty_timers = {}
+
+local function retire_bounty_spawn_timer()
+    local module = sim_squad_bounty
+    local original = module and module.spawn_timer
+    if type(original) == "function" and not guarded_bounty_timers[original] then
+        local guarded = function(...)
+            if cooperative() then return true end -- spawning is already disabled
+            return original(...)
+        end
+        guarded_bounty_timers[guarded] = true
+        module.spawn_timer = guarded
+    end
+    -- GAMMA can have captured the old function before our on_game_load hook.
+    -- Keep the state/cleanup timer for bounty squads already in the world.
+    if type(RemoveTimeEvent) == "function" then RemoveTimeEvent("cycle", "bounty_squad_spawn") end
+end
 
 local function disable_spawners()
     for _, entry in ipairs(SPAWNERS) do
@@ -235,6 +252,7 @@ function install()
         AddUniqueCall(update_online_smarts)
     end
     disable_spawners()
+    retire_bounty_spawn_timer()
     keep_squads_on_their_map()
     if release_foreign_population() == nil and AddUniqueCall and not release_pending then
         release_pending = true
