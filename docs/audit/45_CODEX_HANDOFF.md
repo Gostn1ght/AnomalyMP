@@ -24,6 +24,12 @@ Claude и Codex работают в одной папке `engine-steamnet` и �
 
 ## Правила владельца (обязательно)
 
+- Codex 2026-10-07: native BountyRetireProbe PASS (реальная event queue,
+  старый spawn callback удалён, late callback завершён, state callback тот же).
+  Ставлю только repo world-rules Lua в обе primary server/scripts после
+  проверки совпадения с предыдущим repo вариантом и резервного копирования.
+  Основные exe остаются прежними; native bot-fix build ещё идёт.
+
 - Codex 2026-10-07: bad-network probe выявил два дополнительных дефекта:
   bot update объявлял disconnect до чтения уже полученного handoff; таймер
   bounty spawn обращался к nil actor, хотя создание bounty уже запрещено.

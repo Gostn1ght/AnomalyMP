@@ -72,3 +72,33 @@ timers and original single-player callback. No blanket ranks nil/error masking.
 Fixed native/restart acceptance remains pending. Historical doc48 counts remain unchanged.
 Main executables are not promoted, and graphical/max-view64 smoothness remains
 open regardless of the result of this four-bot test.
+
+## Original-exe restart and installed timer fix
+
+Restart reused the same worlds/accounts/characters and seeded inventories,
+with no cleanup/reseeding; distinct restart log names retain first-phase logs.
+Exe remains c652; private world-rules Lua now5fded. Overall gate again FAILED
+for the known bot close issue: final3/4playing,1terminal disconnect,
+19departures/17arrivals,4auth redirects,0admission retries,0Lua/fatal/shader/
+save/refusal/lease errors.13/14/13/3 new NCH7 snapshots: all four inventories,
+including their regular PDA, match the original fully configured inventory's
+complete state/UID in EVERY snapshot.24unique UIDs across all four inventories;
+none duplicated. This is inventory/restart evidence, not a network PASS.
+
+Native BountyRetireProbe inspected the actual RemoveTimeEvent closure queue:
+captured cycle/bounty_squad_spawn absent, late registration executed and
+retired, cycle/bounty_squad_state retained the original callback and node.
+PASS line in the restart Marsh log. Existing squad state timer kept running.
+
+After that proof, installed only the repo world-rules Lua in primary
+gamma-runtime and LostZone-3D-Hideout server/scripts; checked both were exactly
+the previous repo version before replacement. Backup and installed.json in
+`_build/live/quick-bounty-5fdedbeed/primary-backup` (metadata one level above).
+Before SHA256 `68c6214bd635f0c99ba22a330238e5fe43aeadd25efdcbdb861d938d513f3648`;
+after `4009eb8435eea5677f80cf44baf2d9ded4729c856ed9d8755eee4bcc11bc6ca1`.
+All four primary exe hashes remain FE829FF4... as in doc58.
+
+Fixed source5fdedbeedde4c8a2d0f54caba5f378dc0ad45cca:
+Foundation37653762284 SUCCESS GCC sanitizers/MSVC, DX1137653762280 checks SUCCESS;
+full engine/package still pending at this entry. Fixed-build probe staged in
+`_build/live/state-loss-fixed-5fdedbeed`, copied committed state, no new loot.
