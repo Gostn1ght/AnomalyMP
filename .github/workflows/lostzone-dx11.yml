@@ -72,6 +72,8 @@ jobs:
           python -m pip install lupa==2.8
           python scripts/check-netcoop-server-pda.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/check-netcoop-server-item-save.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Check Windows mail and clipboard API types
         shell: cmd
         run: |

@@ -1,5 +1,14 @@
 # Evaluate snapshots taken BEFORE stopping the game processes. Admission retry
 # messages are diagnostic events; only the last report's failed count is terminal.
+function Assert-NetcoopSelftestProcesses {
+    param([object[]]$Processes)
+    foreach ($process in $Processes) {
+        if ($null -eq $process) { throw 'Missing selftest process handle' }
+        $process.Refresh()
+        if ($process.HasExited) { throw "Selftest process $($process.Id) exited before the end of the run" }
+    }
+}
+
 function Get-NetcoopSelftestResult {
     param([object[]]$BotLogs, [string[]]$ServerLines, [int]$ExpectedBots,
           [int]$ExpectedProcesses, [switch]$LoadOnly)

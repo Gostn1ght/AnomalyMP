@@ -63,6 +63,9 @@ on:
       - 'scripts/check-netcoop-replication-index.py'
       - 'scripts/fixtures/full-rate-cadence/**'
       - 'scripts/patch-netcoop-server-pda.ps1'
+      - 'scripts/patch-netcoop-server-item-save.ps1'
+      - 'scripts/check-netcoop-server-item-save.py'
+      - 'scripts/fixtures/server-item-save/**'
       - 'scripts/check-netcoop-server-pda.py'
       - 'scripts/fixtures/server-pda/**'
       - 'scripts/run-cluster-selftest.ps1'
@@ -125,6 +128,8 @@ jobs:
           ./scripts/check-netcoop-load-harness.ps1
           python -m pip install lupa==2.8
           python scripts/check-netcoop-server-pda.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/check-netcoop-server-item-save.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Exercise actual clock with the engine toolchain
         shell: cmd

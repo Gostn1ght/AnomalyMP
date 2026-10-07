@@ -33,7 +33,9 @@ param(
     # Bot processes below normal priority: on a PC that also runs the server
     # the bots took the server's CPU (64 bots: frame p50 160 ms with only
     # ~100 ms/s of server work, 2026-10-07).
-    [switch]$BotsBelowNormal
+    [switch]$BotsBelowNormal,
+    # Private exe/appdata probes still need GAMMA's archive/Lua working directory.
+    [string]$GameWorkingDirectory = ''
 )
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot 'netcoop-selftest-results.ps1')
@@ -44,8 +46,13 @@ if ($Bots -lt 1 -or $BotProcesses -lt 1 -or $BotProcesses -gt $Bots -or $Minutes
 $Maps = @($Maps | ForEach-Object { $_ -split "," } | Where-Object { $_ })
 if (-not $Maps.Count -or @($Maps | Select-Object -Unique).Count -ne $Maps.Count) { throw 'Maps must be nonempty and distinct' }
 $Runtime = (Resolve-Path $Runtime).Path
+$GameWorkingDirectory = if ($GameWorkingDirectory) { (Resolve-Path -LiteralPath $GameWorkingDirectory).Path } else { $Runtime }
 $server = Join-Path $Runtime "dedicated\LostZoneServerDX11.exe"
 $client = Join-Path $Runtime "bin\LostZoneClientDX11.exe"
+$serverFs = if ($GameWorkingDirectory -eq $Runtime) { 'fsgame_selftest_server.ltx' } else { Join-Path $Runtime 'fsgame_selftest_server.ltx' }
+$botFs = if ($GameWorkingDirectory -eq $Runtime) { 'fsgame_selftest_bots.ltx' } else { Join-Path $Runtime 'fsgame_selftest_bots.ltx' }
+# The existing engine's -fsltx parser reads up to the first space, even quoted.
+if ($serverFs -match '\s' -or $botFs -match '\s') { throw 'Separate GameWorkingDirectory requires private fsltx paths without spaces' }
 foreach ($file in @($server, $client, (Join-Path $Runtime "fsgame_selftest_server.ltx"), (Join-Path $Runtime "fsgame_selftest_bots.ltx"))) {
     if (-not (Test-Path $file)) { throw "missing $file" }
 }
@@ -94,10 +101,10 @@ if (-not $LoadOnly) {
 $stamp = Get-Date
 
 function Start-LocationServer($name, $port, $start) {
-    $arguments = "-nosplashwindow -noprefetch -netcoop -dbg -multi_instance -logname selftest_$name -fsltx fsgame_selftest_server.ltx " +
+    $arguments = "-nosplashwindow -noprefetch -netcoop -dbg -multi_instance -logname selftest_$name -fsltx $serverFs " +
         "-netport $port -netcoop_start_location=$start -netcoop_world=selftest_$name -netcoop_cluster_selftest $ServerArgs " +
         "-start `"server(all/single/alife/new/portsv=$port/maxplayers=$maxPlayers)`" `"client(localhost/name=serverauthority/port=$port/portcl=$($port + 1))`""
-    Start-Process -FilePath $server -ArgumentList $arguments -WorkingDirectory $Runtime -WindowStyle Hidden -PassThru
+    Start-Process -FilePath $server -ArgumentList $arguments -WorkingDirectory $GameWorkingDirectory -WindowStyle Hidden -PassThru
 }
 
 function Find-Log($name) {
@@ -132,9 +139,9 @@ try {
     foreach ($map in $botMaps) {
         for ($part = 0; $part -lt $BotProcesses; $part++) {
             $count = [Math]::Floor($Bots / $BotProcesses) + $(if ($part -lt $Bots % $BotProcesses) { 1 } else { 0 })
-            $loadBotCommand = "-nosplashwindow -netcoop -dbg -noprefetch -multi_instance -logname selftest_bots_$map`_$part -fsltx fsgame_selftest_bots.ltx " +
+            $loadBotCommand = "-nosplashwindow -netcoop -dbg -noprefetch -multi_instance -logname selftest_bots_$map`_$part -fsltx $botFs " +
                 "-netcoop_bots $count -netcoop_bots_first $first -netcoop_bots_addr 127.0.0.1/port=$($ports[$map]) $BotArgs"
-            $botProcess = Start-Process -FilePath $client -ArgumentList $loadBotCommand -WorkingDirectory $Runtime -WindowStyle Hidden -PassThru
+            $botProcess = Start-Process -FilePath $client -ArgumentList $loadBotCommand -WorkingDirectory $GameWorkingDirectory -WindowStyle Hidden -PassThru
             if ($BotsBelowNormal) { try { $botProcess.PriorityClass = "BelowNormal" } catch {} }
             $processes += $botProcess
             $first += $count
@@ -143,6 +150,7 @@ try {
     Write-Host "$($Bots * $botMaps.Count) bots started on $($botMaps -join ', '); running $Minutes min"
     for ($elapsed = 0; $elapsed -lt $Minutes * 60; $elapsed += 10) { Start-Sleep -Seconds ([Math]::Min(10, $Minutes * 60 - $elapsed)) }
     # Freeze bot state before server shutdown can make healthy bots reconnect.
+    Assert-NetcoopSelftestProcesses $processes
     $botSnapshots = @(Get-ChildItem (Join-Path $Runtime 'appdata\selftest_bots\logs') -Filter '*selftest_bots*.log' -ErrorAction SilentlyContinue |
         Where-Object { $_.LastWriteTime -gt $stamp } | ForEach-Object {
             [pscustomobject]@{ Name = $_.Name; Lines = @(Get-Content -LiteralPath $_.FullName) }

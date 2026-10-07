@@ -79,3 +79,35 @@ The new strict gate correctly refuses those runs. Logged caught-error totals
 may be capped by the compatibility module and are not exact occurrence counts.
 No measured FPS claim, no new completed marks in the historical 188-item
 audit, no primary executable promotion from these script fixes.
+
+## Autonomous continuation: item save and reliable private probes
+
+The previous source765a708b0 DX11 run37636526929 completed SUCCESS, including
+full engine/package/upload. It was allowed to finish before the next code push.
+
+Implemented focused `itms_manager.save_state` guard: without `db.actor`,
+return before touching state. This single-player hook stores personal bolts;
+an empty world has no player's inventory to enumerate. With an actor every
+original statement remains. No anchor actor substituted, no errors swallowed.
+
+Local `check-netcoop-server-item-save.py` PASS on the actual PowerShell patch
+and pinned GAMMA Lua5.1 function: reproduced old nil actor failure; preserved
+existing/empty state with no actor; differential inventory/bolt count and
+slot checks, leave/rebind, API errors still visible, CP1251/LF/CRLF/idempotency,
+unsupported and duplicate-function rejection. Source excerpt attribution and
+CC BY-NC-SA3.0 recorded with the reference. This does not by itself prove
+whole character inventory persistence through restart.
+
+The real load harness now refreshes process states before reading final bot
+reports and rejects early exits even if a log has an older healthy report.
+An optional GAMMA working directory allows isolated exe/appdata probes;
+private fsltx paths remain explicit so a changed cwd cannot select a main
+runtime's selftest files. The existing engine parser cannot handle spaces in
+an explicit fsltx token; that unsupported combination fails before cleanup.
+Default same-runtime relative config names still support runtime paths with
+spaces. Actual launch-loop tests cover both private configs and working dir;
+cleanup tests cover traversal and ancestor/subtree junctions.
+
+Native verification uses `_build/live/quick-item-save`, private scripts/world,
+two bot processes/four bots, and the already GHA-built fa5edb5f2 executable.
+Results and CI evidence will follow after the run.
