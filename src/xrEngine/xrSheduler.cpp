@@ -377,9 +377,9 @@ void CSheduler::Update()
         if (!active(T)) continue;
         const bool needed = T.Object->shedule_Needed();
         if (!active(T)) continue;
+        const u32 Elapsed = dwTime - T.dwTimeOfLastExecute;
         ItemsRT[it].dwTimeOfLastExecute = dwTime;
         if (!needed) continue;
-        const u32 Elapsed = dwTime - T.dwTimeOfLastExecute;
 #ifdef DEBUG
         VERIFY(T.Object->dbg_startframe != Device.dwFrame);
         T.Object->dbg_startframe = Device.dwFrame;
