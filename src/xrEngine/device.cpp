@@ -534,6 +534,11 @@ void CRenderDevice::on_idle()
 	}
 #endif // ECO_RENDER END
 
+	// Load clients have no rendered world; drawing their menus competes with
+	// the location server and delays the bot queue/input loop on the same PC.
+	static int bots_process = -1;
+	if (bots_process < 0)
+		bots_process = strstr(Core.Params, "-netcoop_bots ") ? 1 : 0;
 #ifndef DEDICATED_SERVER
 	Statistic->RenderTOTAL_Real.FrameStart();
 	Statistic->RenderTOTAL_Real.Begin();
@@ -541,7 +546,7 @@ void CRenderDevice::on_idle()
 	// The dedicated server's window is a GDI text console (CTextConsole):
 	// rendering the level through D3D whenever that window was active only
 	// cost frame time (driver calls in 0.6 s server hitches, 2026-10-06).
-	if (b_is_Active && !g_dedicated_server && Begin())
+	if (b_is_Active && !g_dedicated_server && !bots_process && Begin())
 	{
 		START_PROFILE("Process seqRender");
 		seqRender.Process(rp_Render);
@@ -568,9 +573,6 @@ void CRenderDevice::on_idle()
 	// sleep 5 ms every frame). A load-bot process (-netcoop_bots, headless
 	// players) ran its menu ~1000 times a second and took the CPU of the PC
 	// that also runs the server under test: 10 ms frames there.
-	static int bots_process = -1;
-	if (bots_process < 0)
-		bots_process = strstr(Core.Params, "-netcoop_bots ") ? 1 : 0;
 	if (g_dedicated_server || bots_process)
 	{
 		static int frame_ms = -1;

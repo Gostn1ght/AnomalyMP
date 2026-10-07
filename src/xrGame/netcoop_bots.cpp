@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "netcoop.h"
+#include "netcoop_bot_gap_probe.h"
+#include <cstring>
 
 #include "xrNetServer/NET_Client.h"
 #include "xrMessages.h"
@@ -141,6 +143,23 @@ public:
 		xr_sprintf(m_login, "nbot_%03u", index);
 	}
 
+	~NetcoopBot() override { stop(); } // join delivery workers before probe members die
+
+	void OnMessage(void* data, u32 size) override
+	{
+		// Measure transport callback delivery before the bot's main-thread
+		// queue drain. This is not a socket/wire timestamp: the transport
+		// worker itself can be starved on the machine running load bots.
+		if (size >= sizeof(u16))
+		{
+			u16 type;
+			std::memcpy(&type, data, sizeof(type));
+			if (type == M_UPDATE || type == M_UPDATE_OBJECTS)
+				m_receive_gap.observe(bot_now());
+		}
+		IPureClient::OnMessage(data, size); // preserve every original message and queue operation
+	}
+
 	bool start(LPCSTR address, u32 now)
 	{
 		string512 options;
@@ -165,6 +184,7 @@ public:
 
 	void update(u32 now)
 	{
+		m_frame_gap.observe(now);
 		if (m_state == st_failed && !m_stopped)
 			stop(); // outside the message queue lock
 		if (m_state == st_failed || m_stopped)
@@ -236,6 +256,8 @@ public:
 		UpdateStatistic();
 		return GetStatistic().getPing();
 	}
+	u32 take_receive_gap() { return m_receive_gap.take_maximum(); }
+	u32 take_frame_gap() { return m_frame_gap.take_maximum(); }
 
 private:
 	void set_state(State s, u32 now)
@@ -528,6 +550,8 @@ private:
 	u32 m_rx_bytes = 0;
 	u32 m_last_update = 0;
 	u32 m_max_update_gap = 0;
+	BotGapProbe m_receive_gap;
+	BotGapProbe m_frame_gap;
 
 public:
 	u16 m_cheat_target = 0xffff;
@@ -582,11 +606,14 @@ void report(u32 now)
 	u32 counts[NetcoopBot::st_failed + 1] = {};
 	u64 bytes = 0;
 	u32 max_gap = 0, gaps = 0, gap_sum = 0, ping_sum = 0, pinged = 0;
+	u32 receive_max = 0, frame_max = 0;
+	u64 receive_sum = 0, frame_sum = 0;
 	for (NetcoopBot* b : s_bots)
 	{
 		counts[b->state()]++;
 		bytes += b->take_bytes();
 		const u32 gap = b->take_max_update_gap();
+		const u32 receive_gap = b->take_receive_gap(), frame_gap = b->take_frame_gap();
 		if (b->state() == NetcoopBot::st_playing)
 		{
 			if (gap)
@@ -596,15 +623,19 @@ void report(u32 now)
 				++gaps;
 			}
 			ping_sum += b->ping();
+			receive_sum += receive_gap; receive_max = _max(receive_max, receive_gap);
+			frame_sum += frame_gap; frame_max = _max(frame_max, frame_gap);
 			++pinged;
 		}
 	}
 	Msg("[Lost Zone][bots] %u wanted: %u playing, %u joining, %u connecting, %u failed; rx %.1f KB/s per playing bot, "
-	    "worst update gap avg %u ms max %u ms, ping avg %u ms",
+	    "worst update gap avg %u ms max %u ms, ping avg %u ms"
+	    " | receive callback gap avg %u max %u ms | bot frame gap avg %u max %u ms",
 	    s_wanted, counts[NetcoopBot::st_playing], counts[NetcoopBot::st_joining] + counts[NetcoopBot::st_waiting_actor],
 	    counts[NetcoopBot::st_connecting], counts[NetcoopBot::st_failed],
 	    counts[NetcoopBot::st_playing] ? float(bytes) / 1024.f / seconds / float(counts[NetcoopBot::st_playing]) : 0.f,
-	    gaps ? gap_sum / gaps : 0, max_gap, pinged ? ping_sum / pinged : 0);
+	    gaps ? gap_sum / gaps : 0, max_gap, pinged ? ping_sum / pinged : 0,
+	    pinged ? u32(receive_sum / pinged) : 0, receive_max, pinged ? u32(frame_sum / pinged) : 0, frame_max);
 	FlushLog();
 }
 } // namespace
