@@ -55,13 +55,13 @@ struct CSE_PHSkeleton {
 struct CSE_ALifeObjectPhysic:CSE_Abstract,CSE_PHSkeleton {Fvector o_Position,o_Angle;};
 struct Object {virtual ~Object()=default;};
 struct CPHSkeleton {
- std::vector<int> bodies{10,20};int save_calls=0;u8 flags=1;
- void SaveNetState(NET_Packet& p){assert(p.B.count==0);++save_calls;p.flags=flags;p.bodies=bodies;p.B.count=37+8*u32(bodies.size());}
+ std::vector<int> bodies{10,20};int save_calls=0;u8 simulated_flags=1;
+ void SaveNetState(NET_Packet& p){assert(p.B.count==0);++save_calls;p.flags=simulated_flags;p.bodies=bodies;p.B.count=37+8*u32(bodies.size());}
 };
 struct CPhysicObject:Object,CPHSkeleton {
- u16 id=7,count=2;bool destroyed=false,parented=false,shell=true;
+ u16 id=7,simulated_count=2;bool destroyed=false,parented=false,shell=true;
  Fvector position{1,2,3};Matrix matrix{{4,5,6}};
- u16 ID()const{return id;}u16 PHGetSyncItemsNumber()const{return count;}
+ u16 ID()const{return id;}u16 PHGetSyncItemsNumber()const{return simulated_count;}
  bool getDestroy()const{return destroyed;}bool H_Parent()const{return parented;}
  bool PPhysicsShell()const{return shell;}
  const Fvector& Position()const{return position;}const Matrix& XFORM()const{return matrix;}
@@ -96,8 +96,8 @@ int main(){
  prop.destroyed=true;assert(!prop.netcoop_capture_saved_physics(&entity));prop.destroyed=false;
  prop.parented=true;assert(!prop.netcoop_capture_saved_physics(&entity));prop.parented=false;
  prop.shell=false;assert(!prop.netcoop_capture_saved_physics(&entity));prop.shell=true;
- prop.count=0;assert(!prop.netcoop_capture_saved_physics(&entity));
- prop.count=2044;assert(!prop.netcoop_capture_saved_physics(&entity));prop.count=2;
+ prop.simulated_count=0;assert(!prop.netcoop_capture_saved_physics(&entity));
+ prop.simulated_count=2044;assert(!prop.netcoop_capture_saved_physics(&entity));prop.simulated_count=2;
  prop.position.x=INFINITY;assert(!prop.netcoop_capture_saved_physics(&entity));prop.position.x=1;
  prop.matrix.angles.x=INFINITY;assert(!prop.netcoop_capture_saved_physics(&entity));prop.matrix.angles.x=4;
  assert(prop.save_calls==calls);unchanged();
@@ -106,9 +106,9 @@ int main(){
  ServerType server;level.Server=&server;assert(!world_store_capture_physics_props());
  Game game;server.game=&game;Object actor,item,corpse;
  CPhysicObject destroyed,attached,no_shell,no_bodies,not_saved;
- destroyed.destroyed=true;attached.parented=true;no_shell.shell=false;no_bodies.count=0;not_saved.id=8;
+ destroyed.destroyed=true;attached.parented=true;no_shell.shell=false;no_bodies.simulated_count=0;not_saved.id=8;
  CSE_ALifeObjectPhysic excluded;excluded.ID=8;excluded._flags.value=CSE_PHSkeleton::flNotSave;
- game.entities={{7,&entity},{8,&excluded}};
+ game.entities={{u16(7),&entity},{u16(8),&excluded}};
  level.Objects.objects={&actor,&item,&corpse,&destroyed,&attached,&no_shell,&no_bodies,&not_saved,&prop};
  assert(world_store_capture_physics_props());assert(prop.save_calls==calls+1);
  assert(destroyed.save_calls==0 && attached.save_calls==0 && no_shell.save_calls==0 && no_bodies.save_calls==0 && not_saved.save_calls==0);
