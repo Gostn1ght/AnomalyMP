@@ -382,6 +382,24 @@ private:
 				set_state(st_playing, now);
 			}
 			break;
+		case M_NETCOOP_PHYSICS:
+			// -netcoop_bots_watch=<id> (run-prop-test.ps1): report the poses of
+			// one object the server sends to this player.
+			if (m_watch != 0xffff && P.r_elapsed() >= 2 + 4 + 2 + 41)
+			{
+				const u16 id = P.r_u16();
+				P.r_u32();
+				P.r_u16();
+				P.r_u8();
+				Fvector position;
+				P.r_vec3(position);
+				if (id == m_watch && now - m_watch_log > 1000)
+				{
+					m_watch_log = now;
+					Msg("[Lost Zone][bots] %s got the pose of %u: %.2f %.2f %.2f", m_login, id, position.x, position.y, position.z);
+				}
+			}
+			break;
 		case M_UPDATE:
 		case M_UPDATE_OBJECTS:
 			if (m_last_update)
@@ -514,6 +532,8 @@ private:
 public:
 	u16 m_cheat_target = 0xffff;
 	bool m_cheated = false;
+	u16 m_watch = 0xffff;
+	u32 m_watch_log = 0;
 };
 
 struct DeadBot
@@ -641,8 +661,12 @@ void bots_frame()
 		s_last_start = now;
 		NetcoopBot* b = xr_new<NetcoopBot>(s_first + u32(s_bots.size()) + 1);
 		if (s_bots.empty())
+		{
 			if (LPCSTR c = strstr(Core.Params, "-netcoop_bots_cheat="))
 				b->m_cheat_target = u16(atoi(c + xr_strlen("-netcoop_bots_cheat=")));
+			if (LPCSTR w = strstr(Core.Params, "-netcoop_bots_watch="))
+				b->m_watch = u16(atoi(w + xr_strlen("-netcoop_bots_watch=")));
+		}
 		s_bots.push_back(b);
 		b->start(s_address, now);
 	}
