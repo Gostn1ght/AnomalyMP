@@ -3740,6 +3740,9 @@ void server_physics_update(xrServer* server)
 	if (previous && now - previous < 50) return;
 	previous = now;
 	++tick;
+	static u32 level_started = 0; // props settle on the ground while the level starts
+	if (!level_started) level_started = now;
+	const bool settling = now - level_started < 30000;
 	if (tick % 200 == 0)
 		for (auto it = s_physics_sent.begin(); it != s_physics_sent.end();)
 			it = Level().Objects.net_Find(it->first) ? std::next(it) : s_physics_sent.erase(it);
@@ -3778,7 +3781,7 @@ void server_physics_update(xrServer* server)
 		if (!item_or_corpse && !prop) continue;
 		if (prop && s_physics_sent.find(holder->ID()) == s_physics_sent.end())
 		{
-			if (!holder->PPhysicsShell()->isEnabled()) continue;
+			if (settling || !holder->PPhysicsShell()->isEnabled()) continue;
 			Msg("[Lost Zone][physics] prop %s (%u) moved: its pose goes to the players", holder->cName().c_str(), holder->ID());
 		}
 		const u16 count = holder->PHGetSyncItemsNumber();
@@ -3833,7 +3836,7 @@ void server_physics_update(xrServer* server)
 		PhysicsSent& sent = s_physics_sent[holder->ID()];
 		if (!awake)
 		{
-			if (sent.sleeping && now - sent.last < 10000) continue;
+			if (sent.sleeping && now - sent.last < (prop ? 60000u : 10000u)) continue;
 			sent.sleeping = true;
 		}
 		else sent.sleeping = false;
