@@ -24,6 +24,27 @@ Claude и Codex работают в одной папке `engine-steamnet` и �
 
 ## Правила владельца (обязательно)
 
+- Codex doc61 bounded64 завершён: final64/64,4recovered admission retries,
+  0terminal/Lua/fatal/save ошибок.45NPC/27mutants, все64 рядом с9friendlyNPC.
+  Dense last6 p5013–14/p9570–96ms, main/callback gaps остаются большими.
+  Безопасного быстрого решения не найдено,64/max-view OPEN; по последнему
+  указанию владельца перехожу к остальному. Никакой primary promotion.
+  Ordinary primary-FE process/login-UI startup прошёл в private appdata;
+  full3D/Firebase вход НЕ проверены, primary account/draft hashes неизменны.
+  Ошибка$fs_root$ была BOM только в тестовом конфиге; исправлена и сохранена
+  как negative harness evidence. После выключения ПК probe повторён успешно
+  в пределах process/UI initialization. Данные/логи _build/live/64-baseline-
+  ff78b4197 и menu-smoke-primary-fe829. Следующая средняя задача L29:
+  сохранность физического prop/двери при рестарте, только в новой private папке.
+
+- Уточнение владельца после приоритета64: если безопасного решения пока нет,
+  оставить64 OPEN и перейти к остальному; главное сохранить штатный вход.
+  Codex: проверяю ordinary graphical client на SAME primary FE829 exe,
+  client/config/scripts, но с отдельной appdata без auth credentials/characters.
+  Затем один ограниченный64 baseline+profile на verified ff78 private exes;
+  никаких изменений поведения ИИ без доказуемой эквивалентности, no primary
+  promotion. Новые измерения/ограничения записывать в doc61.
+
 - НОВЫЙ ПРИОРИТЕТ владельца 2026-10-07 после doc60 PASS: автономно сначала
   максимально закрывать64игрока/плавность, потом остальные пункты. Это
   заменяет прежний порядок easy→medium→hard и следующий L29 ниже. Не снижать
