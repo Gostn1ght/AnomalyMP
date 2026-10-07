@@ -73,7 +73,10 @@ PASS на GCC/Linux (ASan/UBSan) и MSVC/Windows, release и DEBUG. В кажд�
 четырёх конфигураций совпали 32 825 callback; все проверки lifecycle/pairing
 также прошли, включая 2048 realtime отмен. Полная
 [DX11 сборка 37579014309](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37579014309)
-ещё выполняется; результат записать после завершения.
+выявила пропущенный include xrCore/profiler.h. Он добавлен явно; fixture теперь
+копирует настоящий profiler.h вместо определения PROF_EVENT в host PCH.
+Для pinned baseline отдельно подключается profiler header, предоставляемый его
+исходным PCH. Повторные CI/DX11 результаты ожидаются.
 
 В аудит 188 пунктов новые live ✅ не добавлены. После PASS fixtures требуется сравнение
 реальных exe до/после: 16/64 игроков, p50/p95 кадра, CPU, память, ошибки ИИ,

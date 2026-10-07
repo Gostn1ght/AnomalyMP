@@ -2,6 +2,7 @@
 #include "xrSheduler.h"
 #include "xr_object.h"
 #include "xrSchedulerRegistration.h"
+#include "../xrCore/profiler.h"
 
 // IX-Ray scheduler adaptation: pinned sources/license in docs/audit/50_IXRAY_SCHEDULER_ADAPTATION.md.
 // Keep the legacy cadence/budget; callbacks remain on the existing game thread.

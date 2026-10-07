@@ -7,6 +7,7 @@ on:
       - 'src/xrEngine/xrSheduler*'
       - 'src/xrEngine/xrSchedulerRegistration.h'
       - 'src/xrEngine/ISheduled*'
+      - 'src/xrCore/profiler.h'
       - 'scripts/check-netcoop-scheduler.py'
       - 'scripts/fixtures/ixray-scheduler/**'
       - 'src/xrGame/netcoop_world_clock.h'

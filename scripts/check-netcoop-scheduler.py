@@ -38,7 +38,6 @@ using u32=std::uint32_t;using u64=std::uint64_t;using BOOL=int;using LPCSTR=cons
 #define VERIFY2(...) ((void)0)
 #endif
 #define R_ASSERT(x) assert(x)
-#define PROF_EVENT(...)
 #define DEBUG_INFO "fixture", 0, "fixture"
 struct DebugService{void fatal(const char*,int,const char*,const char*,...){std::abort();}};
 inline DebugService Debug;
@@ -192,7 +191,11 @@ int main(){std::cout<<std::unitbuf;pairing();differential();realtime_lifetime();
 '''
 
 with TemporaryDirectory(prefix="actual-scheduler-") as tmp:
-    folder = Path(tmp)
+    folder = Path(tmp)/"xrEngine"
+    folder.mkdir()
+    profiler = Path(tmp)/"xrCore"
+    profiler.mkdir()
+    (profiler/"profiler.h").write_text((root/"src/xrCore/profiler.h").read_text(encoding="utf-8"), encoding="utf-8")
     (folder/"stdafx.h").write_text(host, encoding="utf-8")
     (folder/"xr_object.h").write_text('#include "stdafx.h"\n', encoding="utf-8")
     for name in ("xrSheduler.cpp", "xrSheduler.h", "ISheduled.cpp", "ISheduled.h", "xrSchedulerRegistration.h"):
@@ -201,6 +204,9 @@ with TemporaryDirectory(prefix="actual-scheduler-") as tmp:
     old_header = (reference/"xrSheduler.h").read_text(encoding="utf-8").replace("CSheduler", "IXRayReferenceScheduler").replace("XRSHEDULER_H_INCLUDED", "IXRAY_REFERENCE_SHEDULER_H")
     old_cpp = (reference/"xrSheduler.cpp").read_text(encoding="utf-8").replace('"xrSheduler.h"', '"ixray_reference_scheduler.h"').replace("CSheduler", "IXRayReferenceScheduler")
     old_cpp = old_cpp.replace("1000i64", "1000LL")  # same integer constant, GCC spelling
+    # IX-Ray's PCH provides the profiler. Keep its baseline host separate from
+    # the production scheduler: a missing production include must fail here.
+    old_cpp = '#include "../xrCore/profiler.h"\n'+old_cpp
     for symbol in ("psShedulerCurrent", "psShedulerTarget", "psShedulerReaction", "g_bSheduleInProgress"):
         old_cpp = old_cpp.replace(symbol, "ixray_"+symbol)
     (folder/"ixray_reference_scheduler.h").write_text(old_header, encoding="utf-8")
