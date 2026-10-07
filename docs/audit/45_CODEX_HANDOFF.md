@@ -24,6 +24,10 @@ Claude и Codex работают в одной папке `engine-steamnet` и �
 
 ## Правила владельца (обязательно)
 
+- Приоритет владельца 2026-10-07: сначала закрывать лёгкие и быстрые задачи,
+  затем средние, затем сложные. Трудную оптимизацию64/NPC сохранять в очереди,
+  пока есть более быстрые полезные исправления; не выдавать её за завершённую.
+
 - Сборка движка только через GitHub Actions: `git push gostn1ght HEAD:menu-3d-hideout`,
   workflow «Lost Zone DX11», артефакт `LostZone-DX11-client-server`
   (`gh run download <run> --repo Gostn1ght/AnomalyMP -n LostZone-DX11-client-server`).
@@ -828,3 +832,5 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
 - 2026-10-07 (Codex) — diagnostic9e256b9b2: Foundation37593806445 PASS both OS; DX11 37593806421 SUCCESS full engine/package/upload; package artifact11469784291. Prior build completed, so next native vision-restoration/redundant-distance/index edit may now push without cancelling it. Native9e acceptance staged separately; source-equivalence local check PASS, next actual native predicate/index fixture remains Actions-only.
 
 - 2026-10-07 (Codex) — continuation FINAL: native source9e256b9b2 gap diagnostics/headless render gate, then fa5edb5f2 restores exact pre-budget freeplay o_trace and omits unused protected distances/spatial indexing. Foundation37607469611 PASS GCC/MSVC (actual index vs pinned previous predicate; no protected sqrt/spatial candidates); DX1137607469678 SUCCESS full engine/package/upload. Artifact11476356618 (189396278bytes) _build/gha/vision-fa5edb5f2; both exe SHA256794316757B231F71467194E358084588DB93963E0B0225346C412686AE212113, built-from/manifest validated. Native final16/16 (3admissionretries),64/64 (8retries),0terminalfailures/fatal. Near13NPCs64 framep50=57–76ms,p95=161–205ms,max646ms, NOT performance/smoothness acceptance. NPC/mutant population measured48/30 before relocation; no final measurement. New64 driver-dedicated mode/world seed/density differs from old8NPC scene, no A/B claim. Post-test profile scheduler74.3%/stalker45.1%/vision23.9%/binder16.7%/planner10.1% inclusive. Bots callback/main-frame gaps persist; menu omission not sufficient. Doc55 corrects missed caught-PDA errors and failed0-playing shader-default fixture (new private bots missing user.ltx; fixed in repeat); profiler histogram250 means >=250ms. All test processes stopped, debug channel empty, primary exe/world/account data unchanged; package remains isolated, NO runtime promotion. Docs55/56 hold full evidence/limits.188audit live counts unchanged. Next: actual pure-read/cache or safe independent static geometry work, bot transport/frame profiling, graphical max-view acceptance; no AI work throttling/population cuts.
+
+- 2026-10-07 (Codex) — owner steering: easy/quick fixes first, then medium, then complex. BEFORE installer/harness foreign-region edits: server PDA discover_spots nil-actor guard after existing timer reset (same behavior with actor); isolated Lua/PS regression; load-harness BotArgs variable collision and strict zero-playing/terminal-failure gate. Preserve actual admission retries as nonterminal, distinguish capped caught-event logs, count unique bots rather than repeated Actor/you lines. Complex vision/Lua hot-loop work queued, no code edited there this turn.

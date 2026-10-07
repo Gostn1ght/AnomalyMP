@@ -65,6 +65,13 @@ jobs:
       - uses: microsoft/setup-msbuild@v2
         with:
           msbuild-architecture: x64
+      - name: Check load harness and empty-server PDA before building
+        shell: pwsh
+        run: |
+          ./scripts/check-netcoop-load-harness.ps1
+          python -m pip install lupa==2.8
+          python scripts/check-netcoop-server-pda.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Check Windows mail and clipboard API types
         shell: cmd
         run: |

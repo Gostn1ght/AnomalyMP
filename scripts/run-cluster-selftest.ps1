@@ -36,8 +36,13 @@ param(
     [switch]$BotsBelowNormal
 )
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'netcoop-selftest-results.ps1')
+if ($Bots -lt 1 -or $BotProcesses -lt 1 -or $BotProcesses -gt $Bots -or $Minutes -lt 0) {
+    throw 'Require Bots >= BotProcesses >= 1 and Minutes >= 0'
+}
 # "-Maps a,b" through -File arrives as one string.
 $Maps = @($Maps | ForEach-Object { $_ -split "," } | Where-Object { $_ })
+if (-not $Maps.Count -or @($Maps | Select-Object -Unique).Count -ne $Maps.Count) { throw 'Maps must be nonempty and distinct' }
 $Runtime = (Resolve-Path $Runtime).Path
 $server = Join-Path $Runtime "dedicated\LostZoneServerDX11.exe"
 $client = Join-Path $Runtime "bin\LostZoneClientDX11.exe"
@@ -47,6 +52,24 @@ foreach ($file in @($server, $client, (Join-Path $Runtime "fsgame_selftest_serve
 $appdata = Join-Path $Runtime "appdata\selftest"
 $logs = Join-Path $appdata "logs"
 # Every run starts a fresh world, accounts and characters of its own.
+function Assert-SelftestCleanupPath([string]$Path) {
+    $target = [IO.Path]::GetFullPath($Path)
+    $allowed = [IO.Path]::GetFullPath((Join-Path $Runtime 'appdata')) + [IO.Path]::DirectorySeparatorChar
+    if (-not $target.StartsWith($allowed, [StringComparison]::OrdinalIgnoreCase)) { throw "Unsafe selftest cleanup path: $target" }
+    # Junctions in an ancestor or subtree can lead outside the private area.
+    $current = $target
+    while ($current -and $current.Length -ge $Runtime.Length) {
+        if (Test-Path -LiteralPath $current) {
+            if ((Get-Item -LiteralPath $current -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "Selftest cleanup junction: $current" }
+        }
+        $current = Split-Path -Parent $current
+    }
+    if (Test-Path -LiteralPath $target) {
+        if (Get-ChildItem -LiteralPath $target -Force -Recurse | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }) { throw "Selftest cleanup subtree contains a junction: $target" }
+    }
+}
+Assert-SelftestCleanupPath $appdata
+Assert-SelftestCleanupPath (Join-Path $Runtime 'appdata\selftest_bots\logs')
 Get-ChildItem $appdata -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -notin @("user.ltx", "logs") } |
     Remove-Item -Recurse -Force
 Remove-Item (Join-Path $Runtime "appdata\selftest_bots\logs") -Recurse -Force -ErrorAction SilentlyContinue
@@ -74,7 +97,7 @@ function Start-LocationServer($name, $port, $start) {
     $arguments = "-nosplashwindow -noprefetch -netcoop -dbg -multi_instance -logname selftest_$name -fsltx fsgame_selftest_server.ltx " +
         "-netport $port -netcoop_start_location=$start -netcoop_world=selftest_$name -netcoop_cluster_selftest $ServerArgs " +
         "-start `"server(all/single/alife/new/portsv=$port/maxplayers=$maxPlayers)`" `"client(localhost/name=serverauthority/port=$port/portcl=$($port + 1))`""
-    Start-Process -FilePath $server -ArgumentList $arguments -WorkingDirectory $Runtime -PassThru
+    Start-Process -FilePath $server -ArgumentList $arguments -WorkingDirectory $Runtime -WindowStyle Hidden -PassThru
 }
 
 function Find-Log($name) {
@@ -94,7 +117,7 @@ function Wait-Loaded($name) {
     throw "server $name did not finish loading in $LoadTimeoutMinutes min"
 }
 
-$processes = @(); $serverLogs = @()
+$processes = @(); $serverLogs = @(); $botSnapshots = @()
 try {
     foreach ($map in $Maps) {
         $processes += Start-LocationServer $map $ports[$map] $launch[$map]
@@ -109,16 +132,21 @@ try {
     foreach ($map in $botMaps) {
         for ($part = 0; $part -lt $BotProcesses; $part++) {
             $count = [Math]::Floor($Bots / $BotProcesses) + $(if ($part -lt $Bots % $BotProcesses) { 1 } else { 0 })
-            $botArgs = "-nosplashwindow -netcoop -dbg -noprefetch -multi_instance -logname selftest_bots_$map`_$part -fsltx fsgame_selftest_bots.ltx " +
+            $loadBotCommand = "-nosplashwindow -netcoop -dbg -noprefetch -multi_instance -logname selftest_bots_$map`_$part -fsltx fsgame_selftest_bots.ltx " +
                 "-netcoop_bots $count -netcoop_bots_first $first -netcoop_bots_addr 127.0.0.1/port=$($ports[$map]) $BotArgs"
-            $botProcess = Start-Process -FilePath $client -ArgumentList $botArgs -WorkingDirectory $Runtime -PassThru
+            $botProcess = Start-Process -FilePath $client -ArgumentList $loadBotCommand -WorkingDirectory $Runtime -WindowStyle Hidden -PassThru
             if ($BotsBelowNormal) { try { $botProcess.PriorityClass = "BelowNormal" } catch {} }
             $processes += $botProcess
             $first += $count
         }
     }
     Write-Host "$($Bots * $botMaps.Count) bots started on $($botMaps -join ', '); running $Minutes min"
-    Start-Sleep -Seconds ($Minutes * 60)
+    for ($elapsed = 0; $elapsed -lt $Minutes * 60; $elapsed += 10) { Start-Sleep -Seconds ([Math]::Min(10, $Minutes * 60 - $elapsed)) }
+    # Freeze bot state before server shutdown can make healthy bots reconnect.
+    $botSnapshots = @(Get-ChildItem (Join-Path $Runtime 'appdata\selftest_bots\logs') -Filter '*selftest_bots*.log' -ErrorAction SilentlyContinue |
+        Where-Object { $_.LastWriteTime -gt $stamp } | ForEach-Object {
+            [pscustomobject]@{ Name = $_.Name; Lines = @(Get-Content -LiteralPath $_.FullName) }
+        })
 }
 finally {
     foreach ($p in $processes) { if ($p -and -not $p.HasExited) { Stop-Process -Id $p.Id -Force } }
@@ -128,19 +156,8 @@ $botLogs = @(Get-ChildItem (Join-Path $Runtime "appdata\selftest_bots\logs") -Fi
     Where-Object { $_.LastWriteTime -gt $stamp })
 $serverLines = $serverLogs | ForEach-Object { Get-Content $_ }
 $botLines = @($botLogs | ForEach-Object { Get-Content $_.FullName })
-$summary = [ordered]@{
-    leaves = @($serverLines | Select-String "\[cluster\] .* leaves for").Count
-    arrivals = @($serverLines | Select-String "\[cluster\] .* arrived from").Count
-    redirects = @($serverLines | Select-String "\[cluster\] .* is sent to").Count
-    refused = @($serverLines | Select-String "\[cluster\] .*: (not inside|this passage|no server|the character|the server of that map)").Count
-    lease_rejects = @($serverLines | Select-String "still on another location server").Count
-    save_failures = @($serverLines | Select-String "character save failed").Count
-    bot_moves = @($botLines | Select-String "\[bots\] .* goes to").Count
-    bot_plays = @($botLines | Select-String "\[bots\] .* plays Actor").Count
-    bot_failures = @($botLines | Select-String "^! \[Lost Zone\]\[bots\]").Count
-    bot_retries = @($botLines | Select-String "\[bots\] nbot_\d+ retries").Count
-    fatal = @($serverLines + $botLines | Select-String -CaseSensitive "FATAL ERROR|Expression\s*:").Count
-}
+$result = Get-NetcoopSelftestResult -BotLogs $botSnapshots -ServerLines @($serverLines) -ExpectedBots ($Bots * $botMaps.Count) -ExpectedProcesses ($BotProcesses * $botMaps.Count) -LoadOnly:$LoadOnly
+$summary = $result.Summary
 $summary.GetEnumerator() | ForEach-Object { "{0,-14} {1}" -f $_.Key, $_.Value }
 foreach ($log in $botLogs) {
     "last bot reports ($($log.Name)):"
@@ -151,3 +168,5 @@ foreach ($log in $serverLogs) {
     Get-Content $log | Select-String "\[metrics\] server|\[profile\]" | Select-Object -Last 4 | ForEach-Object { $_.Line }
 }
 "logs: $($serverLogs -join ' ; ') ; $(($botLogs | ForEach-Object FullName) -join ' ; ')"
+if (-not $result.Passed) { throw ("SELFTEST FAILED: " + ($result.Errors -join '; ')) }
+"PASS: $($Bots * $botMaps.Count) distinct bots joined; no terminal, script, shader or save errors. Cluster transfers may be in flight."

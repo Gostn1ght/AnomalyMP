@@ -13,6 +13,10 @@ $ErrorActionPreference = 'Stop'
 $runtime = (Resolve-Path -LiteralPath $RuntimeRoot).Path
 $latin1 = [System.Text.Encoding]::GetEncoding(28591)
 
+# PDA discovery is a player action. Empty dedicated worlds still process
+# timers, but have no db.actor; retain the timer reset without throwing.
+& (Join-Path $PSScriptRoot 'patch-netcoop-server-pda.ps1') -ServerScripts (Join-Path $runtime 'server\scripts')
+
 $roles = @(
     @{ Name = 'client'; Module = 'netcoop_client_compat' },
     @{ Name = 'server'; Module = 'netcoop_server_compat' }

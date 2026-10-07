@@ -62,6 +62,12 @@ on:
       - 'scripts/check-netcoop-character-restore.py'
       - 'scripts/check-netcoop-replication-index.py'
       - 'scripts/fixtures/full-rate-cadence/**'
+      - 'scripts/patch-netcoop-server-pda.ps1'
+      - 'scripts/check-netcoop-server-pda.py'
+      - 'scripts/fixtures/server-pda/**'
+      - 'scripts/run-cluster-selftest.ps1'
+      - 'scripts/netcoop-selftest-results.ps1'
+      - 'scripts/check-netcoop-load-harness.ps1'
       - '.github/workflows/lostzone-world-foundation.yml'
   workflow_dispatch:
 
@@ -113,6 +119,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+      - name: Exercise actual PowerShell load driver and GAMMA empty-world PDA
+        shell: pwsh
+        run: |
+          ./scripts/check-netcoop-load-harness.ps1
+          python -m pip install lupa==2.8
+          python scripts/check-netcoop-server-pda.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Exercise actual clock with the engine toolchain
         shell: cmd
         run: |
