@@ -693,3 +693,21 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
     235 предметами; болты не сравниваются — движок выдаёт новый при выходе в онлайн),
     `run-world-day-test.ps1` теперь проверяет инварианты (сироты, потерянные члены
     отрядов, дубли story id) и ловит Lua-панику.
+
+- 2026-10-07 04:00 (Claude) — защита A11 и память:
+  * `server_remote_event_allowed`: от удалённого клиента отклоняются GE_HIT/
+    GE_HIT_STATISTIC/GE_DIE/GE_ASSIGN_KILLER/GE_GAME_EVENT/GE_TELEPORT_OBJECT/
+    GE_CHANGE_POS/GE_CHANGE_VISUAL/GE_TRADER_FLAGS/GE_FREEZE_OBJECT/ограничители;
+    GE_TRANSFER_AMMO — только если получатель принадлежит отправителю (иначе
+    R_ASSERT ронял сервер); GE_DESTROY/GE_INSTALL_UPGRADE/GE_ADDON_* — только вещи
+    своего Actor; GE_INFO_TRANSFER — только себе. Честный клиент их не шлёт (пули
+    клиента визуальные, урон считает сервер). Если владелец увидит в логе сервера
+    `rejected event <тип>` при обычной игре — это легальный путь, который надо
+    разрешить точечно.
+  * Бот-читер `-netcoop_bots_cheat=<id>` + `run-cheat-test.ps1`: PASS на новом сервере,
+    старый (2d878e589) упал на `c_from == c_parent`.
+  * Профиль памяти Кордона (`-mem_profile`, блоки ≥4 КБ): конфиги ~180 МБ, CDB ~177 МБ,
+    вершины скелетных моделей (_Load_hw) ~50 МБ, анимации ~26 МБ; текстуры 0.
+    Кэш DLTX (~80 МБ) сбрасывается через 60 с после уровня на dedicated.
+  * Нагрузка на 4-поточном ПК: 64 бота вытесняют сервер с CPU; `-BotsBelowNormal`
+    для честного кадра сервера. Плохая сеть: `-BotArgs "-netcoop_fake_loss=5 -netcoop_fake_lag=120"`.
