@@ -64,15 +64,16 @@ GCC дополнительно использует AddressSanitizer и Undefine
    внутри Scale.
 3. Удаление себя/другого объекта, отмена в Needed/Scale, повторное использование
    адреса, отложенный EnsureOrder без пропуска живого realtime объекта;
-   дополнительный пакет 2048 realtime отмен ожидает повторного CI.
+   дополнительный пакет 2048 realtime отмен со stable compaction.
 4. Полная DX11 сборка и упаковка клиента/сервера в GitHub Actions.
 
-CI [World Foundation 37578376041](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37578376041):
+CI [World Foundation 37579014305](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37579014305),
+commit c64e88fbc:
 PASS на GCC/Linux (ASan/UBSan) и MSVC/Windows, release и DEBUG. В каждой из
 четырёх конфигураций совпали 32 825 callback; все проверки lifecycle/pairing
-также прошли. После review добавлен dirty flag для одной compaction пакета
-realtime отмен: предыдущий DX11 run заменён новой сборкой, ожидаются CI и DX11
-для этой заключительной поправки.
+также прошли, включая 2048 realtime отмен. Полная
+[DX11 сборка 37579014309](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37579014309)
+ещё выполняется; результат записать после завершения.
 
 В аудит 188 пунктов новые live ✅ не добавлены. После PASS fixtures требуется сравнение
 реальных exe до/после: 16/64 игроков, p50/p95 кадра, CPU, память, ошибки ИИ,

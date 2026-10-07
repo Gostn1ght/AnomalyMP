@@ -24,7 +24,8 @@ Schema migration не нужна: kind — существующее тексто
 Проверка: все 241 backend tests локально PASS (50,2 с), включая предмет,
 подобранный между партиями, независимый предмет на земле, рестарт, невозможность
 восстановить/подобрать DESTROYED ID, инъекцию сбоя в журнал и continuation.
-CI Linux/Windows ожидается после push.
+CI [World Backend 37578839647](https://github.com/Gostn1ght/AnomalyMP/actions/runs/37578839647):
+все 241 тест PASS на Linux (24,8 с) и Windows (64,1 с).
 
 Границы: backend не подключён как authoritative storage native мира. Эта
 команда не реализует присутствие игроков и дедлайн: их проверяет caller/native

@@ -769,3 +769,13 @@ etcoop_1_server.bat` поднят до maxplayers=16 (бэкап `.bak_cluster`)
   Current backend cleanup policy corrected to DESTROYED leftover corpse loot
   per latest owner rule; independent ground/player items preserved. 241 Python
   tests local PASS; see 52_CORPSE_LOOT_POLICY.md, backend CI pending.
+
+- 2026-10-07 (Codex) — final scheduler native source c64e88fbc: RT cancellation
+  now marks dirty and compacts once after a batch; unchanged frames skip this
+  scan. Actual fixture adds 2048 RT removals. World Foundation 37579014305 PASS
+  on both OS/release/DEBUG, including exact IX-Ray trace and sanitizer checks.
+  DX11 37579014309 is building; avoid native pushes until its result is known.
+  Corpse backend policy 055aa98e7: World Backend 37578839647 PASS 241 tests on
+  both OS. Runtime installation/live64 remains separate; original audit counts
+  stay unchanged. Doc49 marks its historical 1–5 Hz Reduced AI proposal as
+  superseded by owner's no-AI-degradation instruction.
