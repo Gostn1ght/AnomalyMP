@@ -49,7 +49,7 @@ function Run-Lua($code, $what) {
 }
 
 $serverArgs = "-nosplashwindow -noprefetch -netcoop -dbg -multi_instance -logname selftest_cheat -fsltx fsgame_selftest_server.ltx " +
-    "-netport 1367 -netcoop_start_location=hidden_base -netcoop_world=selftest_cheat " +
+    "-netport 1367 -netcoop_start_location=hidden_base -netcoop_world=selftest_cheat -netcoop_cluster_selftest " +
     "-start `"server(all/single/alife/new/portsv=1367/maxplayers=8)`" `"client(localhost/name=serverauthority/port=1367/portcl=1368)`""
 $script:srv = Start-Process -FilePath $server -ArgumentList $serverArgs -WorkingDirectory $Runtime -WindowStyle Hidden -PassThru
 $bot = $null
