@@ -6,6 +6,8 @@
 #include "hit_immunity.h"
 #include "damage_manager.h"
 #include "DestroyablePhysicsObject.h"
+#include "netcoop.h"
+#include "netcoop_destroyable_state.h"
 #include "../Include/xrRender/KinematicsAnimated.h"
 #include "../Include/xrRender/Kinematics.h"
 #include "xrServer_Objects_ALife.h"
@@ -52,8 +54,16 @@ void CDestroyablePhysicsObject::net_Destroy()
 
 BOOL CDestroyablePhysicsObject::net_Spawn(CSE_Abstract* DC)
 {
+	float saved_health = 1.f;
+	if (netcoop::enabled())
+	{
+		auto* source = smart_cast<CSE_ALifeObjectPhysic*>(DC);
+		if (!source || netcoop_destroyable_state::read(netcoop_destroyable_state::view(source->m_ini_string.c_str()), saved_health) ==
+			netcoop_destroyable_state::Status::invalid) return FALSE;
+	}
 	BOOL res = inherited::net_Spawn(DC);
 	if (!res) return FALSE;
+	if (netcoop::enabled()) m_fHealth = saved_health;
 
 	IKinematics* K = smart_cast<IKinematics*>(Visual());
 	CInifile* ini = K->LL_UserData();
@@ -74,6 +84,34 @@ BOOL CDestroyablePhysicsObject::net_Spawn(CSE_Abstract* DC)
 	CParticlesPlayer::LoadParticles(K);
 	RunStartupAnim(DC);
 	return res;
+}
+
+bool CDestroyablePhysicsObject::netcoop_capture_saved_health(CSE_Abstract* entity)
+{
+	auto* target = smart_cast<CSE_ALifeObjectPhysic*>(entity);
+	const u16 count = PHGetSyncItemsNumber();
+	if (!target || target->ID != ID() || getDestroy() || H_Parent() ||
+		!PPhysicsShell() || !count || !std::isfinite(m_fHealth)) return false;
+	// Conservatively budget the complete stock Spawn_Write, not just the
+	// INI field: all variable strings, client bytes and compressed bodies.
+	// The fixed fields use <512 bytes; reserve one extra for strict <limit.
+	std::size_t remaining = NET_PacketSizeLimit - 513;
+	const std::size_t sizes[] = {target->client_data.size(), 8u * count,
+		netcoop_destroyable_state::view(target->s_name.c_str()).size(), netcoop_destroyable_state::view(target->name_replace()).size(),
+		netcoop_destroyable_state::view(target->get_visual()).size(), netcoop_destroyable_state::view(target->startup_animation.c_str()).size(),
+		netcoop_destroyable_state::view(target->fixed_bones.c_str()).size()};
+	for (const auto size : sizes)
+	{
+		if (size > remaining) return false;
+		remaining -= size;
+	}
+	std::string saved;
+	if (!netcoop_destroyable_state::write(netcoop_destroyable_state::view(target->m_ini_string.c_str()), m_fHealth, remaining, saved))
+		return false;
+	// Do not serialize an uninitialized Lua binder or invalidate borrowed
+	// CSE INI pointers. The original sections stay byte-for-byte identical.
+	target->m_ini_string = saved.c_str();
+	return true;
 }
 
 //void CDestroyablePhysicsObject::Hit							(float P,Fvector &dir,CObject *who,s16 element,Fvector p_in_object_space, float impulse,  ALife::EHitType hit_type)

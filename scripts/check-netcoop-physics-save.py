@@ -119,6 +119,10 @@ struct CPhysicObject:Object,CPHSkeleton,CScriptBinder,CPhysicsShellHolder {
  void net_Save(NET_Packet&){throw std::runtime_error("whole object save must not run");}
  bool netcoop_capture_saved_physics(CSE_Abstract*,bool=false);
 };
+struct CDestroyablePhysicsObject:CPhysicObject {
+ int health_captures=0;bool health_fail=false;
+ bool netcoop_capture_saved_health(CSE_Abstract* entity){++health_captures;return !health_fail && entity && entity->ID==ID();}
+};
 template<class T>void xr_delete(T*& p){delete p;p=nullptr;}
 template<class T,class P>T* xr_new(P p){return new T(p);}
 struct CCF_Skeleton {template<class T>explicit CCF_Skeleton(T*){}};
@@ -274,7 +278,15 @@ int main(){
  game.entities.erase(10);assert(!world_store_capture_physics_props());game.entities[10]=&entity;assert(!world_store_capture_physics_props());game.entities[10]=&fragment_entity;
  fragment.simulated_flags=CSE_PHSkeleton::flNotSave;assert(world_store_capture_physics_props());assert(!fragment_entity.need_save());
  const int temporary_calls=fragment.save_calls;assert(world_store_capture_physics_props());assert(fragment.save_calls==temporary_calls); // excluded on next checkpoint
- std::cout<<"PASS: actual physics/door/fragment capture; scoped binder, strict exceptions/no deletion, atomic decode, bounds, metadata, selection, unresolved splits, no-save debris and refused spawn\n";
+ CDestroyablePhysicsObject crate,removed_crate,attached_crate,temporary_crate;
+ removed_crate.destroyed=true;attached_crate.parented=true;temporary_crate.id=8;
+ game.entities[7]=&entity;game.entities[8]=&excluded;
+ level.Objects.objects={&actor,&crate,&removed_crate,&attached_crate,&temporary_crate};
+ assert(world_store_capture_physics_props());assert(crate.health_captures==1 && crate.save_calls==1);
+ assert(removed_crate.health_captures==0 && attached_crate.health_captures==0 && temporary_crate.health_captures==0);
+ crate.health_fail=true;assert(!world_store_capture_physics_props());assert(crate.health_captures==2);
+ crate.health_fail=false;game.entities.erase(7);assert(!world_store_capture_physics_props());assert(crate.health_captures==2);
+ std::cout<<"PASS: actual physics/door/fragment/destroyable selection; scoped binder, strict exceptions/no deletion, atomic decode, bounds, metadata, unresolved splits, no-save debris and refused spawn\n";
 }
 '''
 with TemporaryDirectory(prefix="physics-save-") as tmp:

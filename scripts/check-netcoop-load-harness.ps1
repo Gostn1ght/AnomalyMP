@@ -43,6 +43,7 @@ foreach ($errorLine in @('FATAL ERROR', 'combine_1.hlsl(39): error X3017: cannot
         '! [NetAnomaly][world] cannot capture physics prop 15921',
         '! [NetAnomaly][world] cannot capture physics fragment 32001',
         '! [NetAnomaly][world] cannot capture breakable object 15508',
+        '! [NetAnomaly][world] cannot capture destroyable health 15778',
         '! [NetAnomaly][world] refusing save: committed pointer is corrupt/inaccessible',
         '! [NetAnomaly][world] saved test_b but could not point test.current to it')) {
     Assert (-not (Evaluate $logs @($errorLine)).Passed) "Reject error record: $errorLine"

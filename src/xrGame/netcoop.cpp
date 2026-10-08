@@ -31,6 +31,11 @@
 #include "PDA.h"
 #include "InventoryBox.h"
 #include "PhysicObject.h"
+#include "PHCollisionDamageReceiver.h"
+#include "PHDestroyable.h"
+#include "hit_immunity.h"
+#include "damage_manager.h"
+#include "DestroyablePhysicsObject.h"
 #include "BreakableObject.h"
 #include "PhysicsSkeletonObject.h"
 #include "Torch.h"
@@ -1310,6 +1315,14 @@ static bool world_store_capture_physics_props()
 		{
 			Msg("! [NetAnomaly][world] cannot capture physics prop %u", prop->ID());
 			return false;
+		}
+		if (CDestroyablePhysicsObject* destroyable = smart_cast<CDestroyablePhysicsObject*>(prop))
+		{
+			if (!destroyable->netcoop_capture_saved_health(entity))
+			{
+				Msg("! [NetAnomaly][world] cannot capture destroyable health %u", prop->ID());
+				return false;
+			}
 		}
 	}
 	return true;
