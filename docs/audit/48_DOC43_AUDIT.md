@@ -7,7 +7,12 @@
 
 Исторический итог 2026-10-06: ✅ 22, 🔧 37, 🟡 69, ⬜ 60 из 188.
 
-Текущие статусы строк 2026-10-08: ✅ 23, 🔧 37, 🟡 69, ⬜ 59 из 188.
+Текущие статусы строк 2026-10-08: ✅ 25, 🔧 35, 🟡 69, ⬜ 59 из 188.
+B03 закрыт по doc70: реальный прерванный старт, два последующих ready-start,
+тот же WorldID/seed и epochs1→2→3, exact durable bytes/checksums. B04 закрыт
+отдельным qualified native повтором doc71: explicit contender lock rejection,
+unchanged identity, owner ready, successful reacquisition после остановки.
+Старый contender без сообщения об отказе остаётся непринятым.
 L30 закрыт по native-проверкам doc64–67: INTACT/DAMAGED/DESTROYED,
 два SAME-world restart, три штатные повреждаемые модели и естественные
 части бутыли. Это приёмка исходного требования состояния; скорости тел,
@@ -54,8 +59,8 @@ Distance/overload tiers для NPC/мутантов/игроков, описан
 |---|---|---|
 | B01 Переносимое ядро WorldClock: 64-битный monotonic time, | 🔧 | native fixtures в CI |
 | B02 Ядро LocationClock: плавная коррекция, holdover, отклонение | 🔧 | native fixtures в CI |
-| B03 Локальные WorldID/seed сохраняются; epoch увеличивается | 🔧 | native fixtures в CI |
-| B04 Exclusive OS lock для одного владельца **локальной папки**; | 🔧 | native fixtures в CI |
+| B03 Локальные WorldID/seed сохраняются; epoch увеличивается | ✅ | Doc70, GHA4b real Windows servers: fresh private directory, exact observed durable record sealed before first interrupted startup is stopped, SAME world reaches ready twice with identical WorldID13564581398834934011/seed14696362713997730183 and epochs1→2→3. Independent parser verifies all40-byte records/magic/FNV; five native/pre-stop journals sealed, no fatal/SCRIPT ERROR/failed handler. Actual store ordering and interrupted-bootstrap cases also pass native CI. No owner data changes. Exclusivity/distributed fencing remain separate |
+| B04 Exclusive OS lock для одного владельца **локальной папки**; | ✅ | Doc71, GHA171 real Windows servers/fresh local save directory: ready owner epoch2; second actual server on another port explicitly refused by OS world lock, no acquired/ready, authority SHA unchanged. Owner remains ready; after stopping it a new server reacquires epoch3 and runs30seconds. Actual authority records/magic/FNV verified, six journals sealed; expected contender exit separate from zero owner fatal/Lua/failed-handler. Source diagnostics now log controlled-exit reason before unchanged dialog/termination; exact-method CI and PS gate PASS. Old quiet trial retained UNQUALIFIED. This is LOCAL directory exclusivity, not network-share/distributed fencing |
 | B05 ALife календарь и server environment time factor подключены | ✅ | рестарт сервера: игровое время продолжилось (2026-10-06) |
 | B06 Clock-aware ALife checkpoint: identity/epoch/revision, | 🔧 | native fixtures в CI |
 | B07 Чтения из ALife worker и server thread защищены mutex; | 🔧 | native fixtures в CI |

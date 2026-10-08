@@ -2,7 +2,7 @@
 
 2026-10-08, Codex. Native source fix is in `4cea23d23`; fixture corrections in
 `8e1c324d9` and `a42873172`. Failed-admission return is accepted; complete
-same-process retry requires the additional dialog-update fix `e609538dd`. Primary
+same-process retry is accepted with the additional dialog-update fix `e609538dd`. Primary
 executables, owner accounts and worlds are unchanged.
 
 ## Qualified native failure
@@ -89,11 +89,27 @@ preserved. CleanInternals also clears deferred dialogs to prevent closed
 popups reappearing. Actual OnFrame/CleanInternals/AddDialogToRender fixture
 compares 256 legacy traces and covers callback deletion, deferred additions
 and disabled entries. Foundation37756749563 SUCCESS on Linux sanitizers and
-Windows; DX1137756749573 full build pending. Repeat the full rejection ->
-live menu -> valid admission in `_build/live/input-recovery-e609538dd`, which
-has fresh client appdata and the SAME retained private server world.
-No primary promotion before scoped native acceptance. Do not cancel a full
-build with another source push.
+Windows; DX1137756749573 SUCCESS. Artifact11541183178, ZIP SHA256
+`93e019ca25765cc8acaf0675d66b95e2844d3f229522748dce7acc284edc3d6d`,
+both exe SHA256
+`96FB0C81503A5B99DCA3559ED951FA241C082993BAA7D8617E2B811A6019012A`.
+The full rejection -> live menu -> valid admission repeat in
+`_build/live/input-recovery-e609538dd` PASS with fresh client appdata and the
+SAME retained private server world. Unknown960 is rejected after map loading;
+menu/form updates continue; exact GUID valid961 retry is processed; ordinary
+Actor20123 starts in the SAME client PID10380 and remains active30seconds.
+Both pre-stop logs and package provenance are sealed in qualified-acceptance.json.
+No native unhandled exception, SCRIPT ERROR or failed handler. Thus the two
+input/dialog lifetime regressions are accepted for this actual native path.
+
+This is scoped recovery acceptance. The client also reports14 missing SSFX
+rain sound files and one inactive HUD sentinel255 diagnostic stack; MCM20s
+hang diagnostics and two NPC-loadout records remain. The strict fatal/Lua
+error evaluator does not count these engine diagnostic stacks; do not label
+all GAMMA startup clean. Original failures/dumps and incomplete attempts are
+retained. All processes stopped, debug channel empty, all88 primary
+fingerprints unchanged, no rollout. Firebase/owner credentials, menu art,
+max-view smoothness and64/512 are separate.
 
 The shared PowerShell result evaluator now rejects the anchored actual
 UnhandledFilter footer `at address 0x...`; ordinary inline hitch/profile

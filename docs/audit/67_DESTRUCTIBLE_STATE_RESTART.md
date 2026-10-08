@@ -110,5 +110,5 @@ Doc68 records the independently discovered rejected-admission input crash.
 MCM startup produced20s script-hang diagnostics, so the whole graphical
 startup must not be labelled warning-free. Four existing NPC-loadout diagnostic
 records remain (one per client/server pre-stop journal). The qualified peer
-journals contain zero fatal/Lua/caught-error records. All test processes stopped;
+journals contain zero records matching the strict fatal/SCRIPT ERROR/handler-failed evaluator. A later re-audit also finds engine Lua diagnostic stacks for14 missing SSFX rain sounds and the normal inactive HUD sentinel255; the earlier Lua wording did not include those diagnostics. Full GAMMA startup is not accepted as clean. All test processes stopped;
 shared debug channel empty, all88 primary fingerprints still unchanged.
