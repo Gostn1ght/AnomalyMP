@@ -24,6 +24,30 @@ Claude и Codex работают в одной папке `engine-steamnet` и �
 
 ## Правила владельца (обязательно)
 
+- Codex FINAL physics-skeleton scoped PASS (2026-10-08): source
+  c8716c4c1f70d1a96e6a5e6aff549c82a5bd38bb, Foundation37727137941 and
+  full DX1137727137945 SUCCESS; artifact11528723681 validated source/ZIP/
+  built-from/exe manifest (both exes212BA94B...). Actual separate runtime
+  CPhysicsSkeletonObject checkpoint now saves stock mask/root/flags/bodies
+  and XYZ pose. New helper, actual traversal and refused-base-spawn tests
+  passed GCC+ASan/UBSan/MSVC. First fixture compile failed due to reused
+  matrix variable name; fixed without weakening assertions. Private native
+  4fa control reproduced full pose reset1.885136m/0.988977 after SAME restart,
+  CSE had no saved bones, common healthy proof PASS. Four earlier impulse
+  targets were nonbreakable and generated no fragments: NOT accepted as a
+  fracture test. Native fixed private test-only section uses unchanged stock
+  bucket visual with actual physics-skeleton class. Full initial body poses
+  exactly match control; original0.05m/0.04 gates unchanged. Fixed SAME-world
+  restart PASS, two bodies retained0.002883m/0.009167; CSE mask31/root0/count2,
+  source/startup/identity retained. Final1/1both,0retries/errors. No natural
+  joint-fracture/velocity/RPC/offline/all-model acceptance. Doc65 and private
+  native-summary.json retain8pre-stop log hashes plus package/config/control
+  proofs. Processes stopped/debug channels empty; all4primaryFE829 exes and
+  config prefixes unchanged, no rollout. L30 stays PARTIAL;188counts remain
+  22complete/37code/70partial/59notstarted. Next medium persistence issue:
+  CDestroyablePhysicsObject accumulated health lacks a CSE field; investigate
+  a backward-compatible adapter without corrupting stock binder client_data.
+
 - Codex BEFORE physics-skeleton checkpoint edit (2026-10-08): actual
   CPhysicsSkeletonObject is separate from CPhysicObject and omitted by the
   authority checkpoint traversal. Extend ONLY this class to capture stock
