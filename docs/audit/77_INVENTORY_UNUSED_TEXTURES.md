@@ -29,8 +29,7 @@ The Lua5.1 differential test imports the actual stats constructor block from
 this known source. All widget creation/parents/visibility traces remain
 identical except12 nonexistent texture initializations. All18 existing names
 match. Local PASS and GitHub Actions `checks` PASS in run37785253553/source64e7.
-The full C++ engine build is redundant for this Lua-only native behavior and
-may still run; the native test uses the already qualified GHAbe30 engine.
+The full C++ engine build also succeeds; the native test uses the already qualified GHAbe30 engine.
 
 Private native acceptance, retained correlated world and ordinary synthetic
 account961: Actor20020, native first-window-frame-presented, actual inventory
@@ -69,3 +68,7 @@ extraction/profile activation/runtime replacement. Header alias mappings and
 loose files need their own analysis before concluding an asset is unavailable.
 The initial apostrophe-parser error is retained separately as unqualified.
 Atlas XML/script evidence above, not that scan alone, supports the12-load fix.
+
+Subsequent capture-permission repair passes doc78, but its PNG shows the
+loading backbuffer, not this inventory. Constructor/open-state acceptance
+above remains scoped; no inventory pixel-layout acceptance is inferred.

@@ -12,7 +12,7 @@ Windows/PowerShell, GitHub CLI настроен. Владелец просит �
 
 Сначала прочитай docs/audit/45_CODEX_HANDOFF.md,48_DOC43_AUDIT.md,
 43_WORLD_REQUIREMENTS_PROGRESS.md,67_DESTRUCTIBLE_STATE_RESTART.md,
-68_FAILED_START_INPUT.md,70_NATIVE_WORLD_IDENTITY.md,71_NATIVE_WORLD_EXCLUSIVITY.md,72_NATIVE_WORLD_CLOCK_SCALE.md,73_RAIN_SOUNDS_RESTORE.md,74_NPC_LOADOUT_COMPATIBILITY.md,75_NATIVE_HUD_STOP_GUARD.md,76_NATIVE_FIRST_CHECKPOINT_ADMISSION.md,77_INVENTORY_UNUSED_TEXTURES.md. Сверь git status/HEAD,
+68_FAILED_START_INPUT.md,70_NATIVE_WORLD_IDENTITY.md,71_NATIVE_WORLD_EXCLUSIVITY.md,72_NATIVE_WORLD_CLOCK_SCALE.md,73_RAIN_SOUNDS_RESTORE.md,74_NPC_LOADOUT_COMPATIBILITY.md,75_NATIVE_HUD_STOP_GUARD.md,76_NATIVE_FIRST_CHECKPOINT_ADMISSION.md,77_INVENTORY_UNUSED_TEXTURES.md,78_NATIVE_PLAYER_SCREENSHOT.md. Сверь git status/HEAD,
 Actions, свои процессы и qualified acceptance. Более свежий журнал важнее
 этого промпта. Не ставь native PASS по одному backend unit-test/fixture.
 Не добавляй к узкому готовому пункту требования соседних этапов.
@@ -232,13 +232,29 @@ backups under primary-backups, installed bytes match tested source/repeat0.
 All88protected fingerprints unchanged; these script files OUTSIDE baseline88.
 Screenshot NOT accepted: existing GAME console policy rejected screenshot/
 r_screenshot_mode for player, no image. Native logged marker=request only.
-Next XR_IOConsole.cpp fix prepared: allow ONLYthose2local capture names,
-all gameplay/server/debug privilege gates unchanged. power_loss_bias affects
-stamina and stays denied. check-native-console-capture.py imports actual
-classifier/current-vs-old differential cases and game-cheat negatives; GHA
-native fixtures/fullbuild required, then ordinary captured image/view required.
-No local C++ compilation/no primaryEXE promotion. Sourcepush after64e7
-completed, do not cancel the next fullengine build. Next CI IDs from Actions.
+XR_IOConsole local screenshot fix ПРИНЯТ в новом GHA engine doc78:
+source d3323e2fe8999890fa51818d73ec4141ae65fb5c addsONLY screenshot and
+r_screenshot_mode; full keyboard-console/role/gameplay/server/debug gates
+unchanged. power_loss_bias affects stamina and stays denied. Actual747
+classifier differential cases GCC ASan/UBSan + MSVC PASS. Foundation37788240462
+and DX1137788240522 SUCCESS. Artifact11556018007,
+ZIPa537c48ec04e7ba272805ebfd6272a4c9d0bdb339f9de22f32ea31d2747d13ff,
+bothEXE04A764441C50AF214C45913876232D29304AFACA7FB1B86ECFE667FDA80ECD96.
+_build/live/console-capture-d332/qualified-acceptance.json: SAME private
+world/known961 explicit PLAYER role, Actor20569+20s, actual inventory15row
+groups/open flag; registered g_god on rejected, PNG format/capture allowed,
+actual944x501 PNG saved/verified and viewed. Image shows GAMMA LOADING screen,
+NOT inventory/world. Accept local capture/file output only; first3D/world
+pixels/window-focus/Alt-Tab and human UI NOT proven. Hidden/background
+rendering may keep the loading backbuffer; don't invent diagnosis from this.
+SM_NORMAL names dated file, optionalname ignored; exactlyone PNG under fresh
+private root, source/role/log/request nonce sealed. No local C++build and
+NOprimaryEXE promotion. ALL own processes stopped/shared debugempty, all88
+protected fingerprints unchanged. No pending CI. Counters27/33/69/59 remain.
+Current native accepted package d332; older be30/e609/171 proofs remain valid
+for their cases. Source/doc HEAD via git; do not rerun accepted cases without
+new change/reason. Next priority easy→medium→hard, remaining161 original188
+and unresolved resources/foreground first3D/inventory pixels before rollout.
 
 L30 закрыт doc64–67: actual GHA4b glass/wood/metal, exact health0.6/original
 INI после restart,0.7 уничтожает, checkpoint/второй restart сохраняют отсутствие.
@@ -271,4 +287,5 @@ built-from, ZIP digest, manifest и exe hashes проверять обязате
 Последний quota snapshot 2026-10-08:5h used23%, weekly4%; reset автоматически
 не расходовали. Snapshot из прошлой сессии99/84 устарел. Основные EXE
 прежние;14 новых sound assets,20 scoped NPC loadout LTX и4scoped client
-script files установлены. Local screenshot C++permission still pending native CI/image.
+script files установлены. Local screenshot C++permission native accepted doc78, NOprimaryEXE rollout;
+image is loading screen, no inventory/world pixel acceptance.
