@@ -33,6 +33,9 @@ on:
       - 'scripts/check-netcoop-physics-save.py'
       - 'scripts/check-netcoop-breakable-save.py'
       - 'scripts/check-netcoop-destroyable-save.py'
+      - 'scripts/check-netcoop-failed-start-input.py'
+      - 'src/xrGame/Level_start.cpp'
+      - 'src/xrEngine/Xr_input.cpp'
       - 'src/xrGame/netcoop_destroyable_state.h'
       - 'src/xrGame/DestroyablePhysicsObject.cpp'
       - 'src/xrGame/DestroyablePhysicsObject.h'
@@ -123,6 +126,8 @@ jobs:
         run: python scripts/check-netcoop-breakable-save.py
       - name: Exercise actual destroyable health and compatible spawn INI state
         run: python scripts/check-netcoop-destroyable-save.py
+      - name: Exercise actual failed client start and input release
+        run: python scripts/check-netcoop-failed-start-input.py
       - name: Exercise snapshot slot recovery
         run: python scripts/check-netcoop-world-store.py
       - name: Exercise corpse cleanup without deleting inventory
@@ -201,6 +206,8 @@ jobs:
           python scripts/check-netcoop-breakable-save.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-destroyable-save.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-netcoop-failed-start-input.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-checksum.py
           if errorlevel 1 exit /b %errorlevel%
