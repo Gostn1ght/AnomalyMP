@@ -68,6 +68,7 @@ public:
 	virtual void Start(LPCSTR op);
 	virtual void Disconnect();
 	virtual bool CanUsePlayerConsole() const override;
+	virtual bool RequestDemoTeleport(const Fmatrix& camera) override;
 
 	virtual void OnAppActivate();
 	virtual void OnAppDeactivate();

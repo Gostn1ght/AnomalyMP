@@ -114,6 +114,7 @@ public:
 	virtual void Start(LPCSTR op);
 	virtual void Disconnect();
 	virtual bool CanUsePlayerConsole() const { return true; }
+	virtual bool RequestDemoTeleport(const Fmatrix&) { return false; }
 #ifndef _EDITOR
 	IGame_ObjectPool ObjectPool;
 	CEnvironment* pEnvironment;

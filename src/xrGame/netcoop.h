@@ -135,6 +135,7 @@ bool client_admin_authorized();
 bool server_actor_god(const CActor* actor);
 bool script_admin_god_enabled(u16 actor_id);
 bool script_admin_god_set(u16 actor_id, bool enabled);
+bool script_admin_teleport(u16 actor_id, const Fvector& position);
 int script_role();
 LPCSTR script_account();
 int script_account_state();

@@ -2824,6 +2824,7 @@ void CLevel::script_register(lua_State* L)
 		def("netcoop_respawn", &netcoop::script_respawn),
 		def("netcoop_admin_god_enabled", &netcoop::script_admin_god_enabled),
 		def("netcoop_admin_god_set", &netcoop::script_admin_god_set),
+		def("netcoop_admin_teleport", &netcoop::script_admin_teleport),
 		def("netcoop_rp_list", &netcoop::script_rp_list),
 		def("netcoop_rp_play", &netcoop::script_rp_play),
 		def("netcoop_rp_stop", &netcoop::script_rp_stop),

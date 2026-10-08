@@ -136,6 +136,7 @@ bool CScriptGameObject::Alive() const
 
 ALife::ERelationType CScriptGameObject::GetRelationType(CScriptGameObject* who)
 {
+	if (!who) return ALife::eRelationTypeDummy;
 	CEntityAlive* l_tpEntityAlive1 = smart_cast<CEntityAlive*>(&object());
 	if (!l_tpEntityAlive1)
 	{

@@ -18,6 +18,8 @@ on:
       - 'scripts/check-native-rp-input.py'
       - 'scripts/check-native-physics-replica.py'
       - 'scripts/check-native-admin-god.py'
+      - 'scripts/check-native-admin-teleport.py'
+      - 'scripts/check-native-relation-null.py'
       - 'src/xrGame/player_hud.cpp'
       - 'scripts/check-netcoop-scheduler.py'
       - 'scripts/fixtures/ixray-scheduler/**'
@@ -174,6 +176,10 @@ jobs:
         run: python scripts/check-native-physics-replica.py
       - name: Check actual per-connection administrator god mode
         run: python scripts/check-native-admin-god.py
+      - name: Check actual administrator demo teleport and prediction reset
+        run: python scripts/check-native-admin-teleport.py
+      - name: Check actual relation API with a missing player
+        run: python scripts/check-native-relation-null.py
   clock-windows:
     runs-on: windows-2022
     timeout-minutes: 10
@@ -252,6 +258,10 @@ jobs:
           python scripts/check-native-physics-replica.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-admin-god.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-admin-teleport.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-relation-null.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-checksum.py
           if errorlevel 1 exit /b %errorlevel%

@@ -110,8 +110,24 @@ local function isolate_callbacks()
 	end
 end
 
+local function install_actor_conditions()
+	if type(xr_conditions) ~= "table" then return end
+	-- There may be no player during death/respawn or on an empty server.
+	-- Actor-dependent meet conditions have no target then; ambient NPC AI remains active.
+	for _, name in ipairs({"actor_enemy", "actor_friend", "actor_neutral", "see_actor"}) do
+		local original = xr_conditions[name]
+		if type(original) == "function" then
+			xr_conditions[name] = function(actor, npc, ...)
+				if not actor or not npc then return false end
+				return original(actor, npc, ...)
+			end
+		end
+	end
+end
+
 function install()
 	if installed then return end
+	install_actor_conditions()
 	installed = true
 	isolate_callbacks()
 

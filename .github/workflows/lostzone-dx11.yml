@@ -39,6 +39,7 @@ jobs:
           python scripts/check-netcoop-legacy-dialog.py
           python scripts/check-netcoop-pickup-fallback.py
           python scripts/check-netcoop-admin-commands.py
+          python scripts/check-netcoop-actor-conditions.py
           python scripts/check-netcoop-transit.py
           python scripts/check-netcoop-lua-scope.py
           python scripts/check-netcoop-factions.py
@@ -125,6 +126,10 @@ jobs:
           python scripts/check-native-physics-replica.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-admin-god.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-admin-teleport.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-relation-null.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-checksum.py
       - name: Check actor packet compatibility

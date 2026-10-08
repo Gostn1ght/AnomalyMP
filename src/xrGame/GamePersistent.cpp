@@ -1122,3 +1122,17 @@ bool CGamePersistent::CanUsePlayerConsole() const
 {
     return g_dedicated_server || netcoop::client_admin_authorized();
 }
+
+bool CGamePersistent::RequestDemoTeleport(const Fmatrix& camera)
+{
+    if (!netcoop::pure_client()) return false;
+    if (!netcoop::client_admin_authorized() || !_valid(camera.c))
+    {
+        Msg("! [Lost Zone] administrator account required for demo teleport");
+        return true;
+    }
+    string256 command;
+    xr_sprintf(command, "admin_teleport %.9g %.9g %.9g", camera.c.x, camera.c.y, camera.c.z);
+    netcoop::client_send_command(command);
+    return true;
+}

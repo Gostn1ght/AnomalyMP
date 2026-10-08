@@ -570,7 +570,8 @@ void CDemoRecord::IR_OnKeyboardPress(int dik)
 			{
 				if (g_pGameLevel->CurrentEntity())
 				{
-					g_pGameLevel->CurrentEntity()->ForceTransform(m_Camera);
+					if (!g_pGamePersistent || !g_pGamePersistent->RequestDemoTeleport(m_Camera))
+						g_pGameLevel->CurrentEntity()->ForceTransform(m_Camera);
 					StopDemo();
 				}
 			}

@@ -428,5 +428,13 @@ void CActor::MoveActor(Fvector NewPos, Fvector NewDir)
 	cam_Active()->Set(-unaffected_r_torso.yaw, unaffected_r_torso.pitch, unaffected_r_torso.roll);
 	ForceTransform(M);
 
+	if (netcoop::pure_client() && this == Level().CurrentControlEntity())
+	{
+		// Old ACKs must not compare a server teleport with its old prediction path.
+		// Keep sequence counters, or new input would fail the server sequence gate.
+		m_client_pending_inputs.clear();
+		m_client_prediction_history.clear();
+		m_prediction_error = 0.f;
+	}
 	m_bInInterpolation = false;
 }

@@ -2,6 +2,17 @@
 
 ## Свежий приоритет: игровые баги, 2026-10-08 вечер
 
+Сначала doc81:9043440b8 обе Foundation/DX11 fullSUCCESS, пакет скачивается;
+предыдущий8a провалил только Windows fixture до engine. В private328 lab реальный
+server AV GetRelationType(nil)22:49:49: dump fault0x8/RBP0/PDB+инструкция доказаны.
+Сервер19644 завершился, private15352 после sealing остановлен; сейчас нет процессов.
+Миры/учётки сохранены. Native relation-null guard + серверные условия nil actor,
+ADMIN demo teleport через сервер и очистку старой prediction history без reset
+sequence готовятся следующей GHA. Lua regressions PASS, native/full tests pending.
+Есть отдельная поздняя UI hspairs(nil) ошибка, не назвать scoped RP/pickup proof
+чистой полной сессией. Mutant freeze/smoothness и weapon hover/wall acceptance
+ещё открыты; не применять догадки о split-animation или отсутствии UpdateTracks.
+
 Более свежий результат: actual RP native mouse Stop exactly1 + pose exit PASS;
 qualified-gameplay-scope.json в отдельном lab. Pickup original42753 при корректном
 прицеле блокировался DotMarks/FDDA; точечный fallback only-netcoop при killswitch

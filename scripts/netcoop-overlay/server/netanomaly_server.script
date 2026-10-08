@@ -188,6 +188,16 @@ function on_client_command(cid, name, entity_id, text, role)
 		if not section or not ini_sys:section_exist(section) then return "! unknown section" end
 		return spawn_world(entity_id, section, tonumber(x), tonumber(y), tonumber(z))
 
+	elseif cmd == "admin_teleport" then
+		local a,b,c = string.match(args, "^(%S+)%s+(%S+)%s+(%S+)$")
+		local x,y,z = tonumber(a),tonumber(b),tonumber(c)
+		if not x or not y or not z or x ~= x or y ~= y or z ~= z
+			or math.abs(x) > 50000 or math.abs(y) > 50000 or math.abs(z) > 50000 then
+			return "! usage: admin_teleport <x> <y> <z>"
+		end
+		return netcoop_admin_teleport(entity_id, vector():set(x,y,z))
+			and "* admin teleport accepted" or "! ADMIN teleport rejected"
+
 	elseif cmd == "god" then
 		if not entity_id or entity_id == 65535 then return "! your Actor is not on the server" end
 		if args ~= "" and args ~= "on" and args ~= "off" and args ~= "1" and args ~= "0" then

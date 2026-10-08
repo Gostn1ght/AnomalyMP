@@ -4585,6 +4585,32 @@ bool script_admin_god_set(u16 actor_id, bool value)
 	return true;
 }
 
+bool script_admin_teleport(u16 actor_id, const Fvector& position)
+{
+	if (!enabled() || pure_client() || !g_pGameLevel || !Level().Server || !_valid(position)) return false;
+	FindActorOwner find;
+	find.actor_id = actor_id;
+	xrClientData* CL = static_cast<xrClientData*>(Level().Server->FindClient(find));
+	CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(actor_id));
+	if (!CL || CL->netcoop_role != role_admin || !actor || !actor->g_Alive() ||
+		!server_character_accepts(CL, M_NETANOMALY_CMD) ||
+		!Level().ObjectSpace.GetBoundingVolume().contains(position)) return false;
+	Fvector rotation;
+	rotation.set(-CL->m_current_intent.pitch, CL->m_current_intent.yaw, 0.f);
+	actor->MoveActor(position, rotation);
+	CL->owner->o_Position.set(actor->Position());
+	CL->m_pending_inputs.clear();
+	CL->m_pending_jump_edge = false;
+	CL->m_current_intent.mstate = 0;
+	// Keep input/ACK sequence numbers monotonic across the teleport.
+	NET_Packet packet;
+	CGameObject::u_EventGen(packet, GE_MOVE_ACTOR, actor_id);
+	packet.w_vec3(actor->Position());
+	packet.w_vec3(rotation);
+	Level().Server->SendTo(CL->ID, packet, net_flags(TRUE, TRUE));
+	return true;
+}
+
 bool script_respawn(u16 actor_id)
 {
 	if (!enabled() || !g_pGameLevel || !Level().Server)
