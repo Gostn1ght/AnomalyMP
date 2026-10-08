@@ -36,6 +36,8 @@ on:
       - 'src/xrGame/BreakableObject.h'
       - 'src/xrGame/PhysicObject.cpp'
       - 'src/xrGame/PhysicObject.h'
+      - 'src/xrGame/PhysicsSkeletonObject.cpp'
+      - 'src/xrGame/PhysicsSkeletonObject.h'
       - 'src/xrGame/netcoop_spatial_grid.h'
       - 'src/xrGame/netcoop_simulation_lod.h'
       - 'src/xrGame/netcoop_world_bridge.h'

@@ -21,6 +21,7 @@ BOOL CPhysicsSkeletonObject::net_Spawn(CSE_Abstract* DC)
 	CSE_Abstract* e = (CSE_Abstract*)(DC);
 
 	BOOL res = inherited::net_Spawn(DC);
+	if (!res) return FALSE;
 	xr_delete(collidable.model);
 	collidable.model = xr_new<CCF_Skeleton>(this);
 	CPHSkeleton::Spawn(e);
@@ -68,6 +69,36 @@ void CPhysicsSkeletonObject::shedule_Update(u32 dt)
 	inherited::shedule_Update(dt);
 
 	CPHSkeleton::Update(dt);
+}
+
+bool CPhysicsSkeletonObject::netcoop_capture_saved_physics(CSE_Abstract* entity)
+{
+	CSE_ALifePHSkeletonObject* target = smart_cast<CSE_ALifePHSkeletonObject*>(entity);
+	const u16 count = PHGetSyncItemsNumber();
+	// Use the existing stock codec, including the fractured bone mask/root.
+	if (!target || target->ID != ID() || getDestroy() || H_Parent() ||
+		!PPhysicsShell() || !count || 37u + 8u * count >= NET_PacketSizeLimit)
+		return false;
+	Fvector angles;
+	XFORM().getXYZ(angles);
+	if (!_valid(Position()) || !_valid(angles)) return false;
+	NET_Packet packet;
+	packet.B.count = 0;
+	CPHSkeleton::SaveNetState(packet);
+	packet.r_seek(0);
+	const u8 flags = packet.r_u8();
+	// A pending split still references a live source and cannot be restored
+	// independently. Normal Spawn clears this flag before checkpointing.
+	if (flags & CSE_PHSkeleton::flSpawnCopy) return false;
+	SPHBonesData bones;
+	bones.net_Load(packet);
+	if (!packet.r_eof() || bones.bones.size() != count) return false;
+	target->saved_bones = bones;
+	target->_flags.assign(flags);
+	target->_flags.set(CSE_PHSkeleton::flSavedData, TRUE);
+	target->o_Position = Position();
+	target->o_Angle = angles;
+	return true;
 }
 
 void CPhysicsSkeletonObject::net_Save(NET_Packet& P)

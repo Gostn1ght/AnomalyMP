@@ -24,6 +24,20 @@ Claude и Codex работают в одной папке `engine-steamnet` и �
 
 ## Правила владельца (обязательно)
 
+- Codex BEFORE physics-skeleton checkpoint edit (2026-10-08): actual
+  CPhysicsSkeletonObject is separate from CPhysicObject and omitted by the
+  authority checkpoint traversal. Extend ONLY this class to capture stock
+  CPHSkeleton body/mask/root/flags and XYZ pose into existing
+  CSE_ALifePHSkeletonObject, with complete decode before replacement and the
+  same packet bounds. Preserve source/identity/client data; no save/wire
+  version or AI cadence change. Reject unresolved flSpawnCopy. Preserve
+  stock flNotSave disposal rather than resurrect temporary debris. Add the
+  failed inherited-spawn guard before collision/physics mutation, matching
+  the already-guarded prop/breakable classes. Actual methods/traversal fixture
+  and full native build remain Actions-only. Private native4fa joint-fracture
+  baseline is running with zero damage/stock impulse on four objects; no
+  live acceptance yet. Main exes/world/account data remain untouched.
+
 - Codex 2026-10-08 FINAL scoped breakable PASS: source4fa43fe7d0231df3c5ff4fce4a6bb3c5af70342f,
   Foundation37719768733 + full DX1137719768724 SUCCESS. Artifact11525896846,
   validated source/ZIP/exe manifest; both exesC5D8B349... Only private

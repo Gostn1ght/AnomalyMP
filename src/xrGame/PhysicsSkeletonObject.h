@@ -24,6 +24,7 @@ public:
 	virtual void UpdateCL(); // Called each frame, so no need for dt
 	virtual void shedule_Update(u32 dt); //
 	virtual void net_Save(NET_Packet& P);
+	bool netcoop_capture_saved_physics(CSE_Abstract* entity);
 	virtual BOOL net_SaveRelevant();
 	virtual BOOL UsedAI_Locations();
 protected:

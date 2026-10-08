@@ -32,6 +32,7 @@
 #include "InventoryBox.h"
 #include "PhysicObject.h"
 #include "BreakableObject.h"
+#include "PhysicsSkeletonObject.h"
 #include "Torch.h"
 #include "ZoneCampfire.h"
 #include "alife_simulator.h"
@@ -1280,6 +1281,20 @@ static bool world_store_capture_physics_props()
 			if (!breakable->netcoop_capture_saved_health(entity))
 			{
 				Msg("! [NetAnomaly][world] cannot capture breakable object %u", breakable->ID());
+				return false;
+			}
+			continue;
+		}
+		if (CPhysicsSkeletonObject* fragment = smart_cast<CPhysicsSkeletonObject*>(object))
+		{
+			if (fragment->getDestroy() || fragment->H_Parent() ||
+				!fragment->PPhysicsShell() || !fragment->PHGetSyncItemsNumber()) continue;
+			CSE_Abstract* entity = Level().Server->game->get_entity_from_eid(fragment->ID());
+			CSE_PHSkeleton* skeleton = smart_cast<CSE_PHSkeleton*>(entity);
+			if (skeleton && !skeleton->need_save()) continue;
+			if (!fragment->netcoop_capture_saved_physics(entity))
+			{
+				Msg("! [NetAnomaly][world] cannot capture physics fragment %u", fragment->ID());
 				return false;
 			}
 			continue;
