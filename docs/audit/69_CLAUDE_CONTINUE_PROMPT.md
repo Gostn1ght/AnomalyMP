@@ -12,7 +12,7 @@ Windows/PowerShell, GitHub CLI настроен. Владелец просит �
 
 Сначала прочитай docs/audit/45_CODEX_HANDOFF.md,48_DOC43_AUDIT.md,
 43_WORLD_REQUIREMENTS_PROGRESS.md,67_DESTRUCTIBLE_STATE_RESTART.md,
-68_FAILED_START_INPUT.md,70_NATIVE_WORLD_IDENTITY.md,71_NATIVE_WORLD_EXCLUSIVITY.md,72_NATIVE_WORLD_CLOCK_SCALE.md. Сверь git status/HEAD,
+68_FAILED_START_INPUT.md,70_NATIVE_WORLD_IDENTITY.md,71_NATIVE_WORLD_EXCLUSIVITY.md,72_NATIVE_WORLD_CLOCK_SCALE.md,73_RAIN_SOUNDS_RESTORE.md. Сверь git status/HEAD,
 Actions, свои процессы и qualified acceptance. Более свежий журнал важнее
 этого промпта. Не ставь native PASS по одному backend unit-test/fixture.
 Не добавляй к узкому готовому пункту требования соседних этапов.
@@ -43,14 +43,16 @@ NPC/мутанты — в количестве и с поведением GAMMA 
 контрактами. У Лукаша5–10 задач для вступления в Свободу; лидера-игрока
 назначает админ. Роли игрок/лидер/админ. Не возвращай старый сюжет.
 
-Основную игру пока НЕ обновляли: четыре primary exe gamma-runtime и
+Основные EXE пока НЕ обновляли: четыре primary exe gamma-runtime и
 LostZone-3D-Hideout всё ещё SHA256
 FE829FF44D4A0D4CF2C122A0EB6EDF243B8FCB7D3ABC3872A4C949D553B8AC88.
 88 primary exe/config/account/character/world fingerprints совпадают с
 baseline. Проверка: python -B _build/live/fingerprint-primary-health.py after.
 НЕ перезаписывай baseline; не удаляй/пересеивай owner миры, аккаунты или
 персонажей ради тестов. Только узкие server PDA/item-save guards из doc57
-ранее установлены с backup; новые exe/full overlays не продвигались.
+ранее установлены с backup. Также приняты и установлены только14 новых SSFX
+OGG (doc73); существующий junction даёт их обеим основным папкам. Новые exe/
+full overlays не продвигались, основные world/account/character файлы прежние.
 Для rollout нужны scoped обычный вход, проверенная версия, backup и
 совместимость основного мира. Один bot PASS не основание заменить всё.
 
@@ -83,9 +85,10 @@ ordinary Actor20123 в ТОМ ЖЕ PID10380 ->30сек игры. SAME retained s
 world selftest_destructibles_correlated, не новый мир. Два pre-stop журнала,
 package/source/hashes запечатаны; старые FAIL/dumps сохранены.
 
-Это НЕ чистый весь GAMMA startup:14 engine Lua File-not-found stacks для
-SSFX rain sounds, inactive HUD sentinel255 warning, MCM20s diagnostics,
-две NPC-loadout записи. Strict fatal/SCRIPT ERROR/handler-failed evaluator0
+Исторический e609 recovery НЕ был чистым GAMMA startup:14 engine Lua
+File-not-found stacks SSFX rain, inactive HUD255 warning, MCM/loadout.
+Теперь отдельно принята и установлена звуковая правка doc73; остальные
+диагностики требуют своей приёмки. Strict fatal/SCRIPT ERROR/handler-failed evaluator0
 не считает все engine diagnostic stacks. Doc67 поправлен: его ранняя фраза
 zero Lua была слишком широкой. Native recovery и L30 остаются принятыми;
 human Firebase, menu art, max-view64 и все gameplay callbacks не приняты.
@@ -124,32 +127,46 @@ failures. Old quiet attempt stays UNQUALIFIED. No distributed fencing proof.
 B04 accepted. Затем B01 native PASS (doc72): ALife-backed WorldClock положительные scales6/12/3/1/6, все immediate deltas0, пять mono/game samples совпадают с ожидаемым rate (max discrepancy36ms), даты далеко за32-bit, factor6 восстановлен. Core portable/overflow/monotonic fixtures GCC/MSVC PASS. clock-acceptance.json и sealed pre-stop log в authority-native-171473a99. Это local core, не distributed sync/location adoption/global scale barrier. Counters26/34/69/59. ALL own processes stopped, debug empty,
 all88 primary fingerprints unchanged, NO pending CI, no primary rollout.
 
-Следующие простые задачи диагностированы, но НЕ исправлены:
+Текущая звуковая правка ЗАКРЫТА (doc73), не новый пункт188:
+sourceb18254429effffb23c653f09a517ac5358da2e82 содержит installer/hash manifest.
+Локальный исходный archive SHA1465d07b...;14OGG декодированы существующим
+codec с CRC/size/OggS/SHA. Original GAMMA/profile/archive не менялись.
+_build/live/rain-sound-e609/qualified-acceptance.json: обычный GHAe609
+Actor после реального входа961,14sound_object длительностей512–838ms,
+ещё15сек игры,0missing-sound/fatal/SCRIPT ERROR/handler/caught на обеих ролях.
+SAME selftest_destructibles_correlated private world; no owner credentials.
+Stand-alone timeout/first server alias failure retained, не PASS.
+Primary-assets-installation.json: добавлены ONLY14 OGG под
+gamma-runtime/gamedata/sounds/material/human/step. Hideout использует existing
+junction; обе папки SHA verified. Повтор installer добавляет0/keeps14.
+Все88 защищённых fingerprints прежние; новые sound assets вне baseline88.
 
-1. SSFX sounds: архив
-`C:\Users\Mahito\Downloads\GAMMA\GAMMA\GAMMA RC3.7\mods\190- Screen Space Shaders 23 - Ascii1457\db\mods\ssfx_rain_footsteps.db0`.
-SHA2561465d07b0dfabbda8082f06cc08f9063ed5a6acbed4d714602d249f46ba8a655,
-166511bytes. _build/live/ssfx-archive-inspection.json:14ogg rain01..08,
-jump01..03,land01..03 и4directory entries — совпадают с missing diagnostics.
-Header auto_load=true/entry_point=$fs_root$\gamedata\; runtime не сканирует
-modовый db/mods. Сначала private отдельный FS alias только для этого архива,
-с сохранением остальных assets/aliases; native getFS exist + sound_object14.
-Не активируй весь отключённый мод/не меняй профиль/не копируй4.3ГБ sounds.
-Архив нигде не устанавливался; existing bundled codec использован read-only,
-нового native helper не компилировали.
-2. player_hud::StopScriptAnim: script_anim_part начинаетсяu8(-1)=255,
-GAMMA actor_effects.on_game_load вызывает stop_hud_motion без активной анимации.
-part>2 ошибочно диагностирует sentinel. Будущая узкая правка должна сохранить
-reset/movement/resync callbacks, диагностировать3..254,255 считать штатным.
-Нужны actual method/differential fixture/GHA; не отключай все warnings и
-не выдавай это за исправление мерцания персонажей.
-3. Native INI _build/live/input-recovery-e609538dd/runtime-loadout-observation.json:
-USP_match отсутствует, USP существует; DVL_m1 только338_federal, Ithaca20x70
-только20x70_buck; AK74uM1ISG имеет6 типов7.62x39. Таблицы NPC ссылаются на
-отсутствующий USP и индексы3/6 за границей. Скрипт берёт fallback0 и пишет
-printe. Исправляй конкретные config mappings/совместимость, сохраняй attachment,
-weight и качество по смыслу; не подавляй diagnostics и не меняй AI/population
-ради скорости. Эти таблицы ещё не патчились.
+HUD255 source correction подготовлена, полный runtime PASS пока НЕ принят:
+StopScriptAnim excludes only255 normal inactive sentinel; callbacks/reset
+и diagnostics3..254 unchanged. Это не исправление видимого мерцания.
+b182 Foundation37768760407/DX1137768760410 FAILED перед engine build:
+fixture renaming changed diagnostic literal; Windows default decode failed.
+FIXTURE ONLY correction be30a8bb2bef31452eed26d2e945b6fad2f41778:
+rename declaration only, byte-preserving latin1 read. Actual2048 differential
+cases/diagnostic assertions не ослаблены. Foundation37773463706 SUCCESS
+Linux ASan/UBSan + MSVC. DX1137773463776 in progress fullengine; перепроверь.
+Не source push во время engine build; docs-only можно. Новый EXE ещё не
+скачан/не установлен, требуется private ordinary admission/startup acceptance.
+
+NPC config compatibility fix сейчас готовится и ещё НЕ принят/не установлен:
+scripts/install-netcoop-npc-loadouts.py и fixtures/npc-loadouts/compatibility.json.
+9точных записей/5файлов: USP_match→USP; Ithaca20x70 index3/6→0; DVL_m1
+index3→0; AK74uM1ISG index6→3 (pristine7.62AP), attachment/weights/chances
+сохраняются. USP раньше отбрасывался из pool: восстановление допустимой
+записи меняет выбор оружия по исходным весам, не заявляй identical RNG pool.
+Native INI proof старых calibers _build/live/input-recovery-e609538dd/
+runtime-loadout-observation.json. Не подавляй warnings/не меняй AI/population.
+Installer preview by default, all9 match preflight before mutation,
+new backup directory+atomic replace avoids hardlink corruption.
+Private _build/live/loadout-e609 configs/server-configs patched, originals
+backed up, repeat preview0. Native server/client INI query+ordinary known961
+admission currently under test; result/logs determine acceptance, not plan.
+Основные configs пока прежние. Проверяй свои live processes/debug до выхода.
 
 L30 закрыт doc64–67: actual GHA4b glass/wood/metal, exact health0.6/original
 INI после restart,0.7 уничтожает, checkpoint/второй restart сохраняют отсутствие.
@@ -179,4 +196,6 @@ built-from, ZIP digest, manifest и exe hashes проверять обязате
 Продолжай162 оставшихся пункта, обновляй честно doc45/48. Защити основной
 вход в игру. Если лимиты заканчиваются, сохрани точный handoff/свои pending
 процессы/CI/незакоммиченные файлы. Reset credits автоматически не расходуй.
-Последний quota snapshot:5h used83%, weekly82%; основной runtime не обновлён.
+Последний quota snapshot 2026-10-08:5h used1%, weekly0%; reset автоматически
+не расходовали. Snapshot из прошлой сессии99/84 устарел. Основные EXE
+прежние;14 новых sound assets установлены, NPC configs пока не продвигались.

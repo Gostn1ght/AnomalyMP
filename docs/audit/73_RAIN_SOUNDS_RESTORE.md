@@ -57,3 +57,11 @@ movement/resync behavior and warnings for3..254. Actual-method2048-case
 differential fixture is included in Foundation/DX11 workflows. Native build/
 fixture results still required; no local C++ compilation or primary engine
 promotion. This does not fix visible character blinking or all animation issues.
+
+HUD fixture qualification update: b182 Foundation37768760407/DX1137768760410
+failed before engine build. The control-method rename also renamed its Msg
+literal, correctly rejected by the exact diagnostic assertion; Windows source
+read also used an incompatible default codec. Fixture-only be30a8bb2 repairs
+declaration-only rename and byte-preserving latin1 reading; assertions retained.
+Foundation37773463706 succeeds Linux ASan/UBSan and MSVC; DX1137773463776
+full engine build currently pending. No native HUD runtime acceptance yet.
