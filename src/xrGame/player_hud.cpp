@@ -1517,7 +1517,7 @@ void player_hud::StopScriptAnim()
 
 	updateMovementLayerState();
 
-    if (part > 2)
+    if (part > 2 && part != u8(-1))
     {
         if (print_bone_warnings)
         {

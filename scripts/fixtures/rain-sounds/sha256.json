@@ -1,0 +1,58 @@
+{
+  "rain_01.ogg": {
+    "sha256": "07278f77746f46a9b997b0ee95eac070f8bc6212165db66f2cd60c1fc08dca4a",
+    "bytes": 12097
+  },
+  "rain_02.ogg": {
+    "sha256": "28b492e5b7fe5124d13480cd5462b1875f7a445581a506eb34797f532ac7a568",
+    "bytes": 12636
+  },
+  "rain_03.ogg": {
+    "sha256": "c17f6ff5b0def2750bfef480dfe0d5098e5e138f1d4a1a288540306e083b2f52",
+    "bytes": 14952
+  },
+  "rain_04.ogg": {
+    "sha256": "7a1ad9abe13f61ae249dab23050ce495fcaf0a5d6e35d88a4a3420103cb1ec1d",
+    "bytes": 12737
+  },
+  "rain_05.ogg": {
+    "sha256": "97ab8c27f1907ae9def73d872b39a2bebb76b26d504fd983402d9f0363e27958",
+    "bytes": 11477
+  },
+  "rain_06.ogg": {
+    "sha256": "6d38fbee77840d47d8c9417c068ad112f36151dbeb1a1fa940884186cc5ef98f",
+    "bytes": 12472
+  },
+  "rain_07.ogg": {
+    "sha256": "144a6358c8092242060ed6aa1cce5eb22cf481643c8fbd2bb32f3e42ae961a40",
+    "bytes": 10359
+  },
+  "rain_08.ogg": {
+    "sha256": "a750e129eec2704494b306b6ba91faabebff4282ecf5e527cc47ad1a972d8f07",
+    "bytes": 12678
+  },
+  "rain_jump_01.ogg": {
+    "sha256": "d68bf985bb51e24468bc0edb1fe98d7f1ba7303f0c6ce24055f7e6a8dc1c482c",
+    "bytes": 13413
+  },
+  "rain_jump_02.ogg": {
+    "sha256": "9f253efee7cb5b2836756348aaec48bb8316e71284b26ffc47fea324eb242bde",
+    "bytes": 12168
+  },
+  "rain_jump_03.ogg": {
+    "sha256": "4091e1bb43ecd659e27523a3c7c5de34007077bfdcca160a607d6472f66af19d",
+    "bytes": 13220
+  },
+  "rain_land_01.ogg": {
+    "sha256": "4381c337a285520e2eb1365adb3a4a14d68d6755a13db6b095c98eed67517be9",
+    "bytes": 12802
+  },
+  "rain_land_02.ogg": {
+    "sha256": "e462e1b5a0d4163afcf71351a0d5f55d3c504b0d6ab28bc16292167ee36f51d3",
+    "bytes": 11802
+  },
+  "rain_land_03.ogg": {
+    "sha256": "7e78c64c52396b07a101da18d49f50aa1cdbbe6197e11dd2dfe13349130aeb19",
+    "bytes": 12948
+  }
+}
