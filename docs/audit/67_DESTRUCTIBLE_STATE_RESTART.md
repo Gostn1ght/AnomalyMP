@@ -80,6 +80,35 @@ evaluator independently passes all three phases.
 All88 primary exe/config/account/character/world fingerprints still match
 the pre-test baseline. Four primary exes remain
 `FE829FF44D4A0D4CF2C122A0EB6EDF243B8FCB7D3ABC3872A4C949D553B8AC88`.
-No primary rollout or owner account changes. An ordinary graphical-client
-integration probe is separate and not yet accepted; its startup failures
-must not erase this native persistence proof or be claimed as visual PASS.
+No primary rollout or owner account changes. The ordinary graphical peer
+continuation is recorded below; rejected-admission recovery remains separate
+and open in doc68. Earlier startup failures do not erase the qualified native
+persistence proof and must not be claimed as visual PASS.
+
+## Ordinary graphical peer continuation
+
+Qualified `run-graphic-peer.ps1` completed both ordinary graphical sessions
+on the same retained world with source4b, synthetic existing accountnbot_961
+and private configs/scripts/appdata. Actor20123 in phase1 and Actor20239 in
+phase2 are actual connected game actors; no bot-render mode is used.
+
+Client observation confirms intact bottle15505 with physics shell and
+`3f800000` metadata. The server applies calibrated0.4 damage and explicitly
+commits. After restarting the SAME world, the ordinary client observes the
+same15505/shell with exact `3f19999a` saved damage. The server then applies0.7;
+the client observes15505 absent, followed by explicit destroyed checkpoint.
+Both sessions have the native first-window-frame-presented marker and live
+render device frames (8444 and12113,944x501). These are not screenshots or
+maximum-visibility/NPC-smoothness acceptance. Hits are trusted native server
+commands, not a real human weapon RPC test or Firebase registration.
+
+Private `graphic-peer-snapshots.json` and four pre-stop peer journals retain
+the qualified responses. Earlier unqualified attempts remain separate;
+correct-account entry preceded a test Lua string compilation failure (no
+hits), then the final repeat syntax-checked the observation before launch.
+Doc68 records the independently discovered rejected-admission input crash.
+MCM startup produced20s script-hang diagnostics, so the whole graphical
+startup must not be labelled warning-free. Four existing NPC-loadout diagnostic
+records remain (one per client/server pre-stop journal). The qualified peer
+journals contain zero fatal/Lua/caught-error records. All test processes stopped;
+shared debug channel empty, all88 primary fingerprints still unchanged.
