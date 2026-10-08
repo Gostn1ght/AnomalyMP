@@ -77,11 +77,23 @@ qualified private server settings and fail-fast launcher preflight. Retained
 all original logs/dumps and failed-start-missing-user-settings.json; no world
 deletion/reseed. Second attempt exposed Empty lightning_model: the preparation
 helper shortened fs_root while keeping game_data and archive paths long. X-Ray
-virtual archive lookup keys no longer agreed. Both PRIVATE fsgame files now
-retain the exact long fs_root from the qualified native template, UTF8noBOM.
+virtual archive lookup keys no longer agreed. Server fsgame now retains the
+exact qualified LONG fs_root/game_data pair. Applying that server spelling
+also to the client was incorrect: its qualified game_data is SHORT, producing
+the same lightning-model fatal in the first interactive client. The owner
+reported that crash. Its journal is sealed as client.failed-archive-alias.log.
+Client fsgame now restores its OWN exact SHORT fs_root/game_data pair. Both
+launchers preflight literal agreement before starting. UTF8noBOM throughout.
 Failed-start-archive-alias.json and all native journals/dumps remain. No model
-replacement or weather/AI reduction. Third repeat/interactive acceptance
-pending at this entry.
+replacement or weather/AI reduction. Third server attempt accepted: all four
+native maps durably ready, native console grants test_admin ADMIN with GUID
+4be32dcd4a6243f5ba8a6f72d4d7ca3d. Running server PIDs7732/20264/21592/14656
+(Cordon/Swamps/Garbage/Bar), running-servers.json records source/paths/ports.
+Repeated interactive client PID16632 is loading; final entry pending.
+Primary fingerprint check after server launch: all88 protected files MATCH.
+Lua source1b01b013d pushed; DX1137816511889 actual Lua checks SUCCESS,
+full engine still building. User EXEs are qualified213, no intervening C++
+delta; new Lua guards independently verified/installed only in private session.
 
 Primary four EXEs remain FE829FF44D4A0D4CF2C122A0EB6EDF243B8FCB7D3ABC3872A4C949D553B8AC88;
 no primary engine rollout. Earlier installed delta14sounds/20loadoutLTX/

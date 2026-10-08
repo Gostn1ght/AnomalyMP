@@ -176,7 +176,13 @@ void CLevel::IR_OnKeyboardPress(int key)
 		CActor* actor = smart_cast<CActor*>(CurrentControlEntity());
 		if (actor && actor->m_rp_index >= 0 && key != DIK_Z &&
 			_curr != kQUIT && _curr != kCONSOLE && _curr != kSCREENSHOT)
+		{
+			// RP locks gameplay, but the wheel's Stop button must receive
+			// mouse press events. Never forward an unhandled UI key to gameplay.
+			if (!g_bDisableAllInput && b_ui_exist && CurrentGameUI()->TopInputReceiver())
+				CurrentGameUI()->IR_UIOnKeyboardPress(key);
 			return;
+		}
 		if (key == DIK_Z && actor && actor->g_Alive() && !g_bDisableAllInput)
 		{
 			::luabind::functor<bool> rp;

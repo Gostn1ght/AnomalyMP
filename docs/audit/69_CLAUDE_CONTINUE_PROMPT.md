@@ -33,10 +33,17 @@ running-client.json и собственные PID перед любым запу
 
 Первая попытка четыре сервера не имела user.ltx; settings добавлены и preflight
 защищает повтор. Вторая выявила Empty lightning_model: short fs_root и long
-game_data рассогласовали виртуальные archive keys. В ОБОИХ частных fsgame
-восстановлен исходный LONG fs_root как в qualified template, UTF8noBOM.
+game_data рассогласовали виртуальные archive keys. В server fsgame
+восстановлена исходная LONG пара fs_root/game_data. Client использует СВОЮ
+qualified SHORT пару; ошибочное применение LONG server root к SHORT client
+привело к первому interactive crash (owner сообщил), журнал сохранён отдельно.
+Оба launcher теперь проверяют буквальное согласование пары; UTF8noBOM.
 Старые failed-start/logs/dumps сохраняются, owner worlds не удалялись.
-Третья попытка под наблюдением; итог дописать в doc79/doc45 после проверки.
+Третья server попытка успешна:4durableReady, native ADMIN grant подтверждён,
+PIDs7732/20264/21592/14656 по порядку выше. Interactive повтор PID16632 loading;
+финал дописать после native auth/Actor/precache/PNG. Не останавливай4живыхсерверов.
+Actual88primaryfingerprints MATCH. Source1b01b013d pushed, DX1137816511889
+Lua checks SUCCESS, fullengine pending; private EXEs qualified213 (C++unchanged).
 
 Продолжай Lost Zone — мультиплеер GAMMA/S.T.A.L.K.E.R. Anomaly на X-Ray,
 репозиторий Gostn1ght/AnomalyMP, ветка menu-3d-hideout, remote gostn1ght.
