@@ -267,6 +267,8 @@ CScriptGameObject* CScriptGameObject::GetCorpse() const
 
 bool CScriptGameObject::CheckTypeVisibility(const char* section_name)
 {
+	if (!section_name) return false;
+
 	CCustomMonster* l_tpCustomMonster = smart_cast<CCustomMonster*>(&object());
 	if (l_tpCustomMonster)
 		return (l_tpCustomMonster->CheckTypeVisibility(section_name));

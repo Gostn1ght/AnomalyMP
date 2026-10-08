@@ -15,6 +15,7 @@ persistent=(root/'src/xrGame/GamePersistent.cpp').read_text(encoding='latin-1')
 request=persistent[persistent.index('bool CGamePersistent::RequestDemoTeleport('):]
 assert request.rstrip().endswith('}')
 render=(root/'src/xrEngine/FDemoRecord.cpp').read_text(encoding='latin-1')
+assert '#include "IGame_Persistent.h"' in render
 assert 'if (!g_pGamePersistent || !g_pGamePersistent->RequestDemoTeleport(m_Camera))' in render
 source=r'''
 #include <cassert>

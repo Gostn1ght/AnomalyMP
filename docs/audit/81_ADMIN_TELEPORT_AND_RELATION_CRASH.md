@@ -8,7 +8,9 @@ God actual native role/connection/predicate fixture and actual fragment
 selection/replica fixture passed. Preceding8a935d67a Foundation37834873675:
 Linux PASS, Windows test-stub BOOL/bool comparison and implicit int->u16 warnings
 under W4/WX; fullDX1137834873642 failed BEFORE engine compilation.904 fixes
-only those fixture types; warning policy retained. New package download pending.
+only those fixture types; warning policy retained. Package904 qualified/downloaded:
+artifact11576990721, ZIP988af512d8181270422a8e06763d92c721aeb0881e1256942a421eea826510ca,
+both EXE BA9CD69C09FAD263782B979033793E99AFBEE84968964F340D1D6B6007FE2959.
 No primary EXE rollout. Scoped RP/pickup proof is on328 plus exact pickup Lua.
 
 The same private328 lab ran until a real server crash at22:49:49 local.
@@ -59,3 +61,28 @@ changes or claimed mutant PASS in this continuation.
 After qualification, restore private owner maps from retained worlds, include
 requested Darkscape(k01_darkscape) route if appropriate, no interactive client
 while owner asleep. Then resume remaining188, easy before medium before hard.
+
+Continuation23:45 local: source28a05cfcb2d194843df3b9771440d42871557b8f
+Foundation37838717278 SUCCESS both actual native fixtures. FullDX1137838717247
+FAILED in engine job113522491131: FDemoRecord.cpp573 g_pGamePersistent undeclared.
+Fixture did not compile that translation unit. Add missing IGame_Persistent.h;
+retain failure log _build/live/destroyable-ci-113522491131.log. No failed package installed.
+
+Private retained lab upgraded to qualified904 only, old binaries/overlays/logs
+backed up;20 state/account/config/save files verified unchanged at upgrade.
+Server6532/client25468 running Hidden, world epoch2 loaded existing save_b.
+Real actor18986: native RP Stop callback exactly1/pose exit PASS again.
+Normal g_god on request received server confirmation. Actual server hit power10
+left health1.0->1.0, GOD_ON_HIT_PASS logged; OFF/control test pending.
+No whole-session clean claim: empty server xr_wounded.process_hp_wound334
+npc:see(db.actor=nil) fails wounded evaluator repeatedly. Both native see overloads
+(object and section) lacked null guards; prepare guards returning false without
+changing valid visibility/memory/vision behavior. Extend actual relation fixture
+with whole object/section visibility methods, nil/dead/non-entity/normal paths.
+Mutant smoothness still unaccepted. Native live fragments/drop/hover pending.
+
+Also prepare GodMode(Actor()) for burer StaminaHit and controller HitEntity:
+these two special stamina/weapon-drop paths still queried the global flag.
+Actual native fixture extends burer guard/controller whole body and ordinary
+stamina/drop/forwarding controls. GHA-only compilation pending next revision.
+Primary and owner4 map worlds not promoted/changed, original188 counts unchanged.

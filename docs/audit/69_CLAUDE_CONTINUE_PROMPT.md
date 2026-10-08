@@ -2,6 +2,15 @@
 
 ## Свежий приоритет: игровые баги, 2026-10-08 вечер
 
+Новее нижних строк: doc81 продолжение23:45.904 скачан/квалифицирован, установлен
+только в retained private lab, server6532/client25468 работают. RP Stop снова PASS;
+серверный hit power10 после normal g_god on оставил HP1->1. OFF/control ещё pending.
+28a Foundation37838717278 обе SUCCESS; fullDX1137838717247 FAILED: FDemoRecord
+не включил IGame_Persistent.h. Исправляется вместе с native nil обеих see overloads
+(реальный empty-server wounded evaluator failure) и Actor-scoped God для атак
+бюрера/контролёра; actual fixtures расширены. Полной clean-session/hover/mutant
+квалификации ещё нет. Состояние owner4/main сохранено. Счётчики188 не повышать.
+
 Сначала doc81:9043440b8 обе Foundation/DX11 fullSUCCESS, пакет скачивается;
 предыдущий8a провалил только Windows fixture до engine. В private328 lab реальный
 server AV GetRelationType(nil)22:49:49: dump fault0x8/RBP0/PDB+инструкция доказаны.

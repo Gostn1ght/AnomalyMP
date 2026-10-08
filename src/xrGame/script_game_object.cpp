@@ -311,6 +311,8 @@ LPCSTR CScriptGameObject::WhoHitSectionName()
 
 bool CScriptGameObject::CheckObjectVisibility(const CScriptGameObject* tpLuaGameObject)
 {
+	if (!tpLuaGameObject) return false;
+
 	CEntityAlive* entity_alive = smart_cast<CEntityAlive*>(&object());
 	if (entity_alive && !entity_alive->g_Alive())
 	{

@@ -244,7 +244,7 @@ void CBurer::CheckSpecParams(u32 spec_params)
 
 void xr_stdcall CBurer::StaminaHit()
 {
-	if (GodMode())
+	if (GodMode(Actor()))
 	{
 		return;
 	}

@@ -16,6 +16,10 @@ condition=(root/'src/xrGame/ActorCondition.cpp').read_text(encoding='latin-1')
 predicate=condition[condition.index('BOOL GodMode('):condition.index('CActorCondition::CActorCondition(')]
 assert 'netcoop_admin_god = false;' in (root/'src/xrGame/xrServer.cpp').read_text()
 assert 'GodMode()' not in condition
+burer=(root/'src/xrGame/ai/monsters/burer/burer.cpp').read_text(encoding='latin-1')
+burer_guard=burer[burer.index('void xr_stdcall CBurer::StaminaHit()'):burer.index('\tCWeapon* const active_weapon',burer.index('void xr_stdcall CBurer::StaminaHit()'))]
+controller=(root/'src/xrGame/ai/monsters/controller/controller.cpp').read_text(encoding='latin-1')
+controller_hit=controller[controller.index('void CController::HitEntity('):controller.index('bool CController::tube_ready()',controller.index('void CController::HitEntity('))]
 source=r'''
 #include <cassert>
 #include <cstdio>
@@ -26,7 +30,12 @@ using u16=unsigned short;using BOOL=int;
 constexpr int FALSE=0,eGameIDSingle=1,AF_GODMODE=1,AF_GODMODE_RT=2;
 template<class T>using xr_set=std::set<T>;
 struct CObject{virtual ~CObject()=default;};
-struct CActor:CObject{u16 id=0;bool alive=true;u16 ID()const{return id;}bool g_Alive()const{return alive;}};
+struct CEntity:CObject{};
+struct Conditions{float power=1;unsigned hits=0;void PowerHit(float,bool){++hits;}float GetPower()const{return power;}};
+struct Inventory{bool accepts=false;unsigned actions=0;bool Action(u16,int){++actions;return accepts;}};
+struct CActor:CEntity{u16 id=0;bool alive=true;::Conditions cond;::Inventory inv;unsigned drops=0;
+ u16 ID()const{return id;}bool g_Alive()const{return alive;}
+ ::Conditions& conditions(){return cond;}::Inventory& inventory(){return inv;}void g_PerformDrop(){++drops;}};
 struct Owner{u16 ID=0;};
 struct IClient{virtual ~IClient()=default;};
 struct xrClientData:IClient{struct {bool bLocal=false;}flags;Owner* owner=nullptr;int netcoop_role=0;bool netcoop_admin_god=false;};
@@ -46,6 +55,18 @@ namespace netcoop{
 '''+methods+r'''
 }
 '''+predicate+r'''
+CActor* current_actor=nullptr;CActor* Actor(){return current_actor;}
+#define xr_stdcall
+struct CBurer{unsigned effects=0;void StaminaHit();};
+'''+burer_guard+r'''
+ ++effects;
+}
+struct Fvector{};namespace ALife{enum EHitType{hit};}
+constexpr int kDROP=1,CMD_STOP=2;
+struct BaseMonster{unsigned forwarded=0;void HitEntity(const CEntity*,float,float,Fvector&,ALife::EHitType,bool){++forwarded;}};
+struct CController:BaseMonster{using inherited=BaseMonster;float m_stamina_hit=2;
+ void HitEntity(const CEntity*,float,float,Fvector&,ALife::EHitType,bool);};
+'''+controller_hit+r'''
 int main(){
  Server server;world.Server=&server;
  CActor admin,player,dummy;admin.id=7;player.id=8;dummy.id=0;
@@ -57,6 +78,15 @@ int main(){
  assert(!netcoop::script_admin_god_set(8,true)&&!pc.netcoop_admin_god);
  psActorFlags.flags=AF_GODMODE|AF_GODMODE_RT;
  assert(GodMode(&admin)&&!GodMode(&player)&&GodMode(&dummy));
+ CBurer b;CController c;Fvector dir;current_actor=&admin;
+ b.StaminaHit();c.HitEntity(&admin,1,1,dir,ALife::hit,true);
+ assert(b.effects==0&&admin.cond.hits==0&&admin.inv.actions==0&&admin.drops==0&&c.forwarded==1);
+ current_actor=&player;b.StaminaHit();c.HitEntity(&player,1,1,dir,ALife::hit,true);
+ assert(b.effects==1&&player.cond.hits==1&&player.inv.actions==1&&player.drops==1&&c.forwarded==2);
+ c.HitEntity(&admin,1,1,dir,ALife::hit,true);
+ assert(player.cond.hits==1&&c.forwarded==3); // non-current target keeps ordinary forwarding
+ player.inv.accepts=true;c.HitEntity(&player,1,1,dir,ALife::hit,true);
+ assert(player.cond.hits==2&&player.inv.actions==2&&player.drops==1&&c.forwarded==4);
  assert(netcoop::script_admin_god_set(7,true)&&netcoop::script_admin_god_set(7,true));
  assert(netcoop::script_admin_god_set(7,false)&&!GodMode(&admin));
  const unsigned scans=server.scans;
@@ -83,7 +113,7 @@ int main(){
   assert((GodMode(&player)!=FALSE)==((enabled&&!pure)?false:kind==eGameIDSingle&&flags!=0));
   ++cases;
  }
- std::printf("PASS actual admin god: connection/actor/role isolation, revoke/reconnect/dead/missing guards, idempotent on/off,64000 ordinary checks without client scans, %u SP/client predicate cases\n",cases);
+ std::printf("PASS actual admin god: connection/actor/role isolation, burer guard/controller stamina-drop path, revoke/reconnect/dead/missing guards, idempotent on/off,64000 ordinary checks without client scans, %u SP/client predicate cases\n",cases);
 }
 '''
 with TemporaryDirectory() as tmp:
