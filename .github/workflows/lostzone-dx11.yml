@@ -30,6 +30,7 @@ jobs:
           python -m pip install lupa==2.8
           python scripts/check-netcoop-menu.py
           python scripts/check-netcoop-trade.py
+          python scripts/check-netcoop-inventory-compat.py
           python scripts/check-netcoop-ai.py
           python scripts/check-netcoop-vision-cadence.py
           python scripts/check-netcoop-items.py

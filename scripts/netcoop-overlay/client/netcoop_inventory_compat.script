@@ -1,0 +1,12 @@
+-- These six GAMMA stat rows have no P/N atlas regions. Their bonus controls
+-- are hidden on construction and never shown by the qualified inventory
+-- updater. Keep the controls/text/bars, but do not load nonexistent textures.
+local unused_bonus_icons = {
+    thirst = true, sleep = true, br_class = true,
+    br_mitigation = true, strike = true, explosion = true,
+}
+
+function init_bonus_texture(control, polarity, name)
+    if unused_bonus_icons[name] then return end
+    control:InitTexture("ui_inGame2_inv_state_" .. polarity .. "_" .. name)
+end
