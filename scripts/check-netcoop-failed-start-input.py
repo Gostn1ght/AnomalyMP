@@ -29,6 +29,7 @@ using u32=unsigned;using LPCSTR=const char*;using string256=char[256];
 template<class T>using xr_vector=std::vector<T>;
 struct Receiver {int activated=0,deactivated=0;virtual ~Receiver()=default;
  virtual void IR_OnActivate(){++activated;}virtual void IR_OnDeactivate(){++deactivated;}};
+using IInputReceiver=Receiver;
 struct CInput {xr_vector<Receiver*> cbStack;void iRelease(Receiver*);
  bool contains(Receiver* r)const{return std::find(cbStack.begin(),cbStack.end(),r)!=cbStack.end();}};
 CInput input;Receiver dummy,overlay;
