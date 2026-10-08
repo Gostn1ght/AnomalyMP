@@ -44,6 +44,7 @@ BOOL CBreakableObject::net_Spawn(CSE_Abstract* DC)
 	CSE_ALifeObjectBreakable* obj = smart_cast<CSE_ALifeObjectBreakable*>(e);
 	R_ASSERT(obj);
 	BOOL res = inherited::net_Spawn(DC);
+	if (!res) return FALSE;
 	xr_delete(collidable.model);
 	collidable.model = xr_new<CCF_Skeleton>(this);
 	// set bone id

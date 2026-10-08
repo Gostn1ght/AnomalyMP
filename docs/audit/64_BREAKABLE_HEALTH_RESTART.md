@@ -69,3 +69,13 @@ selection fixture had passed. Add that allocator double; no runtime change,
 no relaxed assertions or compiler warnings. Original failure log retained
 as _build/live/breakable-linux-bc61.log. DX1137719222296 is superseded because
 the same missing fixture allocator prevents full-build entry.
+
+Successore839d45dcad6f821fe581cbc5bda9beb0e619edf, Foundation37719446583 /
+DX1137719446579: fixture compiles and exercises the actual code, then FAILS
+the failed-base-spawn assertion. Existing CBreakableObject::net_Spawn stored
+inherited's false result but still replaced collision state/initialized
+physics, only returning false at the end. This is an actual source-path
+defect exposed by the fixture, not another missing API double. Add immediate
+return FALSE before any model/physics mutation, matching other physics spawn
+implementations. Preserve assertion and failure log breakable-linux-e839.log.
+No main runtime changed, no native acceptance claim; new CI still required.
