@@ -1,7 +1,8 @@
 # 68. Graphical failed admission retained a destroyed input receiver
 
 2026-10-08, Codex. Native source fix is in `4cea23d23`; fixture corrections in
-`8e1c324d9` and `a42873172`. Full native acceptance remains pending. Primary
+`8e1c324d9` and `a42873172`. Failed-admission return is accepted; complete
+same-process retry requires the additional dialog-update fix `e609538dd`. Primary
 executables, owner accounts and worlds are unchanged.
 
 ## Qualified native failure
@@ -58,12 +59,46 @@ engine release method and fixture assertions were not changed. Final
 a42873172 confines suppression of that one pre-existing MSVC warning to the
 imported release method, leaving new code under `/W4 /WX`.
 
-Final Foundation37750844941 PASS on both Linux/GCC/ASan/UBSan and Windows/MSVC,
-including the unchanged actual-method assertions. DX1137750844864 passed
-checks/native fixtures and is building the full engine. Require its result,
-source/artifact/hash validation and native rejected-login
-regression before marking this fix accepted or promoting any primary exe.
-Do not cancel a full build with another source push.
+Final Foundation37750844941 and DX1137750844864 SUCCESS. Validated artifact
+11539071054, ZIP SHA256
+`f3330cd418dc8b99f64f298fc0f42d12912de83a0d702e6c6a7b3afba331e413`,
+both executable SHA256
+`28859EF757A0BD2BF0365B4D8B4CC2D0040C777117B2AC924D4E410CB3A281D1`.
+Only `_build/live/input-recovery-a42873172` received this package.
+
+Two ordinary-client attempts qualified rejection after map loading. The
+fixed executable returned to live menu/form updates without the old input
+exception. Attempt1 could not execute the retry mailbox because the normal
+frontend hides the main menu when showing its login dialog. Its own exact
+pending GUID was preserved and cleared; this is an instrumentation limit,
+not complete recovery acceptance. Attempt2 preserves original updates in
+both windows; seven live callbacks follow rejected admission.
+
+Attempt2 then executes valid native synthetic login in the same client and
+closes the menu from Update. Actual exception `0xc0000005`, address
+`0x14032c89c`, exact a428 PDB: `CDialogHolder::OnFrame`,
+`UIDialogHolder.cpp:256`. `CMainMenu::Activate(false)` calls `CleanInternals`
+while OnFrame holds an iterator into the cleared render vector. Production
+asynchronous EnterWorld also closes the menu during Update. The raw dump,
+logs, package provenance and hashes remain in attempt2-qualification.json;
+same-process retry is FAIL, not hidden by the earlier menu PASS.
+
+Source e609538dd rechecks vector size by index and retains no element
+reference across dialog callbacks. Non-mutating callback order/count are
+preserved. CleanInternals also clears deferred dialogs to prevent closed
+popups reappearing. Actual OnFrame/CleanInternals/AddDialogToRender fixture
+compares 256 legacy traces and covers callback deletion, deferred additions
+and disabled entries. Foundation37756749563 SUCCESS on Linux sanitizers and
+Windows; DX1137756749573 full build pending. Repeat the full rejection ->
+live menu -> valid admission in `_build/live/input-recovery-e609538dd`, which
+has fresh client appdata and the SAME retained private server world.
+No primary promotion before scoped native acceptance. Do not cancel a full
+build with another source push.
+
+The shared PowerShell result evaluator now rejects the anchored actual
+UnhandledFilter footer `at address 0x...`; ordinary inline hitch/profile
+addresses remain valid. Source593c1e3ef passed Foundation37753870928 and
+DX1137753870992. It changes acceptance diagnostics, not gameplay.
 
 ## Evidence and separate integration
 

@@ -56,8 +56,9 @@ pre-fix control и все failure branches. Первые два запуска C
 из-за самого fixture: пропущенного alias IInputReceiver, затем старого
 MSVC-warning преобразования vector::size в u32. Engine/assertions не меняли;
 warning подавлен только внутри импортированного старого iRelease.
-DX1137750844864 прошёл checks/native fixtures; статус полной сборки проверь
-заново. Не объявляй исправление полностью принятым по одному Foundation.
+DX1137750844864 SUCCESS. Artifact11539071054,
+ZIPf3330cd418dc8b99f64f298fc0f42d12912de83a0d702e6c6a7b3afba331e413;
+both exe28859EF757A0BD2BF0365B4D8B4CC2D0040C777117B2AC924D4E410CB3A281D1.
 
 Подготовлен приватный `_build/live/input-recovery-a42873172/run.ps1`:
 неизвестный тестовый nbot_960 получает отказ -> обычное меню продолжает
@@ -65,8 +66,30 @@ Update ПОСЛЕ отказа -> через нативный login API вход
 в ТОМ ЖЕ процессе -> actor ready и30сек живого клиента. Это проверка
 восстановления, не Firebase-регистрация владельца. Перед запуском нужны
 успешный GHA пакет, проверенные built-from/manifest/ZIP/exe hashes и
-installed-from.json. В подготовленной папке бинарники пока отсутствуют;
-проверь это фактически. Сервер использует исходный сохранённый приватный
+installed-from.json. Пакет уже установлен только в этой приватной папке.
+Отказ после загрузки карты -> живые menu/form Update прошёл на actual exe.
+Attempt1 не смог выполнить mailbox из скрытого main_menu: свой GUID сохранён
+и очищен, ограничение инструмента. Attempt2 сохраняет оригинальные Update и
+main_menu, и login dialog;7живых callbacks после отказа, valid native login961
+в том же процессе -> НОВОЕ реальное падение при main_menu off из Update.
+Minidump0xc0000005/address14032c89c; exact a428 PDB:
+CDialogHolder::OnFrame UIDialogHolder.cpp256. CleanInternals очищает render
+vector, пока OnFrame держит итератор. Production asynchronous EnterWorld
+также закрывает меню из Update. attempt2-qualification.json сохраняет
+провал полного retry и hashes/logs/dump; ранний menu PASS его не заменяет.
+
+Source e609538ddc5f197a959b273bd9375d624d928f06 исправляет итерацию индексом
+с повторной проверкой size, без references через callback. Обычный порядок/
+число callbacks сохраняются; CleanInternals очищает и deferred закрытые окна.
+Actual OnFrame/CleanInternals/AddDialogToRender fixture:256legacy traces,
+clear+delete из callback, deferred/deduplicated add, clear+new add, disabled skip.
+Foundation37756749563 SUCCESS Linux ASan/UBSan/MSVC. DX1137756749573 строится:
+дождись результата, проверь пакет. Не отменяй source push во время сборки.
+Свежий input-recovery-e609538dd/run.ps1 подготовлен без бинарников; appdata
+только user.ltx, owner credentials нет. Установи validated e609 пакет с
+installed-from/hashes, повтори unknown960 -> live menu -> valid961 -> actor
+ready+30сек в ТОМ ЖЕ обычном клиенте, zero actual fatal/Lua.
+Сервер использует исходный сохранённый приватный
 world selftest_destructibles_correlated; не удаляй/не пересеивай его.
 Приватный подготовщик `_build/live/prepare-input-recovery.py` нельзя запускать
 повторно поверх созданной папки; он намеренно отказывает. Таймер меню уже
@@ -112,12 +135,12 @@ guard; unquoted client-only start разрешён. nbot_960 был ошибоч
 syntax-check перед запуском прошёл. Не используй старые результаты как PASS.
 Player console отвергает screenshot; запрос команды не означает снимок.
 
-Есть локальные незакоммиченные правки строгого PS result gate и doc68:
+Строгий PS result gate уже закоммичен и pushed593c1e3ef:
 scripts/netcoop-selftest-results.ps1 ловит настоящую строку UnhandledFilter
 `at address 0x...`, даже если процесс остаётся с crash dialog. Actual PS fixture
 scripts/check-netcoop-load-harness.ps1 PASS локально и отличает обычные hitch/
-profile/debug addresses от исключения. Сохрани и проведи их через CI после
-окончания текущей полной сборки; не отменяй её. Проверь git status перед commit:
+profile/debug addresses от исключения. Foundation37753870928 и
+DX1137753870992 SUCCESS. Все свои процессы остановлены. Проверь git status перед commit:
 не добавляй чужие/untracked файлы. Эта правка не меняет gameplay/native source.
 
 После приёмки input recovery обнови doc45/68 и этот промпт, останови только
