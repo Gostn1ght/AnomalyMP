@@ -36,11 +36,23 @@ not be treated as an inherited spawn failure.
   `4fa43fe7d0231df3c5ff4fce4a6bb3c5af70342f` found the stock destroyable
   objects on Cordon. Private root:
   `_build/live/fragment-discovery-4fa43fe7d`.
-- A zero-damage stock impulse probe on four existing objects is running
+- A zero-damage stock impulse probe on four existing objects completed
   in `_build/live/fragment-fracture-baseline-4fa43fe7d`. It retains one world
   across its restart, with separate pre-stop logs. This is a trusted server
-  probe, not a graphical player hit/RPC test. Do not label it PASS before
-  examining the actual resulting classes, masks, bodies and poses.
+  probe, not a graphical player hit/RPC test. All four shells reported
+  `is_breakable=false`; the impulse produced no physics-skeleton objects.
+  It is therefore not a fragment/fracture acceptance case.
+- A focused baseline is now running in
+  `_build/live/fragment-pose-baseline-4fa43fe7d`. A private test-only section
+  instantiates the actual physics-skeleton class with the unchanged stock
+  bucket visual. Complete server/client config copies differ only by the
+  appended section; the primary configs remain untouched. This can test
+  pose persistence for that class, not natural joint-fracture generation.
+- First Actions runs `37726751994` and `37726751999` failed at fixture
+  compilation: the newly added spawn instance reused the existing matrix
+  variable's name. The fixture variable is renamed; assertions and engine
+  code are unchanged. Both Linux and Windows failures are retained in
+  `_build/live/fragment-ci-*.log`. No native package from these runs.
 
 ## Open limits
 

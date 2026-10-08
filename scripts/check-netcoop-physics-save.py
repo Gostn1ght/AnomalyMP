@@ -259,7 +259,7 @@ int main(){
  assert(fragment.save_calls==fragment_calls);fragment_unchanged();
  CPhysicsSkeletonObject refused;refused.spawn_ok=false;refused.collidable.model=new CCF_Skeleton(&refused);auto* old_model=refused.collidable.model;
  assert(!refused.net_Spawn(&fragment_entity));assert(refused.collidable.model==old_model && refused.spawn_calls==0 && !refused.visible && !refused.enabled && refused.unregistrations==0);
- CPhysicsSkeletonObject spawned;assert(spawned.net_Spawn(&fragment_entity));assert(spawned.spawn_calls==1 && spawned.collidable.model && spawned.visible && spawned.enabled && spawned.unregistrations==0);
+ CPhysicsSkeletonObject spawned_fragment;assert(spawned_fragment.net_Spawn(&fragment_entity));assert(spawned_fragment.spawn_calls==1 && spawned_fragment.collidable.model && spawned_fragment.visible && spawned_fragment.enabled && spawned_fragment.unregistrations==0);
  CPhysicsSkeletonObject rigid;rigid.physics.breakable=false;assert(rigid.net_Spawn(&fragment_entity));assert(rigid.unregistrations==1);
  CPhysicsSkeletonObject empty;empty.shell=false;assert(empty.net_Spawn(&fragment_entity));assert(empty.unregistrations==1);
  // Actual traversal visits fragments independently and honours temporary
