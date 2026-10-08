@@ -7,7 +7,11 @@ if os.environ.get('GITHUB_ACTIONS')!='true':
 root=Path(__file__).resolve().parents[1]
 native=(root/'src/xrGame/netcoop.cpp').read_text(encoding='latin-1')
 owner=native[native.index('struct FindActorOwner\n'):native.index('void server_forward_news(',native.index('struct FindActorOwner\n'))]
-methods=native[native.index('static xr_set<u16> s_admin_god_actors;'):native.index('bool script_respawn(',native.index('static xr_set<u16> s_admin_god_actors;'))]
+start=native.index('static xr_set<u16> s_admin_god_actors;')
+end=native.index('bool script_respawn(',start)
+if 'bool script_admin_teleport(' in native[start:end]:
+    end=native.index('bool script_admin_teleport(',start)
+methods=native[start:end]
 condition=(root/'src/xrGame/ActorCondition.cpp').read_text(encoding='latin-1')
 predicate=condition[condition.index('BOOL GodMode('):condition.index('CActorCondition::CActorCondition(')]
 assert 'netcoop_admin_god = false;' in (root/'src/xrGame/xrServer.cpp').read_text()
@@ -47,7 +51,7 @@ int main(){
  CActor admin,player,dummy;admin.id=7;player.id=8;dummy.id=0;
  Owner ao,po;ao.ID=7;po.ID=8;
  xrClientData ac,pc;ac.owner=&ao;ac.netcoop_role=2;pc.owner=&po;pc.netcoop_role=1;
- server.clients={&ac,&pc};world.Objects.values={{7,&admin},{8,&player}};
+ server.clients={&ac,&pc};world.Objects.values={{u16(7),&admin},{u16(8),&player}};
  assert(netcoop::script_admin_god_set(7,true));
  assert(netcoop::script_admin_god_enabled(7));
  assert(!netcoop::script_admin_god_set(8,true)&&!pc.netcoop_admin_god);
@@ -76,7 +80,7 @@ int main(){
  for(int enabled=0;enabled<2;++enabled)for(int pure=0;pure<2;++pure)
  for(int kind=0;kind<2;++kind)for(int flags=0;flags<4;++flags){
   enabled_flag=enabled!=0;pure_flag=pure!=0;game_kind=kind;psActorFlags.flags=flags;
-  assert(GodMode(&player)==((enabled&&!pure)?false:kind==eGameIDSingle&&flags!=0));
+  assert((GodMode(&player)!=FALSE)==((enabled&&!pure)?false:kind==eGameIDSingle&&flags!=0));
   ++cases;
  }
  std::printf("PASS actual admin god: connection/actor/role isolation, revoke/reconnect/dead/missing guards, idempotent on/off,64000 ordinary checks without client scans, %u SP/client predicate cases\n",cases);
