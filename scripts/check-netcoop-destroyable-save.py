@@ -28,12 +28,12 @@ struct CSE_ALifeObjectPhysic:CSE_Abstract {
 struct CInifile {bool section_exist(const char*){return true;}const char* r_string(const char*,const char*){return "stock";}};
 struct IKinematics {CInifile ini;bool has_ini=true;CInifile* LL_UserData(){return has_ini?&ini:nullptr;}};
 struct CPhysicObject {
- bool spawn_ok=true,destroyed=false,parented=false,shell=true;u16 id=7,count=2;int spawn_calls=0,startup_calls=0;
+ bool spawn_ok=true,destroyed=false,parented=false,shell=true;u16 id=7,simulated_count=2;int spawn_calls=0,startup_calls=0;
  IKinematics visual;
  BOOL net_Spawn(CSE_Abstract*){++spawn_calls;return spawn_ok;}
  IKinematics* Visual(){return &visual;}void RunStartupAnim(CSE_Abstract*){++startup_calls;}
  bool getDestroy(){return destroyed;}bool H_Parent(){return parented;}bool PPhysicsShell(){return shell;}
- u16 ID(){return id;}u16 PHGetSyncItemsNumber(){return count;}
+ u16 ID(){return id;}u16 PHGetSyncItemsNumber(){return simulated_count;}
 };
 struct CPHDestroyable {int initializations=0;void Init(){++initializations;}void Load(CInifile*,const char*){}};
 struct CDamageManager {void reload(const char*,CInifile*){}};
@@ -93,7 +93,7 @@ int main(){
  live.destroyed=true;assert(!live.netcoop_capture_saved_health(&entity));live.destroyed=false;unchanged();
  live.parented=true;assert(!live.netcoop_capture_saved_health(&entity));live.parented=false;unchanged();
  live.shell=false;assert(!live.netcoop_capture_saved_health(&entity));live.shell=true;unchanged();
- live.count=0;assert(!live.netcoop_capture_saved_health(&entity));live.count=65535;assert(!live.netcoop_capture_saved_health(&entity));live.count=2;unchanged();
+ live.simulated_count=0;assert(!live.netcoop_capture_saved_health(&entity));live.simulated_count=65535;assert(!live.netcoop_capture_saved_health(&entity));live.simulated_count=2;unchanged();
  live.m_fHealth=INFINITY;assert(!live.netcoop_capture_saved_health(&entity));live.m_fHealth=0.6f;unchanged();
  entity.client_data.resize(16380);assert(!live.netcoop_capture_saved_health(&entity));entity.client_data=client;unchanged();
  entity.fixed_bones.assign(16380,'x');assert(!live.netcoop_capture_saved_health(&entity));entity.fixed_bones.clear();unchanged();
