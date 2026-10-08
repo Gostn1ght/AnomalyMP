@@ -12,7 +12,9 @@ method=text[start:text.index('\nvoid CConsole::ExecuteCommand',start)]
 assert method.count('"screenshot", "r_screenshot_mode",')==1
 assert method.count('"g_always_active",')==1
 assert method.count('"keypress_on_start",')==1
-legacy=method.replace('        "screenshot", "r_screenshot_mode",\n','',1).replace('        "g_always_active", "keypress_on_start",\n','',1).replace('static bool player_internal_command(','static bool legacy_player_internal_command(',1)
+pickup_line='        "cl_cod_pickup_mode", "g_multi_item_pickup", "g_draw_pickup_item_names",\n'
+assert method.count(pickup_line)==1
+legacy=method.replace('        "screenshot", "r_screenshot_mode",\n','',1).replace('        "g_always_active", "keypress_on_start",\n','',1).replace(pickup_line,'',1).replace('static bool player_internal_command(','static bool legacy_player_internal_command(',1)
 assert legacy!=method
 names=set(re.findall(r'"([A-Za-z0-9_]+)"',method))
 names.update(['god','g_god','noclip','g_noclip','ph_gravity','time_factor','power_loss_bias',
@@ -40,7 +42,9 @@ int main(){
   const bool now=player_internal_command(name,arg);
   const bool old=legacy_player_internal_command(name,arg);
   if(!std::strcmp(name,"screenshot") || !std::strcmp(name,"r_screenshot_mode") ||
-     !std::strcmp(name,"g_always_active") || !std::strcmp(name,"keypress_on_start")){
+     !std::strcmp(name,"g_always_active") || !std::strcmp(name,"keypress_on_start") ||
+     !std::strcmp(name,"cl_cod_pickup_mode") || !std::strcmp(name,"g_multi_item_pickup") ||
+     !std::strcmp(name,"g_draw_pickup_item_names")){
    assert(now && !old);
   }else assert(now==old);
   ++cases;
@@ -52,7 +56,7 @@ int main(){
  assert(!player_internal_command("start","server(all)"));
  assert(!player_internal_command("start","client(localhost/server(all))"));
  assert(!player_internal_command("r2_wireframe","1"));
- std::cout<<"PASS actual console classifier "<<cases<<" differential cases: only local screenshot/format/startup preferences added; gameplay/server/debug commands remain denied\n";
+ std::cout<<"PASS actual console classifier "<<cases<<" differential cases: local capture/startup/pickup preferences added; gameplay/server/debug commands remain denied\n";
 }
 '''.replace('NAMES',name_literals)
 with TemporaryDirectory() as tmp:

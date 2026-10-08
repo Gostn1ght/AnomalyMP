@@ -3,7 +3,8 @@
 2026-10-08. Original188 counters27/33/69/59 remain unchanged. Fix gameplay
 reports first, then return to remaining stages, easy before medium before hard.
 
-Four servers remain running in PRIVATE LostZone-4Maps-Test:
+Historical launch (all four processes absent when checked later on 2026-10-08;
+their records below are stale, not evidence of current running state):
 Cordon1477/PID7732, Swamps1467/PID20264, Garbage1487/PID21592,
 Bar1497/PID14656. Native qualified GHA21351fe49 engine, separate worlds/account
 namespace, test_admin granted ADMIN by native server console. Primary engine,
@@ -13,6 +14,38 @@ later disconnected/quit normally; currently no client. Do not force-reopen
 while owner is testing elsewhere. Do not shut down the four requested servers
 as ordinary probe cleanup. Persistent metadata running-servers/running-client
 must be checked against current processes; a closed client makes its PID stale.
+
+## Continuation: qualified328 and pickup preferences
+
+Foundation37824728218 and DX1137824728127/source3289dfd966e0ade60f797416f361e6167d9bdc31
+SUCCESS. GCC/MSVC actual RP prefix1024 cases + actual CUIButton click PASS;
+actual replica-copy10000 cases PASS. Artifact11571787222, ZIP
+3cf1e34d713d7acf1c3a4ef119fb01dbcb88e6f9b6e64b686cb2822a059da7aa,
+both EXE4662354E2431A67C4505DC5A91014A2FB11111DD107006B9B32385A21E38B722.
+Installed only into separate _build/live/owner-gameplay-repro-3289dfd96.
+Private test_admin copied; independent retained lab world, no owner worlds copied.
+Lab server19644. Client long lab aliases caused early AV (WER21c6bb resolves
+to error-handler print_stack, not necessarily the original assertion). Retained
+failed aliases; shortened client appdata/configs/scripts paths without changing
+qualified archive/root spelling pair. Subsequent client10188 actually admitted
+ADMIN, precache0. Native Z + mouse press/release caused hands_pockets to finish,
+but diagnostic wrapper wrote into its module namespace rather than _G, so
+callback counter stayed0 and RP_STOP_FAIL was logged. Preserve this trial;
+do not call it a full PASS. Correct _G observer and bounded client-object scan
+(client ALife facade iteration was empty); client25284 retry in progress.
+
+Owner session log explicitly rejected cl_cod_pickup_mode, g_multi_item_pickup,
+g_draw_pickup_item_names while loading settings before authenticated role.
+Allow exactly these local pickup UI/control preferences in actual console
+classifier; expand GHA differential cases. g_autopickup already allowed.
+No server ownership validation or gameplay/debug allowlist relaxed. This fixes
+settings load / disabled COD callback prerequisite; floor pickup and hovering
+still require actual item/animation/ownership evidence. No primary rollout.
+
+Owner briefly requested adding Darkscape (k01_darkscape) to transition play,
+then left to sleep and instructed autonomous fixes again. Preserve four-map
+worlds; do not launch an interactive client unnecessarily. Later restore/add
+maps from retained worlds when qualified gameplay fixes are ready.
 
 Startup proof sealed in qualified-startup.json/acceptance/*.log and two native
 PNGs, BOTH viewed: Cordon world/HUD then PDA over world. The full session is

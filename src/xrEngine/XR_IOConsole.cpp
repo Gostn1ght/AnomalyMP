@@ -603,6 +603,7 @@ static bool player_internal_command(LPCSTR name, LPCSTR args)
         "bind_console", "unbind_console", "renderer", "texture_lod", "mouse_sens",
         "mouse_sens_scale", "mouse_invert", "input_exclusive", "g_language",
         "g_always_run", "g_autopickup", "g_backrun", "g_crouch_toggle", "g_walk_toggle",
+        "cl_cod_pickup_mode", "g_multi_item_pickup", "g_draw_pickup_item_names",
         "g_sprint_toggle", "g_aim_toggle", "hud_fov", "hud_fov_aim", "fov", "cam_inert",
         "_preset", "discord_status", "discord_update_rate", "g_dynamic_music",
         "screenshot", "r_screenshot_mode",

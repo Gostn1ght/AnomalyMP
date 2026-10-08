@@ -1,5 +1,22 @@
 # Промпт для Claude: продолжить Lost Zone автономно
 
+## Свежий приоритет: игровые баги, 2026-10-08 вечер
+
+Сначала прочитай doc80 и последние записи doc45. Снимки процессов ниже устарели:
+все4 сервера владельца позже отсутствовали, миры/accounts сохранены. Новая328
+сборка/обе Foundation/полный DX11 SUCCESS; qualified package только в отдельном
+owner-gameplay-repro-3289dfd96. Исправлены RP input gate и dynamics копии реплик;
+полная проверка игровых багов ещё НЕ закрыта. Native RP trial получил выход
+из hands_pockets, но счётчик теста был ошибочно module-local; повтор с _G
+наблюдателем начат. Длинные пути lab client вызвали ранний AV; short aliases
+устранили его без смены archive/root pair. Не продвигать в PRIMARY на этом основании.
+Pickup cfg commands до аутентификации блокировались (есть реальный журнал);
+точечный allowlist+actual classifier differential fixture готовятся в GHA.
+Далее floor pickup/hover, barrels/fragments/wall contacts, mutant smoothness/freezes,
+server ADMIN god и demo teleport; затем188. Без урезания NPC/частоты/видимости.
+Владелец ушёл спать, работать автономно; раньше просил также Тёмную Лощину
+(k01_darkscape) для переходов, сохранить/add private maps после квалификации.
+
 ## Более свежий приоритет 2026-10-08: четыре карты для владельца
 
 Прочитай doc79 и последние записи doc45 раньше устаревшего снимка ниже.
