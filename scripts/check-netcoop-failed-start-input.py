@@ -68,7 +68,18 @@ CLevel* g_pGameLevel=nullptr;
 int deletions=0,unsafe_deletions=0;
 void delete_instance(CLevel*& level){assert(level);++deletions;if(input.contains(level))++unsafe_deletions;level->deleted=true;level=nullptr;}
 #define DEL_INSTANCE(level) delete_instance(level)
-''' + release + method + control + r'''
+// The imported pre-existing iRelease narrows vector::size() to engine u32.
+// Retain its source and suppress only that MSVC legacy warning locally;
+// all new fixture code still compiles under /W4 /WX.
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable:4267)
+#endif
+''' + release + r'''
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+''' + method + control + r'''
 void reset(CLevel& level,bool captured,bool covered=false){
  input.cbStack={&dummy};if(captured)input.cbStack.push_back(&level);if(covered)input.cbStack.push_back(&overlay);
  dummy.activated=0;dummy.deactivated=0;overlay.activated=0;overlay.deactivated=0;
