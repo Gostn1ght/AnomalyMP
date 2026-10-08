@@ -6,13 +6,13 @@
 `C:\Users\Mahito\Desktop\NetAnomaly_Engine_Console_2026-09-10\NetAnomaly_Full\engine-steamnet`.
 Windows/PowerShell, GitHub CLI настроен. Владелец просит закрыть все188
 пунктов автономно, сначала простые, потом средние, потом сложные. Не
-заканчивай работу после одного плана или прогона. Сейчас25 принято,
-35 код/fixtures,69 частично,59 не сделано;163 не закрыто полностью.
+заканчивай работу после одного плана или прогона. Сейчас26 принято,
+34 код/fixtures,69 частично,59 не сделано;162 не закрыто полностью.
 Перепроверь актуальные counters по строкам doc48, а не по этому снимку.
 
 Сначала прочитай docs/audit/45_CODEX_HANDOFF.md,48_DOC43_AUDIT.md,
 43_WORLD_REQUIREMENTS_PROGRESS.md,67_DESTRUCTIBLE_STATE_RESTART.md,
-68_FAILED_START_INPUT.md,70_NATIVE_WORLD_IDENTITY.md,71_NATIVE_WORLD_EXCLUSIVITY.md. Сверь git status/HEAD,
+68_FAILED_START_INPUT.md,70_NATIVE_WORLD_IDENTITY.md,71_NATIVE_WORLD_EXCLUSIVITY.md,72_NATIVE_WORLD_CLOCK_SCALE.md. Сверь git status/HEAD,
 Actions, свои процессы и qualified acceptance. Более свежий журнал важнее
 этого промпта. Не ставь native PASS по одному backend unit-test/fixture.
 Не добавляй к узкому готовому пункту требования соседних этапов.
@@ -121,7 +121,7 @@ WorldID15883345463564265689/seed8924220031495453929 unchanged,1→2→3.
 Independent parser verifies actual records/magic/FNV and six sealed journals.
 Expected contender exit separate from zero unexpected owner fatal/Lua/handler
 failures. Old quiet attempt stays UNQUALIFIED. No distributed fencing proof.
-B04 accepted, counters25/35/69/59. ALL own processes stopped, debug empty,
+B04 accepted. Затем B01 native PASS (doc72): ALife-backed WorldClock положительные scales6/12/3/1/6, все immediate deltas0, пять mono/game samples совпадают с ожидаемым rate (max discrepancy36ms), даты далеко за32-bit, factor6 восстановлен. Core portable/overflow/monotonic fixtures GCC/MSVC PASS. clock-acceptance.json и sealed pre-stop log в authority-native-171473a99. Это local core, не distributed sync/location adoption/global scale barrier. Counters26/34/69/59. ALL own processes stopped, debug empty,
 all88 primary fingerprints unchanged, NO pending CI, no primary rollout.
 
 Следующие простые задачи диагностированы, но НЕ исправлены:
@@ -176,7 +176,7 @@ API_IP140.82.121.5, temporary curl --resolve со строгим TLS; глоба
 DNS не менять. Token memory/stdin, не печатай secrets/signed URLs. Source,
 built-from, ZIP digest, manifest и exe hashes проверять обязательно.
 
-Продолжай163 оставшихся пункта, обновляй честно doc45/48. Защити основной
+Продолжай162 оставшихся пункта, обновляй честно doc45/48. Защити основной
 вход в игру. Если лимиты заканчиваются, сохрани точный handoff/свои pending
 процессы/CI/незакоммиченные файлы. Reset credits автоматически не расходуй.
-Последний quota snapshot:5h used77%, weekly81%; основной runtime не обновлён.
+Последний quota snapshot:5h used83%, weekly82%; основной runtime не обновлён.
