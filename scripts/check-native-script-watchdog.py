@@ -20,6 +20,7 @@ struct lua_State {};
 struct lua_Debug {const char* short_src="fixture";int currentline=1;const char* name="fixture";};
 struct {u32 dwFrame=10,dwPrecacheFrame=0;} Device;
 std::vector<int> g_loading_events;
+bool g_dedicated_server=false;
 u32 tick=0;unsigned clears=0,aborts=0,flushes=0;
 u32 GetTickCount(){return tick;}
 LONG InterlockedExchange(volatile LONG* p,LONG value){const LONG old=*p;*p=value;return old;}
@@ -38,13 +39,14 @@ int main(){
  for(u32 origin:{0u,0xfffffff0u})
  for(u32 elapsed:{0u,19999u,20000u,60000u,60001u,1199999u,1200000u,1200001u})
  for(u32 precache:{0u,1u,60u})for(bool loading:{false,true})
- for(bool same_frame:{false,true})for(bool already_logged:{false,true}){
+ for(bool dedicated:{false,true})for(bool same_frame:{false,true})for(bool already_logged:{false,true}){
+  g_dedicated_server=dedicated;
   Device.dwFrame=same_frame?10:11;Device.dwPrecacheFrame=precache;
   g_loading_events.assign(loading?1:0,1);
   wd_frame=10;wd_since=origin;tick=origin+elapsed;wd_armed=1;wd_logged=already_logged;
   clears=aborts=flushes=0;bool thrown=false;lua_State state;
   try{wd_hook(&state,nullptr);}catch(const Aborted&){thrown=true;}
-  const bool expected=same_frame && elapsed>((loading || precache)?1200000u:60000u);
+  const bool expected=same_frame && elapsed>((loading || (!dedicated && precache))?1200000u:60000u);
   assert(thrown==expected && aborts==unsigned(expected));
   assert(clears==unsigned(!same_frame || expected));
   assert(wd_armed==((!same_frame || expected)?0:1));
@@ -53,7 +55,7 @@ int main(){
   else assert(flushes==unsigned(!already_logged)+unsigned(expected));
   ++cases;
  }
- std::cout<<"PASS actual watchdog hook "<<cases<<" cases: loading bounded20min, gameplay60s, stack diagnostic/frame disarm/time wrap retained\n";
+ std::cout<<"PASS actual watchdog hook "<<cases<<" cases: loading bounded20min, client/server gameplay60s incl stale server precache, stack diagnostic/frame disarm/time wrap retained\n";
 }
 '''
 with TemporaryDirectory() as tmp:

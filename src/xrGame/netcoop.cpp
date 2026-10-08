@@ -3585,7 +3585,8 @@ void wd_hook(lua_State* L, lua_Debug*)
 	}
 	// GAMMA loading can include minutes of legitimate callbacks and shader work.
 	// Keep diagnostics, but give loading a bounded budget before aborting Lua.
-	const u32 abort_after = !g_loading_events.empty() || Device.dwPrecacheFrame ? 20 * 60 * 1000 : 60000;
+	const u32 abort_after = (!g_loading_events.empty() || (!g_dedicated_server && Device.dwPrecacheFrame)) ?
+		20 * 60 * 1000 : 60000;
 	if (stuck > abort_after)
 	{
 		wd_disarm(L);
