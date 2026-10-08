@@ -172,10 +172,39 @@ No game processes remain, both debug channels empty, all four primary exes
 still FE829FF44D4A0D4CF2C122A0EB6EDF243B8FCB7D3ABC3872A4C949D553B8AC88.
 Primary worlds/accounts/scripts unchanged in this iteration. No deployment.
 
-Accepted scope: initialized real-door script closed-after-use and configured
+Accepted scope at the three-case milestone: initialized real-door script closed-after-use and configured
 lock/NPC-lock state plus settled physical poses across same-world restart,
 with a nonbreakable furniture regression on the matching native GHA build.
 Overall L29 remains partial: destruction/fracture, full moving velocities,
 offline route enforcement, a separately saved open-door case, and actual
 graphical player interaction/RPC are
 still unverified.64/max-view/512 and historical188 audit totals unchanged.
+
+## Complementary saved-open native case
+
+door-open-xyz-88d72cfea: fresh world/appdata, same verified88d binaries reused
+by explicit paths from the completed wooden-door root; settings only copied,
+no saved world/character copied or reseeded. Before capture, stock configured
+ph_door@close is selected and allowed30s to settle. Then the actual stock
+use_callback opens15921; no forced poses, custom logic or spawn changes.
+Predeclared closed-to-open physical rotation requirement remains0.2, with
+the same0.05m/0.04 restart tolerances.
+
+Native PASS: movement rotation1.003311251, saved sectionph_door@open,
+unlocked/physically open; Moved==AtSave and manual SAVE committed. SAME
+selftest_door_open_b loads, all script/physical flags remain equal. Both-body
+position error0.000690544m/rotation0.00787269. Final1/1both phases,
+no terminal/Lua/fatal/shader/save/capture errors. One recovered phase1
+admission retry, none phase2; existing GAMMA NPC Loadouts warnings retained.
+This complements closed/locked failure-to-fix controls: this door's stock
+default is already open, so it is not a separate negative control proving
+binder necessity. No graphical client/RPC/distance proof.
+
+native-four-case-summary.json retains package/exe provenance, all16 pre-stop
+log/result hashes and four strict PASS results; original three-case summary
+also retained. Two recovered admission retries total, zero terminal failures.
+All processes stopped, both debug channels empty, four primaryFE829 exe
+hashes unchanged again. Closed, configured locked/NPC-locked and saved-open
+door cases plus furniture pose regression are now verified. Destruction,
+moving velocities and offline routing remain OPEN; L29 stays partial,
+no primary rollout or64/max-view/512/188-total changes.

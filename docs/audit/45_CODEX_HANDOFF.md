@@ -24,6 +24,20 @@ Claude и Codex работают в одной папке `engine-steamnet` и �
 
 ## Правила владельца (обязательно)
 
+- Codex 2026-10-08 additional saved-open PASS (same88d GHA): fresh private
+  door-open-xyz-88d72cfea uses stock close preparation then stock use_callback
+  to OPEN15921. Rotation change1.003311, SAVE committed/SAME world_b loads,
+  all script/physical flags equal, both-body error0.000691m/0.007873 under
+  original0.05m/0.04 gates. Final1/1both,0terminal/Lua/fatal/shader/save/capture;
+  one recovered phase1retry, none phase2. Door's default is open, so this is
+  complementary physical/state coverage, not a new negative binder control.
+  FOUR total native cases PASS,2recovered retries total. Doc63 and retained
+  native-four-case-summary.json record16 pre-stop log/result hashes; original
+  three-case summary retained. Processes stopped/debug empty, four primary
+  FE829 hashes unchanged. Saved open/closed/configured lock states covered;
+  destruction/velocities/offline route/graphical RPC remain OPEN, L29 partial.
+  No deployment, no64/512/188-counter closure.
+
 - Codex 2026-10-08 FINAL door/prop native scope PASS: source88d72cfeaa6ba9fce94175fbc8e61cfe82906c84,
   Foundation37700338252 + DX1137700338212 SUCCESS; artifact11518765311,
   validated exact source/ZIP/exe manifest (both exes0AF38FFF...). Only private
