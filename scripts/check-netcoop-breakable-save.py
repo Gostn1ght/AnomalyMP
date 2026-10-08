@@ -23,6 +23,7 @@ source = r'''
 using u16=std::uint16_t;using BOOL=bool;constexpr bool TRUE=true,FALSE=false;
 template<class T,class P>T smart_cast(P* p){return dynamic_cast<T>(p);}
 template<class T>void xr_delete(T*& p){delete p;p=nullptr;}
+template<class T,class P>T* xr_new(P p){return new T(p);}
 #define R_ASSERT(x) do{if(!(x))throw std::runtime_error("engine assertion");}while(false)
 bool _valid(float v){return std::isfinite(v);}
 struct CSE_Abstract {virtual ~CSE_Abstract()=default;u16 ID=7,parent=55;std::string name="glass",section="breakable_object";};

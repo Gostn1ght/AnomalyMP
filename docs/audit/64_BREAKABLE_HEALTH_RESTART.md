@@ -61,3 +61,11 @@ while still broken before stock removal. Door/furniture capture fixture
 regressions remain in CI. Do not promote primary binaries from code-only
 proof. L30 stays open pending native acceptance; wider destructibles remain
 outside this scope even after these controlled cases pass.
+
+Initial sourcebc61cbb39e1e111a4d27aa2bd6cdfefb1a9bd58f published. Foundation
+37719218647 Linux rejected the new fixture before execution: its engine API
+double omitted xr_new used by the actual net_Spawn. Actual physics/door/
+selection fixture had passed. Add that allocator double; no runtime change,
+no relaxed assertions or compiler warnings. Original failure log retained
+as _build/live/breakable-linux-bc61.log. DX1137719222296 is superseded because
+the same missing fixture allocator prevents full-build entry.
