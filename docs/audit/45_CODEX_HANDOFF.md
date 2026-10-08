@@ -24,6 +24,27 @@ Claude и Codex работают в одной папке `engine-steamnet` и �
 
 ## Правила владельца (обязательно)
 
+- Codex 2026-10-08 FINAL scoped breakable PASS: source4fa43fe7d0231df3c5ff4fce4a6bb3c5af70342f,
+  Foundation37719768733 + full DX1137719768724 SUCCESS. Artifact11525896846,
+  validated source/ZIP/exe manifest; both exesC5D8B349... Only private
+  breakable-fixed-4fa43fe7d and breakable-pending-fixed-4fa43fe7d installed.
+  Same failed88d controls/initial states/original health gates:15508 retains
+  health0.610000014 across SAME restart and breaks on0.5 follow-up. Naturally
+  removed15509/15510 stay absent. Atomic pre-removal case saves BOTH broken
+  objects present with CSE health0; SAME reload completes normal removal
+  before admission, no intact objects return. Both strict native PASS, final
+  1/1both phases of each,0terminal/Lua/fatal/shader/save/capture,2recovered
+  phase1 admission retries total. Existing GAMMA loadout warnings remain.
+  Doc64/native-summary.json retains8pre-stop log/result/driver hashes and all
+  earlier failures (including invalid separate post-save removal observation).
+  Initial CI allocator-double failure fixed; actual failed-base-spawn path
+  defect exposed and guarded without weakening assertions. That failure path
+  has fixture proof, not a forced live failure. Processes stopped/debug empty,
+  all4primaryFE829 exes unchanged, no rollout. L30 now PARTIAL for this stock
+  breakable type; general destroyable physics health, fractures/trajectories/
+  velocities/offline routing/graphical RPC stay OPEN. No64/512/full-stage
+  closure; completed188 count does not increase from subcase acceptance.
+
 - Codex BEFORE breakable checkpoint edit: private native88d baseline
   breakable-restart-before-88d72cfea reproduces damage loss for Cordon15508.
   Stock server fire-wound0.3, control15510 breaks with0.3+0.5 in one session;

@@ -79,3 +79,79 @@ defect exposed by the fixture, not another missing API double. Add immediate
 return FALSE before any model/physics mutation, matching other physics spawn
 implementations. Preserve assertion and failure log breakable-linux-e839.log.
 No main runtime changed, no native acceptance claim; new CI still required.
+
+Source4fa43fe7d0231df3c5ff4fce4a6bb3c5af70342f: Foundation37719768733
+SUCCESS both Linux/Windows, including actual capture/net_Spawn, selection,
+strict failed-spawn assertion and prior physics/door fixtures. DX1137719768724
+script/native checks PASS, full engine building. Do not push new source
+changes while that build is active. Fixed roots breakable-fixed-4fa43fe7d and
+breakable-pending-fixed-4fa43fe7d staged with matching classifier and original
+oracles/gates, settings only/no world or character copied; binaries absent.
+install-breakable-verified.py pins exact source/run/cache and both exe hashes,
+then supplements unchanged stock runtime DLLs. Primary remains FE829...
+
+First pre-removal baseline breakable-pending-before-88d72cfea: FAIL.15510
+was broken with saved health1.0, then returned intact/health1.0 on SAME restart;
+15509 also returned intact. But15509 expired between world commit and the
+separate post-save observation, so this run does NOT satisfy a two-present-
+objects-at-save gate. Full failure retained; original oracle not relaxed.
+Fresh canonical breakable-pending-atomic-before-88d72cfea uses the same stock
+timer/damage thresholds, shorter control observation, and combines world save
+plus AtSave read into one main-thread Lua action. No intervening removal
+frame can distort that observation. Canonical baseline currently running.
+
+Canonical atomic baseline completed: strict FAIL/common gates PASS. Both
+15509/15510 are present with genuinely broken shells at the committed save,
+yet their CSE health is1.0; SAME world restart recreates both intact/no
+broken shell before admission and after40s. Damaged15508 still heals and
+survives the follow-up0.5. Final1/1both, no retries,0Lua/fatal/shader/save/
+capture errors. Full snapshots/logs/failed acceptance retained. Fixed
+pending-removal root uses this exact canonical driver/oracle; only binary
+paths, appdata path and source pin differ. Stock10s timer and health gates
+remain unchanged. Source4fa full engine build still required.
+
+Source4fa Foundation37719768733 and full DX1137719768724 SUCCESS.
+Artifact11525896846 validated: ZIP
+cca186089612415e671ee031f9dc627627558d0aa502ba3c5f10f777f8ff6739;
+both exesC5D8B3493769BFEF3724CBDECD0E5D34B368CD4010618ECF0224D420C6829395.
+Matching binaries installed only in both fresh fixed roots; missing stock
+DLLs supplemented with hashes. Fixed native tests started, results pending;
+no primary rollout.
+
+## Matching native tests PASS
+
+breakable-fixed-4fa43fe7d: exact original initial typed IDs/names/health/shell
+states equal the failed88d baseline. Same first0.3 hit, same0.3+0.5 control,
+same2.0 destruction and stock20s removal wait. Manual SAVE commits; SAME
+selftest_breakable_restart_b loads.15508 retains actual health0.610000014
+at save and after restart; the same0.5 follow-up now breaks it.15509/15510
+remain absent, with no recreated names. Strict native PASS, original health
+tolerance0.00001 unchanged. Final1/1both,0terminal/Lua/fatal/shader/save/
+capture errors; one recovered admission retry in phase1, none phase2.
+
+breakable-pending-fixed-4fa43fe7d: exact original initial state equals the
+canonical atomic88d baseline; same driver/oracle/gates apart from binary/
+appdata paths and source pin. Both genuinely broken objects15509/15510 are
+still present at SAVE; actual CSE health0 for both in the same main-thread
+post-save read. SAME selftest_breakable_pending_b loads. They have already
+completed stock removal before the first pre-admission observation, remain
+absent after40s, and do not appear intact to the admitted test player.
+15508 again retains health0.610000014 and breaks on the0.5 follow-up.
+Strict native PASS, final1/1both,0terminal/Lua/fatal/shader/save/capture;
+one recovered phase1 admission retry, none phase2. Loading logs contain
+expected saved-broken entity spawns, not healthy-object acceptance.
+
+native-summary.json records exact validated package/exe hashes, both failed
+controls with healthy common gates, full initial-state equality, all8pre-stop
+log/result/driver hashes and individual results. Two recovered admission
+retries total. Existing GAMMA NPC Loadouts warnings remain; no globally
+warning-free GAMMA claim. All processes stopped, both debug channels empty,
+all4primary exes still FE829FF44D4A0D4CF2C122A0EB6EDF243B8FCB7D3ABC3872A4C949D553B8AC88.
+No primary promotion or Actor/global ClientSave. No new save/wire version.
+
+Accepted scope: CBreakableObject accumulated damage and saved-broken state
+plus existing natural removal across same-world restart. Actual failed-base-
+spawn guard is verified in the extracted native method fixture, not a forced
+live failure. CDestroyablePhysicsObject health, joint fractures, fragment
+trajectories/velocities, graphical/client RPC and offline routing remain
+unverified; whole L30 stays partial.64/max-view/512 remain open.
