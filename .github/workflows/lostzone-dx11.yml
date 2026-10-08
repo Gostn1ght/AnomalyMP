@@ -108,6 +108,8 @@ jobs:
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-dialog-update.py
           if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-exit-log.py
+          if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-checksum.py
       - name: Check actor packet compatibility
         shell: pwsh

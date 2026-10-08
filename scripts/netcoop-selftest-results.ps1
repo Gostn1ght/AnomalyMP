@@ -56,7 +56,7 @@ function Get-NetcoopSelftestResult {
         bot_moves = @($allBotLines | Select-String '\[bots\] .* goes to').Count
         admission_error_events = @($allBotLines | Select-String '! \[Lost Zone\]\[bots\]').Count
         admission_retries = @($allBotLines | Select-String '\[bots\] nbot_\d+ retries').Count
-        fatal = @($allLines | Select-String 'FATAL ERROR|Expression\s*:|^\s*at address 0x[0-9a-fA-F]+\s*$').Count
+        fatal = @($allLines | Select-String 'FATAL ERROR|Expression\s*:|^\s*at address 0x[0-9a-fA-F]+\s*$|^\s*! \[X-Ray\]\[exit\]').Count
         shader_errors = @($allLines | Select-String 'error X\d{4}').Count
         script_errors = @($allLines | Select-String 'SCRIPT ERROR|time event error|handler failed').Count
     }

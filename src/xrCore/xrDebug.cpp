@@ -192,6 +192,7 @@ void __cdecl xrDebug::fatal(const char* file, int line, const char* function, co
 
 void xrDebug::do_exit(const std::string& message)
 {
+	Msg("! [X-Ray][exit] %s", message.c_str());
 	FlushLog();
 	MessageBox(NULL, message.c_str(), "Error", MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
 	TerminateProcess(GetCurrentProcess(), 1);

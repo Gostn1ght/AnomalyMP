@@ -35,6 +35,7 @@ foreach ($state in @('1 playing, 1 joining, 0 connecting, 0 failed', '1 playing,
 $duplicate = @(BotLog 'a' 1 2; BotLog 'b' 1 2)
 Assert (-not (Evaluate $duplicate).Passed) 'Duplicate bot process login ranges must fail'
 foreach ($errorLine in @('FATAL ERROR', 'at address 0x000000014009DAC3', '  at address 0x14009dac3  ',
+        '! [X-Ray][exit] world is locked or lock file is inaccessible', '  ! [X-Ray][exit] missing archive',
         'combine_1.hlsl(39): error X3017: cannot implicitly convert',
         '[Lost Zone] time event error: nil actor', '[Lost Zone] save_state handler failed: nil actor', 'character save failed',
         '! [Lost Zone] character commit failed: file.bin', '[Lost Zone] character save refused: inventory tree is incomplete',
@@ -51,7 +52,8 @@ foreach ($errorLine in @('FATAL ERROR', 'at address 0x000000014009DAC3', '  at a
 }
 Assert (Evaluate $logs @('[Lost Zone][hitch] frame 37 at 109 ms: < 14009dac3',
     '[Lost Zone][sample-profile] self 3.0% LostZoneClientDX11.exe+9dac3',
-    '[debug] explanation: at address 0x14009dac3')).Passed 'Ordinary sampled/debug addresses are not unhandled exceptions'
+    '[debug] explanation: at address 0x14009dac3',
+    '[debug] describing ! [X-Ray][exit] as an example')).Passed 'Ordinary sampled/debug addresses are not unhandled exceptions'
 $transfer = @(BotLog 'a' 1 2; BotLog 'b' 3 2)
 $transfer[1].Lines += '[bots] 2 wanted: 1 playing, 1 joining, 0 connecting, 0 failed;'
 Assert (Evaluate $transfer @() $false).Passed 'In-flight cluster transfer is allowed after all bots have joined'

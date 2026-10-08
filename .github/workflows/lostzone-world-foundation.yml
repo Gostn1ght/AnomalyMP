@@ -9,6 +9,9 @@ on:
       - 'src/xrEngine/xrSchedulerTickets.h'
       - 'src/xrEngine/ISheduled*'
       - 'src/xrCore/profiler.h'
+      - 'src/xrCore/xrDebug.cpp'
+      - 'src/xrCore/xrDebugNew.cpp'
+      - 'scripts/check-native-exit-log.py'
       - 'scripts/check-netcoop-scheduler.py'
       - 'scripts/fixtures/ixray-scheduler/**'
       - 'scripts/fixtures/hash-scheduler/**'
@@ -150,6 +153,8 @@ jobs:
         run: python scripts/check-netcoop-character-restore.py
       - name: Exercise actual character checksum portability and legacy migration
         run: python scripts/check-netcoop-character-checksum.py
+      - name: Exercise actual native controlled-exit diagnostics
+        run: python scripts/check-native-exit-log.py
   clock-windows:
     runs-on: windows-2022
     timeout-minutes: 10
@@ -214,6 +219,8 @@ jobs:
           python scripts/check-netcoop-failed-start-input.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-dialog-update.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-exit-log.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-checksum.py
           if errorlevel 1 exit /b %errorlevel%
