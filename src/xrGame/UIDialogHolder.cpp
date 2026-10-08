@@ -250,10 +250,14 @@ void CDialogHolder::OnFrame()
 	}
 	//else
 	{
-		xr_vector<dlgItem>::iterator it = m_dialogsToRender.begin();
-		for (; it != m_dialogsToRender.end(); ++it)
-			if ((*it).enabled && (*it).wnd && (*it).wnd->IsEnabled())
-				(*it).wnd->Update();
+		// A dialog callback can close the menu and clear this list. Do not keep
+		// an iterator/reference across Update(); additions are already deferred.
+		for (size_t i = 0; i < m_dialogsToRender.size(); ++i)
+		{
+			CUIWindow* dialog = m_dialogsToRender[i].enabled ? m_dialogsToRender[i].wnd : nullptr;
+			if (dialog && dialog->IsEnabled())
+				dialog->Update();
+		}
 	}
 
 	m_b_in_update = false;
@@ -274,6 +278,7 @@ void CDialogHolder::CleanInternals()
 		m_input_receivers.pop_back();
 
 	m_dialogsToRender.clear();
+	m_dialogsToRender_new.clear();
 	GetUICursor().Hide();
 }
 
