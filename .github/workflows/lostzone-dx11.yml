@@ -120,6 +120,8 @@ jobs:
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-rp-input.py
           if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-physics-replica.py
+          if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-checksum.py
       - name: Check actor packet compatibility
         shell: pwsh

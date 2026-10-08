@@ -16,6 +16,7 @@ on:
       - 'scripts/check-native-console-capture.py'
       - 'scripts/check-native-script-watchdog.py'
       - 'scripts/check-native-rp-input.py'
+      - 'scripts/check-native-physics-replica.py'
       - 'src/xrGame/player_hud.cpp'
       - 'scripts/check-netcoop-scheduler.py'
       - 'scripts/fixtures/ixray-scheduler/**'
@@ -168,6 +169,8 @@ jobs:
         run: python scripts/check-native-script-watchdog.py
       - name: Check actual RP UI input while gameplay is locked
         run: python scripts/check-native-rp-input.py
+      - name: Check actual pose-only physics replica dynamics
+        run: python scripts/check-native-physics-replica.py
   clock-windows:
     runs-on: windows-2022
     timeout-minutes: 10
@@ -242,6 +245,8 @@ jobs:
           python scripts/check-native-script-watchdog.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-rp-input.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-physics-replica.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-checksum.py
           if errorlevel 1 exit /b %errorlevel%

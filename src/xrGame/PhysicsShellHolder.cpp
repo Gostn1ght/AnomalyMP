@@ -690,6 +690,11 @@ void CPhysicsShellHolder::netcoop_physics_update()
 		state.previous_quaternion = state.quaternion;
 		state.enabled = true;
 		state.linear_vel.set(0.f, 0.f, 0.f);
+		// The replica follows interpolated poses. FixBody clears these too;
+		// restoring server dynamics would spin/force the fixed ODE body locally.
+		state.angular_vel.set(0.f, 0.f, 0.f);
+		state.force.set(0.f, 0.f, 0.f);
+		state.torque.set(0.f, 0.f, 0.f);
 		PHGetSyncItem(i)->set_State(state);
 	}
 	// No extrapolation through walls or floors when a packet is late.

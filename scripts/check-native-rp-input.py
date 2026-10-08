@@ -31,7 +31,7 @@ struct CUIButton:Base {
 } button;
 ''' + button + r'''
 struct { unsigned dwPrecacheFrame=0; } Device;
-struct CActor {int m_rp_index=-1;bool g_Alive(){return true;}} actor;
+struct CActor {int m_rp_index=-1;bool g_Alive(){return true;}} test_actor;
 struct UI {bool TopInputReceiver(){return top;}bool IR_UIOnKeyboardPress(int key){++ui_calls;if(key==MOUSE_1)button.OnMouseAction(0,0,WINDOW_LBUTTON_DOWN);return consumed;}} ui;
 UI* CurrentGameUI(){return ui_present?&ui:nullptr;}
 template<class T> T smart_cast(CActor* value){return static_cast<T>(value);}
@@ -41,7 +41,7 @@ struct Engine {bool functor(const char*,luabind::functor<bool>&){return false;}}
 struct AI {Engine& script_engine(){return engine;}} ai_object;
 AI& ai(){return ai_object;}
 EGameActions get_binded_action(int key){return key==QUIT?kQUIT:key==CONSOLE?kCONSOLE:key==SCREENSHOT?kSCREENSHOT:kOTHER;}
-struct CLevel {CActor* CurrentControlEntity(){return has_actor?&actor:nullptr;}void IR_OnKeyboardPress(int key);};
+struct CLevel {CActor* CurrentControlEntity(){return has_actor?&test_actor:nullptr;}void IR_OnKeyboardPress(int key);};
 ''' + prefix + r'''
  ++fallthrough;
 }
@@ -50,7 +50,7 @@ int main(){
  for(bool p:{false,true})for(bool a:{false,true})for(bool active:{false,true})
  for(bool shown:{false,true})for(bool receiver:{false,true})for(bool disabled:{false,true})
  for(bool handled:{false,true})for(int key:{DIK_Z,MOUSE_1,MOUSE_2,MOVE,USE,QUIT,CONSOLE,SCREENSHOT}){
-  pure=p;has_actor=a;actor.m_rp_index=active?0:-1;ui_present=shown;top=receiver;g_bDisableAllInput=disabled;consumed=handled;
+  pure=p;has_actor=a;test_actor.m_rp_index=active?0:-1;ui_present=shown;top=receiver;g_bDisableAllInput=disabled;consumed=handled;
   ui_calls=fallthrough=0;level.IR_OnKeyboardPress(key);
   const bool locked=p&&a&&active&&key!=DIK_Z&&key!=QUIT&&key!=CONSOLE&&key!=SCREENSHOT;
   assert(ui_calls==unsigned(locked&&shown&&receiver&&!disabled));
@@ -59,7 +59,7 @@ int main(){
  }
  // The actual native button receives press through the RP level gate, then
  // release through the ordinary UI path and emits BUTTON_CLICKED once.
- pure=true;has_actor=true;actor.m_rp_index=0;ui_present=top=true;g_bDisableAllInput=false;
+ pure=true;has_actor=true;test_actor.m_rp_index=0;ui_present=top=true;g_bDisableAllInput=false;
  ui_calls=fallthrough=stop_clicks=0;button.SetButtonState(BUTTON_NORMAL);
  level.IR_OnKeyboardPress(MOUSE_1);assert(ui_calls==1 && fallthrough==0 && button.m_eButtonState==BUTTON_PUSHED);
  button.OnMouseAction(0,0,WINDOW_LBUTTON_UP);assert(stop_clicks==1 && button.m_eButtonState==BUTTON_NORMAL);
