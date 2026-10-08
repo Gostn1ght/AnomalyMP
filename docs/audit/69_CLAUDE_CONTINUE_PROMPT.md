@@ -6,13 +6,13 @@
 `C:\Users\Mahito\Desktop\NetAnomaly_Engine_Console_2026-09-10\NetAnomaly_Full\engine-steamnet`.
 Windows/PowerShell, GitHub CLI настроен. Владелец просит закрыть все188
 пунктов автономно, сначала простые, потом средние, потом сложные. Не
-заканчивай работу после одного плана или прогона. Сейчас26 принято,
-34 код/fixtures,69 частично,59 не сделано;162 не закрыто полностью.
+заканчивай работу после одного плана или прогона. Сейчас27 принято,
+33 код/fixtures,69 частично,59 не сделано;161 не закрыто полностью.
 Перепроверь актуальные counters по строкам doc48, а не по этому снимку.
 
 Сначала прочитай docs/audit/45_CODEX_HANDOFF.md,48_DOC43_AUDIT.md,
 43_WORLD_REQUIREMENTS_PROGRESS.md,67_DESTRUCTIBLE_STATE_RESTART.md,
-68_FAILED_START_INPUT.md,70_NATIVE_WORLD_IDENTITY.md,71_NATIVE_WORLD_EXCLUSIVITY.md,72_NATIVE_WORLD_CLOCK_SCALE.md,73_RAIN_SOUNDS_RESTORE.md,74_NPC_LOADOUT_COMPATIBILITY.md. Сверь git status/HEAD,
+68_FAILED_START_INPUT.md,70_NATIVE_WORLD_IDENTITY.md,71_NATIVE_WORLD_EXCLUSIVITY.md,72_NATIVE_WORLD_CLOCK_SCALE.md,73_RAIN_SOUNDS_RESTORE.md,74_NPC_LOADOUT_COMPATIBILITY.md,75_NATIVE_HUD_STOP_GUARD.md,76_NATIVE_FIRST_CHECKPOINT_ADMISSION.md. Сверь git status/HEAD,
 Actions, свои процессы и qualified acceptance. Более свежий журнал важнее
 этого промпта. Не ставь native PASS по одному backend unit-test/fixture.
 Не добавляй к узкому готовому пункту требования соседних этапов.
@@ -136,7 +136,7 @@ sourceb18254429effffb23c653f09a517ac5358da2e82 содержит installer/hash m
 codec с CRC/size/OggS/SHA. Original GAMMA/profile/archive не менялись.
 _build/live/rain-sound-e609/qualified-acceptance.json: обычный GHAe609
 Actor после реального входа961,14sound_object длительностей512–838ms,
-ещё15сек игры,0missing-sound/fatal/SCRIPT ERROR/handler/caught на обеих ролях.
+ещё15сек игры,0target-rain-Lua/fatal/SCRIPT ERROR/handler/caught на обеих ролях.
 SAME selftest_destructibles_correlated private world; no owner credentials.
 Stand-alone timeout/first server alias failure retained, не PASS.
 Primary-assets-installation.json: добавлены ONLY14 OGG под
@@ -144,17 +144,30 @@ gamma-runtime/gamedata/sounds/material/human/step. Hideout использует 
 junction; обе папки SHA verified. Повтор installer добавляет0/keeps14.
 Все88 защищённых fingerprints прежние; новые sound assets вне baseline88.
 
-HUD255 source correction подготовлена, полный runtime PASS пока НЕ принят:
-StopScriptAnim excludes only255 normal inactive sentinel; callbacks/reset
-и diagnostics3..254 unchanged. Это не исправление видимого мерцания.
-b182 Foundation37768760407/DX1137768760410 FAILED перед engine build:
-fixture renaming changed diagnostic literal; Windows default decode failed.
-FIXTURE ONLY correction be30a8bb2bef31452eed26d2e945b6fad2f41778:
-rename declaration only, byte-preserving latin1 read. Actual2048 differential
-cases/diagnostic assertions не ослаблены. Foundation37773463706 SUCCESS
-Linux ASan/UBSan + MSVC. DX1137773463776 SUCCESS fullengine/package/upload; package source be30.
-Не source push во время engine build; docs-only можно. Новый EXE ещё не
-скачан/не установлен, требуется private ordinary admission/startup acceptance.
+HUD255 диагностическая правка ПРИНЯТА doc75, PRIMARY EXE НЕ обновлён:
+StopScriptAnim excludes only inactive255, callbacks/reset/3..254 diagnostics
+unchanged. Actual2048 differential cases GCC ASan/UBSan + MSVC PASS.
+b182 Foundation37768760407/DX1137768760410 failed fixture before engine:
+control rename changed Msg literal; Windows default decoder incompatible.
+Fixture-only be30 declaration-only rename+latin1 preserves assertions.
+Foundation37773463706/DX1137773463776 SUCCESS fullengine/package/upload.
+Sourcebe30a8bb2bef31452eed26d2e945b6fad2f41778, artifact11549278414,
+ZIP6f02b5cd8bd3a0f798f4d1d6195b4e161655d167d742b4524e1886b14677605b,
+bothEXE4BA7566067A0B457AA5C40AAC3C0EDDEDE08DDEE8D37597A7FCB780C51968711.
+_build/live/hud-be30a8bb2/qualified-acceptance.json: SAME private correlated
+world, ordinary known961 Actor20608/PID13152+20s, native first-window-frame
+presented,3actual game.stop_hud_motion calls, no invalid-part diagnostic.
+NO extra rain archive mounted:14PRIMARY installed sounds actual lengths
+512–838ms,9targeted native loadout section/key/caliber checks on both roles.
+No fatal/SCRIPT ERROR/handler/caught; all HUD processes stopped/debugempty.
+This does NOT fix visible character blinking or prove human Firebase/UI/64.
+Other native asset warnings remain:38textures/10sounds + MCM. Earlier
+zero missing-sound shorthand meant target14rain Lua exceptions only; current
+docs73/74/75 clarify. _build/live/remaining-resource-warnings.json records
+exact names. Do not silently suppress diagnostics or replace custom assets.
+Source44730a31a adds only config installer/manifest/docs, no nativeC++
+change. Its redundant DX11 run37776467719 SUCCESS; no pending CI. Be30
+package remains the validated ordinary HUD/native G12 acceptance version.
 
 NPC config compatibility repair ПРИНЯТ/УСТАНОВЛЕН doc74:
 scripts/install-netcoop-npc-loadouts.py + fixtures/npc-loadouts/compatibility.json.
@@ -167,7 +180,7 @@ exclusive original backup, atomic replacement avoids hardlink write-through.
 _build/live/loadout-e609/qualified-acceptance.json: GHAe609 ordinary known961
 Actor26903 +20s; SAME retained private correlated world. Actual native INI
 on BOTH roles verifies9 exact section/key pairs, actual calibers/quality and
-all random USP ammo section existence;0loadout/missing-sound/fatal/SCRIPT
+all random USP ammo section existence;0loadout/target-rain-Lua/fatal/SCRIPT
 ERROR/handler/caught on sealed logs. Two failed private query controls
 (non-raw Python path, whole-table count across unrelated factions) retained,
 strict assertions rejected before client launch. Final ammo checks not relaxed.
@@ -179,8 +192,29 @@ original backups _build/live/loadout-e609/primary-backups; after SHA verified,
 repeat preview0. Fallback gamedata configs/original GAMMA not edited.
 All88 protected fingerprints unchanged; these20LTX outside88 baseline.
 No proof all generated NPC item packets, human gunfire or immortal/jerky AI.
-All loadout test processes stopped/debugempty. HUD package ordinary native
-probe next; verify its result instead of inferring startup PASS from CI.
+All loadout/HUD test processes stopped/debugempty after their acceptances.
+G12 принят doc76: _build/live/bootstrap-admission-be30-2/
+qualified-acceptance.json. ONE private controller/new appdata, no owner
+worlds/accounts copied/deleted. Same validated be30 native engine, normal
+AI/population/bootstrap30s/retry15s. Scoped Lua fault checker returnsfalse
+for THIS server's script_snapshot_matches, seven actual native checkpoint
+verifications rejected; no committed pointer, exact native connection IDs
+nbot202/203 rejected, no Actor. ORIGINAL checker restored, bootstrap LZW3
+commit succeeds; sizes/FNV64 for BOTH.scop/.scoc verified, first files and
+pointer sealed. Only AFTERcommit nbot204 Actor42752+20s/final1playing.
+First observed refusal follows an initial failed save: pre-COMMIT proof,
+not a request before the first attempt. Expected failed negative bots and
+incomplete-save messages are controlled faults, separate from unexpected
+fatal/SCRIPT ERROR/handler/probe/loadout0. Old bootstrap-admission-be30
+retained UNQUALIFIED: server-only reason awaited on bot, competing cleanup
+interrupted recovery. Do not delete/reseed or invent PASS for old root.
+ALL tests stopped/shared debug empty/all88protected fingerprints unchanged.
+Current audit27/33/69/59,161 unclosed. LOCAL first-commit gate only; disk
+crash/distributed/other transaction cases remain separate. Don't rerun full
+accepted cases without new changes/reason. Next simple cleanup may inspect
+38remaining texture/10sound warnings; some UI names are atlas REGION keys,
+not missing DDS files, so check XML definitions before copying/creating assets.
+Native64/max-view and broader clock/chunk/transaction work remain queued.
 
 L30 закрыт doc64–67: actual GHA4b glass/wood/metal, exact health0.6/original
 INI после restart,0.7 уничтожает, checkpoint/второй restart сохраняют отсутствие.
@@ -207,7 +241,7 @@ API_IP140.82.121.5, temporary curl --resolve со строгим TLS; глоба
 DNS не менять. Token memory/stdin, не печатай secrets/signed URLs. Source,
 built-from, ZIP digest, manifest и exe hashes проверять обязательно.
 
-Продолжай162 оставшихся пункта, обновляй честно doc45/48. Защити основной
+Продолжай161 оставшийся пункт, обновляй честно doc45/48. Защити основной
 вход в игру. Если лимиты заканчиваются, сохрани точный handoff/свои pending
 процессы/CI/незакоммиченные файлы. Reset credits автоматически не расходуй.
 Последний quota snapshot 2026-10-08:5h used1%, weekly0%; reset автоматически

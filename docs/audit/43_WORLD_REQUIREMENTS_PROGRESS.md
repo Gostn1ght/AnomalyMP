@@ -245,7 +245,11 @@ Unique NPC, anti-duplication. Контракты: 42 §3, §7; W6.
 - [ ] G10. Recovery по валидному snapshot+journal с явной проверкой
   integrity, без генерации нового мира при потере данных.
 - [ ] G11. Retention/compaction и миграция схем без потери persistent IDs.
-- [ ] G12. Первичный durable checkpoint до допуска игроков и важных действий.
+- [x] G12. Первичный durable checkpoint до допуска игроков и важных действий.
+  Native doc76: до первого COMMIT отказы nbot202/203, включая failed
+  script validation; original checker restored, оба snapshot digests
+  проверены, после bootstrap commit nbot204 Actor42752/final1playing.
+  Local admission only, не distributed/crash/post-admission transactions.
 - [ ] G13. Native engine crash/kill/power-loss испытания на каждом шаге
   capture/write/commit/replay; измерить RPO/RTO и snapshot pause.
 

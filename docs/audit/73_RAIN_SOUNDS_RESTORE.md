@@ -24,7 +24,7 @@ roles mount only the matching archive through additional PRIVATE FS aliases.
 After the ORIGINAL actor update, actual native sound constructors load all14
 sounds. Their native durations are nonzero (512–838ms); SSFX on_game_load also
 runs without the old missing-sound stacks. Client stays admitted another15s.
-Both sealed pre-stop journals contain no missing-file sound diagnostics,
+Both sealed pre-stop journals contain no target Lua rain missing-file exceptions,
 native fatal/exception, SCRIPT ERROR, failed handler or caught probe error.
 This proves resource loading, not human audio playback or an entirely clean
 GAMMA startup. Existing MCM/loadout/HUD255/texture diagnostics stay separate.
@@ -56,7 +56,7 @@ Separate native diagnostic correction prepared: StopScriptAnim excludes only
 the normal inactive255 sentinel from invalid-part warnings, preserves reset/
 movement/resync behavior and warnings for3..254. Actual-method2048-case
 differential fixture is included in Foundation/DX11 workflows. Native build/
-fixture results still required; no local C++ compilation or primary engine
+fixtures and scoped ordinary startup now accepted in doc75; no local C++ compilation or primary engine
 promotion. This does not fix visible character blinking or all animation issues.
 
 HUD fixture qualification update: b182 Foundation37768760407/DX1137768760410
@@ -66,4 +66,10 @@ read also used an incompatible default codec. Fixture-only be30a8bb2 repairs
 declaration-only rename and byte-preserving latin1 reading; assertions retained.
 Foundation37773463706 succeeds Linux ASan/UBSan and MSVC; DX1137773463776
 full engine build/package/upload SUCCESS. Private ordinary HUD runtime
-acceptance is still required; no primary engine promotion.
+acceptance subsequently passes doc75; no primary engine promotion.
+
+Resource-scope clarification: the original sound probe also reports39 other
+native missing-texture and10 other missing-sound warnings. The14 restored
+rain sound constructors/Lua exceptions are the accepted target; generic
+"zero missing-sound" wording is not a full asset-cleanliness claim. Doc75
+records38 texture/10 sound warnings after its later ordinary startup.

@@ -7,7 +7,14 @@
 
 Исторический итог 2026-10-06: ✅ 22, 🔧 37, 🟡 69, ⬜ 60 из 188.
 
-Текущие статусы строк 2026-10-08: ✅ 26, 🔧 34, 🟡 69, ⬜ 59 из 188.
+Текущие статусы строк 2026-10-08: ✅ 27, 🔧 33, 🟡 69, ⬜ 59 из 188.
+G12 закрыт doc76: actual GHAbe30/new private world, native pre-commit and
+failed-checkpoint connection-ID-correlated admission refusals,7controlled
+script-verification failures, ORIGINAL checker restoration, first LZW3
+commit with BOTH ALife/script size+FNV digests verified, then nbot204
+Actor42752+20s/final1playing. Pre-commit control occurs after an initial
+failed save, not before the first attempt. Broader crash/distributed/64
+transactions stay separate; failed earlier controllers retained UNQUALIFIED.
 B01 закрыт по doc72: actual GHA171 ALife-backed clock, positive scales
 6→12→3→1→6 без разрыва календаря, пять mono/game-time samples; portable
 core/overflow/monotonic rejection fixtures GCC/MSVC PASS. Distributed
@@ -167,7 +174,7 @@ Distance/overload tiers для NPC/мутантов/игроков, описан
 | G09 Transactional inbox/outbox; crash между commit и ACK | 🟡 | backend inbox/outbox |
 | G10 Recovery по валидному snapshot+journal с явной проверкой | 🟡 | восстановление по валидному снимку a/b + указатель с контрольными суммами проверено краш-тестом; журнала событий после снимка нет |
 | G11 Retention/compaction и миграция схем без потери persistent IDs | ⬜ |  |
-| G12 Первичный durable checkpoint до допуска игроков и важных действий | 🔧 | новый мир сохраняется через 30 с после старта; вход закрыт до первого сохранения |
+| G12 Первичный durable checkpoint до допуска игроков и важных действий | ✅ | Doc76, actual validated GHAbe30 dedicated server/new private persistent world: exact native connection IDs for nbot202/203 are refused before first committed pointer, including after failed script-snapshot verification; neither negative bot gets an Actor. Restore ORIGINAL checker after7controlled failures; native bootstrap publishes LZW3, independently verify both ALife .scop and GAMMA .scoc sizes/FNV64 and seal copies. Only after commit nbot204 enters Actor42752+20s/final1playing/0failed. Six sealed journals/native chronology. Controlled verifier fault, not disk corruption; first observed refusal is pre-commit but after initial failed attempt. Owner state unchanged; local admission only, distributed/crash/post-admission transactions remain separate |
 | G13 Native engine crash/kill/power-loss испытания на каждом шаге | ✅ | краш (TerminateProcess) в 4 точках сохранения мира на реальном сервере: после рестарта грузится последний полный коммит, мир идёт (run-world-crash-test.ps1, 2026-10-06); обрыв питания не моделируется |
 
 ## H

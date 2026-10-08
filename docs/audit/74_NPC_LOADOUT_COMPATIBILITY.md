@@ -40,9 +40,11 @@ actual ammo_class indexing and selected caliber/quality. Random USP ammo
 members are all verified as existing native sections. Ordinary known
 synthetic account961 enters as Actor26903 and stays another20s. Original
 actor updates and GAMMA initialization are retained. Both pre-stop logs
-contain zero NPC-loadout, missing-sound, fatal/exception, SCRIPT ERROR,
+contain zero NPC-loadout, target rain Lua missing-file, fatal/exception, SCRIPT ERROR,
 failed-handler or probe errors. MCM/HUD255 and other diagnostics remain
-separate; this is not a completely clean GAMMA startup.
+separate; this is not a completely clean GAMMA startup. Other native
+asset warnings:38 missing-texture and10 missing-sound records; these are
+not the14 target Lua rain exceptions and remain unresolved.
 
 Proof: `_build/live/loadout-e609/qualified-acceptance.json`, matching
 pre-stop logs and patch/backup hash manifests. Nonce
