@@ -17,6 +17,7 @@ on:
       - 'scripts/check-native-script-watchdog.py'
       - 'scripts/check-native-rp-input.py'
       - 'scripts/check-native-physics-replica.py'
+      - 'scripts/check-native-admin-god.py'
       - 'src/xrGame/player_hud.cpp'
       - 'scripts/check-netcoop-scheduler.py'
       - 'scripts/fixtures/ixray-scheduler/**'
@@ -171,6 +172,8 @@ jobs:
         run: python scripts/check-native-rp-input.py
       - name: Check actual pose-only physics replica dynamics
         run: python scripts/check-native-physics-replica.py
+      - name: Check actual per-connection administrator god mode
+        run: python scripts/check-native-admin-god.py
   clock-windows:
     runs-on: windows-2022
     timeout-minutes: 10
@@ -247,6 +250,8 @@ jobs:
           python scripts/check-native-rp-input.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-physics-replica.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-admin-god.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-checksum.py
           if errorlevel 1 exit /b %errorlevel%

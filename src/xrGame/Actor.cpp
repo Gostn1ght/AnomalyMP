@@ -672,7 +672,7 @@ void CActor::Hit(SHit* pHDS)
 
 	if (IsGameTypeSingle())
 	{
-		if (GodMode())
+		if (GodMode(this))
 		{
 			HDS.power = 0.0f;
 			inherited::Hit(&HDS);
@@ -710,7 +710,7 @@ void CActor::Hit(SHit* pHDS)
 		/* AVO: rewritten above and added hit callback*/
 		/*float hit_power = HitArtefactsOnBelt(HDS.damage(), HDS.hit_type);
 
-		if (GodMode())
+		if (GodMode(this))
 		{
 		HDS.power = 0.0f;
 		inherited::Hit(&HDS);

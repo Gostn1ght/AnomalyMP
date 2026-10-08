@@ -190,9 +190,12 @@ function on_client_command(cid, name, entity_id, text, role)
 
 	elseif cmd == "god" then
 		if not entity_id or entity_id == 65535 then return "! your Actor is not on the server" end
-		local gods = netcoop_server_compat.god_mode
-		gods[entity_id] = not gods[entity_id] or nil
-		return gods[entity_id] and "* god mode ON" or "* god mode OFF"
+		if args ~= "" and args ~= "on" and args ~= "off" and args ~= "1" and args ~= "0" then
+			return "! usage: god [on|off]"
+		end
+		local value = args == "on" or args == "1" or (args == "" and not netcoop_admin_god_enabled(entity_id))
+		if not netcoop_admin_god_set(entity_id, value) then return "! ADMIN Actor unavailable" end
+		return value and "* god mode ON" or "* god mode OFF"
 
 	elseif cmd == "give_money" then
 		local amount = tonumber(args)

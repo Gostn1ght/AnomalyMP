@@ -2,6 +2,19 @@
 
 ## Свежий приоритет: игровые баги, 2026-10-08 вечер
 
+Более свежий результат: actual RP native mouse Stop exactly1 + pose exit PASS;
+qualified-gameplay-scope.json в отдельном lab. Pickup original42753 при корректном
+прицеле блокировался DotMarks/FDDA; точечный fallback only-netcoop при killswitch
+прошёл native F/FDDA pickup и authority journal world->test_admin v2. Потом
+персонаж умер/respawn, item обратно world v3; wrong ID_Parent и поздняя parent
+assertion сохранены FAIL, это не опровергает более ранний journal, но не считать
+полной hover/drop/restart квалификацией. Source добавляет пропущенный класс
+CPhysicsSkeletonObject в server physics replication; actual filter fixture.
+God source новый per-connection native state/role validation + per-actor damage/
+condition/emission check + g_god server request/confirmation; GHA/native pending.
+a39 обе GHA SUCCESS. Первыми закончить GHA/native эти правки, затем demo teleport,
+mutant smoothness/freezes, hover/wall, восстановление private maps; потом188.
+
 Сначала прочитай doc80 и последние записи doc45. Снимки процессов ниже устарели:
 все4 сервера владельца позже отсутствовали, миры/accounts сохранены. Новая328
 сборка/обе Foundation/полный DX11 SUCCESS; qualified package только в отдельном

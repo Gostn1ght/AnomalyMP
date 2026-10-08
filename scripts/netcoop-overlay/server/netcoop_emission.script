@@ -232,7 +232,7 @@ local function safe_cover(mgr, actor)
 end
 local function protected(actor)
     local community = character_community(actor)
-    return (netcoop_server_compat.god_mode[actor:id()] == true)
+    return netcoop_admin_god_enabled(actor:id())
         or load_var(actor, "surge_immuned", false) == true
         or community == "actor_monolith" or community == "actor_zombied"
 end

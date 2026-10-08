@@ -26,13 +26,14 @@
 #define MAX_SATIETY					1.0f
 #define START_SATIETY				0.5f
 
-BOOL GodMode()
+BOOL GodMode(const CActor* actor)
 {
 	// Netcoop server: AF_GODMODE_RT is on by default and cleared only when a
 	// client shows its game UI - a dedicated server has none, so every
 	// player was immortal there (hits of power 0, s99-s100).
 	if (netcoop::enabled() && !netcoop::pure_client())
-		return psActorFlags.test(AF_GODMODE);
+		return actor && actor->ID() != 0
+			? netcoop::server_actor_god(actor) : psActorFlags.test(AF_GODMODE);
 	if (GameID() == eGameIDSingle)
 		return psActorFlags.test(AF_GODMODE | AF_GODMODE_RT);
 	return FALSE;
@@ -218,12 +219,12 @@ void CActorCondition::UpdateCondition()
 				RemoveEffector(m_object,effAlcohol);
 		}
 	}
-	else if (GodMode())
+	else if (GodMode(m_object))
 	{
 		UpdateBoosters();
 	}
 
-	if (GodMode()) return;
+	if (GodMode(m_object)) return;
 	if (!object().g_Alive()) return;
 	if (!object().Local() && m_object != Level().CurrentViewEntity()) return;
 
@@ -519,7 +520,7 @@ void CActorCondition::UpdateSatiety()
 
 CWound* CActorCondition::ConditionHit(SHit* pHDS)
 {
-	if (GodMode()) return NULL;
+	if (GodMode(m_object)) return NULL;
 	return inherited::ConditionHit(pHDS);
 }
 
@@ -532,7 +533,7 @@ void CActorCondition::PowerHit(float power, bool apply_outfit)
 //weight - "удельный" вес от 0..1
 void CActorCondition::ConditionJump(float weight)
 {
-	if (GodMode())
+	if (GodMode(m_object))
 		return;
 	float power = m_fJumpPower;
 	power += m_fJumpWeightPower * weight * (weight > 1.f ? m_fOverweightJumpK : 1.f);
@@ -576,7 +577,7 @@ bool CActorCondition::IsCantWalk() const
 
 bool CActorCondition::IsCantWalkWeight()
 {
-	if (IsGameTypeSingle() && !GodMode())
+	if (IsGameTypeSingle() && !GodMode(m_object))
 	{
 		float max_w = m_object->MaxWalkWeight();
 

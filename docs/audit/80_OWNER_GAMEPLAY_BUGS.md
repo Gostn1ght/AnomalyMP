@@ -47,6 +47,66 @@ then left to sleep and instructed autonomous fixes again. Preserve four-map
 worlds; do not launch an interactive client unnecessarily. Later restore/add
 maps from retained worlds when qualified gameplay fixes are ready.
 
+## Native gameplay continuation and next source changes
+
+Corrected _G observer trial client25284/Actor42496: actual Z opens unchanged
+RP wheel; actual native mouse press/release delivers Stop callback exactly1;
+hands_pockets exits, RP_STOP_PASS. Sealed rp-native-pass-and-box-motion logs.
+Private server box15783 was awakened by actual apply_force and set to angular
+velocity0,0,5; native authority reads fixed=false/av=5. Client later fixed=true,
+all six local linear/angular components0 and object pose changed from its
+original position to the authority's settled pose. Two-second sampling did
+not capture a full rotation trajectory; do not claim visual smoothness from it.
+
+Original floor weapon42753/sectionwpn_pm retained across all trials. Initial
+probe used SetActorDirection(vector) incorrectly (API accepts HPB, not direction),
+so first trial had no target; retained. Correct -getH/-getP trial had camera
+dot1 and actual target42753 at1.677m, but before-pickup returnedfalse repeatedly
+in BOTH legacy/COD modes and acquisition failed. Source explains why:
+DotMarks dependency failure (pickup callback disabled during settings load)
+sets killswitch_all and unregisters its update handlers. Its FDDA wrapper
+sets ret_value=false, receives no target on failure and never calls stock FDDA.
+Add client overlay fallback ONLY for netcoop + actual pickup killswitch:
+invoke captured original FDDA callback with the native-selected item.
+Normal DotMarks target/redirection and SP unchanged; eight actual Lua51 cases
+PASS. New clean startup client15352/Actor46080 uses that exact overlay; same
+original42753, actual native F, stock FDDA, actor_on_item_take and
+LEGACY_F_PICKUP_PASS. Authority proof must use exposed ALife parent_id,
+not C++ ID_Parent (wrong-property assertion retained). No local forced take.
+Authority journal actually records weapon42753 world -> test_admin v2; player
+later died/respawned and journal records player -> world v3. By the later
+corrected parent query the item was already dropped, so that assertion failed
+too. Do not substitute it for earlier native ownership evidence. Exact scope
+and caveats sealed in qualified-gameplay-scope.json. This is not full hover,
+drop/restart/late-join or wall-fragment qualification.
+
+Separate fragment source defect: boxes/barrels produce CPhysicsSkeletonObject,
+which is NOT CPhysicObject. server_physics_update selected props only by the
+latter cast, skipping fragments entirely. Include fragment class in existing
+prop branch; retain startup/awake handling, authority impulses/mass, live
+creature exclusion and cadence. Existing actual physics-copy fixture now also
+imports actual selection block and checks fragment/item/corpse/prop included,
+live creature/unrelated excluded. Native shot/fragment/wall acceptance pending.
+
+ADMIN god source changes: g_god was only a client flag, while srv god only
+cancelled scripted hits and did not cover native condition damage. Use an
+unsaved per-connection field, native owner/role/alive validation, and per-actor
+GodMode predicate on server. Ordinary condition checks return without scanning
+the client pool (small active-admin hint set); active mode rechecks bound role
+and connection field, invalidates hint after revoke/disconnect. Native Clear
+initializes false. g_god pure-client command sends explicit on/off after verified
+ADMIN; local flag changes only on exact server confirmation and resets on new
+auth. SP/local server mask behavior retained. Hit cancellation and emission
+protection use same native accessor. Actual Lua handler role/idempotency/malformed
+cases and existing emission/item/sandbox checks PASS. Actual native functions
+and GodMode predicate fixture added to GCC/MSVC GHA; full build and real god
+acceptance still pending. No claim this source is a qualified deployed engine.
+
+a39cee181 settings patch Foundation37830646398/DX1137830646479 fullSUCCESS.
+Do not cancel an in-progress full build with another source push.
+Original188 counters remain27/33/69/59. God/demo/mutants/hover/restored maps and
+shot-fragment effects remain open. Primary88 protected files MATCH.
+
 Startup proof sealed in qualified-startup.json/acceptance/*.log and two native
 PNGs, BOTH viewed: Cordon world/HUD then PDA over world. The full session is
 not clean: later MCM ShowDialog pure-virtual error; visible Dot Marks dependency

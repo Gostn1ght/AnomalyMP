@@ -2555,6 +2555,25 @@ public:
     }
 };
 
+class CCC_NetcoopGod : public CCC_Mask
+{
+public:
+	CCC_NetcoopGod(LPCSTR command_name, Flags32* actor_flags, u32 bit) : CCC_Mask(command_name, actor_flags, bit) {}
+	void Execute(LPCSTR args) override
+	{
+		if (netcoop::pure_client())
+		{
+			if (!netcoop::client_admin_authorized())
+				Msg("! [Lost Zone] administrator account required for god mode");
+			else if (EQ(args, "on") || EQ(args, "1")) netcoop::client_send_command("god on");
+			else if (EQ(args, "off") || EQ(args, "0")) netcoop::client_send_command("god off");
+			else InvalidSyntax();
+			return;
+		}
+		CCC_Mask::Execute(args);
+	}
+};
+
 //netanomaly: send a text command to the server (accounts, admin, spawner)
 class CCC_NetAnomalySrv : public IConsole_Command
 {
@@ -2842,7 +2861,7 @@ void CCC_RegisterCommands()
 	CMD4(CCC_FloatBlock, "ph_tri_query_ex_aabb_rate", &ph_console::ph_tri_query_ex_aabb_rate, 1.01f, 3.f);
 	CMD3(CCC_Mask, "g_no_clip", &psActorFlags, AF_NO_CLIP);
 	CMD1(CCC_JumpToLevel, "jump_to_level");
-	CMD3(CCC_Mask, "g_god", &psActorFlags, AF_GODMODE);
+	CMD3(CCC_NetcoopGod, "g_god", &psActorFlags, AF_GODMODE);
 	CMD3(CCC_Mask, "g_unlimitedammo", &psActorFlags, AF_UNLIMITEDAMMO);
 	CMD1(CCC_Script, "run_script");
 	CMD1(CCC_ScriptCommand, "run_string");
@@ -2855,7 +2874,7 @@ void CCC_RegisterCommands()
 	if (0 != strstr(Core.Params, "-dbg"))
 	{
 		CMD1(CCC_JumpToLevel, "jump_to_level");
-		CMD3(CCC_Mask, "g_god", &psActorFlags, AF_GODMODE);
+		CMD3(CCC_NetcoopGod, "g_god", &psActorFlags, AF_GODMODE);
 		CMD3(CCC_Mask, "g_unlimitedammo", &psActorFlags, AF_UNLIMITEDAMMO);
 		CMD1(CCC_Script, "run_script");
 		CMD1(CCC_ScriptCommand, "run_string");

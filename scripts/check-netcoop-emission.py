@@ -36,6 +36,7 @@ xr_logic={pick_section_from_condlist=function(actor,zone,cond) return cond end}
 function load_var(actor,key,default) return actor[key] or default end
 function character_community(actor) return actor.community or 'actor_stalker' end
 netcoop_server_compat={god_mode={}}
+function netcoop_admin_god_enabled(id) return netcoop_server_compat.god_mode[id]==true end
 VEC_Z={}
 hit=setmetatable({telepatic=4},{__call=function() return {} end})
 alife_storage_manager={get_state=function() return {} end}

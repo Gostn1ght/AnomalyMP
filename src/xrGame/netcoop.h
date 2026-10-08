@@ -132,6 +132,9 @@ bool client_owns_hud_item(const CObject* item);
 // netcoop_account(), netcoop_command(text), netcoop_pure_client()
 bool script_login(LPCSTR login, LPCSTR password, bool register_account);
 bool client_admin_authorized();
+bool server_actor_god(const CActor* actor);
+bool script_admin_god_enabled(u16 actor_id);
+bool script_admin_god_set(u16 actor_id, bool enabled);
 int script_role();
 LPCSTR script_account();
 int script_account_state();

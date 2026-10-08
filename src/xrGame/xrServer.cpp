@@ -68,6 +68,7 @@ void xrClientData::Clear()
 	net_ConnectionDataRequested = FALSE;
 	netcoop_login = NULL;
 	netcoop_role = 0;
+	netcoop_admin_god = false;
 	netcoop_character_slot = 1;
 	netcoop_character_name = NULL;
 	gamma_snapshot_ready = false;

@@ -526,6 +526,7 @@ void client_on_auth_result(NET_Packet& P)
 	if (!ok && !strncmp(message, "redirect|", 9)) return client_cluster_transfer(message + 9);
 
 	s_client_role = ok ? role : u8(role_none);
+    psActorFlags.set(AF_GODMODE, FALSE); // new/revoked auth is not an inherited god session
     s_client_role_verified = !!ok;
     const bool cloud = firebase_enabled() && !s_firebase_session.id.empty();
 	if (ok) { s_client_approved = true; if (!cloud) client_store_credentials(); }
@@ -581,6 +582,11 @@ bool client_take_trade_refresh()
 
 void client_on_server_text(LPCSTR text)
 {
+	if (pure_client() && client_admin_authorized() && text)
+	{
+		if (!xr_strcmp(text, "* god mode ON")) psActorFlags.set(AF_GODMODE, TRUE);
+		else if (!xr_strcmp(text, "* god mode OFF")) psActorFlags.set(AF_GODMODE, FALSE);
+	}
 	::luabind::functor<void> f;
 	if (ai().script_engine().functor("netcoop_client_compat.on_server_text", f))
 	{
@@ -3849,7 +3855,10 @@ void server_physics_update(xrServer* server)
 		// (2026-10-07). A prop is followed once it has moved on the server;
 		// the hundreds that never move are left alone.
 		const bool item_or_corpse = smart_cast<CInventoryItem*>(object) || (creature && !creature->g_Alive());
-		const bool prop = !item_or_corpse && !creature && smart_cast<CPhysicObject*>(object);
+		// Broken boxes/barrels spawn CPhysicsSkeletonObject, not CPhysicObject.
+		// Their bodies must follow the authority just like their source props.
+		const bool prop = !item_or_corpse && !creature &&
+			(smart_cast<CPhysicObject*>(object) || smart_cast<CPhysicsSkeletonObject*>(object));
 		if (!item_or_corpse && !prop) continue;
 		if (prop && s_physics_sent.find(holder->ID()) == s_physics_sent.end())
 		{
@@ -4540,6 +4549,42 @@ void metrics_update()
 void netcoop_respawn_spawn(ClientID id); // game_sv_single.cpp
 namespace netcoop
 {
+static xr_set<u16> s_admin_god_actors;
+
+bool server_actor_god(const CActor* actor)
+{
+	if (!actor || !enabled() || pure_client() || !g_pGameLevel || !Level().Server)
+		return false;
+	// Ordinary players never scan the client pool during condition updates.
+	if (s_admin_god_actors.find(actor->ID()) == s_admin_god_actors.end()) return false;
+	FindActorOwner find;
+	find.actor_id = actor->ID();
+	xrClientData* CL = static_cast<xrClientData*>(Level().Server->FindClient(find));
+	const bool active = CL && CL->netcoop_role == role_admin && CL->netcoop_admin_god;
+	if (!active) s_admin_god_actors.erase(actor->ID());
+	return active;
+}
+
+bool script_admin_god_enabled(u16 actor_id)
+{
+	if (!enabled() || pure_client() || !g_pGameLevel || !Level().Server) return false;
+	return server_actor_god(smart_cast<CActor*>(Level().Objects.net_Find(actor_id)));
+}
+
+bool script_admin_god_set(u16 actor_id, bool value)
+{
+	if (!enabled() || pure_client() || !g_pGameLevel || !Level().Server) return false;
+	FindActorOwner find;
+	find.actor_id = actor_id;
+	xrClientData* CL = static_cast<xrClientData*>(Level().Server->FindClient(find));
+	CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(actor_id));
+	if (!CL || CL->netcoop_role != role_admin || !actor || !actor->g_Alive()) return false;
+	CL->netcoop_admin_god = value;
+	if (value) s_admin_god_actors.insert(actor_id);
+	else s_admin_god_actors.erase(actor_id);
+	return true;
+}
+
 bool script_respawn(u16 actor_id)
 {
 	if (!enabled() || !g_pGameLevel || !Level().Server)

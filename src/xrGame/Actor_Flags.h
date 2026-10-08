@@ -29,6 +29,7 @@ enum
 };
 
 extern Flags32 psActorFlags;
-extern BOOL GodMode();
+class CActor;
+extern BOOL GodMode(const CActor* actor = nullptr);
 
 extern int psActorSleepTime;
