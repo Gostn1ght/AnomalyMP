@@ -1,5 +1,43 @@
 # Промпт для Claude: продолжить Lost Zone автономно
 
+## Более свежий приоритет 2026-10-08: четыре карты для владельца
+
+Прочитай doc79 и последние записи doc45 раньше устаревшего снимка ниже.
+Engine21351fe49aceaee8624f16515af6a47a24031b80 собран/проверен ТОЛЬКО GHA:
+Foundation37811183846 и DX1137811183642 SUCCESS, artifact11565414387,
+обаEXE91FDA3F357C3694BDCF68C01A9DE69D9C854A47524EFD6781A792E8849CA4CAA.
+Exact local g_always_active/keypress_on_start разрешены PLAYER; bounded startup
+watchdog сохраняет normal60s protection и не считает stale dedicated precache
+загрузкой. Actual768 hook cases GCC/MSVC PASS. Silent do_exit сохраняет причины,
+FlushLog/exit1; только existing-silent option отключает modal message.
+
+Предыдущий bcc native клиент завершил precache: ОБА реальных PNG просмотрены,
+inventory15groups над Кордоном и мир/HUD/NPC. Qualified-render-scope.json + sealed
+after-failure logs в background-render-bcc28d4ae. FULLprobe FAIL отдельно из-за
+старого z_gavrilenko_tasks_fix GUI_on_show nil speaker. Новый client/server
+override отключает old story autocompletion в netcoop, SP сохранён, nil safe;
+actual Lua51 regression+sandbox PASS. Primary scripts/EXEs не продвигались.
+Не повторяй scoped pixel/startup proof без новой причины; это не64 acceptance.
+
+Владелец просит запустить Кордон/Болота/Свалка/Бар и интерактивный test_admin.
+Отдельная LostZone-4Maps-Test, native GHA213 package+новые Lua guards, fresh
+private namespaces, shared account/cluster, DPAPI auto-login, NO automatic
+cluster_selftest transfers. Native console sv_account_role должен подтвердить
+ADMIN, затем actual login/Actor/precache/world PNG. Clean original actor binder,
+только read-only once screenshot observer. На успехе ОСТАВИТЬ ВСЕ4SERVERS И
+ЧЕЛОВЕЧЕСКИЙ КЛИЕНТ РАБОТАТЬ: прежнее правило ниже «stop all probes» к этой
+явно запрошенной игровой сессии не относится. Проверь running-servers.json/
+running-client.json и собственные PID перед любым запуском/очисткой.
+Девять B06 checkpoint cases уже подготовлены, НЕ ЗАПУСКАЛИСЬ; отложены,
+пока владелец играет. Counts27/33/69/59,161unclosed без новых закрытых188.
+
+Первая попытка четыре сервера не имела user.ltx; settings добавлены и preflight
+защищает повтор. Вторая выявила Empty lightning_model: short fs_root и long
+game_data рассогласовали виртуальные archive keys. В ОБОИХ частных fsgame
+восстановлен исходный LONG fs_root как в qualified template, UTF8noBOM.
+Старые failed-start/logs/dumps сохраняются, owner worlds не удалялись.
+Третья попытка под наблюдением; итог дописать в doc79/doc45 после проверки.
+
 Продолжай Lost Zone — мультиплеер GAMMA/S.T.A.L.K.E.R. Anomaly на X-Ray,
 репозиторий Gostn1ght/AnomalyMP, ветка menu-3d-hideout, remote gostn1ght.
 Локальная папка:
