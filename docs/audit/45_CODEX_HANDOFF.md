@@ -24,6 +24,20 @@ Claude и Codex работают в одной папке `engine-steamnet` и �
 
 ## Правила владельца (обязательно)
 
+- Codex BEFORE breakable checkpoint edit: private native88d baseline
+  breakable-restart-before-88d72cfea reproduces damage loss for Cordon15508.
+  Stock server fire-wound0.3, control15510 breaks with0.3+0.5 in one session;
+  actual saved CSE health stays1.0, SAME world loads, target survives0.5.
+  Strict overall FAIL/common healthy proof PASS; naturally removed15509 and
+  control15510 stay absent, final1/1both,0Lua/fatal/save,1recovered entry retry.
+  Scope: CBreakableObject health->existing CSE_ALifeObjectBreakable.m_health
+  before checkpoint; broken shell maps to0 (including strike with positive
+  fHealth), restore zero-health as broken ONLY with-netcoop. Actual methods
+  and selection fixtures on GHA, unchanged baseline thresholds/controls,
+  plus pre-removal broken-state test. No new wire/save format, no NPC/AI,
+  broad physics integration, primary install or general destructible claim.
+  Save failure retains prior committed snapshot. Detailed tracking doc64.
+
 - Codex 2026-10-08 additional saved-open PASS (same88d GHA): fresh private
   door-open-xyz-88d72cfea uses stock close preparation then stock use_callback
   to OPEN15921. Rotation change1.003311, SAVE committed/SAME world_b loads,

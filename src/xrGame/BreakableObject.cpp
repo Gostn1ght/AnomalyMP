@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "BreakableObject.h"
+#include "netcoop.h"
 #include "xrserver_objects_alife.h"
 #include "../xrphysics/IPHStaticGeomShell.h"
 #include "../xrphysics/PhysicsShell.h"
@@ -55,6 +56,9 @@ BOOL CBreakableObject::net_Spawn(CSE_Abstract* DC)
 	CreateUnbroken();
 	//CreateBroken			();
 	bRemoved = false;
+	// The authority checkpoint uses the existing CSE health field. Restore
+	// a broken object before clients can see an intact collision shell.
+	if (netcoop::enabled() && fHealth <= 0.f) Break();
 	//Break					();
 	//	shedule_unregister		();
 	return (res);
@@ -96,6 +100,17 @@ void CBreakableObject::Hit(SHit* pHDS)
 				m_pPhysicsShell->applyImpulseTrace(pHDS->p_in_bone_space, pHDS->dir, pHDS->impulse, pHDS->bone());
 		}
 	}
+}
+
+bool CBreakableObject::netcoop_capture_saved_health(CSE_Abstract* entity)
+{
+	CSE_ALifeObjectBreakable* target = smart_cast<CSE_ALifeObjectBreakable*>(entity);
+	if (!target || target->ID != ID() || getDestroy() || H_Parent() || !_valid(fHealth))
+		return false;
+	// Strike/collision can break the shell without reducing fHealth. Use
+	// that physical state as well, so an already broken object cannot heal.
+	target->m_health = m_pPhysicsShell || fHealth <= 0.f ? 0.f : fHealth;
+	return true;
 }
 
 void CBreakableObject::net_Export(NET_Packet& P)

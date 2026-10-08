@@ -49,6 +49,7 @@ public:
 	virtual BOOL renderable_ShadowReceive() { return TRUE; }
 
 	virtual void Hit(SHit* pHDS);
+	bool netcoop_capture_saved_health(CSE_Abstract* entity);
 
 	virtual void net_Export(NET_Packet& P);
 	virtual void net_Import(NET_Packet& P);

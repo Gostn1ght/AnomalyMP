@@ -81,7 +81,17 @@ struct CSE_PHSkeleton {
  bool need_save()const{return !(_flags.value&flNotSave);}
 };
 struct CSE_ALifeObjectPhysic:CSE_Abstract,CSE_PHSkeleton {Fvector o_Position,o_Angle;};
+struct CSE_ALifeObjectBreakable:CSE_Abstract {float m_health=1.f;};
 struct Object {virtual ~Object()=default;};
+struct CBreakableObject:Object {
+ u16 id=9;bool destroyed=false,parented=false,fail=false;int captures=0;
+ u16 ID()const{return id;}bool getDestroy()const{return destroyed;}bool H_Parent()const{return parented;}
+ bool netcoop_capture_saved_health(CSE_Abstract* entity){
+  ++captures;auto* target=smart_cast<CSE_ALifeObjectBreakable*>(entity);
+  if(fail || !target || target->ID!=id)return false;
+  target->m_health=0.61f;return true;
+ }
+};
 struct CPHSkeleton {
  std::vector<int> bodies{10,20};int save_calls=0;u8 simulated_flags=1;
  void SaveNetState(NET_Packet& p){++save_calls;p.flags=simulated_flags;p.bodies=bodies;p.B.count+=37+8*u32(bodies.size());}
@@ -181,6 +191,17 @@ int main(){
  const int previous_saves=binder.saves;assert(world_store_capture_physics_props());assert(binder.saves==previous_saves+1);
  ready_doors.clear();assert(world_store_capture_physics_props());assert(binder.saves==previous_saves+1);
  ready_doors={7};classifier_available=false;assert(world_store_capture_physics_props());assert(binder.saves==previous_saves+1);
+ // Actual traversal must include intact/damaged breakables without a dynamic
+ // physics shell, skip pending deletion/attachments, and fail closed.
+ CBreakableObject glass,removed_glass,attached_glass;
+ removed_glass.destroyed=true;attached_glass.parented=true;
+ CSE_ALifeObjectBreakable glass_entity;glass_entity.ID=9;game.entities[9]=&glass_entity;
+ level.Objects.objects={&actor,&glass,&removed_glass,&attached_glass};
+ assert(world_store_capture_physics_props());assert(glass.captures==1 && glass_entity.m_health==0.61f);
+ assert(removed_glass.captures==0 && attached_glass.captures==0);
+ game.entities.erase(9);assert(!world_store_capture_physics_props());
+ game.entities[9]=&wrong;assert(!world_store_capture_physics_props());
+ game.entities[9]=&glass_entity;glass.fail=true;assert(!world_store_capture_physics_props());
  std::cout<<"PASS: actual physics/door capture; scoped binder, strict exceptions/no deletion, atomic decode, bounds, metadata, selection and legacy classifier fallback\n";
 }
 '''

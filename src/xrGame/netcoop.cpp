@@ -31,6 +31,7 @@
 #include "PDA.h"
 #include "InventoryBox.h"
 #include "PhysicObject.h"
+#include "BreakableObject.h"
 #include "Torch.h"
 #include "ZoneCampfire.h"
 #include "alife_simulator.h"
@@ -1271,7 +1272,19 @@ static bool world_store_capture_physics_props()
 		"zz_netcoop_world_rules.physics_door_binder_ready", door_binder_ready);
 	for (u32 n = 0; n < Level().Objects.o_count(); ++n)
 	{
-		CPhysicObject* prop = smart_cast<CPhysicObject*>(Level().Objects.o_get_by_iterator(n));
+		auto* object = Level().Objects.o_get_by_iterator(n);
+		if (CBreakableObject* breakable = smart_cast<CBreakableObject*>(object))
+		{
+			if (breakable->getDestroy() || breakable->H_Parent()) continue;
+			CSE_Abstract* entity = Level().Server->game->get_entity_from_eid(breakable->ID());
+			if (!breakable->netcoop_capture_saved_health(entity))
+			{
+				Msg("! [NetAnomaly][world] cannot capture breakable object %u", breakable->ID());
+				return false;
+			}
+			continue;
+		}
+		CPhysicObject* prop = smart_cast<CPhysicObject*>(object);
 		if (!prop || prop->getDestroy() || prop->H_Parent() ||
 			!prop->PPhysicsShell() || !prop->PHGetSyncItemsNumber()) continue;
 		CSE_Abstract* entity = Level().Server->game->get_entity_from_eid(prop->ID());
