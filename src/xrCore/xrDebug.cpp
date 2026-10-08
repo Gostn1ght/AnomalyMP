@@ -194,7 +194,8 @@ void xrDebug::do_exit(const std::string& message)
 {
 	Msg("! [X-Ray][exit] %s", message.c_str());
 	FlushLog();
-	MessageBox(NULL, message.c_str(), "Error", MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
+	if (!strstr(GetCommandLine(), "-silent_error_mode"))
+		MessageBox(NULL, message.c_str(), "Error", MB_OK | MB_ICONERROR | MB_SYSTEMMODAL);
 	TerminateProcess(GetCurrentProcess(), 1);
 }
 
