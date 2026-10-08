@@ -5,11 +5,11 @@ import os,subprocess
 if os.environ.get('GITHUB_ACTIONS')!='true':
     raise SystemExit('Native checks must run in GitHub Actions')
 root=Path(__file__).resolve().parents[1]
-text=(root/'src/xrGame/player_hud.cpp').read_text()
+text=(root/'src/xrGame/player_hud.cpp').read_text(encoding='latin-1')
 begin=text.index('void player_hud::StopScriptAnim()')
 method=text[begin:text.index('\nu32 player_hud::anim_play',begin)]
 assert method.count('part > 2 && part != u8(-1)')==1
-legacy=method.replace('part > 2 && part != u8(-1)','part > 2').replace('player_hud::StopScriptAnim()','player_hud::LegacyStop()')
+legacy=method.replace('part > 2 && part != u8(-1)','part > 2').replace('void player_hud::StopScriptAnim()','void player_hud::LegacyStop()',1)
 source=r'''
 #include <cassert>
 #include <cstdint>
