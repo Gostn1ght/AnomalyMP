@@ -113,6 +113,8 @@ jobs:
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-hud-stop.py
           if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-console-capture.py
+          if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-checksum.py
       - name: Check actor packet compatibility
         shell: pwsh

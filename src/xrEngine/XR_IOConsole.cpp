@@ -605,6 +605,7 @@ static bool player_internal_command(LPCSTR name, LPCSTR args)
         "g_always_run", "g_autopickup", "g_backrun", "g_crouch_toggle", "g_walk_toggle",
         "g_sprint_toggle", "g_aim_toggle", "hud_fov", "hud_fov_aim", "fov", "cam_inert",
         "_preset", "discord_status", "discord_update_rate", "g_dynamic_music",
+        "screenshot", "r_screenshot_mode",
         "g_freelook_toggle", "g_lookout_toggle", "g_simple_pda", "g_3d_pda",
         "cl_dynamiccrosshair", "wpn_aim_toggle", "show_actor_body",
         "smooth_ads_transition", "pda_show_map_labels", "pda_map_zoom_in_to_mouse",

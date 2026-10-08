@@ -12,7 +12,7 @@ Windows/PowerShell, GitHub CLI настроен. Владелец просит �
 
 Сначала прочитай docs/audit/45_CODEX_HANDOFF.md,48_DOC43_AUDIT.md,
 43_WORLD_REQUIREMENTS_PROGRESS.md,67_DESTRUCTIBLE_STATE_RESTART.md,
-68_FAILED_START_INPUT.md,70_NATIVE_WORLD_IDENTITY.md,71_NATIVE_WORLD_EXCLUSIVITY.md,72_NATIVE_WORLD_CLOCK_SCALE.md,73_RAIN_SOUNDS_RESTORE.md,74_NPC_LOADOUT_COMPATIBILITY.md,75_NATIVE_HUD_STOP_GUARD.md,76_NATIVE_FIRST_CHECKPOINT_ADMISSION.md. Сверь git status/HEAD,
+68_FAILED_START_INPUT.md,70_NATIVE_WORLD_IDENTITY.md,71_NATIVE_WORLD_EXCLUSIVITY.md,72_NATIVE_WORLD_CLOCK_SCALE.md,73_RAIN_SOUNDS_RESTORE.md,74_NPC_LOADOUT_COMPATIBILITY.md,75_NATIVE_HUD_STOP_GUARD.md,76_NATIVE_FIRST_CHECKPOINT_ADMISSION.md,77_INVENTORY_UNUSED_TEXTURES.md. Сверь git status/HEAD,
 Actions, свои процессы и qualified acceptance. Более свежий журнал важнее
 этого промпта. Не ставь native PASS по одному backend unit-test/fixture.
 Не добавляй к узкому готовому пункту требования соседних этапов.
@@ -56,6 +56,8 @@ full overlays не продвигались, основные world/account/char
 Также doc74:20 loadout LTX files (9rows/5files ×4 active client/server roots)
 точечно исправлены, original byte backups retained. Эти LTX вне baseline88;
 нельзя писать, что все primary configs неизменны.
+Doc77 также устанавливает ONLY2call-site changes per2client UIInventory
+scripts + helper each (4script files), exact backups. Server scripts untouched.
 Для rollout нужны scoped обычный вход, проверенная версия, backup и
 совместимость основного мира. Один bot PASS не основание заменить всё.
 
@@ -216,6 +218,28 @@ accepted cases without new changes/reason. Next simple cleanup may inspect
 not missing DDS files, so check XML definitions before copying/creating assets.
 Native64/max-view and broader clock/chunk/transaction work remain queued.
 
+Inventory unused texture cleanup accepted/installed doc77:
+source64e7a3087 Lua helper/installer/actual ctor fixture; DX1137785253553
+fullSUCCESS. Original clientui_inventory SHA16CCF35AE84EA1F014FC1D38BF96617F99DE8BE44B62DE02368ADA8CCC5ABD32,
+afterBB1F05ECBE83CF1E8B6333A4AE7C14739CABEB3583B93678F0990C4B4E2C325F.
+Actual ctor Lua diff preserves all15rows/widgets/parents/show states and
+18valid texture names; skips12unused absent P/N regions for six extra stats.
+Native _build/live/inventory-compat-be30/qualified-acceptance.json: be30
+engine+currentLua, known961 Actor20020/inventory opened+20s; all15native
+stat groups retained/no target12warnings. Other27texture/10sound+MCM persist.
+Only2call sites per2active primary client scripts + owned helper each;
+backups under primary-backups, installed bytes match tested source/repeat0.
+All88protected fingerprints unchanged; these script files OUTSIDE baseline88.
+Screenshot NOT accepted: existing GAME console policy rejected screenshot/
+r_screenshot_mode for player, no image. Native logged marker=request only.
+Next XR_IOConsole.cpp fix prepared: allow ONLYthose2local capture names,
+all gameplay/server/debug privilege gates unchanged. power_loss_bias affects
+stamina and stays denied. check-native-console-capture.py imports actual
+classifier/current-vs-old differential cases and game-cheat negatives; GHA
+native fixtures/fullbuild required, then ordinary captured image/view required.
+No local C++ compilation/no primaryEXE promotion. Sourcepush after64e7
+completed, do not cancel the next fullengine build. Next CI IDs from Actions.
+
 L30 закрыт doc64–67: actual GHA4b glass/wood/metal, exact health0.6/original
 INI после restart,0.7 уничтожает, checkpoint/второй restart сохраняют отсутствие.
 151untouched объектов,8natural bottle parts с IDs/model/health/pose (max2.3мм).
@@ -244,6 +268,7 @@ built-from, ZIP digest, manifest и exe hashes проверять обязате
 Продолжай161 оставшийся пункт, обновляй честно doc45/48. Защити основной
 вход в игру. Если лимиты заканчиваются, сохрани точный handoff/свои pending
 процессы/CI/незакоммиченные файлы. Reset credits автоматически не расходуй.
-Последний quota snapshot 2026-10-08:5h used1%, weekly0%; reset автоматически
+Последний quota snapshot 2026-10-08:5h used23%, weekly4%; reset автоматически
 не расходовали. Snapshot из прошлой сессии99/84 устарел. Основные EXE
-прежние;14 новых sound assets и20 scoped NPC loadout LTX установлены.
+прежние;14 новых sound assets,20 scoped NPC loadout LTX и4scoped client
+script files установлены. Local screenshot C++permission still pending native CI/image.
