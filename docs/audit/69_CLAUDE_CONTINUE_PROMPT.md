@@ -12,7 +12,7 @@ Windows/PowerShell, GitHub CLI настроен. Владелец просит �
 
 Сначала прочитай docs/audit/45_CODEX_HANDOFF.md,48_DOC43_AUDIT.md,
 43_WORLD_REQUIREMENTS_PROGRESS.md,67_DESTRUCTIBLE_STATE_RESTART.md,
-68_FAILED_START_INPUT.md,70_NATIVE_WORLD_IDENTITY.md,71_NATIVE_WORLD_EXCLUSIVITY.md,72_NATIVE_WORLD_CLOCK_SCALE.md,73_RAIN_SOUNDS_RESTORE.md. Сверь git status/HEAD,
+68_FAILED_START_INPUT.md,70_NATIVE_WORLD_IDENTITY.md,71_NATIVE_WORLD_EXCLUSIVITY.md,72_NATIVE_WORLD_CLOCK_SCALE.md,73_RAIN_SOUNDS_RESTORE.md,74_NPC_LOADOUT_COMPATIBILITY.md. Сверь git status/HEAD,
 Actions, свои процессы и qualified acceptance. Более свежий журнал важнее
 этого промпта. Не ставь native PASS по одному backend unit-test/fixture.
 Не добавляй к узкому готовому пункту требования соседних этапов.
@@ -53,6 +53,9 @@ baseline. Проверка: python -B _build/live/fingerprint-primary-health.py 
 ранее установлены с backup. Также приняты и установлены только14 новых SSFX
 OGG (doc73); существующий junction даёт их обеим основным папкам. Новые exe/
 full overlays не продвигались, основные world/account/character файлы прежние.
+Также doc74:20 loadout LTX files (9rows/5files ×4 active client/server roots)
+точечно исправлены, original byte backups retained. Эти LTX вне baseline88;
+нельзя писать, что все primary configs неизменны.
 Для rollout нужны scoped обычный вход, проверенная версия, backup и
 совместимость основного мира. Один bot PASS не основание заменить всё.
 
@@ -149,24 +152,35 @@ fixture renaming changed diagnostic literal; Windows default decode failed.
 FIXTURE ONLY correction be30a8bb2bef31452eed26d2e945b6fad2f41778:
 rename declaration only, byte-preserving latin1 read. Actual2048 differential
 cases/diagnostic assertions не ослаблены. Foundation37773463706 SUCCESS
-Linux ASan/UBSan + MSVC. DX1137773463776 in progress fullengine; перепроверь.
+Linux ASan/UBSan + MSVC. DX1137773463776 SUCCESS fullengine/package/upload; package source be30.
 Не source push во время engine build; docs-only можно. Новый EXE ещё не
 скачан/не установлен, требуется private ordinary admission/startup acceptance.
 
-NPC config compatibility fix сейчас готовится и ещё НЕ принят/не установлен:
-scripts/install-netcoop-npc-loadouts.py и fixtures/npc-loadouts/compatibility.json.
-9точных записей/5файлов: USP_match→USP; Ithaca20x70 index3/6→0; DVL_m1
-index3→0; AK74uM1ISG index6→3 (pristine7.62AP), attachment/weights/chances
-сохраняются. USP раньше отбрасывался из pool: восстановление допустимой
-записи меняет выбор оружия по исходным весам, не заявляй identical RNG pool.
-Native INI proof старых calibers _build/live/input-recovery-e609538dd/
-runtime-loadout-observation.json. Не подавляй warnings/не меняй AI/population.
-Installer preview by default, all9 match preflight before mutation,
-new backup directory+atomic replace avoids hardlink corruption.
-Private _build/live/loadout-e609 configs/server-configs patched, originals
-backed up, repeat preview0. Native server/client INI query+ordinary known961
-admission currently under test; result/logs determine acceptance, not plan.
-Основные configs пока прежние. Проверяй свои live processes/debug до выхода.
+NPC config compatibility repair ПРИНЯТ/УСТАНОВЛЕН doc74:
+scripts/install-netcoop-npc-loadouts.py + fixtures/npc-loadouts/compatibility.json.
+9точных section/key pairs/5files: USP_match→USP; Ithaca20x70 index3/6→0;
+DVL_m1 index3→0; AK74uM1ISG index6→3 (pristine7.62AP). Attachment/weights/
+accessory chances/comments/newlines/unrelated bytes unchanged. Missing USP
+restored to intended pool: don't claim identical RNG/item choices. No NPC
+population/AI/cadence edit. Installer preview default, all-row preflight,
+exclusive original backup, atomic replacement avoids hardlink write-through.
+_build/live/loadout-e609/qualified-acceptance.json: GHAe609 ordinary known961
+Actor26903 +20s; SAME retained private correlated world. Actual native INI
+on BOTH roles verifies9 exact section/key pairs, actual calibers/quality and
+all random USP ammo section existence;0loadout/missing-sound/fatal/SCRIPT
+ERROR/handler/caught on sealed logs. Two failed private query controls
+(non-raw Python path, whole-table count across unrelated factions) retained,
+strict assertions rejected before client launch. Final ammo checks not relaxed.
+Primary-installation.json: only5files/9rows per4 ACTIVE config roots:
+gamma-runtime/client/configs, gamma-runtime/server/configs,
+LostZone-3D-Hideout/client/configs, LostZone-3D-Hideout/server/configs.
+Relevant primary weapon configs match staged bytes before install. Exact
+original backups _build/live/loadout-e609/primary-backups; after SHA verified,
+repeat preview0. Fallback gamedata configs/original GAMMA not edited.
+All88 protected fingerprints unchanged; these20LTX outside88 baseline.
+No proof all generated NPC item packets, human gunfire or immortal/jerky AI.
+All loadout test processes stopped/debugempty. HUD package ordinary native
+probe next; verify its result instead of inferring startup PASS from CI.
 
 L30 закрыт doc64–67: actual GHA4b glass/wood/metal, exact health0.6/original
 INI после restart,0.7 уничтожает, checkpoint/второй restart сохраняют отсутствие.
@@ -198,4 +212,4 @@ built-from, ZIP digest, manifest и exe hashes проверять обязате
 процессы/CI/незакоммиченные файлы. Reset credits автоматически не расходуй.
 Последний quota snapshot 2026-10-08:5h used1%, weekly0%; reset автоматически
 не расходовали. Snapshot из прошлой сессии99/84 устарел. Основные EXE
-прежние;14 новых sound assets установлены, NPC configs пока не продвигались.
+прежние;14 новых sound assets и20 scoped NPC loadout LTX установлены.

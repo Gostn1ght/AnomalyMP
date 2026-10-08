@@ -1,0 +1,84 @@
+[
+  {
+    "file": "npc_loadouts__name.ltx",
+    "old": "wpn_usp_match:4:r",
+    "new": "wpn_usp:4:r",
+    "weapon": "wpn_usp",
+    "ammo": "random",
+    "sections": [
+      "blackops_secondary"
+    ]
+  },
+  {
+    "file": "npc_loadouts_freedom.ltx",
+    "old": "wpn_ithacam37_stakeout_20x70:r:3:10",
+    "new": "wpn_ithacam37_stakeout_20x70:r:0:10",
+    "weapon": "wpn_ithacam37_stakeout_20x70",
+    "ammo": "ammo_20x70_buck",
+    "sections": [
+      "freedom_experienced_primary"
+    ]
+  },
+  {
+    "file": "npc_loadouts_freedom.ltx",
+    "old": "wpn_ithacam37_stakeout_20x70:r:6:15",
+    "new": "wpn_ithacam37_stakeout_20x70:r:0:15",
+    "weapon": "wpn_ithacam37_stakeout_20x70",
+    "ammo": "ammo_20x70_buck",
+    "sections": [
+      "freedom_veteran_primary"
+    ]
+  },
+  {
+    "file": "npc_loadouts_monolith.ltx",
+    "old": "wpn_dvl10_m1:0:3:20",
+    "new": "wpn_dvl10_m1:0:0:20",
+    "weapon": "wpn_dvl10_m1",
+    "ammo": "ammo_338_federal",
+    "sections": [
+      "monolith_legend_primary"
+    ]
+  },
+  {
+    "file": "npc_loadouts_monolith.ltx",
+    "old": "wpn_ak74u_m1_isg:r:6:10",
+    "new": "wpn_ak74u_m1_isg:r:3:10",
+    "weapon": "wpn_ak74u_m1_isg",
+    "ammo": "ammo_7.62x39_ap",
+    "sections": [
+      "monolith_master_primary"
+    ]
+  },
+  {
+    "file": "npc_loadouts_monolith.ltx",
+    "old": "wpn_ak74u_m1_isg:r:6:25",
+    "new": "wpn_ak74u_m1_isg:r:3:25",
+    "weapon": "wpn_ak74u_m1_isg",
+    "ammo": "ammo_7.62x39_ap",
+    "sections": [
+      "monolith_legend_primary"
+    ]
+  },
+  {
+    "file": "npc_loadouts_isg.ltx",
+    "old": "wpn_ak74u_m1_isg:r:6:20",
+    "new": "wpn_ak74u_m1_isg:r:3:20",
+    "weapon": "wpn_ak74u_m1_isg",
+    "ammo": "ammo_7.62x39_ap",
+    "count": 2,
+    "sections": [
+      "isg_veteran_primary",
+      "isg_master_primary"
+    ]
+  },
+  {
+    "file": "npc_loadouts_greh.ltx",
+    "old": "wpn_ak74u_m1_isg:4:6:10",
+    "new": "wpn_ak74u_m1_isg:4:3:10",
+    "weapon": "wpn_ak74u_m1_isg",
+    "ammo": "ammo_7.62x39_ap",
+    "sections": [
+      "greh_legend_primary"
+    ]
+  }
+]

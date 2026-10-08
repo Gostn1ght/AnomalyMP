@@ -48,7 +48,8 @@ and target conflicts, refuses replacing customized audio, copies with no
 overwrite and verifies hashes. First run adds14, repeat keeps14 with zero
 additional writes. Primary installation proof retains exact file hashes.
 All88 primary exe/config/account/character/world fingerprints remain unchanged;
-the14 added sound assets are the ONLY primary runtime change this turn.
+the14 added sound assets are the ONLY primary change of this sound repair.
+The subsequent separate loadout repair adds the scoped LTX changes in doc74.
 All test processes stopped and shared debug empty after acceptance.
 
 Separate native diagnostic correction prepared: StopScriptAnim excludes only
@@ -64,4 +65,5 @@ literal, correctly rejected by the exact diagnostic assertion; Windows source
 read also used an incompatible default codec. Fixture-only be30a8bb2 repairs
 declaration-only rename and byte-preserving latin1 reading; assertions retained.
 Foundation37773463706 succeeds Linux ASan/UBSan and MSVC; DX1137773463776
-full engine build currently pending. No native HUD runtime acceptance yet.
+full engine build/package/upload SUCCESS. Private ordinary HUD runtime
+acceptance is still required; no primary engine promotion.
