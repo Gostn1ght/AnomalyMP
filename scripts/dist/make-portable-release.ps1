@@ -23,7 +23,8 @@ param(
     [Parameter(Mandatory = $true)][string]$Artifact,
     [string]$Runtime = (Join-Path $PSScriptRoot "..\..\..\gamma-runtime"),
     [string]$GammaDb = "C:\Users\Mahito\Downloads\GAMMA\GAMMA\db",
-    [switch]$SkipCopy
+    [switch]$SkipCopy,
+    [switch]$NoPacks
 )
 $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
@@ -45,7 +46,7 @@ function Mirror($from, $to, [string[]]$extra = @()) {
 Write-Host "staging the overlay"
 New-Item -ItemType Directory -Force $stage | Out-Null
 foreach ($role in "client", "server") { Mirror (Join-Path $Runtime $role) (Join-Path $stage $role) }
-New-Item -ItemType Directory -Force (Join-Path $stage "gamedata") | Out-Null
+New-Item -ItemType Directory -Force (Join-Path $stage "gamedata\shaders3") | Out-Null # the overlay copies preview shaders there
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo "scripts\patch-gamma-netcoop-overlay.ps1") -RuntimeRoot $stage | Select-Object -Last 2
 if ($LASTEXITCODE -ne 0) { throw "overlay patch failed" }
 
@@ -55,7 +56,7 @@ New-Item -ItemType Directory -Force $game | Out-Null
 Mirror (Join-Path $stage "client") (Join-Path $game "client")
 Mirror (Join-Path $stage "gamedata") (Join-Path $game "gamedata")
 Mirror (Join-Path $Artifact "bin") (Join-Path $game "bin")
-if (-not $SkipCopy) { Mirror $GammaDb (Join-Path $game "db") @("/XD", (Join-Path $GammaDb "lostzone")) }
+if (-not $SkipCopy) { Mirror $GammaDb (Join-Path $game "db") @("/XD", "lostzone") }
 New-Item -ItemType Directory -Force (Join-Path $game "db\lostzone"), (Join-Path $game "mp"), (Join-Path $game "appdata\player") | Out-Null
 Copy-Item (Join-Path $PSScriptRoot "fsgame_client.template") (Join-Path $game "fsgame.template") -Force
 Copy-Item (Join-Path $PSScriptRoot "Play Lost Zone.cmd") $game -Force
@@ -70,7 +71,7 @@ Mirror (Join-Path $stage "server") (Join-Path $host_ "server")
 Mirror (Join-Path $stage "gamedata") (Join-Path $host_ "gamedata")
 Mirror (Join-Path $Artifact "dedicated") (Join-Path $host_ "dedicated")
 Mirror (Join-Path $Artifact "hoster") (Join-Path $host_ "hoster")
-if (-not $SkipCopy) { Mirror $GammaDb (Join-Path $host_ "db") @("/XD", (Join-Path $GammaDb "textures"), (Join-Path $GammaDb "lostzone")) }
+if (-not $SkipCopy) { Mirror $GammaDb (Join-Path $host_ "db") @("/XD", "textures", "lostzone") }
 New-Item -ItemType Directory -Force (Join-Path $host_ "db\lostzone"), (Join-Path $host_ "mp"), (Join-Path $host_ "appdata\server") | Out-Null
 Copy-Item (Join-Path $PSScriptRoot "fsgame_server.template") (Join-Path $host_ "fsgame_server.template") -Force
 Copy-Item (Join-Path $PSScriptRoot "Start Server Panel.cmd") $host_ -Force
@@ -78,6 +79,7 @@ Copy-Item (Join-Path $PSScriptRoot "README-server.txt") (Join-Path $host_ "READM
 Copy-Item (Join-Path $Artifact "notices") (Join-Path $host_ "notices") -Recurse -Force
 
 # 4. Packed GAMMA data: everything for players, no textures for the server.
+if ($NoPacks) { Write-Host "archives skipped (-NoPacks)"; return }
 Write-Host "archives"
 $packs = Get-ChildItem $work -File | Where-Object { $_.Name -match '^lz_[a-z]+\.db\d+$' }
 foreach ($p in $packs) {
