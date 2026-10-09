@@ -470,6 +470,8 @@ void CCustomMonster::net_update::lerp(CCustomMonster::net_update& A, CCustomMons
 	o_model = angle_lerp(A.o_model, B.o_model, f);
 	o_torso.yaw = angle_lerp(A.o_torso.yaw, B.o_torso.yaw, f);
 	o_torso.pitch = angle_lerp(A.o_torso.pitch, B.o_torso.pitch, f);
+	if (A.body_yaw_valid && B.body_yaw_valid)
+		body_yaw = angle_lerp(A.body_yaw, B.body_yaw, f);
 	p_pos.lerp(A.p_pos, B.p_pos, f);
 	fHealth = A.fHealth * (1.f - f) + B.fHealth * f;
 	speed = A.speed * (1.f - f) + B.speed * f;

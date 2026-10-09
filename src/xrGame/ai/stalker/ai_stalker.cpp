@@ -898,6 +898,12 @@ void CAI_Stalker::net_Export(NET_Packet& P)
 		time_stamp = Level().timeServer();
 		position = Position();
 		torso = movement().m_head.current;
+		// A sniper in a smart cover/animpoint shoots along the head TARGET
+		// (g_fireParams): clients show the head where the shot goes, not
+		// where the head is still turning from (owner 2026-10-09: NPCs looked
+		// away from their shots). Display only; the server's aim is unchanged.
+		if ((!animation().script_animations().empty() || animation().global_selector()) && sniper_fire_mode())
+			torso = movement().m_head.target;
 	}
 	P.w_u32(time_stamp);
 	P.w_u8(0);
@@ -980,6 +986,10 @@ void CAI_Stalker::net_Export(NET_Packet& P)
 	if (weapon && weapon->getVisible()) hands_flags |= 8;
 	P.w_u16(inventory().GetActiveSlot());
 	P.w_u8(hands_flags);
+	// The body yaw of the bone callbacks (see net_update::body_yaw); clients
+	// built before it ignore the trailing float.
+	P.w_float(movement().m_body.current.yaw);
+	P.w_u8(sight().use_torso_look() ? 1 : 0);
 }
 
 bool CAI_Stalker::netcoop_puppet() const
@@ -1060,6 +1070,16 @@ void CAI_Stalker::net_Import(NET_Packet& P)
     {
         N.active_slot = P.r_u16();
         N.hands_flags = P.r_u8();
+    }
+    if (P.r_elapsed() >= sizeof(float))
+    {
+        N.body_yaw = P.r_float();
+        N.body_yaw_valid = _valid(N.body_yaw);
+    }
+    if (P.r_elapsed() >= 1)
+    {
+        N.torso_look = (P.r_u8() & 1) != 0;
+        N.torso_look_valid = true;
     }
 	if (NET.empty() || (NET.back().dwTimeStamp < N.dwTimeStamp))
 	{
@@ -1223,10 +1243,19 @@ void CAI_Stalker::UpdateCL()
 						// server NPC faces, interpolated with its position.
 						SBoneRotation& body = movement().m_body;
 						SBoneRotation& head = movement().m_head;
-						body.current.yaw = body.target.yaw = NET_Last.o_model;
+						// The spine/head callbacks turn from the server's body yaw, so
+						// the upper body aims where the server NPC aims even while an
+						// animation turns the model (XFORM keeps o_model).
+						body.current.yaw = body.target.yaw = NET_Last.body_yaw_valid ? NET_Last.body_yaw : NET_Last.o_model;
 						body.current.pitch = body.target.pitch = 0.f;
 						head.current.yaw = head.target.yaw = NET_Last.o_torso.yaw;
 						head.current.pitch = head.target.pitch = NET_Last.o_torso.pitch;
+						// The same head/shoulder/spine split as the server's sight:
+						// with torso look (combat) the weapon turns with the head; a
+						// puppet's default free look turned the head alone, so NPCs
+						// looked one way and shot another (owner 2026-10-09).
+						if (NET_Last.torso_look_valid)
+							sight().setup(CSightAction(SightManager::eSightTypeCurrentDirection, NET_Last.torso_look));
 					}
 					else
 					{

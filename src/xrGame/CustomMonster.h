@@ -111,6 +111,14 @@ public:
         u32 anim[3] = {0, 0, 0};
         u16 active_slot = u16(-1);
         u8 hands_flags = 0;
+        // Body yaw the server's spine/head bone callbacks turn from; it can
+        // differ from o_model (XFORM) while an animation turns the model.
+        bool body_yaw_valid = false;
+        float body_yaw = 0.f;
+        // The server's sight action turns the torso with the head (combat):
+        // the spine and shoulders take the turn and the weapon aims with it.
+        bool torso_look_valid = false;
+        bool torso_look = false;
         u32 monster_motion = u32(-1);
         float monster_motion_speed = 1.f;
         float monster_motion_phase = 0.f;
