@@ -19,9 +19,16 @@ param(
     [int]$LoadTimeoutSeconds = 600,
     [double]$SystemReserveGB = 3,
     [double]$ClientReserveGB = 8,
-    [switch]$WithClient
+    [switch]$WithClient,
+    [switch]$NoAutoStart
 )
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot 'netcoop_cluster_controls.ps1')
+$Runtime = [IO.Path]::GetFullPath($Runtime)
+$mutexHash = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($Runtime.ToLowerInvariant()))).Replace('-', '')
+$createdMutex = $false
+$watchdogMutex = [Threading.Mutex]::new($true, "Local\LostZoneCluster_$mutexHash", [ref]$createdMutex)
+if (-not $createdMutex) { throw 'A watchdog already owns this runtime' }
 # "-Maps a,b" through -File arrives as one string.
 $Maps = @($Maps | ForEach-Object { $_ -split "," } | Where-Object { $_ })
 $exe = Join-Path $Runtime "dedicated\LostZoneServerDX11.exe"
@@ -42,12 +49,14 @@ try { $local += (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop | ForEac
 
 $servers = @()
 foreach ($map in $plan["locations"].Keys) {
+    if ($map -notmatch '^\w+$') { throw 'Invalid map key in cluster plan' }
     if ($Maps.Count -and $Maps -notcontains $map) { continue }
     $address = $plan["locations"][$map]
     $hostName, $port = $address -split ":"
     if ($local -notcontains $hostName.ToLower()) { continue }
     $start = $plan["launch"][$map]
     if (-not $start) { Write-Host "skip $map`: no [launch] start section"; continue }
+    if ($start -notmatch '^\w+$' -or [int]$port -lt 1 -or [int]$port -gt 65534) { throw "Invalid launch plan for $map" }
     # The first two servers keep the worlds they had before the full plan.
     $world = switch ($map) { "k00_marsh" { "zone" } "l01_escape" { "zone_escape" } default { "zone_$map" } }
     $onDemand = $plan["on_demand"] -and $plan["on_demand"][$map] -eq "1"
@@ -63,6 +72,10 @@ function Find-Log($s) {
 }
 
 function Start-Location($s) {
+    $oldStop = Join-Path $wakeDir "host_stop_$($s.Port).txt"
+    if (Test-Path -LiteralPath $oldStop) { Remove-Item -LiteralPath $oldStop -Force }
+    $s.State = 'loading'
+    Publish-HostState
     $log = if ($s.Name -eq "k00_marsh") { "srv" } else { "srv_$($s.Name)" }
     $arguments = "-nosplashwindow -noprefetch -netcoop -dbg -multi_instance -logname $log -fsltx fsgame_server.ltx " +
         "-netport $($s.Port) -netcoop_start_location=$($s.Start) -netcoop_world=$($s.World) " +
@@ -74,15 +87,20 @@ function Start-Location($s) {
         "-start `"server(all/single/alife/new/portsv=$($s.Port)/maxplayers=$($perServer + 1))`" " +
         "`"client(localhost/name=serverauthority/port=$($s.Port)/portcl=$($s.Port + 1))`""
     $p = Start-Process -FilePath $exe -ArgumentList $arguments -WorkingDirectory $Runtime -WindowStyle Hidden -PassThru
+    $running[$s.Name] = $p
+    Publish-HostState
     try { $p.PriorityClass = "BelowNormal" } catch {}
     Write-Host ("{0:HH:mm:ss} started {1} (port {2}, pid {3})" -f (Get-Date), $s.Name, $s.Port, $p.Id)
     # Wait until it runs (its clock line) before loading the next one.
     $since = Get-Date
+    $ready = $false
     while (((Get-Date) - $since).TotalSeconds -lt $LoadTimeoutSeconds -and -not $p.HasExited) {
+        Publish-HostState
         $file = Find-Log $s
-        if ($file -and $file.LastWriteTime -gt $since -and (Select-String -Path $file.FullName -Pattern "\[world\] saved \S+ \(bootstrap\)|loading saved world" -Quiet)) { break }
+        if ($file -and $file.LastWriteTime -gt $since -and (Select-String -Path $file.FullName -Pattern "\[world\] saved \S+ \(bootstrap\)|loading saved world" -Quiet)) { $ready = $true; break }
         Start-Sleep -Seconds 5
     }
+    $s.State = if ($p.HasExited) { 'stopped' } elseif ($ready) { 'running' } else { 'loading_timeout' }
     return $p
 }
 
@@ -118,14 +136,17 @@ function Make-Room($need) {
         $victim = $null
         foreach ($s in $servers) {
             $p = $running[$s.Name]
-            if (-not $s.OnDemand -or -not $p -or $p.HasExited -or (Players-On $s) -gt 0 -or -not $idleSince[$s.Name]) { continue }
+            if ((Get-ClusterHostMode $wakeDir $s.Name) -eq "on" -or -not $s.OnDemand -or -not $p -or $p.HasExited -or (Players-On $s) -gt 0 -or -not $idleSince[$s.Name]) { continue }
             if (-not $victim -or $idleSince[$s.Name] -lt $idleSince[$victim.Name]) { $victim = $s }
         }
         if (-not $victim) { return $false }
         Write-Host ("{0:HH:mm:ss} memory short: stopping empty {1}" -f (Get-Date), $victim.Name)
-        Stop-Process -Id $running[$victim.Name].Id -Force -ErrorAction SilentlyContinue
-        $running.Remove($victim.Name); $idleSince.Remove($victim.Name)
-        Start-Sleep -Seconds 5
+        Request-ClusterSavedStop $wakeDir $victim.Port $running[$victim.Name].Id
+        # Do not reclaim memory before the server acknowledges its saved exit.
+        # Retry the requested launch next cycle; no forced world termination.
+        $victim.State = 'saving'
+        Publish-HostState
+        return $false
     }
     return $true
 }
@@ -133,13 +154,68 @@ function Make-Room($need) {
 Write-Host ("{0} map(s) on this machine: {1}" -f $servers.Count, (($servers | ForEach-Object { $_.Name + $(if ($_.OnDemand) { " (on demand)" } else { "" }) }) -join ", "))
 $wakeDir = Join-Path $Runtime "appdata\server\netcoop_cluster"
 $running = @{}
+$viewFile = "host_view_$($env:COMPUTERNAME.ToLowerInvariant()).json"
+function Publish-HostState {
+    $rows = @($servers | ForEach-Object {
+        $process = $running[$_.Name]
+        [ordered]@{ map=$_.Name; port=$_.Port; processId=$(if ($process -and -not $process.HasExited) { $process.Id } else { 0 });
+            state=$(if ($_.State) { $_.State } else { 'stopped' }); mode=Get-ClusterHostMode $wakeDir $_.Name;
+            players=Players-On $_ }
+    })
+    $view = [ordered]@{ updated=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds(); watchdog=$PID; maps=$rows }
+    Write-ClusterText (Join-Path $wakeDir $viewFile) ($view | ConvertTo-Json -Depth 4 -Compress)
+}
+foreach ($s in $servers) {
+    # Reattach only exact runtime/port server processes after watchdog restart.
+    $matchesForMap = @(Get-CimInstance Win32_Process -Filter "Name='LostZoneServerDX11.exe'" | Where-Object {
+        $_.ExecutablePath -eq $exe -and $_.CommandLine -match "-netport\s+$($s.Port)(?:\s|$)"
+    })
+    if ($matchesForMap.Count -gt 1) { throw "Multiple servers already occupy $($s.Name)" }
+    if ($matchesForMap.Count -eq 1) {
+        $running[$s.Name] = Get-Process -Id $matchesForMap[0].ProcessId
+        $s.State = 'running'
+    }
+}
 # Always-on maps start now; on-demand maps when a server asks for them
 # (wake_<map>.txt: a player is heading there) and exit by themselves when idle.
-foreach ($s in $servers) { if (-not $s.OnDemand) { $running[$s.Name] = Start-Location $s } }
+foreach ($s in $servers) {
+    $mode = Get-ClusterHostMode $wakeDir $s.Name
+    if ($NoAutoStart -and $mode -eq "auto" -and -not $running[$s.Name]) {
+        Write-ClusterText (Join-Path $wakeDir "host_mode_$($s.Name).txt") "off"; $mode = "off"
+    }
+    if (-not $running[$s.Name] -and ($mode -eq 'on' -or ($mode -eq 'auto' -and -not $NoAutoStart -and -not $s.OnDemand))) {
+        $running[$s.Name] = Start-Location $s
+    }
+}
+Publish-HostState
 while ($true) {
     Start-Sleep -Seconds 5
     foreach ($s in $servers) {
         $p = $running[$s.Name]
+        $command = Join-Path $wakeDir "host_command_$($s.Name).txt"
+        if (Test-Path -LiteralPath $command) {
+            $action = [IO.File]::ReadAllText($command).Trim()
+            if ($action -notin @('start','stop','restart','auto')) { throw "Invalid host command for $($s.Name)" }
+            $mode = switch ($action) { 'stop' { 'off' } 'auto' { 'auto' } default { 'on' } }
+            Write-ClusterText (Join-Path $wakeDir "host_mode_$($s.Name).txt") $mode
+            if ($action -in @('stop','restart') -and $p -and -not $p.HasExited) {
+                Request-ClusterSavedStop $wakeDir $s.Port $p.Id
+                $s.State = 'saving'; $s.Restarting = $action -eq 'restart'
+            }
+            Remove-Item -LiteralPath $command -Force
+        }
+        $mode = Get-ClusterHostMode $wakeDir $s.Name
+        if ($p -and $p.HasExited) { $running.Remove($s.Name); $p = $null; $s.Restarting = $false; $s.State = 'stopped' }
+        if ($s.Restarting) { continue }
+        if ($mode -eq 'off') {
+            if ($p) { Request-ClusterSavedStop $wakeDir $s.Port $p.Id; $s.State = 'saving' }
+            continue
+        }
+        if ($mode -eq 'on' -and -not $p) {
+            if (Make-Room (2 * (Server-MemoryGB))) { $running[$s.Name] = Start-Location $s }
+            else { $s.State = 'memory' }
+            continue
+        }
         $wake = Join-Path $wakeDir "wake_$($s.Name).txt"
         if ($p -and -not $p.HasExited) {
             if ((Players-On $s) -gt 0) { $idleSince.Remove($s.Name) } elseif (-not $idleSince[$s.Name]) { $idleSince[$s.Name] = Get-Date }
@@ -160,9 +236,10 @@ while ($true) {
                 Write-Host ("{0:HH:mm:ss} {1} stopped (code {2}); starts again on demand" -f (Get-Date), $s.Name, $p.ExitCode)
                 $running.Remove($s.Name)
             } elseif (Test-Path $wake) { Remove-Item $wake -Force -ErrorAction SilentlyContinue }
-        } elseif ($p.HasExited) {
+        } elseif (-not $p -or $p.HasExited) {
             Write-Host ("{0:HH:mm:ss} {1} exited with code {2}; restarting" -f (Get-Date), $s.Name, $p.ExitCode)
             $running[$s.Name] = Start-Location $s
         }
     }
+    Publish-HostState
 }

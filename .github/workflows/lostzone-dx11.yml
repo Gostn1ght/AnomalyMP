@@ -76,6 +76,8 @@ jobs:
         shell: pwsh
         run: |
           ./scripts/check-netcoop-load-harness.ps1
+          ./scripts/check-netcoop-host-controls.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m pip install lupa==2.8
           python scripts/check-netcoop-server-pda.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -147,6 +149,10 @@ jobs:
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-crow-enemy.py
           if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-monster-snapshot.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-host-stop.py
+          if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-weapon-menu.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-checksum.py
@@ -167,6 +173,8 @@ jobs:
         run: |
           ./scripts/package-m1-dx11.ps1 -BuildBin ./_build/_game/bin_dbg -DestinationRoot ./lostzone-package
           Copy-Item -LiteralPath scripts/netcoop-overlay -Destination lostzone-package/overlay -Recurse
+          Copy-Item -LiteralPath scripts/netcoop-cluster -Destination lostzone-package/hoster -Recurse
+          Copy-Item -LiteralPath scripts/start-lostzone-cluster.cmd -Destination lostzone-package/1-Cluster.cmd
           New-Item -ItemType Directory -Path lostzone-package/notices -Force | Out-Null
           Copy-Item -LiteralPath scripts/fixtures/ixray-scheduler/LICENSE.md -Destination lostzone-package/notices/IX-Ray-LICENSE.md
           Copy-Item -LiteralPath scripts/start-lostzone-world.cmd -Destination lostzone-package/1-Server.cmd

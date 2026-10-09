@@ -107,6 +107,7 @@ BOOL CLevelChanger::net_Spawn(CSE_Abstract* DC)
 void CLevelChanger::shedule_Update(u32 dt)
 {
 	inherited::shedule_Update(dt);
+	netcoop_update_arrival_guard();
 
 	const Fsphere& s = CFORM()->getSphere();
 	Fvector P;
@@ -119,6 +120,21 @@ void CLevelChanger::shedule_Update(u32 dt)
 #include "patrol_path.h"
 #include "patrol_path_storage.h"
 
+void CLevelChanger::netcoop_update_arrival_guard()
+{
+	if (!netcoop::pure_client()) return;
+	CActor* actor = Actor();
+	if (!actor || !actor->g_Alive()) return;
+	const bool inside = feel_touch_contact(actor);
+	if (m_netcoop_actor_id != actor->ID())
+	{
+		m_netcoop_actor_id = actor->ID();
+		m_netcoop_arrival_block = inside;
+	}
+	else if (!inside)
+		m_netcoop_arrival_block = false;
+}
+
 void CLevelChanger::feel_touch_new(CObject* tpObject)
 {
 	CActor* l_tpActor = smart_cast<CActor*>(tpObject);
@@ -130,6 +146,9 @@ void CLevelChanger::feel_touch_new(CObject* tpObject)
 	// server's own Actor never change the level.
 	if (netcoop::enabled() && (!netcoop::pure_client() || l_tpActor != Actor()))
 		return;
+	// Arrival can overlap the reverse portal. First leave its real shape,
+	// then a deliberate re-entry may offer the return journey.
+	if (netcoop::pure_client() && m_netcoop_arrival_block) return;
 
 	// Multiplayer always asks the owner before disconnecting to another map.
 	// Keep the original silent-changer behavior for single-player.
@@ -191,6 +210,7 @@ bool CLevelChanger::feel_touch_contact(CObject* object)
 void CLevelChanger::update_actor_invitation()
 {
 	if (m_bSilentMode && !netcoop::pure_client()) return;
+	if (netcoop::pure_client() && m_netcoop_arrival_block) return;
 	xr_vector<CObject*>::iterator it = feel_touch.begin();
 	xr_vector<CObject*>::iterator it_e = feel_touch.end();
 

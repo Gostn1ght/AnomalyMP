@@ -28,7 +28,8 @@ static bool character_restore_progress(Character& character, CActor* actor);
 
 bool server_character_accepts(xrClientData* CL, u16 type)
 {
-	if (!CL || !CL->owner || s_character_restore.find(CL->owner->ID) == s_character_restore.end()) return true;
+	if (!CL) return true;
+	if (!server_stopping() && (!CL->owner || s_character_restore.find(CL->owner->ID) == s_character_restore.end())) return true;
 	switch (type)
 	{
 	case M_CL_UPDATE:
@@ -519,6 +520,16 @@ bool script_profile(LPCSTR description, LPCSTR history)
     return true;
 }
 
+static void character_clear_dead_body_state(CSE_Abstract* actor, bool respawn)
+{
+	if (!respawn) return;
+	// Client data contains the old body's conditions/inventory-owner state.
+	// Progress is restored separately; a fresh body starts with fresh defaults.
+	actor->client_data.clear();
+	if (CSE_ALifeCreatureActor* creature = smart_cast<CSE_ALifeCreatureActor*>(actor))
+		creature->set_health(1.f);
+}
+
 bool server_character_load_actor(xrClientData* CL, CSE_Abstract* actor)
 {
 	if (!CL || !CL->netcoop_login.size()) return false;
@@ -534,6 +545,7 @@ bool server_character_load_actor(xrClientData* CL, CSE_Abstract* actor)
 		if (CSE_ALifeCreatureActor* creature = smart_cast<CSE_ALifeCreatureActor*>(actor))
 		{ creature->m_holderID = 0xffff; creature->m_bOnline = true; }
 	}
+	character_clear_dead_body_state(actor, character->respawn);
 	CSE_ALifeTraderAbstract* trader = smart_cast<CSE_ALifeTraderAbstract*>(actor);
 	if (trader)
 	{

@@ -1,5 +1,20 @@
 # 45. Handoff для Codex (кластер локаций, 2026-10-05)
 
+## Latest: doc85, source hoster/monster/arrival/new-body fixes + J release request
+
+Baselinee283 fullGHA37945979886 +Foundation37945979928SUCCESS (no native game test).
+Current native hoster saved stop/packet gate, WinForms33-map selector, stable
+watchdog modes/adoption, fresh mutant snapshots, real contact/arrival guard and
+fresh body client_data reset described85; pending nextGHAqualification. Do not
+push over a running fullDX11build. No live tests until188 source stages handled.
+Newest owner: after current fixes, J: separate PLAYER and SERVER complete portable
+folders, compressor fromengine-src/compressor, strong protection. Stock-strong
+means compression, not crypto. Cannot promise unbreakable client. Measure126GB+
+assets vs118.7GiBfree; no secrets/probes/PDBs in player folder, no C: links.
+All-map trader/aggression/NPC view alignment and many188 stages remain OPEN.
+Mass WIP separate preserved, not rolled out. Keep original owner3processes/worlds.
+
+
 ## 2026-10-09 latest owner override — first read doc84
 
 NO NEW IN-GAME/EXE TESTS until188 source/functionality stages are handled. Keep

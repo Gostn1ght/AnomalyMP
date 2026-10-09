@@ -27,6 +27,9 @@ private:
 	bool m_b_enabled;
 
 	void update_actor_invitation();
+	void netcoop_update_arrival_guard();
+	u16 m_netcoop_actor_id = 0xffff;
+	bool m_netcoop_arrival_block = false;
 	bool m_bSilentMode;
 	bool get_reject_pos(Fvector& p, Fvector& r);
 

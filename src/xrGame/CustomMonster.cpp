@@ -277,13 +277,28 @@ void CCustomMonster::net_Export(NET_Packet& P) // export to server
 	R_ASSERT(!NET.empty());
 	net_update& N = NET.back();
 	P.w_float(GetfHealth());
-	P.w_u32(N.dwTimeStamp);
+	u32 time_stamp = N.dwTimeStamp;
+	Fvector position = N.p_pos;
+	float model_yaw = N.o_model;
+	SRotation torso = N.o_torso;
+	if (netcoop::smooth())
+	{
+		// Mutants need the same fresh pose as stalkers: NET.back() belongs
+		// to their slower AI schedule, not this outgoing snapshot frame.
+		time_stamp = Level().timeServer();
+		position = Position();
+		torso = movement().m_body.current;
+		float h, p, b;
+		XFORM().getHPB(h, p, b);
+		model_yaw = angle_normalize(-h);
+	}
+	P.w_u32(time_stamp);
 	P.w_u8(0);
-	P.w_vec3(N.p_pos);
-	P.w_float /*w_angle8*/(N.o_model);
-	P.w_float /*w_angle8*/(N.o_torso.yaw);
-	P.w_float /*w_angle8*/(N.o_torso.pitch);
-	P.w_float /*w_angle8*/(N.o_torso.roll);
+	P.w_vec3(position);
+	P.w_float /*w_angle8*/(model_yaw);
+	P.w_float /*w_angle8*/(torso.yaw);
+	P.w_float /*w_angle8*/(torso.pitch);
+	P.w_float /*w_angle8*/(torso.roll);
 	P.w_u8(u8(g_Team()));
 	P.w_u8(u8(g_Squad()));
 	P.w_u8(u8(g_Group()));

@@ -223,6 +223,7 @@ bool script_character(int slot, LPCSTR name, LPCSTR faction, int economy, LPCSTR
 bool server_character_load_actor(xrClientData* CL, CSE_Abstract* actor);
 void server_character_spawn_items(xrClientData* CL);
 bool server_character_accepts(xrClientData* CL, u16 type);
+bool server_stopping();
 void server_character_save_actor(u16 actor_id);
 void server_physics_update(xrServer* server);
 // Every server frame: physics poses, PDA screens, bullet marks (own rates).

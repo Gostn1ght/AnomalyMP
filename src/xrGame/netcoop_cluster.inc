@@ -573,8 +573,9 @@ void server_on_change_level(xrServer* server, xrClientData* CL, NET_Packet& P)
 	for (CLevelChanger* candidate : g_lchangers)
 	{
 		if (candidate->next_game_vertex() != game_vertex || candidate->next_level_vertex() != level_vertex) continue;
-		Fvector center; candidate->Center(center);
-		if (actor->Position().distance_to(center) <= candidate->Radius() + 10.f) { changer = candidate; break; }
+		// The bounding sphere plus 10 m admitted requests outside a portal.
+		// Use the same actual CFORM contact as the native invitation trigger.
+		if (candidate->feel_touch_contact(actor)) { changer = candidate; break; }
 	}
 	if (!changer) return cluster_refuse(server, CL, "not inside this level changer");
 	cluster_move(server, CL, changer);
@@ -787,6 +788,7 @@ static void cluster_clock_update()
 bool world_store_save_now(LPCSTR reason); // netcoop_world_store.inc
 static u32 s_cluster_idle_since = 0;
 static bool s_cluster_quitting = false;
+bool server_stopping() { return s_cluster_quitting; }
 
 struct ClusterCountOnline
 {
@@ -836,6 +838,47 @@ struct ClusterCountConnected
 	}
 };
 
+struct ClusterSaveForHostStop
+{
+	bool ok = true;
+	void operator()(IClient* client)
+	{
+		xrClientData* CL = static_cast<xrClientData*>(client);
+		if (!CL || CL->flags.bLocal) return;
+		// A handoff already owns its durable destination save. Never replace it.
+		if (s_cluster_leaving.find(CL->ID.value()) != s_cluster_leaving.end()) return;
+		if (!CL->owner) { ok = false; return; }
+		store_money(CL);
+		if (!character_save_actor(CL->owner->ID, nullptr, false)) ok = false;
+	}
+};
+
+// Local hoster IPC, not a client command. A request names this process so a
+// stale stop file cannot terminate its replacement after a restart.
+static void cluster_host_stop(xrServer* server, u32 now)
+{
+	static u32 checked = 0;
+	if (s_cluster_quitting || now - checked < 1000) return;
+	checked = now;
+	string64 key; xr_sprintf(key, "%u", cluster_port());
+	string_path path; cluster_file("host_stop", key, -1, path);
+	xr_string request;
+	if (!cluster_read_line(path, request)) return;
+	string64 expected; xr_sprintf(expected, "stop|%u", GetCurrentProcessId());
+	if (request != expected || !world_store_admission_open()) return;
+	ClusterSaveForHostStop saves;
+	server->ForEachClientDo(saves);
+	if (!saves.ok) return; // incomplete character restore/save is retried
+	character_commits_flush();
+	if (!accounts_save()) return;
+	if (!world_store_save_now("hoster stop")) return;
+	s_cluster_quitting = true;
+	DeleteFileA(path);
+	Msg("[Lost Zone][cluster] hoster requested stop: characters and world saved");
+	FlushLog();
+	Console->Execute("quit");
+}
+
 static void cluster_hibernate(xrServer* server, u32 now)
 {
 	LPCSTR option = strstr(Core.Params, "-netcoop_hibernate=");
@@ -875,6 +918,8 @@ static void cluster_hibernate(xrServer* server, u32 now)
 static void cluster_update(xrServer* server)
 {
 	const u32 now = real_time_ms();
+	cluster_host_stop(server, now);
+	if (s_cluster_quitting) return;
 	cluster_idle_exit(server, now);
 	cluster_hibernate(server, now);
 	if (now - s_cluster_clock_check >= 5000)

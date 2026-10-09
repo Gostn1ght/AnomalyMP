@@ -27,6 +27,9 @@ on:
       - 'scripts/check-native-fragment-lifetime.py'
       - 'scripts/check-native-mark-material.py'
       - 'scripts/check-native-crow-enemy.py'
+      - 'scripts/check-native-host-stop.py'
+      - 'scripts/check-native-monster-snapshot.py'
+      - 'scripts/check-netcoop-host-controls.ps1'
       - 'scripts/check-netcoop-respawn-state.py'
       - 'scripts/check-netcoop-full-map-plan.py'
       - 'tools/make-cluster-plan.py'
@@ -210,6 +213,8 @@ jobs:
         run: |
           python scripts/check-native-mark-material.py
           python scripts/check-native-crow-enemy.py
+          python scripts/check-native-monster-snapshot.py
+          python scripts/check-native-host-stop.py
   clock-windows:
     runs-on: windows-2022
     timeout-minutes: 10
@@ -222,6 +227,8 @@ jobs:
         shell: pwsh
         run: |
           ./scripts/check-netcoop-load-harness.ps1
+          ./scripts/check-netcoop-host-controls.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m pip install lupa==2.8
           python scripts/check-netcoop-server-pda.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -306,6 +313,10 @@ jobs:
           python scripts/check-native-mark-material.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-crow-enemy.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-monster-snapshot.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-host-stop.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-checksum.py
           if errorlevel 1 exit /b %errorlevel%

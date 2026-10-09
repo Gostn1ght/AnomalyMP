@@ -111,6 +111,7 @@ struct CGameObject {
 struct CActor:CGameObject {Info info;Info* m_known_info_registry=&info;int* lua_game_object(){return nullptr;}};
 int fixture_scope_depth=0;
 struct ServerVictimScope {explicit ServerVictimScope(CActor*){++fixture_scope_depth;}~ServerVictimScope(){--fixture_scope_depth;}};
+bool fixture_stopping=false;bool server_stopping(){return fixture_stopping;}
 bool fixture_available=true,fixture_throw=false,fixture_respawn=false;int fixture_restore_calls=0;std::string fixture_restored;
 namespace luabind {using internal_string=std::string;
  template<class T>struct functor {void operator()(int*,const internal_string& state,bool respawn){fixture_respawn=respawn;++fixture_restore_calls;if(fixture_throw)throw 1;fixture_restored=state;}};
@@ -250,6 +251,8 @@ void admission_cases(CActor& actor,xrClientData& client){
  fixture_throw=false;fixture_clock=999;characters_restore_update();assert(fixture_restore_calls==1 && s_character_restore.size()==1);
  fixture_clock=1000;characters_restore_update();assert(fixture_restore_calls==2 && s_character_restore.empty() && fixture_events.size()==2);
  assert(server_character_accepts(&client,M_CL_INPUT) && server_character_accepts(nullptr,M_EVENT));
+ fixture_stopping=true;assert(!server_character_accepts(&client,M_CL_INPUT)&&!server_character_accepts(&client,M_EVENT));
+ assert(server_character_accepts(&client,M_CLIENTREADY));fixture_stopping=false;
  reset(actor);s_character_restore[actor.ID()].inventory_complete=true;characters_restore_update();assert(s_character_restore.size()==1);
  reset(actor);s_actor_character[actor.ID()]="tester:1";s_characters["tester:1"].progress=saved();s_character_restore[actor.ID()].inventory_complete=true;
  fixture_clock=0xfffffff0u;fixture_available=false;characters_restore_update();assert(s_character_restore.size()==1);

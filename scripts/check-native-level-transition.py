@@ -9,8 +9,12 @@ if os.environ.get('GITHUB_ACTIONS') != 'true':
 root = Path(__file__).resolve().parents[1]
 changer = (root/'src/xrGame/level_changer.cpp').read_text(encoding='latin-1')
 enter = changer[changer.index('void CLevelChanger::feel_touch_new('):changer.index('bool CLevelChanger::get_reject_pos(')]
+guard = changer[changer.index('void CLevelChanger::netcoop_update_arrival_guard()'):changer.index('void CLevelChanger::feel_touch_new(')]
+assert 'netcoop_update_arrival_guard();' in changer[changer.index('void CLevelChanger::shedule_Update('):changer.index('#include "patrol_path.h"')]
 invite = changer[changer.index('void CLevelChanger::update_actor_invitation('):changer.index('void CLevelChanger::save(')]
 cluster = (root/'src/xrGame/netcoop_cluster.inc').read_text(encoding='latin-1')
+admission=cluster[cluster.index('void server_on_change_level('):cluster.index('// The player goes through the changer')]
+assert 'candidate->feel_touch_contact(actor)' in admission and 'Radius() + 10.f' not in admission
 routes = cluster[cluster.index('static bool cluster_config_path('):cluster.index('// ---- server status')]
 source = r'''
 #include <cassert>
@@ -41,7 +45,7 @@ struct CInifile{
 template<class T>using xr_vector=std::vector<T>;
 struct Fvector{float x=0,y=0,z=0;};
 struct CObject{virtual ~CObject()=default;};
-struct CActor:CObject{bool alive=true;bool g_Alive()const{return alive;}};
+struct CActor:CObject{unsigned fixture_id=7;unsigned ID(){return fixture_id;}bool alive=true;bool g_Alive()const{return alive;}};
 template<class T,class U>T smart_cast(U* o){return dynamic_cast<T>(o);}
 CActor owner,remote;CActor* Actor(){return &owner;}
 namespace netcoop{bool active=true,client=true;bool enabled(){return active;}bool pure_client(){return active&&client;}}
@@ -58,13 +62,15 @@ LevelState& Level(){return fixture_level;}
 struct{float fTimeGlobal=10;}Device;
 #define VERIFY(x) assert(x)
 struct CLevelChanger{
+ unsigned m_netcoop_actor_id=0xffff;bool m_netcoop_arrival_block=false,fixture_inside=false;
  bool m_bSilentMode=true,m_b_enabled=true;unsigned m_game_vertex_id=7,m_level_vertex_id=9;
  Fvector m_position,m_angles;LPCSTR m_invite_str="change_level";float m_entrance_time=0;
  xr_vector<CObject*> feel_touch;
  bool get_reject_pos(Fvector&,Fvector&){return false;}
- void feel_touch_new(CObject*);void update_actor_invitation();
+ bool feel_touch_contact(CObject*){return fixture_inside;}
+ void netcoop_update_arrival_guard();void feel_touch_new(CObject*);void update_actor_invitation();
 };
-'''+routes+enter+invite+r'''
+'''+routes+guard+enter+invite+r'''
 int main(){
  xr_string host;u32 port=0;
  assert(!cluster_location(nullptr,host,port)&&!cluster_location("",host,port));
@@ -93,6 +99,16 @@ int main(){
   netcoop::active=false;c.feel_touch_new(&owner);
   assert(ui.calls==calls+2+unsigned(!silent)&&fixture_level.sends==sends+unsigned(silent));
  }
+ netcoop::active=true;netcoop::client=true;
+ CLevelChanger arrival;arrival.feel_touch={&owner};arrival.fixture_inside=true;
+ unsigned prior_calls=ui.calls;arrival.netcoop_update_arrival_guard();
+ arrival.feel_touch_new(&owner);Device.fTimeGlobal+=6;arrival.update_actor_invitation();
+ assert(arrival.m_netcoop_arrival_block&&ui.calls==prior_calls);
+ arrival.fixture_inside=false;arrival.netcoop_update_arrival_guard();assert(!arrival.m_netcoop_arrival_block);
+ arrival.fixture_inside=true;arrival.netcoop_update_arrival_guard();arrival.feel_touch_new(&owner);assert(ui.calls==prior_calls+1);
+ owner.fixture_id=8;arrival.netcoop_update_arrival_guard();assert(arrival.m_netcoop_arrival_block);
+ arrival.feel_touch_new(&owner);assert(ui.calls==prior_calls+1);
+ netcoop::active=false;arrival.feel_touch_new(&owner);assert(fixture_level.sends>0);
  std::puts("PASS actual changer: own alive MP client always confirms, repeats after 5s; remote/server denied; SP silent retained. Actual cluster route: missing catalog entry rescanned once, malformed/unserved refused.");
 }
 '''
