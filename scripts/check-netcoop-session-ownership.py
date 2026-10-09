@@ -10,7 +10,7 @@ root = Path(__file__).resolve().parents[1]
 cluster = (root/"src/xrGame/netcoop_cluster.inc").read_text(encoding="utf-8")
 engine = (root/"src/xrGame/netcoop.cpp").read_text(encoding="utf-8")
 a = cluster.index('static void cluster_file(')
-b = cluster.index('// Address the clients',a)
+b = cluster.index('static bool cluster_config_path(',a)
 files = cluster[a:b]
 a = cluster.index('// ---- session lease:')
 b = cluster.index('// ---- transfer ticket',a)
