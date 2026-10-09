@@ -25,7 +25,7 @@ constexpr float EPS=0.00001f;
 template<class T>T _max(T a,T b){return a>b?a:b;}
 void clamp(float& v,float lo,float hi){v=v<lo?lo:v>hi?hi:v;}
 struct Fvector{float x=0,y=0,z=0;
- void set(const Fvector& v){*this=v;}
+ Fvector& set(const Fvector& v){*this=v;return *this;}
  float square_magnitude()const{return x*x+y*y+z*z;}
  Fvector& normalize(){const float n=std::sqrt(square_magnitude());x/=n;y/=n;z/=n;return *this;}
  float distance_to(const Fvector& v)const{return std::sqrt((x-v.x)*(x-v.x)+(y-v.y)*(y-v.y)+(z-v.z)*(z-v.z));}
