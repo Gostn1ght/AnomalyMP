@@ -64,3 +64,5 @@ handling, complete SDK mass fixture, then GHA. No speculative crate100kg loot.
 No content mass installed into owner's game. Resume without losing this work.
 
 Counters remain27complete/33partial/69unverified/59notstarted (161notclosed).
+
+First b7868cf2b qualification: Linux113869710869 PASS; Windows/DX11 runs37945243728/37945243704 refused before native engine compilation: fixture CAI_Crow.health shadowed actual local health (C4458/W4/WX). Rename fixture_health; no production function changed. Retain failed runs.

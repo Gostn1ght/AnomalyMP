@@ -25,8 +25,8 @@ struct NET_Packet{std::vector<float>values;unsigned cursor=0;
  unsigned r_u32(){return unsigned(r_float());}unsigned char r_u8(){return (unsigned char)r_float();}
  void r_vec3(Fvector& v){v.x=r_float();v.y=r_float();v.z=r_float();}};
 #define R_ASSERT(x) assert(x)
-struct CAI_Crow{float health=0;unsigned id_Team=0,id_Squad=0,id_Group=0;Fmatrix matrix;
- bool Remote(){return true;}void SetfHealth(float v){health=v;}
+struct CAI_Crow{float fixture_health=0;unsigned id_Team=0,id_Squad=0,id_Group=0;Fmatrix matrix;
+ bool Remote(){return true;}void SetfHealth(float v){fixture_health=v;}
  Fvector& Position(){return matrix.c;}Fmatrix& XFORM(){return matrix;}
  void net_Import(NET_Packet&);};
 struct Memory{bool seen=false;bool visible_right_now(const void*){return seen;}
@@ -42,7 +42,7 @@ struct CMonsterEnemyManager{CEntityAlive* enemy=nullptr;CCustomMonster* monster=
 ''' + read + vision + r'''
 int main(){
  CAI_Crow crow;NET_Packet p{{0.75f,100,0,18,-5,16,0.9f,0.9f,0.2f,0,1,2,3}};
- crow.net_Import(p);assert(crow.health==0.75f&&p.cursor==13);
+ crow.net_Import(p);assert(crow.fixture_health==0.75f&&p.cursor==13);
  assert(crow.Position().x==18&&crow.Position().y==-5&&crow.Position().z==16);
  assert(crow.id_Team==1&&crow.id_Squad==2&&crow.id_Group==3);
  CCustomMonster beast,npc;CMonsterEnemyManager manager;manager.monster=&beast;manager.enemy=Actor();
