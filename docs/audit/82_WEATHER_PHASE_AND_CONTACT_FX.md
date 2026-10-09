@@ -1,5 +1,27 @@
 # 82. Continuous weather display clock and fixed-replica contact effects
 
+2026-10-09 14:56 MSK continuation: bd5ab8da4aeeeccdbe0f1a21cbaf5ea335170cde
+Foundation37885813597 BOTH SUCCESS (Linux113675454645/Win113675454782);
+DX1137885813675 FULL SUCCESS, engine113675536162. Actual shell lifecycle reset
+fixture passed. Previous owner processes6532/25468 now absent; preserve the
+abrupt-ended logs, do not call the preceding904 session fully clean. Qualified
+bd5 package downloading before native retained-world repeat.
+
+Second concrete weather defect: client emission adapter called stock
+end_surge(false), then unconditionally level.stop_weather_fx(). The installed
+GAMMA effect has a recovery tail beyond the authority's222-second damage phase.
+Stock normal end_surge(false) leaves WFX running; the extra StopWFX jumped to
+cached future weather descriptors and cut recovery. Remove ONLY that extra
+call. Exact unmodified GAMMA end_surge fixture tested through actual adapter:
+normal recovery preserved, duplicate end idempotent, sound/wave/light/PP/camera
+cleanup and factor restoration retained, no repeated client mortality/respawn.
+Manual SP control still explicitly stops WFX. Lua51 PASS; GHA pending.
+
+Parts-menu investigation found client ALife facade cannot initialize persistent
+se_object.parts; GAMMA getter returns nil and spairs faults. No random/default
+parts substituted and no local persistence facade widened. Proper server-read
+metadata and authoritative repair/parts mutations remain separate work.
+
 Latest qualification, 2026-10-09 07:45 MSK: source
 ff53e8ff518cc56fd91aa13c993cd3307de893f6. Foundation37883870894 BOTH SUCCESS
 (Windows113669399617/Linux113669399923); DX1137883870820 FULL SUCCESS,

@@ -1,5 +1,18 @@
 # Промпт для Claude: продолжить Lost Zone автономно
 
+## 2026-10-09 14:56: сборка физики завершена, процессы прежней игры отсутствуют
+
+bd5ab8da4 Foundation37885813597 обе SUCCESS, DX1137885813675 fullSUCCESS,
+engine113675536162. Actual reset/destruction fixture PASS; пакет квалифицируется.
+Предыдущие6532/25468 уже отсутствуют; старые журналы внезапно оборвались,
+не объявлять всю904сессию чистой. Теперь можно отдельный повтор SAME world
+без остановки игры владельца. Сначала backup/state-hash upgrade helper.
+Готова ещё Lua-правка: убрать extra stop_weather_fx при authority end. Штатный
+GAMMA end_surge(false) сохраняет хвост выхода погоды; extra call обрывал его.
+Exact GAMMA end fixture через actual adapter Lua51 PASS, включая cleanup и SP.
+GHA этой правки pending. Weapon parts пока не менять: нужен правильный server
+read и authority для изменений, подставлять случайные детали нельзя. Doc82.
+
 ## Последнее уточнение, 2026-10-09 07:45 MSK
 
 ff53e8ff5: Foundation37883870894 обе SUCCESS, DX1137883870820 fullSUCCESS

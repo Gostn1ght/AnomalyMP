@@ -45,7 +45,9 @@ function receive(data)
         engine_start(mgr, true)
     elseif state == "0" and active then
         mgr:end_surge()
-        level.stop_weather_fx()
+        -- Stock GAMMA end_surge(false) leaves the weather FX recovery tail
+        -- running. Forcing StopWFX here jumps to the cached future weather
+        -- descriptors, cutting the transition when authority ends damage.
     end
     sequence, active = id, state == "1"
     received_elapsed, received_at, duration = seconds, time_global(), length

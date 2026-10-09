@@ -113,7 +113,7 @@ e.receive('7|1|150.000|222'); assert(starts==1 and active_seconds==150)
 now=500; mgr:update(); assert(active_seconds==150.5)
 e.receive('7|1|151.000|222'); assert(starts==1 and active_seconds==151)
 e.receive('6|0|0.000|222'); assert(cleanups==0)
-e.receive('7|0|0.000|222'); assert(cleanups==1 and fx_stops==1)
+e.receive('7|0|0.000|222'); assert(cleanups==1 and fx_stops==0)
 mgr:update(); local previous=updates; mgr:update(); assert(updates==previous)
 e.reset(); e.receive('1|1|20.000|222'); assert(starts==2 and active_seconds==20)
 ''')
@@ -156,3 +156,69 @@ assert(factor == 10, "the restarted server resumes the emission")
 assert(broadcast:match("|1|"), "and tells clients it is active: " .. tostring(broadcast))
 ''')
 print('PASS: shared clock, shelter IDs, per-owner protection, late join, single respawn and client presentation')
+
+# Exact GAMMA end_surge: normal completion deliberately does NOT stop WFX.
+# The client adapter's extra stop used to cut its recovery tail. Test the
+# actual stock cleanup through the actual adapter, plus the manual SP path.
+stock = LuaRuntime(unpack_returned_tuples=True)
+stock.execute('''
+now,stops,forced,mortality,statistics,events,intervals,indicators=0,0,0,0,0,0,0,0
+factor,pp,cam,waves,sounds,lights=10,0,0,0,0,0
+function time_global() return now end
+game={get_game_time=function() return 12345 end}
+db={actor={alive=function() return true end},signal_light={}}
+game_statistics={increment_statistic=function() statistics=statistics+1 end}
+function SendScriptCallback() events=events+1 end
+level={get_time_factor=function() return factor end,
+ set_time_factor=function(value) factor=value end,
+ stop_weather_fx=function() stops=stops+1 end,
+ remove_pp_effector=function() pp=pp+1 end,
+ remove_cam_effector=function() cam=cam+1 end}
+AC_ID,surge_shock_pp_eff,earthquake_cam_eff=7,8,9
+xr_sound={stop_sound_looped=function() sounds=sounds+1 end}
+local wm={weather_fx='saved_fx',forced_weather_change=function() forced=forced+1 end}
+level_weathers={get_weather_manager=function() return wm end}
+local cls={start=function(self) self.started=true end,update=function() end}
+function cls:new_surge_time() intervals=intervals+1 end
+function cls:displayIndicators(value) assert(value==0); indicators=indicators+1 end
+function cls:kill_all_unhided() mortality=mortality+1 end
+function cls:kill_wave() waves=waves+1 end
+surge_manager={CSurgeManager=cls,get_surge_manager=function() return mgr end}
+CSurgeManager=cls
+function make_mgr()
+ mgr=setmetatable({started=true,game_time_factor=6,
+  blowout_sound=true,wave_sound=true,second_message_given=true,
+  blowout_waves={{effect={playing=function() return true end}}},
+  blowout_sounds={{playing=function() return true end,stop=function() sounds=sounds+1 end}}},
+ {__index=cls})
+ db.signal_light={{stop_light=function() lights=lights+1 end,stop=function() lights=lights+1 end}}
+ return mgr
+end
+''')
+fixture = root.parent / 'fixtures/emission/surge-end.lua'
+stock.execute(fixture.read_text(encoding='utf-8'))
+stock.execute('''
+-- Stock normal completion has a weather tail, manual completion explicitly cuts it.
+make_mgr():end_surge(false)
+assert(stops==0 and forced==0 and mortality==1 and statistics==1 and events==2)
+make_mgr():end_surge(true)
+assert(stops==1 and forced==1 and mortality==2)
+''')
+stock.globals().netcoop_emission_view = stock.table()
+stock.execute('setfenv(assert(loadstring(...)), setmetatable(netcoop_emission_view,{__index=_G}))()',
+              (root/'client/netcoop_emission_view.script').read_text())
+stock.execute('''
+local before={stops,forced,mortality,statistics,events,intervals,indicators,pp,cam,waves,sounds,lights}
+make_mgr(); e=netcoop_emission_view; e.install()
+-- Establish an active event without invoking unrelated stock update behavior.
+db.actor=nil; e.receive('9|1|100.000|222'); db.actor={alive=function() return true end}
+e.receive('9|0|0.000|222')
+assert(stops==before[1] and forced==before[2], 'normal authority end must retain stock WFX recovery')
+assert(mortality==before[3] and statistics==before[4] and events==before[5], 'client cannot repeat authority mortality/respawn')
+assert(not mgr.started and mgr.finished and mgr.last_surge_time==12345 and factor==6)
+assert(intervals==before[6]+1 and indicators==before[7]+1 and pp==before[8]+1 and cam==before[9]+1)
+assert(waves==before[10]+1 and sounds==before[11]+4 and lights==before[12]+2)
+local interval=intervals
+e.receive('9|0|0.000|222'); assert(intervals==interval, 'duplicate end cannot redo cleanup')
+''')
+print('PASS actual GAMMA end_surge through client adapter: WFX recovery retained, stock sound/wave/light/PP/camera cleanup and factor restore retained; no client mortality/respawn; manual SP control still cuts WFX')
