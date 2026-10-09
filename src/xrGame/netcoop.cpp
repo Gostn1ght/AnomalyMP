@@ -3826,7 +3826,6 @@ void server_physics_update(xrServer* server)
 			it = Level().Objects.net_Find(it->first) ? std::next(it) : s_physics_sent.erase(it);
 	struct FootContact { Fvector position, direction; };
 	xr_vector<FootContact> feet;
-	const xr_vector<FootContact> no_feet;
 	for (u32 n = 0; n < Level().Objects.o_count(); ++n)
 	{
 		CActor* actor = smart_cast<CActor*>(Level().Objects.o_get_by_iterator(n));
@@ -3862,18 +3861,17 @@ void server_physics_update(xrServer* server)
 		if (!item_or_corpse && !prop) continue;
 		if (prop && s_physics_sent.find(holder->ID()) == s_physics_sent.end())
 		{
-			if (settling || !holder->PPhysicsShell()->isEnabled()) continue;
-			Msg("[Lost Zone][physics] prop %s (%u) moved: its pose goes to the players", holder->cName().c_str(), holder->ID());
+			if (settling) continue;
 		}
 		const u16 count = holder->PHGetSyncItemsNumber();
 		if (!count || count > 128) continue;
 		// Client replica colliders are fixed; only the authority integrates
 		// contact pushes. Walking against a body gives a small, mass-scaled
 		// impulse, never a position correction or an unvalidated client force.
-		// Props are pushed by the server's Actor itself (doors swing as in
-		// the single player game).
-		const xr_vector<FootContact>& pushes = prop ? no_feet : feet;
-		for (const FootContact& foot : pushes)
+		// The remote Actor's replica collider is fixed too: ordinary solver
+		// contacts cannot move props on its behalf. Apply the same validated
+		// movement contact to props/fragments, including sleeping ones.
+		for (const FootContact& foot : feet)
 		{
 			for (u16 i = 0; i < count; ++i)
 			{
@@ -3899,6 +3897,11 @@ void server_physics_update(xrServer* server)
 		// fell asleep sends its final pose once to every client, then a
 		// refresh every 10 s; a push or a hit wakes it and sending resumes.
 		const bool awake = holder->PPhysicsShell()->isEnabled();
+		if (prop && s_physics_sent.find(holder->ID()) == s_physics_sent.end())
+		{
+			if (!awake) continue; // untouched props still consume no pose traffic
+			Msg("[Lost Zone][physics] prop %s (%u) moved: its pose goes to the players", holder->cName().c_str(), holder->ID());
+		}
 		if (awake && !creature)
 		{
 			// Drops and explosions: no item flies off faster than 12 m/s.

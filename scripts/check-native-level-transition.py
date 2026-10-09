@@ -53,8 +53,8 @@ struct CUIGameSP:GameUI{
  void ChangeLevel(unsigned,unsigned,const Fvector&,const Fvector&,const Fvector&,const Fvector&,bool,LPCSTR,bool enabled){++calls;last_enabled=enabled;}
 } ui;
 GameUI* CurrentGameUI(){return &ui;}
-struct LevelState{unsigned sends=0;void Send(NET_Packet& p,int){assert(p.writes==5);++sends;}} level;
-LevelState& Level(){return level;}
+struct LevelState{unsigned sends=0;void Send(NET_Packet& p,int){assert(p.writes==5);++sends;}} fixture_level;
+LevelState& Level(){return fixture_level;}
 struct{float fTimeGlobal=10;}Device;
 #define VERIFY(x) assert(x)
 struct CLevelChanger{
@@ -81,17 +81,17 @@ int main(){
  }
  for(bool silent:{false,true}){
   CLevelChanger c;c.m_bSilentMode=silent;c.feel_touch={&owner,&remote};
-  unsigned calls=ui.calls,sends=level.sends;
+  unsigned calls=ui.calls,sends=fixture_level.sends;
   netcoop::active=true;netcoop::client=true;
-  c.feel_touch_new(&remote);assert(ui.calls==calls&&level.sends==sends);
+  c.feel_touch_new(&remote);assert(ui.calls==calls&&fixture_level.sends==sends);
   owner.alive=false;c.feel_touch_new(&owner);assert(ui.calls==calls);owner.alive=true;
-  c.feel_touch_new(&owner);assert(ui.calls==calls+1&&level.sends==sends&&ui.last_enabled);
+  c.feel_touch_new(&owner);assert(ui.calls==calls+1&&fixture_level.sends==sends&&ui.last_enabled);
   c.update_actor_invitation();assert(ui.calls==calls+1);
-  Device.fTimeGlobal+=6;c.update_actor_invitation();assert(ui.calls==calls+2&&level.sends==sends);
+  Device.fTimeGlobal+=6;c.update_actor_invitation();assert(ui.calls==calls+2&&fixture_level.sends==sends);
   netcoop::client=false;c.feel_touch_new(&owner);Device.fTimeGlobal+=6;c.update_actor_invitation();
-  assert(ui.calls==calls+2&&level.sends==sends);
+  assert(ui.calls==calls+2&&fixture_level.sends==sends);
   netcoop::active=false;c.feel_touch_new(&owner);
-  assert(ui.calls==calls+2+unsigned(!silent)&&level.sends==sends+unsigned(silent));
+  assert(ui.calls==calls+2+unsigned(!silent)&&fixture_level.sends==sends+unsigned(silent));
  }
  std::puts("PASS actual changer: own alive MP client always confirms, repeats after 5s; remote/server denied; SP silent retained. Actual cluster route: missing catalog entry rescanned once, malformed/unserved refused.");
 }

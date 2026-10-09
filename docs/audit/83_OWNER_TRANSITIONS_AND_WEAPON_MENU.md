@@ -96,3 +96,31 @@ Current running bd5 still has prior extra StopWFX; do not interrupt owner to
 replace active EXEs. 6114 native weather samples were normal cycle, no WFX;
 they are not emission smoothness acceptance. Sun-position readings include
 camera translation and cannot alone prove directional shadow jumps.
+
+## 15:58 continuation: authority mass/relation evidence and push source repair
+
+Read-only native server SDK: cupboards15775/15777 have actual25/35kg;
+retained destroyable objects15841/15842/15843/15845 have100kg each; corpse22722
+11 elements totals94kg. Actor20575 faction actor_stalker rank225 rep-1340.
+Army19548/19574 and bandits22736/22713 are already native enemies (relation2,
+community-2000); deadarmy22722 also enemy2. This disproves a blanket neutral
+faction-table explanation for this session; reaction/perception and exact
+reputation delta at hit/death require separate capture. No goodwill rewritten.
+Bounded hit-material observer consumed/armed, no matching shot evidence captured.
+
+Important correction: authoritative foot contact already EXISTS for floor items
+and corpses in server_physics_update; it was not wholly absent. The actual bug
+is props/fragments receive no_feet, and an as-yet-unreplicated sleeping prop is
+skipped before any contact can wake it. Source now admits authority foot contact
+for props/fragments; deferred awake test keeps untouched props off the network.
+Actual masses, speed target/cap, limb-only corpse impulse, positional/directional
+bounds, anchor/dead/jump/climb/attached/removed guards and network backpressure
+remain. Complete native loop fixture added for GHA, not local compilation.
+No wall penetration/contact noise, mass retuning, or full corpses acceptance claim.
+
+830eef835 Foundation37932332920 LinuxPASS/WindowsFAIL and DX1137932332758 FAIL
+before full build: session-ownership fixture boundary accidentally captured new
+FS helper. a99c3ccd1 narrows extraction; next Foundation37932851682/DX1137932851602
+FAIL only W4/WX transition-fixture global `level` shadowing actual argument.
+Rename fixture-only global; retain both failure histories. Native push/checks
+now awaiting next GHA; no active executable rollout.
