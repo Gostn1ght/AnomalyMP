@@ -135,7 +135,8 @@ int main(){
  excluded.shell.elements[0].state.position.set(0,0.2f,0.7f);tick(server);assert(excluded.shell.wakes==0);
  excluded.shell.elements[0].state.position.set(0,0.2f,0.3f);server.room=false;unsigned sent=server.sends;
  tick(server);assert(excluded.shell.enabled&&server.sends==sent);
- std::puts("PASS actual server loop: sleeping props/fragments wake from authority movement; real masses and corpse limb contact retained; untouched props consume no traffic; bounds/dead/anchor/jump/climb/attached/removed/client guards retained; push bounded and queue backpressure respected.");
+ excluded.shell.enabled=false;tick(server);assert(server.sends==sent+1); // the final pose of a sleeping body ignores backpressure (no hovering)
+ std::puts("PASS actual server loop: sleeping props/fragments wake from authority movement; real masses and corpse limb contact retained; untouched props consume no traffic; bounds/dead/anchor/jump/climb/attached/removed/client guards retained; push bounded and queue backpressure respected for moving bodies; a final sleeping pose is always sent.");
 }
 '''
 with TemporaryDirectory() as tmp:
