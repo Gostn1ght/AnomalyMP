@@ -30,6 +30,12 @@ private:
 	void netcoop_update_arrival_guard();
 	u16 m_netcoop_actor_id = 0xffff;
 	bool m_netcoop_arrival_block = false;
+public:
+	// Netcoop client: the changer whose confirmation is open. "No" keeps it
+	// quiet until the player leaves its shape (no client-side reject move).
+	static CLevelChanger* s_netcoop_inviter;
+	static void netcoop_declined();
+private:
 	bool m_bSilentMode;
 	bool get_reject_pos(Fvector& p, Fvector& r);
 

@@ -1,5 +1,7 @@
 #include "pch_script.h"
 #include "uigamesp.h"
+#include "netcoop.h"
+#include "level_changer.h"
 #include "actor.h"
 #include "level.h"
 #include "../xrEngine/xr_input.h"
@@ -315,6 +317,7 @@ void CChangeLevelWnd::SendMessage(CUIWindow* pWnd, s16 msg, void* pData)
 void CChangeLevelWnd::OnOk()
 {
 	HideDialog();
+	CLevelChanger::s_netcoop_inviter = nullptr;
 	NET_Packet p;
 	p.w_begin(M_CHANGE_LEVEL);
 	p.w(&m_game_vertex_id, sizeof(m_game_vertex_id));
@@ -328,6 +331,11 @@ void CChangeLevelWnd::OnOk()
 void CChangeLevelWnd::OnCancel()
 {
 	HideDialog();
+	if (netcoop::pure_client())
+	{
+		CLevelChanger::netcoop_declined();
+		return;
+	}
 	if (m_b_position_cancel)
 		Actor()->MoveActor(m_position_cancel, m_angles_cancel);
 }
@@ -357,6 +365,10 @@ void CChangeLevelWnd::Show()
 	m_messageBox->SetText(m_message_str.c_str());
 
 
+	// There is no pause online (owner's decision): the world and the player's
+	// Actor go on on the server while the question is open.
+	if (netcoop::enabled())
+		return;
 	g_block_pause = true;
 	Device.Pause(TRUE, TRUE, TRUE, "CChangeLevelWnd_show");
 	bShowPauseString = FALSE;
@@ -364,6 +376,8 @@ void CChangeLevelWnd::Show()
 
 void CChangeLevelWnd::Hide()
 {
+	if (netcoop::enabled())
+		return;
 	g_block_pause = false;
 	Device.Pause(FALSE, TRUE, TRUE, "CChangeLevelWnd_hide");
 }

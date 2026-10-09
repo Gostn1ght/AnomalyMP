@@ -39,6 +39,8 @@ float CLevelChanger::Radius() const
 
 void CLevelChanger::net_Destroy()
 {
+	if (s_netcoop_inviter == this)
+		s_netcoop_inviter = nullptr;
 	inherited::net_Destroy();
 	xr_vector<CLevelChanger*>::iterator it = std::find(g_lchangers.begin(), g_lchangers.end(), this);
 	if (it != g_lchangers.end())
@@ -135,6 +137,19 @@ void CLevelChanger::netcoop_update_arrival_guard()
 		m_netcoop_arrival_block = false;
 }
 
+CLevelChanger* CLevelChanger::s_netcoop_inviter = nullptr;
+
+// "No" in multiplayer: the client never moves its Actor to the reject point
+// itself (the authoritative server did not, so the player was pulled back or
+// ended up elsewhere than shown); the changer stays quiet until the player
+// walks out of its shape, as after an arrival.
+void CLevelChanger::netcoop_declined()
+{
+	if (s_netcoop_inviter)
+		s_netcoop_inviter->m_netcoop_arrival_block = true;
+	s_netcoop_inviter = nullptr;
+}
+
 void CLevelChanger::feel_touch_new(CObject* tpObject)
 {
 	CActor* l_tpActor = smart_cast<CActor*>(tpObject);
@@ -166,6 +181,8 @@ void CLevelChanger::feel_touch_new(CObject* tpObject)
 	Fvector p, r;
 	bool b = get_reject_pos(p, r);
 	CUIGameSP* pGameSP = smart_cast<CUIGameSP*>(CurrentGameUI());
+	if (netcoop::pure_client())
+		s_netcoop_inviter = this;
 	if (pGameSP)
 		pGameSP->ChangeLevel(m_game_vertex_id, m_level_vertex_id, m_position, m_angles, p, r, b, m_invite_str,
 		                     m_b_enabled);
@@ -229,6 +246,8 @@ void CLevelChanger::update_actor_invitation()
 			CUIGameSP* pGameSP = smart_cast<CUIGameSP*>(CurrentGameUI());
 			Fvector p, r;
 			bool b = get_reject_pos(p, r);
+			if (netcoop::pure_client())
+				s_netcoop_inviter = this;
 
 			if (pGameSP)
 				pGameSP->ChangeLevel(m_game_vertex_id, m_level_vertex_id, m_position, m_angles, p, r, b, m_invite_str,

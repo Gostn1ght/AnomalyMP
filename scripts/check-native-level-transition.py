@@ -69,6 +69,7 @@ struct CLevelChanger{
  bool get_reject_pos(Fvector&,Fvector&){return false;}
  bool feel_touch_contact(CObject*){return fixture_inside;}
  void netcoop_update_arrival_guard();void feel_touch_new(CObject*);void update_actor_invitation();
+ static CLevelChanger* s_netcoop_inviter;static void netcoop_declined();
 };
 '''+routes+guard+enter+invite+r'''
 int main(){
@@ -108,8 +109,16 @@ int main(){
  arrival.fixture_inside=true;arrival.netcoop_update_arrival_guard();arrival.feel_touch_new(&owner);assert(ui.calls==prior_calls+1);
  owner.fixture_id=8;arrival.netcoop_update_arrival_guard();assert(arrival.m_netcoop_arrival_block);
  arrival.feel_touch_new(&owner);assert(ui.calls==prior_calls+1);
+ // "No": no client-side reject move; the changer stays quiet until the player leaves its shape.
+ netcoop::active=true;CLevelChanger declined;declined.feel_touch={&owner};declined.fixture_inside=true;owner.fixture_id=9;
+ declined.netcoop_update_arrival_guard();declined.fixture_inside=false;declined.netcoop_update_arrival_guard();declined.fixture_inside=true;
+ unsigned before=ui.calls;declined.feel_touch_new(&owner);assert(ui.calls==before+1&&CLevelChanger::s_netcoop_inviter==&declined);
+ CLevelChanger::netcoop_declined();assert(CLevelChanger::s_netcoop_inviter==nullptr&&declined.m_netcoop_arrival_block);
+ Device.fTimeGlobal+=6;declined.update_actor_invitation();declined.netcoop_update_arrival_guard();assert(ui.calls==before+1);
+ declined.fixture_inside=false;declined.netcoop_update_arrival_guard();assert(!declined.m_netcoop_arrival_block);
+ declined.fixture_inside=true;declined.feel_touch_new(&owner);assert(ui.calls==before+2);
  netcoop::active=false;arrival.feel_touch_new(&owner);assert(fixture_level.sends>0);
- std::puts("PASS actual changer: own alive MP client always confirms, repeats after 5s; remote/server denied; SP silent retained. Actual cluster route: missing catalog entry rescanned once, malformed/unserved refused.");
+ std::puts("PASS actual changer: own alive MP client always confirms, repeats after 5s; No stays quiet until the shape is left; remote/server denied; SP silent retained. Actual cluster route: missing catalog entry rescanned once, malformed/unserved refused.");
 }
 '''
 with TemporaryDirectory() as tmp:
