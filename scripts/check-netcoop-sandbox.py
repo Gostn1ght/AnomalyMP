@@ -5,13 +5,14 @@ from lupa.lua51 import LuaRuntime
 root = Path(__file__).resolve().parents[1]/"scripts/netcoop-overlay"
 source = (root/"server/zz_netcoop_sandbox.script").read_text(encoding="utf-8")
 assert source == (root/"client/zz_netcoop_sandbox.script").read_text(encoding="utf-8")
+assert (root/"server/configs/netcoop/sandbox.ltx").read_bytes() == (root/"client/configs/netcoop/sandbox.ltx").read_bytes()
 lua = LuaRuntime(unpack_returned_tuples=True)
 lua.execute(r'''
 callbacks, objects, released, traded = {}, {}, {}, {}
 function netcoop_enabled() return true end
 function netcoop_pure_client() return false end
 function RegisterScriptCallback(name,fn) callbacks[name]=fn end
-local modes={removed="remove",wolf="remove",trader="trader"}
+local modes={removed="remove",wolf="remove",trader="trader",kovalev="keep"}
 function ini_file() return {r_string_ex=function(_,group,name)
     if group=="legacy_profiles" then return modes[name] end
     if group=="retained_scientist" and name=="level" then return "k00_marsh" end
@@ -79,6 +80,11 @@ local distant=spawn(51001,"npc",1,"removed",nil,"scientist")
 function distant:community() return "ecolog" end
 distant.m_game_vertex_id=1;distant.position={distance_to_sqr=function() return 10000 end}
 registered(distant);update();assert(objects[51001]==nil)
+-- The named church scientist (ah_bol_kovalev = keep) stays wherever he walks.
+local kovalev=spawn(51002,"npc",1,"kovalev",nil,"ah_bol_kovalev_squad")
+function kovalev:community() return "ecolog" end
+kovalev.m_game_vertex_id=2;kovalev.position={distance_to_sqr=function() return 10000 end}
+registered(kovalev);update();assert(objects[51002]==kovalev)
 -- No reroll of an emptied story stash on reload or repeated scans.
 treasure_manager.caches[11]=false;callbacks.on_game_load();update()
 assert(treasure_manager.caches[11]==false)

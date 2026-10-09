@@ -62,7 +62,9 @@ local function inspect(se)
         local traded = trade_manager and trade_manager.get_trade_profile and trade_manager.get_trade_profile(se.id,"cfg_ltx")
         -- Explicit retirement wins over a stale trade profile from the old
         -- mini-trader conversion. Real trader profiles and generic NPCs stay.
-        if not church_scientist(se) and (p == "remove" or p == "mini" or (story and p ~= "trader" and not traded)) then
+        -- "keep": the church scientist by name (ah_bol_kovalev); the place
+        -- rule stays as a fallback for an unnamed copy.
+        if p ~= "keep" and not church_scientist(se) and (p == "remove" or p == "mini" or (story and p ~= "trader" and not traded)) then
             alife_release(se)
             return
         end
