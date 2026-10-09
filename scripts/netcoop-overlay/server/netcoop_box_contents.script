@@ -1,0 +1,244 @@
+----------------------------------------------------------------------
+-- Crate contents and mass (owner 2026-10-09)
+----------------------------------------------------------------------
+-- A crate's mass is its shell plus what really drops from it; an empty crate
+-- weighs its shell, a barrel its empty steel shell. The server rolls GAMMA's
+-- own crate loot ONCE (the same xr_box tables, counts and chances, including
+-- the 50 % chance of a crate without a drop_box section), keeps that plan with
+-- the world, sets the crate's physics mass from it and spawns exactly that
+-- loot when the crate breaks. No reroll on restart, no client spawning.
+-- Failure never loses loot: anything partly spawned is rolled back and GAMMA's
+-- stock roll runs instead; nothing is spawned twice.
+local installed = false
+local pending, cursor, next_scan = {}, 1, 0
+local stock_spawn
+local box_visuals = {
+	["dynamics\\box\\box_wood_01"] = true,
+	["dynamics\\box\\box_wood_02"] = true,
+	["dynamics\\box\\box_metall_01"] = true,
+}
+local PLAN = "lz_box_contents_v2"
+
+local function valid_number(v)
+	return type(v) == "number" and v == v and v ~= math.huge and v ~= -math.huge
+end
+
+local function drop_box(spawn_ini)
+	return spawn_ini and spawn_ini:section_exist("drop_box") and true or false
+end
+
+local function same_object(plan, obj)
+	return type(plan) == "table" and plan.version == 2 and plan.name == obj:name() and
+		plan.visual == obj:get_visual_name() and type(plan.items) == "table" and
+		valid_number(plan.weight) and plan.weight >= 0 and plan.weight <= 500
+end
+
+-- ItemProcessor:Extract_Uses: "medkit__1" is a medkit with one use left.
+-- Ammo: _NO_DAMAGED_AMMO turns "verybad" ammo into "bad" (itms_manager).
+function resolved_section(raw, ammo)
+	local section, uses = string.match(raw, "(.*)__(%d)")
+	if not (section and uses and ini_sys:section_exist(section)) then section, uses = raw, nil end
+	if ammo and _NO_DAMAGED_AMMO and string.find(section, "verybad", 1, true) then
+		local replacement = string.gsub(section, "verybad", "bad")
+		if ini_sys:section_exist(replacement) then section = replacement end
+	end
+	return section, uses and tonumber(uses) or nil
+end
+
+-- The engine's weights: an ammo box weighs inv_weight * rounds / box_size
+-- (CWeaponAmmo::Weight); a multi-use item with use_condition weighs
+-- empty_weight + uses * (inv_weight - empty_weight) / max_uses (CEatableItem).
+function item_weight(row)
+	local section, uses = resolved_section(row.section, row.ammo)
+	local weight = ini_sys:r_float_ex(section, "inv_weight")
+	assert(valid_number(weight) and weight >= 0, "Crate item has no valid weight: " .. row.section)
+	if row.ammo then
+		local size = ini_sys:r_float_ex(section, "box_size")
+		assert(valid_number(size) and size > 0, "Crate ammo has no box size")
+		return weight * row.count / size
+	end
+	if ini_sys:r_bool_ex(section, "use_condition", false) then
+		local maximum = ini_sys:r_float_ex(section, "max_uses") or 1
+		local empty = ini_sys:r_float_ex(section, "empty_weight") or 0
+		assert(valid_number(maximum) and maximum > 0)
+		assert(valid_number(empty) and empty >= 0 and empty <= weight)
+		local left = uses and math.min(uses, maximum) or maximum
+		weight = empty + (weight - empty) * left / maximum
+	end
+	return weight * row.count
+end
+
+local function validate_items(plan)
+	local weight = 0
+	assert(#plan.items <= 512, "Oversized crate plan")
+	for _, row in ipairs(plan.items) do
+		assert(type(row) == "table" and type(row.section) == "string")
+		local section = resolved_section(row.section, row.ammo)
+		assert(ini_sys:section_exist(section), "Unknown crate item " .. row.section)
+		assert(valid_number(row.count) and row.count >= 1 and row.count <= 1000 and row.count == math.floor(row.count))
+		assert(type(row.ammo) == "boolean" and row.ammo == (IsItem("ammo", section) and true or false))
+		weight = weight + item_weight(row)
+	end
+	assert(valid_number(weight) and weight <= 500, "Oversized crate weight")
+	assert(math.abs(weight - plan.weight) <= 0.0001, "Crate weight does not match its contents")
+end
+
+-- GAMMA's roll, captured instead of spawned: xr_box.create_items is replaced
+-- for the duration of the stock spawn_items call only.
+local function roll_contents(obj, spawn_ini)
+	local rows = {}
+	local plan = {version = 2, name = obj:name(), visual = obj:get_visual_name(), items = rows, weight = 0, released = false}
+	-- bind_physic_object: a crate without drop_box drops loot only half of the time.
+	plan.gate = drop_box(spawn_ini) or (math.random(1, 100) / 100) < 0.5
+	if plan.gate then
+		local create = xr_box.create_items
+		xr_box.create_items = function(target, section, number, probability)
+			assert(target == obj)
+			if ini_sys:section_exist(section) and not ini_sys:line_exist(section, "cform") then return end
+			local ammo = IsItem("ammo", (resolved_section(section, true))) and true or false
+			if ammo then
+				if math.random() <= probability then rows[#rows + 1] = {section = section, count = number, ammo = true} end
+			else
+				for _ = 1, number do
+					if math.random() <= probability then rows[#rows + 1] = {section = section, count = 1, ammo = false} end
+				end
+			end
+		end
+		local ok, err = pcall(stock_spawn, xr_box.get_box_manager(), obj, nil, spawn_ini)
+		xr_box.create_items = create -- restored even after a broken mod/INI
+		assert(ok, err)
+	end
+	for _, row in ipairs(rows) do plan.weight = plan.weight + item_weight(row) end
+	validate_items(plan)
+	return plan
+end
+
+-- The crate's plan (rolled once and saved) and its physics mass; barrels get
+-- their empty shell. Called for every crate the server sees, repeatedly: a
+-- crate that went offline and online again gets its mass back.
+function prepare(obj, spawn_ini)
+	if not installed or not obj then return nil end
+	local base = netcoop_prop_shell_mass(obj:id())
+	if not valid_number(base) or base <= 0 then return nil end
+	if not box_visuals[obj:get_visual_name()] then
+		netcoop_prop_set_mass(obj:id(), base)
+		return nil
+	end
+	local plan = se_load_var(obj:id(), nil, PLAN)
+	if plan and not same_object(plan, obj) then
+		se_save_var(obj:id(), nil, PLAN, nil) -- a reused id: the old crate's plan
+		plan = nil
+	end
+	if not plan then
+		plan = roll_contents(obj, spawn_ini)
+		se_save_var(obj:id(), nil, PLAN, plan)
+		assert(se_load_var(obj:id(), nil, PLAN) == plan, "Crate plan was not saved")
+	end
+	validate_items(plan)
+	netcoop_prop_set_mass(obj:id(), base + (plan.released and 0 or plan.weight))
+	return plan
+end
+
+local function spawn_plan(obj, plan)
+	local pos = vector():set(obj:position()); pos.y = pos.y + 0.3
+	local created = {}
+	local ok, err = pcall(function()
+		for _, row in ipairs(plan.items) do
+			local count = row.ammo and 1 or row.count
+			for _ = 1, count do
+				local made = alife_create_item(row.section, {pos, obj:level_vertex_id(), obj:game_vertex_id()}, row.ammo and {ammo = row.count} or nil)
+				assert(made, "Crate loot spawn failed: " .. row.section)
+				if type(made) == "table" and made.id == nil then
+					for _, entity in ipairs(made) do created[#created + 1] = entity end
+					local size = ini_sys:r_float_ex((resolved_section(row.section, true)), "box_size")
+					assert(row.ammo and #made == math.max(1, math.ceil(row.count / size)), "Partial ammo creation")
+				else
+					created[#created + 1] = made
+				end
+			end
+		end
+	end)
+	if ok then return true end
+	-- Roll back what was made; report whether that worked.
+	local clean = true
+	for _, entity in ipairs(created) do
+		if not pcall(alife_release, entity) then clean = false end
+	end
+	printf("[Lost Zone][crate] planned loot of %s failed (%s), rolled back: %s", tostring(obj:id()), tostring(err), tostring(clean))
+	return false, clean
+end
+
+-- Drops the crate's planned loot exactly once. Never raises: it runs inside
+-- the engine's death callback of the crate.
+function release(obj, spawn_ini)
+	if not (installed and obj and box_visuals[obj:get_visual_name()]) then return false end
+	local base = netcoop_prop_shell_mass(obj:id()) or 0
+	local ok, plan = pcall(prepare, obj, spawn_ini)
+	if not ok or not plan then
+		printf("[Lost Zone][crate] no plan for %s (%s): GAMMA's own loot", tostring(obj:id()), tostring(plan))
+		return false
+	end
+	if plan.released then return true end
+	plan.released = true -- before spawning: nothing can spawn twice
+	se_save_var(obj:id(), nil, PLAN, plan)
+	if base > 0 then netcoop_prop_set_mass(obj:id(), base) end -- the shell splits into fragments
+	if #plan.items == 0 then return true end
+	local spawned, clean = spawn_plan(obj, plan)
+	if spawned then return true end
+	-- Rolled back cleanly: GAMMA's stock roll, so the loot is not lost.
+	if clean and stock_spawn then pcall(stock_spawn, xr_box.get_box_manager(), obj, nil, spawn_ini) end
+	return true
+end
+
+-- xr_box's spawn_items for planned crates: the plan already dropped (the
+-- death callback runs first); other crates and mods keep the stock roll.
+local function spawn_items(manager, obj, who, spawn_ini)
+	if installed and obj and box_visuals[obj:get_visual_name()] then
+		local plan = se_load_var(obj:id(), nil, PLAN)
+		if plan and same_object(plan, obj) and plan.released then return end
+		if release(obj, spawn_ini) then return end
+	end
+	return stock_spawn(manager, obj, who, spawn_ini)
+end
+
+function install()
+	if installed or not netcoop_prop_shell_mass or not netcoop_prop_set_mass or not netcoop_mass_props then return end
+	if netcoop_pure_client and netcoop_pure_client() then return end
+	if not (xr_box and xr_box.ph_item_box and xr_box.ph_item_box.spawn_items) then return end
+	if not (bind_physic_object and bind_physic_object.generic_physics_binder and bind_physic_object.generic_physics_binder.death_callback) then return end
+	stock_spawn = xr_box.ph_item_box.spawn_items
+	xr_box.ph_item_box.spawn_items = spawn_items
+	-- The planned loot drops when the crate breaks, whatever GAMMA's second
+	-- 50 % roll in the death callback says (it was rolled with the plan).
+	local death = bind_physic_object.generic_physics_binder.death_callback
+	bind_physic_object.generic_physics_binder.death_callback = function(self, victim, who)
+		if victim and box_visuals[victim:get_visual_name()] then
+			local ok, err = pcall(release, victim, victim:spawn_ini())
+			if not ok then printf("[Lost Zone][crate] release failed: %s", tostring(err)) end
+		end
+		return death(self, victim, who)
+	end
+	installed = true
+end
+
+function update()
+	if not installed then return end
+	local now = time_global()
+	if cursor > #pending then
+		if now < next_scan then return end
+		next_scan = now + 5000
+		pending, cursor = {}, 1
+		for id in string.gmatch(netcoop_mass_props(), "%d+") do pending[#pending + 1] = tonumber(id) end
+	end
+	-- A bounded number per tick; NPC scheduling and population untouched.
+	for _ = 1, 8 do
+		local id = pending[cursor]
+		if not id then return end
+		cursor = cursor + 1
+		local obj = level.object_by_id(id)
+		if obj then
+			local ok, err = pcall(prepare, obj, obj:spawn_ini())
+			if not ok then printf("[Lost Zone][crate] contents preparation failed: %s", tostring(err)) end
+		end
+	end
+end

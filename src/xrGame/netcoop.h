@@ -245,6 +245,10 @@ void client_campfire_spawned(CZoneCampfire* campfire);
 // it draws; this takes the current weather's sun, sky and ambient light and
 // a switched-on torch of a player (stage 8). rendered = the ROS value.
 float server_luminocity(const CObject* object, float rendered);
+// Authority-only crate/barrel shell estimate and contents mass application.
+float script_prop_shell_mass(u16 id);
+LPCSTR script_mass_props();
+bool script_prop_set_mass(u16 id, float total);
 // Server: distance to the nearest living player (positions cached each
 // frame); a large value when no player is online.
 float server_nearest_player_distance(const Fvector& position);

@@ -58,6 +58,7 @@
 #include "eatable_item.h"
 #include "netcoop_item_state.h"
 #include "netcoop_save_checksum.h"
+#include "netcoop_prop_mass.h"
 #include "script_engine.h"
 #include "xrServer_Objects_ALife_Monsters.h"
 #include "game_base_space.h"
@@ -2018,6 +2019,47 @@ bool server_player_sees(const CObject* player, const CObject* object)
 	to.div(distance);
 	Fvector forward; forward.setHP(-const_cast<CActor*>(actor)->netcoop_model_yaw(), 0.f);
 	return forward.dotproduct(to) > 0.5f; // 120 degree view cone
+}
+
+float script_prop_shell_mass(u16 id)
+{
+	if (!enabled() || pure_client() || !g_pGameLevel || !Level().Server) return 0.f;
+	CPhysicObject* object = smart_cast<CPhysicObject*>(Level().Objects.net_Find(id));
+	if (!object || object->getDestroy() || object->H_Parent() || !object->Visual()) return 0.f;
+	const auto kind = netcoop_prop_mass::classify(object->cNameVisual().c_str());
+	if (kind == netcoop_prop_mass::Kind::other) return 0.f;
+	Fvector center, half;
+	object->Visual()->getVisData().box.get_CD(center, half);
+	return netcoop_prop_mass::shell(kind, 2.f * half.x, 2.f * half.y, 2.f * half.z);
+}
+
+LPCSTR script_mass_props()
+{
+	static xr_string ids;
+	ids.clear();
+	if (!enabled() || pure_client() || !g_pGameLevel || !Level().Server) return "";
+	for (u32 n = 0; n < Level().Objects.o_count(); ++n)
+	{
+		CObject* object = Level().Objects.o_get_by_iterator(n);
+		if (script_prop_shell_mass(object->ID()) <= 0.f) continue;
+		string16 id; xr_sprintf(id, "%u ", object->ID());
+		ids += id;
+	}
+	return ids.c_str();
+}
+
+bool script_prop_set_mass(u16 id, float total)
+{
+	const float base = script_prop_shell_mass(id);
+	if (!netcoop_prop_mass::valid_total(base, total)) return false;
+	CPhysicObject* object = smart_cast<CPhysicObject*>(Level().Objects.net_Find(id));
+	auto* entity = smart_cast<CSE_ALifeObjectPhysic*>(Level().Server->ID_to_entity(id));
+	if (!object || !entity || !object->netcoop_set_content_mass(total)) return false;
+	// Use the stock ALife field; no extra INI footer can conflict with saved
+	// destroyable health or the map author's logic. Reapply from Lua's saved
+	// contents on load because skeleton models use their authored bone masses.
+	entity->mass = total;
+	return true;
 }
 
 float server_luminocity(const CObject* object, float rendered)

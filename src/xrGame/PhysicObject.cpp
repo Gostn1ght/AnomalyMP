@@ -10,6 +10,8 @@
 #include "../xrEngine/cf_dynamic_mesh.h"
 #include "PHSynchronize.h"
 #include "script_binder_object.h"
+#include "netcoop.h"
+#include <cmath>
 #include "game_object_space.h"
 //#include "../xrphysics/PhysicsShellAnimator.h"
 #include "moving_bones_snd_player.h"
@@ -397,6 +399,20 @@ void CPhysicObject::CreatePhysicsShell(CSE_Abstract* e)
 {
 	CSE_ALifeObjectPhysic* po = smart_cast<CSE_ALifeObjectPhysic*>(e);
 	CreateBody(po);
+}
+
+bool CPhysicObject::netcoop_set_content_mass(float mass)
+{
+	if (!netcoop::enabled() || netcoop::pure_client() || !std::isfinite(mass) || mass <= 0.f ||
+		mass > 700.f || getDestroy() || H_Parent() || !m_pPhysicsShell) return false;
+	float current = 0.f;
+	for (u16 i = 0; i < m_pPhysicsShell->get_ElementsNumber(); ++i)
+		current += m_pPhysicsShell->get_ElementByStoreOrder(i)->getMass();
+	if (!std::isfinite(current) || current <= 0.f) return false;
+	if (_abs(current - mass) > 0.001f)
+		m_pPhysicsShell->setMass1(mass);
+	m_mass = mass;
+	return true;
 }
 
 void CPhysicObject::CreateSkeleton(CSE_ALifeObjectPhysic* po)

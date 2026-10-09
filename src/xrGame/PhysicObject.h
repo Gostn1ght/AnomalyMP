@@ -95,6 +95,7 @@ private:
 	void unset_door_ignore_dynamics();
 public:
 	bool get_door_vectors(Fvector& closed, Fvector& open) const;
+	bool netcoop_set_content_mass(float mass);
 public:
 	CPhysicObject(void);
 	virtual ~CPhysicObject(void);
