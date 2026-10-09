@@ -407,6 +407,11 @@ Simulation Catch-Up, звуковые события/следы. Контрак�
   дистанции (netcoop_distant_battles / netcoop_distant_sound, фикстура в CI).
   Случайный ambient-канал out_gunfire GAMMA не тронут. В игре не проверено.
 - [ ] K11. Косметические blood/shell effects отдельно от persistent loot.
+  Частично (2026-10-09, по коду): гильзы — частицы оружия (ShootingObject
+  shell particles) и звуки grok_casings_sounds, кровь — wallmarks/частицы на
+  клиенте; ни один из них не создаёт серверный объект/предмет, а кровь на
+  динамических неживых предметах уже отвергается. Отдельная приёмка в игре не
+  проводилась.
 - [ ] K12. Частично: bounded backend catch-up и captured-time continuation;
   большая live native приёмка ещё нужна. Семь часов не проигрываются по ticks.
 - [ ] K13. Full↔Coarse boundary у события не разрешает бой дважды.
