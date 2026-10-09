@@ -82,7 +82,7 @@ Copy-Item (Join-Path $Artifact "notices") (Join-Path $host_ "notices") -Recurse 
 # 4. Packed GAMMA data: everything for players, no textures for the server.
 if ($NoPacks) { Write-Host "archives skipped (-NoPacks)"; return }
 Write-Host "archives"
-$packs = Get-ChildItem $work -File | Where-Object { $_.Name -match '^lz_[a-z]+\.db[0-9a-f]+$' }
+$packs = Get-ChildItem $work -File | Where-Object { $_.Name -match '^lz_[a-z]+\.db[0-9a-z]+$' }
 foreach ($p in $packs) {
     if ($p.Name -notlike "lz_textures.*") { Copy-Item $p.FullName (Join-Path $host_ "db\lostzone") -Force }
     Move-Item $p.FullName (Join-Path $game "db\lostzone") -Force # same volume: no second copy

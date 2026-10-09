@@ -4,7 +4,9 @@
 #   - no absolute path to the builder's disk in launchers, templates, the
 #     hoster scripts or the configs (*.ltx, *.cmd, *.ps1, *.json, *.xml);
 #   - no PDB, no accounts / characters / worlds / session or secret files, no
-#     private debug probes; no server scripts in the players' folder;
+#     private debug probes (the cluster secret is netcoop_cluster.secret,
+#     created on the host; GAMMA's stash configs secret*.ltx are game data);
+#     no server scripts in the players' folder;
 #   - every fsgame alias of the template resolves inside the folder;
 #   - archives present (players: all categories; server: all but textures);
 # then writes MANIFEST-sha256.txt (binaries and archives) into each folder.
@@ -25,7 +27,7 @@ foreach ($root in $game, $host_) {
         if ((Select-String -LiteralPath $f.FullName -SimpleMatch $Builder -Quiet)) { $fail += "builder path in $($f.FullName)" }
     }
     $private = Get-ChildItem $root -Recurse -Force -File -ErrorAction SilentlyContinue | Where-Object {
-        $_.Name -match '^(netcoop_debug.*\.lua|accounts.*|.*\.scop|.*\.scoc|.*secret.*|.*session.*|.*lease.*|.*ownership.*)$' -or
+        $_.Name -match '^(netcoop_debug.*\.lua|accounts.*|.*\.scop|.*\.scoc|.*\.secret|netcoop.*secret.*|.*session.*|.*lease.*|.*ownership.*)$' -or
         $_.FullName -match '\\appdata\\.*\\(savedgames|netcoop_cluster\\|accounts|characters)'
     }
     if ($private) { $fail += "private files in ${root}: " + (($private | Select-Object -First 5).FullName -join ", ") }
@@ -38,6 +40,10 @@ foreach ($c in "lz_misc", "lz_meshes", "lz_levels", "lz_sounds", "lz_textures") 
     if ($c -eq "lz_textures" -and $onServer) { $fail += "server: texture archives present" }
     if ($c -ne "lz_textures" -and -not $onServer) { $fail += "server: no $c archives" }
 }
+# xrCompress names volumes .db0-.db9, .dba-.dbz (the loader accepts any .db*):
+# a pack left behind in _work would be a missing volume.
+$left = Get-ChildItem (Join-Path $Out "_work") -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '^lz_[a-z]+\.db[0-9a-z]+$' }
+if ($left) { $fail += "packs left in _work: " + ($left.Name -join ", ") }
 foreach ($pair in @(@($game, "fsgame.template", "bin\LostZoneClientDX11.exe"), @($host_, "fsgame_server.template", "dedicated\LostZoneServerDX11.exe"))) {
     $t = Join-Path $pair[0] $pair[1]
     if (-not (Test-Path $t)) { $fail += "missing $t"; continue }
@@ -48,7 +54,7 @@ foreach ($pair in @(@($game, "fsgame.template", "bin\LostZoneClientDX11.exe"), @
 }
 foreach ($root in $game, $host_) {
     if (-not (Test-Path $root)) { continue }
-    $manifest = Get-ChildItem $root -Recurse -File | Where-Object { $_.Extension -in ".exe", ".dll" -or $_.Name -match '\.db[0-9a-f]*$' } |
+    $manifest = Get-ChildItem $root -Recurse -File | Where-Object { $_.Extension -in ".exe", ".dll" -or $_.Name -match '\.db[0-9a-z]*$' } |
         Sort-Object FullName | ForEach-Object { "{0}  {1}" -f (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash, $_.FullName.Substring($root.Length + 1) }
     Set-Content -LiteralPath (Join-Path $root "MANIFEST-sha256.txt") -Value $manifest -Encoding ascii
     $size = (Get-ChildItem $root -Recurse -File | Measure-Object Length -Sum).Sum
