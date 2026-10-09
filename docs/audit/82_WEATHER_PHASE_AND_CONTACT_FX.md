@@ -74,3 +74,11 @@ normal emission restoration; confirm current rate from native logs when needed.
 Next: GHA qualification, native weather/WFX/contact effects and respawn God on
 qualified EXEs, floor hover/drop/restart/late-join, admin demo, mutant freeze,
 owner map restoration including requested Darkscape, then remaining188 easy first.
+
+Source5100c7a2735f420df2a0ac0970116c40faa9c4f7: Foundation37883591444
+both FAILED; DX1137883591603 engine113668604054 FAILED before engine compile.
+Weather fixture extraction referenced a destructor not defined in game_base.cpp;
+use next actual getCLASS_ID boundary instead. Generation-only preflight now
+extracts all three fixtures (no local compiler/executable). Earlier native God,
+physics and relation fixtures ran before this extraction failure; full build
+still required. Retain _build/live/destroyable-ci-113668604054.log. No deployment.

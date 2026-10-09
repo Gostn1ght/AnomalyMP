@@ -8,7 +8,7 @@ root=Path(__file__).resolve().parents[1]
 base=(root/'src/xrGame/game_base.cpp').read_text(encoding='latin-1')
 methods=base[base.index('ALife::_TIME_ID game_GameState::GetGameTime()'):]
 assert methods.rstrip().endswith('}')
-assert 'm_environment_monotonic_start = Device.dwTimeContinual;' in base[base.index('game_GameState::game_GameState()'):base.index('game_GameState::~game_GameState()')]
+assert 'm_environment_monotonic_start = Device.dwTimeContinual;' in base[base.index('game_GameState::game_GameState()'):base.index('CLASS_ID game_GameState::getCLASS_ID(')]
 client=(root/'src/xrGame/game_cl_base.cpp').read_text(encoding='latin-1')
 start=client.index('void game_cl_GameState::net_import_GameTime(')
 packet=client[start:client.index('struct not_exsiting_clients_deleter',start)]
