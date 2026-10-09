@@ -21,13 +21,14 @@
 param(
     [Parameter(Mandatory = $true)][string]$Out,
     [Parameter(Mandatory = $true)][string]$Artifact,
-    [string]$Runtime = (Join-Path $PSScriptRoot "..\..\..\gamma-runtime"),
+    [string]$Runtime = "",
     [string]$GammaDb = "C:\Users\Mahito\Downloads\GAMMA\GAMMA\db",
     [switch]$SkipCopy,
     [switch]$NoPacks
 )
 $ErrorActionPreference = "Stop"
 $repo = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+if (-not $Runtime) { $Runtime = Join-Path $repo "..\gamma-runtime" } # PS 5.1: no $PSScriptRoot in param defaults
 $Runtime = (Resolve-Path $Runtime).Path
 $Artifact = (Resolve-Path $Artifact).Path
 $work = Join-Path $Out "_work"
@@ -46,7 +47,8 @@ function Mirror($from, $to, [string[]]$extra = @()) {
 Write-Host "staging the overlay"
 New-Item -ItemType Directory -Force $stage | Out-Null
 foreach ($role in "client", "server") { Mirror (Join-Path $Runtime $role) (Join-Path $stage $role) }
-New-Item -ItemType Directory -Force (Join-Path $stage "gamedata\shaders3") | Out-Null # the overlay copies preview shaders there
+New-Item -ItemType Directory -Force (Join-Path $stage "gamedata\shaders
+3") | Out-Null # the overlay copies preview shaders there
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo "scripts\patch-gamma-netcoop-overlay.ps1") -RuntimeRoot $stage | Select-Object -Last 2
 if ($LASTEXITCODE -ne 0) { throw "overlay patch failed" }
 
