@@ -1,5 +1,25 @@
 # 82. Continuous weather display clock and fixed-replica contact effects
 
+Latest qualification, 2026-10-09 07:45 MSK: source
+ff53e8ff518cc56fd91aa13c993cd3307de893f6. Foundation37883870894 BOTH SUCCESS
+(Windows113669399617/Linux113669399923); DX1137883870820 FULL SUCCESS,
+engine113669496501. Actual environment clock/WFX, contact physical mass, God
+respawn binding, native relation/visibility/teleport fixtures pass. Earlier510
+failure below was fixture extraction only and is retained. No new EXE installed
+in the owner's running904 session; graphical weather/physics acceptance pending.
+
+Next scoped source fix: pickup destroys a CPhysicItem shell through central
+deactivate_physics_shell, but old floor snapshots and replica-shell identity
+survived. Allocator reuse on another drop could skip replica initialization or
+apply the preceding floor pose. Clear queue/identity/render clock and release
+only the queue-owned processing activation before shell destruction, also before
+OnChangeVisual deletes a shell. Pure-client only; server/SP physics unchanged.
+Actual reset and central destruction wrapper added to the native physics fixture:
+same-address reuse, idempotence and activation balance. Generation-only reviewed;
+native/GHA results pending. Do not claim all hovering or repeated drops accepted.
+
+Later entries above supersede the historical pending status below.
+
 2026-10-09. Owner reports teleporting shadows during emissions and abrupt
 weather/evening after the requested time-factor60 test. Continue earlier bugs,
 then original188. Original counts27/33/69/59 remain unchanged.

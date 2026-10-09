@@ -84,6 +84,7 @@ public:
     void netcoop_physics_import(NET_Packet& P);
     u32 netcoop_interpolation_time(u32 interval);
     bool netcoop_physics_buffered() const { return !m_netcoop_physics.empty(); }
+	void netcoop_physics_reset();
 private:
 	bool m_netcoop_throw = false;
 	Fmatrix m_netcoop_throw_start;

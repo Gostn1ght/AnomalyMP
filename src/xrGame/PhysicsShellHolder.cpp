@@ -190,6 +190,17 @@ const IPhysicsElement* CPhysicsShellHolder::physics_character() const
 	return mov->IElement();
 }
 
+void CPhysicsShellHolder::netcoop_physics_reset()
+{
+	if (!netcoop::pure_client()) return;
+	m_netcoop_physics.clear();
+	m_netcoop_replica_shell = nullptr;
+	if (m_netcoop_physics_processing) processing_deactivate();
+	m_netcoop_physics_processing = false;
+	m_netcoop_render_time = m_netcoop_render_frame = 0;
+	m_netcoop_render_delay = 0.f;
+}
+
 void CPhysicsShellHolder::net_Destroy()
 {
 	m_netcoop_physics.clear();
@@ -452,6 +463,9 @@ void CPhysicsShellHolder::setup_physic_shell()
 
 void CPhysicsShellHolder::deactivate_physics_shell()
 {
+	// A later drop may allocate its new shell at the same address. Old floor
+	// snapshots and replica identity must not survive pickup/shell destruction.
+	netcoop_physics_reset();
 	destroy_physics_shell(m_pPhysicsShell);
 }
 
@@ -526,6 +540,7 @@ void CPhysicsShellHolder::OnChangeVisual()
 			char_support->destroy_imotion();
 
 		VERIFY(!character_physics_support() || !character_physics_support()->interactive_motion());
+		netcoop_physics_reset();
 		if (m_pPhysicsShell)m_pPhysicsShell->Deactivate();
 
 		xr_delete(m_pPhysicsShell);
