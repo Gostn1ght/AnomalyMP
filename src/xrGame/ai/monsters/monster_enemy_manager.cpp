@@ -243,13 +243,14 @@ bool CMonsterEnemyManager::see_enemy_recently(const CEntityAlive* enemy)
 
 bool CMonsterEnemyManager::enemy_see_me_now()
 {
+	// A scoped server Actor is still a remote player without visual memory.
+	// Test this before Actor()==enemy, which is true during its AI scope.
+	if (netcoop::server_player_copy(enemy))
+		return netcoop::server_player_sees(enemy, monster);
 	if (Actor() == enemy)
 	{
 		return (Actor()->memory().visual().visible_right_now(monster));
 	}
-	// Netcoop server: players' Actors have no visual memory there.
-	if (netcoop::server_player_copy(enemy))
-		return netcoop::server_player_sees(enemy, monster);
 	else
 	{
 		CCustomMonster* cm = const_cast<CEntityAlive*>(enemy)->cast_custom_monster();

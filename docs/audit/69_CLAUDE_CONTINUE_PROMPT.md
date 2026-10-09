@@ -1,5 +1,20 @@
 # Промпт для Claude: продолжить Lost Zone автономно
 
+## 2026-10-09 latest owner override — first read doc84
+
+NO NEW IN-GAME/EXE TESTS until188 source/functionality stages are handled. Keep
+owner client11540/Cordon18680/Garbage16316 running; build onlyGitHub Actions.
+Remove all five former mini contacts; only Marsh CHURCH ecologist retained
+(owner clarified church). Trader coverage all33maps/labs, visual hoster full
+catalog/start/stop/restart, wrong Garbage portal, respawn/crows/aggression and
+latest visible NPC/mutant view vs attack direction are current work. Doc84
+records exact changes and limits; none implies188fullydone. Counters27/33/69/59.
+Baseline388 fully qualified GHA37937400053 +Foundation37937399521, artifact
+11620297828 cached, NOT rolled into current livebd5 binaries. Mass WIP safely
+snapshotted _build/wip/box-mass-20261009; do not activate incomplete crate loot
+release/rollback. Native build qualification for current source next.
+
+
 ## 2026-10-09 16:10: текущая работа и новое требование массы
 
 НЕ ОСТАНАВЛИВАТЬ owner client11540/Cordon18680/Garbage16316. Doc83 latest.

@@ -18,11 +18,10 @@ root = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser()
 p.add_argument("--runtime", default=str(root.parent / "gamma-runtime"))
 p.add_argument("--host", default="127.0.0.1")
-# Owner 2026-10-06: labs/underground and the Generators stay closed for now;
-# their level changers answer "this part of the Zone is not open yet".
-CLOSED = ["jupiter_underground", "l03u_agr_underground", "l04u_labx18", "l08u_brainlab", "l10u_bunker",
-          "l12u_control_monolith", "l12u_sarcofag", "l13u_warlab", "labx8", "l13_generators"]
-p.add_argument("--closed", default=",".join(CLOSED), help="maps without a server (comma list, '' = none)")
+# Owner 2026-10-09: expose every installed map, including labs. A host may
+# still explicitly exclude maps; the default catalog must not hide them.
+p.add_argument("--closed", default="", help="maps without a server (comma list, '' = none)")
+p.add_argument("--output-root", type=Path, default=root, help="output checkout/staging directory")
 p.add_argument("--always-on", default="k00_marsh,l01_escape",
                help="maps whose servers always run; the others start on demand")
 args = p.parse_args()
@@ -41,7 +40,7 @@ for line in (root / "scripts/netcoop-cluster/changers_dump.txt").read_text(encod
 starts = {}
 ltx = (runtime / "client/configs/plugins/new_game_start_locations.ltx").read_text(encoding="cp1251", errors="replace")
 for line in ltx.splitlines():
-    m = re.match(r"\s*(\w+)\s*=\s*(\w+)\s*,", line)
+    m = re.match(r"\s*(\w+)\s*=\s*(\w+)\s*(?:,|;|$)", line)
     if m:
         starts.setdefault(m.group(2), m.group(1))
 # Keep the sections the owner's servers already use.
@@ -61,12 +60,30 @@ for level in levels:
     out += [f"[{section}]", f"; arrival of {name} from {src}", f"gvid = {gv}", f"lvid = {lv}",
             f"x = {x:.3f}", f"y = {y:.3f}", f"z = {z:.3f}", ""]
     launch[level] = section
-(root / "scripts/netcoop-overlay/server/configs/netcoop/start_levels.ltx").write_text("\n".join(out), encoding="cp1251", newline="\r\n")
+start_path = args.output_root / "scripts/netcoop-overlay/server/configs/netcoop/start_levels.ltx"
+start_path.parent.mkdir(parents=True, exist_ok=True)
+start_path.write_text("\n".join(out), encoding="cp1251", newline="\r\n")
 
+# Adding underground maps must not shift any existing server's address.
 ports, port = {"k00_marsh": 1267, "l01_escape": 1277}, 1301
+previous = root / "scripts/netcoop-cluster/netcoop_cluster.ltx.full"
+section = ""
+if previous.exists():
+    for line in previous.read_text(encoding="cp1251").splitlines():
+        text = line.split(";", 1)[0].strip()
+        if text.startswith("[") and text.endswith("]"):
+            section = text[1:-1]
+        elif section == "locations":
+            match = re.fullmatch(r"(\w+)\s*=\s*[^:]+:(\d+)", text)
+            if match:
+                ports[match[1]] = int(match[2])
+occupied = {n for value in ports.values() for n in (value, value + 1)}
 for level in levels:
     if level not in ports:
+        while port in occupied or port + 1 in occupied:
+            port += 2
         ports[level] = port
+        occupied.update((port, port + 1))
         port += 2  # each server also uses port + 1 for its own authority client
 plan = ["; Location cluster: one dedicated server per map (generated, then edit hosts).",
         "; host = the address clients use for that map; a machine runs the maps whose",
@@ -78,6 +95,8 @@ plan += [f"{level} = {launch[level]}" for level in levels]
 always = {m for m in args.always_on.split(",") if m}
 plan += ["", "[on_demand]", "; 1 = the server starts when a player heads there and stops after 10 idle minutes"]
 plan += [f"{level} = {0 if level in always else 1}" for level in levels]
-plan += ["", "; closed for now: " + ", ".join(sorted(closed))]
-(root / "scripts/netcoop-cluster/netcoop_cluster.ltx.full").write_text("\n".join(plan) + "\n", encoding="cp1251", newline="\r\n")
+plan += ["", "; explicitly excluded: " + (", ".join(sorted(closed)) or "none")]
+plan_path = args.output_root / "scripts/netcoop-cluster/netcoop_cluster.ltx.full"
+plan_path.parent.mkdir(parents=True, exist_ok=True)
+plan_path.write_text("\n".join(plan) + "\n", encoding="cp1251", newline="\r\n")
 print(f"{len(levels)} maps, {sum(1 for l in levels if launch[l].startswith('lz_'))} generated start points")

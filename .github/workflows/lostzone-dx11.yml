@@ -36,6 +36,8 @@ jobs:
           python scripts/check-netcoop-items.py
           python scripts/check-netcoop-world-rules.py
           python scripts/check-netcoop-sandbox.py
+          python scripts/check-netcoop-respawn-state.py
+          python scripts/check-netcoop-full-map-plan.py
           python scripts/check-netcoop-legacy-dialog.py
           python scripts/check-netcoop-pickup-fallback.py
           python scripts/check-netcoop-admin-commands.py
@@ -142,6 +144,8 @@ jobs:
           python scripts/check-native-fragment-lifetime.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-mark-material.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-crow-enemy.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-weapon-menu.py
           if errorlevel 1 exit /b %errorlevel%

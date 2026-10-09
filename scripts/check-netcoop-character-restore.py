@@ -111,9 +111,9 @@ struct CGameObject {
 struct CActor:CGameObject {Info info;Info* m_known_info_registry=&info;int* lua_game_object(){return nullptr;}};
 int fixture_scope_depth=0;
 struct ServerVictimScope {explicit ServerVictimScope(CActor*){++fixture_scope_depth;}~ServerVictimScope(){--fixture_scope_depth;}};
-bool fixture_available=true,fixture_throw=false;int fixture_restore_calls=0;std::string fixture_restored;
+bool fixture_available=true,fixture_throw=false,fixture_respawn=false;int fixture_restore_calls=0;std::string fixture_restored;
 namespace luabind {using internal_string=std::string;
- template<class T>struct functor {void operator()(int*,const internal_string& state){++fixture_restore_calls;if(fixture_throw)throw 1;fixture_restored=state;}};
+ template<class T>struct functor {void operator()(int*,const internal_string& state,bool respawn){fixture_respawn=respawn;++fixture_restore_calls;if(fixture_throw)throw 1;fixture_restored=state;}};
 }
 struct ScriptEngine {bool functor(const char*,luabind::functor<void>&){return fixture_available;}};
 struct AI {ScriptEngine scripts;ScriptEngine& script_engine(){return scripts;}};
@@ -131,7 +131,7 @@ struct xrClientData {
  std::deque<ActorInputCommand> m_pending_inputs;
  explicit xrClientData(CSE_Abstract* entity,int client_id=1):owner(entity),ID(client_id){}
 };
-struct Character {std::vector<u8>progress;
+struct Character {bool respawn=false;std::vector<u8>progress;
  struct Item {std::string section="item";u16 parent=0,place=0;NET_Packet spawn;std::vector<u8>state;};
  std::vector<Item>items;
 };
@@ -209,7 +209,7 @@ void progress_cases(CActor& actor){
  Character character;character.progress=saved();const auto prior=character.progress;
  fixture_available=false;assert(!character_restore_progress(character,&actor));assert(fixture_manager.changed==0 && fixture_restore_calls==0);
  fixture_available=true;fixture_throw=true;assert(!character_restore_progress(character,&actor));assert(character.progress==prior);
- fixture_throw=false;assert(character_restore_progress(character,&actor));assert(fixture_restored=="script" && actor.info.value==123);
+ fixture_throw=false;character.respawn=true;assert(character_restore_progress(character,&actor));assert(fixture_respawn);assert(fixture_restored=="script" && actor.info.value==123);
  assert(fixture_manager.entries.size()==1 && fixture_manager.entries[0].game_task->m_netcoop_origin=="source-map");
  character.progress=saved(0,false);assert(character_restore_progress(character,&actor));
  character.progress=saved(512);assert(character_restore_progress(character,&actor));assert(fixture_manager.entries.size()==512);

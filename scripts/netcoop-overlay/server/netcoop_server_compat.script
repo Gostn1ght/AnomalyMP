@@ -264,12 +264,14 @@ function capture_character_state(actor)
     local storage = db.storage[id] or {}
     local state = {pstor=storage.pstor or {}, pstor_ctime=storage.pstor_ctime or {}}
     -- Conditions the server owns (owner 2026-10-05: player states persist).
-    state.netcoop_conditions = {radiation=actor.radiation, psy_health=actor.psy_health}
+    state.netcoop_respawn = not actor:alive()
+    state.netcoop_conditions = state.netcoop_respawn and {radiation=0, psy_health=1} or
+        {radiation=actor.radiation, psy_health=actor.psy_health}
     task_manager.save_state(state)
     return marshal.encode(state)
 end
 
-function restore_character_state(actor, encoded)
+function restore_character_state(actor, encoded, respawn)
     local state = marshal.decode(encoded)
     local id = actor:id()
     db.storage[id] = db.storage[id] or {object=actor}
@@ -277,7 +279,9 @@ function restore_character_state(actor, encoded)
     db.storage[id].pstor_ctime = state.pstor_ctime or {}
     player_tasks[id] = task_manager.CRandomTask()
     task_manager.load_state(state)
-    local conditions = state.netcoop_conditions
+    -- A new body must not inherit the lethal radiation/psy state. The
+    -- explicit flag also handles saves made before this schema change.
+    local conditions = (respawn or state.netcoop_respawn) and {radiation=0, psy_health=1} or state.netcoop_conditions
     if conditions then
         if conditions.radiation then actor.radiation = conditions.radiation end
         if conditions.psy_health then actor.psy_health = conditions.psy_health end

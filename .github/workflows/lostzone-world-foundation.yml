@@ -26,6 +26,11 @@ on:
       - 'scripts/check-native-perception-shot.py'
       - 'scripts/check-native-fragment-lifetime.py'
       - 'scripts/check-native-mark-material.py'
+      - 'scripts/check-native-crow-enemy.py'
+      - 'scripts/check-netcoop-respawn-state.py'
+      - 'scripts/check-netcoop-full-map-plan.py'
+      - 'tools/make-cluster-plan.py'
+      - 'scripts/netcoop-cluster/**'
       - 'src/xrGame/PHSkeleton.cpp'
       - 'src/xrGame/level_changer.cpp'
       - 'src/xrGame/game_base.cpp'
@@ -202,7 +207,9 @@ jobs:
       - name: Actual multiplayer fragment lifetime and single-player cleanup
         run: python scripts/check-native-fragment-lifetime.py
       - name: Actual blood decal and dynamic prop material invariant
-        run: python scripts/check-native-mark-material.py
+        run: |
+          python scripts/check-native-mark-material.py
+          python scripts/check-native-crow-enemy.py
   clock-windows:
     runs-on: windows-2022
     timeout-minutes: 10
@@ -297,6 +304,8 @@ jobs:
           python scripts/check-native-fragment-lifetime.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-mark-material.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-crow-enemy.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-checksum.py
           if errorlevel 1 exit /b %errorlevel%

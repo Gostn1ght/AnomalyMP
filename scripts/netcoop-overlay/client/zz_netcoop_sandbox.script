@@ -1,4 +1,5 @@
--- Owner 2026-10-06: remove legacy story, keep traders and five faction contacts.
+-- Owner 2026-10-09: retire former faction contacts; keep traders and the
+-- ecologist at the old Marsh church. Generic GAMMA population is untouched.
 -- New Lost Zone contracts use a separate namespace; no legacy task is admitted.
 local guarded, scan, pending = {}, 1, {}
 local cfg
@@ -39,13 +40,29 @@ function sanitize_cache(id)
     for section in text:gmatch("[^,]+") do items[#items+1] = ordinary(section:match("^%s*(.-)%s*$")) end
     caches[id] = table.concat(items,",") -- preserve ordinary loot/order, never reroll
 end
+local function church_scientist(se)
+    if not (se.community and se:community() == "ecolog" and se.position and se.m_game_vertex_id) then return false end
+    local graph = game_graph and game_graph()
+    if not graph then return false end
+    local vertex = graph:vertex(se.m_game_vertex_id)
+    if not vertex or alife():level_name(vertex:level_id()) ~= config():r_string_ex("retained_scientist", "level") then return false end
+    local x = config():r_float_ex("retained_scientist", "x")
+    local y = config():r_float_ex("retained_scientist", "y")
+    local z = config():r_float_ex("retained_scientist", "z")
+    local radius = config():r_float_ex("retained_scientist", "radius")
+    if not (x and y and z and radius) then return false end
+    return se.position:distance_to_sqr(vector():set(x,y,z)) <= radius * radius
+end
+
 local function inspect(se)
     local sim = alife()
     if IsStalker and IsStalker(nil,se:clsid()) then
         local p = policy(se)
         local story = get_object_story_id and get_object_story_id(se.id)
         local traded = trade_manager and trade_manager.get_trade_profile and trade_manager.get_trade_profile(se.id,"cfg_ltx")
-        if not traded and (p == "remove" or (story and p ~= "trader" and p ~= "mini")) then
+        -- Explicit retirement wins over a stale trade profile from the old
+        -- mini-trader conversion. Real trader profiles and generic NPCs stay.
+        if not church_scientist(se) and (p == "remove" or p == "mini" or (story and p ~= "trader" and not traded)) then
             alife_release(se)
             return
         end

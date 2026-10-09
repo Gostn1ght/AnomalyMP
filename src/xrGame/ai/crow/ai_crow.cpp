@@ -19,6 +19,7 @@
 #include "game_object_space.h"
 #include "script_game_object.h"
 #include "hit.h"
+#include "../../netcoop.h"
 #ifdef	DEBUG
 //#include "../xrphysics/phvalide.h"
 #endif
@@ -363,6 +364,7 @@ void CAI_Crow::renderable_Render()
 collide::rq_result GetPickResult(Fvector pos, Fvector dir, float range, CObject* ignore);
 void CAI_Crow::shedule_Update(u32 DT)
 {
+	netcoop::ServerActorScope netcoop_scope(this);
 	float fDT = float(DT) / 1000.F;
 	spatial.type &= ~STYPE_VISIBLEFORAI;
 
@@ -400,6 +402,9 @@ void CAI_Crow::shedule_Update(u32 DT)
 		// while loading, dedicated server).
 		if (fGoalChangeTime <= 0 && Actor())
 		{
+			// Rebuild this query: retained corpse pointers can outlive removal.
+			nearbyObjects.clear();
+			deadNPCs.clear();
 			fGoalChangeTime += fGoalChangeDelta + fGoalChangeDelta * Random.randF(-0.5f, 0.5f);
 
 			Level().ObjectSpace.GetNearest(nearbyObjects, Position(), 300.0f, NULL);
@@ -505,7 +510,8 @@ void CAI_Crow::net_Import(NET_Packet& P)
 	P.r_u32();
 	P.r_u8();
 
-	P.r_vec3(Position());
+	Fvector received_position;
+	P.r_vec3(received_position);
 
 	float yaw, pitch, bank = 0, roll = 0;
 
@@ -519,6 +525,8 @@ void CAI_Crow::net_Import(NET_Packet& P)
 	id_Group = P.r_u8();
 
 	XFORM().setHPB(yaw, pitch, bank);
+	// setHPB initializes translation to zero. Apply position afterwards.
+	Position().set(received_position);
 #ifdef DEBUG
 	VERIFY2(valid_pos( Position() ), dbg_valide_pos_string(Position(),this," CAI_Crow::net_Import	(NET_Packet& P)"));
 #endif

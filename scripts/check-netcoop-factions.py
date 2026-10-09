@@ -24,6 +24,12 @@ def parse_ltx(text):
 
 
 sections = parse_ltx(ltx)
+# Current owner policy retires the contract NPCs; entry is player-led.
+for faction in ("freedom", "dolg", "csky"):
+    assert sections[faction]["join"] == "leader"
+# Keep exercising the supported contract gate independently of deployment.
+sections["freedom"]["join"] = "contracts"
+
 
 
 def server():
