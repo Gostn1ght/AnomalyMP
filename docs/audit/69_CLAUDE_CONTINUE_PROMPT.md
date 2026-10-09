@@ -1,5 +1,15 @@
 # Промпт для Claude: продолжить Lost Zone автономно
 
+## MOST RECENT OWNER OVERRIDE: SERVERS OFF, NO GAME TESTS
+
+2026-10-09: owner explicitly says stop servers, launch nothing for game tests
+until he writes, continue stages. Cordon18680/Garbage16316 now stopped via
+save+quit; client already absent; no watchdog. Keep saved worlds/accounts.
+Read85latest shutdown/CI failure details. Do NOT follow older keep-live/launch
+instructions below. ac7d source Windows native checks pass, Linux fixture-format
+and CI PowerShell-null exit bugs repaired; full qualification retry pending.
+
+
 ## Latest: doc85, source hoster/monster/arrival/new-body fixes + J release request
 
 Baselinee283 fullGHA37945979886 +Foundation37945979928SUCCESS (no native game test).

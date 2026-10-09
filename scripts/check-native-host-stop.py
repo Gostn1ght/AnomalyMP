@@ -32,7 +32,7 @@ std::map<u32,int>s_cluster_leaving;bool s_cluster_quitting=false;
 bool fixture_admitted=true,fixture_save=true,fixture_world=true,fixture_request_present=false,fixture_accounts=true;
 xr_string fixture_request,fixture_events;unsigned fixture_saves=0;
 u32 cluster_port(){return 1361;}u32 GetCurrentProcessId(){return 999;}
-void cluster_file(const char*,const char*,int,string_path& path){xr_sprintf(path,"request");}
+void cluster_file(const char*,const char*,int,string_path& path){xr_sprintf(path,"%s","request");}
 bool cluster_read_line(const char*,xr_string& out){out=fixture_request;return fixture_request_present;}
 bool world_store_admission_open(){return fixture_admitted;}
 bool character_save_actor(u32,const void*,bool){++fixture_saves;fixture_events+='C';return fixture_save;}

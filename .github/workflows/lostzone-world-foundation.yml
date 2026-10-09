@@ -228,7 +228,6 @@ jobs:
         run: |
           ./scripts/check-netcoop-load-harness.ps1
           ./scripts/check-netcoop-host-controls.ps1
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m pip install lupa==2.8
           python scripts/check-netcoop-server-pda.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -82,3 +82,24 @@ Mass WIP remains safely _build/wip/box-mass-20261009 + untracked two source file
 not activated or included in this batch. Do not restore/install it before real
 loot rollback/retained spawn transaction and exact stock item cases are qualified.
 No live gameplay acceptance now. Audit counters27/33/69/59 retained,161notclosed.
+
+## Latest explicit owner stop (supersedes keep-live instructions)
+
+Owner: turn servers OFF, launch NOTHING for gameplay tests until he writes.
+Both exact owned servers18680Cordon/16316Garbage received local trusted saved-quit
+requests; both processes now absent. Client was already absent. No watchdog
+running. Cordon log confirms selftest_owner_gameplay_repro_b saved(owner requested
+shutdown),852ms, world savedtrue. Both command channels consumed/empty. Garbage
+save log not independently captured; do not claim a separate native checkpoint
+acceptance from consumed-channel status. Original pending channel bytes retained
+lab/retained_probes/owner_shutdown_20261009. No force-kill/no new game process.
+Continue source stages/GHA builds only; no native game tests, keep worlds/accounts.
+
+ac7d32442 GHA37949783305/37949783349 failed before full engine compilation:
+Linux fixture's xr_sprintf(path,"request") instantiated no-argument nonliteral
+snprintf underformat-security; change fixture literal%s argument, no production
+change. Windows new native host stop/reset/monster/invitation checks PASS, then
+lupa missing. A check added after purePowerShell IPC script treated null native
+LASTEXITCODE as nonzero and exited the earlier stepSUCCESS before pip install/
+PDA checks. Remove that check afterpurePSscript (throws already propagate).
+Retain failures. Qualification retry next; no failure installed in player's game.
