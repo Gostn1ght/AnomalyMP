@@ -3997,7 +3997,10 @@ void server_physics_update(xrServer* server)
 				if (CL == server->GetServerClient() || !CL->flags.bConnected || !CL->gamma_snapshot_ready || !CL->owner) return;
 				const float distance = CL->owner->o_Position.distance_to(holder->Position());
 				const u32 every = distance < 50.f ? 1 : distance < 150.f ? 2 : distance < 300.f ? 5 : 20;
-				if ((!settled && (tick + holder->ID()) % every) || !server->HasSendQueueRoom(CL, 64)) return;
+				// The final pose of a body that fell asleep is sent once, reliably:
+				// skipping it for a busy queue left the item hovering where the
+				// last moving pose put it until the next refresh (10 s, props 60 s).
+				if (!settled && ((tick + holder->ID()) % every || !server->HasSendQueueRoom(CL, 64))) return;
 				server->SendTo(CL->ID, *packet, net_flags(settled ? TRUE : FALSE, TRUE));
 			}
 		} send = {server, holder, &P, tick, !awake};
