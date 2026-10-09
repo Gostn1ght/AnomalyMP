@@ -101,3 +101,43 @@ Mutant aggression/circling and hostile faction reactions (no evidence without
 game runs; not guessed), weapon pickup/context menu server parts, transition
 boundaries / Garbage extra zone, emission shadow smoothness, 64-player CPU,
 the remaining 188 items, J: distribution (next).
+
+## 7. Level changer online (d2e2d2178)
+
+No pause while the question is open (no pause online). "No" on a pure client
+no longer moves the Actor to the reject point locally (the server never did:
+the player was pulled back or stood elsewhere than shown); the declined
+changer stays quiet until the player walks out of its shape, as after an
+arrival. Native level-transition fixture extended. The Garbage "extra zone"
+that sent a player to Cordon is NOT identified: GAMMA has 8 changers there
+(2 to Cordon); needs a live position.
+
+## 8. K10 distant fights (b58d8a784)
+
+GAMMA's offline combat resolves fights silently; far gunfire was only the
+random ambient channel. Each OCS battle round on the server's map (both sides
+with power) is now reported to players 150-1500 m away: point between the
+squads, gunfire or mutants, once per fight per 15 s and per player per 5 s.
+The client plays GAMMA's far shooting/mutant recordings on the real direction
+inside their audible range (110 m), volume by real distance, muffled indoors.
+Battle resolution untouched; random ambient gunfire kept. Fixture in CI.
+K11: shells/blood are client particles/decals/sounds only (code reading).
+
+## 9. Church scientist by name (23bc1ab47)
+
+The scientist at the old Marsh church is GAMMA's `ah_bol_kovalev` (Kovalev,
+ecolog, patrol points 4-10 m from the church, invulnerable squad). He was
+listed `remove` and survived only through the 40 m place rule; now
+`ah_bol_kovalev = keep` (place rule kept as a fallback). The client copy of
+sandbox.ltx had missed the traders fix; synced, fixture checks both equal.
+
+## 10. Weapon field strip / maintenance (analysis, no code)
+
+The menus are hidden on clients because the parts table lives in the
+server's se storage (item_parts.get_parts_con -> se_load_var). Moving the
+operations to the server alone is not enough: GAMMA's arti_jamming degrades
+parts on the shooting client (cgd, persist_current_weapon writes the client's
+own storage) and drag-and-drop part replacement is a third writer. One
+authority for parts (server state + replication + where wear is computed)
+must be designed before enabling the menus; doing it blind risks broken or
+duplicated parts. Left for a live session.
