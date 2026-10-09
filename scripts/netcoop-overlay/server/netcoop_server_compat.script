@@ -1040,6 +1040,7 @@ function on_game_start()
 	install_npc_diagnostic()
 	install_npc_loot()
 	if netcoop_box_contents then netcoop_box_contents.install() end
+	if netcoop_distant_battles then netcoop_distant_battles.install() end
 	install_companions()
 	-- Sleep deprivation is cut from multiplayer (owner 2026-10-05).
 	if actor_status_sleep and actor_status_sleep.toggle_feature then

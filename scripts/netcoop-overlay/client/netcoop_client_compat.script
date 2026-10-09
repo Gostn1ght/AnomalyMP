@@ -509,6 +509,10 @@ function on_script_message(channel, data)
 	elseif channel == "emission" then
 		netcoop_emission_view.receive(data)
 		return
+	elseif channel == "battle" then
+		-- A real offline fight on this map (server, doc 43 K10).
+		if netcoop_distant_sound then netcoop_distant_sound.receive(data) end
+		return
 	elseif channel == "trade_cfg" then
 		use_trade_profile(data)
 		return

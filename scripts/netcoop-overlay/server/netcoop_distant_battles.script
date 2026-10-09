@@ -1,0 +1,75 @@
+-- K10 (doc 43): a distant fight a player hears is a real one.
+--
+-- GAMMA's offline combat (sim_offline_combat.simulate_battle) resolves fights
+-- between offline squads without any sound; the only far gunfire a player
+-- hears is the random ambient channel. On the server every battle round on
+-- this map is reported to the players between NEAR and FAR metres away: the
+-- place (between the two squads) and whether people shoot or only mutants
+-- fight. The client plays it from that direction (netcoop_distant_sound).
+-- The battle itself (power, damage, losses) is GAMMA's, unchanged.
+
+local NEAR = 150    -- closer squads are online: their real shots are heard
+local FAR = 1500
+local PAIR_GAP = 15000    -- one report per fight every 15 s
+local PLAYER_GAP = 5000   -- one report per player every 5 s
+
+local last_pair = {}
+local last_player = {}
+
+local function kind_of(c1, c2)
+	local m = is_squad_monster or {}
+	if m[c1] and m[c2] then return "mutant" end
+	return "gunfire"
+end
+
+function announce(id_1, id_2, squad_1, squad_2, c1, c2, lid)
+	if not (netcoop_players and netcoop_send_to_actor) then return end
+	local sim = alife()
+	if not (sim and lid == sim:level_id()) then return end
+	local p1, p2 = squad_1 and squad_1.position, squad_2 and squad_2.position
+	if not (p1 and p2) then return end
+	-- GAMMA skips the round when a side has no power: no fight, no sound.
+	-- Cached power first (what simulate_battle uses), raw count otherwise;
+	-- neither changes OCS state.
+	local ocs = sim_offline_combat
+	local function power(id, squad, c)
+		return (ocs.ocs_power and ocs.ocs_power[id]) or ocs.calculate_squad_power(squad, c, true) or 0
+	end
+	if not (power(id_1, squad_1, c1) > 0 and power(id_2, squad_2, c2) > 0) then return end
+	local now = time_global()
+	local key = id_1 < id_2 and (id_1 .. ":" .. id_2) or (id_2 .. ":" .. id_1)
+	if last_pair[key] and now - last_pair[key] < PAIR_GAP then return end
+	local x, y, z = (p1.x + p2.x) / 2, (p1.y + p2.y) / 2, (p1.z + p2.z) / 2
+	local payload = string.format("%s %.1f %.1f %.1f", kind_of(c1, c2), x, y, z)
+	local sent = false
+	for id in string.gmatch(netcoop_players(), "%d+") do
+		id = tonumber(id)
+		local actor = level.object_by_id(id)
+		if actor and actor:alive() and not (last_player[id] and now - last_player[id] < PLAYER_GAP) then
+			local p = actor:position()
+			local dx, dz = p.x - x, p.z - z
+			local d = math.sqrt(dx * dx + dz * dz)
+			if d >= NEAR and d <= FAR then
+				netcoop_send_to_actor(id, "battle", payload)
+				last_player[id] = now
+				sent = true
+			end
+		end
+	end
+	if sent then last_pair[key] = now end
+end
+
+function install()
+	local ocs = sim_offline_combat
+	if not (ocs and ocs.simulate_battle) or ocs.netcoop_distant_battles then return end
+	local stock = ocs.simulate_battle
+	ocs.netcoop_distant_battles = true
+	-- Called by name inside the module (global of its environment), so the
+	-- module's own call site uses this wrapper.
+	ocs.simulate_battle = function(id_1, id_2, squad_1, squad_2, c1, c2, lid)
+		local ok, err = pcall(announce, id_1, id_2, squad_1, squad_2, c1, c2, lid)
+		if not ok then printf("[Lost Zone] distant battle report error: %s", tostring(err)) end
+		return stock(id_1, id_2, squad_1, squad_2, c1, c2, lid)
+	end
+	printf("[Lost Zone] distant battles: offline fights heard by players %s-%s m away", NEAR, FAR)
+end

@@ -1,0 +1,42 @@
+-- K10 (doc 43): the far fight the server reported (netcoop_distant_battles).
+--
+-- GAMMA's far shooting/mutant recordings are authored to be played 50-120 m
+-- from the listener (sound_channels.ltx [out_gunfire]); a source placed at
+-- the real 150-1500 m would fall outside the sound's range and be silent.
+-- So the sound is placed on the real direction at AUDIBLE metres and its
+-- volume falls with the real distance; indoors/underground it is muffled as
+-- GAMMA's sound_ambient does for outdoor channels.
+
+local AUDIBLE = 110
+local QUIET = 0.15
+local count = {gunfire = 37, mutant = 40}
+local folder = {gunfire = "shooting", mutant = "mutants"}
+local playing = {}  -- keep the sound objects alive while they play
+local next_slot = 1
+
+-- Where and how loud a fight at (x, y, z) is heard from pos; nil if on top.
+function placement(pos, x, y, z)
+	local dx, dy, dz = x - pos.x, y - pos.y, z - pos.z
+	local d = math.sqrt(dx * dx + dz * dz)
+	if d < 1 then return nil end
+	local k = math.min(d, AUDIBLE) / d
+	local rise = math.max(-20, math.min(20, dy * k))
+	local volume = math.max(QUIET, math.min(1, AUDIBLE / d))
+	return pos.x + dx * k, pos.y + rise, pos.z + dz * k, volume
+end
+
+function receive(data)
+	local kind, x, y, z = string.match(data or "", "^(%a+) (%S+) (%S+) (%S+)$")
+	local actor = db.actor
+	x, y, z = tonumber(x), tonumber(y), tonumber(z)
+	if not (kind and count[kind] and actor and x and y and z) then return end
+	local px, py, pz, volume = placement(actor:position(), x, y, z)
+	if not px then return end
+	if GetEvent and (GetEvent("current_safe_cover") or GetEvent("underground")) then volume = volume * 0.3 end
+	local file = string.format("ambient\\trx\\spooks_above\\%s\\sound_%02d", folder[kind], math.random(count[kind]))
+	local snd = sound_object(file)
+	snd:play_at_pos(actor, vector():set(px, py, pz))
+	snd.volume = volume
+	playing[next_slot] = snd
+	next_slot = next_slot % 8 + 1
+end
