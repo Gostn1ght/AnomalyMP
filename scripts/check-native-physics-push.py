@@ -95,7 +95,7 @@ struct Objects{
 };
 struct World{::Objects Objects;u32 timeServer(){return fixture_now;}} world;
 World& Level(){return world;}
-namespace netcoop{bool client=false;bool pure_client(){return client;}
+namespace netcoop{bool fixture_client=false;bool pure_client(){return fixture_client;}
 '''+loop+r'''
 }
 void tick(xrServer& server){fixture_now+=50;netcoop::server_physics_update(&server);}
@@ -129,7 +129,7 @@ int main(){
  excluded.attached=true;tick(server);assert(excluded.shell.wakes==0);excluded.attached=false;
  excluded.destroyed=true;tick(server);assert(excluded.shell.wakes==0);excluded.destroyed=false;
  excluded.has_shell=false;tick(server);assert(excluded.shell.wakes==0);excluded.has_shell=true;
- netcoop::client=true;tick(server);assert(excluded.shell.wakes==0);netcoop::client=false;
+ netcoop::fixture_client=true;tick(server);assert(excluded.shell.wakes==0);netcoop::fixture_client=false;
  excluded.shell.elements[0].state.position.set(0,0.2f,-0.3f);tick(server);assert(excluded.shell.wakes==0);
  excluded.shell.elements[0].state.position.set(0,1.f,0.3f);tick(server);assert(excluded.shell.wakes==0);
  excluded.shell.elements[0].state.position.set(0,0.2f,0.7f);tick(server);assert(excluded.shell.wakes==0);
