@@ -738,7 +738,7 @@ static u64 cluster_unix_ms()
 	return ticks / 10000 - 11644473600000ull;
 }
 
-static void cluster_clock_update()
+static void cluster_clock_update(bool observed)
 {
 	if (!ai().get_alife()) return;
 	string_path config;
@@ -769,11 +769,18 @@ static void cluster_clock_update()
 		} while (FindNextFileA(search, &found));
 		FindClose(search);
 	}
-	// Behind by more than 2 game seconds: catch up within about a real
-	// minute, at most four times the normal speed.
+	// Behind by more than 2 game seconds. With nobody on this server it
+	// catches up within about half a minute (up to the world clock's maximum
+	// scale): nobody sees it, and players arriving from another map find the
+	// same time of day there. With players here the sky must not race to the
+	// evening (owner 2026-10-09): at most a quarter faster than normal.
 	const double behind = target - double(own);
 	float factor = normal;
-	if (behind > 2000.0) factor = normal + float(_min(behind / 60000.0, double(normal) * 3.0));
+	if (behind > 2000.0)
+	{
+		const double extra = observed ? double(normal) * 0.25 : 900.0 - double(normal); // the world clock allows up to 1000
+		factor = normal + float(_max(0.0, _min(behind / 30000.0, extra)));
+	}
 	if (_abs(factor - s_cluster_clock_factor) > normal * 0.01f)
 	{
 		if (factor != normal || s_cluster_clock_factor != 0.f)
@@ -925,7 +932,10 @@ static void cluster_update(xrServer* server)
 	if (now - s_cluster_clock_check >= 5000)
 	{
 		s_cluster_clock_check = now;
-		cluster_clock_update();
+		u32 players = 0;
+		ClusterCountOnline count = {&players};
+		server->ForEachClientDo(count);
+		cluster_clock_update(players > 0);
 	}
 	if (now - s_cluster_status >= 10000)
 	{
