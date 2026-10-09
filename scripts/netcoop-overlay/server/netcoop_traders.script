@@ -1,0 +1,114 @@
+----------------------------------------------------------------------
+-- A trader on every location (owner 2026-10-09)
+----------------------------------------------------------------------
+-- GAMMA has traders (their logic sets a trade config) on 16 of the 33 maps.
+-- On every map listed in netcoop\traders.ltx [added] the server creates ONE
+-- neutral trader (community "trader", neutral to every faction as in GAMMA)
+-- a few metres from the map's start point, where players arrive. It stays
+-- there, sells the configured assortment and cannot be killed; it is created
+-- once per world and never duplicated (the id is kept in the world state).
+-- Maps with GAMMA traders keep only their own traders.
+
+local cfg_cache
+local function cfg()
+	cfg_cache = cfg_cache or ini_file("netcoop\\traders.ltx")
+	return cfg_cache
+end
+
+local function enabled()
+	return netcoop_enabled and netcoop_enabled() and not (netcoop_pure_client and netcoop_pure_client())
+end
+
+local function traders()
+	local state = alife_storage_manager.get_state()
+	state.netcoop_traders = state.netcoop_traders or {} -- level name -> trader id
+	return state.netcoop_traders
+end
+
+-- Is this one of ours (by id, from the world state)?
+function is_lost_zone_trader(id)
+	if not id then return false end
+	for _, tid in pairs(traders()) do
+		if tid == id then return true end
+	end
+	return false
+end
+
+local function trade_config()
+	return cfg():r_string_ex("trader", "trade") or "items\\trade\\trade_stalker_basic.ltx"
+end
+
+-- Next to the anchor Actor, which stands at this map's start point on a
+-- dedicated location server: a valid AI vertex a few metres away.
+local function spawn_point()
+	local anchor = alife():actor()
+	if not anchor then return nil end
+	local lvid, gvid = anchor.m_level_vertex_id, anchor.m_game_vertex_id
+	if not (lvid and gvid and level.valid_vertex and level.valid_vertex(lvid)) then return nil end
+	local distance = cfg():r_float_ex("trader", "distance") or 4
+	for _, angle in ipairs({0, 90, 180, 270, 45, 135, 225, 315}) do
+		local dir = vector():setHP(angle * math.pi / 180, 0)
+		local v = level.vertex_in_direction(lvid, dir, distance)
+		if v and v ~= lvid and level.valid_vertex(v) then
+			return level.vertex_position(v), v, gvid
+		end
+	end
+	return anchor.position, lvid, gvid
+end
+
+local next_check = 0
+function update()
+	if not enabled() then return end
+	local t = time_global()
+	if t < next_check then return end
+	next_check = t + 10000
+	local sim = alife()
+	if not sim or not level.present() then return end
+	local here = level.name()
+	if cfg():r_string_ex("added", here) ~= "1" then return end
+	local list = traders()
+	if list[here] ~= nil then return end -- created before (alive or not: never replaced)
+	local pos, lvid, gvid = spawn_point()
+	if not pos then return end
+	local section = cfg():r_string_ex("trader", "section") or "stalker_silent"
+	local se = alife_create(section, pos, lvid, gvid)
+	if not se then
+		printf("[Lost Zone][traders] %s: trader could not be created", here)
+		return
+	end
+	if se.brain and se:brain() and se:brain().can_choose_alife_tasks then
+		se:brain():can_choose_alife_tasks(false) -- stays at the start point
+	end
+	list[here] = se.id
+	printf("[Lost Zone][traders] %s: trader %s created at %s", here, tostring(se.id), string.format("%.1f %.1f %.1f", pos.x, pos.y, pos.z))
+end
+
+-- Trade profile of our trader. GAMMA's trade_init needs db.actor, which the
+-- server binds to the trading player (netcoop_server_compat.prepare_trade).
+function configure(npc)
+	if not (enabled() and npc and is_lost_zone_trader(npc:id())) then return end
+	if db.actor and trade_manager and trade_manager.trade_init then trade_manager.trade_init(npc, trade_config()) end
+end
+
+-- The online trader: neutral, unkillable, trades the configured assortment.
+local function on_net_spawn(npc)
+	if not (enabled() and npc and is_lost_zone_trader(npc:id())) then return end
+	if npc.set_character_community then npc:set_character_community("trader", 0, 0) end
+	if npc.invulnerable then npc:invulnerable(true) end
+	configure(npc)
+end
+
+function on_game_start()
+	if not enabled() then return end
+	RegisterScriptCallback("npc_on_net_spawn", on_net_spawn)
+	-- GAMMA's logic sets the generic trade config when the NPC's logic starts;
+	-- ours always keeps the trader's own assortment.
+	if trade_manager and trade_manager.trade_init and not trade_manager.netcoop_traders then
+		local original = trade_manager.trade_init
+		trade_manager.netcoop_traders = true
+		trade_manager.trade_init = function(npc, cfg_ltx)
+			if npc and npc.id and is_lost_zone_trader(npc:id()) then cfg_ltx = trade_config() end
+			return original(npc, cfg_ltx)
+		end
+	end
+end
