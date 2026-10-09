@@ -131,6 +131,8 @@ jobs:
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-relation-null.py
           if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-environment-clock.py
+          if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-checksum.py
       - name: Check actor packet compatibility
         shell: pwsh

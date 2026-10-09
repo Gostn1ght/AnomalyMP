@@ -206,6 +206,7 @@ private:
 	float m_fTimeFactor;
 	//-------------------------------------------------------
 	u64 m_qwEStartProcessorTime;
+	u32 m_environment_monotonic_start;
 	u64 m_qwEStartGameTime;
 	float m_fETimeFactor;
 	//-------------------------------------------------------

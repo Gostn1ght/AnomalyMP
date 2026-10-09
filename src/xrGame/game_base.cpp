@@ -4,6 +4,7 @@
 #include "script_engine.h"
 #include "level.h"
 #include "xrMessages.h"
+#include "netcoop.h"
 
 u64 g_qwStartGameTime = 12 * 60 * 60 * 1000;
 float g_fTimeFactor = 10.0f;
@@ -214,6 +215,7 @@ game_GameState::game_GameState()
 	m_qwStartGameTime = g_qwStartGameTime;
 	m_fTimeFactor = g_fTimeFactor;
 	m_qwEStartProcessorTime = m_qwStartProcessorTime;
+	m_environment_monotonic_start = Device.dwTimeContinual;
 	m_qwEStartGameTime = g_qwEStartGameTime;
 	m_fETimeFactor = m_fTimeFactor;
 }
@@ -310,6 +312,9 @@ void game_GameState::SetGameTimeFactor(ALife::_TIME_ID GameTime, const float fTi
 
 ALife::_TIME_ID game_GameState::GetEnvironmentGameTime()
 {
+	if (netcoop::pure_client())
+		return m_qwEStartGameTime + ALife::_TIME_ID(double(m_fETimeFactor) *
+			 double(u32(Device.dwTimeContinual - m_environment_monotonic_start)));
 	return (m_qwEStartGameTime + ALife::_TIME_ID(
 		m_fETimeFactor * float(_max(s32(0), s32(Level().timeServer_Async() - u32(m_qwEStartProcessorTime))))));
 }
@@ -323,6 +328,7 @@ void game_GameState::SetEnvironmentGameTimeFactor(const float fTimeFactor)
 {
 	m_qwEStartGameTime = GetEnvironmentGameTime();
 	m_qwEStartProcessorTime = Level().timeServer_Async();
+	m_environment_monotonic_start = Device.dwTimeContinual;
 	m_fETimeFactor = fTimeFactor;
 }
 
@@ -330,5 +336,6 @@ void game_GameState::SetEnvironmentGameTimeFactor(ALife::_TIME_ID GameTime, cons
 {
 	m_qwEStartGameTime = GameTime;
 	m_qwEStartProcessorTime = Level().timeServer_Async();
+	m_environment_monotonic_start = Device.dwTimeContinual;
 	m_fETimeFactor = fTimeFactor;
 }

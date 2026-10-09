@@ -65,10 +65,14 @@ void game_cl_GameState::net_import_GameTime(NET_Packet& P)
 	if (netcoop::pure_client() && m_netcoop_environment_synced)
 	{
 		const s64 drift = s64(GameEnvironmentTime) - s64(OldTime);
-		// Network clock corrections must not rewind the weather descriptors
-		// on every packet. Slew small errors; explicit time jumps still apply.
+		// Change the display clock's rate, never its phase, for packet jitter.
+		// Even a tiny rewind made weather FX TimeDiff consume almost a day.
 		if (drift > -60000 && drift < 60000)
-			GameEnvironmentTime = u64(s64(OldTime) + _max(s64(-100), _min(s64(100), drift)));
+		{
+			const float limit = EnvironmentTimeFactor * .1f;
+			EnvironmentTimeFactor += _max(-limit, _min(limit, float(drift) / 5000.f));
+			GameEnvironmentTime = OldTime;
+		}
 	}
 	m_netcoop_environment_synced = true;
 	Level().SetEnvironmentGameTimeFactor(GameEnvironmentTime, EnvironmentTimeFactor);

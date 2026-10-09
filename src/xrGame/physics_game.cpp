@@ -9,6 +9,9 @@
 #include "../xrphysics/PhysicsExternalCommon.h"
 #include "PhSoundPlayer.h"
 #include "PhysicsShellHolder.h"
+#include "netcoop.h"
+#include "../xrphysics/PhysicsShell.h"
+#include "../xrphysics/MathUtilsODE.h"
 #include "PHCommander.h"
 #include "../xrphysics/MathUtils.h"
 #include "../xrphysics/iPHWorld.h"
@@ -237,6 +240,26 @@ void play_particles(float vel_cret, dxGeomUserData* data, const dContactGeom* c,
 	}
 }
 
+static float netcoop_contact_effect_criterion(const dxGeomUserData* data, const dContactGeom* contact, float criterion)
+{
+	if (!netcoop::pure_client() || !data || !PHIsShellHolderLive(data->ph_ref_object)) return criterion;
+	auto* holder = smart_cast<CPhysicsShellHolder*>(data->ph_ref_object);
+	if (!holder || !holder->netcoop_physics_buffered()) return criterion;
+	CPhysicsShell* shell = holder->PPhysicsShell();
+	if (!shell || data->element_position >= shell->get_ElementsNumber()) return criterion;
+	CPhysicsElement* element = shell->get_ElementByStoreOrder(data->element_position);
+	if (!element || !element->isFixed()) return criterion;
+	dBodyID body = dGeomGetBody(contact->g1);
+	if (!body) body = dGeomGetBody(contact->g2);
+	if (!body) return criterion;
+	dMass mass;
+	dBodyGetMass(body, &mass);
+	const float physical_mass = element->getMass();
+	if (!_valid(physical_mass) || physical_mass <= 0.f || !_valid(mass.mass) || mass.mass <= 0.f) return criterion;
+	// FixBody uses a synthetic mass of 1e8. It must not amplify collision FX.
+	return criterion * _sqrt(physical_mass / mass.mass);
+}
+
 template <class Pars>
 void TContactShotMark(CDB::TRI* T, dContactGeom* c)
 {
@@ -266,6 +289,7 @@ void TContactShotMark(CDB::TRI* T, dContactGeom* c)
 	bool b_invert_normal = false;
 	if (!ContactShotMarkGetEffectPars(c, data, vel_cret, b_invert_normal))
 		return;
+	vel_cret = netcoop_contact_effect_criterion(data, c, vel_cret);
 	//float vel_cret= GetVelCret(c);
 
 	Fvector to_camera;

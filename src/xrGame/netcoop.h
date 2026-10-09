@@ -133,6 +133,7 @@ bool client_owns_hud_item(const CObject* item);
 bool script_login(LPCSTR login, LPCSTR password, bool register_account);
 bool client_admin_authorized();
 bool server_actor_god(const CActor* actor);
+void server_actor_god_rebind(xrClientData* client, u16 previous_actor, u16 actor_id);
 bool script_admin_god_enabled(u16 actor_id);
 bool script_admin_god_set(u16 actor_id, bool enabled);
 bool script_admin_teleport(u16 actor_id, const Fvector& position);

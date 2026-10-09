@@ -20,6 +20,8 @@ burer=(root/'src/xrGame/ai/monsters/burer/burer.cpp').read_text(encoding='latin-
 burer_guard=burer[burer.index('void xr_stdcall CBurer::StaminaHit()'):burer.index('\tCWeapon* const active_weapon',burer.index('void xr_stdcall CBurer::StaminaHit()'))]
 controller=(root/'src/xrGame/ai/monsters/controller/controller.cpp').read_text(encoding='latin-1')
 controller_hit=controller[controller.index('void CController::HitEntity('):controller.index('bool CController::tube_ready()',controller.index('void CController::HitEntity('))]
+spawn=(root/'src/xrGame/xrServer_process_spawn.cpp').read_text(encoding='latin-1')
+bind=spawn[spawn.index('// PROCESS NAME;'):spawn.index('// PROCESS RP;')]
 source=r'''
 #include <cassert>
 #include <cstdio>
@@ -36,9 +38,11 @@ struct Inventory{bool accepts=false;unsigned actions=0;bool Action(u16,int){++ac
 struct CActor:CEntity{u16 id=0;bool alive=true;::Conditions cond;::Inventory inv;unsigned drops=0;
  u16 ID()const{return id;}bool g_Alive()const{return alive;}
  ::Conditions& conditions(){return cond;}::Inventory& inventory(){return inv;}void g_PerformDrop(){++drops;}};
-struct Owner{u16 ID=0;};
+constexpr int M_SPAWN_OBJECT_ASPLAYER=1;
+struct Owner{u16 ID=0;struct {bool player=true;bool is(int)const{return player;}}s_flags;};
 struct IClient{virtual ~IClient()=default;};
-struct xrClientData:IClient{struct {bool bLocal=false;}flags;Owner* owner=nullptr;int netcoop_role=0;bool netcoop_admin_god=false;};
+struct xrClientData:IClient{struct {bool bLocal=false;}flags;Owner* owner=nullptr;int netcoop_role=0;bool netcoop_admin_god=false;
+ unsigned clears=0;void ClearInputState(){++clears;}};
 template<class T>T smart_cast(CObject* o){return dynamic_cast<T>(o);}
 '''+owner+r'''
 struct Server{std::vector<IClient*> clients;unsigned scans=0;
@@ -53,6 +57,9 @@ namespace netcoop{
  constexpr int role_admin=2;
  bool enabled(){return enabled_flag;}bool pure_client(){return pure_flag;}
 '''+methods+r'''
+}
+void bind_owner(xrClientData* CL,Owner* E){
+'''+bind+r'''
 }
 '''+predicate+r'''
 CActor* current_actor=nullptr;CActor* Actor(){return current_actor;}
@@ -87,6 +94,14 @@ int main(){
  assert(player.cond.hits==1&&c.forwarded==3); // non-current target keeps ordinary forwarding
  player.inv.accepts=true;c.HitEntity(&player,1,1,dir,ALife::hit,true);
  assert(player.cond.hits==2&&player.inv.actions==2&&player.drops==1&&c.forwarded==4);
+ CActor next;next.id=9;Owner no;no.ID=9;world.Objects.values[u16(9)]=&next;
+ bind_owner(&ac,&no);assert(ac.owner==&no&&ac.clears==1&&GodMode(&next)&&!GodMode(&admin)&&!GodMode(&player));
+ bind_owner(&ac,&no);assert(ac.clears==1&&GodMode(&next));
+ Owner nonplayer;nonplayer.ID=10;nonplayer.s_flags.player=false;
+ bind_owner(&ac,&nonplayer);assert(ac.owner==&no&&GodMode(&next));
+ bind_owner(&ac,&no);ac.netcoop_role=1;bind_owner(&ac,&no);assert(!GodMode(&next));
+ ac.netcoop_role=2;ac.netcoop_admin_god=false;bind_owner(&ac,&no);assert(!GodMode(&next));
+ bind_owner(&ac,&ao);assert(netcoop::script_admin_god_set(7,true));
  assert(netcoop::script_admin_god_set(7,true)&&netcoop::script_admin_god_set(7,true));
  assert(netcoop::script_admin_god_set(7,false)&&!GodMode(&admin));
  const unsigned scans=server.scans;
@@ -113,7 +128,7 @@ int main(){
   assert((GodMode(&player)!=FALSE)==((enabled&&!pure)?false:kind==eGameIDSingle&&flags!=0));
   ++cases;
  }
- std::printf("PASS actual admin god: connection/actor/role isolation, burer guard/controller stamina-drop path, revoke/reconnect/dead/missing guards, idempotent on/off,64000 ordinary checks without client scans, %u SP/client predicate cases\n",cases);
+ std::printf("PASS actual admin god: connection/actor/role isolation, actual owner binding/respawn hints, burer guard/controller stamina-drop path, revoke/reconnect/dead/missing guards, idempotent on/off,64000 ordinary checks without client scans, %u SP/client predicate cases\n",cases);
 }
 '''
 with TemporaryDirectory() as tmp:

@@ -1,5 +1,21 @@
 # Промпт для Claude: продолжить Lost Zone автономно
 
+## 2026-10-09: новый приоритет владельца — рывки погоды/теней при выбросе
+
+Сначала doc82.4e70cc1a4 Foundation37841294377 обе SUCCESS, DX1137841294449
+fullSUCCESS. Текущая игра6532/25468 всё ещё qualified904; владелец играет, не
+останавливать ради обновления. God ON actual hit10 HP1->1 и OFF hit0.2 HP1->0.940058
+PASS, RP Stop повторно PASS. Части второго ящика реально записаны, fixed-копии
+имеют маленькую ODE скорость, а synthetic mass1e8 усиливает звуки/частицы.
+Готовится коррекция FX на physical mass только buffered fixed pure-client.
+Weather root: backward correction -100ms приводит WFX TimeDiff к почти86400sec,
+мгновенно съедает эффект. Новый визуальный clock — mono + rate slew без phase
+скачков, gameplay authoritative calendar прежний; native exact fixture готов.
+Также God hint rebind при новом Actor после respawn, actual binding fixture.
+Следующая GHA pending. Счётчики188 прежние. Byte-only normalize staged после
+ошибочного CRLF commit; историю не переписывать. Живая weather probe пока не
+сработала из-за dead actor; не заявлять полный native PASS. Детали в doc82.
+
 ## Свежий приоритет: игровые баги, 2026-10-08 вечер
 
 Новее нижних строк: doc81 продолжение23:45.904 скачан/квалифицирован, установлен

@@ -4551,6 +4551,14 @@ namespace netcoop
 {
 static xr_set<u16> s_admin_god_actors;
 
+void server_actor_god_rebind(xrClientData* client, u16 previous_actor, u16 actor_id)
+{
+	if (!enabled() || pure_client()) return;
+	s_admin_god_actors.erase(previous_actor);
+	if (client && !client->flags.bLocal && client->netcoop_role == role_admin &&
+		client->netcoop_admin_god && actor_id != u16(-1)) s_admin_god_actors.insert(actor_id);
+}
+
 bool server_actor_god(const CActor* actor)
 {
 	if (!actor || !enabled() || pure_client() || !g_pGameLevel || !Level().Server)

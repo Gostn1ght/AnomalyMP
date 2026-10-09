@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "xrServer.h"
 #include "xrserver_objects.h"
+#include "netcoop.h"
 
 #ifdef DEBUG
 #	include "xrserver_objects_alife_items.h"
@@ -120,6 +121,7 @@ CSE_Abstract* xrServer::Process_spawn(NET_Packet& P, ClientID sender, BOOL bSpaw
 	{
 		if (CL->owner != E)
 			CL->ClearInputState();
+		netcoop::server_actor_god_rebind(CL, CL->owner ? CL->owner->ID : u16(-1), E->ID);
 		CL->owner = E;
 		//		E->set_name_replace	(CL->Name);
 	}
