@@ -21,6 +21,8 @@ on:
       - 'scripts/check-native-admin-teleport.py'
       - 'scripts/check-native-relation-null.py'
       - 'scripts/check-native-environment-clock.py'
+      - 'scripts/check-native-level-transition.py'
+      - 'src/xrGame/level_changer.cpp'
       - 'src/xrGame/game_base.cpp'
       - 'src/xrGame/game_base.h'
       - 'src/xrGame/game_cl_base.cpp'
@@ -186,6 +188,8 @@ jobs:
         run: python scripts/check-native-relation-null.py
       - name: Actual environment display clock regression
         run: python scripts/check-native-environment-clock.py
+      - name: Actual multiplayer transition invitations and live cluster config
+        run: python scripts/check-native-level-transition.py
   clock-windows:
     runs-on: windows-2022
     timeout-minutes: 10
@@ -270,6 +274,8 @@ jobs:
           python scripts/check-native-relation-null.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-environment-clock.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-level-transition.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-checksum.py
           if errorlevel 1 exit /b %errorlevel%

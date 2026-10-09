@@ -131,7 +131,9 @@ void CLevelChanger::feel_touch_new(CObject* tpObject)
 	if (netcoop::enabled() && (!netcoop::pure_client() || l_tpActor != Actor()))
 		return;
 
-	if (m_bSilentMode)
+	// Multiplayer always asks the owner before disconnecting to another map.
+	// Keep the original silent-changer behavior for single-player.
+	if (m_bSilentMode && !netcoop::pure_client())
 	{
 		NET_Packet p;
 		p.w_begin(M_CHANGE_LEVEL);
@@ -188,7 +190,7 @@ bool CLevelChanger::feel_touch_contact(CObject* object)
 
 void CLevelChanger::update_actor_invitation()
 {
-	if (m_bSilentMode) return;
+	if (m_bSilentMode && !netcoop::pure_client()) return;
 	xr_vector<CObject*>::iterator it = feel_touch.begin();
 	xr_vector<CObject*>::iterator it_e = feel_touch.end();
 

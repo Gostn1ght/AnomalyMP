@@ -1,5 +1,24 @@
 # Промпт для Claude: продолжить Lost Zone автономно
 
+## 2026-10-09 15:46: владелец играет, НЕ ОСТАНАВЛИВАТЬ
+
+Сначала doc83. Живы client11540, Cordon18680:1567 и Garbage16316:1487,
+private owner-gameplay-repro-3289dfd96; SAME retained worlds, общий appdata.
+Свалка запущена по просьбе владельца. Новое cluster.ltx было вне FS каталога;
+SDK appdata rescan реально исправил native maps empty -> l02_garbage.
+Changer15726 silent1/enabled. Source MP confirmation + missing config catalog
+refresh готов; actual native test через GHA, не локально. Реальный переход
+владельцем ещё не подтверждён. Guard nil-parts меню уже безопасно применён
+в текущем клиенте, подтверждён OWNER_MENU_GUARD_INSTALLED, command очищен.
+Lua fixture воспроизводит stock crash и проходит; full authority parts OPEN.
+805 DX1137927028538 fullSUCCESS, cached gameplay-805074a69, НЕ установлен
+поверх активной игры. По latest user кровь на дереве, вес/толкание всех объектов,
+barrel wall/noise, weather/shadows WFX, enemy rep/recognition, delayed death/fall,
+map boundary ещё OPEN. Не выдавать их за исправленные и не снижать ИИ.
+Original18827/33/69/59 без изменений. Документ83 содержит доказательства,
+артефакт/hashes, ограничения и ошибку первой Lua route диагностики.
+
+
 ## 2026-10-09 14:56: сборка физики завершена, процессы прежней игры отсутствуют
 
 bd5ab8da4 Foundation37885813597 обе SUCCESS, DX1137885813675 fullSUCCESS,

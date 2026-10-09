@@ -867,10 +867,36 @@ function disable_sleep_need()
 	s.toggle_feature = function() pcall(toggle, false) end
 end
 
+-- Missing authoritative weapon-part metadata must not abort the entire
+-- inventory/corpse context menu. Do not invent parts or reroll them here.
+-- Preserve GAMMA's predicates when a real parts table is available.
+function install_weapon_menu_guards()
+	if not (netcoop_pure_client and netcoop_pure_client()) then return end
+	local repairs = zzzz_arti_jamming_repairs
+	local functors = custom_functor_autoinject
+	if not (repairs and functors and item_parts and item_parts.get_parts_con) then return end
+	if repairs.__netcoop_menu_parts then return end
+	if type(repairs.has_parts_fieldstrip) ~= "function" or type(repairs.check_maintain) ~= "function" then return end
+	local function with_parts(predicate)
+		return function(obj, bag, mode)
+			if not obj or type(item_parts.get_parts_con(obj, nil, false)) ~= "table" then return false end
+			return predicate(obj, bag, mode)
+		end
+	end
+	repairs.has_parts_fieldstrip = with_parts(repairs.has_parts_fieldstrip)
+	repairs.check_maintain = with_parts(repairs.check_maintain)
+	-- GAMMA registers function pointers: replacing the module functions alone
+	-- would leave the old nil-table predicate in the inventory's registry.
+	functors.add_functor("arti_fieldstrip", repairs.has_parts_fieldstrip, repairs.name_fieldstrip, nil, repairs.init_fieldstrip_menu, true)
+	functors.add_functor("arti_maintain", repairs.check_maintain, repairs.name_maintain, nil, repairs.init_maintenance_menu, false)
+	repairs.__netcoop_menu_parts = true
+end
+
 local function install_server_item_actions()
 	if not (netcoop_item_action and netcoop_pure_client and netcoop_pure_client()) then return end
 	install_server_repair()
 	install_server_furniture()
+	install_weapon_menu_guards()
 	disable_sleep_need()
 	-- Corpse loot is made by the server at death (netcoop_server_compat).
 	-- Opening a corpse here ran GAMMA's loot maker without alife(): nothing

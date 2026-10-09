@@ -90,12 +90,23 @@ static bool cluster_write_line(LPCSTR path, LPCSTR line, bool durable = true)
 	return true;
 }
 
+// A cluster can be enabled while a standalone map is already running. Windows
+// sees the new file immediately, but X-Ray's startup file catalog does not.
+// Rescan only the appdata directory, and only for that missing catalog entry.
+static bool cluster_config_path(string_path& path)
+{
+	FS.update_path(path, "$app_data_root$", "netcoop_cluster.ltx");
+	if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) return false;
+	if (!FS.exist(path))
+		FS.rescan_path(FS.get_path("$app_data_root$")->m_Path, FALSE);
+	return FS.exist(path) != nullptr;
+}
+
 // Address the clients use for a map, from netcoop_cluster.ltx.
 static bool cluster_location(LPCSTR level, xr_string& host, u32& port)
 {
 	string_path path;
-	FS.update_path(path, "$app_data_root$", "netcoop_cluster.ltx");
-	if (!level || !level[0] || GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) return false;
+	if (!level || !level[0] || !cluster_config_path(path)) return false;
 	CInifile ini(path, TRUE, TRUE, FALSE);
 	if (!ini.line_exist("locations", level)) return false;
 	xr_string value = ini.r_string("locations", level);
@@ -111,8 +122,7 @@ static bool cluster_location(LPCSTR level, xr_string& host, u32& port)
 static bool cluster_config_present()
 {
 	string_path path;
-	FS.update_path(path, "$app_data_root$", "netcoop_cluster.ltx");
-	return GetFileAttributesA(path) != INVALID_FILE_ATTRIBUTES;
+	return cluster_config_path(path);
 }
 
 // ---- server status (doc 43 H01): alive and not full -----------------------
@@ -200,8 +210,7 @@ static bool cluster_secret()
 static bool cluster_on_demand(LPCSTR level)
 {
 	string_path path;
-	FS.update_path(path, "$app_data_root$", "netcoop_cluster.ltx");
-	if (!level || GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) return false;
+	if (!level || !cluster_config_path(path)) return false;
 	CInifile ini(path, TRUE, TRUE, FALSE);
 	return ini.line_exist("on_demand", level) && ini.r_u32("on_demand", level) == 1;
 }
@@ -396,8 +405,7 @@ LPCSTR script_cluster_maps()
 	static xr_string maps;
 	maps.clear();
 	string_path path;
-	FS.update_path(path, "$app_data_root$", "netcoop_cluster.ltx");
-	if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES) return "";
+	if (!cluster_config_path(path)) return "";
 	CInifile ini(path, TRUE, TRUE, FALSE);
 	if (!ini.section_exist("locations")) return "";
 	CInifile::Sect& section = ini.r_section("locations");
