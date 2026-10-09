@@ -974,9 +974,10 @@ void CActor::rp_request_stop(bool own)
 	if (own && !m_rp_stopping)
 		rp_send(0xff);
 	m_rp_stopping = true;
-	if (m_rp_phase == 1)
+	if (m_rp_phase <= 1)
 	{
-		// Leave the loop now: the "out" chain starts from here.
+		// Leave now, also from the "in" chain (it waited for the intro clip,
+		// up to 20 s, owner 2026-10-09): the "out" chain starts from here.
 		m_rp_phase = 2;
 		m_rp_step = 0;
 		m_rp_motion_done = true;

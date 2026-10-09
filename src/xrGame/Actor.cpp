@@ -1978,11 +1978,15 @@ void CActor::shedule_Update(u32 DT)
 	if (!authoritative_remote && Level().CurrentControlEntity() == this && !Level().IsDemoPlay())
 		//------------------------------------------------
 	{
-		// RP poses are released only by the explicit stop action.
+		// Moving or jumping leaves an RP pose (as the wheel's stop does): the
+		// "out" chain plays, then the player moves (owner 2026-10-09: players
+		// could not get out of an RP animation without finding the button).
 		const u32 rp_held = mstate_wishful & (mcAnyMove | mcSprint);
 		const bool rp_playing = m_rp_index >= 0;
 		if (rp_playing)
 		{
+			if ((mstate_wishful & (mcAnyMove | mcJump)) && !m_rp_stopping)
+				rp_request_stop(true);
 			mstate_wishful &= ~(mcAnyMove | mcJump | mcSprint);
 		}
 		g_cl_CheckControls(mstate_wishful, NET_SavedAccel, NET_Jump, dt);
