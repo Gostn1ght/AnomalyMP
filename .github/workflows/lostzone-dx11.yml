@@ -137,6 +137,12 @@ jobs:
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-physics-push.py
           if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-perception-shot.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-fragment-lifetime.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-mark-material.py
+          if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-weapon-menu.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-checksum.py

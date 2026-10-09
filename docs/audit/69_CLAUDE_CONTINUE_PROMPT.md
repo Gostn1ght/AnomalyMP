@@ -1,5 +1,26 @@
 # Промпт для Claude: продолжить Lost Zone автономно
 
+## 2026-10-09 16:10: текущая работа и новое требование массы
+
+НЕ ОСТАНАВЛИВАТЬ owner client11540/Cordon18680/Garbage16316. Doc83 latest.
+HEAD e70f49d83: actual transition+whole server physics push Foundation37933943908
+обе SUCCESS; DX1137933943683 полный engine ещё проверять перед следующим push.
+Рабочее дерево: SDK get_luminocity -> same native authority weather/torch fallback,
+accepted owner AIM -> ordinary OnShot before FireTrace, no autoremove timers for
+MP non-entity props/fragments (corpses/SP сохранены), no blood textures on dynamic
+props both producer/consumer. Actual native fixtures добавлены, GHA pending.
+Native SDK raw Lua light0 vs native0.154384 доказан; hostility уже enemy2.
+Новый user: осколки исчезли прямо перед ним; ящик пустой весит оболочку, полный
+= оболочка+реальные предметы, бочки на наше усмотрение. Dynamic contents mass
+ещё НЕ сделан: xr_box роллит лут при разрушении, сначала нужен persistent
+server-only per-crate plan и same plan single release; native mass application
+с CSE persistence/authority, не random weight и не client mass setter.
+Подробные ограничения/source/test failures/process/artifact hashes в doc83.
+Далее подтвердить полный GHA, после окончания игры владельца scoped save/upgrade,
+а не заменять активные EXE. Визуальный weather, death/rep/barrel wall, fullweapon
+parts и188 этапов ещё OPEN, counters27/33/69/59.
+
+
 ## 2026-10-09 15:46: владелец играет, НЕ ОСТАНАВЛИВАТЬ
 
 Сначала doc83. Живы client11540, Cordon18680:1567 и Garbage16316:1487,

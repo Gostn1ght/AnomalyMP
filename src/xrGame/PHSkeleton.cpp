@@ -3,6 +3,8 @@
 #include "PhysicsShellHolder.h"
 #include "xrServer_Objects_ALife.h"
 #include "Level.h"
+#include "netcoop.h"
+#include "entity_alive.h"
 #include "../xrphysics/PHDefs.h"
 #include "../xrphysics/PhysicsShell.h"
 #include "PHSynchronize.h"
@@ -140,7 +142,7 @@ void CPHSkeleton::Load(LPCSTR section)
 	existence_time = pSettings->r_u32(section, "remove_time") * 1000;
 }
 
-void CPHSkeleton::Update(u32 dt)
+void CPHSkeleton::Update(u32 /*dt*/)
 {
 	CPhysicsShellHolder* obj = PPhysicsShellHolder();
 	CPhysicsShell* pPhysicsShell = obj->PPhysicsShell();
@@ -380,6 +382,10 @@ void CPHSkeleton::CopySpawnInit()
 
 void CPHSkeleton::SetAutoRemove(u32 time/*=CSE_PHSkeleton::existence_time*/)
 {
+	// Multiplayer world props/fragments persist. Model autoremove timers
+	// otherwise erase them even while a player is watching and mark them
+	// unsavable at creation. Corpse cleanup still has its existing authority.
+	if (netcoop::enabled() && !smart_cast<CEntityAlive*>(PPhysicsShellHolder())) return;
 	b_removing = true;
 	m_remove_time = Device.dwTimeGlobal + iFloor(time / phTimefactor);
 	SetNotNeedSave();

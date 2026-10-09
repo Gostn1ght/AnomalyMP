@@ -23,6 +23,10 @@ on:
       - 'scripts/check-native-environment-clock.py'
       - 'scripts/check-native-level-transition.py'
       - 'scripts/check-native-physics-push.py'
+      - 'scripts/check-native-perception-shot.py'
+      - 'scripts/check-native-fragment-lifetime.py'
+      - 'scripts/check-native-mark-material.py'
+      - 'src/xrGame/PHSkeleton.cpp'
       - 'src/xrGame/level_changer.cpp'
       - 'src/xrGame/game_base.cpp'
       - 'src/xrGame/game_base.h'
@@ -193,6 +197,12 @@ jobs:
         run: python scripts/check-native-level-transition.py
       - name: Actual authoritative contact push and sleeping props
         run: python scripts/check-native-physics-push.py
+      - name: Actual GAMMA lighting getter and authoritative shot stimulus
+        run: python scripts/check-native-perception-shot.py
+      - name: Actual multiplayer fragment lifetime and single-player cleanup
+        run: python scripts/check-native-fragment-lifetime.py
+      - name: Actual blood decal and dynamic prop material invariant
+        run: python scripts/check-native-mark-material.py
   clock-windows:
     runs-on: windows-2022
     timeout-minutes: 10
@@ -281,6 +291,12 @@ jobs:
           python scripts/check-native-level-transition.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-physics-push.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-perception-shot.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-fragment-lifetime.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-mark-material.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-checksum.py
           if errorlevel 1 exit /b %errorlevel%

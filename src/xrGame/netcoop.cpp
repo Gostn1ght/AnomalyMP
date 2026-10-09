@@ -3868,8 +3868,8 @@ void server_physics_update(xrServer* server)
 		// Client replica colliders are fixed; only the authority integrates
 		// contact pushes. Walking against a body gives a small, mass-scaled
 		// impulse, never a position correction or an unvalidated client force.
-		// The remote Actor's replica collider is fixed too: ordinary solver
-		// contacts cannot move props on its behalf. Apply the same validated
+		// The remote Actor's position is accepted directly rather than driven
+		// by the ordinary movement solver. Apply the same validated
 		// movement contact to props/fragments, including sleeping ones.
 		for (const FootContact& foot : feet)
 		{

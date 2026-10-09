@@ -1222,6 +1222,11 @@ void CWeapon::OnEvent(NET_Packet& P, u16 type)
 					Device.dwTimeGlobal - m_netcoop_last_shot >= 30)
 				{
 					m_netcoop_last_shot = Device.dwTimeGlobal;
+					netcoop::ServerVictimScope shot_actor_scope(smart_cast<CActor*>(H_Parent()));
+					// FireTrace creates bullets but does not run the ordinary shot
+					// sound/weapon-fired callbacks. NPC hearing and GAMMA's shot
+					// visibility stimulus need them on the authority as well.
+					OnShot();
 					FireTrace(m_netcoop_aim_pos, m_netcoop_aim_dir);
 				}
 			}

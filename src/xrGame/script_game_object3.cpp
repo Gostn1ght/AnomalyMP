@@ -59,6 +59,7 @@
 
 #include "Torch.h"
 #include "Flashlight.h"
+#include "netcoop.h"
 
 namespace MemorySpace
 {
@@ -1946,11 +1947,13 @@ float CScriptGameObject::GetLuminocityHemi()
 float CScriptGameObject::GetLuminocity()
 {
 	CObject* e = smart_cast<CObject*>(&object());
-	if (!e || !e->renderable_ROS())
-	{
-		return 0;
-	}
-	return e->renderable_ROS()->get_luminocity();
+	const float rendered = e && e->renderable_ROS() ? e->renderable_ROS()->get_luminocity() : 0.f;
+	// GAMMA's Lua vision formula reads this again instead of its native
+	// luminocity argument. Use the same server fallback as native perception:
+	// a dedicated process does not draw the object and its ROS stays zero.
+	if (e && netcoop::enabled() && !netcoop::pure_client())
+		return netcoop::server_luminocity(e, rendered);
+	return rendered;
 }
 
 void CScriptGameObject::ForceSetPosition(Fvector pos, bool enable)

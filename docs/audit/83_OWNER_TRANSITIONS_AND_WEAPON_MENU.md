@@ -124,3 +124,51 @@ FS helper. a99c3ccd1 narrows extraction; next Foundation37932851682/DX1137932851
 FAIL only W4/WX transition-fixture global `level` shadowing actual argument.
 Rename fixture-only global; retain both failure histories. Native push/checks
 now awaiting next GHA; no active executable rollout.
+
+## 16:10 source follow-up: perception, ordinary shot stimulus, fragment lifetime
+
+Native read-only SDK confirms actor20575 AND four hostile NPC have raw Lua
+get_luminocity=0, whereas native get_object_luminocity(actor)=0.154384 and current
+sky0.061520. GAMMA get_visible_value rereads who:get_luminocity rather than its
+native luminocity argument, bypassing the existing authority weather/torch
+fallback. Source SDK getter now reuses that SAME native server fallback; SP/client
+rendered readings stay. Actual getter+fallback fixture tests day/night/torch,
+rendered light, no ROS and server/client scope. Full graphical/behavior acceptance
+still pending, no automatic player shooting/death.
+
+GE_NETCOOP_WPN_AIM accepted owner branch called FireTrace alone, which creates
+bullets/ammo consumption but not ordinary OnShot sound and eOnWeaponFired callback.
+Source now invokes normal virtual OnShot once before FireTrace only after existing
+owner/origin/direction/ammo/time checks. This restores NPC hearing and GAMMA shot
+visibility stimulus; it does not grant omniscience or change faction relations.
+Actual whole event branch fixture tests ordering, duplicate/invalid refusal and
+remote/own-HUD behavior. Delayed NPC damage/death/reputation remains OPEN.
+
+Owner adds shards disappearing in front of them and contents-dependent crate
+mass; empty crate = shell mass, filled = shell+real contents, barrel mass at our
+discretion. CPHDestroyable calls SetAutoRemove from model autoremove_parts /
+autoremove metadata; stock skeleton removal is unconditional after time and marks
+objects unsavable immediately. Source prevents that timer for multiplayer
+non-entity props/fragments/floor items; corpses retain their existing branch and
+SP untouched. Actual SetAutoRemove+Update fixture includes fracture processing,
+corpse behavior and unsplit guard. Existing already-armed timers in active old
+binaries are NOT hot-repaired. Need native restart/persistence/owner acceptance.
+
+Blood safeguard rejects wm_blood* textures on dynamic non-entity props both at
+server selection and client application (including delayed ID reuse); normal
+wood impacts, static blood splashes and organism/corpse blood remain. Root bad
+material vs ID lifetime still unproven; no wall collision/physics noise fix claim.
+
+Dynamic crate contents/mass NOT IMPLEMENTED. Stock xr_box rolls contents only
+on destruction (class ph_item_box.spawn_items/create_items), so weight cannot
+truthfully sum existing contents before that. Required next work: authority-owned
+persistent per-crate loot plan, one roll before exposure, same plan released once
+on destruction, ammo weight by actual rounds, empty shell baseline by visual size,
+world/lifetime key and restart/duplicate protection. Do not invent full100kg
+contents or reroll after restart/each collision. No generic SDK set_mass exposed;
+native validated application + CSE persistence required, never client-set mass.
+
+Latest e70f49d83 Foundation37933943908 BOTH SUCCESS, actual complete push and
+transition checks GCC/MSVC PASS. DX1137933943683 engine113831313753 still building
+at this entry. Prior ab9 Foundation37933475753/DX1137933475617 failed only fixture
+client-name shadow under W4/WX; renamed fixture, retained failed history.

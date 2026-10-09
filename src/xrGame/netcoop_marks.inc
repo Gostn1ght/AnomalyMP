@@ -12,6 +12,13 @@ static xr_map<u32, u32> s_mark_cursor;
 static xr_deque<CoopMark> s_pending_marks;
 static u32 s_mark_sequence = 0, s_received_mark = 0;
 
+static bool mark_matches_object(const CObject* object, LPCSTR texture)
+{
+    // Blood may land on static scenery or on an organism/corpse. Dynamic
+    // props/fragments cannot bleed, including a reused ID in a late mark.
+    return !object || smart_cast<const CEntityAlive*>(object) || !strstr(texture, "wm_blood");
+}
+
 void client_marks_reset()
 {
     s_pending_marks.clear(); s_received_mark = 0;
@@ -25,6 +32,7 @@ void replicate_mark(CObject* object, u32 element, const Fvector& position,
     if (count <= 0) return;
     string256 texture;
     _GetItem(textures, Random.randI(count), texture);
+    if (!mark_matches_object(object, texture)) return;
     CoopMark mark;
     mark.sequence = ++s_mark_sequence; mark.stamp = Level().timeServer();
     mark.object = object ? object->ID() : 0xffff; mark.element = element;
@@ -105,11 +113,14 @@ void client_marks_update()
         }
         else if (CObject* object = Level().Objects.net_Find(mark.object))
         {
-            if (IKinematics* bones = object->Visual() ? object->Visual()->dcast_PKinematics() : nullptr)
+            if (mark_matches_object(object, mark.texture.c_str()))
             {
-                Fvector position = mark.position, direction = mark.direction;
-                object->XFORM().transform_tiny(position); object->XFORM().transform_dir(direction);
-                Render->add_SkeletonWallmark(&object->renderable.xform, bones, &*array, position, direction, mark.size);
+                if (IKinematics* bones = object->Visual() ? object->Visual()->dcast_PKinematics() : nullptr)
+                {
+                    Fvector position = mark.position, direction = mark.direction;
+                    object->XFORM().transform_tiny(position); object->XFORM().transform_dir(direction);
+                    Render->add_SkeletonWallmark(&object->renderable.xform, bones, &*array, position, direction, mark.size);
+                }
             }
         }
         s_pending_marks.pop_front(); ++drawn;
