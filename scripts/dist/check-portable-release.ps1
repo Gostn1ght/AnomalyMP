@@ -48,7 +48,7 @@ foreach ($pair in @(@($game, "fsgame.template", "bin\LostZoneClientDX11.exe"), @
 }
 foreach ($root in $game, $host_) {
     if (-not (Test-Path $root)) { continue }
-    $manifest = Get-ChildItem $root -Recurse -File | Where-Object { $_.Extension -in ".exe", ".dll" -or $_.Name -match '\.db\d*$' } |
+    $manifest = Get-ChildItem $root -Recurse -File | Where-Object { $_.Extension -in ".exe", ".dll" -or $_.Name -match '\.db[0-9a-f]*$' } |
         Sort-Object FullName | ForEach-Object { "{0}  {1}" -f (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash, $_.FullName.Substring($root.Length + 1) }
     Set-Content -LiteralPath (Join-Path $root "MANIFEST-sha256.txt") -Value $manifest -Encoding ascii
     $size = (Get-ChildItem $root -Recurse -File | Measure-Object Length -Sum).Sum

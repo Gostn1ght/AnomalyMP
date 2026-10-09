@@ -47,8 +47,7 @@ function Mirror($from, $to, [string[]]$extra = @()) {
 Write-Host "staging the overlay"
 New-Item -ItemType Directory -Force $stage | Out-Null
 foreach ($role in "client", "server") { Mirror (Join-Path $Runtime $role) (Join-Path $stage $role) }
-New-Item -ItemType Directory -Force (Join-Path $stage "gamedata\shaders
-3") | Out-Null # the overlay copies preview shaders there
+New-Item -ItemType Directory -Force (Join-Path $stage "gamedata\shaders\r3") | Out-Null # the overlay copies preview shaders there
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repo "scripts\patch-gamma-netcoop-overlay.ps1") -RuntimeRoot $stage | Select-Object -Last 2
 if ($LASTEXITCODE -ne 0) { throw "overlay patch failed" }
 
@@ -83,7 +82,7 @@ Copy-Item (Join-Path $Artifact "notices") (Join-Path $host_ "notices") -Recurse 
 # 4. Packed GAMMA data: everything for players, no textures for the server.
 if ($NoPacks) { Write-Host "archives skipped (-NoPacks)"; return }
 Write-Host "archives"
-$packs = Get-ChildItem $work -File | Where-Object { $_.Name -match '^lz_[a-z]+\.db\d+$' }
+$packs = Get-ChildItem $work -File | Where-Object { $_.Name -match '^lz_[a-z]+\.db[0-9a-f]+$' }
 foreach ($p in $packs) {
     if ($p.Name -notlike "lz_textures.*") { Copy-Item $p.FullName (Join-Path $host_ "db\lostzone") -Force }
     Move-Item $p.FullName (Join-Path $game "db\lostzone") -Force # same volume: no second copy
