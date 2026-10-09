@@ -281,7 +281,12 @@ function restore_character_state(actor, encoded, respawn)
     task_manager.load_state(state)
     -- A new body must not inherit the lethal radiation/psy state. The
     -- explicit flag also handles saves made before this schema change.
-    local conditions = (respawn or state.netcoop_respawn) and {radiation=0, psy_health=1} or state.netcoop_conditions
+    local new_body = respawn or state.netcoop_respawn
+    local conditions = new_body and {radiation=0, psy_health=1} or state.netcoop_conditions
+    -- Nor the old body's hunger, stamina and thirst (the client's saved
+    -- player state): a player who starved or died of thirst got a new body
+    -- just as hungry and died again (owner 2026-10-09). Progress stays.
+    if new_body then db.storage[id].pstor.netcoop_player_state = nil end
     if conditions then
         if conditions.radiation then actor.radiation = conditions.radiation end
         if conditions.psy_health then actor.psy_health = conditions.psy_health end
