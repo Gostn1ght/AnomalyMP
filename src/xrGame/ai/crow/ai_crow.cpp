@@ -325,10 +325,32 @@ void CAI_Crow::Die(CObject* who)
 	callback(GameObject::eDeath)(lua_game_object(), who_object ? who_object->lua_game_object() : 0);
 };
 
+bool CAI_Crow::netcoop_follow_server()
+{
+	if (!netcoop::pure_client() || !Remote() || !g_Alive() || m_netcoop_samples.empty())
+		return false;
+	const u32 interval = m_netcoop_samples.size() > 1 ?
+		m_netcoop_samples.back().time - m_netcoop_samples[m_netcoop_samples.size() - 2].time : 100;
+	const u32 time = netcoop_interpolation_time(interval);
+	while (m_netcoop_samples.size() > 2 && s32(time - m_netcoop_samples[1].time) >= 0)
+		m_netcoop_samples.pop_front();
+	const NetcoopSample& a = m_netcoop_samples.front();
+	const NetcoopSample& b = m_netcoop_samples.size() > 1 ? m_netcoop_samples[1] : a;
+	const s32 span = s32(b.time - a.time);
+	const float f = span > 0 ? _max(0.f, _min(1.f, float(s32(time - a.time)) / float(span))) : 1.f;
+	Fvector position;
+	position.lerp(a.position, b.position, f);
+	vOldPosition.set(Position());
+	XFORM().setHPB(angle_lerp(a.yaw, b.yaw, f), angle_lerp(a.pitch, b.pitch, f), 0.f);
+	Position().set(position); // setHPB zeroes the translation
+	return true;
+}
+
 void CAI_Crow::UpdateWorkload(float fdt)
 {
 	if (o_workload_frame == Device.dwFrame) return;
 	o_workload_frame = Device.dwFrame;
+	if (netcoop_follow_server()) return;
 	switch (st_current)
 	{
 	case eFlyIdle:
@@ -507,7 +529,7 @@ void CAI_Crow::net_Import(NET_Packet& P)
 	P.r_float(health);
 	SetfHealth(health);
 
-	P.r_u32();
+	const u32 stamp = P.r_u32();
 	P.r_u8();
 
 	Fvector received_position;
@@ -524,6 +546,20 @@ void CAI_Crow::net_Import(NET_Packet& P)
 	id_Squad = P.r_u8();
 	id_Group = P.r_u8();
 
+	if (netcoop::pure_client() && g_Alive() && _valid(received_position))
+	{
+		// Interpolated in UpdateWorkload; the first sample places the crow.
+		if (m_netcoop_samples.empty() || s32(stamp - m_netcoop_samples.back().time) > 0)
+		{
+			NetcoopSample sample = {stamp, received_position, yaw, pitch};
+			if (!m_netcoop_samples.empty() && m_netcoop_samples.back().position.distance_to(received_position) > 50.f)
+				m_netcoop_samples.clear(); // a jump (respawned or far) is not flown through
+			m_netcoop_samples.push_back(sample);
+			while (m_netcoop_samples.size() > 24) m_netcoop_samples.pop_front();
+		}
+		if (m_netcoop_samples.size() > 1)
+			return;
+	}
 	XFORM().setHPB(yaw, pitch, bank);
 	// setHPB initializes translation to zero. Apply position afterwards.
 	Position().set(received_position);

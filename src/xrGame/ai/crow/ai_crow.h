@@ -107,6 +107,18 @@ protected:
 
 	void UpdateWorkload(float DT);
 
+	// Netcoop client: a living crow flies where the server's crow flies,
+	// interpolated between its snapshots, instead of its own local flight
+	// (two flights fought each other and the crow jumped, owner 2026-10-09).
+	struct NetcoopSample
+	{
+		u32 time;
+		Fvector position;
+		float yaw, pitch;
+	};
+	xr_deque<NetcoopSample> m_netcoop_samples;
+	bool netcoop_follow_server();
+
 	xr_vector<CObject*> nearbyObjects;
 	xr_vector<CEntityAlive*> deadNPCs;
 
