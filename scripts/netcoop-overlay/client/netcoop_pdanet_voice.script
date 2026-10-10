@@ -56,7 +56,9 @@ local function new_aid()
 end
 
 function upload(cid, data, secs)
-	if queue then tip("st_pdanet_rec_busy") return false end
+	-- one upload at a time: the server keeps one per player (photos too)
+	local photo = netcoop_pdanet_photo
+	if queue or (photo and photo.uploading and photo.uploading()) then tip("st_pdanet_rec_busy") return false end
 	if not (cid and data and data ~= "") then return false end
 	local parts = {}
 	for i = 1, math.ceil(#data / PART) do parts[i] = string.sub(data, (i - 1) * PART + 1, i * PART) end

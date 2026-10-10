@@ -59,6 +59,25 @@ function register(caption_key, ui_getter, after)
     return id
 end
 
+-- Change a tab's caption now (e.g. with an unread count): the live button,
+-- and the text later rebuilds use. text is shown as is (not a string id).
+function set_caption(id, text)
+    local entry = by_id[id]
+    if not entry then
+        return false
+    end
+    entry.text = text
+    if level.present() then
+        local pm = ActorMenu.get_pda_menu()
+        local tabs = pm and pm.GetTabControl and pm:GetTabControl()
+        local btn = tabs and tabs:GetButtonById(id)
+        if btn then
+            btn:TextControl():SetText(text)
+        end
+    end
+    return true
+end
+
 function unregister(id)
     local entry = by_id[id]
     if not entry then
@@ -82,7 +101,7 @@ function build_extra_tabs(tab_control)
     end
     for i = 1, #registry do
         local t = registry[i]
-        tab_control:AddTab(t.id, game.translate_string(t.caption), t.after or "")
+        tab_control:AddTab(t.id, t.text or game.translate_string(t.caption), t.after or "")
         if CUITabControl.SetTabIcon then
             tab_control:SetTabIcon(t.id, t.caption)
         end

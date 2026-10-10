@@ -136,6 +136,20 @@ local function install_paw()
 	return true
 end
 
+-- The player's own map pins with places, for "Точка" in PDA chats:
+-- { name, level, x, y, z }, by name.
+function pin_points()
+	local m, out = paw(), {}
+	for id, pin in pairs(m and m.pins or {}) do
+		local f = fakes[id]
+		if f and f.level then
+			out[#out + 1] = { name = pin.text or pin.name or ("#" .. id), level = f.level, x = f.x, y = f.y, z = f.z }
+		end
+	end
+	table.sort(out, function(a, b) return tostring(a.name) < tostring(b.name) end)
+	return out
+end
+
 ---------------------------------------------------------------- saving to the character
 local function snapshot()
 	local m = paw()

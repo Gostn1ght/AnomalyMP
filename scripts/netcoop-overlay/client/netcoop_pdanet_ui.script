@@ -153,14 +153,18 @@ local function message_body(m)
 		local secs = tonumber(string.match(m.d or "", "^%S+ (%d+)") or 0) or 0
 		return string.format(tr("st_pdanet_voice_msg"), string.format("%d:%02d", math.floor(secs / 60), secs % 60))
 	end
-	if m.k == "photo" then return tr("st_pdanet_photo_msg") end
+	if m.k == "photo" then
+		local ph = netcoop_pdanet_photo
+		return tr("st_pdanet_photo_msg") .. (ph and ("  -  " .. ph.message_place(m)) or "")
+	end
+	if m.k == "task" then return tr("st_pdanet_task_msg") .. ": " .. (m.x or "") end
 	return m.x
 end
 
 class "pdanet_chats" (CUIScriptWnd)
 function pdanet_chats:__init() super()
 	base(self, "st_pdanet_tab_chats")
-	self.list_scroll, self.msg_scroll, self.points, self.voices = 0, 0, {}, {}
+	self.list_scroll, self.msg_scroll, self.points, self.voices, self.photos = 0, 0, {}, {}, {}
 	static(self, "panel", 36, 134, 268, 456)
 	static(self, "panel", 312, 104, 472, 50)
 	static(self, "panel", 312, 158, 472, 392)
@@ -201,16 +205,27 @@ function pdanet_chats:__init() super()
 		m.own = static(self, "msg_own", 400, y + 20, 340, 30)
 		m.mark = button(self, tr("st_pdanet_mark"), 620, y + 2, 156, 22, function() self:Mark(r) end)
 		m.play = button(self, ">", 620, y + 2, 40, 22, function() self:Play(r) end)
+		m.view = button(self, tr("st_pdanet_photo_open"), 620, y + 2, 156, 22, function() self:ViewPhoto(r) end)
 		self.msgs[r] = m
 	end
 	button(self, "^", 750, 162, 30, 26, function() self.msg_scroll = self.msg_scroll + 2; self:Fill() end)
 	button(self, "v", 750, 520, 30, 26, function() self.msg_scroll = math.max(0, self.msg_scroll - 2); self:Fill() end)
-	self.photo_btn = button(self, tr("st_pdanet_photo_btn"), 312, 556, 152, 30, function() end)
-	self.point_btn = button(self, tr("st_pdanet_point_btn"), 472, 556, 152, 30, function()
-		if self.chat then net().post_point(self.chat, edit_text(self.input)); self.input:SetText("") end
-	end)
+	-- Снимок: a shot from the gallery; Точка: own position or a map pin
+	self.photo_btn = button(self, tr("st_pdanet_photo_btn"), 312, 556, 152, 30, function() if self.chat then self:Dialog("photo") end end)
+	self.point_btn = button(self, tr("st_pdanet_point_btn"), 472, 556, 152, 30, function() if self.chat then self:Dialog("point") end end)
 	self.voice_btn = button(self, tr("st_pdanet_voice_btn"), 632, 556, 152, 30, function() self:VoiceMessage() end)
-	self.photo_btn:Enable(false)
+	-- a photo from the chat, over the conversation
+	self.pview = {}
+	self.pview.back = static(self, "panel", 312, 158, 472, 392)
+	self.pview.img = static(self, "photo", 320, 166, 456, 256)
+	self.pview.info = static(self, "hint_left", 322, 428, 452, 60)
+	self.pview.keep = button(self, tr("st_pdanet_photo_keep"), 320, 512, 220, 30, function()
+		local m = self.viewed
+		if m and netcoop_pdanet_photo then
+			netcoop_pdanet_photo.keep(string.match(m.d or "", "^(%x+)"), string.match(m.d or "", "^%x+ ([%w_]+)"))
+		end
+	end)
+	self.pview.close = button(self, tr("st_pdanet_close"), 556, 512, 220, 30, function() self.viewed = nil; self:Fill() end)
 	self.input = at(self.xml:InitEditBox("edit", self), 312, 594, 330, 32)
 	button(self, tr("st_pdanet_send"), 650, 594, 134, 32, function() self:Send() end)
 	-- dialogs over the conversation: new group, members, transfer
@@ -286,15 +301,43 @@ function pdanet_chats:Play(r)
 	local m = self.voices[r]
 	if m and netcoop_pdanet_voice then netcoop_pdanet_voice.play_message(m) end
 end
--- mode: nil (closed), "group", "members", "pay"
+function pdanet_chats:ViewPhoto(r)
+	local m = self.photos[r]
+	if not m then return end
+	self.viewed = m
+	self:Fill()
+end
+-- The choices of the "photo" and "point" dialogs.
+function pdanet_chats:Choices()
+	if self.dialog == "photo" then
+		local ph = netcoop_pdanet_photo
+		if not ph then return {} end
+		ph.load()
+		local out = {}
+		for i, p in ipairs(ph.photos) do
+			out[#out + 1] = { text = string.format("%s   %s   %s", ph.when(p), ph.place(p.level), ph.size_text(p.bytes)), index = i }
+		end
+		return out
+	elseif self.dialog == "point" then
+		local out = { { text = tr("st_pdanet_point_here") } }
+		for _, pin in ipairs(netcoop_pda and netcoop_pda.pin_points and netcoop_pda.pin_points() or {}) do
+			out[#out + 1] = { text = string.format("%s   (%s)", tostring(pin.name), game.translate_string(pin.level)), at = pin, name = pin.name }
+		end
+		return out
+	end
+	return {}
+end
+-- mode: nil (closed), "group", "members", "pay", "photo", "point"
 function pdanet_chats:Dialog(mode)
 	self.dialog = mode
 	for _, w in pairs(self.dlg) do if type(w) ~= "table" then w:Show(mode ~= nil) end end
 	for _, w in ipairs(self.dlg.rows) do w:Show(false) end
 	local group, pay = mode == "group", mode == "pay"
+	local pick = mode == "photo" or mode == "point"
 	for _, w in ipairs({ self.dlg.icon, self.dlg.icon_btn, self.dlg.name }) do w:Show(group) end
 	self.dlg.amount:Show(pay)
-	self.dlg.ok:Show(group or pay)
+	self.dlg.ok:Show(group or pay or pick)
+	self.choice, self.choice_scroll = nil, 0
 	text(self.dlg.cancel, tr(mode == "members" and "st_pdanet_close" or "st_pdanet_cancel"))
 	if group then
 		self.picked, self.icon_n = {}, 1
@@ -310,6 +353,12 @@ function pdanet_chats:Dialog(mode)
 		text(self.dlg.ok, tr("st_pdanet_send_money"))
 	elseif mode == "members" then
 		text(self.dlg.title, tr("st_pdanet_members_btn"))
+	elseif mode == "photo" then
+		text(self.dlg.title, tr("st_pdanet_pick_photo"))
+		text(self.dlg.ok, tr("st_pdanet_rec_send"))
+	elseif mode == "point" then
+		text(self.dlg.title, tr("st_pdanet_pick_point"))
+		text(self.dlg.ok, tr("st_pdanet_rec_send"))
 	end
 	if mode then self:FillDialog() end
 end
@@ -334,9 +383,25 @@ function pdanet_chats:FillDialog()
 				text(rows[r], string.format("%s  (UID %s)  -  %s", c.name or "?", c.uid, c.own and tr("st_pdanet_you") or status_of(c)))
 			end
 		end
+	elseif self.dialog == "photo" or self.dialog == "point" then
+		local list = self:Choices()
+		if #list == 0 then rows[1]:Show(true); text(rows[1], tr("st_pdanet_gallery_empty")) end
+		for r = 1, PICK_ROWS do
+			local i = self.choice_scroll + r
+			local c = list[i]
+			if c then
+				rows[r]:Show(true)
+				text(rows[r], (self.choice == i and "> " or "") .. c.text)
+			end
+		end
 	end
 end
 function pdanet_chats:Toggle(r)
+	if self.dialog == "photo" or self.dialog == "point" then
+		local i = self.choice_scroll + r
+		if self:Choices()[i] then self.choice = i; self:FillDialog() end
+		return
+	end
 	if self.dialog ~= "group" then return end
 	local c = net().contacts[r]
 	if c then self.picked[c.uid] = not self.picked[c.uid] or nil; self:FillDialog() end
@@ -352,6 +417,16 @@ function pdanet_chats:DialogOk()
 		if not (self.chat and amount and amount > 0) then return end
 		if db.actor and amount > db.actor:money() then tip("st_pdanet_no_money") return end
 		net().pay(self.chat, amount)
+	elseif self.dialog == "photo" then
+		local c = self.choice and self:Choices()[self.choice]
+		if not (c and self.chat) then return end
+		netcoop_pdanet_photo.send(c.index, self.chat)
+	elseif self.dialog == "point" then
+		local c = self.choice and self:Choices()[self.choice]
+		if not (c and self.chat) then return end
+		local caption = edit_text(self.input)
+		net().post_point(self.chat, caption ~= "" and caption or (c.name and tostring(c.name)) or "", c.at)
+		self.input:SetText("")
 	end
 	self:Dialog(nil)
 end
@@ -380,7 +455,7 @@ function pdanet_chats:Fill()
 	self.empty:Show(not open)
 	text(self.empty, tr("st_pdanet_chats_hint"))
 	for _, w in ipairs({ self.peer_icon, self.peer_name, self.peer_info, self.del_btn, self.side_btn }) do w:Show(open and true or false) end
-	self.points, self.voices, self.typing_shown = {}, {}, false
+	self.points, self.voices, self.photos, self.typing_shown = {}, {}, {}, false
 	if open then
 		local s = o.summary or {}
 		text(self.peer_name, summary_line(s))
@@ -399,10 +474,22 @@ function pdanet_chats:Fill()
 	end
 	local msgs = open and o.msgs or {}
 	local last = #msgs - self.msg_scroll
+	-- a photo being looked at covers the conversation
+	if not open then self.viewed = nil end
+	local ph = netcoop_pdanet_photo
+	local tex = self.viewed and ph and ph.message_photo(self.viewed)
+	for _, w in pairs(self.pview) do w:Show(self.viewed ~= nil) end
+	if self.viewed then
+		self.pview.img:Show(tex ~= nil)
+		if tex then self.pview.img:InitTexture(tex) end
+		text(self.pview.info, string.format("%s  %s\n%s", net().sender_name(self.viewed), net().when_short(self.viewed),
+			tex and ph.message_place(self.viewed) or tr("st_pdanet_photo_loading")))
+	end
 	for r = 1, MSG_ROWS do
 		local m = msgs[last - MSG_ROWS + r]
 		local w = self.msgs[r]
 		for _, x in pairs(w) do x:Show(false) end
+		if self.viewed then m = nil end
 		if m then
 			w.head:Show(true)
 			local group = o.summary and o.summary.kind == "g"
@@ -412,8 +499,9 @@ function pdanet_chats:Fill()
 				body = tr("st_pdanet_voice_word") .. "   " .. (netcoop_pdanet_voice.message_progress(m))
 			end
 			if m.own then w.own:Show(true); text(w.own, body) else w.body:Show(true); text(w.body, body); w.icon:Show(true); icon_texture(w.icon, m.i) end
-			if m.k == "point" then w.mark:Show(true); self.points[r] = m end
+			if m.k == "point" or (m.k == "task" and m.d) then w.mark:Show(true); self.points[r] = m end
 			if m.k == "voice" then w.play:Show(true); self.voices[r] = m end
+			if m.k == "photo" then w.view:Show(true); self.photos[r] = m end
 		end
 	end
 	local v = netcoop_pdanet_voice
@@ -453,18 +541,22 @@ function pdanet_contacts:__init() super()
 	static(self, "panel", 36, 196, 748, 38)
 	static(self, "msg_head", 44, 200, 40, 30):TextControl():SetText("UID")
 	self.uid = at(self.xml:InitEditBox("edit_uid", self), 84, 200, 120, 30)
-	button(self, tr("st_pdanet_add"), 212, 200, 130, 30, function()
+	button(self, tr("st_pdanet_add"), 210, 200, 104, 30, function()
 		net().add_contact(edit_text(self.uid)); self.uid:SetText("")
 	end)
-	button(self, tr("st_pdanet_open"), 350, 200, 130, 30, function()
+	button(self, tr("st_pdanet_open"), 318, 200, 104, 30, function()
 		local c = self.selected and net().contacts[self.selected]
 		if c then net().open_dm(c.uid) end
 	end)
-	button(self, tr("st_pdanet_send_point"), 488, 200, 150, 30, function()
+	button(self, tr("st_pdanet_send_point"), 426, 200, 128, 30, function()
 		local c = self.selected and net().contacts[self.selected]
 		if c then net().send_point_to(c.uid, ""); tip("st_pdanet_point_sent", c.name or c.uid) end
 	end)
-	button(self, tr("st_pdanet_delete"), 646, 200, 130, 30, function()
+	button(self, tr("st_pdanet_send_task"), 558, 200, 128, 30, function()
+		local c = self.selected and net().contacts[self.selected]
+		if c then self:Tasks(true) end
+	end)
+	button(self, tr("st_pdanet_delete"), 690, 200, 88, 30, function()
 		local c = self.selected and net().contacts[self.selected]
 		if c then net().remove_contact(c.uid); self.selected = nil end
 	end)
@@ -478,8 +570,43 @@ function pdanet_contacts:__init() super()
 	button(self, "^", 748, 242, 30, 30, function() self.scroll = math.max(0, self.scroll - 3); self:Fill() end)
 	button(self, "v", 748, 574, 30, 30, function() self.scroll = self.scroll + 3; self:Fill() end)
 	self.empty = static(self, "hint", 60, 380, 700, 60)
+	-- "Отправить задание": one of the player's active tasks to the contact
+	self.tdlg = {}
+	self.tdlg.back = static(self, "panel", 160, 250, 500, 340)
+	self.tdlg.title = static(self, "msg_name", 176, 258, 468, 24)
+	self.tdlg.rows = {}
+	for r = 1, 7 do
+		self.tdlg.rows[r] = button(self, "", 176, 288 + (r - 1) * 34, 468, 30, function() self.task_pick = r; self:Tasks(true) end, "row")
+	end
+	self.tdlg.ok = button(self, tr("st_pdanet_rec_send"), 176, 550, 228, 30, function() self:SendTask() end)
+	self.tdlg.cancel = button(self, tr("st_pdanet_cancel"), 416, 550, 228, 30, function() self:Tasks(false) end)
+	self:Tasks(false)
 	net().on_change(function() if self:IsShown() then self:Fill() end end)
 	self:Fill()
+end
+function pdanet_contacts:Tasks(on)
+	if not on then self.task_pick = nil end
+	self.tasks_open = on
+	local list = on and net().active_tasks() or {}
+	self.task_list = list
+	for _, w in pairs(self.tdlg) do if type(w) ~= "table" then w:Show(on) end end
+	local c = self.selected and net().contacts[self.selected]
+	text(self.tdlg.title, string.format(tr("st_pdanet_task_to"), c and (c.name or c.uid) or "?"))
+	for r = 1, 7 do
+		local t = list[r]
+		self.tdlg.rows[r]:Show(on and (t ~= nil or (r == 1 and #list == 0)))
+		if t then text(self.tdlg.rows[r], (self.task_pick == r and "> " or "") .. t.title)
+		elseif r == 1 then text(self.tdlg.rows[1], tr("st_pdanet_no_tasks")) end
+	end
+	self.tdlg.ok:Show(on and #list > 0)
+end
+function pdanet_contacts:SendTask()
+	local c = self.selected and net().contacts[self.selected]
+	local t = self.task_pick and self.task_list and self.task_list[self.task_pick]
+	if not (c and t) then return end
+	net().send_task_to(c.uid, t)
+	tip("st_pdanet_task_sent", c.name or c.uid)
+	self:Tasks(false)
 end
 function pdanet_contacts:Update()
 	CUIScriptWnd.Update(self)
@@ -502,7 +629,7 @@ function pdanet_contacts:Fill()
 		local i = self.scroll + r
 		local c = list[i]
 		local row = self.rows[r]
-		row.btn:Show(c ~= nil); row.icon:Show(c ~= nil)
+		row.btn:Show(c ~= nil and not self.tasks_open); row.icon:Show(c ~= nil and not self.tasks_open)
 		if c then
 			local unread = net().contact_unread(c.uid)
 			text(row.btn, string.format("%s%s   UID %s  -  %s%s", self.selected == i and "> " or "", c.name or "?", c.uid, status_of(c),
@@ -607,6 +734,7 @@ end
 -- Registration (the strip scrolls; 4 tabs visible in the PDA's top bar)
 ----------------------------------------------------------------------
 local windows = {}
+local tab_ids, shown_captions = {}, {} -- caption key -> tab id / caption shown now
 local function window(key, make)
 	return function()
 		windows[key] = windows[key] or make()
@@ -622,17 +750,40 @@ function on_game_start()
 		if netcoop_pdanet_voice and netcoop_pdanet_voice.dictaphone_window then return netcoop_pdanet_voice.dictaphone_window() end
 		return pdanet_soon("st_pdanet_tab_voice")
 	end
+	local photo = function(which)
+		return function()
+			local ph = netcoop_pdanet_photo
+			if ph and ph[which] then return ph[which]() end
+			return pdanet_soon(which == "gallery_window" and "st_pdanet_tab_gallery" or "st_pdanet_tab_photo")
+		end
+	end
 	local tabs = {
 		{ "st_pdanet_tab_general", function() return pdanet_general() end },
 		{ "st_pdanet_tab_chats", function() return pdanet_chats() end },
 		{ "st_pdanet_tab_contacts", function() return pdanet_contacts() end },
-		{ "st_pdanet_tab_gallery", function() return pdanet_soon("st_pdanet_tab_gallery") end },
-		{ "st_pdanet_tab_photo", function() return pdanet_soon("st_pdanet_tab_photo") end },
+		{ "st_pdanet_tab_gallery", photo("gallery_window") },
+		{ "st_pdanet_tab_photo", photo("photo_window") },
 		{ "st_pdanet_tab_voice", dictaphone },
 		{ "st_pdanet_tab_notes", function() return pdanet_notes() end },
 	}
 	for _, t in ipairs(tabs) do
 		after = pda_dynamic_tabs.register(t[1], window(t[1], t[2]), after)
+		tab_ids[t[1]] = after
+	end
+	net().on_change(unread_captions)
+end
+
+-- Unread marks on the tab captions: "Чаты (3)", "Контакты (1)".
+function unread_captions()
+	if not (pda_dynamic_tabs and pda_dynamic_tabs.set_caption) then return end
+	local chats, contacts = net().unread_total(), 0
+	for _, c in ipairs(net().contacts) do contacts = contacts + net().contact_unread(c.uid) end
+	for key, n in pairs({ st_pdanet_tab_chats = chats, st_pdanet_tab_contacts = contacts }) do
+		local caption = tr(key) .. (n > 0 and string.format(" (%d)", n) or "")
+		if tab_ids[key] and shown_captions[key] ~= caption then
+			shown_captions[key] = caption
+			pda_dynamic_tabs.set_caption(tab_ids[key], caption)
+		end
 	end
 end
 

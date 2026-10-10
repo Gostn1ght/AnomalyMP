@@ -1044,4 +1044,97 @@
   <string id="st_pdanet_dict_stop">
     <text>Остановить запись  %s</text>
   </string>
+  <string id="st_pdanet_photo_kb">
+    <text>%d КБ</text>
+  </string>
+  <string id="st_pdanet_camera_title">
+    <text>ФОТОКАМЕРА</text>
+  </string>
+  <string id="st_pdanet_camera_hint">
+    <text>ЛКМ - снимок          ПКМ - приближение          E / ESC - выход</text>
+  </string>
+  <string id="st_pdanet_camera_saved">
+    <text>СНИМОК СОХРАНЁН</text>
+  </string>
+  <string id="st_pdanet_camera_info">
+    <text>Снимков: %d  -  %dx</text>
+  </string>
+  <string id="st_pdanet_photo_no_engine">
+    <text>Фотокамера недоступна в этой версии игры</text>
+  </string>
+  <string id="st_pdanet_photo_failed">
+    <text>Снимок не получился</text>
+  </string>
+  <string id="st_pdanet_photo_sent">
+    <text>Снимок отправлен</text>
+  </string>
+  <string id="st_pdanet_photo_bad">
+    <text>Снимок повреждён</text>
+  </string>
+  <string id="st_pdanet_photo_kept">
+    <text>Снимок сохранён в галерее</text>
+  </string>
+  <string id="st_pdanet_photo_title">
+    <text>ФОТОКАМЕРА КПК</text>
+  </string>
+  <string id="st_pdanet_photo_about">
+    <text>Снимайте ориентиры и делитесь кадрами в переписках.\n\nЛКМ - сделать снимок.\nПКМ - приближение 1x / 2x / 4x.\nE или ESC - выйти.\n\nСнимки сохраняются в галерее.</text>
+  </string>
+  <string id="st_pdanet_photo_count">
+    <text>Снимков: %d</text>
+  </string>
+  <string id="st_pdanet_photo_shoot">
+    <text>Режим съёмки</text>
+  </string>
+  <string id="st_pdanet_photo_caption">
+    <text>Дата: %s\nМесто: %s\nРазмер: %s</text>
+  </string>
+  <string id="st_pdanet_photo_none">
+    <text>Снимков ещё нет.</text>
+  </string>
+  <string id="st_pdanet_photo_open">
+    <text>Открыть снимок</text>
+  </string>
+  <string id="st_pdanet_photo_delete">
+    <text>Удалить снимок</text>
+  </string>
+  <string id="st_pdanet_gallery_empty">
+    <text>Плёнка пуста. Снимайте во вкладке «Фото».</text>
+  </string>
+  <string id="st_pdanet_gallery_nopick">
+    <text>Снимок не выбран.</text>
+  </string>
+  <string id="st_pdanet_photo_send_to">
+    <text>Отправка в чат: %s</text>
+  </string>
+  <string id="st_pdanet_photo_keep">
+    <text>В галерею</text>
+  </string>
+  <string id="st_pdanet_photo_loading">
+    <text>Снимок загружается...</text>
+  </string>
+  <string id="st_pdanet_task_msg">
+    <text>Задание</text>
+  </string>
+  <string id="st_pdanet_point_here">
+    <text>Моя позиция</text>
+  </string>
+  <string id="st_pdanet_pick_photo">
+    <text>Выберите снимок</text>
+  </string>
+  <string id="st_pdanet_pick_point">
+    <text>Выберите точку (подпись - в поле ввода)</text>
+  </string>
+  <string id="st_pdanet_send_task">
+    <text>Отправить задание</text>
+  </string>
+  <string id="st_pdanet_task_to">
+    <text>Задание для: %s</text>
+  </string>
+  <string id="st_pdanet_no_tasks">
+    <text>Активных заданий нет</text>
+  </string>
+  <string id="st_pdanet_task_sent">
+    <text>Задание отправлено: %s</text>
+  </string>
 </string_table>

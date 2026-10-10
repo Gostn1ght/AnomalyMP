@@ -64,6 +64,7 @@ jobs:
           python scripts/check-netcoop-mutant-loot.py
           python scripts/check-netcoop-pdanet.py
           python scripts/check-netcoop-pdanet-voice.py
+          python scripts/check-netcoop-pdanet-photo.py
           python scripts/check-netcoop-anims.py
           python scripts/check-netcoop-artefacts.py
           python scripts/check-netcoop-voice.py

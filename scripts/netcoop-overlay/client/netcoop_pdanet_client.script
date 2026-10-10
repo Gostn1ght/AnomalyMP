@@ -70,6 +70,8 @@ function on_change(fn) listeners[#listeners + 1] = fn end
 local function changed(what)
 	for _, fn in ipairs(listeners) do pcall(fn, what) end
 end
+-- other PDA modules: something to show has arrived (a photo)
+function notify(what) changed(what) end
 
 local function sort_chats()
 	table.sort(chats, function(a, b)
@@ -122,6 +124,8 @@ local function apply(verb, v)
 		notes = list(v)
 	elseif verb == "asent" then
 		if netcoop_pdanet_voice then netcoop_pdanet_voice.on_sent() end
+	elseif verb == "psent" then
+		if netcoop_pdanet_photo then netcoop_pdanet_photo.on_sent() end
 	elseif verb == "paid" and type(v) == "table" then
 		local n = tonumber(v.amount) or 0
 		if actor_menu and actor_menu.set_msg then
@@ -151,6 +155,11 @@ function receive(data)
 		if netcoop_pdanet_voice then netcoop_pdanet_voice.on_audio(aid, data or "") end
 		return
 	end
+	if verb == "photo" then -- a photo from a chat: "<id>|<base64>"
+		local pid, data = string.match(body, "^(%x+)|(.*)$")
+		if netcoop_pdanet_photo then netcoop_pdanet_photo.on_photo(pid, data or "") end
+		return
+	end
 	apply(verb, decode(body))
 end
 
@@ -177,13 +186,54 @@ function post(id, text)
 	text = clean(text)
 	if text ~= "" then send("msg " .. id .. " text " .. text) end
 end
--- A map point at the player's position with a caption.
-function post_point(id, caption)
+-- A map point at the player's position (or at "at" = { level, x, y, z }) with a caption.
+function post_point(id, caption, at)
 	local a = db.actor
-	if not a then return end
-	local p = a:position()
+	if not (a or at) then return end
+	local p = at or a:position()
 	send(string.format("msg %s point %s\t%s %.1f %.1f %.1f", id, clean(caption ~= "" and caption or game.translate_string("st_pdanet_point")),
-		level.name(), p.x, p.y, p.z))
+		at and at.level or level.name(), p.x, p.y, p.z))
+end
+
+----------------------------------------------------------------------
+-- Tasks: the server sends this player's task list; the engine tells
+-- netcoop_client_compat.on_task(id, "new"/"complete"/"fail") for each change,
+-- the whole list arriving as "new" after login.
+----------------------------------------------------------------------
+local task_ids = {}
+function note_task(id, kind)
+	if not id then return end
+	if kind == "new" then task_ids[id] = true else task_ids[id] = nil end
+end
+-- Active tasks: { id, title, at = { level, x, y, z } or nil }
+function active_tasks()
+	local out = {}
+	local a = db.actor
+	if not (a and a.get_task) then return out end
+	for id in pairs(task_ids) do
+		local t = a:get_task(id, true)
+		if t then
+			local at
+			local oid = t.get_map_object_id and t:get_map_object_id()
+			local obj = oid and oid > 0 and oid < 65535 and level.object_by_id(oid)
+			if obj then
+				local p = obj:position()
+				at = { level = level.name(), x = p.x, y = p.y, z = p.z }
+			end
+			out[#out + 1] = { id = id, title = game.translate_string(t:get_title() or id), at = at }
+		else
+			task_ids[id] = nil
+		end
+	end
+	table.sort(out, function(x, y) return x.title < y.title end)
+	return out
+end
+-- A task to a contact: its title and target ("Отметить на карте" for him).
+function send_task_to(uid, task)
+	if not (task and task.title) then return end
+	send("dm " .. tostring(uid))
+	local data = task.at and string.format("\t%s %.1f %.1f %.1f", task.at.level, task.at.x, task.at.y, task.at.z) or ""
+	send("msg " .. dm_id(uid) .. " task " .. clean(task.title) .. data)
 end
 function new_group(name, icon, uids)
 	send("group " .. string.gsub(clean(name), "|", " ") .. "|" .. (icon or "") .. "|" .. table.concat(uids, ","))
@@ -272,4 +322,13 @@ local function on_first_update() hello(); ask_notes() end
 function on_game_start()
 	if not (netcoop_pure_client and netcoop_pure_client()) then return end
 	RegisterScriptCallback("actor_on_first_update", on_first_update)
+	-- keep the task list for "send a task" (netcoop_client_compat logs them)
+	local compat = netcoop_client_compat
+	if compat and compat.on_task then
+		local base = compat.on_task
+		compat.on_task = function(id, kind)
+			note_task(id, kind)
+			return base(id, kind)
+		end
+	end
 end

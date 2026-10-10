@@ -18,6 +18,8 @@
 --   pda_memo/<char>  { {id, title, text, t, g}, ... } - his notes ("Заметки")
 --   pda_audio/<aid>  { cid, parts, secs, by } and pda_audio/<aid>.<n> - a voice
 --                    message / dictaphone record (engine recording, base64)
+--   pda_photo/<pid>  { cid, parts, by, place, g } and pda_photo/<pid>.<n> - a
+--                    photo sent to a chat (engine DDS, base64; netcoop_photo.inc)
 -- A message: { s = seq, f = sender uid ("" anonymous), k = kind, x = text, d = data, t = os time, g = game minutes }
 -- Client -> server: netcoop command "pdanet <verb> <args>".
 -- Server -> client: channel "pdanet", chunks "n/total|<verb>|<serialized>".
@@ -28,10 +30,12 @@ local ONLINE = 90            -- seconds since the last heartbeat
 local HEARTBEAT = 30
 local CHUNK = 7000
 local MAX_CONTACTS, MAX_CHATS, MAX_GROUP = 200, 100, 20
-local KINDS = { text = true, point = true, photo = true, voice = true }  -- "transfer" only by "pay"
+-- "transfer" only by "pay", "photo" only by a photo upload ("pbeg")
+local KINDS = { text = true, point = true, voice = true, task = true }
 local MAX_PAY = 1000000
 local NOTES, NOTE_TITLE, NOTE_TEXT = 40, 60, 1200
 local AUDIO_MAX_PARTS, AUDIO_PART, AUDIO_SECS = 700, 56000, 600
+local PHOTO_MAX_PARTS = 190 -- 3800 characters each: a 640x360 photo is ~41 parts
 
 local ser = function(v) return netcoop_transit.serialize(v) end
 local function de(text)
@@ -340,7 +344,10 @@ function handlers.msg(id, me, char, args)
 	if not (cid and KINDS[kind]) then return "bad message" end
 	if not me.chats[cid] then return "no such chat" end
 	local text, data = string.match(rest, "^([^\t]*)\t?(.*)$")
-	if kind == "point" and not string.match(data or "", "^[%w_]+ %-?[%d%.]+ %-?[%d%.]+ %-?[%d%.]+$") then return "bad point" end
+	local place = "^[%w_]+ %-?[%d%.]+ %-?[%d%.]+ %-?[%d%.]+$"
+	if kind == "point" and not string.match(data or "", place) then return "bad point" end
+	-- a task: its title, and where it points if it has a target
+	if kind == "task" and ((text or "") == "" or (data ~= "" and not string.match(data, place))) then return "bad task" end
 	local msg, err = post(cid, me.uid, kind, text, data ~= "" and data or nil)
 	if not msg then return err end
 	mark_read(char, cid, msg.s)
@@ -467,11 +474,12 @@ function handlers.note_del(id, me, char, args)
 end
 
 ----------------------------------------------------------------------
--- Voice messages: the client uploads a recording in parts of up to 3800
--- characters ("abeg" once, then "aup"), the server stores it and posts the
--- message; members of the chat fetch it with "aget".
+-- Voice messages and photos: the client uploads a recording ("abeg") or a
+-- photo ("pbeg") in parts of up to 3800 characters ("aup" for both), the
+-- server stores it and posts the message; members of the chat fetch it
+-- with "aget" / "pget".
 ----------------------------------------------------------------------
-local uploads = {} -- entity id -> { aid, cid, secs, total, parts, got, at }
+local uploads = {} -- entity id -> { kind, aid, cid, secs, place, total, parts, got, at }
 
 -- abeg <aid> <cid> <secs> <parts>
 function handlers.abeg(id, me, char, args)
@@ -481,24 +489,45 @@ function handlers.abeg(id, me, char, args)
 	local c = me.chats[cid] and read("pda_chat", cid)
 	if not c or not c.members[me.uid] then return "no such chat" end -- chats only, not the general channel
 	if netcoop_store_read("pda_audio", aid) ~= "" then return "try again" end
-	uploads[id] = { aid = aid, cid = cid, secs = secs, total = total, parts = {}, got = 0, at = time_global(), uid = me.uid, char = char }
+	uploads[id] = { kind = "audio", aid = aid, cid = cid, secs = secs, total = total, parts = {}, got = 0, at = time_global(), uid = me.uid, char = char }
+end
+
+-- pbeg <pid> <cid> <parts> <level> : a photo for a chat or group
+function handlers.pbeg(id, me, char, args)
+	local pid, cid, total, place = string.match(args, "^(%x+) ([%w_]+) (%d+) ([%w_]+)$")
+	total = tonumber(total)
+	if not pid or #pid ~= 16 or total < 1 or total > PHOTO_MAX_PARTS then return "bad photo" end
+	local c = me.chats[cid] and read("pda_chat", cid)
+	if not c or not c.members[me.uid] then return "no such chat" end
+	if netcoop_store_read("pda_photo", pid) ~= "" then return "try again" end
+	uploads[id] = { kind = "photo", aid = pid, cid = cid, place = string.sub(place, 1, 40), total = total, parts = {}, got = 0,
+		at = time_global(), uid = me.uid, char = char }
 end
 
 local function upload_done(id, u)
 	uploads[id] = nil
+	local photo = u.kind == "photo"
+	local bucket = photo and "pda_photo" or "pda_audio"
 	local data = table.concat(u.parts)
-	if not string.match(data, "^[%w%+/]+=*$") then send(id, "err", "bad record") return end
+	-- a photo is a DDS file: base64 of "DDS " starts with "RERT"
+	if not string.match(data, "^[%w%+/]+=*$") or (photo and string.sub(data, 1, 4) ~= "RERT") then
+		send(id, "err", photo and "bad photo" or "bad record") return
+	end
 	local n = math.ceil(#data / AUDIO_PART)
 	for i = 1, n do
-		netcoop_store_swap("pda_audio", u.aid .. "." .. i, netcoop_store_read("pda_audio", u.aid .. "." .. i),
+		netcoop_store_swap(bucket, u.aid .. "." .. i, netcoop_store_read(bucket, u.aid .. "." .. i),
 			string.sub(data, (i - 1) * AUDIO_PART + 1, i * AUDIO_PART))
 	end
-	if not netcoop_store_swap("pda_audio", u.aid, "", ser({ cid = u.cid, parts = n, secs = u.secs, by = u.uid })) then
+	local meta = photo and { cid = u.cid, parts = n, by = u.uid, place = u.place, g = game_minutes() }
+		or { cid = u.cid, parts = n, secs = u.secs, by = u.uid }
+	if not netcoop_store_swap(bucket, u.aid, "", ser(meta)) then
 		send(id, "err", "try again") return
 	end
-	local msg = post(u.cid, u.uid, "voice", "", u.aid .. " " .. u.secs)
+	local msg
+	if photo then msg = post(u.cid, u.uid, "photo", "", u.aid .. " " .. u.place .. " " .. #data)
+	else msg = post(u.cid, u.uid, "voice", "", u.aid .. " " .. u.secs) end
 	if msg then mark_read(u.char, u.cid, msg.s) end
-	send(id, "asent", { aid = u.aid, cid = u.cid })
+	send(id, photo and "psent" or "asent", { aid = u.aid, cid = u.cid })
 end
 
 -- aup <aid> <n> <part> : no profile work per part (many arrive per second)
@@ -513,16 +542,18 @@ local function audio_part(id, args)
 	return ""
 end
 
--- aget <aid> : the record, for members of its chat
-function handlers.aget(id, me, char, args)
+-- aget <aid> / pget <pid> : the record or photo, for members of its chat
+local function fetch(id, me, args, bucket, verb, missing)
 	local aid = string.match(args, "^(%x+)$")
-	local meta = aid and read("pda_audio", aid)
-	if not meta then return "no such record" end
-	if not me.chats[meta.cid] and meta.by ~= me.uid then return "no such record" end
+	local meta = aid and read(bucket, aid)
+	if not meta then return missing end
+	if not me.chats[meta.cid] and meta.by ~= me.uid then return missing end
 	local out = {}
-	for i = 1, tonumber(meta.parts) or 0 do out[i] = netcoop_store_read("pda_audio", aid .. "." .. i) end
-	send(id, "audio", aid .. "|" .. table.concat(out))
+	for i = 1, tonumber(meta.parts) or 0 do out[i] = netcoop_store_read(bucket, aid .. "." .. i) end
+	send(id, verb, aid .. "|" .. table.concat(out))
 end
+function handlers.aget(id, me, char, args) return fetch(id, me, args, "pda_audio", "audio", "no such record") end
+function handlers.pget(id, me, char, args) return fetch(id, me, args, "pda_photo", "photo", "no such photo") end
 
 function command(entity_id, args)
 	local verb, rest = string.match(args or "", "^([%a_]+)%s?(.*)$")

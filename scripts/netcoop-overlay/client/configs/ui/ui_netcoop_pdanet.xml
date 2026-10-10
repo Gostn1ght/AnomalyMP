@@ -72,4 +72,24 @@
         <text x="8" font="letterica16" complex_mode="0" vert_align="c" r="208" g="219" b="226"/>
         <texture>ui_inGame2_edit_box_2</texture>
     </edit_uid>
+    <!-- a PDA photo (netcoop_pdanet_photo); the texture is set by name -->
+    <photo x="0" y="0" width="10" height="10" stretch="1">
+        <texture>ui\ui_noise</texture>
+    </photo>
+    <!-- photo mode (HUD, 1024x768): corner brackets, title, zoom/count, hint -->
+    <cam_bar x="0" y="0" width="10" height="3" stretch="1">
+        <texture a="230" r="235" g="240" b="240">ui_icons_PDA_tooltips</texture>
+    </cam_bar>
+    <cam_title x="80" y="76" width="400" height="34">
+        <text r="235" g="240" b="240" font="graffiti32" align="l" vert_align="c"/>
+    </cam_title>
+    <cam_info x="544" y="76" width="400" height="34">
+        <text r="235" g="240" b="240" font="letterica18" align="r" vert_align="c"/>
+    </cam_info>
+    <cam_hint x="80" y="660" width="864" height="30">
+        <text r="215" g="222" b="226" font="letterica16" align="c" vert_align="c"/>
+    </cam_hint>
+    <cam_saved x="262" y="420" width="500" height="40">
+        <text r="235" g="225" b="190" font="graffiti32" align="c" vert_align="c"/>
+    </cam_saved>
 </w>

@@ -1,0 +1,491 @@
+-- PDA photos (owner 2026-10-10, after New Way; docs/audit/89 P4).
+-- "Фото": the photo mode - the PDA is put away, a camera frame is drawn,
+-- LMB takes a shot, RMB zooms 1x / 2x / 4x, E or ESC leaves. "Галерея": the
+-- shots of this PDA (date, place, size), delete, send to the chat open in
+-- "Чаты". Photos in chats are fetched from the server when opened.
+-- Engine (netcoop_photo.inc): netcoop_photo_take saves the next frame as a
+-- small DDS under $game_saves$\netcoop_photos\, the UI shows it by the
+-- texture name "netcoop_photos\<name>".
+
+local MAX_PHOTOS, PART, PARTS_PER_SECOND = 60, 3800, 20
+local ZOOMS = { 1, 2, 4 }
+
+local function tr(id) return game.translate_string(id) end
+local function tip(id, ...)
+	if actor_menu and actor_menu.set_msg then actor_menu.set_msg(1, string.format(tr(id), ...), 3) end
+end
+local function engine() return netcoop_photo_take ~= nil end
+local function my_uid() return netcoop_pdanet_client and netcoop_pdanet_client.me.uid or "" end
+local function new_id()
+	local t = {}
+	for i = 1, 16 do t[i] = string.format("%x", math.random(0, 15)) end
+	return table.concat(t)
+end
+local function game_minutes()
+	local base = game.CTime()
+	if base.set then base:set(2012, 1, 1, 0, 0, 0, 0) end
+	return math.floor(game.get_game_time():diffSec(base) / 60)
+end
+local sounds = {}
+local function sound(name)
+	if not (db.actor and sound_object) then return end
+	local ok = pcall(function()
+		sounds[name] = sounds[name] or sound_object("device\\pda\\" .. name)
+		sounds[name]:play(db.actor, 0, sound_object.s2d)
+	end)
+	return ok
+end
+
+----------------------------------------------------------------------
+-- Gallery: the shots of this PDA (an index file per character's UID)
+----------------------------------------------------------------------
+photos = {} -- newest first: { id, g (game minutes), level, bytes }
+local loaded_for = nil
+
+function file_name(p) return "g" .. my_uid() .. "_" .. p.id end
+function texture(name) return "netcoop_photos\\" .. name end
+
+local function index_path()
+	local uid = my_uid()
+	if uid == "" then return nil end
+	return getFS():update_path("$app_data_root$", "netcoop_gallery_" .. uid .. ".txt")
+end
+local function save()
+	local path = index_path()
+	if not path then return end
+	local f = io.open(path, "wb")
+	if not f then return end
+	for _, p in ipairs(photos) do f:write(string.format("%s|%d|%s|%d\n", p.id, p.g or 0, p.level or "", p.bytes or 0)) end
+	f:close()
+end
+function load()
+	local path = index_path()
+	if not path or loaded_for == path then return end
+	loaded_for, photos = path, {}
+	local f = io.open(path, "rb")
+	if not f then return end
+	for line in f:lines() do
+		local id, g, lvl, bytes = string.match(line, "^(%x+)|(%d+)|([%w_]*)|(%d+)")
+		if id then photos[#photos + 1] = { id = id, g = tonumber(g), level = lvl, bytes = tonumber(bytes) } end
+	end
+	f:close()
+	-- shots whose file is gone (deleted by hand) leave the list
+	local kept = {}
+	for _, p in ipairs(photos) do
+		if not engine() or netcoop_photo_exists(file_name(p)) then kept[#kept + 1] = p end
+	end
+	if #kept ~= #photos then photos = kept; save() end
+end
+
+function delete(i)
+	load()
+	local p = photos[i]
+	if not p then return end
+	if engine() then netcoop_photo_delete(file_name(p)) end
+	table.remove(photos, i)
+	save()
+end
+
+local function add(p)
+	load()
+	table.insert(photos, 1, p)
+	while #photos > MAX_PHOTOS do
+		local old = table.remove(photos)
+		if engine() then netcoop_photo_delete(file_name(old)) end
+	end
+	save()
+end
+
+-- "12.09.2012 15:16", "Болота", "73 КБ"
+function when(p) return netcoop_pdanet_client.when({ g = p.g }) end
+function place(lvl) return lvl and lvl ~= "" and tr(lvl) or "?" end
+function size_text(bytes) return string.format(tr("st_pdanet_photo_kb"), math.max(1, math.floor((bytes or 0) / 1024 + 0.5))) end
+
+----------------------------------------------------------------------
+-- Photo mode
+----------------------------------------------------------------------
+local mode = nil -- { zoom, phase = "aim"|"hide"|"wait", frames, name, id, deadline, saved_until }
+local overlay = nil
+
+class "pdanet_camera" (CUIScriptWnd)
+function pdanet_camera:__init() super()
+	self:SetWndRect(Frect():set(0, 0, 1024, 768))
+	self:SetAutoDelete(false)
+	local xml = CScriptXmlInit()
+	xml:ParseFile("ui_netcoop_pdanet.xml")
+	local function bar(x, y, w, h)
+		local b = xml:InitStatic("cam_bar", self)
+		b:SetWndPos(vector2():set(x, y))
+		b:SetWndSize(vector2():set(w, h))
+	end
+	-- corner brackets
+	local L, T, R, B, S, W = 64, 64, 960, 704, 72, 3
+	bar(L, T, S, W); bar(L, T, W, S)
+	bar(R - S, T, S, W); bar(R - W, T, W, S)
+	bar(L, B - W, S, W); bar(L, B - S, W, S)
+	bar(R - S, B - W, S, W); bar(R - W, B - S, W, S)
+	-- centre mark
+	bar(504, 383, 16, 2); bar(511, 376, 2, 16)
+	self.title = xml:InitStatic("cam_title", self)
+	self.info = xml:InitStatic("cam_info", self)
+	self.hint = xml:InitStatic("cam_hint", self)
+	self.saved = xml:InitStatic("cam_saved", self)
+	self.title:TextControl():SetText(tr("st_pdanet_camera_title"))
+	self.hint:TextControl():SetText(tr("st_pdanet_camera_hint"))
+	self.saved:TextControl():SetText(tr("st_pdanet_camera_saved"))
+end
+function pdanet_camera:Fill()
+	load()
+	self.info:TextControl():SetText(string.format(tr("st_pdanet_camera_info"), #photos, mode and mode.zoom or 1))
+	self.saved:Show(mode ~= nil and mode.saved_until ~= nil and time_global() < mode.saved_until)
+end
+
+local function overlay_show(on)
+	local hud = get_hud and get_hud()
+	if not hud then return end
+	if on then
+		overlay = overlay or pdanet_camera()
+		overlay:Fill()
+		hud:AddDialogToRender(overlay)
+	elseif overlay then
+		hud:RemoveDialogToRender(overlay)
+	end
+end
+
+function active() return mode ~= nil end
+
+local function close_pda()
+	local pm = ActorMenu and ActorMenu.get_pda_menu and ActorMenu.get_pda_menu()
+	if pm and pm:IsShown() then pm:HideDialog() end
+	if db.actor and db.actor:active_slot() == 8 then db.actor:activate_slot(0) end -- the 3D PDA in hand
+end
+
+function enter()
+	if mode or not db.actor then return end
+	if not engine() then tip("st_pdanet_photo_no_engine") return end
+	close_pda()
+	mode = { zoom = 1, phase = "aim" }
+	db.actor:hide_weapon()
+	level.hide_indicators_safe()
+	netcoop_photo_zoom(1)
+	overlay_show(true)
+end
+
+function leave()
+	if not mode then return end
+	mode = nil
+	overlay_show(false)
+	netcoop_photo_zoom(1)
+	if db.actor then db.actor:restore_weapon() end
+	level.show_indicators()
+end
+
+local function shoot()
+	if not mode or mode.phase ~= "aim" then return end
+	mode.id = new_id()
+	mode.name = "g" .. my_uid() .. "_" .. mode.id
+	mode.phase, mode.frames = "hide", 2 -- the camera frame must not be in the shot
+	overlay_show(false)
+end
+
+local function zoom_step()
+	if not mode then return end
+	local next_i = 1
+	for i, z in ipairs(ZOOMS) do if z == mode.zoom then next_i = i % #ZOOMS + 1 end end
+	local before = mode.zoom
+	mode.zoom = ZOOMS[next_i]
+	netcoop_photo_zoom(mode.zoom)
+	sound(mode.zoom > before and "pda_camera_zoom_in" or "pda_camera_zoom_out")
+	if overlay then overlay:Fill() end
+end
+
+local function on_key(dik)
+	if not mode then return end
+	if dik == DIK_keys.MOUSE_1 then shoot()
+	elseif dik == DIK_keys.MOUSE_2 then zoom_step()
+	elseif dik == DIK_keys.DIK_E or dik == DIK_keys.DIK_ESCAPE then leave() end
+end
+
+local function camera_update()
+	if not mode then return end
+	if not (db.actor and db.actor:alive()) then leave() return end
+	if mode.phase == "hide" then
+		mode.frames = mode.frames - 1
+		if mode.frames > 0 then return end
+		if netcoop_photo_take(mode.name) then
+			mode.phase, mode.deadline = "wait", time_global() + 2000
+		else
+			mode.phase = "aim"
+			overlay_show(true)
+			tip("st_pdanet_photo_failed")
+		end
+	elseif mode.phase == "wait" then
+		if netcoop_photo_exists(mode.name) then
+			add({ id = mode.id, g = game_minutes(), level = level.name(), bytes = netcoop_photo_size(mode.name) })
+			sound("pda_camera_shutter")
+			mode.phase, mode.saved_until = "aim", time_global() + 1500
+			overlay_show(true)
+		elseif time_global() > mode.deadline then
+			mode.phase = "aim"
+			overlay_show(true)
+			tip("st_pdanet_photo_failed")
+		end
+	elseif overlay and mode.saved_until and time_global() > mode.saved_until then
+		mode.saved_until = nil
+		overlay:Fill()
+	end
+end
+
+----------------------------------------------------------------------
+-- Sending a shot to a chat; photos from chats
+----------------------------------------------------------------------
+local queue = nil -- { pid, parts, next, at, done_at }
+
+function uploading()
+	if not queue then return nil end
+	return math.floor((queue.next - 1) * 100 / #queue.parts)
+end
+
+-- photo i of the gallery to chat cid
+function send(i, cid)
+	load()
+	local p = photos[i]
+	if not p then return false end
+	if not cid then tip("st_pdanet_rec_open_chat") return false end
+	local v = netcoop_pdanet_voice
+	if queue or (v and v.uploading and v.uploading()) then tip("st_pdanet_rec_busy") return false end
+	local data = engine() and netcoop_photo_read(file_name(p)) or ""
+	if data == "" then tip("st_pdanet_photo_failed") return false end
+	local parts = {}
+	for n = 1, math.ceil(#data / PART) do parts[n] = string.sub(data, (n - 1) * PART + 1, n * PART) end
+	if #parts > 190 then tip("st_pdanet_photo_failed") return false end
+	local pid = new_id()
+	netcoop_photo_write("c_" .. pid, data) -- own message shows without a fetch
+	queue = { pid = pid, parts = parts, next = 1, at = 0 }
+	netcoop_command(string.format("pdanet pbeg %s %s %d %s", pid, cid, #parts, (p.level ~= "" and p.level) or "unknown"))
+	tip("st_pdanet_rec_sending")
+	return true
+end
+
+function on_sent()
+	queue = nil
+	tip("st_pdanet_photo_sent")
+end
+
+-- A photo message: "<pid> <level> <bytes>". Its texture name once it is here.
+local wanted = {}
+function message_photo(m)
+	local pid = string.match(m.d or "", "^(%x+)")
+	if not pid then return nil end
+	local name = "c_" .. pid
+	if engine() and netcoop_photo_exists(name) then return texture(name), pid end
+	if not wanted[pid] then
+		wanted[pid] = true
+		netcoop_command("pdanet pget " .. pid)
+	end
+	return nil, pid
+end
+function message_place(m) return place(string.match(m.d or "", "^%x+ ([%w_]+)")) end
+
+-- channel "pdanet" verb "photo": "<pid>|<data>"
+function on_photo(pid, data)
+	if not pid or data == "" or not engine() then return end
+	wanted[pid] = nil
+	if not netcoop_photo_write("c_" .. pid, data) then tip("st_pdanet_photo_bad") return end
+	if netcoop_pdanet_client and netcoop_pdanet_client.notify then netcoop_pdanet_client.notify("photo") end
+end
+
+-- a photo from a chat into the gallery
+function keep(pid, lvl)
+	if not (engine() and pid) then return false end
+	local data = netcoop_photo_read("c_" .. pid)
+	if data == "" then return false end
+	local id = new_id()
+	if not netcoop_photo_write("g" .. my_uid() .. "_" .. id, data) then return false end
+	add({ id = id, g = game_minutes(), level = lvl or "", bytes = math.floor(#data * 3 / 4) })
+	tip("st_pdanet_photo_kept")
+	return true
+end
+
+local function update()
+	camera_update()
+	if queue and time_global() >= queue.at then
+		queue.at = time_global() + math.floor(1000 / PARTS_PER_SECOND)
+		local n = queue.next
+		if n <= #queue.parts then
+			netcoop_command(string.format("pdanet aup %s %d %s", queue.pid, n, queue.parts[n]))
+			queue.next = n + 1
+		elseif not queue.done_at then
+			queue.done_at = time_global()
+		elseif time_global() - queue.done_at > 30000 then
+			queue = nil
+			tip("st_pdanet_photo_failed")
+		end
+	end
+end
+
+local function on_destroy() if mode then leave() end end
+
+function on_game_start()
+	if not (netcoop_pure_client and netcoop_pure_client()) then return end
+	RegisterScriptCallback("actor_on_update", update)
+	RegisterScriptCallback("on_key_press", on_key)
+	RegisterScriptCallback("actor_on_net_destroy", on_destroy)
+end
+
+----------------------------------------------------------------------
+-- The Фото tab: about the camera, "Режим съёмки", the last shot
+----------------------------------------------------------------------
+class "pdanet_photo_tab" (CUIScriptWnd)
+function pdanet_photo_tab:__init() super()
+	local u = netcoop_pdanet_ui.ui
+	self.u = u
+	u.base(self, "st_pdanet_tab_photo")
+	u.static(self, "panel", 36, 134, 264, 476)
+	local head = u.static(self, "msg_name", 52, 146, 232, 28)
+	u.text(head, tr("st_pdanet_photo_title"))
+	local about = u.static(self, "hint_left", 52, 180, 232, 250)
+	u.text(about, tr("st_pdanet_photo_about"))
+	self.count = u.static(self, "msg_head", 52, 500, 232, 24)
+	u.button(self, tr("st_pdanet_photo_shoot"), 52, 540, 232, 40, function() enter() end)
+	u.static(self, "panel", 312, 134, 472, 476)
+	self.last = u.static(self, "photo", 324, 146, 448, 252)
+	self.caption = u.static(self, "hint_left", 330, 410, 436, 180)
+	self:Fill()
+end
+function pdanet_photo_tab:Update()
+	CUIScriptWnd.Update(self)
+	self.u.tick(self, function() self:Fill() end)
+end
+function pdanet_photo_tab:Fill()
+	load()
+	local u, p = self.u, photos[1]
+	u.text(self.count, string.format(tr("st_pdanet_photo_count"), #photos))
+	self.last:Show(p ~= nil)
+	if p then
+		self.last:InitTexture(texture(file_name(p)))
+		u.text(self.caption, string.format(tr("st_pdanet_photo_caption"), when(p), place(p.level), size_text(p.bytes)))
+	else
+		u.text(self.caption, tr("st_pdanet_photo_none"))
+	end
+	u.footer(self)
+end
+
+----------------------------------------------------------------------
+-- The Галерея tab: thumbnails, preview with date/place/size, full view
+----------------------------------------------------------------------
+local COLS, ROWS = 3, 4
+local PER_PAGE = COLS * ROWS
+
+class "pdanet_gallery" (CUIScriptWnd)
+function pdanet_gallery:__init() super()
+	local u = netcoop_pdanet_ui.ui
+	self.u = u
+	u.base(self, "st_pdanet_tab_gallery")
+	self.page, self.selected = 0, nil
+	u.static(self, "panel", 36, 134, 472, 476)
+	self.cells = {}
+	for r = 1, ROWS do
+		for c = 1, COLS do
+			local k = (r - 1) * COLS + c
+			local x, y = 42 + (c - 1) * 154, 140 + (r - 1) * 110
+			local cell = {}
+			cell.btn = u.button(self, "", x, y, 148, 104, function() self:Pick(self.page * PER_PAGE + k) end, "row")
+			cell.img = u.static(self, "photo", x + 4, y + 4, 140, 79)
+			cell.img:Enable(false)
+			cell.date = u.static(self, "msg_head", x + 4, y + 84, 140, 18)
+			cell.date:Enable(false)
+			self.cells[k] = cell
+		end
+	end
+	self.empty = u.static(self, "hint", 60, 330, 424, 60)
+	u.button(self, "<", 36, 616, 60, 30, function() self.page = math.max(0, self.page - 1); self:Fill() end)
+	u.button(self, ">", 100, 616, 60, 30, function() self.page = self.page + 1; self:Fill() end)
+	u.button(self, tr("st_pdanet_photo_shoot"), 168, 616, 200, 30, function() enter() end)
+	self.count = u.static(self, "msg_head", 376, 620, 132, 24)
+	-- preview
+	u.static(self, "panel", 520, 134, 264, 406)
+	self.prev = u.static(self, "photo", 528, 142, 248, 140)
+	self.info = u.static(self, "hint_left", 530, 292, 244, 200)
+	self.open_btn = u.button(self, tr("st_pdanet_photo_open"), 520, 546, 264, 28, function() self:View(true) end)
+	self.send_btn = u.button(self, tr("st_pdanet_rec_send"), 520, 580, 128, 28, function()
+		local o = netcoop_pdanet_client.opened
+		if self.selected then send(self.selected, o and o.id) end
+	end)
+	self.del_btn = u.button(self, tr("st_pdanet_photo_delete"), 656, 580, 128, 28, function()
+		if self.selected then delete(self.selected); self.selected = nil; self:View(false); self:Fill() end
+	end)
+	-- full view over the tab
+	self.view = {}
+	self.view.back = u.static(self, "panel", 36, 134, 748, 506)
+	self.view.img = u.static(self, "photo", 50, 146, 720, 405)
+	self.view.prev = u.button(self, "<", 50, 560, 60, 30, function() self:Step(-1) end)
+	self.view.next = u.button(self, ">", 114, 560, 60, 30, function() self:Step(1) end)
+	self.view.info = u.static(self, "msg_head", 186, 564, 460, 24)
+	self.view.close = u.button(self, tr("st_pdanet_close"), 654, 560, 116, 30, function() self:View(false) end)
+	self:View(false)
+	self:Fill()
+end
+function pdanet_gallery:Update()
+	CUIScriptWnd.Update(self)
+	self.u.tick(self, function() self:Fill() end)
+end
+function pdanet_gallery:Pick(i)
+	load()
+	if not photos[i] then return end
+	if self.selected == i then self:View(true) return end -- second click: full view
+	self.selected = i
+	self:Fill()
+end
+function pdanet_gallery:Step(d)
+	load()
+	if not self.selected then return end
+	self.selected = math.max(1, math.min(#photos, self.selected + d))
+	self:View(true)
+end
+function pdanet_gallery:View(on)
+	self.viewing = on and self.selected ~= nil and photos[self.selected] ~= nil
+	self:Fill()
+end
+function pdanet_gallery:Fill()
+	load()
+	local u = self.u
+	local pages = math.max(1, math.ceil(#photos / PER_PAGE))
+	if self.page >= pages then self.page = pages - 1 end
+	for k = 1, PER_PAGE do
+		local i = self.page * PER_PAGE + k
+		local p = photos[i]
+		local cell = self.cells[k]
+		for _, w in pairs(cell) do w:Show(p ~= nil and not self.viewing) end
+		if p then
+			cell.img:InitTexture(texture(file_name(p)))
+			u.text(cell.date, (self.selected == i and "> " or "") .. when(p))
+		end
+	end
+	self.empty:Show(#photos == 0 and not self.viewing)
+	u.text(self.empty, tr("st_pdanet_gallery_empty"))
+	u.text(self.count, string.format(tr("st_pdanet_photo_count"), #photos))
+	local p = self.selected and photos[self.selected]
+	self.prev:Show(p ~= nil)
+	if p then
+		self.prev:InitTexture(texture(file_name(p)))
+		u.text(self.info, string.format(tr("st_pdanet_photo_caption"), when(p), place(p.level), size_text(p.bytes)))
+	else
+		u.text(self.info, tr("st_pdanet_gallery_nopick"))
+	end
+	for _, w in ipairs({ self.open_btn, self.send_btn, self.del_btn }) do w:Show(p ~= nil and not self.viewing) end
+	-- the full view covers the tab
+	if self.viewing and not p then self.viewing = false end
+	for _, w in pairs(self.view) do w:Show(self.viewing) end
+	if self.viewing then
+		self.view.img:InitTexture(texture(file_name(p)))
+		u.text(self.view.info, string.format("%d / %d     %s     %s     %s", self.selected, #photos, when(p), place(p.level), size_text(p.bytes)))
+	end
+	local up = uploading()
+	local o = netcoop_pdanet_client.opened
+	u.footer(self, up and string.format(tr("st_pdanet_rec_upload"), up)
+		or (o and string.format(tr("st_pdanet_photo_send_to"), o.summary and (o.summary.name or (o.summary.peer and (o.summary.peer.name or ("UID " .. tostring(o.summary.peer.uid))))) or "?") or ""))
+end
+
+function photo_window() return pdanet_photo_tab() end
+function gallery_window() return pdanet_gallery() end
