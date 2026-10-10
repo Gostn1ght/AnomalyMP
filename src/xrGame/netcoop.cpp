@@ -3830,6 +3830,7 @@ void script_watchdog_start()
 // ---------------------------------------------------------------------------
 #include "Weapon.h"
 #include "ai/stalker/ai_stalker.h"
+#include "CustomMonster.h"
 #include "memory_manager.h"
 #include "enemy_manager.h"
 #include "visual_memory_manager.h"
@@ -4515,6 +4516,35 @@ static u32 frame_percentile(u32 total, float share)
 	return 250;
 }
 
+// What the server keeps online and in ALife (doc 43 M02), once per window:
+// online stalkers / mutants / players, items lying in the world, physics
+// props, all online objects; ALife objects and how many of them are online.
+static void metric_world_counts()
+{
+	if (!g_pGameLevel) return;
+	u32 stalkers = 0, mutants = 0, players = 0, ground = 0, props = 0;
+	const u32 total = Level().Objects.o_count();
+	for (u32 i = 0; i < total; ++i)
+	{
+		CObject* object = Level().Objects.o_get_by_iterator(i);
+		if (!object || object->getDestroy()) continue;
+		if (smart_cast<CActor*>(object)) ++players;
+		else if (smart_cast<CAI_Stalker*>(object)) ++stalkers;
+		else if (smart_cast<CCustomMonster*>(object)) ++mutants;
+		else if (smart_cast<CInventoryItem*>(object)) { if (!object->H_Parent()) ++ground; }
+		else if (smart_cast<CPhysicObject*>(object)) ++props;
+	}
+	u32 alife_total = 0, alife_online = 0;
+	if (ai().get_alife())
+		for (const auto& entry : ai().alife().objects().objects())
+		{
+			++alife_total;
+			if (entry.second && entry.second->m_bOnline) ++alife_online;
+		}
+	Msg("[Lost Zone][world] online: %u objects, %u stalkers, %u mutants, %u players, %u items on the ground, %u props"
+		" | ALife %u objects, %u online", total, stalkers, mutants, players, ground, props, alife_total, alife_online);
+}
+
 void metrics_update()
 {
 	client_death_frame();
@@ -4578,6 +4608,7 @@ void metrics_update()
 				s_ai_interval_max, u32(s_ai_last_update.size()), double(s_prof_ticks[prof_replication]) * to_ms,
 				double(s_prof_ticks[prof_items]) * to_ms, double(physics_ticks) * to_ms, double(s_prof_ticks[prof_io]) * to_ms,
 				s_prof_calls[prof_io]);
+			metric_world_counts();
 		}
 		if (s_ai_notices)
 			Msg("[Lost Zone][metrics] ai noticed players %u avg %u max %u ms in view", s_ai_notices,
