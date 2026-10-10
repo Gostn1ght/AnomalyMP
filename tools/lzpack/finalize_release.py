@@ -79,6 +79,10 @@ def main():
     metadata=json.loads((artifact/'lzpack-format.json').read_text(encoding='utf-8-sig'))
     if actual!=args.expected_sha or metadata.get('format')!='LZPACK1' or metadata.get('key_fingerprint')!=hashlib.sha256(key).hexdigest()[:16]:
         raise ValueError('GHA artifact/key mismatch; existing folders were not changed')
+    for folder,subfolder,executable in ((game,'bin','LostZoneClientDX11.exe'),(server,'dedicated','LostZoneServerDX11.exe')):
+        installed=folder/subfolder/executable;built=artifact/subfolder/executable
+        if not installed.is_file() or not built.is_file() or digest(installed)!=digest(built):
+            raise ValueError('Install the matching GHA binaries before sealing archives')
     # All updates are immutable, versioned files; replacement is atomic. The
     # marker stops launchers during the final conversion of old packages.
     for folder in (game,server):(folder/'UPDATING.lock').write_text('Protected release is being assembled.\n',encoding='ascii')

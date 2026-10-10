@@ -146,6 +146,20 @@ u32 CStreamReader::find_chunk(u32 ID, BOOL* bCompressed)
 
 void CStreamReader::r_stringZ(shared_str& dest)
 {
+	if (m_protected_archive)
+	{
+		// Encrypted windows have exact logical boundaries. Read the terminator
+		// across them instead of keeping a pointer into a window after remap.
+		char text[4096]; u32 size = 0;
+		while (elapsed())
+		{
+			char value; r(&value, 1);
+			if (!value) { text[size] = 0; dest = text; return; }
+			R_ASSERT2(size < sizeof(text) - 1, "Protected archive string is too long");
+			text[size++] = value;
+		}
+		FATAL("Unterminated protected archive string");
+	}
 	char* dest_str = NULL;
 	u32 current_str_size = 0;
 	u8* end_str = NULL;

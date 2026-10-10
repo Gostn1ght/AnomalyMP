@@ -13,9 +13,16 @@ local function state()
 end
 
 local function now()
-    local base = game.CTime()
-    base:set(2012, 1, 1, 0, 0, 0, 0)
-    return game.get_game_time():diffSec(base)
+    -- CTime:diffSec returns float: years since an epoch lose second precision.
+    -- Lua doubles retain the integer calendar and millisecond component.
+    local year, month, day, hour, minute, second, ms = game.get_game_time():get()
+    local previous = year - 1
+    local days = previous * 365 + math.floor(previous / 4) - math.floor(previous / 100) + math.floor(previous / 400)
+    local months = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 }
+    local leap = year % 4 == 0 and (year % 100 ~= 0 or year % 400 == 0)
+    days = days + months[month] + day - 1 + (leap and month > 2 and 1 or 0)
+    local epoch = 2011 * 365 + math.floor(2011 / 4) - math.floor(2011 / 100) + math.floor(2011 / 400)
+    return ((days - epoch) * 24 + hour) * 3600 + minute * 60 + second + (ms or 0) / 1000
 end
 
 function plant(actor_id, item, action, login)

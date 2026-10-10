@@ -28,11 +28,14 @@ source=r'''
 #include <thread>
 #include <vector>
 #include <cstdio>
+#include <string>
 #define IC
 #define VERIFY(x) assert(x)
+#define R_ASSERT(x) assert(x)
 #define R_ASSERT2(x,m) do{if(!(x))throw std::runtime_error(m);}while(0)
 #define FATAL(m) throw std::runtime_error(m)
 using u8=unsigned char;using u32=std::uint32_t;
+using shared_str=std::string;
 template<class T>T _max(T a,T b){return (std::max)(a,b);}
 template<class T>T _min(T a,T b){return (std::min)(a,b);}
 template<class T>T* xr_alloc(u32 n){return static_cast<T*>(std::malloc(n*sizeof(T)));}
@@ -48,11 +51,12 @@ public:
  void construct(const HANDLE&,const u32&,const u32&,const u32&,const u32&,std::shared_ptr<LZPackArchive>);
  void destroy();void map(const u32&);void unmap();void remap(const u32&);
  void advance(const int&);void r(void*,u32);void seek(const int&);u32 tell()const;u32 elapsed()const;
+ void r_stringZ(shared_str&);
 };
 '''
 source += '\n'.join(function(stream,s) for s in (
     'void CStreamReader::construct(','void CStreamReader::destroy(','void CStreamReader::map(',
-    'void CStreamReader::advance(','void CStreamReader::r('))
+    'void CStreamReader::advance(','void CStreamReader::r(','void CStreamReader::r_stringZ('))
 source += '\n' + '\n'.join(function(inline,s) for s in (
     'IC void CStreamReader::unmap(','IC void CStreamReader::remap(','IC u32 CStreamReader::elapsed(',
     'IC void CStreamReader::seek(','IC u32 CStreamReader::tell('))
@@ -76,7 +80,9 @@ int main(int argc,char**argv){
  }
  CStreamReader child;child.construct(mapping,15,123456,archive->length(),65536,archive);
  std::vector<u8>part(123456);child.r(part.data(),static_cast<u32>(part.size()));
- assert(std::equal(part.begin(),part.end(),expected.begin()+15));child.destroy();reader.destroy();
+ assert(std::equal(part.begin(),part.end(),expected.begin()+15));child.destroy();
+ reader.seek(65530);shared_str name;reader.r_stringZ(name);assert(name=="cross_window_name"&&reader.tell()==65548);
+ reader.destroy();
  bool rejected=false;try{archive->read(archive->length(),whole.data(),1);}catch(const std::exception&){rejected=true;}assert(rejected);
  archive.reset();CloseHandle(mapping);CloseHandle(file);
  for(int index=3;index!=5;++index){
@@ -90,7 +96,8 @@ int main(int argc,char**argv){
 '''
 with TemporaryDirectory() as tmp:
     temp=Path(tmp);raw=temp/'plain.db';encrypted=temp/'protected.db0';cpp=temp/'reader.cpp';exe=temp/'reader.exe'
-    raw.write_bytes(bytes((i*13)%251 for i in range(3*lzpack.BLOCK+37)))
+    plain=bytearray((i*13)%251 for i in range(3*lzpack.BLOCK+37))
+    plain[65530:65548]=b'cross_window_name\0';raw.write_bytes(plain)
     lzpack.protect(raw,encrypted,bytes(range(32)))
     data=bytearray(encrypted.read_bytes());data[24]^=1;(temp/'bad-header.db0').write_bytes(data)
     data=bytearray(encrypted.read_bytes());data[48+lzpack.BLOCK+lzpack.TAG+1]^=1;(temp/'bad-block.db0').write_bytes(data)

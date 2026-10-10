@@ -1,5 +1,8 @@
-#ifndef LZPACK_STANDALONE
-#include "stdafx.h"
+// This translation unit deliberately uses only the Windows/STL boundary.
+// X-Ray's core headers require disabled C++ exceptions; CNG's bounded error
+// handling needs unwind semantics and is compiled separately without PCH.
+#ifndef NOMINMAX
+#define NOMINMAX
 #endif
 #include "lzpack_archive.h"
 #include <bcrypt.h>

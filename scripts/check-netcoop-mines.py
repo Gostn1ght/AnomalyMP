@@ -9,7 +9,10 @@ clock=1000;tick=0;world={};objects={};entities={};created=0;detonations={};consu
 function printf() end
 function time_global() return tick end
 alife_storage_manager={get_state=function() return world end}
-game={CTime=function() return {set=function() end} end,get_game_time=function() return {diffSec=function() return clock end} end}
+game={get_game_time=function() return {get=function()
+ if date then return unpack(date) end
+ return 2012,1,1,math.floor(clock/3600),math.floor(clock/60)%60,clock%60,0
+end} end}
 local function vec(x) return {x=x,distance_to=function(self,b) return math.abs(self.x-b.x) end} end
 actor={id=function() return 7 end,alive=function() return true end,position=function() return vec(10) end,
  level_vertex_id=function() return 1 end,game_vertex_id=function() return 2 end}
@@ -58,6 +61,9 @@ consume_fail=true;assert(plant(7,item('mine_new'),'txr_mines.func_prox_plant','o
 assert(not entities[104] and not world.netcoop_mines[104],'failed consumption rolls back the mine')
 consume_fail=false;assert(plant(7,item('ied_new'),'txr_mines.func_timer_plant_10','owner')=='')
 player_ids='8';clock=4000;tick=1400;update();assert(detonations[3].owner==65535,'never credits an unrelated reused actor id')
+date={2018,12,31,23,59,50,125};assert(plant(7,item('ied_new'),'txr_mines.func_timer_plant_10','owner')=='')
+date={2019,1,1,0,0,50,124};tick=1600;update();assert(#detonations==3,'millisecond precision across years')
+date={2019,1,1,0,0,50,126};tick=1800;update();assert(#detonations==4)
 ''')
 client=(root/'scripts/netcoop-overlay/client/netcoop_client_compat.script').read_text(encoding='cp1251')
 server=(root/'scripts/netcoop-overlay/server/netcoop_server_compat.script').read_text(encoding='cp1251')
