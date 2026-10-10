@@ -27,7 +27,7 @@ foreach ($root in $game, $host_) {
         if ((Select-String -LiteralPath $f.FullName -SimpleMatch $Builder -Quiet)) { $fail += "builder path in $($f.FullName)" }
     }
     $private = Get-ChildItem $root -Recurse -Force -File -ErrorAction SilentlyContinue | Where-Object {
-        $_.Name -match '^(netcoop_debug.*\.lua|accounts.*|.*\.scop|.*\.scoc|.*\.secret|netcoop.*secret.*|.*session.*|.*lease.*|.*ownership.*)$' -or
+        $_.Name -match '^(netcoop_debug.*\.lua|netcoop_.*(account|session|lease|ownership|secret|ticket|character).*|.*\.secret|.*\.scop|.*\.scoc)$' -or
         $_.FullName -match '\\appdata\\.*\\(savedgames|netcoop_cluster\\|accounts|characters)'
     }
     if ($private) { $fail += "private files in ${root}: " + (($private | Select-Object -First 5).FullName -join ", ") }

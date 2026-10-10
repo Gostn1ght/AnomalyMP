@@ -81,4 +81,32 @@ param defaults; a "\r" in a generated path; volume regex missed .dba-.dbf; a
 broken first mklink attempt left J:\LostZone\_work$c (junction to "C:\C:\...",
 removed with rmdir only).
 
-NOT done: starting either folder (forbidden until the owner allows).
+## Result (2026-10-10 02:40)
+
+Packs: 37 volumes, 36.56 GB (misc 1, meshes 13, levels 2, sounds 4 = 4.05 GB,
+textures 17 = ~17.4 GB from 36.7 GB; -fast still compressed DDS where it paid).
+Binaries: GHA artifact 23bc1ab47 (DX11 run 37989909235 SUCCESS: changer fix,
+K10, church scientist, all earlier fixes). Assembly with -SkipCopy.
+
+- J:\LostZone\Lost Zone: 50.3 GB, 117 hashed files (bin, client, gamedata,
+  db + db\lostzone 36 packs), "Play Lost Zone.cmd".
+- J:\LostZone\Lost Zone Server: 27.1 GB, 81 hashed files (dedicated, server,
+  hoster panel + 33-map plan, db without textures + 20 packs),
+  "Start Server Panel.cmd".
+- check-portable-release.ps1: PASS (no links, no builder paths, no PDB/private
+  files, archives complete), MANIFEST-sha256.txt in each folder. J: free 41 GB.
+  _work (junctions + ltx) can be deleted by the owner; nothing else uses it.
+
+Fixed during the run: the 17th volume is named .dbg (xrCompress goes on past
+.dbf; the loader accepts any .db*) and was left in _work by the .db[0-9a-f]
+pattern - moved, pattern is .db[0-9a-z], the check now fails on packs left in
+_work. The private-file rule had false positives on GAMMA data (stash configs
+secret*.ltx, release_*.script): it now matches netcoop_* account/session/lease/
+ownership/secret/ticket/character names, *.secret and saves; cluster state
+lives in appdata
+etcoop_cluster (path rule) and the real cluster secret is
+netcoop_cluster.secret, created on the host at first start.
+
+NOT done: starting either folder (forbidden until the owner allows). Whether
+the game loads from the packs is therefore unproven; the layout follows the
+loader's source (above).
