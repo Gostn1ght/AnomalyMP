@@ -141,3 +141,22 @@ own storage) and drag-and-drop part replacement is a third writer. One
 authority for parts (server state + replication + where wear is computed)
 must be designed before enabling the menus; doing it blind risks broken or
 duplicated parts. Left for a live session.
+
+## 11. 2026-10-10 morning: J: release, metrics, world journal, psi storms
+
+- J: release assembled on 23bc1ab47 and checked (doc 88).
+- M01 (61736a7ae): [profile] adds physics (own QPC total around CPHWorld
+  frame steps; engine stat timers are off on a dedicated server) and io
+  (main-thread world saves). M02 (997d0c80e): [world] online stalkers,
+  mutants, players, ground items, props; ALife total/online.
+- K08/L19 (e3b2c4675): netcoop_world_events - newest 512 events saved with
+  the world: OCS rounds with losses (both squads before/after, place, level,
+  game time, outcome), NPC/mutant deaths with the killer (player login).
+- Psi storms (8d924c2e5): there were none online (server timer out of reach,
+  no client ran one). netcoop_psi_storm runs GAMMA's storm on the server for
+  every player (schedule shared in the cluster, 2 game hours from emissions,
+  vortices near each player, GAMMA's psi/shock formula, shelters, admins, psi
+  helmet, stalker deaths with GAMMA's exceptions, restart resumes the phase);
+  netcoop_psi_view shows it on clients with GAMMA's own effects. Fixture in CI.
+  Not verified in game: the client effects at the server's phase and the
+  time factor 10 for everyone on the map during the storm (as the emission).
