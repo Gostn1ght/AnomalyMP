@@ -1,5 +1,8 @@
 #include "pch_script.h"
 #include "netcoop.h"
+#include "../xrSound/SoundVoice.h"
+#include "xr_level_controller.h"
+#include "ui_defs.h"
 #include "../xrEngine/netcoop_menu_camera.h"
 
 #include <bcrypt.h>
@@ -1337,6 +1340,7 @@ static bool world_store_capture_physics_props()
 }
 #include "netcoop_world_store.inc"
 #include "netcoop_campfire.inc"
+#include "netcoop_voice.inc"
 
 // ---------------------------------------------------------------------------
 // server: authentication
@@ -1807,6 +1811,7 @@ void server_on_client_disconnect(xrClientData* CL)
 {
 	if (!enabled() || !CL)
 		return;
+	if (CL->owner) server_voice_forget(CL->owner->ID);
 	// Remove the player's Actor instead of migrating it to the server, so a
 	// reconnect does not leave an abandoned body in the world. This runs on
 	// the transport thread; the game object is destroyed from server_update.

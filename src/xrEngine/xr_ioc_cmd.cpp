@@ -5,6 +5,7 @@
 #include "x_ray.h"
 #include "xr_ioconsole.h"
 #include "xr_ioc_cmd.h"
+#include "../xrSound/SoundVoice.h"
 //#include "fbasicvisual.h"
 #include "cameramanager.h"
 #include "environment.h"
@@ -1135,6 +1136,13 @@ void CCC_Register()
 	// Sound
 	CMD2(CCC_Float, "snd_volume_eff", &psSoundVEffects);
 	CMD2(CCC_Float, "snd_volume_music", &psSoundVMusic);
+	// Voice chat (xrSound/SoundVoice)
+	CMD4(CCC_Float, "voice_volume", &psVoiceVolume, 0.f, 2.f);
+	CMD4(CCC_Float, "voice_radio_volume", &psVoiceRadioVolume, 0.f, 2.f);
+	CMD4(CCC_Float, "voice_mic_gain", &psVoiceMicGain, 0.1f, 8.f);
+	CMD4(CCC_Integer, "voice_agc", &psVoiceAGC, 0, 1);
+	CMD4(CCC_Integer, "voice_denoise", &psVoiceDenoise, 0, 1);
+	CMD4(CCC_Integer, "voice_activation", &psVoiceActivation, 0, 1);
 	CMD1(CCC_SND_Restart, "snd_restart");
 	CMD3(CCC_Mask, "snd_acceleration", &psSoundFlags, ss_Hardware);
 	CMD3(CCC_Mask, "snd_efx", &psSoundFlags, ss_EFX);

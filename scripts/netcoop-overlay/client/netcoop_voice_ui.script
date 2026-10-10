@@ -1,0 +1,137 @@
+-- Voice chat and the walkie-talkie on the client (engine: netcoop_voice.inc).
+-- Keys are set in Controls ("Голос и рация"), unbound by default. A walkie
+-- (any radio_items section of [netcoop_voice]) anywhere in the inventory is
+-- enough; its menu "Настроить рацию" sets the frequency and switches it on.
+-- The server keeps the setting with the character and decides who hears.
+
+local function tr(id) return game.translate_string(id) end
+local function cfg(key, default)
+	return ini_sys:r_float_ex("netcoop_voice", key) or default
+end
+
+local freq, on, have = nil, false, false
+
+function tip(id)
+	if actor_menu and actor_menu.set_msg then actor_menu.set_msg(1, tr(id), 3) end
+end
+
+local function radio_sections()
+	local list = ini_sys:r_string_ex("netcoop_voice", "radio_items") or "walkie"
+	local out = {}
+	for s in string.gmatch(list, "[^,%s]+") do out[#out + 1] = s end
+	return out
+end
+
+local function has_radio()
+	local a = db.actor
+	if not a then return false end
+	for _, s in ipairs(radio_sections()) do
+		if a:object(s) then return true end
+	end
+	return false
+end
+
+local function push()
+	if netcoop_voice_radio_local then netcoop_voice_radio_local(freq or 0, on, have) end
+end
+
+local function send()
+	push()
+	if netcoop_command and freq then netcoop_command(string.format("radio %d %d", freq, on and 1 or 0)) end
+end
+
+-- The server's stored setting (channel "radio": "freq on").
+function receive(data)
+	local f, o = string.match(data or "", "^(%d+) ([01])$")
+	if not f then return end
+	freq, on = tonumber(f), o == "1"
+	push()
+end
+
+----------------------------------------------------------------------
+-- The radio window
+----------------------------------------------------------------------
+class "netcoop_radio_wnd" (CUIScriptWnd)
+function netcoop_radio_wnd:__init() super()
+	self:SetWndRect(Frect():set(0, 0, 1024, 768))
+	self:SetAutoDelete(false)
+	local xml = CScriptXmlInit()
+	xml:ParseFile("ui_netcoop_radio.xml")
+	xml:InitStatic("frame", self)
+	self.title = xml:InitStatic("title", self)
+	self.title:TextControl():SetText(tr("st_voice_radio_title"))
+	self.freq = xml:InitStatic("freq", self)
+	self.hint = xml:InitStatic("hint", self)
+	local n = 0
+	local function btn(text, x, y, w, fn)
+		local b = xml:Init3tButton("button", self)
+		b:SetWndPos(vector2():set(x, y))
+		b:SetWndSize(vector2():set(w, 30))
+		b:TextControl():SetText(text)
+		n = n + 1
+		self:Register(b, "rb" .. n)
+		self:AddCallback("rb" .. n, ui_events.BUTTON_CLICKED, fn, self)
+		return b
+	end
+	local step = cfg("freq_step", 5)
+	btn("-1.00", 368, 350, 68, function() self:Tune(-100) end)
+	btn("-" .. string.format("%.2f", step / 100), 440, 350, 68, function() self:Tune(-step) end)
+	btn("+" .. string.format("%.2f", step / 100), 516, 350, 68, function() self:Tune(step) end)
+	btn("+1.00", 588, 350, 68, function() self:Tune(100) end)
+	self.power = btn("", 368, 396, 288, function() on = not on; send(); self:Fill() end)
+	btn(tr("st_voice_close"), 448, 474, 128, function() self:HideDialog() end)
+	self:Fill()
+end
+function netcoop_radio_wnd:Tune(delta)
+	local lo, hi = cfg("min_freq", 3000), cfg("max_freq", 5995)
+	freq = math.max(lo, math.min(hi, (freq or 3500) + delta))
+	send()
+	self:Fill()
+end
+function netcoop_radio_wnd:Fill()
+	self.freq:TextControl():SetText(string.format(tr("st_voice_freq"), (freq or 3500) / 100))
+	self.power:TextControl():SetText(on and tr("st_voice_on") or tr("st_voice_off"))
+	self.hint:TextControl():SetText(tr(have and "st_voice_radio_hint" or "st_voice_no_radio"))
+end
+function netcoop_radio_wnd:OnKeyboard(dik, action)
+	local res = CUIScriptWnd.OnKeyboard(self, dik, action)
+	if action == ui_events.WINDOW_KEY_PRESSED and (dik == DIK_keys.DIK_ESCAPE) then self:HideDialog() end
+	return res
+end
+
+local wnd
+function menu_radio(obj)
+	local p = obj and obj:parent()
+	if not (p and db.actor and p:id() == db.actor:id()) then return nil end
+	return tr("st_voice_radio_menu")
+end
+function open_radio(obj)
+	if not freq then freq = cfg("min_freq", 3000) + 500 end
+	have = has_radio()
+	wnd = wnd or netcoop_radio_wnd()
+	wnd:Fill()
+	wnd:ShowDialog(true)
+end
+
+----------------------------------------------------------------------
+-- Keep "a radio in the inventory" current; ask the server for the setting.
+----------------------------------------------------------------------
+local next_check = 0
+local function update()
+	if time_global() < next_check then return end
+	next_check = time_global() + 1000
+	local h = has_radio()
+	if h ~= have then have = h; push() end
+end
+
+local function first_update()
+	have = has_radio()
+	push()
+	if netcoop_command then netcoop_command("radio get") end
+end
+
+function on_game_start()
+	if not (netcoop_pure_client and netcoop_pure_client()) then return end
+	RegisterScriptCallback("actor_on_first_update", first_update)
+	RegisterScriptCallback("actor_on_update", update)
+end

@@ -1041,6 +1041,7 @@ void CLevel::OnFrame()
 		netcoop::metrics_update();
 		netcoop::client_marks_update();
 		netcoop::client_items_update();
+		netcoop::client_voice_update();
 		static u32 netcoop_next_flush = 0;
 		const u32 flush_tick = GetTickCount();
 		if (flush_tick >= netcoop_next_flush)
@@ -1348,6 +1349,7 @@ void CLevel::OnRender()
 	if (!game)
 		return;
 	Game().OnRender();
+	netcoop::client_voice_render();
 	BulletManager().Render();
 
 	if (Device.m_SecondViewport.IsSVPFrame())

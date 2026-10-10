@@ -167,6 +167,10 @@ void CLevel::IR_OnKeyboardPress(int key)
 		return;
 
 	bool b_ui_exist = (!!CurrentGameUI());
+	// Voice keys (Controls): talking works in poses; a window with a cursor
+	// (PDA chat, inventory) keeps its keys for typing.
+	if (netcoop::client_voice_key(get_binded_action(key), true))
+		return;
 
 	EGameActions _curr = get_binded_action(key);
 	// Reserve the wheel before GAMMA callbacks (PAW also binds Z). During
@@ -606,6 +610,8 @@ void CLevel::IR_OnKeyboardPress(int key)
 void CLevel::IR_OnKeyboardRelease(int key)
 {
 	if (!bReady) return;
+	// A voice key always stops talking, whatever opened meanwhile.
+	if (netcoop::client_voice_key(get_binded_action(key), false)) return;
 
     ::luabind::functor<bool> funct;
     if (ai().script_engine().functor("level_input.on_key_release", funct))

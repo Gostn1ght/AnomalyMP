@@ -412,6 +412,9 @@ void CLevel::ClientReceive()
 		case M_NETCOOP_CAMPFIRE:
 			netcoop::client_on_campfire(*P);
 			break;
+		case M_NETCOOP_VOICE:
+			netcoop::client_on_voice(*P);
+			break;
 		case M_NETCOOP_TRANSFER_RESULT:
 			netcoop::client_on_transfer_result(*P);
 			break;

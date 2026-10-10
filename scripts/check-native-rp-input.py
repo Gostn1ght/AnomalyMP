@@ -35,7 +35,7 @@ struct CActor {int m_rp_index=-1;bool g_Alive(){return true;}} test_actor;
 struct UI {bool TopInputReceiver(){return top;}bool IR_UIOnKeyboardPress(int key){++ui_calls;if(key==MOUSE_1)button.OnMouseAction(0,0,WINDOW_LBUTTON_DOWN);return consumed;}} ui;
 UI* CurrentGameUI(){return ui_present?&ui:nullptr;}
 template<class T> T smart_cast(CActor* value){return static_cast<T>(value);}
-namespace netcoop {bool pure_client(){return pure;}bool client_death_key(int){return false;}}
+namespace netcoop {bool pure_client(){return pure;}bool client_death_key(int){return false;}bool client_voice_key(int,bool){return false;}}
 namespace luabind {template<class T> struct functor{bool operator()(int){return false;}};}
 struct Engine {bool functor(const char*,luabind::functor<bool>&){return false;}} engine;
 struct AI {Engine& script_engine(){return engine;}} ai_object;

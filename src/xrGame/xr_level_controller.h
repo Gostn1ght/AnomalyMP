@@ -106,6 +106,9 @@ enum EGameActions
 	kCUSTOM23,
 	kCUSTOM24,
 	kCUSTOM25,
+	kVOICE_NEAR,  // netcoop voice chat: talk to people around (held)
+	kVOICE_RADIO, // talk into the walkie-talkie (held)
+	kVOICE_RANGE, // whisper / normal / shout
 	kSAFEMODE,
 	kFREELOOK,
 

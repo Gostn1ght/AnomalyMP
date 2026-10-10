@@ -240,6 +240,17 @@ void server_campfire_changed(u16 id, bool on);
 void server_on_campfire(xrServer* server, xrClientData* CL, NET_Packet& P);
 void client_campfire_request(u16 id, bool on);
 void client_on_campfire(NET_Packet& P);
+// Voice chat and walkie-talkies (netcoop_voice.inc).
+bool client_voice_key(int action, bool pressed);
+void client_voice_update();
+void client_voice_render();
+void client_voice_reset();
+void client_on_voice(NET_Packet& P);
+void server_on_voice(xrServer* server, xrClientData* CL, NET_Packet& P);
+void server_voice_forget(u16 actor);
+void script_voice_radio_local(int freq, bool on, bool have);
+LPCSTR script_voice_status();
+void script_voice_radio_set(u16 actor, int freq, bool on);
 void client_campfire_spawned(CZoneCampfire* campfire);
 // Server: how lit an object is for NPC vision. The renderer lights only what
 // it draws; this takes the current weather's sun, sky and ambient light and

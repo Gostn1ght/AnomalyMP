@@ -1,0 +1,12 @@
+; Lost Zone voice chat and walkie-talkies (src/xrGame/netcoop_voice.inc).
+[netcoop_voice]
+radio_items = walkie        ; items that work as a walkie-talkie anywhere in the inventory
+radio_range = 2000          ; metres between two walkie-talkies on one map
+min_freq = 3000             ; 30.00 MHz (hundredths)
+max_freq = 5995             ; 59.95 MHz
+freq_step = 5               ; 0.05 MHz
+
+; GAMMA's "walkie" (junk, also a craft part) is the walkie-talkie.
+![walkie]
+use1_functor = netcoop_voice_ui.menu_radio
+use1_action_functor = netcoop_voice_ui.open_radio

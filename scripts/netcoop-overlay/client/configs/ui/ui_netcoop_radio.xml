@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<!-- Walkie-talkie settings (netcoop_voice_ui). -->
+<w>
+    <frame x="352" y="250" width="320" height="260" stretch="1">
+        <texture a="235" r="22" g="22" b="18">ui_icons_PDA_tooltips</texture>
+    </frame>
+    <title x="368" y="260" width="288" height="30">
+        <text r="218" g="190" b="125" font="letterica18" align="c" vert_align="c"/>
+    </title>
+    <freq x="368" y="296" width="288" height="44">
+        <text r="235" g="225" b="190" font="graffiti32" align="c" vert_align="c"/>
+    </freq>
+    <hint x="368" y="440" width="288" height="30">
+        <text r="160" g="170" b="133" font="letterica16" align="c" vert_align="c" complex_mode="1"/>
+    </hint>
+    <button x="0" y="0" width="64" height="30" stretch="1">
+        <text align="c" vert_align="c" font="letterica16"/>
+        <texture>ui_button_ordinary</texture>
+    </button>
+</w>

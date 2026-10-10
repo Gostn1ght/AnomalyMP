@@ -828,4 +828,52 @@
   <string id="st_pdanet_error">
     <text>Ошибка:</text>
   </string>
+  <string id="kb_grp_voice">
+    <text>Голос и рация</text>
+  </string>
+  <string id="kb_voice_near">
+    <text>Говорить рядом (удерживать)</text>
+  </string>
+  <string id="kb_voice_radio">
+    <text>Говорить в рацию (удерживать)</text>
+  </string>
+  <string id="kb_voice_range">
+    <text>Громкость голоса: шёпот / обычно / крик</text>
+  </string>
+  <string id="st_voice_whisper">
+    <text>Голос: шёпот (4 м)</text>
+  </string>
+  <string id="st_voice_normal">
+    <text>Голос: обычный (16 м)</text>
+  </string>
+  <string id="st_voice_shout">
+    <text>Голос: крик (45 м)</text>
+  </string>
+  <string id="st_voice_no_radio">
+    <text>Нет рации в инвентаре</text>
+  </string>
+  <string id="st_voice_radio_off">
+    <text>Рация выключена: включите её в меню рации</text>
+  </string>
+  <string id="st_voice_radio_menu">
+    <text>Настроить рацию</text>
+  </string>
+  <string id="st_voice_radio_title">
+    <text>Рация</text>
+  </string>
+  <string id="st_voice_freq">
+    <text>%.2f МГц</text>
+  </string>
+  <string id="st_voice_on">
+    <text>Рация включена</text>
+  </string>
+  <string id="st_voice_off">
+    <text>Рация выключена</text>
+  </string>
+  <string id="st_voice_close">
+    <text>Закрыть</text>
+  </string>
+  <string id="st_voice_radio_hint">
+    <text>Слышат все на этой частоте в радиусе связи</text>
+  </string>
 </string_table>

@@ -108,6 +108,26 @@ function on_client_command(cid, name, entity_id, text, role)
 		if netcoop_pda_store then netcoop_pda_store.command(entity_id, args) end
 		return ""
 	end
+	-- Walkie-talkie: "radio get" / "radio <freq> <0|1>", kept with the character;
+	-- the engine checks the radio item itself when relaying (netcoop_voice.inc).
+	if cmd == "radio" then
+		local obj = server_actor(entity_id)
+		if not obj then return "" end
+		local st = db.storage[entity_id] or { object = obj }
+		db.storage[entity_id] = st
+		st.pstor = st.pstor or {}
+		local lo = ini_sys:r_float_ex("netcoop_voice", "min_freq") or 3000
+		local hi = ini_sys:r_float_ex("netcoop_voice", "max_freq") or 5995
+		local f, o = string.match(args, "^(%d+) ([01])$")
+		if f and tonumber(f) >= lo and tonumber(f) <= hi then
+			st.pstor.netcoop_radio = f .. " " .. o
+		end
+		local saved = st.pstor.netcoop_radio or ""
+		local sf, so = string.match(saved, "^(%d+) ([01])$")
+		if sf and netcoop_voice_radio_set then netcoop_voice_radio_set(entity_id, tonumber(sf), so == "1") end
+		if args == "get" and sf and netcoop_send_to_actor then netcoop_send_to_actor(entity_id, "radio", saved) end
+		return ""
+	end
 	-- PDA network: contacts, general channel, chats (netcoop_pdanet).
 	if cmd == "pdanet" then
 		if netcoop_pdanet then netcoop_pdanet.command(entity_id, args) end
