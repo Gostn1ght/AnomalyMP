@@ -442,6 +442,9 @@ Simulation Catch-Up, звуковые события/следы. Контрак�
   предмет не зависает, не проваливается, не оказывается внутри стены.
 - [ ] L12. Persistent stash: содержимое, lock/owner/version/discovery/quest links.
 - [ ] L13. Loot seed фиксируется при создании; открытие/рестарт не reroll.
+  Частично (код, 2026-10-10): план содержимого ящика бросается один раз и
+  хранится (netcoop_box_contents v2), лут трупа создаётся при смерти один раз,
+  опустевший тайник не перегенерируется (zz_netcoop_sandbox). В игре не проверено.
 - [ ] L14. Частично: backend route discovery/редкость/общие contact reserves
   реализованы; native AI/ledger adapter и live приёмка ещё нужны. NPC редко посещают тайники, реально/аналитически добираются
   до них и забирают/кладут вещи через atomic MoveItem.
@@ -469,8 +472,15 @@ Simulation Catch-Up, звуковые события/следы. Контрак�
 - [ ] L27. Поставки/караваны/редкость связаны с world events и ledger.
 - [ ] L28. Campfire active/fuel/start/end: состояние рассчитывается по времени;
   не нужен постоянный distant fire tick.
+  Частично (код): на старте сервера костры не горят, зажигают NPC через лагерную
+  логику GAMMA или игрок спичками через сервер, состояние рассылается всем
+  (netcoop_campfire.inc). Расчёта fuel/end по времени нет.
 - [ ] L29. Door open/lock/destroyed state сохраняется и влияет на offline route.
+  Частично (код): состояние дверей (ph_door binder) и физика входят в снимок мира
+  (world_store_capture_physics_props); влияние на офлайн-маршрут не сделано.
 - [ ] L30. Важные destructibles сохраняют INTACT/DAMAGED/DESTROYED.
+  Частично (код): здоровье разрушаемых объектов сохраняется в снимке мира
+  (netcoop_capture_saved_health), разрушенные не возвращаются. В игре не проверено.
 - [ ] L31. Trap owner/type/armed/charges и offline trigger с version check.
 - [ ] L32. Persistence/Simulation/Replication classes реализованы в общих policies.
 - [ ] L33. Event связи emission→artifacts→NPC→trade, mutants→routes→loot,
@@ -484,6 +494,9 @@ Simulation Catch-Up, звуковые события/следы. Контрак�
   вещи на полу и содержимое тайников сохраняются.
 - [ ] L37. Новое наполнение тайников: редко, обычные consumables/materials/ammo;
   без брони и мощного оружия, с проверкой loot classification.
+  Частично (код): STASH_VISIT в netcoop_server_compat — не чаще раза в 6 игровых
+  часов, 8 %, только NPC рядом и без игроков, кладут еду/медицину/материалы/
+  патроны, никогда оружие/броню/артефакты; предметы переносятся, не создаются.
 - [ ] L38. Проверить цепочку artifact→NPC→corpse→player→trader→player
   через аварии/рестарты; всегда один экземпляр и одно место существования.
 
@@ -503,7 +516,11 @@ event-driven/persistent контракт соответствующих L-зад
 Контракты: 42 §13; критерии W4–W12.
 
 - [ ] M01. Метрики frame p50/p95/p99/max: AI/physics/replication/IO отдельно.
+  Частично (код, 61736a7ae): [frames] p50/p95/p99/max; [profile] ai, replication,
+  items, physics (свой счётчик шага физики), io (запись мира) мс/с. Не снято вживую.
 - [ ] M02. Metrics по LOD/chunks/online entities и очереди hydration.
+  Частично (код, 997d0c80e): [world] онлайн сталкеры/мутанты/игроки/предметы на
+  земле/физпропы и ALife всего/онлайн; LOD/chunks/hydration — только в shadow.
 - [ ] M03. Prewarm latency/deadline и достаточный reserved budget.
 - [ ] M04. При перегрузке сначала дальняя replication/Reduced/Coarse,
   ближайший бой и игроки имеют приоритет.
