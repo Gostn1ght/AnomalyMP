@@ -72,4 +72,39 @@ use(6, 100, "chocolate")
 lua.execute("p.alive_ = false"); use(5, 100, "money_100")
 lua.execute("p.alive_ = true; p.wish = true"); use(5, 100, "chocolate")
 assert len(made()) == n and g.money == m
+
+# Artefact containers and combinations (server actions; the client only asks).
+lua.execute(r"""
+released = {}
+function alife_release(obj) released[#released + 1] = obj:section() end
+conds = {}
+function alife_create_item(sec, actor, data) made[#made + 1] = sec; conds[sec] = data and data.cond end
+sections = {af_medusa = "ARTEFACT", lead_box = "x", af_medusa_lead_box = "x", af_iam = "x", bandage = "x", kit = "x", medkit = "x"}
+ini_sys = {section_exist = function(_, s) return sections[s] ~= nil end,
+           r_string_ex = function(_, s, k) return k == "class" and sections[s] or nil end}
+itms_manager.itms_arty_container = {lead_box = true, af_iam = true}
+itms_manager.item_combine = {bandage = {kit = "medkit"}}
+function item(sec, cond) return {section = function() return sec end, condition = function() return cond or 1 end} end
+""")
+act = g.netcoop_item_use.container_action
+made0 = len(made())
+assert act("arty_pack", lua.eval('item("af_medusa", 0.7)'), lua.eval('item("lead_box")')) == ""
+assert made()[-1] == "af_medusa_lead_box" and abs(g.conds["af_medusa_lead_box"] - 0.7) < 1e-9
+assert list(g.released.values()) == ["af_medusa", "lead_box"]
+assert act("arty_pack", lua.eval('item("af_medusa")'), lua.eval('item("af_iam")')) != ""   # no such packed section
+assert act("arty_pack", lua.eval('item("bandage")'), lua.eval('item("lead_box")')) != ""   # not an artefact
+assert act("arty_unpack", lua.eval('item("af_medusa_lead_box", 0.4)'), None) == ""
+assert made()[-2:] == ["lead_box", "af_medusa"] and abs(g.conds["af_medusa"] - 0.4) < 1e-9 and g.ARTY_FROM_CONT
+assert act("arty_unpack", lua.eval('item("lead_box")'), None) != ""                       # empty container
+assert act("combine", lua.eval('item("bandage")'), lua.eval('item("kit")')) == "" and made()[-1] == "medkit"
+assert act("combine", lua.eval('item("kit")'), lua.eval('item("bandage")')) != ""
+assert act("arty_pack", lua.eval('item("af_medusa")'), None) is None                       # needs a target
+assert len(made()) == made0 + 4
+
+# Wiring: the server action and the client requests.
+srv = (root / "scripts/netcoop-overlay/server/netcoop_server_compat.script").read_text(encoding="utf-8")
+assert 'netcoop_item_use.container_action(action, item, target)' in srv
+cli = (root / "scripts/netcoop-overlay/client/netcoop_client_compat.script").read_text(encoding="utf-8")
+for request in ('"arty_pack")', '"combine")', '65535, "arty_unpack")', "install_server_containers()"):
+    assert request in cli, request
 print("netcoop item use: OK")

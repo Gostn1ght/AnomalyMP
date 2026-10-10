@@ -59,3 +59,64 @@ function used(actor_id, item_id, sec)
 		printf("[Lost Zone] %s used %s: +%s RU", tostring(netcoop_actor_login and netcoop_actor_login(actor_id) or actor_id), sec, money)
 	end
 end
+
+----------------------------------------------------------------------
+-- Artefact containers and item combinations (itms_manager), by the server.
+-- GAMMA puts an artefact into a container, takes it out and combines items
+-- with alife_create_item/alife_release where the player acts: on a client
+-- these do nothing, so containers never worked online. The client asks
+-- (netcoop_item_action, both items in the player's inventory, checked by
+-- the engine); the server checks GAMMA's own tables and does it.
+----------------------------------------------------------------------
+local CONTAINER_SUFFIXES = { "lead_box", "af_iam", "af_aac", "af_aam" }
+
+local function is_artefact(sec)
+	local class = ini_sys:r_string_ex(sec, "class")
+	return class == "ARTEFACT" or class == "SCRPTART"
+end
+
+-- artefact + container -> packed artefact with the artefact's condition
+local function pack(arty, cont)
+	local sec_a, sec_c = arty:section(), cont:section()
+	if not (itms_manager.itms_arty_container[sec_c] and is_artefact(sec_a)) then return "this does not go into that container" end
+	local packed = sec_a .. "_" .. sec_c
+	if not ini_sys:section_exist(packed) then return "this does not go into that container" end
+	alife_create_item(packed, db.actor, { cond = arty:condition() })
+	alife_release(arty)
+	alife_release(cont)
+	return ""
+end
+
+-- packed artefact -> container + artefact (use_arty_container)
+local function unpack(packed)
+	local sec = packed:section()
+	for _, cont in ipairs(CONTAINER_SUFFIXES) do
+		local arty = string.match(sec, "^(.+)_" .. cont .. "$")
+		if arty and ini_sys:section_exist(cont) and ini_sys:section_exist(arty) then
+			_G.ARTY_FROM_CONT = true -- GAMMA: no rank for an artefact taken out of a container
+			alife_create_item(cont, db.actor)
+			alife_create_item(arty, db.actor, { cond = packed:condition() })
+			alife_release(packed)
+			return ""
+		end
+	end
+	return "this is not a packed artefact"
+end
+
+local function combine(a, b)
+	local row = itms_manager.item_combine[a:section()]
+	local result = row and row[b:section()]
+	if not result then return "these items do not combine" end
+	alife_create_item(result, db.actor)
+	alife_release(a)
+	alife_release(b)
+	return ""
+end
+
+-- netcoop_server_compat.item_action, kind 1; "" on success, else the reason.
+function container_action(action, item, target)
+	if action == "arty_pack" and target then return pack(item, target) end
+	if action == "arty_unpack" and not target then return unpack(item) end
+	if action == "combine" and target then return combine(item, target) end
+	return nil
+end

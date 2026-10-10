@@ -909,8 +909,38 @@ function install_weapon_menu_guards()
 	repairs.__netcoop_menu_parts = true
 end
 
+-- Artefact containers and item combinations (itms_manager) create and
+-- release items: the server does it (netcoop_item_use.container_action);
+-- here only GAMMA's animation plays.
+local function install_server_containers()
+	local im = itms_manager
+	if not im or im.__netcoop_containers then return end
+	im.__netcoop_containers = true
+	local function fx(name) if actor_effects and actor_effects.play_item_fx then pcall(actor_effects.play_item_fx, name) end end
+	im.dropdrop_ArtyContainer = function(obj_1, obj_2, sec_1, sec_2)
+		if not ini_sys:section_exist(sec_1 .. "_" .. sec_2) then return end
+		fx("container_tool_" .. sec_2 .. "_dummy")
+		netcoop_item_action(1, obj_1:id(), obj_2:id(), "arty_pack")
+	end
+	im.dropdrop_Basic_Combination = function(obj_1, obj_2, sec_1, sec_2)
+		fx("item_combination")
+		netcoop_item_action(1, obj_1:id(), obj_2:id(), "combine")
+	end
+	im.use_arty_container = function(obj)
+		local sec = obj:section()
+		for _, cont in ipairs({ "lead_box", "af_iam", "af_aac", "af_aam" }) do
+			if string.match(sec, "^.+_" .. cont .. "$") then
+				fx(cont .. "_dummy")
+				netcoop_item_action(1, obj:id(), 65535, "arty_unpack")
+				return
+			end
+		end
+	end
+end
+
 local function install_server_item_actions()
 	if not (netcoop_item_action and netcoop_pure_client and netcoop_pure_client()) then return end
+	install_server_containers()
 	install_server_repair()
 	install_server_furniture()
 	install_weapon_menu_guards()
