@@ -222,7 +222,7 @@ import re, xml.etree.ElementTree as ET
 pda = (root / "client/configs/ui/pda_16.xml").read_bytes().decode("cp1251")
 ET.fromstring(pda.split("?>", 1)[1] if pda.startswith("<?xml") else pda)
 ids = re.findall(r'<button [^>]*id="(\w+)"', pda)
-assert ids == ["eptTasks", "eptTaskboard", "eptRanking", "eptRelations", "eptEncyclopedia", "eptLogs"], ids
+assert ids == ["eptTasks", "eptTaskboard", "eptRanking", "eptRelations", "eptContacts", "eptEncyclopedia", "eptLogs"], ids
 assert all('width="137"' in b for b in re.findall(r"<button [^>]*>", pda))
 ET.fromstring((root / "client/configs/ui/ui_netcoop_pdanet.xml").read_bytes().decode("cp1251").split("?>", 1)[1])
 used = set(re.findall(r'"(st_pdanet_[a-z_]+)"', ui + (root / "client/netcoop_pdanet_client.script").read_text(encoding="utf-8")))

@@ -63,7 +63,7 @@
 	
 	<!-- Edited by tronex ("x" and "width") -->
 	<!-- Lost Zone (owner 2026-10-10, after New Way): tabs 137 wide, 4 visible, the strip scrolls;
-	     PDA network tabs are added after eptTasks by netcoop_pdanet_ui. FM radio and the NPC contacts tab are cut. -->
+	     PDA network tabs are added after eptTasks by netcoop_pdanet_ui. Only FM radio is cut. -->
 	<tab x="132" y="23" width="550" height="27">
 		<button x="0" y="0" width="137" height="27" id="eptTasks" frame_mode="0">
 			<text align="c" vert_align="c" x="0" y="0" font="letterica16">st_pdanet_tab_map</text>
@@ -109,7 +109,18 @@
 			</text_color>
 		</button>
 
-		<button x="548" y="0" width="137" height="27" id="eptEncyclopedia" frame_mode="0">
+		<button x="548" y="0" width="137" height="27" id="eptContacts" frame_mode="0">
+			<text align="c" vert_align="c" x="0" y="0" font="letterica16">pda_btn_contacts</text>
+			<texture>ui_inGame2_pda_button</texture>
+			<text_color>
+				<t r="255" g="255" b="255"/>
+				<d r="255" g="255" b="255"/>
+				<e r="200" g="200" b="200"/>
+				<h r="170" g="170" b="170"/>
+			</text_color>
+		</button>
+
+		<button x="685" y="0" width="137" height="27" id="eptEncyclopedia" frame_mode="0">
 			<text align="c" vert_align="c" x="0" y="0" font="letterica16">pda_btn_encyclopedia</text>
 			<texture>ui_inGame2_pda_button</texture>
 			<text_color>
@@ -120,7 +131,7 @@
 			</text_color>
 		</button>
 
-		<button x="685" y="0" width="137" height="27" id="eptLogs" frame_mode="0">
+		<button x="822" y="0" width="137" height="27" id="eptLogs" frame_mode="0">
 			<text align="c" vert_align="c" x="0" y="0" font="letterica16">pda_btn_logs</text>
             <texture>ui_inGame2_pda_button</texture>
 			<text_color>
