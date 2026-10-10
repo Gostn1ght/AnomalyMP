@@ -1,6 +1,7 @@
 ; Lost Zone server (owner 2026-10-10): Marsh, Cordon, Garbage, Meadow (Polyana),
-; Bar and Army Warehouses - one dedicated server per map, all with GAMMA's
-; freeplay population, traders, stashes, anomalies and artefacts.
+; Bar and Agroprom (instead of the Army Warehouses) - one dedicated server per
+; map, all with GAMMA's freeplay population, traders, stashes, anomalies and
+; artefacts. Agroprom's underground starts when a player heads there.
 ; host = the address players use for that map: replace 127.0.0.1 with this
 ; computer's external address for play over the internet and open these UDP ports.
 ; A map that is not listed keeps its level changers closed.
@@ -14,4 +15,25 @@ l01_escape = 127.0.0.1:1277
 l02_garbage = 127.0.0.1:1307
 y04_pole = 127.0.0.1:1339
 l05_bar = 127.0.0.1:1313
-l07_military = 127.0.0.1:1317
+l03_agroprom = 127.0.0.1:1309
+l03u_agr_underground = 127.0.0.1:1345
+
+[launch]
+; map = start location section (GAMMA or netcoop\start_levels.ltx)
+k00_marsh = hidden_base
+l01_escape = rookie_village
+l02_garbage = train_hangar
+y04_pole = lz_y04_pole
+l05_bar = makeshift_barracks
+l03_agroprom = research_institute
+l03u_agr_underground = lz_l03u_agr_underground
+
+[on_demand]
+; 1 = the server starts when a player heads there and stops after 10 idle minutes
+k00_marsh = 0
+l01_escape = 0
+l02_garbage = 0
+y04_pole = 0
+l05_bar = 0
+l03_agroprom = 0
+l03u_agr_underground = 1

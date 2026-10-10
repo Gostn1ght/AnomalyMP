@@ -82,6 +82,7 @@ if (-not $SkipCopy) { Mirror $GammaDb (Join-Path $host_ "db") @("/XD", "textures
 New-Item -ItemType Directory -Force (Join-Path $host_ "db\lostzone"), (Join-Path $host_ "mp"), (Join-Path $host_ "appdata\server") | Out-Null
 Copy-Item (Join-Path $PSScriptRoot "fsgame_server.template") (Join-Path $host_ "fsgame_server.template") -Force
 Copy-Item (Join-Path $PSScriptRoot "Start Server Panel.cmd") $host_ -Force
+Copy-Item (Join-Path $PSScriptRoot "Admin Rights.cmd") $host_ -Force
 Copy-Item (Join-Path $PSScriptRoot "README-server.txt") (Join-Path $host_ "README.txt") -Force
 New-Item -ItemType Directory -Force (Join-Path $host_ "notices") | Out-Null
 Copy-Item (Join-Path $Artifact "notices\*") (Join-Path $host_ "notices") -Force # files only: never notices/notices

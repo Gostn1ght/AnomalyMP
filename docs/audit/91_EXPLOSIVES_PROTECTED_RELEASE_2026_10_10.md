@@ -175,3 +175,25 @@ folder; make_server_addon skips hoster examples and stamps.
 `check-portable-release.ps1` now fails on any of them (also in the add-on,
 plus an add-on file that would replace a game file) and writes its SHA256
 manifests to `_work\`.
+
+## Agroprom instead of the Warehouses; admin rights (owner 2026-10-10, Claude)
+
+Owner: "чтобы ещё Агропром запускался вместо складов и как выдавать админку".
+`hoster/netcoop_cluster.ltx.six` now runs k00_marsh, l01_escape, l02_garbage,
+y04_pole, l05_bar and l03_agroprom (port 1309, start research_institute);
+l03u_agr_underground (1345) starts on demand when a player heads there.
+The earlier .six had only [locations]: the watchdog skips a map without a
+[launch] start section, so that plan ran no map. It now carries [launch] and
+[on_demand] copied from the full catalog (check-netcoop-default-plan.py), and
+Start Server Panel.cmd replaces an existing plan that has no [launch].
+
+Admin: the servers run hidden, the console command sv_account_role cannot be
+typed. `Admin Rights.cmd` -> `hoster/netcoop_account_role.ps1` lists the
+accounts and sets admin/player in appdata/server/netcoop_accounts.txt under
+the servers' own lock (netcoop_locks/accounts.lock), temp file + swap, admin
+also approves (as the console command). Running servers adopt the file when
+its time changes; the role applies on the next login. A server holding unsaved
+changes of that same account writes its copy back (accounts_refresh skips
+touched records), so rights are given while the player is offline
+(check-netcoop-account-role.py). Admin in game: debug/spawn menu (F7, Num3),
+god mode, teleport, approving registrations.

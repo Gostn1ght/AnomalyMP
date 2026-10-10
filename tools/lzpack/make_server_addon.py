@@ -10,7 +10,8 @@ The add-on holds only what the game folder does not have:
   resources\95_server_*.db*  server-only archives (the server's scripts);
                              every other archive is the game's own
   hoster\                    location panel, watchdog, cluster plans
-  fsgame_server.template, Start Server Panel.cmd, README-server-addon.txt
+  fsgame_server.template, Start Server Panel.cmd, Admin Rights.cmd,
+  README-server-addon.txt
 
 The game's resources\ already has everything else (levels, meshes, sounds,
 GAMMA, Lost Zone data). An archive with the same name in both is compared by
@@ -30,9 +31,16 @@ ADDON_README = """Lost Zone - сервер для папки с игрой
 resources и Play Lost Zone.cmd). Совпадающих файлов игры нет, ничего не заменяется.
 
 Запуск: Start Server Panel.cmd. Карты по умолчанию: Болота, Кордон, Свалка,
-Поляна, Бар и Армейские склады (appdata/server/netcoop_cluster.ltx, создаётся из
-hoster/netcoop_cluster.ltx.six при первом запуске). Для игры через интернет
-замените 127.0.0.1 на внешний адрес и откройте UDP-порты карт из этого файла.
+Поляна, Бар и Агропром; подземелье Агропрома запускается, когда туда идёт игрок
+(appdata/server/netcoop_cluster.ltx, создаётся из hoster/netcoop_cluster.ltx.six
+при первом запуске). Для игры через интернет замените 127.0.0.1 на внешний
+адрес и откройте UDP-порты карт из этого файла.
+
+Админка: Admin Rights.cmd показывает аккаунты, спрашивает логин и роль
+(admin или player). Игрок сначала регистрируется на сервере; права действуют
+со следующего входа. Выдавайте права, пока игрок не в игре: его сервер может
+записать старую роль при сохранении. Админ в игре: меню отладки и спавна
+(F7 или Num3), режим бога, телепорт, одобрение новых регистраций.
 
 Сервер берёт ресурсы игры из resources/; свои архивы - resources/95_server_*.
 Миры, аккаунты и персонажи создаются в appdata/server/. Не удаляйте эту папку.
@@ -118,7 +126,7 @@ def build(game, server, addon, key=None):
             shutil.copy2(path, addon / 'notices' / path.name)
     shutil.copytree(server / 'server' / 'configs', addon / 'server' / 'configs')
     (addon / 'server' / 'scripts').mkdir()
-    for name in ('fsgame_server.template', 'Start Server Panel.cmd'):
+    for name in ('fsgame_server.template', 'Start Server Panel.cmd', 'Admin Rights.cmd'):
         if (server / name).exists() and not (game / name).exists():
             shutil.copy2(server / name, addon / name)
     (addon / 'README-server-addon.txt').write_text(ADDON_README, encoding='utf-8')
