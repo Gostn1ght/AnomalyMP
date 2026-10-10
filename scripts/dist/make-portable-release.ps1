@@ -71,10 +71,13 @@ otices
 #    server never loads texture images, CTexture::Load returns first).
 Write-Host "server folder"
 New-Item -ItemType Directory -Force $host_ | Out-Null
-Mirror (Join-Path $stage "server") (Join-Path $host_ "server")
+# server\services is the World Service prototype (Python, tests only): the
+# dedicated server and the panel never use it.
+Mirror (Join-Path $stage "server") (Join-Path $host_ "server") @("/XD", (Join-Path $stage "server\services"), "__pycache__")
 Mirror (Join-Path $stage "gamedata") (Join-Path $host_ "gamedata")
 Mirror (Join-Path $Artifact "dedicated") (Join-Path $host_ "dedicated")
-Mirror (Join-Path $Artifact "hoster") (Join-Path $host_ "hoster")
+# the panel reads only the .six/.full plans and its scripts
+Mirror (Join-Path $Artifact "hoster") (Join-Path $host_ "hoster") @("/XF", "*.example", "changers_dump.txt")
 if (-not $SkipCopy) { Mirror $GammaDb (Join-Path $host_ "db") @("/XD", "textures", "lostzone") }
 New-Item -ItemType Directory -Force (Join-Path $host_ "db\lostzone"), (Join-Path $host_ "mp"), (Join-Path $host_ "appdata\server") | Out-Null
 Copy-Item (Join-Path $PSScriptRoot "fsgame_server.template") (Join-Path $host_ "fsgame_server.template") -Force

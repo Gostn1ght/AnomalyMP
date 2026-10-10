@@ -162,7 +162,10 @@ archives; the RP textures are sealed in lz_overlay), `notices\notices`,
 `MANIFEST-sha256.txt`, `built-from.txt`, `lzpack-format.json` (nothing in the
 game or the launcher reads them) and the empty `appdata\` (Play Lost Zone.cmd
 creates it); from the add-on's `hoster\` the `*.example` files and
-`changers_dump.txt` (the panel reads only the .six/.full plans). The player's
+`changers_dump.txt` (the panel reads only the .six/.full plans). The standalone
+server lost the same (its `server/bin`, stamps, examples) plus `server\services`
+(the World Service Python prototype, used only by tests, never by the panel or
+the dedicated server) and the empty `appdata\` (the panel cmd creates it). The player's
 `notices\` got the Microsoft D3DX license that ships with the D3DX DLLs.
 
 The generators no longer make them: finalize_release moves `<role>\bin` and

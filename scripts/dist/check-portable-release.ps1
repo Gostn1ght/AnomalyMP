@@ -41,13 +41,13 @@ if (Test-Path (Join-Path $game "server")) { $fail += "server scripts in the play
 $addon = Join-Path $Out "Lost Zone Server Addon"
 foreach ($root in $game, $host_, $addon) {
     if (-not (Test-Path $root)) { continue }
-    foreach ($extra in "client\bin", "server\bin", "client\textures", "server\textures", "notices\notices", "built-from.txt", "lzpack-format.json", "MANIFEST-sha256.txt", "UPDATING.lock") {
+    foreach ($extra in "client\bin", "server\bin", "client\textures", "server\textures", "server\services", "notices\notices", "built-from.txt", "lzpack-format.json", "MANIFEST-sha256.txt", "UPDATING.lock") {
         if (Test-Path (Join-Path $root $extra)) { $fail += "not for distribution: $root\$extra" }
     }
+    $extras = Get-ChildItem (Join-Path $root "hoster") -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*.example" -or $_.Name -eq "changers_dump.txt" }
+    if ($extras) { $fail += "hoster examples in ${root}: " + ($extras.Name -join ", ") }
 }
 if (Test-Path $addon) {
-    $extras = Get-ChildItem (Join-Path $addon "hoster") -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*.example" -or $_.Name -eq "changers_dump.txt" }
-    if ($extras) { $fail += "examples in the add-on: " + ($extras.Name -join ", ") }
     $clash = Get-ChildItem $addon -Recurse -File | Where-Object { Test-Path -LiteralPath (Join-Path $game $_.FullName.Substring($addon.Length + 1)) }
     if ($clash) { $fail += "add-on replaces game files: " + (($clash | Select-Object -First 5).FullName -join ", ") }
 }
