@@ -42,5 +42,25 @@ foreach ($name in @('GameNetworkingSockets.dll', 'libprotobuf.dll', 'libcrypto-3
     }
 }
 
+# Both the exe and transport import VC143. Ship Microsoft's app-local x64
+# runtime from the same GHA toolchain, so a friend needs no Visual Studio.
+if ($env:GITHUB_ACTIONS -eq 'true') {
+    $redistRoot = Join-Path ${env:ProgramFiles} 'Microsoft Visual Studio\2022\Enterprise\VC\Redist\MSVC'
+    $crt = Get-ChildItem -LiteralPath $redistRoot -Directory | Sort-Object Name -Descending |
+        ForEach-Object { Join-Path $_.FullName 'x64\Microsoft.VC143.CRT' } |
+        Where-Object { Test-Path -LiteralPath (Join-Path $_ 'vcruntime140_1.dll') -PathType Leaf } |
+        Select-Object -First 1
+    if (-not $crt) { throw 'The x64 Visual C++ redistributable runtime was not found' }
+    foreach ($dll in Get-ChildItem -LiteralPath $crt -Filter '*.dll' -File) {
+        Copy-Item -LiteralPath $dll.FullName -Destination (Join-Path $serverBin $dll.Name) -Force
+        Copy-Item -LiteralPath $dll.FullName -Destination (Join-Path $clientBin $dll.Name) -Force
+    }
+    foreach ($name in @('msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $clientBin $name) -PathType Leaf)) {
+            throw "Portable runtime missing: $name"
+        }
+    }
+}
+
 Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $serverBin 'LostZoneServerDX11.exe'), (Join-Path $clientBin 'LostZoneClientDX11.exe') |
     Select-Object Path, Hash

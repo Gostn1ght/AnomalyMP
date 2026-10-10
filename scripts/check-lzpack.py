@@ -47,6 +47,13 @@ with TemporaryDirectory() as tmp:
     real,compressed,crc=struct.unpack_from('<III',entry);ptr=struct.unpack_from('<I',entry,len(entry)-4)[0]
     assert entry[12:-4]==b'client\\scripts\\fix.script' and data[ptr:ptr+real]==b'return "fixed"' and real==compressed
     rejected(lambda:lzpack.patch(patchdir,folder/'updates',key,'000002'))
+    (patchdir/'server/scripts').mkdir(parents=True)
+    (patchdir/'server/scripts/server_only.script').write_bytes(b'return "server-only"')
+    clientpack=lzpack.patch(patchdir,folder/'client-updates',key,'000003','client')
+    serverpack=lzpack.patch(patchdir,folder/'server-updates',key,'000003','server')
+    clientreader=lzpack.Reader(clientpack,key);serverreader=lzpack.Reader(serverpack,key)
+    clientdata=clientreader.read(0,clientreader.size);serverdata=serverreader.read(0,serverreader.size)
+    assert b'server-only' not in clientdata and b'client\\scripts' not in serverdata
     (patchdir/'appdata').mkdir();(patchdir/'appdata/account.key').write_bytes(b'private')
     rejected(lambda:lzpack.patch(patchdir,folder/'updates',key,'000003'))
     root=Path(__file__).resolve().parents[1]
