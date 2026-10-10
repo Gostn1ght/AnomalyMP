@@ -488,6 +488,10 @@ local function server_world_tick()
 	netcoop_emission.update_world()
 	local psi_ok, psi_err = pcall(netcoop_psi_storm.update_world)
 	if not psi_ok then printf("[Lost Zone] psi storm error: %s", tostring(psi_err)) end
+	if netcoop_pdanet then
+		local net_ok, net_err = pcall(netcoop_pdanet.update_world)
+		if not net_ok then printf("[Lost Zone] PDA network error: %s", tostring(net_err)) end
+	end
 
 	local wm = level_weathers and level_weathers.get_weather_manager()
 	if not wm then return end
