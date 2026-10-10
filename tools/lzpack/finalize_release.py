@@ -24,6 +24,16 @@ def inside(path,root):
 def sealed(path):
     with Path(path).open('rb') as stream:return stream.read(8)==lzpack.MAGIC
 
+def retain_legacy(folder,role,retained):
+    """Old executables cannot read protected packs; disabled scripts aren't assets."""
+    obsolete=folder/role/'scripts_disabled'
+    if obsolete.exists():
+        backup=retained/folder.name/role/'scripts_disabled';backup.parent.mkdir(parents=True,exist_ok=True)
+        os.replace(obsolete,backup)
+    for path in (folder/role/'bin').glob('*.exe'):
+        backup=retained/folder.name/path.relative_to(folder);backup.parent.mkdir(parents=True,exist_ok=True)
+        os.replace(path,backup)
+
 def archive_files(folder):
     return sorted(p for p in (folder/'db').rglob('*') if p.is_file() and p.suffix.lower().startswith('.db') and p.name.lower()!='thumbs.db')
 
@@ -119,6 +129,7 @@ def main():
             report.append({'folder':folder.name,'archive':str(path.relative_to(folder)),'original_sha256':raw_hash,'protected_sha256':digest(path)})
             (retained/'conversion.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
         role='client' if folder==game else 'server'
+        retain_legacy(folder,role,retained)
         scripts=inside(folder/role/'scripts',root)
         rows=lzpack.files_under(scripts)
         if rows:
@@ -149,6 +160,15 @@ def main():
     here=Path(__file__).resolve().parent
     for name in ('lzpack.py','README.md','Create patch.cmd'):shutil.copy2(here/name,tools/name)
     shutil.copy2(args.key,tools/'private/lzpack-v1.key')
+    # Owner 2026-10-10: one "resources" folder for every archive (flatten_resources.py).
+    import flatten_resources
+    layout=inside(root/'_work'/('resources_layout_'+datetime.now().strftime('%Y%m%d_%H%M%S')),root);layout.mkdir(parents=True)
+    for folder in (game,server):
+        flatten_resources.flatten(folder,layout)
+        for path in sorted((folder/'resources').iterdir()):
+            if flatten_resources.is_archive(path):
+                if not sealed(path):raise ValueError('Unprotected archive remains: '+str(path))
+                reader=lzpack.Reader(path,key);reader.read(0,1);reader.read(reader.size-1,1)
     for folder in (game,server):
         (folder/'UPDATING.lock').unlink()
     print('PASS sealed portable packages; original bytes retained at '+str(retained),flush=True)

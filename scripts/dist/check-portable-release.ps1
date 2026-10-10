@@ -22,7 +22,7 @@ foreach ($root in $game, $host_) {
     $pdb = Get-ChildItem $root -Recurse -Force -Filter *.pdb -ErrorAction SilentlyContinue
     if ($pdb) { $fail += "PDB in ${root}: " + (($pdb | Select-Object -First 5).FullName -join ", ") }
     $text = Get-ChildItem $root -Recurse -Force -File -Include *.ltx, *.cmd, *.ps1, *.json, *.xml, *.template, *.txt -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -notmatch '\\db\\' }
+        Where-Object { $_.FullName -notmatch '\\(db|resources)\\' }
     foreach ($f in $text) {
         if ((Select-String -LiteralPath $f.FullName -SimpleMatch $Builder -Quiet)) { $fail += "builder path in $($f.FullName)" }
     }
@@ -35,8 +35,11 @@ foreach ($root in $game, $host_) {
 if (Test-Path (Join-Path $game "server")) { $fail += "server scripts in the players' folder" }
 if (Test-Path (Join-Path $game "dedicated")) { $fail += "dedicated server in the players' folder" }
 foreach ($c in "lz_misc", "lz_meshes", "lz_levels", "lz_sounds", "lz_textures") {
-    if (-not (Get-ChildItem (Join-Path $game "db\lostzone") -Filter "$c.db*" -ErrorAction SilentlyContinue)) { $fail += "players: no $c archives" }
-    $onServer = Get-ChildItem (Join-Path $host_ "db\lostzone") -Filter "$c.db*" -ErrorAction SilentlyContinue
+    $onGame = @(Get-ChildItem (Join-Path $game "db\lostzone") -Filter "$c.db*" -ErrorAction SilentlyContinue) +
+        @(Get-ChildItem (Join-Path $game "resources") -Filter "90_lostzone_$c.db*" -ErrorAction SilentlyContinue)
+    if (-not $onGame) { $fail += "players: no $c archives" }
+    $onServer = @(Get-ChildItem (Join-Path $host_ "db\lostzone") -Filter "$c.db*" -ErrorAction SilentlyContinue) +
+        @(Get-ChildItem (Join-Path $host_ "resources") -Filter "90_lostzone_$c.db*" -ErrorAction SilentlyContinue)
     if ($c -eq "lz_textures" -and $onServer) { $fail += "server: texture archives present" }
     if ($c -ne "lz_textures" -and -not $onServer) { $fail += "server: no $c archives" }
 }

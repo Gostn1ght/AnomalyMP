@@ -220,6 +220,8 @@ jobs:
           Copy-Item -LiteralPath _build/_game/bin_dbg/LostZoneDX11.pdb -Destination lostzone-package/bin/LostZoneClientDX11.pdb
           Copy-Item -LiteralPath _build/_game/bin_dbg/LostZoneDX11.pdb -Destination lostzone-package/dedicated/LostZoneServerDX11.pdb
           Copy-Item -LiteralPath _build/lzpack-format.json -Destination lostzone-package/lzpack-format.json
+          python scripts/check-portable-binaries.py lostzone-package
+          if ($LASTEXITCODE -ne 0) { throw 'Portable PE dependency check failed' }
           Set-Content -LiteralPath lostzone-package/built-from.txt -Value $env:GITHUB_SHA
           Get-FileHash lostzone-package/bin/LostZoneClientDX11.exe,lostzone-package/dedicated/LostZoneServerDX11.exe | Format-List | Out-File lostzone-package/sha256.txt
       - uses: actions/upload-artifact@v4

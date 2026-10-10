@@ -136,8 +136,9 @@ def patch(source, dest, key, version, role='client'):
     rows = [(name,p) for name,p in rows if name.startswith('gamedata\\') or name.startswith(role+'\\scripts\\')]
     if not rows: return None
     dest = Path(dest); dest.mkdir(parents=True, exist_ok=True)
-    output = dest / f'lz_patch_{version}.db0'
-    raw = dest / f'lz_patch_{version}.raw-building'
+    # resources/ mounts in name order: 99_ sorts after every base archive
+    output = dest / f'99_lz_patch_{version}.db0'
+    raw = dest / f'99_lz_patch_{version}.raw-building'
     if output.exists() or raw.exists(): raise FileExistsError('Patch version already exists')
     try:
         make_db(rows, raw, '$fs_root$\\')

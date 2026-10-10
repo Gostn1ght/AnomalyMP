@@ -31,20 +31,41 @@ foreach ($dependencySource in @($BuildBin, $DependencyBin)) {
     }
 }
 
-# Network transport (GameNetworkingSockets) and its dependencies ship next to
-# both executables.
+# Engine imports (ICU, TBB, Discord) and network transport must be next to
+# both executables, rather than hidden beside an obsolete GAMMA executable.
 $sdkBin = Join-Path (Split-Path -Parent $PSScriptRoot) 'sdk/binaries'
-foreach ($name in @('GameNetworkingSockets.dll', 'libprotobuf.dll', 'libcrypto-3-x64.dll')) {
+foreach ($name in @('GameNetworkingSockets.dll', 'libprotobuf.dll', 'libcrypto-3-x64.dll', 'discord_game_sdk.dll', 'icuuc65.dll', 'icudt65.dll', 'tbb.dll', 'soft_oal.dll')) {
     $dll = Join-Path $sdkBin $name
     if (Test-Path -LiteralPath $dll -PathType Leaf) {
         Copy-Item -LiteralPath $dll -Destination (Join-Path $serverBin $name) -Force
         Copy-Item -LiteralPath $dll -Destination (Join-Path $clientBin $name) -Force
-    }
+    } else { throw "SDK runtime missing: $name" }
 }
 
 # Both the exe and transport import VC143. Ship Microsoft's app-local x64
 # runtime from the same GHA toolchain, so a friend needs no Visual Studio.
 if ($env:GITHUB_ACTIONS -eq 'true') {
+    # Microsoft's side-by-side D3DX redistributable, pinned by package hash.
+    # Do not rely on legacy DirectX having been installed on the friend's PC.
+    $dxPackage = Join-Path $DestinationRoot 'microsoft.dxsdk.d3dx.nupkg'
+    Invoke-WebRequest -Uri 'https://api.nuget.org/v3-flatcontainer/microsoft.dxsdk.d3dx/9.29.952.8/microsoft.dxsdk.d3dx.9.29.952.8.nupkg' -OutFile $dxPackage
+    if ((Get-FileHash -LiteralPath $dxPackage -Algorithm SHA256).Hash -ne 'EAD0906AE8A26C18A7525DA7490127A2110F7C58F18293738283E30E97C6EA4B') {
+        throw 'Microsoft D3DX package hash mismatch'
+    }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $dxZip = [IO.Compression.ZipFile]::OpenRead($dxPackage)
+    try {
+        foreach ($name in @('D3DX9_43.dll', 'd3dx11_43.dll', 'D3DCompiler_43.dll')) {
+            $entry = $dxZip.GetEntry("build/native/release/bin/x64/$name")
+            if (-not $entry) { throw "D3DX runtime missing: $name" }
+            [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, (Join-Path $clientBin $name), $true)
+            Copy-Item -LiteralPath (Join-Path $clientBin $name) -Destination (Join-Path $serverBin $name) -Force
+        }
+        $notices = Join-Path $DestinationRoot 'notices'
+        New-Item -ItemType Directory -Force -Path $notices | Out-Null
+        [IO.Compression.ZipFileExtensions]::ExtractToFile($dxZip.GetEntry('LICENSE.txt'), (Join-Path $notices 'Microsoft-D3DX-LICENSE.txt'), $true)
+    } finally { $dxZip.Dispose() }
+    Remove-Item -LiteralPath $dxPackage
     $redistRoot = Join-Path ${env:ProgramFiles} 'Microsoft Visual Studio\2022\Enterprise\VC\Redist\MSVC'
     $crt = Get-ChildItem -LiteralPath $redistRoot -Directory | Sort-Object Name -Descending |
         ForEach-Object { Join-Path $_.FullName 'x64\Microsoft.VC143.CRT' } |
