@@ -175,7 +175,7 @@ jobs:
         run: |
           $out = "src/3rd party/_voice_lib"
           New-Item -ItemType Directory -Force $out | Out-Null
-          cmake -S "src/3rd party/opus" -B "_voice/opus" -A x64 -DOPUS_BUILD_PROGRAMS=OFF -DBUILD_TESTING=OFF -DOPUS_STACK_PROTECTOR=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL
+          cmake -S "src/3rd party/opus" -B "_voice/opus" -A x64 -DOPUS_BUILD_PROGRAMS=OFF -DBUILD_TESTING=OFF -DOPUS_STACK_PROTECTOR=OFF -DOPUS_X86_MAY_HAVE_SSE=OFF -DOPUS_X86_MAY_HAVE_SSE2=OFF -DOPUS_X86_MAY_HAVE_SSE4_1=OFF -DOPUS_X86_MAY_HAVE_AVX=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL
           if ($LASTEXITCODE -ne 0) { throw "opus configure failed" }
           cmake --build "_voice/opus" --config Release --target opus
           if ($LASTEXITCODE -ne 0) { throw "opus build failed" }
