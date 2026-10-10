@@ -264,6 +264,15 @@ void script_play_stop();
 float script_play_pos();
 bool script_play_paused();
 LPCSTR script_keyboard_layout();
+// PDA photos (netcoop_photo.inc): photo mode, gallery, photos in chats
+bool script_photo_take(LPCSTR name);
+bool script_photo_exists(LPCSTR name);
+int script_photo_size(LPCSTR name);
+LPCSTR script_photo_read(LPCSTR name);
+bool script_photo_write(LPCSTR name, LPCSTR base64);
+bool script_photo_delete(LPCSTR name);
+void script_photo_zoom(float zoom);
+extern float g_netcoop_photo_zoom;
 void script_voice_radio_set(u16 actor, int freq, bool on);
 void client_campfire_spawned(CZoneCampfire* campfire);
 // Server: how lit an object is for NPC vision. The renderer lights only what

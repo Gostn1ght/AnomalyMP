@@ -349,6 +349,9 @@ public:
 
 	//antglobes: Selective DDS Screenshot
 	virtual void TakeScreenshot(LPCSTR path, Fvector2 dimensions, DxEncoding encoding = eDXE_A8R8G8B8) = 0;
+	// Lost Zone PDA photo: the next presented frame, resized, into a DDS file
+	// (full path). Taken before Present; false when the renderer cannot.
+	virtual bool NetcoopPhotoRequest(LPCSTR path, u32 width, u32 height) { return false; }
 
 	// Occlusion culling
 	virtual BOOL occ_visible(vis_data& V) = 0;

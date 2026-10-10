@@ -408,6 +408,7 @@ public:
 
 	//antglobes: Selective DDS Screenshot
 	virtual void TakeScreenshot(LPCSTR path, Fvector2 dimensions, DxEncoding encoding = eDXE_A8R8G8B8);
+	virtual bool NetcoopPhotoRequest(LPCSTR path, u32 width, u32 height);
 
 	// Occlusion culling
 	virtual BOOL occ_visible(vis_data& V);

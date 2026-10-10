@@ -671,6 +671,133 @@ void CRender::TakeScreenshot(LPCSTR path, Fvector2 dimensions, DxEncoding encodi
 	// cleanup
 	_RELEASE(pSrcSmallTexture);
 }
+
+// PDA photo (netcoop_photo.inc): the request is kept until the end of the
+// next frame and taken right before Present (dxRenderDeviceRender::End) -
+// with a flip-model swap chain the back buffer is undefined once presented.
+// Resized to width x height, made opaque (BC1 would turn low back-buffer alpha
+// into holes), saved as a BC1 DDS through FS (w_close registers the file).
+static struct
+{
+	bool pending;
+	string_path path;
+	u32 width, height;
+} s_netcoop_photo = {};
+
+bool CRender::NetcoopPhotoRequest(LPCSTR path, u32 width, u32 height)
+{
+	if (ps_r4_hdr10_on || !path || !*path) return false;
+	xr_strcpy(s_netcoop_photo.path, path);
+	s_netcoop_photo.width = _min(_max(width, 64u), 1024u) & ~3u;
+	s_netcoop_photo.height = _min(_max(height, 64u), 1024u) & ~3u;
+	s_netcoop_photo.pending = true;
+	return true;
+}
+
+void NetcoopPhotoFlush()
+{
+	if (!s_netcoop_photo.pending) return;
+	s_netcoop_photo.pending = false;
+	if (ps_r4_hdr10_on || !Device.b_is_Ready) return;
+	const u32 w = s_netcoop_photo.width, h = s_netcoop_photo.height;
+
+	ID3DResource* src = nullptr;
+	HW.pBaseRT->GetResource(&src);
+	if (!src) return;
+
+	D3D_TEXTURE2D_DESC desc;
+	ZeroMemory(&desc, sizeof(desc));
+	desc.Width = w;
+	desc.Height = h;
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	desc.SampleDesc.Count = 1;
+	desc.Usage = D3D_USAGE_DEFAULT;
+	desc.BindFlags = D3D_BIND_SHADER_RESOURCE;
+
+	ID3DTexture2D* small = nullptr;
+	ID3DTexture2D* staging = nullptr;
+	ID3DTexture2D* opaque = nullptr;
+	ID3DTexture2D* packed = nullptr;
+	ID3DBlob* saved = nullptr;
+	bool ok = false;
+	xr_vector<u32> pixels;
+
+	if (FAILED(HW.pDevice->CreateTexture2D(&desc, NULL, &small))) goto done;
+#ifdef USE_DX11
+	if (FAILED(D3DX11LoadTextureFromTexture(HW.pContext, src, NULL, small))) goto done;
+#else
+	if (FAILED(D3DX10LoadTextureFromTexture(src, NULL, small))) goto done;
+#endif
+	{
+		D3D_TEXTURE2D_DESC sd = desc;
+		sd.Usage = D3D_USAGE_STAGING;
+		sd.BindFlags = 0;
+		sd.CPUAccessFlags = D3D_CPU_ACCESS_READ;
+		if (FAILED(HW.pDevice->CreateTexture2D(&sd, NULL, &staging))) goto done;
+	}
+#ifdef USE_DX11
+	HW.pContext->CopyResource(staging, small);
+#else
+	HW.pDevice->CopyResource(staging, small);
+#endif
+	{
+		D3D_MAPPED_TEXTURE2D mapped;
+#ifdef USE_DX11
+		if (FAILED(HW.pContext->Map(staging, 0, D3D_MAP_READ, 0, &mapped))) goto done;
+#else
+		if (FAILED(staging->Map(0, D3D_MAP_READ, 0, &mapped))) goto done;
+#endif
+		pixels.resize(w * h);
+		for (u32 y = 0; y < h; ++y)
+		{
+			const u32* row = (const u32*)((const u8*)mapped.pData + y * mapped.RowPitch);
+			for (u32 x = 0; x < w; ++x) pixels[y * w + x] = row[x] | 0xff000000u;
+		}
+#ifdef USE_DX11
+		HW.pContext->Unmap(staging, 0);
+#else
+		staging->Unmap(0);
+#endif
+	}
+	{
+		D3D_SUBRESOURCE_DATA init;
+		ZeroMemory(&init, sizeof(init));
+		init.pSysMem = &pixels[0];
+		init.SysMemPitch = w * 4;
+		if (FAILED(HW.pDevice->CreateTexture2D(&desc, &init, &opaque))) goto done;
+	}
+	{
+		D3D_TEXTURE2D_DESC pd = desc;
+		pd.Format = DXGI_FORMAT_BC1_UNORM;
+		if (FAILED(HW.pDevice->CreateTexture2D(&pd, NULL, &packed))) goto done;
+	}
+#ifdef USE_DX11
+	if (FAILED(D3DX11LoadTextureFromTexture(HW.pContext, opaque, NULL, packed))) goto done;
+	if (FAILED(D3DX11SaveTextureToMemory(HW.pContext, packed, D3DX11_IFF_DDS, &saved, 0))) goto done;
+#else
+	if (FAILED(D3DX10LoadTextureFromTexture(opaque, NULL, packed))) goto done;
+	if (FAILED(D3DX10SaveTextureToMemory(packed, D3DX10_IFF_DDS, &saved, 0))) goto done;
+#endif
+	{
+		IWriter* fs = FS.w_open(s_netcoop_photo.path);
+		if (fs)
+		{
+			fs->w(saved->GetBufferPointer(), (u32)saved->GetBufferSize());
+			FS.w_close(fs);
+			ok = true;
+		}
+	}
+done:
+	if (!ok) Msg("! [Lost Zone] PDA photo: frame not saved (%s)", s_netcoop_photo.path);
+	_RELEASE(saved);
+	_RELEASE(packed);
+	_RELEASE(opaque);
+	_RELEASE(staging);
+	_RELEASE(small);
+	_RELEASE(src);
+}
 #else //DX
 // Antglobes: Export Screenshot Func + variable resolution & encoding
 void CRender::TakeScreenshot(LPCSTR path, Fvector2 dimensions, DxEncoding encoding)
@@ -770,4 +897,7 @@ void CRender::TakeScreenshot(LPCSTR path, Fvector2 dimensions, DxEncoding encodi
 _end_:
 	_RELEASE(pFB);
 }
+
+// PDA photos are DX10/DX11 only (IRender_interface::NetcoopPhotoRequest returns false here).
+void NetcoopPhotoFlush() {}
 #endif

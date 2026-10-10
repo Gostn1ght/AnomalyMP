@@ -1119,6 +1119,9 @@ extern float g_ironsights_factor;
 
 float CActor::currentFOV()
 {
+	// PDA photo mode zoom (netcoop_photo.inc): narrower view, same "fov" setting
+	if (netcoop::g_netcoop_photo_zoom > 1.f)
+		return atan(tan(g_fov * (0.5 * PI / 180)) / netcoop::g_netcoop_photo_zoom) / (0.5 * PI / 180);
 	if (!psHUD_Flags.is(HUD_WEAPON | HUD_WEAPON_RT | HUD_WEAPON_RT2))
 		return g_fov;
 

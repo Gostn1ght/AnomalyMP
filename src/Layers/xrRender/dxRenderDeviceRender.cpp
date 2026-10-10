@@ -377,6 +377,7 @@ void dxRenderDeviceRender::Clear()
 }
 
 void DoAsyncScreenshot();
+void NetcoopPhotoFlush();
 
 void dxRenderDeviceRender::End()
 {
@@ -403,6 +404,7 @@ void dxRenderDeviceRender::End()
 # endif
 
 	if (!Device.m_SecondViewport.IsSVPFrame() && !Device.m_SecondViewport.isCamReady) {
+		NetcoopPhotoFlush(); // PDA photo: the finished frame, before Present
 		const HRESULT result = HW.m_pSwapChain->Present(present_interval, present_flags);
         static HRESULT last_result = S_OK;
         static bool first_present = true;
