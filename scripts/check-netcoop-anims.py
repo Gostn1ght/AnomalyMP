@@ -52,5 +52,14 @@ for kind in ("torchelo", "detector"):
         assert f"xrr_cr_torso_0_{kind}_{action}" in dev
 anim = (root.parent / "src/xrGame/ActorAnimation.cpp").read_text(encoding="utf-8-sig", errors="replace")
 assert 'smart_cast<CFlashlight*>(device) ? "torchelo" : "detector"' in anim
-assert '"xrr_%s_torso_%s_%s_%s"' in anim and '"walk_1"' in anim and '#include "Flashlight.h"' in anim
+assert '"xrr_%s_torso_%s_%s_%s"' in anim and '"walk_1"' in anim
+assert "xrr_cr_torso_1_detector_aim_1" in dev and "xrr_cr_torso_1_torchelo_aim_1" in dev and '? "1" : base' in anim
+for action in ('"drawall_0"', '"holsterall_0"', '"draw_0"', '"holster_0"', "CMissile::eThrowStart", '"reload_0"'):
+    assert action in anim, action
+for kind in ("torchelo", "detector"):
+    for base, actions in (("pistol", ("draw_0", "holster_0", "drawall_0", "holsterall_0", "attack_0", "attack_1", "reload_0")),
+                          ("knife", ("draw_0", "holster_0", "drawall_0", "holsterall_0", "attack_0", "attack_1")),
+                          ("6", ("draw_0", "holster_0", "drawall_0", "holsterall_0", "attack_0", "attack_1", "attack_2"))):
+        for action in actions:
+            assert f"xrr_norm_torso_{base}_{kind}_{action}" in dev, (base, kind, action) and '#include "Flashlight.h"' in anim
 print("netcoop anims: OK")

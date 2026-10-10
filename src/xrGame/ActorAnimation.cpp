@@ -407,17 +407,50 @@ static MotionID netcoop_device_torso(CActor* actor, CCustomDevice* device, u32 m
 		action = "aim_3";
 	else if (moving == STorsoWpn::eWalk && xr_strcmp(action, "aim_1") == 0)
 		action = "aim_2";
-	if (item->GetState() == CHUDState::eShowing)
-		action = device ? "drawdevice_0" : "draw_0";
-	else if (item->GetState() == CHUDState::eHiding)
-		action = device ? "holsterdevice_0" : "holster_0";
-	else if (device && smart_cast<CWeaponKnife*>(active))
+	if (!device)
 	{
-		CWeaponKnife* knife = smart_cast<CWeaponKnife*>(active);
-		if (knife->GetState() == CWeapon::eFire)
-			action = "attack_0";
-		else if (knife->GetState() == CWeapon::eFire2)
-			action = "attack_1";
+		if (item->GetState() == CHUDState::eShowing)
+			action = "draw_0";
+		else if (item->GetState() == CHUDState::eHiding)
+			action = "holster_0";
+	}
+	else
+	{
+		// Switching with the device in the left hand: the device, the right
+		// hand's item (pistol, knife, grenade/bolt), or both at once.
+		CHudItem* hand = active ? active->cast_hud_item() : nullptr;
+		const u32 hand_state = hand ? hand->GetState() : u32(CHUDState::eHidden);
+		const bool device_show = device->GetState() == CHUDState::eShowing;
+		const bool device_hide = device->GetState() == CHUDState::eHiding;
+		if (device_show && hand_state == CHUDState::eShowing)
+			action = "drawall_0";
+		else if (device_hide && hand_state == CHUDState::eHiding)
+			action = "holsterall_0";
+		else if (device_show)
+			action = "drawdevice_0";
+		else if (device_hide)
+			action = "holsterdevice_0";
+		else if (hand && hand_state == CHUDState::eShowing)
+			action = "draw_0";
+		else if (hand && hand_state == CHUDState::eHiding)
+			action = "holster_0";
+		else if (CWeaponKnife* knife = smart_cast<CWeaponKnife*>(active))
+		{
+			if (knife->GetState() == CWeapon::eFire)
+				action = "attack_0";
+			else if (knife->GetState() == CWeapon::eFire2)
+				action = "attack_1";
+		}
+		else if (smart_cast<CMissile*>(active))
+		{
+			// a grenade or a bolt: the swing, holding it ready, the throw
+			if (hand_state == CMissile::eThrowStart)
+				action = "attack_0";
+			else if (hand_state == CMissile::eReady)
+				action = "attack_1";
+			else if (hand_state == CMissile::eThrow || hand_state == CMissile::eThrowEnd)
+				action = "attack_2";
+		}
 	}
 
 	string128 name;
@@ -435,7 +468,9 @@ static MotionID netcoop_device_torso(CActor* actor, CCustomDevice* device, u32 m
 		LPCSTR tries[2] = {cycle, action};
 		for (LPCSTR a : tries)
 		{
-			xr_sprintf(name, "xrr_%s_torso_%s_%s_%s", (movement & mcCrouch) ? "cr" : "norm", base, kind, a);
+			// crouching with a pistol is their slot "1" pose
+			const bool crouch = (movement & mcCrouch) != 0;
+			xr_sprintf(name, "xrr_%s_torso_%s_%s_%s", crouch ? "cr" : "norm", crouch && !xr_strcmp(base, "pistol") ? "1" : base, kind, a);
 			motion = model->ID_Cycle_Safe(name);
 			if (!motion.valid())
 			{
