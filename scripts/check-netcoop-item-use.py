@@ -124,10 +124,19 @@ for seed in range(20):
 assert act("package", lua.eval('item("bandage")'), None) != ""
 assert act("package", lua.eval('item("medkit_ai1")'), lua.eval('item("kit")')) is None
 
+# Wallet: withdraw only what the balance has.
+lua.execute("p.alive_ = true; p.wish = false; money = 600; function p:money() return money end; sections.cash = 'x'")
+n0 = len(made())
+assert act("withdraw 500", lua.eval('item("cash")'), None) == "" and g.money == 100 and made()[-1] == "money_500"
+assert act("withdraw 500", lua.eval('item("cash")'), None) == "not enough money" and g.money == 100
+assert act("withdraw 300", lua.eval('item("cash")'), None) == "this is not a wallet"
+assert act("withdraw 100", lua.eval('item("bandage")'), None) == "this is not a wallet"
+assert len(made()) == n0 + 1
+
 # Wiring: the server action and the client requests.
 srv = (root / "scripts/netcoop-overlay/server/netcoop_server_compat.script").read_text(encoding="utf-8")
 assert 'netcoop_item_use.container_action(action, item, target)' in srv
 cli = (root / "scripts/netcoop-overlay/client/netcoop_client_compat.script").read_text(encoding="utf-8")
-for request in ('"arty_pack")', '"combine")', '65535, "arty_unpack")', '65535, "package")', "install_server_containers()"):
+for request in ('"arty_pack")', '"combine")', '65535, "arty_unpack")', '65535, "package")', '"withdraw " .. n)', "install_server_containers()"):
     assert request in cli, request
 print("netcoop item use: OK")

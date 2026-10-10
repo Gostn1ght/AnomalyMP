@@ -146,8 +146,23 @@ local function unpackage(obj)
 	return ""
 end
 
+-- The wallet (item "cash", item_money.use_money_N): take N roubles out of the
+-- balance as a money item. GAMMA's menu shows it only with enough money; the
+-- server checks the balance itself.
+local WITHDRAW = { [100] = "money_100", [500] = "money_500", [1000] = "money_1000", [5000] = "money_5000" }
+local function withdraw(wallet, amount)
+	local sec = WITHDRAW[amount]
+	if wallet:section() ~= "cash" or not sec then return "this is not a wallet" end
+	if db.actor:money() < amount then return "not enough money" end
+	db.actor:give_money(-amount)
+	alife_create_item(sec, db.actor)
+	return ""
+end
+
 -- netcoop_server_compat.item_action, kind 1; "" on success, else the reason.
 function container_action(action, item, target)
+	local amount = tonumber(string.match(action, "^withdraw (%d+)$") or "")
+	if amount and not target then return withdraw(item, amount) end
 	if action == "arty_pack" and target then return pack(item, target) end
 	if action == "arty_unpack" and not target then return unpack(item) end
 	if action == "combine" and target then return combine(item, target) end

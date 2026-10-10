@@ -934,6 +934,15 @@ local function install_server_containers()
 		netcoop_item_action(1, obj:id(), 65535, "package")
 	end
 	im.use_package, im.use_package_random = package, package
+	local money = item_money
+	if money then
+		for _, n in ipairs({ 100, 500, 1000, 5000 }) do
+			money["use_money_" .. n] = function(obj)
+				netcoop_item_action(1, obj:id(), 65535, "withdraw " .. n)
+				if utils_obj and utils_obj.play_sound then pcall(utils_obj.play_sound, "interface\\items\\inv_items_money_paper") end
+			end
+		end
+	end
 	im.use_arty_container = function(obj)
 		local sec = obj:section()
 		for _, cont in ipairs({ "lead_box", "af_iam", "af_aac", "af_aam" }) do

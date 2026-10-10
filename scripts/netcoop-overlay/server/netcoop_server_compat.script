@@ -1616,7 +1616,7 @@ function item_action(actor_id, kind, item_id, target_id, action, login)
 		return furniture_pickup(level.object_by_id(actor_id), item, login or "")
 	elseif kind == 2 and string.match(action, "^access ") then
 		return access_change(item, string.sub(action, 8), login or "")
-	elseif kind == 1 and (action == "arty_pack" or action == "arty_unpack" or action == "combine" or action == "package") then
+	elseif kind == 1 and (action == "arty_pack" or action == "arty_unpack" or action == "combine" or action == "package" or string.match(action, "^withdraw %d+$")) then
 		if target and item_id == target_id then return "invalid target" end
 		return netcoop_item_use.container_action(action, item, target) or "unknown item action"
 	elseif kind == 1 and target and string.match(action, "^repair %d+$") then
