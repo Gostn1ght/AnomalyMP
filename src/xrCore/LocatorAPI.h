@@ -12,6 +12,7 @@
 #pragma warning(pop)
 
 #include "LocatorAPI_defs.h"
+#include "lzpack_archive.h"
 
 class XRCORE_API CStreamReader;
 
@@ -36,6 +37,7 @@ public:
 		void *hSrcFile, *hSrcMap;
 		u32 size;
 		CInifile* header;
+		std::shared_ptr<LZPackArchive> protected_data;
 		u32 vfs_idx;
 
 		archive() : hSrcFile(NULL), hSrcMap(NULL), header(NULL), size(0), vfs_idx(u32(-1))

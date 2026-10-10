@@ -11,6 +11,7 @@
 #include "CustomRocket.h"
 #include "Grenade.h"
 #include "netcoop.h"
+#include "entity_alive.h"
 #include "../xrServerEntities/PHSynchronize.h"
 #include "inventory_item.h"
 #include "Weapon.h"
@@ -282,8 +283,16 @@ BOOL CPhysicsShellHolder::net_Spawn(CSE_Abstract* DC)
 
 void CPhysicsShellHolder::PHHit(SHit& H)
 {
-	if (H.phys_impulse() > 0)
-		if (m_pPhysicsShell) m_pPhysicsShell->applyHit(H.bone_space_position(), H.direction(), H.phys_impulse(),
+	float impulse = H.phys_impulse();
+	if (netcoop::enabled() && !netcoop::pure_client() && m_pPhysicsShell &&
+		H.type() == ALife::eHitTypeFireWound && !smart_cast<CEntityAlive*>(this) && !smart_cast<CMissile*>(this))
+	{
+		// Bullet momentum, not a mass increase: a 7.62 mm shot cannot launch
+		// a barrel like a rocket. Explosion impulses and thrown missiles stay stock.
+		impulse = _min(impulse, _min(8.f, m_pPhysicsShell->getMass() * 0.6f));
+	}
+	if (impulse > 0)
+		if (m_pPhysicsShell) m_pPhysicsShell->applyHit(H.bone_space_position(), H.direction(), impulse,
 		                                               H.bone(), H.type());
 }
 

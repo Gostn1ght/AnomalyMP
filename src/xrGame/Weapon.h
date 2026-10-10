@@ -67,6 +67,10 @@ public:
 	// client) - it fires only shot by shot from the owner.
 	bool netcoop_player_copy();
 	bool netcoop_aim(Fvector& pos, Fvector& dir) const;
+	void netcoop_send_shot(const Fvector& pos, const Fvector& dir, u8 kind = 0);
+	virtual bool netcoop_fire_shot(u8 kind, const Fvector& pos, const Fvector& dir);
+	virtual void netcoop_shot_effect(u8 kind);
+	void netcoop_consume_projectile();
 
 	// Generic
 	virtual void Load(LPCSTR section);

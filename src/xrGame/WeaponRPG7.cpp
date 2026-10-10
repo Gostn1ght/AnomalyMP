@@ -6,6 +6,7 @@
 #include "level.h"
 #include "player_hud.h"
 #include "hudmanager.h"
+#include "netcoop.h"
 
 CWeaponRPG7::CWeaponRPG7()
 {
@@ -32,6 +33,17 @@ bool CWeaponRPG7::AllowBore()
 
 void CWeaponRPG7::FireTrace(const Fvector& P, const Fvector& D)
 {
+	if (netcoop::enabled() && ParentIsActor())
+	{
+		// The server launches the rocket; no invisible hitscan bullet as well.
+		if (netcoop::pure_client())
+		{
+			netcoop_send_shot(P, D, 1);
+			netcoop_consume_projectile();
+		}
+		UpdateMissileVisibility();
+		return;
+	}
 	inherited::FireTrace(P, D);
 	UpdateMissileVisibility();
 }
@@ -40,6 +52,52 @@ void CWeaponRPG7::on_a_hud_attach()
 {
 	inherited::on_a_hud_attach();
 	UpdateMissileVisibility();
+}
+
+bool CWeaponRPG7::netcoop_launch_rocket(const Fvector& pos, const Fvector& direction)
+{
+	CExplosiveRocket* rocket = smart_cast<CExplosiveRocket*>(getCurrentRocket());
+	if (!rocket || !H_Parent() || !OnServer()) return false;
+	Fvector velocity; velocity.set(direction).normalize_safe();
+	Fmatrix launch; launch.identity(); launch.k.set(velocity);
+	Fvector::generate_orthonormal_basis(launch.k, launch.j, launch.i);
+	launch.c.set(pos);
+	velocity.mul(m_fLaunchSpeed);
+	CRocketLauncher::LaunchRocket(launch, velocity, zero_vel);
+	rocket->SetInitiator(H_Parent()->ID());
+	NET_Packet packet;
+	u_EventGen(packet, GE_LAUNCH_ROCKET, ID());
+	packet.w_u16(rocket->ID());
+	u_EventSend(packet);
+	return true;
+}
+
+bool CWeaponRPG7::netcoop_fire_shot(u8 kind, const Fvector& pos, const Fvector& dir)
+{
+	if (kind != 1 || !iAmmoElapsed || m_magazine.empty() || m_netcoop_launch_pending) return false;
+	if (!getRocketCount())
+	{
+		// Rocket spawning is asynchronous. Reserve the shot now and launch on
+		// ownership arrival instead of losing a freshly reloaded first shot.
+		m_netcoop_launch_pending = true;
+		m_netcoop_launch_owner = H_Parent()->ID();
+		m_netcoop_launch_pos.set(pos); m_netcoop_launch_dir.set(dir);
+		if (!m_netcoop_rocket_spawning)
+		{
+			m_netcoop_rocket_spawning = true;
+			CRocketLauncher::SpawnRocket(m_sRocketSection, this);
+		}
+	}
+	else if (!netcoop_launch_rocket(pos, dir)) return false;
+	OnShot();
+	netcoop_consume_projectile();
+	UpdateMissileVisibility();
+	return true;
+}
+
+void CWeaponRPG7::netcoop_shot_effect(u8 kind)
+{
+	if (kind == 1) OnShot();
 }
 
 void CWeaponRPG7::UpdateMissileVisibility()
@@ -64,7 +122,10 @@ BOOL CWeaponRPG7::net_Spawn(CSE_Abstract* DC)
 
 	UpdateMissileVisibility();
 	if (iAmmoElapsed && !getCurrentRocket())
+	{
+		m_netcoop_rocket_spawning = netcoop::enabled() && OnServer();
 		CRocketLauncher::SpawnRocket(m_sRocketSection, this);
+	}
 
 	return l_res;
 }
@@ -85,8 +146,11 @@ void CWeaponRPG7::ReloadMagazine()
 {
 	inherited::ReloadMagazine();
 
-	if (iAmmoElapsed && !getRocketCount())
+	if (iAmmoElapsed && !getRocketCount() && (!netcoop::enabled() || !m_netcoop_rocket_spawning))
+	{
+		m_netcoop_rocket_spawning = netcoop::enabled() && OnServer();
 		CRocketLauncher::SpawnRocket(m_sRocketSection.c_str(), this);
+	}
 }
 
 void CWeaponRPG7::SwitchState(u32 S)
@@ -107,6 +171,7 @@ void CWeaponRPG7::switch2_Fire()
 	m_iShotNum = 0;
 	m_bFireSingleShot = true;
 	bWorking = false;
+	if (netcoop::enabled() && ParentIsActor() && (netcoop::pure_client() || netcoop::server_player_copy(H_Parent()))) return;
 
 	if (GetState() == eFire && getRocketCount())
 	{
@@ -170,6 +235,12 @@ void CWeaponRPG7::PlayAnimReload()
 void CWeaponRPG7::OnEvent(NET_Packet& P, u16 type)
 {
 	inherited::OnEvent(P, type);
+	if (type == GE_WPN_STATE_CHANGE && netcoop::server_player_copy(H_Parent()) &&
+		iAmmoElapsed && !getRocketCount() && !m_netcoop_rocket_spawning)
+	{
+		m_netcoop_rocket_spawning = true;
+		CRocketLauncher::SpawnRocket(m_sRocketSection, this);
+	}
 	u16 id;
 	switch (type)
 	{
@@ -177,6 +248,13 @@ void CWeaponRPG7::OnEvent(NET_Packet& P, u16 type)
 		{
 			P.r_u16(id);
 			CRocketLauncher::AttachRocket(id, this);
+			m_netcoop_rocket_spawning = false;
+			if (m_netcoop_launch_pending)
+			{
+				m_netcoop_launch_pending = false;
+				if (H_Parent() && H_Parent()->ID() == m_netcoop_launch_owner)
+					netcoop_launch_rocket(m_netcoop_launch_pos, m_netcoop_launch_dir);
+			}
 		}
 		break;
 	case GE_OWNERSHIP_REJECT:

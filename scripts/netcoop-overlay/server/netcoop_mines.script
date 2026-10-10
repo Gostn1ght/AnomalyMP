@@ -1,0 +1,76 @@
+-- GAMMA mines: placement, ownership, arming and triggers belong to the server.
+-- Absolute game time and instance identity survive world save/offline/restart.
+local recipes = { mine_new = "mine_new_blow", ied_new = "ied_new_blow", ied_rpg_new = "rpg_new_blow" }
+local actions = { ["txr_mines.func_prox_plant"] = { mode = "proximity", delay = 5 },
+    ["txr_mines.func_timer_plant_10"] = { mode = "timer", delay = 10 },
+    ["txr_mines.func_timer_plant_30"] = { mode = "timer", delay = 30 } }
+local next_check = 0
+
+local function state()
+    local world = alife_storage_manager.get_state()
+    world.netcoop_mines = world.netcoop_mines or {}
+    return world.netcoop_mines
+end
+
+local function now()
+    local base = game.CTime()
+    base:set(2012, 1, 1, 0, 0, 0, 0)
+    return game.get_game_time():diffSec(base)
+end
+
+function plant(actor_id, item, action, login)
+    local actor = level.object_by_id(actor_id)
+    local recipe, choice = item and recipes[item:section()], actions[action]
+    if not (actor and actor:alive() and recipe and choice and ini_sys:section_exist(recipe)) then return "invalid mine" end
+    local parent = item:parent()
+    if not parent or parent:id() ~= actor_id then return "mine is not in your inventory" end
+    -- No client-supplied position: use the validated player's navmesh vertex.
+    local vertex = actor:level_vertex_id()
+    if not vertex or vertex == 4294967295 then return "mine needs solid ground" end
+    local pos = level.vertex_position(vertex)
+    if pos:distance_to(actor:position()) > 2 then return "mine needs solid ground" end
+    local mine = alife_create(recipe, pos, vertex, actor:game_vertex_id())
+    if not mine then return "mine could not be created" end
+    local entry = { name = mine:name(), section = recipe, owner = login or "", actor_id = actor_id,
+        mode = choice.mode, deadline = now() + choice.delay * math.max(1, level.get_time_factor()) }
+    state()[mine.id] = entry
+    local ok, err = pcall(alife_release, item)
+    if not ok then
+        state()[mine.id] = nil
+        alife_release_id(mine.id)
+        printf("! [Lost Zone][mine] consumption failed: %s", tostring(err))
+        return "mine could not be consumed"
+    end
+    printf("[Lost Zone][mine] planted %s id=%s owner=%s mode=%s", recipe, mine.id, entry.owner, entry.mode)
+    return ""
+end
+
+local function trigger_near(mine)
+    return netcoop_mine_contact(mine:id())
+end
+
+local function initiator(entry)
+    -- Reconnect/respawn can change the Actor id; an id can belong to somebody else.
+    for id in string.gmatch(netcoop_players(), "%d+") do
+        if entry.owner ~= "" and netcoop_actor_login(tonumber(id)) == entry.owner then return tonumber(id) end
+    end
+    return 65535 -- native fallback credits the mine itself, never an unrelated player
+end
+
+function update()
+    if time_global() < next_check then return end
+    next_check = time_global() + 100
+    local timestamp = now()
+    for id, entry in pairs(state()) do
+        local se = alife_object(id)
+        if not se or se:name() ~= entry.name or se:section_name() ~= entry.section then
+            state()[id] = nil
+        elseif timestamp >= entry.deadline then
+            local mine = level.object_by_id(id)
+            if mine and (entry.mode == "timer" or trigger_near(mine)) and netcoop_explode_as(id, initiator(entry)) then
+                state()[id] = nil -- exactly once; offline mines wait rather than disappear
+                printf("[Lost Zone][mine] detonated id=%s owner=%s", id, entry.owner)
+            end
+        end
+    end
+end

@@ -336,6 +336,40 @@ IReader* open_chunk(void* ptr, u32 ID)
 };
 
 
+static void protected_archive_read(const std::shared_ptr<LZPackArchive>& archive, u32 offset, void* data, u32 count)
+{
+	try { archive->read(offset, data, count); }
+	catch (const std::exception& error) { FATAL(error.what()); }
+}
+
+static IReader* open_archive_chunk(CLocatorAPI::archive& archive, u32 id)
+{
+	if (!archive.protected_data) return open_chunk(archive.hSrcFile, id);
+	u32 offset = 0;
+	while (offset < archive.size)
+	{
+		unsigned char header[8];
+		protected_archive_read(archive.protected_data, offset, header, sizeof(header));
+		const u32 type = lzpack::read32(header), count = lzpack::read32(header + 4);
+		R_ASSERT2(archive.size - offset >= 8 && count <= archive.size - offset - 8, "Invalid protected archive chunk");
+		offset += 8;
+		if ((type & ~CFS_CompressMark) == id)
+		{
+			u8* bytes = xr_alloc<u8>(count);
+			protected_archive_read(archive.protected_data, offset, bytes, count);
+			if (type & CFS_CompressMark)
+			{
+				BYTE* output; unsigned size;
+				_decompressLZ(&output, &size, bytes, count); xr_free(bytes);
+				return xr_new<CTempReader>(output, size, 0);
+			}
+			return xr_new<CTempReader>(bytes, count, 0);
+		}
+		offset += count;
+	}
+	return nullptr;
+}
+
 void CLocatorAPI::LoadArchive(archive& A, LPCSTR entrypoint)
 {
 	// Create base path
@@ -397,7 +431,7 @@ void CLocatorAPI::LoadArchive(archive& A, LPCSTR entrypoint)
 
 	// Read FileSystem
 	A.open();
-	IReader* hdr = open_chunk(A.hSrcFile, 1);
+	IReader* hdr = open_archive_chunk(A, 1);
 	R_ASSERT(hdr);
 	RStringVec fv;
 	while (!hdr->eof())
@@ -449,10 +483,14 @@ void CLocatorAPI::archive::open()
 	R_ASSERT(hSrcMap != INVALID_HANDLE_VALUE);
 	size = GetFileSize(hSrcFile, 0);
 	R_ASSERT(size > 0);
+	try { protected_data = LZPackArchive::open(hSrcMap, size); }
+	catch (const std::exception& error) { FATAL(error.what()); }
+	if (protected_data) size = protected_data->length();
 }
 
 void CLocatorAPI::archive::close()
 {
+	protected_data.reset();
 	CloseHandle(hSrcMap);
 	hSrcMap = NULL;
 	CloseHandle(hSrcFile);
@@ -482,7 +520,7 @@ void CLocatorAPI::ProcessArchive(LPCSTR _path)
 	// g_temporary_stuff_subst = g_temporary_stuff;
 	// g_temporary_stuff = NULL;
 
-	IReader* hdr = open_chunk(A.hSrcFile, CFS_HeaderChunkID);
+	IReader* hdr = open_archive_chunk(A, CFS_HeaderChunkID);
 	if (hdr)
 	{
 		A.header = xr_new<CInifile>(hdr, "archive_header");
@@ -1168,6 +1206,20 @@ void CLocatorAPI::file_from_archive(IReader*& R, LPCSTR fname, const file& desc)
 {
 	// Archived one
 	archive& A = m_archives[desc.vfs];
+	if (A.protected_data)
+	{
+		R_ASSERT2(desc.ptr <= A.size && desc.size_compressed <= A.size - desc.ptr, "Invalid protected archive file");
+		u8* data = xr_alloc<u8>(desc.size_compressed);
+		protected_archive_read(A.protected_data, desc.ptr, data, desc.size_compressed);
+		if (desc.size_real != desc.size_compressed)
+		{
+			u8* output = xr_alloc<u8>(desc.size_real);
+			rtc_decompress(output, desc.size_real, data, desc.size_compressed);
+			xr_free(data); data = output;
+		}
+		R = xr_new<CTempReader>(data, desc.size_real, 0);
+		return;
+	}
 	u32 start = (desc.ptr / dwAllocGranularity) * dwAllocGranularity;
 	u32 end = (desc.ptr + desc.size_compressed) / dwAllocGranularity;
 	if ((desc.ptr + desc.size_compressed) % dwAllocGranularity) end += 1;
@@ -1219,7 +1271,8 @@ void CLocatorAPI::file_from_archive(CStreamReader*& R, LPCSTR fname, const file&
 		desc.ptr,
 		desc.size_compressed,
 		A.size,
-		BIG_FILE_READER_WINDOW_SIZE
+		BIG_FILE_READER_WINDOW_SIZE,
+		A.protected_data
 	);
 }
 
@@ -1363,7 +1416,8 @@ T* CLocatorAPI::r_open_impl(LPCSTR path, LPCSTR _fname)
 		file_from_archive(R, fname, *desc);
 
 #ifdef DEBUG
-    if (R && m_Flags.is(flBuildCopy | flReady))
+    if (R && m_Flags.is(flBuildCopy | flReady) &&
+        (desc->vfs == 0xffffffff || !m_archives[desc->vfs].protected_data))
         copy_file_to_build(R, source_name);
 #endif // DEBUG
 

@@ -5,6 +5,7 @@
 #include "stdafx.h"
 
 #include "explosive.h"
+#include "netcoop.h"
 
 #include "../xrphysics/PhysicsShell.h"
 #include "entity.h"
@@ -437,7 +438,7 @@ void CExplosive::Explode()
 		                                  cartridge, m_fFragAirRes, SendHits, false, i + 1);
 	}
 
-	if (cast_game_object()->Remote()) return;
+	if (cast_game_object()->Remote() && !(netcoop::enabled() && OnServer())) return;
 
 	/////////////////////////////////
 	//взрывная волна
@@ -664,7 +665,7 @@ void CExplosive::ExplodeParams(const Fvector& pos,
 
 void CExplosive::GenExplodeEvent(const Fvector& pos, const Fvector& normal)
 {
-	if (OnClient() || cast_game_object()->Remote()) return;
+	if (OnClient() || (cast_game_object()->Remote() && !netcoop::enabled())) return;
 
 	//	if( m_bExplodeEventSent ) 
 	//		return;

@@ -39,3 +39,6 @@ $game_text$				= true 	| false	| $game_config$	 | text\
 $textures_ui$ 			= true 	| true 	| $textures$	 | ui\
 $warfare_presets$		= true 	| false	| $game_config$	 | warfare_presets\	| *.ltx
 $mcmlogs$                  = true 	| false	| $logs$| mcm\
+
+; Versioned fixes override base and loose data, in lexical order.
+$arch_dir_lostzone_updates$ = false | false | $arch_dir$ | lostzone_updates\

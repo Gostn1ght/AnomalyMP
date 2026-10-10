@@ -27,7 +27,12 @@ IC const HANDLE& CStreamReader::file_mapping_handle() const
 
 IC void CStreamReader::unmap()
 {
-	UnmapViewOfFile(m_current_map_view_of_file);
+	if (m_protected_archive)
+	{
+		SecureZeroMemory(m_start_pointer, m_current_window_size);
+		xr_free(m_start_pointer);
+	}
+	else UnmapViewOfFile(m_current_map_view_of_file);
 }
 
 IC void CStreamReader::remap(const u32& new_offset)
@@ -57,7 +62,7 @@ IC u32 CStreamReader::tell() const
 {
 	VERIFY(m_current_pointer >= m_start_pointer);
 	VERIFY(u32(m_current_pointer - m_start_pointer) <= m_current_window_size);
-	return (m_current_offset_from_start + (m_current_pointer - m_start_pointer));
+	return (m_current_offset_from_start + u32(m_current_pointer - m_start_pointer));
 }
 
 IC void CStreamReader::close()

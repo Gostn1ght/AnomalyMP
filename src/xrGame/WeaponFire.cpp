@@ -65,6 +65,41 @@ void CWeapon::FireStart()
 	CShootingObject::FireStart();
 }
 
+void CWeapon::netcoop_send_shot(const Fvector& pos, const Fvector& dir, u8 kind)
+{
+	if (!netcoop::pure_client() || !H_Parent() || !H_Parent()->Local() || !ParentIsActor() ||
+		!_valid(pos) || !_valid(dir)) return;
+	NET_Packet aim;
+	u_EventGen(aim, GE_NETCOOP_WPN_AIM, ID());
+	aim.w_vec3(pos);
+	aim.w_vec3(dir);
+	aim.w_u8(kind);
+	u_EventSend(aim);
+}
+
+bool CWeapon::netcoop_fire_shot(u8 kind, const Fvector& pos, const Fvector& dir)
+{
+	if (kind != 0) return false;
+	OnShot();
+	FireTrace(pos, dir);
+	return true;
+}
+
+void CWeapon::netcoop_shot_effect(u8 kind)
+{
+	if (kind == 0) OnShot();
+}
+
+void CWeapon::netcoop_consume_projectile()
+{
+	VERIFY(!m_magazine.empty() && iAmmoElapsed > 0);
+	m_lastCartridge = m_magazine.back();
+	ChangeCondition(-GetWeaponDeterioration() * m_lastCartridge.param_s.impair * cur_silencer_koef.condition_shot_dec);
+	m_magazine.pop_back();
+	--iAmmoElapsed;
+	VERIFY((u32)iAmmoElapsed == m_magazine.size());
+}
+
 void CWeapon::FireTrace(const Fvector& P, const Fvector& D)
 {
 	// Netcoop server: log a player's shots (origin, whether the owner's aim
@@ -83,14 +118,7 @@ void CWeapon::FireTrace(const Fvector& P, const Fvector& D)
 	}
 	// Netcoop: the server fires the player's weapon too; tell it where this
 	// shot really starts and points (the server Actor has no camera).
-	if (netcoop::pure_client() && ParentIsActor() && H_Parent() && H_Parent()->Local() && _valid(P) && _valid(D))
-	{
-		NET_Packet aim;
-		u_EventGen(aim, GE_NETCOOP_WPN_AIM, ID());
-		aim.w_vec3(P);
-		aim.w_vec3(D);
-		u_EventSend(aim);
-	}
+	netcoop_send_shot(P, D);
 
 	VERIFY(m_magazine.size());
 

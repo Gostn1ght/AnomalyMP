@@ -37,6 +37,8 @@ public:
 	virtual u8 GetCurrentHudOffsetIdx();
 	virtual void FireEnd();
 	void LaunchGrenade();
+	bool netcoop_fire_shot(u8 kind, const Fvector& pos, const Fvector& dir) override;
+	void netcoop_shot_effect(u8 kind) override;
 
 	virtual void OnStateSwitch(u32 S, u32 oldState);
 

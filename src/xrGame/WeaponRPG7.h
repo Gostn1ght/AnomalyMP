@@ -21,6 +21,9 @@ public:
 	virtual void Load(LPCSTR section);
 	virtual void switch2_Fire();
 	virtual void FireTrace(const Fvector& P, const Fvector& D);
+	bool netcoop_fire_shot(u8 kind, const Fvector& pos, const Fvector& dir) override;
+	void netcoop_shot_effect(u8 kind) override;
+	bool netcoop_launch_rocket(const Fvector& pos, const Fvector& dir);
 	virtual void on_a_hud_attach();
 
 	virtual void FireStart();
@@ -35,6 +38,10 @@ protected:
 	virtual void PlayAnimReload();
 
 	shared_str m_sRocketSection;
+	bool m_netcoop_rocket_spawning = false;
+	bool m_netcoop_launch_pending = false;
+	u16 m_netcoop_launch_owner = 0xffff;
+	Fvector m_netcoop_launch_pos, m_netcoop_launch_dir;
 
 DECLARE_SCRIPT_REGISTER_FUNCTION
 };

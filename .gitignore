@@ -44,3 +44,7 @@ compressor/mod/
 # Local modular backend runtime data and credentials.
 backend/**/__pycache__/
 backend/runtime/
+
+# Generated from the GitHub Actions archive secret; never commit the key.
+src/xrCore/_lzpack_key.generated.h
+tools/lzpack/__pycache__/

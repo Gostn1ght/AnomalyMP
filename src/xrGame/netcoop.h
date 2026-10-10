@@ -274,6 +274,8 @@ float server_luminocity(const CObject* object, float rendered);
 float script_prop_shell_mass(u16 id);
 LPCSTR script_mass_props();
 bool script_prop_set_mass(u16 id, float total);
+bool script_explode_as(u16 id, u16 initiator);
+bool script_mine_contact(u16 id);
 // Server: distance to the nearest living player (positions cached each
 // frame); a large value when no player is online.
 float server_nearest_player_distance(const Fvector& position);

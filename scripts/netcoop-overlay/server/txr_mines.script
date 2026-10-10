@@ -1,0 +1,5 @@
+-- Lost Zone: legacy GAMMA entry points; the server action router owns placement.
+function str_prox_plant() return "st_plant_explosive_prox" end
+function str_timer_plant_10() return "st_plant_explosive_timer_10" end
+function str_timer_plant_30() return "st_plant_explosive_timer_30" end
+function on_game_start() end

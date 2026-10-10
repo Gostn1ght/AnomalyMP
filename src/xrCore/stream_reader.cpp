@@ -6,7 +6,8 @@ void CStreamReader::construct(
 	const u32& start_offset,
 	const u32& file_size,
 	const u32& archive_size,
-	const u32& window_size
+	const u32& window_size,
+	std::shared_ptr<LZPackArchive> protected_archive
 )
 {
 	m_file_mapping_handle = file_mapping_handle;
@@ -14,6 +15,7 @@ void CStreamReader::construct(
 	m_file_size = file_size;
 	m_archive_size = archive_size;
 	m_window_size = _max(window_size, FS.dwAllocGranularity);
+	m_protected_archive = std::move(protected_archive);
 
 	map(0);
 }
@@ -27,6 +29,15 @@ void CStreamReader::map(const u32& new_offset)
 {
 	VERIFY(new_offset <= m_file_size);
 	m_current_offset_from_start = new_offset;
+	if (m_protected_archive)
+	{
+		m_current_window_size = _min(m_window_size, m_file_size - new_offset);
+		m_current_map_view_of_file = nullptr;
+		m_start_pointer = m_current_pointer = xr_alloc<u8>(_max(1u, m_current_window_size));
+		try { m_protected_archive->read(m_start_offset + new_offset, m_current_pointer, m_current_window_size); }
+		catch (const std::exception& error) { FATAL(error.what()); }
+		return;
+	}
 
 	u32 granularity = FS.dwAllocGranularity;
 	u32 start_offset = m_start_offset + new_offset;
@@ -82,6 +93,8 @@ void CStreamReader::advance(const int& offset)
 
 void CStreamReader::r(void* _buffer, u32 buffer_size)
 {
+	if (!buffer_size) return;
+	if (m_protected_archive) R_ASSERT2(buffer_size <= elapsed(), "Stream read outside file");
 	VERIFY(m_current_pointer >= m_start_pointer);
 	VERIFY(u32(m_current_pointer - m_start_pointer) <= m_current_window_size);
 
@@ -94,7 +107,7 @@ void CStreamReader::r(void* _buffer, u32 buffer_size)
 	}
 
 	u8* buffer = (u8*)_buffer;
-	u32 elapsed_in_window = m_current_window_size - (m_current_pointer - m_start_pointer);
+	u32 elapsed_in_window = m_current_window_size - u32(m_current_pointer - m_start_pointer);
 
 	do
 	{
@@ -120,7 +133,7 @@ CStreamReader* CStreamReader::open_chunk(const u32& chunk_id)
 
 	R_ASSERT2(!compressed, "cannot use CStreamReader on compressed chunks");
 	CStreamReader* result = xr_new<CStreamReader>();
-	result->construct(file_mapping_handle(), m_start_offset + tell(), size, m_archive_size, m_window_size);
+	result->construct(file_mapping_handle(), m_start_offset + tell(), size, m_archive_size, m_window_size, m_protected_archive);
 	return (result);
 }
 

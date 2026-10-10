@@ -657,6 +657,9 @@ end
 -- checks and runs them for this player (netcoop_server_compat.item_action;
 -- keep SERVER_ITEM_ACTIONS equal to its SERVER_MENU_ACTIONS).
 local SERVER_ITEM_ACTIONS = {
+	["txr_mines.func_prox_plant"] = true,
+	["txr_mines.func_timer_plant_10"] = true,
+	["txr_mines.func_timer_plant_30"] = true,
 	["item_device.func_battery"] = true,
 }
 

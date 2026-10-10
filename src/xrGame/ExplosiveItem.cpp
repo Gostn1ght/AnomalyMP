@@ -10,6 +10,10 @@
 #include "stdafx.h"
 #include "../../script_game_object.h"
 #include "ExplosiveItem.h"
+#include "netcoop.h"
+#include "netcoop_prop_mass.h"
+#include "../xrPhysics/PhysicsShell.h"
+#include "../Include/xrRender/Kinematics.h"
 
 
 CExplosiveItem::CExplosiveItem(void)
@@ -39,21 +43,38 @@ void CExplosiveItem::net_Destroy()
 	CExplosive::net_Destroy();
 }
 
+BOOL CExplosiveItem::net_Spawn(CSE_Abstract* DC)
+{
+	if (!inherited::net_Spawn(DC)) return FALSE;
+	// Map explosives are inventory objects, not CPhysicObject. Their authored
+	// shell mass therefore never went through the crate/barrel mass adapter.
+	if (netcoop::enabled() && OnServer() && !CanTake() && Visual() && PPhysicsShell() &&
+		netcoop_prop_mass::classify(cNameVisual().c_str()) == netcoop_prop_mass::Kind::barrel)
+	{
+		Fvector center, half; Visual()->getVisData().box.get_CD(center, half);
+		const float mass = netcoop_prop_mass::shell(netcoop_prop_mass::Kind::barrel, 2.f * half.x, 2.f * half.y, 2.f * half.z);
+		if (mass > 0.f) PPhysicsShell()->setMass1(mass);
+	}
+	return TRUE;
+}
+
 //void CExplosiveItem::Hit(float P, Fvector &dir,	CObject* who, s16 element,
 //						Fvector position_in_object_space, float impulse, 
 //						ALife::EHitType hit_type)
 void CExplosiveItem::Hit(SHit* pHDS)
 {
+	if (netcoop::pure_client()) return; // the authority owns condition and fuse
 	//	inherited::Hit(P,dir,who,element,position_in_object_space,impulse,hit_type);
 	if (CDelayedActionFuse::isActive())pHDS->power = 0.f;
 	inherited::Hit(pHDS);
-	VERIFY(pHDS->who);
 	if (!CDelayedActionFuse::isActive() &&
-		CDelayedActionFuse::CheckCondition(GetCondition()) &&
-			pHDS->who/*&&CExplosive::Initiator()==u16(-1)*/)
+		CDelayedActionFuse::CheckCondition(GetCondition()))
 	{
 		//запомнить того, кто взорвал вещь
-		SetInitiator(pHDS->who->ID());
+		SetInitiator(pHDS->who ? pHDS->who->ID() : ID());
+		// Sleeping inventory objects need frame processing once the fuse is lit.
+		processing_activate();
+		if (netcoop::enabled()) Msg("[Lost Zone][explosive] armed %s (%u), initiator %u, condition %.3f", cNameSect().c_str(), ID(), Initiator(), GetCondition());
 	}
 }
 
@@ -71,6 +92,7 @@ void CExplosiveItem::OnEvent(NET_Packet& P, u16 type)
 
 void CExplosiveItem::UpdateCL()
 {
+	UpdateFuse();
 	CExplosive::UpdateCL();
 	inherited::UpdateCL();
 }
@@ -78,6 +100,12 @@ void CExplosiveItem::UpdateCL()
 void CExplosiveItem::shedule_Update(u32 dt)
 {
 	inherited::shedule_Update(dt);
+	UpdateFuse();
+}
+
+void CExplosiveItem::UpdateFuse()
+{
+	if (netcoop::pure_client()) return;
 	if (CDelayedActionFuse::isActive() && CDelayedActionFuse::Update(GetCondition()))
 	{
 		Fvector normal;

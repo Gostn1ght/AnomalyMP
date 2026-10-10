@@ -2823,6 +2823,8 @@ void CLevel::script_register(lua_State* L)
 		def("netcoop_prop_shell_mass", &netcoop::script_prop_shell_mass),
 		def("netcoop_mass_props", &netcoop::script_mass_props),
 		def("netcoop_prop_set_mass", &netcoop::script_prop_set_mass),
+		def("netcoop_explode_as", &netcoop::script_explode_as),
+		def("netcoop_mine_contact", &netcoop::script_mine_contact),
 		def("netcoop_store_read", &netcoop::script_store_read),
 		def("netcoop_store_swap", &netcoop::script_store_swap),
 		def("netcoop_store_keys", &netcoop::script_store_keys),

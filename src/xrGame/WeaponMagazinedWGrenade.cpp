@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "netcoop.h"
 #include "weaponmagazinedwgrenade.h"
 #include "entity.h"
 #include "ParticlesObject.h"
@@ -380,7 +381,8 @@ void CWeaponMagazinedWGrenade::OnEvent(NET_Packet& P, u16 type)
 			bool bLaunch = (type == GE_LAUNCH_ROCKET);
 			P.r_u16(id);
 			CRocketLauncher::DetachRocket(id, bLaunch);
-			if (bLaunch)
+			if (bLaunch && !(netcoop::enabled() && ParentIsActor() &&
+				(netcoop::server_player_copy(H_Parent()) || netcoop::client_owns_hud_item(&CHudItem::object()))))
 			{
 				PlayAnimShoot();
 				PlaySound("sndShotG", get_LastFP2());
@@ -394,6 +396,16 @@ void CWeaponMagazinedWGrenade::OnEvent(NET_Packet& P, u16 type)
 
 void CWeaponMagazinedWGrenade::LaunchGrenade()
 {
+	if (netcoop::pure_client() && ParentIsActor())
+	{
+		if (!H_Parent() || !H_Parent()->Local() || !iAmmoElapsed || m_magazine.empty()) return;
+		Fvector pos, dir;
+		smart_cast<CEntity*>(H_Parent())->g_fireParams(this, pos, dir);
+			netcoop_send_shot(pos, dir, 2);
+			netcoop_consume_projectile();
+			OnShot();
+		return;
+	}
 	if (!getRocketCount()) return;
 	R_ASSERT(m_bGrenadeMode);
 	{
@@ -484,7 +496,7 @@ void CWeaponMagazinedWGrenade::LaunchGrenade()
 		VERIFY(pGrenade);
 		pGrenade->SetInitiator(H_Parent()->ID());
 
-		if (Local() && OnServer())
+		if (OnServer() && (Local() || netcoop::server_player_copy(H_Parent())))
 		{
 			VERIFY(m_magazine.size());
 			m_magazine.pop_back();
@@ -497,6 +509,21 @@ void CWeaponMagazinedWGrenade::LaunchGrenade()
 			u_EventSend(P);
 		};
 	}
+}
+
+bool CWeaponMagazinedWGrenade::netcoop_fire_shot(u8 kind, const Fvector& pos, const Fvector& dir)
+{
+	if (!m_bGrenadeMode) return kind == 0 && inherited::netcoop_fire_shot(kind, pos, dir);
+	if (kind != 2 || !getRocketCount() || !iAmmoElapsed || m_magazine.empty()) return false;
+	LaunchGrenade();
+	OnShot();
+	return true;
+}
+
+void CWeaponMagazinedWGrenade::netcoop_shot_effect(u8 kind)
+{
+	// Grenade shot effects follow GE_LAUNCH_ROCKET, not both events.
+	if (!m_bGrenadeMode && kind == 0) inherited::netcoop_shot_effect(kind);
 }
 
 void CWeaponMagazinedWGrenade::FireEnd()

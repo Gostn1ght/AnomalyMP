@@ -1059,7 +1059,7 @@ function on_game_start()
 	if AddUniqueCall and ProcessEventQueue then
 		AddUniqueCall(server_event_queue)
 		AddUniqueCall(server_world_loop)
-		AddUniqueCall(function() process_pending_inventory(); owned_objects_update(); stash_visits_update(); keep_switch_distance(); if netcoop_transit then netcoop_transit.update() end; if netcoop_factions then netcoop_factions.update_online() end; if netcoop_ranks then netcoop_ranks.update() end; if netcoop_squads then netcoop_squads.update() end; if netcoop_corpses then netcoop_corpses.update() end; if netcoop_traders then netcoop_traders.update() end; if netcoop_box_contents then netcoop_box_contents.update() end; return false end)
+		AddUniqueCall(function() process_pending_inventory(); owned_objects_update(); stash_visits_update(); keep_switch_distance(); if netcoop_transit then netcoop_transit.update() end; if netcoop_factions then netcoop_factions.update_online() end; if netcoop_ranks then netcoop_ranks.update() end; if netcoop_squads then netcoop_squads.update() end; if netcoop_corpses then netcoop_corpses.update() end; if netcoop_traders then netcoop_traders.update() end; if netcoop_box_contents then netcoop_box_contents.update() end; if netcoop_mines then netcoop_mines.update() end; return false end)
 		printf("[Lost Zone] server time event queue installed")
 	end
 	-- base-game's NPC vision hook reads db.actor (torch, flashlight) for every
@@ -1099,6 +1099,9 @@ end
 -- these instead of running them (netcoop_client_compat SERVER_ITEM_ACTIONS,
 -- keep both lists equal).
 local SERVER_MENU_ACTIONS = {
+	["txr_mines.func_prox_plant"] = true,
+	["txr_mines.func_timer_plant_10"] = true,
+	["txr_mines.func_timer_plant_30"] = true,
 	["item_device.func_battery"] = true, -- take the battery out of a device
 }
 
@@ -1600,6 +1603,7 @@ function item_action(actor_id, kind, item_id, target_id, action, login)
 	if kind == 0 then
 		if not SERVER_MENU_ACTIONS[action] then return "this action is not run by the server" end
 		if not section_has_functor(item:section(), action) then return "this item has no such action" end
+		if string.sub(action, 1, 10) == "txr_mines." then return netcoop_mines.plant(actor_id, item, action, login) end
 		local module, name = string.match(action, "^([%w_]+)%.([%w_]+)$")
 		local fn = module and _G[module] and _G[module][name]
 		if type(fn) ~= "function" then return "action is not loaded on the server" end

@@ -1,0 +1,11 @@
+-- Lost Zone: never create, destroy or trigger mines on a pure client.
+function str_prox_plant() return "st_plant_explosive_prox" end
+function str_timer_plant_10() return "st_plant_explosive_timer_10" end
+function str_timer_plant_30() return "st_plant_explosive_timer_30" end
+local function request(obj, action)
+    if obj then netcoop_item_action(0, obj:id(), 65535, action) end
+end
+function func_prox_plant(obj) request(obj, "txr_mines.func_prox_plant") end
+function func_timer_plant_10(obj) request(obj, "txr_mines.func_timer_plant_10") end
+function func_timer_plant_30(obj) request(obj, "txr_mines.func_timer_plant_30") end
+function on_game_start() end

@@ -1,5 +1,6 @@
 #ifndef STREAM_READER_H
 #define STREAM_READER_H
+#include "lzpack_archive.h"
 
 class XRCORE_API CStreamReader : public IReaderBase<CStreamReader>
 {
@@ -16,6 +17,7 @@ private:
 	u8* m_current_map_view_of_file;
 	u8* m_start_pointer;
 	u8* m_current_pointer;
+	std::shared_ptr<LZPackArchive> m_protected_archive;
 
 private:
 	void map(const u32& new_offset);
@@ -36,7 +38,8 @@ public:
 		const u32& start_offset,
 		const u32& file_size,
 		const u32& archive_size,
-		const u32& window_size
+		const u32& window_size,
+		std::shared_ptr<LZPackArchive> protected_archive = nullptr
 	);
 	virtual void destroy();
 

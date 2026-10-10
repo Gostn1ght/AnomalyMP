@@ -1205,9 +1205,12 @@ void CWeapon::OnEvent(NET_Packet& P, u16 type)
 	{
 	case GE_NETCOOP_WPN_AIM:
 		{
+			if (P.r_elapsed() < 6 * sizeof(float)) break;
 			Fvector pos, dir;
 			P.r_vec3(pos);
 			P.r_vec3(dir);
+			if (P.r_elapsed() > 1) break;
+			const u8 kind = P.r_elapsed() ? P.r_u8() : 0;
 			// The server accepts a shot origin near the holder only.
 			if (OnServer() && H_Parent() && _valid(pos) && _valid(dir) && dir.square_magnitude() > EPS &&
 				pos.distance_to(H_Parent()->Position()) < 3.f)
@@ -1226,14 +1229,13 @@ void CWeapon::OnEvent(NET_Packet& P, u16 type)
 					// FireTrace creates bullets but does not run the ordinary shot
 					// sound/weapon-fired callbacks. NPC hearing and GAMMA's shot
 					// visibility stimulus need them on the authority as well.
-					OnShot();
-					FireTrace(m_netcoop_aim_pos, m_netcoop_aim_dir);
+					netcoop_fire_shot(kind, m_netcoop_aim_pos, m_netcoop_aim_dir);
 				}
 			}
 			// Other clients: the owner fired once - its sound, flash and smoke.
 			else if (netcoop::pure_client() && H_Parent() && smart_cast<CActor*>(H_Parent()) &&
 				!netcoop::client_owns_hud_item(&CHudItem::object()))
-				OnShot();
+				netcoop_shot_effect(kind);
 		}
 		break;
 	case GE_ADDON_CHANGE:

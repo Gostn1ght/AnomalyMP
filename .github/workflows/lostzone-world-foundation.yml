@@ -215,6 +215,8 @@ jobs:
           python scripts/check-native-crow-enemy.py
           python scripts/check-native-monster-snapshot.py
           python scripts/check-native-host-stop.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-projectile-shot.py
   clock-windows:
     runs-on: windows-2022
     timeout-minutes: 10
@@ -228,7 +230,7 @@ jobs:
         run: |
           ./scripts/check-netcoop-load-harness.ps1
           ./scripts/check-netcoop-host-controls.ps1
-          python -m pip install lupa==2.8
+          python -m pip install lupa==2.8 cryptography==46.0.2
           python scripts/check-netcoop-server-pda.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/check-netcoop-server-item-save.py
@@ -316,6 +318,8 @@ jobs:
           python scripts/check-native-monster-snapshot.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-host-stop.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-projectile-shot.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-character-checksum.py
           if errorlevel 1 exit /b %errorlevel%

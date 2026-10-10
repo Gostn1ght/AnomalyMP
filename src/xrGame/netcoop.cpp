@@ -64,6 +64,8 @@
 #include "netcoop_item_state.h"
 #include "netcoop_save_checksum.h"
 #include "netcoop_prop_mass.h"
+#include "Missile.h"
+#include "Explosive.h"
 #include "script_engine.h"
 #include "xrServer_Objects_ALife_Monsters.h"
 #include "game_base_space.h"
@@ -2070,6 +2072,35 @@ bool script_prop_set_mass(u16 id, float total)
 	return true;
 }
 
+bool script_explode_as(u16 id, u16 initiator)
+{
+	if (!enabled() || pure_client() || !g_pGameLevel || !Level().Server) return false;
+	CGameObject* object = smart_cast<CGameObject*>(Level().Objects.net_Find(id));
+	CExplosive* explosive = smart_cast<CExplosive*>(object);
+	if (!object || !explosive || object->getDestroy() || object->H_Parent() || explosive->IsExploding()) return false;
+	CObject* owner = Level().Objects.net_Find(initiator);
+	Fvector normal; explosive->FindNormal(normal);
+	explosive->SetInitiator(owner && !owner->getDestroy() ? initiator : id);
+	explosive->GenExplodeEvent(object->Position(), normal);
+	return true;
+}
+
+bool script_mine_contact(u16 id)
+{
+	if (!enabled() || pure_client() || !g_pGameLevel || !Level().Server) return false;
+	CObject* mine = Level().Objects.net_Find(id);
+	if (!mine || mine->getDestroy()) return false;
+	xr_vector<ISpatial*> nearby;
+	g_SpatialSpace->q_sphere(nearby, 0, STYPE_COLLIDEABLE, mine->Position(), 2.5f);
+	for (ISpatial* spatial : nearby)
+	{
+		CEntityAlive* creature = smart_cast<CEntityAlive*>(spatial->dcast_CObject());
+		if (creature && creature->ID() != 0 && creature->g_Alive() && !creature->getDestroy() &&
+			creature->Position().distance_to_sqr(mine->Position()) <= 2.5f * 2.5f) return true;
+	}
+	return false;
+}
+
 float server_luminocity(const CObject* object, float rendered)
 {
 	float light = 0.5f;
@@ -2162,6 +2193,8 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 	// killer (run-cheat-test.ps1).
 	case GE_HIT:
 	case GE_HIT_STATISTIC:
+	case GE_GRENADE_EXPLODE:
+	case GE_LAUNCH_ROCKET:
 	case GE_DIE:
 	case GE_ASSIGN_KILLER:
 	case GE_GAME_EVENT:
@@ -3953,9 +3986,10 @@ void server_physics_update(xrServer* server)
 			if (!awake) continue; // untouched props still consume no pose traffic
 			Msg("[Lost Zone][physics] prop %s (%u) moved: its pose goes to the players", holder->cName().c_str(), holder->ID());
 		}
-		if (awake && !creature)
+		if (awake && !creature && !smart_cast<CMissile*>(object))
 		{
-			// Drops and explosions: no item flies off faster than 12 m/s.
+			// Loose props/debris are limited; thrown grenades and bolts keep
+			// their configured ballistics (CMissile is their common base).
 			for (u16 i = 0; i < count; ++i)
 			{
 				SPHNetState state; holder->PHGetSyncItem(i)->get_State(state);
