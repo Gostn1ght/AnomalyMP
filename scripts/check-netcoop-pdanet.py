@@ -139,8 +139,8 @@ s = [x for x in st.chats.values() if x.id == cid][0]
 assert s.unread == 2 and s.last.x.startswith("Hunting") and s.peer.name == "Bashka"
 cmd(0, 1, f"pdanet msg {cid} text are you there?")
 poll(1)
-new = last([tuple(x.values()) for x in take(2).values()], "new")
-assert new.id == cid and new.msgs[1].x == "are you there?" and new.msgs[1].n == "Bashka"
+news = [v for k, v in [tuple(x.values()) for x in take(2).values()] if k == "new" and v.id == cid]
+assert news and news[-1].msgs[1].x == "are you there?" and news[-1].msgs[1].n == "Bashka"
 o = last(cmd(1, 2, f"pdanet open {cid}"), "chat")
 assert [x.x for x in o.msgs.values()] == ["Let's go hunting", "Hunting spot", "are you there?"]
 assert o.msgs[2].k == "point" and o.msgs[2].d == "k00_marsh 10.5 0 -20"
@@ -158,8 +158,8 @@ assert grp.name == "Scientists" and grp.members == 3
 gid = grp.id
 cmd(1, 2, f"pdanet msg {gid} text Reasonable!")
 poll(0)
-new = last([tuple(x.values()) for x in take(1).values()], "new")
-assert new.id == gid and new.msgs[1].x == "Reasonable!"
+news = [v for k, v in [tuple(x.values()) for x in take(1).values()] if k == "new" and v.id == gid]
+assert news and news[-1].msgs[1].x == "Reasonable!"  # (his own DM line may come too, in any order)
 st = last(cmd(0, 3, "pdanet hello"), "state")
 assert any(x.id == gid for x in st.chats.values())
 cmd(0, 3, f"pdanet delete {gid}")
