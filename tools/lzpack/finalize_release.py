@@ -163,7 +163,9 @@ def main():
             rows=[('gamedata\\'+name,p)for name,p in rows if (name,p)not in nested]
             if rows:pack_rows(rows,folder/'db/lostzone/lz_overlay',key,'$fs_root$\\',retained)
             backup=inside(retained/folder.name/'gamedata',root);backup.parent.mkdir(parents=True,exist_ok=True)
-            os.replace(assets,backup);assets.mkdir()
+            # no empty gamedata\ left behind: the engine skips a missing loose
+            # folder (CLocatorAPI::Recurse) and the archives carry the files
+            os.replace(assets,backup)
         (folder/'db/lostzone_updates').mkdir(exist_ok=True)
         for path in archive_files(folder):
             if not sealed(path):raise ValueError('Unprotected archive remains: '+str(path))

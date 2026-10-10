@@ -69,7 +69,7 @@ with TemporaryDirectory() as tmp:
         assert not (folder/'UPDATING.lock').exists()
         assert not list(folder.rglob('*.script')) and not list(folder.rglob('*.key'))
         assert not (folder/role/'bin/obsolete.exe').exists()
-        assert not (folder/role/'bin').exists() and not (folder/'built-from.txt').exists() and not (folder/'lzpack-format.json').exists()
+        assert not (folder/'gamedata').exists() and not (folder/role/'bin').exists() and not (folder/'built-from.txt').exists() and not (folder/'lzpack-format.json').exists()
         for path in (folder/'resources').iterdir():
             if path.suffix.startswith('.db'):assert lzpack.Reader(path,key).size>0
     retained=list((out/'_work').glob('retained_plain_*'));assert len(retained)==1
