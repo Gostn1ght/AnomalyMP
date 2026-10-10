@@ -39,6 +39,11 @@ hoster/netcoop_cluster.ltx.six при первом запуске). Для иг�
 """
 
 
+# Examples and dumps the panel never reads (it needs the .six/.full plans and
+# the panel/watchdog/controls scripts only).
+HOSTER_EXTRAS = shutil.ignore_patterns('*.example', 'changers_dump.txt')
+
+
 def digest(path):
     h = hashlib.sha256()
     with open(path, 'rb') as f:
@@ -93,16 +98,19 @@ def build(game, server, addon, key=None):
         if twin.exists() and same(path, twin, key):
             shared += 1
             continue
-        if 'lz_scripts' not in path.name.lower():
+        if path.name.lower().startswith('99_lz_patch_') and path.stem.lower().endswith('_server'):
+            name = path.name                     # a server patch: server\scripts only
+        elif 'lz_scripts' in path.name.lower():
+            name = '95_server_' + path.name.split('_', 1)[1] if path.name[:2].isdigit() else '95_server_' + path.name
+        else:
             raise ValueError('Server archive differs from the game and is not the server scripts: ' + path.name)
-        name = '95_server_' + path.name.split('_', 1)[1] if path.name[:2].isdigit() else '95_server_' + path.name
         shutil.copy2(path, addon / 'resources' / name)
         copied.append(name)
     if not copied:
         raise ValueError('No server scripts archive found in ' + str(server / 'resources'))
     for folder in ('dedicated', 'hoster'):
         if (server / folder).is_dir():
-            shutil.copytree(server / folder, addon / folder)
+            shutil.copytree(server / folder, addon / folder, ignore=HOSTER_EXTRAS)
     # notices and build stamps the game already has are not repeated
     for path in sorted((server / 'notices').glob('*')) if (server / 'notices').is_dir() else []:
         if path.is_file() and not (game / 'notices' / path.name).exists():
@@ -110,7 +118,7 @@ def build(game, server, addon, key=None):
             shutil.copy2(path, addon / 'notices' / path.name)
     shutil.copytree(server / 'server' / 'configs', addon / 'server' / 'configs')
     (addon / 'server' / 'scripts').mkdir()
-    for name in ('fsgame_server.template', 'Start Server Panel.cmd', 'lzpack-format.json', 'built-from.txt'):
+    for name in ('fsgame_server.template', 'Start Server Panel.cmd'):
         if (server / name).exists() and not (game / name).exists():
             shutil.copy2(server / name, addon / name)
     (addon / 'README-server-addon.txt').write_text(ADDON_README, encoding='utf-8')

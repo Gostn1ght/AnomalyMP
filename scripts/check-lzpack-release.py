@@ -69,6 +69,7 @@ with TemporaryDirectory() as tmp:
         assert not (folder/'UPDATING.lock').exists()
         assert not list(folder.rglob('*.script')) and not list(folder.rglob('*.key'))
         assert not (folder/role/'bin/obsolete.exe').exists()
+        assert not (folder/role/'bin').exists() and not (folder/'built-from.txt').exists() and not (folder/'lzpack-format.json').exists()
         for path in (folder/'resources').iterdir():
             if path.suffix.startswith('.db'):assert lzpack.Reader(path,key).size>0
     retained=list((out/'_work').glob('retained_plain_*'));assert len(retained)==1
@@ -86,6 +87,7 @@ with TemporaryDirectory() as tmp:
     made=lzpack.patch(patch_src,temp/'patches',key,'000001')
     assert made.name=='99_lz_patch_000001.db0' and made.name>max(names)
     assert (out/'Compressor/private/lzpack-v1.key').read_bytes()==key
+    assert (out/'Compressor/built-from.txt').read_text(encoding='utf-8')==expected and (out/'Compressor/lzpack-format.json').is_file()
     # The server add-on for a player's folder: only the server's own scripts
     # archive (renamed so it never shadows the game's), nothing that replaces
     # a game file; the same content sealed twice counts as the game's.
@@ -93,6 +95,7 @@ with TemporaryDirectory() as tmp:
     (folders[1]/'dedicated').mkdir(exist_ok=True)
     (folders[1]/'server/configs').mkdir(parents=True,exist_ok=True);(folders[1]/'server/configs/system.ltx').write_text('[x]',encoding='utf-8')
     (folders[1]/'hoster').mkdir(exist_ok=True);(folders[1]/'hoster/netcoop_cluster.ltx.six').write_text('[locations]',encoding='utf-8')
+    (folders[1]/'hoster/netcoop_cluster.ltx.example').write_text('[x]',encoding='utf-8');(folders[1]/'hoster/changers_dump.txt').write_text('x',encoding='utf-8')
     addon=out/'Lost Zone Server Addon'
     copied,shared=make_server_addon.build(folders[0],folders[1],addon,key)
     assert len(copied)==1 and copied[0].startswith('95_server_lostzone_lz_scripts'),copied
@@ -101,4 +104,5 @@ with TemporaryDirectory() as tmp:
     assert (addon/'server/scripts').is_dir() and not list((addon/'server/scripts').iterdir())
     assert lzpack.Reader(addon/'resources'/copied[0],key).size>0
     assert addon.name not in [p.name for p in folders[0].iterdir()]
+    assert (addon/'hoster/netcoop_cluster.ltx.six').is_file() and not list((addon/'hoster').glob('*.example')) and not (addon/'hoster/changers_dump.txt').exists()
 print('PASS actual protected release: mismatch rejected before mutation, exact original backups, deduplicated sealed archives, encrypted scripts/assets, one resources folder in mount order, patches sort last, independent portable copy, owner key outside distributables')

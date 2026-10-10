@@ -30,9 +30,14 @@ def retain_legacy(folder,role,retained):
     if obsolete.exists():
         backup=retained/folder.name/role/'scripts_disabled';backup.parent.mkdir(parents=True,exist_ok=True)
         os.replace(obsolete,backup)
-    for path in (folder/role/'bin').glob('*.exe'):
-        backup=retained/folder.name/path.relative_to(folder);backup.parent.mkdir(parents=True,exist_ok=True)
-        os.replace(path,backup)
+    # Owner 2026-10-10 "удали лишние папки": <role>/bin is an old runtime copy
+    # (the engine runs from bin/ and dedicated/), <role>/textures is not
+    # mounted (fsgame reads gamedata/ and the archives).
+    for name in ('bin','textures'):
+        old=folder/role/name
+        if old.exists():
+            backup=retained/folder.name/role/name;backup.parent.mkdir(parents=True,exist_ok=True)
+            os.replace(old,backup)
 
 def archive_files(folder):
     return sorted(p for p in (folder/'db').rglob('*') if p.is_file() and p.suffix.lower().startswith('.db') and p.name.lower()!='thumbs.db')
@@ -160,8 +165,6 @@ def main():
             backup=inside(retained/folder.name/'gamedata',root);backup.parent.mkdir(parents=True,exist_ok=True)
             os.replace(assets,backup);assets.mkdir()
         (folder/'db/lostzone_updates').mkdir(exist_ok=True)
-        shutil.copy2(artifact/'lzpack-format.json',folder/'lzpack-format.json')
-        shutil.copy2(artifact/'built-from.txt',folder/'built-from.txt')
         for path in archive_files(folder):
             if not sealed(path):raise ValueError('Unprotected archive remains: '+str(path))
             reader=lzpack.Reader(path,key);reader.read(0,1);reader.read(reader.size-1,1)
@@ -172,6 +175,8 @@ def main():
     here=Path(__file__).resolve().parent
     for name in ('lzpack.py','README.md','Create patch.cmd'):shutil.copy2(here/name,tools/name)
     shutil.copy2(args.key,tools/'private/lzpack-v1.key')
+    # build stamps are the owner's, not the players' (nothing reads them in the game)
+    for name in ('lzpack-format.json','built-from.txt'):shutil.copy2(artifact/name,tools/name)
     # Owner 2026-10-10: one "resources" folder for every archive (flatten_resources.py).
     import flatten_resources
     layout=inside(root/'_work'/('resources_layout_'+datetime.now().strftime('%Y%m%d_%H%M%S')),root);layout.mkdir(parents=True)

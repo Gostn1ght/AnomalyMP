@@ -151,3 +151,24 @@ plan is `hoster\netcoop_cluster.ltx.six`: k00_marsh, l01_escape, l02_garbage,
 y04_pole (Поляна), l05_bar, l07_military; Meadow is reached from Cordon, the
 Warehouses from the Bar. The full standalone "Lost Zone Server" stays for hosts
 without the game.
+
+## Nothing extra in the distributables (owner 2026-10-10, Claude)
+
+Owner: "удали лишние папки которые не должны быть доступны игроку и не влияют
+на запуск, и у дедика". Removed from J: (moved to `_work\trimmed_*`, not
+deleted): the game's `client\bin` (an old runtime copy; the engine runs from
+`bin\`), `client\textures` (not mounted: fsgame reads gamedata\ and the
+archives; the RP textures are sealed in lz_overlay), `notices\notices`,
+`MANIFEST-sha256.txt`, `built-from.txt`, `lzpack-format.json` (nothing in the
+game or the launcher reads them) and the empty `appdata\` (Play Lost Zone.cmd
+creates it); from the add-on's `hoster\` the `*.example` files and
+`changers_dump.txt` (the panel reads only the .six/.full plans). The player's
+`notices\` got the Microsoft D3DX license that ships with the D3DX DLLs.
+
+The generators no longer make them: finalize_release moves `<role>\bin` and
+`<role>\textures` into the retained originals and puts the build stamps next
+to the owner's Compressor; make-portable-release copies notice files, not the
+folder; make_server_addon skips hoster examples and stamps.
+`check-portable-release.ps1` now fails on any of them (also in the add-on,
+plus an add-on file that would replace a game file) and writes its SHA256
+manifests to `_work\`.

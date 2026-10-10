@@ -63,7 +63,9 @@ New-Item -ItemType Directory -Force (Join-Path $game "db\lostzone"), (Join-Path 
 Copy-Item (Join-Path $PSScriptRoot "fsgame_client.template") (Join-Path $game "fsgame.template") -Force
 Copy-Item (Join-Path $PSScriptRoot "Play Lost Zone.cmd") $game -Force
 Copy-Item (Join-Path $PSScriptRoot "README-players.txt") (Join-Path $game "README.txt") -Force
-Copy-Item (Join-Path $Artifact "notices") (Join-Path $game "notices") -Recurse -Force
+New-Item -ItemType Directory -Force (Join-Path $game "notices") | Out-Null
+Copy-Item (Join-Path $Artifact "notices\*") (Join-Path $game "notices") -Force # files only: never notices/notices
+otices
 
 # 3. The dedicated server with the location panel (no textures: a dedicated
 #    server never loads texture images, CTexture::Load returns first).
@@ -78,7 +80,9 @@ New-Item -ItemType Directory -Force (Join-Path $host_ "db\lostzone"), (Join-Path
 Copy-Item (Join-Path $PSScriptRoot "fsgame_server.template") (Join-Path $host_ "fsgame_server.template") -Force
 Copy-Item (Join-Path $PSScriptRoot "Start Server Panel.cmd") $host_ -Force
 Copy-Item (Join-Path $PSScriptRoot "README-server.txt") (Join-Path $host_ "README.txt") -Force
-Copy-Item (Join-Path $Artifact "notices") (Join-Path $host_ "notices") -Recurse -Force
+New-Item -ItemType Directory -Force (Join-Path $host_ "notices") | Out-Null
+Copy-Item (Join-Path $Artifact "notices\*") (Join-Path $host_ "notices") -Force # files only: never notices/notices
+otices
 
 # 4. Packed GAMMA data: everything for players, no textures for the server.
 if ($NoPacks) { Write-Host "archives skipped (-NoPacks)"; return }

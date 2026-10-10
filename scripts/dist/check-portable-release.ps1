@@ -9,7 +9,12 @@
 #     no server scripts in the players' folder;
 #   - every fsgame alias of the template resolves inside the folder;
 #   - archives present (players: all categories; server: all but textures);
-# then writes MANIFEST-sha256.txt (binaries and archives) into each folder.
+#   - nothing a player or the launch does not need (owner 2026-10-10: remove
+#     extra folders): no old client\bin / server\bin runtime copies, no
+#     unmounted client\textures, no notices\notices, no build stamps; the
+#     server add-on (if built) replaces no game file and has no examples;
+# then writes the SHA256 manifest (binaries and archives) of each folder to
+# _work\ - the owner's, not part of a distributable.
 param([Parameter(Mandatory = $true)][string]$Out, [string]$Builder = "C:\Users\Mahito")
 $ErrorActionPreference = "Stop"
 $fail = @()
@@ -33,6 +38,19 @@ foreach ($root in $game, $host_) {
     if ($private) { $fail += "private files in ${root}: " + (($private | Select-Object -First 5).FullName -join ", ") }
 }
 if (Test-Path (Join-Path $game "server")) { $fail += "server scripts in the players' folder" }
+$addon = Join-Path $Out "Lost Zone Server Addon"
+foreach ($root in $game, $host_, $addon) {
+    if (-not (Test-Path $root)) { continue }
+    foreach ($extra in "client\bin", "server\bin", "client\textures", "server\textures", "notices\notices", "built-from.txt", "lzpack-format.json", "MANIFEST-sha256.txt", "UPDATING.lock") {
+        if (Test-Path (Join-Path $root $extra)) { $fail += "not for distribution: $root\$extra" }
+    }
+}
+if (Test-Path $addon) {
+    $extras = Get-ChildItem (Join-Path $addon "hoster") -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*.example" -or $_.Name -eq "changers_dump.txt" }
+    if ($extras) { $fail += "examples in the add-on: " + ($extras.Name -join ", ") }
+    $clash = Get-ChildItem $addon -Recurse -File | Where-Object { Test-Path -LiteralPath (Join-Path $game $_.FullName.Substring($addon.Length + 1)) }
+    if ($clash) { $fail += "add-on replaces game files: " + (($clash | Select-Object -First 5).FullName -join ", ") }
+}
 if (Test-Path (Join-Path $game "dedicated")) { $fail += "dedicated server in the players' folder" }
 foreach ($c in "lz_misc", "lz_meshes", "lz_levels", "lz_sounds", "lz_textures") {
     $onGame = @(Get-ChildItem (Join-Path $game "db\lostzone") -Filter "$c.db*" -ErrorAction SilentlyContinue) +
@@ -59,7 +77,9 @@ foreach ($root in $game, $host_) {
     if (-not (Test-Path $root)) { continue }
     $manifest = Get-ChildItem $root -Recurse -File | Where-Object { $_.Extension -in ".exe", ".dll" -or $_.Name -match '\.db[0-9a-z]*$' } |
         Sort-Object FullName | ForEach-Object { "{0}  {1}" -f (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash, $_.FullName.Substring($root.Length + 1) }
-    Set-Content -LiteralPath (Join-Path $root "MANIFEST-sha256.txt") -Value $manifest -Encoding ascii
+    New-Item -ItemType Directory -Force (Join-Path $Out "_work") | Out-Null
+    $list = Join-Path $Out ("_work\MANIFEST-sha256-" + (Split-Path $root -Leaf).Replace(" ", "_") + ".txt")
+    Set-Content -LiteralPath $list -Value $manifest -Encoding ascii
     $size = (Get-ChildItem $root -Recurse -File | Measure-Object Length -Sum).Sum
     Write-Host ("{0}: {1:N1} GB, {2} hashed files" -f $root, ($size / 1GB), $manifest.Count)
 }
