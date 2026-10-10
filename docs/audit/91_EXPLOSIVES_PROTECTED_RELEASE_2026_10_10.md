@@ -122,3 +122,32 @@ player-owned stashes/furniture in them now have no owner account.
 Firebase (cloud sign-in) users can only be deleted in the Firebase console
 (Authentication → Users): the game has only the public client key.
 Old test snapshots under `_build\live\` and `build-logs\` were left as they are.
+
+## Artefacts after emissions (owner 2026-10-10, Claude)
+
+Owner: artefacts never appear again after an emission. Cause: the dedicated
+callback filter (netcoop_server_compat) blocks every `actor_on_*` callback that
+is client feedback; `actor_on_interaction` was blocked too, including the
+emission's world event `("anomalies", nil, "emission_end"/"psi_storm_end")`.
+GAMMA refills artefacts exactly there (bind_anomaly_zone.force_spawn_artefacts,
+drx_da_main dynamic anomalies), so nothing ever refilled on a server. Also
+GAMMA's periodic spawner `grok_artefacts_random_spawner` runs on the blocked
+`actor_on_update`. Fix: the filter passes `actor_on_interaction` with typ
+"anomalies"; `netcoop_artefacts.update_world` (server world tick) runs the
+GAMMA spawner while players are on the map and restarts its delays when a
+player arrives (GAMMA's set_delay on map arrival). Fixture
+check-netcoop-artefacts.py. Not verified in game.
+
+## Server for a player's folder (owner 2026-10-10, Claude)
+
+Owner: "сервер чисто всё что надо накинуть на игру ... другу скину, он рядом с
+bin накинет". `tools/lzpack/make_server_addon.py --out J:\LostZone --key ...`
+builds `Lost Zone Server Addon\` from the sealed release: dedicated\, server
+configs, hoster, panel, fsgame_server.template and only the server's scripts
+archive (resources\95_server_*). Every other server archive equals the game's
+by content (sealed copies differ by salt, so they are decrypted and hashed) and
+is not repeated; nothing in the add-on replaces a game file. The panel's default
+plan is `hoster\netcoop_cluster.ltx.six`: k00_marsh, l01_escape, l02_garbage,
+y04_pole (Поляна), l05_bar, l07_military; Meadow is reached from Cordon, the
+Warehouses from the Bar. The full standalone "Lost Zone Server" stays for hosts
+without the game.

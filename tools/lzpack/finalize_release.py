@@ -99,9 +99,21 @@ def main():
     retained=inside(root/'_work'/('retained_plain_'+datetime.now().strftime('%Y%m%d_%H%M%S')),root)
     retained.mkdir(parents=True,exist_ok=False)
     known={};common={};report=[]
+    # A resumed run (an earlier one stopped part way): the player's archives it
+    # sealed are recognised by the original bytes it recorded, so a server copy
+    # of the same original still becomes a link to the sealed one.
+    sealed_from={}
+    for old in sorted((root/'_work').glob('retained_plain_*/conversion.json')):
+        for row in json.loads(old.read_text(encoding='utf-8')):
+            if row.get('folder')==game.name:sealed_from[row['archive']]=row['original_sha256']
     # Verify duplicates before replacing a server copy with a hardlink.
     for path in archives[server]:
         shared=game/path.relative_to(server)
+        if shared.is_file() and sealed(shared) and not sealed(path):
+            original=sealed_from.get(str(shared.relative_to(game)))
+            if original and original==digest(path):
+                common[path]=shared;known[path]=original
+            continue
         if not shared.is_file() or shared.stat().st_size!=path.stat().st_size:continue
         if os.path.samefile(shared,path):common[path]=shared;continue
         one,two=digest(shared),digest(path)
