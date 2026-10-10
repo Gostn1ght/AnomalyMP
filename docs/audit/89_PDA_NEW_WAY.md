@@ -38,7 +38,8 @@ Tabs and frame
 - [x] all GAMMA tabs kept, only FM radio removed; NW tabs added; tab strip
       scrolls, 4 visible
 - [x] "Карта местности" caption for the map tab
-- [ ] map tab: "Список заданий" button (task list over the map)
+- [x] map tab: "Список заданий" button - GAMMA already has it (pda_tasks_16.xml
+      btn_second_task, text missions_list = "Список заданий"); NW only moves it
 - [x] clock (game time) at the right of the tab strip
 - [x] footer on every NW tab: "<PDA name> - UID nnnnnn"
 - [x] profile card (PDA name, UID, faction, money "RU", avatar) like the
@@ -51,9 +52,9 @@ Contacts
 - [x] list: avatar, name, UID, "в сети" only for mutual contacts
 - [x] empty-list hint "Список пуст. Спросите у сталкера его UID..."
 - [x] unread count on a contact
-- [ ] unread mark on the Contacts tab caption
+- [x] unread mark on the Contacts tab caption ("Контакты (N)", also "Чаты (N)")
 - [x] send a map point to a contact without typing the UID ("Отправить точку")
-- [ ] send a task to a contact
+- [x] send a task to a contact ("Отправить задание": title + target, "Отметить на карте")
 
 General channel
 - [x] history kept on the server, anonymous checkbox, Отправить
@@ -73,19 +74,20 @@ Chats
 - [x] text messages; own on the right, others left with avatar; sender name
       in groups; date "12.09 15:16"
 - [x] point message: "Точка", description, "Отметить на карте"
-- [ ] point: send button flow ("Точка" picks a map spot / current position)
-- [ ] photo message (image inline) - needs photo capture
+- [x] point: "Точка" picks own position or one of the player's map pins
+- [x] photo message: "Снимок" picks a gallery shot; "Открыть снимок" shows it,
+      "В галерею" keeps it
 - [x] voice message ("Запись 0:13", play/pause, seek bar, time)
 
 Photo mode ("Фото" tab / "Режим съёмки")
-- [ ] camera overlay: "ФОТОКАМЕРА", corner brackets, "Снимков: N - 1x"
-- [ ] RMB zoom, LMB shot, E / ESC exit
-- [ ] frame capture (engine), stored per character
+- [x] camera overlay: "ФОТОКАМЕРА", corner brackets, "Снимков: N - 1x"
+- [x] RMB zoom 1x/2x/4x, LMB shot, E / ESC exit (NW shutter/zoom sounds)
+- [x] frame capture (engine), stored per character (index file per UID)
 
 Gallery
-- [ ] thumbnails with date/time, selected preview: date, place, size
-- [ ] Удалить снимок, Режим съёмки, "Снимков: N"
-- [ ] send a photo to a chat or group
+- [x] thumbnails with date/time, selected preview: date, place, size; full view
+- [x] Удалить снимок, Режим съёмки, "Снимков: N"
+- [x] send a photo to a chat or group (the chat open in "Чаты")
 
 Dictaphone
 - [x] description, "Записей: N", Начать запись / Остановить
@@ -120,9 +122,7 @@ Fixtures: check-netcoop-pdanet.py, check-netcoop-pdanet-voice.py.
   (netcoop_pda pins).
 - P3 money transfer between contacts (server moves money, offline credit
   applied on the recipient's next login), with a confirmation.
-- P4 photos: engine capture of the frame (downscaled JPEG/RTC), stored per
-  character on the server, gallery tab, photo messages with a size limit.
-  Needs engine work (capture + runtime texture from bytes) in GHA.
+- P4 photos (3f6f4ec78 engine, 474bed6d7 fix, be553b0f2 Lua; section below).
 - P5 dictaphone: there is no microphone path in the engine; recording "what
   the player hears" can be done as a log of the sounds played around the
   listener (sound, position relative to the listener, time) replayed later.
@@ -133,5 +133,39 @@ Fixtures: check-netcoop-pdanet.py, check-netcoop-pdanet-voice.py.
   under the housing's glass layer (y 0.0187 vs 0.0202); the capture crop
   (cursor box) is within 1 % of the HUD screen's UV area (u 0.111-0.889,
   v 0.047-0.963), so the frame itself is not the shift.
+
+## P4 photos (2026-10-10 night, Claude)
+
+Engine (netcoop_photo.inc, r__screenshot.cpp): netcoop_photo_take(name) asks
+the renderer for the next frame; it is taken in dxRenderDeviceRender::End
+right before Present (FLIP_DISCARD: the back buffer is undefined once
+presented, so a read at Lua time would get garbage), resized to 640x360,
+alpha forced to 255 on the CPU (BC1 turns low back-buffer alpha into
+holes), BC1 DDS (~113 KB) through FS.w_open/w_close into
+$game_saves$\netcoop_photos\. w_close registers the file and the texture
+loader also looks in $game_saves$ (as for save thumbnails), so the UI shows
+it at once by the name "netcoop_photos\<name>"; at the next start the
+recursive app-data scan finds it. netcoop_photo_read/write move photos as
+base64; write accepts only a plain DDS (magic, header, sides <= 1024,
+DXT1/DXT5/32-bit, 512 KiB). netcoop_photo_zoom scales the FOV in
+CActor::currentFOV; the saved "fov" setting is not touched. DX10/DX11 only;
+off with HDR10 (as the engine's screenshots).
+
+Client: netcoop_pdanet_photo (photo mode, gallery, "Фото" tab, chat photos).
+Gallery shots are g<UID>_<id>.dds with an index file
+netcoop_gallery_<UID>.txt (60 shots); chat photos are cached as c_<pid>.dds.
+Server: "pbeg <pid> <cid> <parts> <level>" + the shared "aup" parts, records
+pda_photo/<pid>, "pget" for chat members; a "photo" message comes only from
+an upload. Voice and photo uploads never overlap (one per player).
+
+Also: "task" messages (netcoop_pdanet_client.active_tasks from the on_task
+list; the target from get_map_object_id), "Точка" with map pins
+(netcoop_pda.pin_points), unread counts on the Chats/Contacts tab captions
+(pda_dynamic_tabs.set_caption). Fixture check-netcoop-pdanet-photo.py (CI).
+
+Left: the PDA held landscape in both hands (first and third person). NW
+does it with its own HUD model and hand animations (dev_pda_hud.ogf,
+wpn_hand_pda_hud_animation.omf, kyky_smoke_pda_*); swapping GAMMA's 3D PDA
+model can break its screen, so it waits for the owner's look in game.
 
 Nothing here is verified in game.
