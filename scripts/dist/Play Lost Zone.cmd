@@ -1,4 +1,5 @@
 @echo off
+if exist "%~dp0UPDATING.lock" (echo Lost Zone update is in progress. & pause & exit /b 1)
 rem Lost Zone: writes fsgame.ltx for the folder this file is in, then starts the game.
 cd /d "%~dp0"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$r = (Get-Location).Path.TrimEnd('\') + '\'; (Get-Content -Raw -LiteralPath 'fsgame.template' -Encoding Default).Replace('{ROOT}', $r) | Set-Content -NoNewline -Encoding Default -LiteralPath 'fsgame.ltx'"

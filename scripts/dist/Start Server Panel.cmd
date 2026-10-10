@@ -1,4 +1,5 @@
 @echo off
+if exist "%~dp0UPDATING.lock" (echo Lost Zone update is in progress. & pause & exit /b 1)
 rem Lost Zone server: writes fsgame_server.ltx for this folder and opens the
 rem location panel (list of maps, start / stop / restart, automatic mode).
 cd /d "%~dp0"

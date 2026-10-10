@@ -430,7 +430,7 @@ void CWeaponMagazinedWGrenade::LaunchGrenade()
 			}
 			E->g_fireParams(this, p1, d);
 		}
-		if (IsGameTypeSingle())
+		if (IsGameTypeSingle() && !netcoop::server_player_copy(H_Parent()))
 			p1.set(get_LastFP2());
 
 		Fmatrix launch_matrix;
@@ -563,7 +563,7 @@ void CWeaponMagazinedWGrenade::OnStateSwitch(u32 S, u32 oldState)
 	{
 	case eSwitch:
 		{
-			if (!SwitchMode())
+			if (!SwitchMode(netcoop_player_copy()))
 			{
 				SwitchState(eIdle);
 				return;
@@ -1083,7 +1083,7 @@ void CWeaponMagazinedWGrenade::net_Import(NET_Packet& P)
 	bool NewMode = FALSE;
 	NewMode = !!P.r_u8();
 	if (NewMode != m_bGrenadeMode)
-		SwitchMode();
+		SwitchMode(netcoop_player_copy());
 
 	inherited::net_Import(P);
 }

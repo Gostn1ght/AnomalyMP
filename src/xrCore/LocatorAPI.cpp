@@ -1214,7 +1214,8 @@ void CLocatorAPI::file_from_archive(IReader*& R, LPCSTR fname, const file& desc)
 		if (desc.size_real != desc.size_compressed)
 		{
 			u8* output = xr_alloc<u8>(desc.size_real);
-			rtc_decompress(output, desc.size_real, data, desc.size_compressed);
+			R_ASSERT2(rtc_decompress_safe(output, desc.size_real, data, desc.size_compressed) == desc.size_real,
+				"Invalid compressed protected archive file");
 			xr_free(data); data = output;
 		}
 		R = xr_new<CTempReader>(data, desc.size_real, 0);

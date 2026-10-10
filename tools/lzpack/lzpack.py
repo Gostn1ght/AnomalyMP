@@ -61,26 +61,28 @@ class Reader:
         if self.path.stat().st_size != expected: raise ValueError('Truncated archive')
         self.aes = AESGCM(hashlib.sha256(key + salt).digest())
     def read(self, offset, count):
+        with self.path.open('rb') as stream:
+            return self.read_stream(stream, offset, count)
+    def read_stream(self, stream, offset, count):
         if offset < 0 or count < 0 or offset > self.size or count > self.size - offset:
             raise ValueError('Read outside archive')
         data = bytearray()
-        with self.path.open('rb') as stream:
-            while count:
-                block, within = divmod(offset, BLOCK)
-                length = min(BLOCK, self.size - block * BLOCK)
-                stream.seek(HEADER.size + block * (BLOCK + TAG))
-                index = struct.pack('<I', block)
-                plain = self.aes.decrypt(self.nonce + index, stream.read(length + TAG), self.header + index)
-                take = min(count, length - within)
-                data.extend(plain[within:within+take]); offset += take; count -= take
+        while count:
+            block, within = divmod(offset, BLOCK)
+            length = min(BLOCK, self.size - block * BLOCK)
+            stream.seek(HEADER.size + block * (BLOCK + TAG))
+            index = struct.pack('<I', block)
+            plain = self.aes.decrypt(self.nonce + index, stream.read(length + TAG), self.header + index)
+            take = min(count, length - within)
+            data.extend(plain[within:within+take]); offset += take; count -= take
         return bytes(data)
 
 def verify(path, key, expected_source=None):
     reader = Reader(path, key)
     digest = hashlib.sha256()
-    with Path(expected_source).open('rb') if expected_source else open(os.devnull, 'rb') as source:
+    with Path(expected_source).open('rb') if expected_source else open(os.devnull, 'rb') as source, reader.path.open('rb') as encrypted:
         for offset in range(0, reader.size, BLOCK):
-            chunk = reader.read(offset, min(BLOCK, reader.size - offset))
+            chunk = reader.read_stream(encrypted, offset, min(BLOCK, reader.size - offset))
             if expected_source and source.read(len(chunk)) != chunk: raise ValueError('Archive roundtrip mismatch')
             digest.update(chunk)
     return digest.hexdigest()
@@ -124,13 +126,15 @@ def make_db(rows, dest, entry_point):
             table.extend(struct.pack('<H', len(entry)) + entry); offset += size
         output.write(struct.pack('<II', 1, len(table))); output.write(table)
 
-def patch(source, dest, key, version):
+def patch(source, dest, key, version, role='client'):
     if not version.isdecimal() or len(version) != 6: raise ValueError('Patch version must have six digits, e.g. 000001')
     rows = files_under(source)
     if not rows: raise ValueError('Patch input is empty')
     for name,_ in rows:
         if not any(name.startswith(prefix) for prefix in ('gamedata\\','client\\scripts\\','server\\scripts\\')):
             raise ValueError('Use gamedata/, client/scripts/ or server/scripts/; mutable configs and GHA binaries are separate updates: ' + name)
+    rows = [(name,p) for name,p in rows if name.startswith('gamedata\\') or name.startswith(role+'\\scripts\\')]
+    if not rows: return None
     dest = Path(dest); dest.mkdir(parents=True, exist_ok=True)
     output = dest / f'lz_patch_{version}.db0'
     raw = dest / f'lz_patch_{version}.raw-building'
@@ -150,9 +154,15 @@ def main():
     for command in ('protect','verify','patch'):
         p=sub.add_parser(command);p.add_argument('--key',required=True);p.add_argument('--input',required=True)
         if command!='verify':p.add_argument('--output',required=True)
-        if command=='patch':p.add_argument('--version',required=True)
+        if command=='patch':
+            p.add_argument('--version',required=True)
+            p.add_argument('--role',choices=('client','server','both'),default='both')
     args=parser.parse_args();key=master(args.key)
     if args.command=='protect':print(protect(args.input,args.output,key))
     elif args.command=='verify':print(verify(args.input,key))
-    else:print(patch(args.input,args.output,key,args.version))
+    else:
+        roles=('client','server') if args.role=='both' else (args.role,)
+        for role in roles:
+            result=patch(args.input,Path(args.output)/role,key,args.version,role)
+            if result:print(result)
 if __name__=='__main__':main()

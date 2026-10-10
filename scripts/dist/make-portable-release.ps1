@@ -16,8 +16,9 @@
 #     no server scripts in the players' folder;
 #   - GAMMA's merged data in standard compressed .db archives (xrCompress
 #     -pack; -strong for meshes/levels/other). This is compression, NOT
-#     encryption: community tools can unpack .db archives. Configs and
-#     scripts stay loose because GAMMA mods read/write files there directly.
+#     encryption here. Then tools/lzpack/finalize_release.py seals archives,
+#     scripts and overlay assets using the matching GHA build. Mutable configs
+#     stay loose for GAMMA io.open compatibility.
 param(
     [Parameter(Mandatory = $true)][string]$Out,
     [Parameter(Mandatory = $true)][string]$Artifact,
