@@ -718,6 +718,16 @@ bool script_item_action(int kind, u16 item, u16 target, LPCSTR action)
 	return true;
 }
 
+void server_item_used(CActor* actor, u16 item, LPCSTR section)
+{
+	if (!enabled() || pure_client() || !actor || !section || !section[0]) return;
+	::luabind::functor<void> run;
+	if (!ai().script_engine().functor("netcoop_item_use.used", run)) return;
+	ServerVictimScope scope(actor);
+	try { run(int(actor->ID()), int(item), section); }
+	catch (...) { Msg("! [NetAnomaly][item] use effects of %s for player %u failed", section, actor->ID()); }
+}
+
 void server_on_item_action(xrServer* server, xrClientData* CL, NET_Packet& P)
 {
 	if (!enabled() || !CL || !CL->owner || P.r_elapsed() < 6) return;

@@ -267,6 +267,10 @@ void server_on_item_report(xrServer* server, xrClientData* CL, NET_Packet& P);
 // A server-authored change of a carried item (trade, repair): its owner gets
 // the predicted fields too.
 void server_item_touch(u16 id);
+// Server: a player's item was used (eaten, applied). GAMMA's use scripts made
+// items/money only where they ran, on the client, which cannot; the server's
+// share runs here for that player (netcoop_item_use.used).
+void server_item_used(CActor* actor, u16 item, LPCSTR section);
 void item_destroyed(u16 id); // both sides, from CInventoryItem::net_Destroy
 void client_on_item_state(NET_Packet& P);
 // Every frame (rate-limited); flush = report own item changes now, before an

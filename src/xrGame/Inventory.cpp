@@ -1209,6 +1209,15 @@ bool CInventory::Eat(PIItem pIItem)
 
 		CurrentGameUI()->GetActorMenu().SetCurrentItem(NULL);
 	}
+	// Netcoop server: a player's item. GAMMA's use scripts ran on his client,
+	// which can neither create items nor change money; the server's share runs
+	// here, where single-player calls them: after the use, before an emptied
+	// item is removed (a multiuse_r item gets its use back first).
+	else if (CActor* player = smart_cast<CActor*>(entity_alive))
+	{
+		if (netcoop::server_player_copy(player))
+			netcoop::server_item_used(player, pIItem->object().ID(), pIItem->object().cNameSect().c_str());
+	}
 
 	if (pItemToEat->Empty())
 	{
