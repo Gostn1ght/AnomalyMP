@@ -160,3 +160,30 @@ duplicated parts. Left for a live session.
   netcoop_psi_view shows it on clients with GAMMA's own effects. Fixture in CI.
   Not verified in game: the client effects at the server's phase and the
   time factor 10 for everyone on the map during the storm (as the emission).
+
+## 12. GAMMA item mechanics that silently did nothing online
+
+Pattern found: GAMMA creates/releases items and changes money in Lua where
+the player acts; on a pure client alife_create_item/alife_release/give_money
+are dropped, so the action looked done and gave nothing. Fixed (server does
+it, client asks through netcoop_item_action and keeps GAMMA's animation):
+- item use side effects (a6e9baa0d): chocolate half, bolts from a pack,
+  empty syringe, multiuse_r kept use, money items -> balance;
+- artefact containers pack/unpack, item_combine (a0d09ec83);
+- first aid kits medkit_ai* and reward packages (a5fa51aae);
+- mutant butchering ui_mutant_loot, rolled once per body by the server
+  (6e46fdbe8);
+- wallet withdraw with a balance check (d4b27593d).
+Fixtures: check-netcoop-item-use.py, check-netcoop-mutant-loot.py (CI).
+
+Still open, same pattern, too large to do blind:
+- the workshop (ui_workshop: craft, disassembly, upgrades, workshop repair):
+  the craft state is UI state assembled by several mods (complexCraft
+  partial ammo, ingredients from nearby stashes, artefact condition
+  averaging); the server must rebuild and check the recipe, not trust it;
+- recipes learned from books (item_recipe.func_letter) are info portions
+  the client cannot give itself; they need a server action too;
+- mines/IEDs (item_mine, txr_mines) keep their arming state in client
+  modules;
+- weapon parts (field strip/maintenance, section 10).
+None of the fixed items is verified in game.
