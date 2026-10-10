@@ -103,8 +103,7 @@ pattern - moved, pattern is .db[0-9a-z], the check now fails on packs left in
 _work. The private-file rule had false positives on GAMMA data (stash configs
 secret*.ltx, release_*.script): it now matches netcoop_* account/session/lease/
 ownership/secret/ticket/character names, *.secret and saves; cluster state
-lives in appdata
-etcoop_cluster (path rule) and the real cluster secret is
+lives in appdata\netcoop_cluster (path rule) and the real cluster secret is
 netcoop_cluster.secret, created on the host at first start.
 
 NOT done: starting either folder (forbidden until the owner allows). Whether
