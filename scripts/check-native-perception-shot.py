@@ -20,7 +20,7 @@ source=r'''
 #include <cstdio>
 #include <vector>
 #include <limits>
-using u32=uint32_t;
+using u32=uint32_t;using u8=uint8_t;
 constexpr float EPS=0.00001f;
 template<class T>T _max(T a,T b){return a>b?a:b;}
 void clamp(float& v,float lo,float hi){v=v<lo?lo:v>hi?hi:v;}
@@ -60,7 +60,8 @@ struct ServerVictimScope{
 '''+light+r'''
 }
 '''+getter+r'''
-struct NET_Packet{Fvector position,direction{0,0,1};unsigned reads=0;void r_vec3(Fvector& v){v=reads++?direction:position;}};
+struct NET_Packet{Fvector position,direction{0,0,1};unsigned reads=0;void r_vec3(Fvector& v){v=reads++?direction:position;}
+ u32 r_elapsed(){return (2-reads)*12;}u8 r_u8(){return 0;}};
 struct CHudItem{CGameObject hud;CGameObject& object(){return hud;}};
 struct{u32 dwTimeGlobal=1000;}Device;
 constexpr int GE_NETCOOP_WPN_AIM=0;
@@ -70,6 +71,8 @@ struct CWeapon:CHudItem{
  CObject* H_Parent(){return parent;}bool OnServer(){return netcoop::enabled()&&!netcoop::pure_client();}
  void OnShot(){assert(bullets==0);if(OnServer())assert(netcoop::fixture_scoped_actor==parent);++sounds;++callbacks;}
  void FireTrace(const Fvector&,const Fvector& dir){assert(sounds==1&&callbacks==1&&std::fabs(dir.square_magnitude()-1)<1e-6f);++bullets;--iAmmoElapsed;m_magazine.pop_back();}
+ bool netcoop_fire_shot(u8 kind,const Fvector& pos,const Fvector& dir){if(kind)return false;OnShot();FireTrace(pos,dir);return true;}
+ void netcoop_shot_effect(u8 kind){if(!kind)OnShot();}
  void receive(NET_Packet& P){switch(GE_NETCOOP_WPN_AIM){
 '''+branch+r'''
  }}

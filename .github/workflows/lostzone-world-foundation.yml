@@ -215,7 +215,7 @@ jobs:
           python scripts/check-native-crow-enemy.py
           python scripts/check-native-monster-snapshot.py
           python scripts/check-native-host-stop.py
-          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-barrel-fuse.py
           python scripts/check-native-projectile-shot.py
   clock-windows:
     runs-on: windows-2022
@@ -318,6 +318,8 @@ jobs:
           python scripts/check-native-monster-snapshot.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-host-stop.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-barrel-fuse.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-projectile-shot.py
           if errorlevel 1 exit /b %errorlevel%

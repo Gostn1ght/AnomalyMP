@@ -68,6 +68,9 @@ struct CPhysicsShellHolder:CObject{
 };
 struct CEntityAlive:CPhysicsShellHolder{bool alive=true;bool g_Alive(){return alive;}};
 struct CInventoryItem:CPhysicsShellHolder{};
+struct CMissile:CInventoryItem{};
+struct CGrenade:CMissile{};
+struct CBolt:CMissile{};
 struct CPhysicObject:CPhysicsShellHolder{};
 struct CPhysicsSkeletonObject:CPhysicsShellHolder{};
 constexpr u32 mcFwd=1,mcBack=2,mcLStrafe=4,mcRStrafe=8,mcJump=16,mcClimb=32;
@@ -136,7 +139,15 @@ int main(){
  excluded.shell.elements[0].state.position.set(0,0.2f,0.3f);server.room=false;unsigned sent=server.sends;
  tick(server);assert(excluded.shell.enabled&&server.sends==sent);
  excluded.shell.enabled=false;tick(server);assert(server.sends==sent+1); // the final pose of a sleeping body ignores backpressure (no hovering)
- std::puts("PASS actual server loop: sleeping props/fragments wake from authority movement; real masses and corpse limb contact retained; untouched props consume no traffic; bounds/dead/anchor/jump/climb/attached/removed/client guards retained; push bounded and queue backpressure respected for moving bodies; a final sleeping pose is always sent.");
+ actor.move=0;CInventoryItem loose;CGrenade grenade;CBolt bolt;
+ place(loose,16,0.2f,5.f);place(grenade,17,0.2f,5.f);place(bolt,18,0.2f,5.f);
+ for(CPhysicsShellHolder* body:{static_cast<CPhysicsShellHolder*>(&loose),static_cast<CPhysicsShellHolder*>(&grenade),static_cast<CPhysicsShellHolder*>(&bolt)}){
+  body->shell.enabled=true;body->shell.elements[0].state.linear_vel.set(24,0,0);
+ }
+ world.Objects.values={&loose,&grenade,&bolt};tick(server);
+ assert(loose.shell.elements[0].state.linear_vel.x==12);
+ assert(grenade.shell.elements[0].state.linear_vel.x==24&&bolt.shell.elements[0].state.linear_vel.x==24);
+ std::puts("PASS actual server physics: authority pushes, real masses, corpse limbs, final sleeping pose, loose-item velocity limit and grenade/bolt ballistics retained.");
 }
 '''
 with TemporaryDirectory() as tmp:

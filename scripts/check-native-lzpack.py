@@ -100,4 +100,3 @@ with TemporaryDirectory() as tmp:
                     '/I'+str(temp),'/I'+str(root/'src/xrCore'),str(cpp),str(root/'src/xrCore/lzpack_archive.cpp'),
                     '/Fe:'+str(exe)],cwd=tmp,check=True)
     subprocess.run([str(exe),str(raw),str(encrypted),str(temp/'bad-header.db0'),str(temp/'bad-block.db0')],cwd=tmp,check=True)
-
