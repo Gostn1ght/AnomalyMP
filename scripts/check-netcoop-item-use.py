@@ -101,10 +101,33 @@ assert act("combine", lua.eval('item("kit")'), lua.eval('item("bandage")')) != "
 assert act("arty_pack", lua.eval('item("af_medusa")'), None) is None                       # needs a target
 assert len(made()) == made0 + 4
 
+# Packages: all content (use_package) or GAMMA's random pick (use_package_random).
+lua.execute(r"""
+functors = {medkit_ai1 = "itms_manager.use_package", quest_package_1 = "itms_manager.use_package_random"}
+content = {medkit_ai1 = "bandage, bandage, kit", quest_package_1 = "a1,a2,a3,a4,a5,a6,a7,a8"}
+for _, s in ipairs({"medkit_ai1", "quest_package_1", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8"}) do sections[s] = sections[s] or "x" end
+local exist = ini_sys.section_exist
+ini_sys.r_string_ex = function(_, s, k)
+    if k == "use1_action_functor" then return functors[s] end
+    return k == "class" and sections[s] == "ARTEFACT" and "ARTEFACT" or nil end
+itms_manager.ini_manager.r_string_ex = function(_, sec, key) return content[key] end
+""")
+n0, r0 = len(made()), len(g.released)
+assert act("package", lua.eval('item("medkit_ai1")'), None) == ""
+assert made()[n0:] == ["bandage", "bandage", "kit"] and g.released[r0 + 1] == "medkit_ai1"
+for seed in range(20):
+    lua.execute(f"math.randomseed({seed})")
+    n0 = len(made())
+    assert act("package", lua.eval('item("quest_package_1")'), None) == ""
+    got = made()[n0:]
+    assert 2 <= len(got) <= 6 and set(got) <= {"a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8"}, got
+assert act("package", lua.eval('item("bandage")'), None) != ""
+assert act("package", lua.eval('item("medkit_ai1")'), lua.eval('item("kit")')) is None
+
 # Wiring: the server action and the client requests.
 srv = (root / "scripts/netcoop-overlay/server/netcoop_server_compat.script").read_text(encoding="utf-8")
 assert 'netcoop_item_use.container_action(action, item, target)' in srv
 cli = (root / "scripts/netcoop-overlay/client/netcoop_client_compat.script").read_text(encoding="utf-8")
-for request in ('"arty_pack")', '"combine")', '65535, "arty_unpack")', "install_server_containers()"):
+for request in ('"arty_pack")', '"combine")', '65535, "arty_unpack")', '65535, "package")', "install_server_containers()"):
     assert request in cli, request
 print("netcoop item use: OK")

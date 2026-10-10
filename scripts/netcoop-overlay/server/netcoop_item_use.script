@@ -113,10 +113,44 @@ local function combine(a, b)
 	return ""
 end
 
+-- Packages (first aid kits medkit_ai*, reward packages): itms_manager's
+-- use_package gives all of [package_content], use_package_random GAMMA's
+-- random pick (each of the first entries at 50 %, at most 6, else the
+-- first four). Which one: the functor the item's section names.
+local function package_functor(sec)
+	for i = 1, 10 do
+		local f = ini_sys:r_string_ex(sec, "use" .. i .. "_action_functor")
+		if f == "itms_manager.use_package" or f == "itms_manager.use_package_random" then return f end
+	end
+	return nil
+end
+
+local function unpackage(obj)
+	local sec = obj:section()
+	local functor = package_functor(sec)
+	local list = functor and itms_manager.ini_manager:r_string_ex("package_content", sec)
+	if not list then return "this is not a package" end
+	local content = {}
+	for item in string.gmatch(list, "[^,%s]+") do content[#content + 1] = item end
+	if functor == "itms_manager.use_package_random" then
+		local pick = {}
+		for i = 1, #content do
+			if #pick < 6 and math.random(100) < 50 then pick[#pick + 1] = content[i] end
+		end
+		content = #pick > 1 and pick or { content[1], content[2], content[3], content[4] }
+	end
+	for _, item in ipairs(content) do
+		if ini_sys:section_exist(item) then alife_create_item(item, db.actor) end
+	end
+	alife_release(obj)
+	return ""
+end
+
 -- netcoop_server_compat.item_action, kind 1; "" on success, else the reason.
 function container_action(action, item, target)
 	if action == "arty_pack" and target then return pack(item, target) end
 	if action == "arty_unpack" and not target then return unpack(item) end
 	if action == "combine" and target then return combine(item, target) end
+	if action == "package" and not target then return unpackage(item) end
 	return nil
 end

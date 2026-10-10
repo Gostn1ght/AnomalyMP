@@ -926,6 +926,11 @@ local function install_server_containers()
 		fx("item_combination")
 		netcoop_item_action(1, obj_1:id(), obj_2:id(), "combine")
 	end
+	local function package(obj)
+		fx("package_content")
+		netcoop_item_action(1, obj:id(), 65535, "package")
+	end
+	im.use_package, im.use_package_random = package, package
 	im.use_arty_container = function(obj)
 		local sec = obj:section()
 		for _, cont in ipairs({ "lead_box", "af_iam", "af_aac", "af_aam" }) do
