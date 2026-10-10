@@ -155,6 +155,12 @@ function install()
 	}
 	local send = _G.SendScriptCallback
 	_G.SendScriptCallback = function(name, ...)
+		-- World events (emission, psi storm: actor_on_interaction "anomalies")
+		-- are not client feedback: GAMMA refills artefacts on them. Blocked,
+		-- no artefact ever respawned on a server (2026-10-10).
+		if name == "actor_on_interaction" and select(1, ...) == "anomalies" then
+			return send(name, ...)
+		end
 		if type(name) == "string" and string.find(name, "^actor_on_") and not server_actor_callbacks[name] then
 			if not skipped[name] then
 				skipped[name] = true
@@ -486,6 +492,10 @@ local function server_world_tick()
 	-- There is deliberately no implicit Actor context in that case.
 	if not db.actor and server_debug_file then server_debug_file() end
 	netcoop_emission.update_world()
+	if netcoop_artefacts then
+		local art_ok, art_err = pcall(netcoop_artefacts.update_world)
+		if not art_ok then printf("[Lost Zone] artefact update error: %s", tostring(art_err)) end
+	end
 	local psi_ok, psi_err = pcall(netcoop_psi_storm.update_world)
 	if not psi_ok then printf("[Lost Zone] psi storm error: %s", tostring(psi_err)) end
 	if netcoop_pdanet then

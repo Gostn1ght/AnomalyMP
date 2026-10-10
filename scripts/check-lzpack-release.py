@@ -86,4 +86,19 @@ with TemporaryDirectory() as tmp:
     made=lzpack.patch(patch_src,temp/'patches',key,'000001')
     assert made.name=='99_lz_patch_000001.db0' and made.name>max(names)
     assert (out/'Compressor/private/lzpack-v1.key').read_bytes()==key
+    # The server add-on for a player's folder: only the server's own scripts
+    # archive (renamed so it never shadows the game's), nothing that replaces
+    # a game file; the same content sealed twice counts as the game's.
+    import make_server_addon
+    (folders[1]/'dedicated').mkdir(exist_ok=True)
+    (folders[1]/'server/configs').mkdir(parents=True,exist_ok=True);(folders[1]/'server/configs/system.ltx').write_text('[x]',encoding='utf-8')
+    (folders[1]/'hoster').mkdir(exist_ok=True);(folders[1]/'hoster/netcoop_cluster.ltx.six').write_text('[locations]',encoding='utf-8')
+    addon=out/'Lost Zone Server Addon'
+    copied,shared=make_server_addon.build(folders[0],folders[1],addon,key)
+    assert len(copied)==1 and copied[0].startswith('95_server_lostzone_lz_scripts'),copied
+    assert shared==len([p for p in (folders[1]/'resources').iterdir() if p.suffix.startswith('.db')])-1
+    assert not any((folders[0]/p.relative_to(addon)).exists() for p in addon.rglob('*') if p.is_file())
+    assert (addon/'server/scripts').is_dir() and not list((addon/'server/scripts').iterdir())
+    assert lzpack.Reader(addon/'resources'/copied[0],key).size>0
+    assert addon.name not in [p.name for p in folders[0].iterdir()]
 print('PASS actual protected release: mismatch rejected before mutation, exact original backups, deduplicated sealed archives, encrypted scripts/assets, one resources folder in mount order, patches sort last, independent portable copy, owner key outside distributables')

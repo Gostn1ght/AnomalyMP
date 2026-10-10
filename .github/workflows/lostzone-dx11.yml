@@ -65,6 +65,7 @@ jobs:
           python scripts/check-netcoop-pdanet.py
           python scripts/check-netcoop-pdanet-voice.py
           python scripts/check-netcoop-anims.py
+          python scripts/check-netcoop-artefacts.py
           python scripts/check-netcoop-voice.py
       - name: Check actual item interpolation
         run: python scripts/check-netcoop-physics.py

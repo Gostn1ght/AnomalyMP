@@ -1,0 +1,17 @@
+; Lost Zone server (owner 2026-10-10): Marsh, Cordon, Garbage, Meadow (Polyana),
+; Bar and Army Warehouses - one dedicated server per map, all with GAMMA's
+; freeplay population, traders, stashes, anomalies and artefacts.
+; host = the address players use for that map: replace 127.0.0.1 with this
+; computer's external address for play over the internet and open these UDP ports.
+; A map that is not listed keeps its level changers closed.
+[cluster]
+max_players = 512
+per_server = 128
+
+[locations]
+k00_marsh = 127.0.0.1:1267
+l01_escape = 127.0.0.1:1277
+l02_garbage = 127.0.0.1:1307
+y04_pole = 127.0.0.1:1339
+l05_bar = 127.0.0.1:1313
+l07_military = 127.0.0.1:1317

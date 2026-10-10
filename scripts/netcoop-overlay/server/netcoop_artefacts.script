@@ -1,0 +1,46 @@
+-- Artefacts on a location server (owner 2026-10-10: "арты не появляются после
+-- выброса - не респавнятся").
+-- In single player GAMMA spawns artefacts two ways:
+--   * the emission/psi storm end (actor_on_interaction "anomalies"
+--     "emission_end"): bind_anomaly_zone refills the anomaly fields,
+--     drx_da_main the dynamic anomalies;
+--   * grok_artefacts_random_spawner on actor_on_update: some time after the
+--     player arrives on a map (30-77 s, each next try a bit later), fields and
+--     dynamic anomalies get new artefacts.
+-- The dedicated server blocked every actor_on_* callback that is client
+-- feedback, and these two with them: no artefact ever came back. The emission
+-- one passes now (netcoop_server_compat); the periodic one runs here while
+-- players are on this map, restarting its delays when a player arrives - as
+-- GAMMA does when the player comes to a map.
+
+local present = {}   -- player Actor id -> true
+local ticking = false
+
+local function spawner() return grok_artefacts_random_spawner end
+
+-- GAMMA's set_delay(): a player came to this map.
+local function arrival()
+	local s = spawner()
+	if not s then return end
+	s.delay1, s.delay2 = 30250, 77520
+	s.spawned = 0
+end
+
+function update_world()
+	local s = spawner()
+	if not (s and s.grok_artefact_spawner) then return end
+	local now, any = {}, false
+	for id in string.gmatch(netcoop_players and netcoop_players() or "", "%d+") do
+		id = tonumber(id)
+		now[id], any = true, true
+		if not present[id] then arrival() end
+	end
+	present = now
+	if not any then return end
+	if not (s.delay1 and s.delay2) then arrival() end
+	local ok, err = pcall(s.grok_artefact_spawner)
+	if not ok and not ticking then
+		ticking = true -- report once, keep the server running
+		printf("! [Lost Zone] artefact spawner error: %s", tostring(err))
+	end
+end
