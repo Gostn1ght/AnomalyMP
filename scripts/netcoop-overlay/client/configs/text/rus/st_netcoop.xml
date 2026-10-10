@@ -711,4 +711,121 @@
   <string id="st_netcoop_fui_squad_call">
     <text>Позвать</text>
   </string>
+  <string id="st_pdanet_tab_map">
+    <text>Карта местности</text>
+  </string>
+  <string id="st_pdanet_tab_general">
+    <text>Общий канал</text>
+  </string>
+  <string id="st_pdanet_tab_chats">
+    <text>Чаты</text>
+  </string>
+  <string id="st_pdanet_tab_contacts">
+    <text>Контакты</text>
+  </string>
+  <string id="st_pdanet_tab_gallery">
+    <text>Галерея</text>
+  </string>
+  <string id="st_pdanet_tab_photo">
+    <text>Фото</text>
+  </string>
+  <string id="st_pdanet_tab_voice">
+    <text>Диктофон</text>
+  </string>
+  <string id="st_pdanet_tab_notes">
+    <text>Заметки</text>
+  </string>
+  <string id="st_pdanet_tab_gallery_soon">
+    <text>Галерея снимков появится вместе с режимом съёмки.</text>
+  </string>
+  <string id="st_pdanet_tab_photo_soon">
+    <text>Режим съёмки (ПКМ — приближение, ЛКМ — снимок) в работе.</text>
+  </string>
+  <string id="st_pdanet_tab_voice_soon">
+    <text>Диктофон в работе.</text>
+  </string>
+  <string id="st_pdanet_tab_notes_soon">
+    <text>Заметки в работе.</text>
+  </string>
+  <string id="st_pdanet_send">
+    <text>Отправить</text>
+  </string>
+  <string id="st_pdanet_anonymous">
+    <text>Аноним</text>
+  </string>
+  <string id="st_pdanet_anonymous_mode">
+    <text>Анонимно</text>
+  </string>
+  <string id="st_pdanet_connecting">
+    <text>Подключение к сети КПК...</text>
+  </string>
+  <string id="st_pdanet_add">
+    <text>Добавить</text>
+  </string>
+  <string id="st_pdanet_open">
+    <text>Открыть</text>
+  </string>
+  <string id="st_pdanet_delete">
+    <text>Удалить</text>
+  </string>
+  <string id="st_pdanet_online">
+    <text>в сети</text>
+  </string>
+  <string id="st_pdanet_offline">
+    <text>не в сети</text>
+  </string>
+  <string id="st_pdanet_status_hidden">
+    <text>статус скрыт</text>
+  </string>
+  <string id="st_pdanet_contacts_empty">
+    <text>Список пуст. Спросите у сталкера его UID и добавьте сюда.</text>
+  </string>
+  <string id="st_pdanet_chats_hint">
+    <text>Выберите собеседника слева. Новых добавляют по UID во вкладке КОНТАКТЫ, а групповой чат собирают кнопкой под списком.</text>
+  </string>
+  <string id="st_pdanet_new_group">
+    <text>Новая группа</text>
+  </string>
+  <string id="st_pdanet_create">
+    <text>Создать</text>
+  </string>
+  <string id="st_pdanet_cancel">
+    <text>Отмена</text>
+  </string>
+  <string id="st_pdanet_delete_chat">
+    <text>Удалить чат</text>
+  </string>
+  <string id="st_pdanet_point_btn">
+    <text>Точка</text>
+  </string>
+  <string id="st_pdanet_photo_btn">
+    <text>Снимок</text>
+  </string>
+  <string id="st_pdanet_voice_btn">
+    <text>Запись</text>
+  </string>
+  <string id="st_pdanet_point">
+    <text>Точка</text>
+  </string>
+  <string id="st_pdanet_mark">
+    <text>Отметить на карте</text>
+  </string>
+  <string id="st_pdanet_point_added">
+    <text>Точка отмечена на карте.</text>
+  </string>
+  <string id="st_pdanet_point_other_level">
+    <text>Точка на другой карте: %s</text>
+  </string>
+  <string id="st_pdanet_members">
+    <text>Участников: %d  -  в сети: %d</text>
+  </string>
+  <string id="st_pdanet_typing">
+    <text>%s печатает сообщение...</text>
+  </string>
+  <string id="st_pdanet_unread">
+    <text>Непрочитанных сообщений: %d</text>
+  </string>
+  <string id="st_pdanet_error">
+    <text>Ошибка:</text>
+  </string>
 </string_table>

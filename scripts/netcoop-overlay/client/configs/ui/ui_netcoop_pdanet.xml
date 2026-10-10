@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<!-- PDA network tabs (netcoop_pdanet_ui). Content area of a PDA tab: 28,94 764x614 (pda_taskboard_16). -->
+<w>
+    <frame x="28" y="94" width="764" height="614" stretch="1">
+        <texture a="235" r="18" g="20" b="20">ui_icons_PDA_tooltips</texture>
+    </frame>
+    <panel x="0" y="0" width="10" height="10" stretch="1">
+        <texture a="200" r="30" g="34" b="36">ui_icons_PDA_tooltips</texture>
+    </panel>
+    <title x="44" y="100" width="420" height="30">
+        <text r="218" g="229" b="235" font="letterica18" align="l" vert_align="c"/>
+    </title>
+    <status x="44" y="672" width="720" height="26">
+        <text r="132" g="151" b="163" font="letterica16" align="l" vert_align="c"/>
+    </status>
+    <hint x="0" y="0" width="10" height="10">
+        <text r="160" g="170" b="160" font="letterica16" align="c" vert_align="c" complex_mode="1"/>
+    </hint>
+    <!-- a message: header (sender, time) and text -->
+    <msg_head x="0" y="0" width="10" height="20">
+        <text r="132" g="151" b="163" font="letterica16" align="l" vert_align="c"/>
+    </msg_head>
+    <msg_name x="0" y="0" width="10" height="20">
+        <text r="218" g="229" b="235" font="letterica16" align="l" vert_align="c"/>
+    </msg_name>
+    <msg_text x="0" y="0" width="10" height="30">
+        <text r="208" g="219" b="226" font="letterica16" align="l" vert_align="t" complex_mode="1"/>
+    </msg_text>
+    <msg_own x="0" y="0" width="10" height="30">
+        <text r="235" g="225" b="190" font="letterica16" align="r" vert_align="t" complex_mode="1"/>
+    </msg_own>
+    <icon x="0" y="0" width="48" height="36" stretch="1">
+        <texture>ui\ui_noise</texture>
+    </icon>
+    <button x="0" y="0" width="10" height="30" stretch="1">
+        <text align="c" vert_align="c" font="letterica16" r="208" g="219" b="226"/>
+        <texture>ui_button_ordinary</texture>
+    </button>
+    <row x="0" y="0" width="10" height="30" stretch="1">
+        <text align="l" vert_align="c" font="letterica16" r="208" g="219" b="226" x="10"/>
+        <texture>ui_button_ordinary</texture>
+    </row>
+    <edit x="0" y="0" width="10" height="32" max_symb_count="300">
+        <text x="8" font="letterica16" complex_mode="0" vert_align="c" r="208" g="219" b="226"/>
+        <texture>ui_inGame2_edit_box_2</texture>
+    </edit>
+    <edit_uid x="0" y="0" width="10" height="30" max_symb_count="6" numonly="1">
+        <text x="8" font="letterica16" complex_mode="0" vert_align="c" r="208" g="219" b="226"/>
+        <texture>ui_inGame2_edit_box_2</texture>
+    </edit_uid>
+</w>

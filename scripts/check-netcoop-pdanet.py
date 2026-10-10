@@ -178,4 +178,58 @@ g.current_server = 1
 fresh.command(1, f"open {cid}")
 o = last([tuple(x.values()) for x in take(1).values()], "chat")
 assert len(o.msgs) == 3
+
+# Client: the server's real chunks through netcoop_pdanet_client.
+client = lua.table()
+lua.execute(r"""
+listeners_fired = 0
+function netcoop_pure_client() return true end
+function RegisterScriptCallback() end
+game.translate_string = function(id) return "<" .. id .. ">" end
+""")
+lua.execute("local env = ...; setfenv(assert(loadstring(select(2, ...))), setmetatable(env,{__index=_G}))()",
+            client, (root / "client/netcoop_pdanet_client.script").read_text(encoding="utf-8"))
+g.netcoop_pdanet_client = client
+lua.execute("netcoop_pdanet_client.on_change(function() listeners_fired = listeners_fired + 1 end)")
+g.current_server = 1
+servers[0].command(1, "hello")
+servers[0].command(1, f"open {cid}")
+for chunk in list(g.inbox[1].values()):
+    client.receive(chunk)
+g.inbox[1] = lua.table()
+assert client.me.uid == ua and client.me.name == "Bashka"
+assert client.contacts[1] is not None and len(client.general) >= 2
+assert client.opened.id == cid and len(client.opened.msgs) == 3
+m = client.opened.msgs[1]
+assert m.own is True and client.sender_name(m) == "Bashka"
+anon = [x for x in client.general.values() if x.f == ""][0]
+assert client.sender_name(anon) == "<st_pdanet_anonymous>"
+assert client.when(lua.eval("{g = 60 * 24 * 31 + 75}")) == "01:15, 01.02.2012"
+assert g.listeners_fired >= 2
+# a chunked message (> 7000 bytes) is reassembled
+big = "x" * 9000
+lua.execute(f"netcoop_send_to_actor = netcoop_send_to_actor")
+sent = []
+data = "err|" + big
+for n in range(2):
+    client.receive(f"{n+1}/2|" + data[n*7000:(n+1)*7000])
+assert client.last_error == big
+
+# UI and configs: the tab script compiles; the strip and the strings exist.
+ui = (root / "client/netcoop_pdanet_ui.script").read_text(encoding="utf-8")
+assert lua.eval("function(s) return loadstring(s) ~= nil end")(ui)
+import re, xml.etree.ElementTree as ET
+pda = (root / "client/configs/ui/pda_16.xml").read_bytes().decode("cp1251")
+ET.fromstring(pda.split("?>", 1)[1] if pda.startswith("<?xml") else pda)
+ids = re.findall(r'<button [^>]*id="(\w+)"', pda)
+assert ids == ["eptTasks", "eptTaskboard", "eptRanking", "eptRelations", "eptEncyclopedia", "eptLogs"], ids
+assert all('width="137"' in b for b in re.findall(r"<button [^>]*>", pda))
+ET.fromstring((root / "client/configs/ui/ui_netcoop_pdanet.xml").read_bytes().decode("cp1251").split("?>", 1)[1])
+used = set(re.findall(r'"(st_pdanet_[a-z_]+)"', ui + (root / "client/netcoop_pdanet_client.script").read_text(encoding="utf-8")))
+used |= {t + "_soon" for t in used if t.startswith("st_pdanet_tab_") and t not in ("st_pdanet_tab_general", "st_pdanet_tab_chats", "st_pdanet_tab_contacts", "st_pdanet_tab_map")}
+used.add("st_pdanet_tab_map")
+for lang in ("rus", "eng"):
+    table = (root / f"client/configs/text/{lang}/st_netcoop.xml").read_bytes().decode("cp1251")
+    missing = [k for k in used if f'id="{k}"' not in table]
+    assert not missing, (lang, missing)
 print("netcoop pdanet: OK")

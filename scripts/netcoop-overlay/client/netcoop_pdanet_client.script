@@ -1,0 +1,211 @@
+-- PDA network on the client (server: netcoop_pdanet): the state the server
+-- sends (own UID, contacts, chats, general channel, open chat), commands to
+-- the server, and a refresh hook for the PDA tabs (netcoop_pdanet_ui).
+
+local MAX_BYTES, MAX_NODES, MAX_DEPTH = 262144, 8192, 16
+local function finite(n) return n == n and n ~= math.huge and n ~= -math.huge end
+
+-- The server's data format (netcoop_transit.serialize), read only.
+function decode(text)
+	if type(text) ~= "string" or #text == 0 or #text > MAX_BYTES then return nil end
+	local pos, nodes = 1, 0
+	local function count()
+		local stop = string.find(text, ":", pos, true)
+		assert(stop and stop - pos <= 6, "invalid length")
+		local token = text:sub(pos, stop - 1)
+		assert(token:match("^%d+$"), "invalid length")
+		pos = stop + 1
+		return tonumber(token)
+	end
+	local function read(depth)
+		nodes = nodes + 1
+		assert(nodes <= MAX_NODES and depth <= MAX_DEPTH, "too complex")
+		local tag = text:sub(pos, pos); pos = pos + 1
+		if tag == "S" then
+			local size = count()
+			assert(size <= #text - pos + 1, "truncated")
+			local v = text:sub(pos, pos + size - 1); pos = pos + size
+			return v
+		elseif tag == "B" then
+			local v = text:sub(pos, pos); pos = pos + 1
+			return v == "1"
+		elseif tag == "N" then
+			local stop = string.find(text, ";", pos, true)
+			assert(stop, "invalid number")
+			local v = tonumber(text:sub(pos, stop - 1))
+			assert(v and finite(v), "invalid number")
+			pos = stop + 1
+			return v
+		elseif tag == "T" then
+			local size, value = count(), {}
+			for _ = 1, size do
+				local k = read(depth + 1)
+				value[k] = read(depth + 1)
+			end
+			return value
+		end
+		error("invalid tag")
+	end
+	local ok, value = pcall(read, 0)
+	return ok and pos == #text + 1 and value or nil
+end
+
+----------------------------------------------------------------------
+-- State
+----------------------------------------------------------------------
+me = { uid = "", name = "", icon = "" }
+contacts = {}       -- list of { uid, name, icon, online }
+chats = {}          -- list of chat summaries (server order is any; sorted here)
+general = {}        -- newest last, at most KEEP
+opened = nil        -- { id, summary, msgs }
+typing = {}         -- chat id -> { uid, until }
+last_error = nil
+local KEEP = 150
+local listeners = {}
+local parts = {}
+
+function on_change(fn) listeners[#listeners + 1] = fn end
+local function changed(what)
+	for _, fn in ipairs(listeners) do pcall(fn, what) end
+end
+
+local function sort_chats()
+	table.sort(chats, function(a, b)
+		local ta, tb = a.last and a.last.t or 0, b.last and b.last.t or 0
+		if ta ~= tb then return ta > tb end
+		return tostring(a.id) < tostring(b.id)
+	end)
+end
+
+local function list(t)
+	local out = {}
+	for i = 1, #(t or {}) do out[i] = t[i] end
+	return out
+end
+
+local function apply(verb, v)
+	if verb == "state" and type(v) == "table" then
+		me = { uid = v.uid or "", name = v.name or "", icon = v.icon or "" }
+		contacts = list(v.contacts)
+		table.sort(contacts, function(a, b) return (a.name or a.uid) < (b.name or b.uid) end)
+		chats = list(v.chats)
+		sort_chats()
+	elseif verb == "general" and type(v) == "table" then
+		for _, m in ipairs(v) do
+			if not general[#general] or m.s > general[#general].s then general[#general + 1] = m end
+		end
+		while #general > KEEP do table.remove(general, 1) end
+	elseif verb == "chat" and type(v) == "table" then
+		opened = { id = v.id, summary = v.summary, msgs = list(v.msgs) }
+		for _, c in ipairs(chats) do if c.id == v.id then c.unread = 0 end end
+	elseif (verb == "new") and type(v) == "table" then
+		local found = false
+		for i, c in ipairs(chats) do
+			if c.id == v.id then chats[i] = v.summary or c; found = true end
+		end
+		if not found and v.summary then chats[#chats + 1] = v.summary end
+		sort_chats()
+		if opened and opened.id == v.id then
+			for _, m in ipairs(v.msgs or {}) do
+				if not opened.msgs[#opened.msgs] or m.s > opened.msgs[#opened.msgs].s then opened.msgs[#opened.msgs + 1] = m end
+			end
+			read_chat(v.id)
+		end
+		if xr_sound and xr_sound.set_sound_play and db.actor then pcall(xr_sound.set_sound_play, db.actor:id(), "pda_tips") end
+	elseif verb == "typing" and type(v) == "table" then
+		typing[v.id] = { uid = v.uid, until_ms = time_global() + 4000 }
+	elseif verb == "err" then
+		last_error = v
+	end
+	changed(verb)
+end
+
+-- channel "pdanet": "n/total|<verb>|<data>"
+function receive(data)
+	local n, total, rest = string.match(data or "", "^(%d+)/(%d+)|(.*)$")
+	n, total = tonumber(n), tonumber(total)
+	if not n then return end
+	if n == 1 then parts = {} end
+	parts[n] = rest
+	if n < total then return end
+	local all = table.concat(parts)
+	parts = {}
+	local verb, body = string.match(all, "^(%a+)|(.*)$")
+	if not verb then return end
+	if verb == "err" then apply(verb, body) return end
+	apply(verb, decode(body))
+end
+
+----------------------------------------------------------------------
+-- Commands
+----------------------------------------------------------------------
+local function clean(text)
+	text = string.gsub(text or "", "[%c]", " ")
+	return string.sub(text, 1, 400)
+end
+local function send(text) if netcoop_command then netcoop_command("pdanet " .. text) end end
+
+function hello() send("hello") end
+function add_contact(uid) send("add " .. tostring(uid)) end
+function remove_contact(uid) send("del " .. tostring(uid)) end
+function say(text, anonymous)
+	text = clean(text)
+	if text ~= "" then send("say " .. (anonymous and "1 " or "0 ") .. text) end
+end
+function open_dm(uid) send("dm " .. tostring(uid)) end
+function open_chat(id) send("open " .. id) end
+function read_chat(id) send("open " .. id) end
+function post(id, text)
+	text = clean(text)
+	if text ~= "" then send("msg " .. id .. " text " .. text) end
+end
+-- A map point at the player's position with a caption.
+function post_point(id, caption)
+	local a = db.actor
+	if not a then return end
+	local p = a:position()
+	send(string.format("msg %s point %s\t%s %.1f %.1f %.1f", id, clean(caption ~= "" and caption or game.translate_string("st_pdanet_point")),
+		level.name(), p.x, p.y, p.z))
+end
+function new_group(name, icon, uids)
+	send("group " .. string.gsub(clean(name), "|", " ") .. "|" .. (icon or "") .. "|" .. table.concat(uids, ","))
+end
+function delete_chat(id) send("delete " .. id) end
+local typed_at = 0
+function typed(id)
+	if time_global() - typed_at < 3000 then return end
+	typed_at = time_global()
+	send("typing " .. id)
+end
+
+-- Who a message is from, as this player may see it.
+function sender_name(m)
+	if m.f == "" then return game.translate_string("st_pdanet_anonymous") end
+	if m.own then return me.name ~= "" and me.name or ("UID " .. me.uid) end
+	return m.n or ("UID " .. tostring(m.f))
+end
+
+-- Game time of a message: "HH:MM, DD.MM.YYYY" (game minutes since 2012-01-01).
+function when(m)
+	if not m.g then return "" end
+	local t = os.date("!*t", 1325376000 + m.g * 60)
+	return string.format("%02d:%02d, %02d.%02d.%04d", t.hour, t.min, t.day, t.month, t.year)
+end
+
+function typing_in(id)
+	local t = typing[id]
+	if t and time_global() < t.until_ms then return t.uid end
+	return nil
+end
+
+function unread_total()
+	local n = 0
+	for _, c in ipairs(chats) do n = n + (c.unread or 0) end
+	return n
+end
+
+local function on_first_update() hello() end
+function on_game_start()
+	if not (netcoop_pure_client and netcoop_pure_client()) then return end
+	RegisterScriptCallback("actor_on_first_update", on_first_update)
+end

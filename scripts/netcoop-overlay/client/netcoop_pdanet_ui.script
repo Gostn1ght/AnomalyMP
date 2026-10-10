@@ -1,0 +1,395 @@
+-- PDA network tabs (owner 2026-10-10, after New Way; docs/audit/89):
+-- Общий канал, Чаты, Контакты, then Галерея, Фото, Диктофон, Заметки (not
+-- made yet: they say so). Data and commands: netcoop_pdanet_client.
+-- Fixed rows with paging (like the faction window) instead of scroll lists.
+
+local function tr(id) return game.translate_string(id) end
+local net = function() return netcoop_pdanet_client end
+local XML = "ui_netcoop_pdanet.xml"
+
+local function at(w, x, y, wd, h)
+	w:SetWndPos(vector2():set(x, y))
+	if wd then w:SetWndSize(vector2():set(wd, h)) end
+	return w
+end
+local function text(w, s) w:TextControl():SetText(s or "") end
+local function edit_text(e) return e and e:GetText() or "" end
+
+local function icon_texture(st, icon)
+	if icon and icon ~= "" then st:InitTexture(icon) else st:InitTexture("ui\\ui_noise") end
+end
+
+-- Base for every tab window: frame, title, status line, button helper.
+local function base(self, title)
+	self:SetWndRect(Frect():set(0, 0, 1024, 768))
+	self:SetAutoDelete(false)
+	self.xml = CScriptXmlInit()
+	self.xml:ParseFile(XML)
+	self.xml:InitStatic("frame", self)
+	self.title = self.xml:InitStatic("title", self)
+	text(self.title, tr(title))
+	self.status = self.xml:InitStatic("status", self)
+	self.ids = 0
+end
+local function button(self, caption, x, y, w, h, fn, template)
+	local b = at(self.xml:Init3tButton(template or "button", self), x, y, w, h)
+	text(b, caption)
+	self.ids = self.ids + 1
+	local id = "b" .. self.ids
+	self:Register(b, id)
+	self:AddCallback(id, ui_events.BUTTON_CLICKED, fn, self)
+	return b
+end
+local function static(self, name, x, y, w, h)
+	return at(self.xml:InitStatic(name, self), x, y, w, h)
+end
+local function my_line()
+	local me = net().me
+	if me.uid == "" then return tr("st_pdanet_connecting") end
+	return string.format("%s  -  UID %s", me.name, me.uid)
+end
+
+----------------------------------------------------------------------
+-- Общий канал
+----------------------------------------------------------------------
+local GEN_ROWS = 9
+
+class "pdanet_general" (CUIScriptWnd)
+function pdanet_general:__init() super()
+	base(self, "st_pdanet_tab_general")
+	self.anon, self.scroll = false, 0
+	static(self, "panel", 36, 134, 748, 476)
+	self.rows = {}
+	for r = 1, GEN_ROWS do
+		local y = 140 + (r - 1) * 52
+		self.rows[r] = {
+			icon = static(self, "icon", 44, y + 4, 48, 36),
+			name = static(self, "msg_name", 100, y, 300, 20),
+			head = static(self, "msg_head", 404, y, 330, 20),
+			body = static(self, "msg_text", 100, y + 20, 640, 30),
+		}
+	end
+	button(self, "^", 746, 140, 32, 30, function() self.scroll = self.scroll + 3; self:Fill() end)
+	button(self, "v", 746, 574, 32, 30, function() self.scroll = math.max(0, self.scroll - 3); self:Fill() end)
+	self.input = at(self.xml:InitEditBox("edit", self), 44, 620, 580, 34)
+	button(self, tr("st_pdanet_send"), 632, 620, 152, 34, function() self:Send() end)
+	self.anon_btn = button(self, "", 44, 660, 240, 26, function() self.anon = not self.anon; self:Fill() end)
+	net().on_change(function() if self:IsShown() then self:Fill() end end)
+	self:Fill()
+end
+function pdanet_general:Send()
+	net().say(edit_text(self.input), self.anon)
+	self.input:SetText("")
+	self.scroll = 0
+end
+function pdanet_general:Fill()
+	local list = net().general
+	local last = #list - self.scroll
+	for r = 1, GEN_ROWS do
+		local m = list[last - GEN_ROWS + r]
+		local row = self.rows[r]
+		for _, w in pairs(row) do w:Show(m ~= nil) end
+		if m then
+			text(row.name, net().sender_name(m))
+			text(row.head, net().when(m))
+			text(row.body, m.x)
+			icon_texture(row.icon, m.i)
+		end
+	end
+	text(self.anon_btn, (self.anon and "[x] " or "[ ] ") .. tr("st_pdanet_anonymous_mode"))
+	text(self.status, my_line())
+end
+function pdanet_general:OnKeyboard(dik, action)
+	local res = CUIScriptWnd.OnKeyboard(self, dik, action)
+	if action == ui_events.WINDOW_KEY_PRESSED and dik == DIK_keys.DIK_RETURN then self:Send() end
+	return res
+end
+
+----------------------------------------------------------------------
+-- Чаты
+----------------------------------------------------------------------
+local LIST_ROWS, MSG_ROWS, PICK_ROWS = 8, 7, 8
+
+class "pdanet_chats" (CUIScriptWnd)
+function pdanet_chats:__init() super()
+	base(self, "st_pdanet_tab_chats")
+	self.list_scroll, self.msg_scroll, self.points = 0, 0, {}
+	static(self, "panel", 36, 134, 268, 456)
+	static(self, "panel", 312, 104, 472, 50)
+	static(self, "panel", 312, 158, 472, 392)
+	self.rows = {}
+	for r = 1, LIST_ROWS do
+		local y = 140 + (r - 1) * 56
+		local row = {}
+		row.btn = button(self, "", 40, y, 226, 52, function() self:Pick(r) end, "row")
+		row.icon = static(self, "icon", 44, y + 8, 48, 36)
+		row.name = static(self, "msg_name", 96, y + 4, 166, 20)
+		row.last = static(self, "msg_head", 96, y + 26, 166, 20)
+		row.unread = static(self, "msg_name", 230, y + 26, 34, 20)
+		self.rows[r] = row
+	end
+	button(self, "^", 270, 140, 30, 30, function() self.list_scroll = math.max(0, self.list_scroll - 1); self:Fill() end)
+	button(self, "v", 270, 554, 30, 30, function() self.list_scroll = self.list_scroll + 1; self:Fill() end)
+	button(self, tr("st_pdanet_new_group"), 36, 596, 268, 32, function() self:GroupDialog(true) end)
+	-- the conversation
+	self.peer_icon = static(self, "icon", 320, 110, 48, 36)
+	self.peer_name = static(self, "msg_name", 376, 108, 260, 20)
+	self.peer_info = static(self, "msg_head", 376, 128, 260, 20)
+	self.del_btn = button(self, tr("st_pdanet_delete_chat"), 644, 112, 132, 30, function()
+		if self.chat then net().delete_chat(self.chat); self.chat = nil; net().opened = nil; self:Fill() end
+	end)
+	self.empty = static(self, "hint", 330, 300, 440, 120)
+	self.msgs = {}
+	for r = 1, MSG_ROWS do
+		local y = 162 + (r - 1) * 54
+		local m = {}
+		m.icon = static(self, "icon", 318, y + 4, 40, 30)
+		m.head = static(self, "msg_head", 364, y, 260, 20)
+		m.body = static(self, "msg_text", 364, y + 20, 380, 30)
+		m.own = static(self, "msg_own", 400, y + 20, 340, 30)
+		m.mark = button(self, tr("st_pdanet_mark"), 620, y + 2, 156, 22, function() self:Mark(r) end)
+		self.msgs[r] = m
+	end
+	button(self, "^", 750, 162, 30, 26, function() self.msg_scroll = self.msg_scroll + 2; self:Fill() end)
+	button(self, "v", 750, 520, 30, 26, function() self.msg_scroll = math.max(0, self.msg_scroll - 2); self:Fill() end)
+	self.point_btn = button(self, tr("st_pdanet_point_btn"), 312, 556, 152, 30, function()
+		if self.chat then net().post_point(self.chat, edit_text(self.input)); self.input:SetText("") end
+	end)
+	self.photo_btn = button(self, tr("st_pdanet_photo_btn"), 472, 556, 152, 30, function() end)
+	self.voice_btn = button(self, tr("st_pdanet_voice_btn"), 632, 556, 152, 30, function() end)
+	self.photo_btn:Enable(false); self.voice_btn:Enable(false)
+	self.input = at(self.xml:InitEditBox("edit", self), 312, 594, 330, 32)
+	button(self, tr("st_pdanet_send"), 650, 594, 134, 32, function() self:Send() end)
+	-- new group dialog
+	self.dlg = {}
+	self.dlg.back = static(self, "panel", 330, 150, 440, 420)
+	self.dlg.title = static(self, "msg_name", 346, 158, 408, 24)
+	text(self.dlg.title, tr("st_pdanet_new_group"))
+	self.dlg.name = at(self.xml:InitEditBox("edit", self), 346, 188, 408, 30)
+	self.dlg.rows, self.picked = {}, {}
+	for r = 1, PICK_ROWS do
+		self.dlg.rows[r] = button(self, "", 346, 226 + (r - 1) * 34, 408, 30, function() self:Toggle(r) end, "row")
+	end
+	self.dlg.ok = button(self, tr("st_pdanet_create"), 346, 528, 196, 30, function() self:CreateGroup() end)
+	self.dlg.cancel = button(self, tr("st_pdanet_cancel"), 558, 528, 196, 30, function() self:GroupDialog(false) end)
+	self:GroupDialog(false)
+	net().on_change(function() if self:IsShown() then self:Fill() end end)
+	self:Fill()
+end
+function pdanet_chats:Pick(r)
+	local c = net().chats[self.list_scroll + r]
+	if not c then return end
+	self.chat, self.msg_scroll = c.id, 0
+	net().open_chat(c.id)
+	self:Fill()
+end
+function pdanet_chats:Send()
+	if not self.chat then return end
+	net().post(self.chat, edit_text(self.input))
+	self.input:SetText("")
+	self.msg_scroll = 0
+end
+function pdanet_chats:Mark(r)
+	local m = self.points[r]
+	if not m or not m.d then return end
+	local lvl, x, y, z = string.match(m.d, "^([%w_]+) (%S+) (%S+) (%S+)$")
+	if lvl ~= level.name() then
+		actor_menu.set_msg(1, string.format(tr("st_pdanet_point_other_level"), game.translate_string(lvl or "")), 4)
+		return
+	end
+	local paw = tasks_placeable_waypoints
+	local sz = paw and paw.register_script_zone and paw.register_script_zone(vector():set(tonumber(x), tonumber(y), tonumber(z)), 0, 0)
+	if sz and paw.func_pn_add then
+		paw.func_pn_add({ id = sz.id, name = m.x ~= "" and m.x or tr("st_pdanet_point") })
+		actor_menu.set_msg(1, tr("st_pdanet_point_added"), 3)
+	end
+end
+function pdanet_chats:GroupDialog(show)
+	self.dialog = show
+	for _, w in pairs(self.dlg) do if type(w) ~= "table" then w:Show(show) end end
+	for _, w in ipairs(self.dlg.rows) do w:Show(false) end
+	if show then
+		self.picked = {}
+		self.dlg.name:SetText("")
+		self:FillDialog()
+	end
+end
+function pdanet_chats:FillDialog()
+	local list = net().contacts
+	for r = 1, PICK_ROWS do
+		local c = list[r]
+		local w = self.dlg.rows[r]
+		w:Show(c ~= nil and self.dialog)
+		if c then text(w, string.format("[%s] %s  (UID %s)", self.picked[c.uid] and "x" or " ", c.name or "?", c.uid)) end
+	end
+end
+function pdanet_chats:Toggle(r)
+	local c = net().contacts[r]
+	if c then self.picked[c.uid] = not self.picked[c.uid] or nil; self:FillDialog() end
+end
+function pdanet_chats:CreateGroup()
+	local uids = {}
+	for uid in pairs(self.picked) do uids[#uids + 1] = uid end
+	if #uids == 0 then return end
+	net().new_group(edit_text(self.dlg.name), "", uids)
+	self:GroupDialog(false)
+end
+local function summary_line(c)
+	if c.kind == "g" then return c.name or "?" end
+	local p = c.peer or {}
+	return p.name or ("UID " .. tostring(p.uid))
+end
+function pdanet_chats:Fill()
+	local list = net().chats
+	for r = 1, LIST_ROWS do
+		local c = list[self.list_scroll + r]
+		local row = self.rows[r]
+		for _, w in pairs(row) do w:Show(c ~= nil) end
+		if c then
+			text(row.name, summary_line(c))
+			text(row.last, c.last and c.last.x or "")
+			text(row.unread, (c.unread or 0) > 0 and tostring(c.unread) or "")
+			icon_texture(row.icon, c.kind == "g" and c.icon or (c.peer and c.peer.icon))
+		end
+	end
+	local o = net().opened
+	local open = o and self.chat and o.id == self.chat
+	self.empty:Show(not open)
+	text(self.empty, tr("st_pdanet_chats_hint"))
+	for _, w in ipairs({ self.peer_icon, self.peer_name, self.peer_info, self.del_btn }) do w:Show(open and true or false) end
+	self.points = {}
+	if open then
+		local s = o.summary or {}
+		text(self.peer_name, summary_line(s))
+		local typing = net().typing_in(o.id)
+		if typing then
+			text(self.peer_info, string.format(tr("st_pdanet_typing"), summary_line(s)))
+		elseif s.kind == "g" then
+			text(self.peer_info, string.format(tr("st_pdanet_members"), s.members or 0, s.online or 0))
+		else
+			local p = s.peer or {}
+			local st = p.online == true and tr("st_pdanet_online") or p.online == false and tr("st_pdanet_offline") or tr("st_pdanet_status_hidden")
+			text(self.peer_info, string.format("UID %s  -  %s", tostring(p.uid), st))
+		end
+		icon_texture(self.peer_icon, s.kind == "g" and s.icon or (s.peer and s.peer.icon))
+	end
+	local msgs = open and o.msgs or {}
+	local last = #msgs - self.msg_scroll
+	for r = 1, MSG_ROWS do
+		local m = msgs[last - MSG_ROWS + r]
+		local w = self.msgs[r]
+		for _, x in pairs(w) do x:Show(false) end
+		if m then
+			w.head:Show(true)
+			text(w.head, (m.own and "" or net().sender_name(m) .. "  ") .. net().when(m))
+			local body = m.k == "point" and (tr("st_pdanet_point") .. ": " .. (m.x or "")) or m.x
+			if m.own then w.own:Show(true); text(w.own, body) else w.body:Show(true); text(w.body, body); w.icon:Show(true); icon_texture(w.icon, m.i) end
+			if m.k == "point" then w.mark:Show(true); self.points[r] = m end
+		end
+	end
+	if self.dialog then self:FillDialog() end
+	text(self.status, string.format(tr("st_pdanet_unread"), net().unread_total()) .. "     " .. my_line())
+end
+function pdanet_chats:OnKeyboard(dik, action)
+	local res = CUIScriptWnd.OnKeyboard(self, dik, action)
+	if action == ui_events.WINDOW_KEY_PRESSED then
+		if dik == DIK_keys.DIK_RETURN then self:Send()
+		elseif self.chat then net().typed(self.chat) end
+	end
+	return res
+end
+
+----------------------------------------------------------------------
+-- Контакты
+----------------------------------------------------------------------
+local CONTACT_ROWS = 12
+
+class "pdanet_contacts" (CUIScriptWnd)
+function pdanet_contacts:__init() super()
+	base(self, "st_pdanet_tab_contacts")
+	self.scroll = 0
+	static(self, "panel", 36, 134, 748, 34)
+	self.me = static(self, "msg_name", 44, 140, 300, 22)
+	static(self, "msg_head", 350, 140, 40, 22):TextControl():SetText("UID")
+	self.uid = at(self.xml:InitEditBox("edit_uid", self), 390, 136, 120, 30)
+	button(self, tr("st_pdanet_add"), 516, 136, 86, 30, function()
+		net().add_contact(edit_text(self.uid)); self.uid:SetText("")
+	end)
+	button(self, tr("st_pdanet_open"), 606, 136, 86, 30, function()
+		local c = self.selected and net().contacts[self.selected]
+		if c then net().open_dm(c.uid) end
+	end)
+	button(self, tr("st_pdanet_delete"), 696, 136, 86, 30, function()
+		local c = self.selected and net().contacts[self.selected]
+		if c then net().remove_contact(c.uid); self.selected = nil end
+	end)
+	static(self, "panel", 36, 174, 748, 432)
+	self.rows = {}
+	for r = 1, CONTACT_ROWS do
+		local y = 178 + (r - 1) * 35
+		self.rows[r] = { btn = button(self, "", 40, y, 700, 32, function() self.selected = self.scroll + r; self:Fill() end, "row"),
+			icon = static(self, "icon", 700, y + 2, 36, 28) }
+	end
+	button(self, "^", 748, 178, 30, 30, function() self.scroll = math.max(0, self.scroll - 3); self:Fill() end)
+	button(self, "v", 748, 570, 30, 30, function() self.scroll = self.scroll + 3; self:Fill() end)
+	self.empty = static(self, "hint", 60, 340, 700, 60)
+	net().on_change(function() if self:IsShown() then self:Fill() end end)
+	self:Fill()
+end
+function pdanet_contacts:Fill()
+	local list = net().contacts
+	text(self.me, my_line())
+	self.empty:Show(#list == 0)
+	text(self.empty, tr("st_pdanet_contacts_empty"))
+	for r = 1, CONTACT_ROWS do
+		local i = self.scroll + r
+		local c = list[i]
+		local row = self.rows[r]
+		row.btn:Show(c ~= nil); row.icon:Show(c ~= nil)
+		if c then
+			local st = c.online == true and tr("st_pdanet_online") or c.online == false and tr("st_pdanet_offline") or tr("st_pdanet_status_hidden")
+			text(row.btn, string.format("%s%s   UID %s  -  %s", self.selected == i and "> " or "", c.name or "?", c.uid, st))
+			icon_texture(row.icon, c.icon)
+		end
+	end
+	text(self.status, net().last_error and (tr("st_pdanet_error") .. " " .. tostring(net().last_error)) or "")
+end
+
+----------------------------------------------------------------------
+-- Not made yet (photo, gallery, dictaphone, notes): say so.
+----------------------------------------------------------------------
+class "pdanet_soon" (CUIScriptWnd)
+function pdanet_soon:__init(caption) super()
+	base(self, caption)
+	local h = static(self, "hint", 60, 320, 700, 80)
+	text(h, tr(caption .. "_soon"))
+end
+
+----------------------------------------------------------------------
+-- Registration (the strip scrolls; 4 tabs visible in the PDA's top bar)
+----------------------------------------------------------------------
+local windows = {}
+local function window(key, make)
+	return function()
+		windows[key] = windows[key] or make()
+		return windows[key]
+	end
+end
+
+function on_game_start()
+	if not (netcoop_pure_client and netcoop_pure_client()) or not pda_dynamic_tabs then return end
+	-- after "Карта местности" (eptTasks), in this order
+	local after = "eptTasks"
+	local tabs = {
+		{ "st_pdanet_tab_general", function() return pdanet_general() end },
+		{ "st_pdanet_tab_chats", function() return pdanet_chats() end },
+		{ "st_pdanet_tab_contacts", function() return pdanet_contacts() end },
+		{ "st_pdanet_tab_gallery", function() return pdanet_soon("st_pdanet_tab_gallery") end },
+		{ "st_pdanet_tab_photo", function() return pdanet_soon("st_pdanet_tab_photo") end },
+		{ "st_pdanet_tab_voice", function() return pdanet_soon("st_pdanet_tab_voice") end },
+		{ "st_pdanet_tab_notes", function() return pdanet_soon("st_pdanet_tab_notes") end },
+	}
+	for _, t in ipairs(tabs) do
+		after = pda_dynamic_tabs.register(t[1], window(t[1], t[2]), after)
+	end
+end
