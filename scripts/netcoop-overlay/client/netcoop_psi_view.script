@@ -1,0 +1,97 @@
+-- The server's psi storm (netcoop_psi_storm) on this client: GAMMA's own
+-- psi_storm_manager shows the weather, siren, rockets, vortex particles and
+-- sounds and the hit screen effects at the server's phase. It never starts
+-- a storm, makes a vortex, hits the player or kills anyone by itself.
+local installed, active, sequence = false, false, -1
+local received_at, received_elapsed, duration = 0, 0, 103
+local engine_start, engine_update, engine_finish
+local kill_effects, kill_slot = {}, 0
+
+local function phase_seconds(mgr)
+	return math.ceil(game.get_game_time():diffSec(mgr.inited_time) / level.get_time_factor())
+end
+
+function install()
+	if installed then return end
+	installed = true
+	local class = psi_storm_manager.CPsiStormManager
+	engine_start, engine_update, engine_finish = class.start, class.update, class.finish
+	class.start = function() end
+	for _, name in ipairs({ "vortex", "vortex_actor_hit", "kill_objects_at_pos", "kill_crows_at_pos", "give_psi_storm_hide_task" }) do
+		class[name] = function() end
+	end
+	class.update = function(self)
+		if not (active and self.started and db.actor and db.actor:alive()) then return end
+		local seconds = math.min(duration, received_elapsed + (time_global() - received_at) / 1000)
+		local offset = game.CTime()
+		offset:setHMSms(0, 0, 0, math.floor(seconds * level.get_time_factor() * 1000))
+		self.inited_time = game.get_game_time() - offset
+		self.first_update = true -- the server checked the map; a late join keeps the storm
+		engine_update(self)
+	end
+end
+
+function reset()
+	active, sequence = false, -1
+end
+
+function receive(data)
+	local id, state, seconds, length = string.match(data or "", "^(%d+)|([01])|([%d%.]+)|(%d+)$")
+	id, seconds, length = tonumber(id), tonumber(seconds), tonumber(length)
+	if not id or seconds > length + 1 or length ~= 103 or id < sequence then return end
+	install()
+	local mgr = psi_storm_manager.get_psi_storm_manager()
+	if state == "1" and (id ~= sequence or not active) then
+		engine_start(mgr, true)
+	elseif state == "0" and active and mgr.started then
+		engine_finish(mgr)
+	end
+	sequence, active = id, state == "1"
+	received_elapsed, received_at, duration = seconds, time_global(), length
+	if active then mgr:update() end
+end
+
+-- A vortex the server made: GAMMA's particle 20 m and sound 60 m above it.
+function vortex(data)
+	local id, vid, x, y, z, age = string.match(data or "", "^(%d+)|(%d+)|(%S+)|(%S+)|(%S+)|(%S+)$")
+	x, y, z, age = tonumber(x), tonumber(y), tonumber(z), tonumber(age)
+	if not (id and tonumber(id) == sequence and active and x and y and z and age and db.actor) then return end
+	local mgr = psi_storm_manager.get_psi_storm_manager()
+	if not (mgr.started and mgr.inited_time) then return end
+	local effect = particles_object("crommcruac\\psi_storm_01")
+	local sound = sound_object("anomaly\\psi_storm_01")
+	local particle_pos = vector():set(x, y + 20, z)
+	local sound_pos = vector():set(x, y + 60, z)
+	effect:play_at_pos(particle_pos)
+	sound:play_at_pos(db.actor, sound_pos)
+	sound.volume = 1
+	mgr.vortexes = mgr.vortexes or {}
+	mgr.vortexes["net" .. vid] = { effect = effect, particle_pos = particle_pos, sound = sound, sound_pos = sound_pos,
+		start_time = phase_seconds(mgr) - math.floor(age), hit = false }
+end
+
+-- The server struck this player: GAMMA's screen effects with the real power.
+function on_hit(data)
+	local psi, shock = string.match(data or "", "^(%S+) (%S+)$")
+	psi, shock = tonumber(psi), tonumber(shock)
+	if psi and psi >= 0 then
+		level.remove_pp_effector(666)
+		level.add_pp_effector("psi_fade.ppe", 666, false)
+		level.set_pp_effector_factor(666, psi)
+	end
+	if shock and shock >= 0 then
+		level.remove_pp_effector(667)
+		level.add_pp_effector("electro_fade.ppe", 667, false)
+		level.set_pp_effector_factor(667, shock)
+	end
+end
+
+-- Stalkers the vortex killed: GAMMA's electrocution particle on each.
+function killed(data)
+	for x, y, z in string.gmatch(data or "", "(%S+) (%S+) (%S+)") do
+		local effect = particles_object("crommcruac\\electrocute_human")
+		effect:play_at_pos(vector():set(tonumber(x), tonumber(y), tonumber(z)))
+		kill_slot = kill_slot % 16 + 1
+		kill_effects[kill_slot] = effect
+	end
+end

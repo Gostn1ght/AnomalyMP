@@ -113,6 +113,7 @@ end
 function on_actor_destroyed(obj)
 	if obj and controlled_actor_id == obj:id() then
 		netcoop_emission_view.reset()
+		netcoop_psi_view.reset()
 		destroyed_actor_id = controlled_actor_id
 		controlled_actor = nil
 		controlled_actor_id = nil
@@ -508,6 +509,18 @@ function on_script_message(channel, data)
 		return
 	elseif channel == "emission" then
 		netcoop_emission_view.receive(data)
+		return
+	elseif channel == "psi_storm" then
+		netcoop_psi_view.receive(data)
+		return
+	elseif channel == "psi_vortex" then
+		netcoop_psi_view.vortex(data)
+		return
+	elseif channel == "psi_hit" then
+		netcoop_psi_view.on_hit(data)
+		return
+	elseif channel == "psi_kill" then
+		netcoop_psi_view.killed(data)
 		return
 	elseif channel == "battle" then
 		-- A real offline fight on this map (server, doc 43 K10).
@@ -965,6 +978,7 @@ function on_game_start()
 	RegisterScriptCallback("actor_on_item_take", on_item_take)
 	init_event_managers()
 	netcoop_emission_view.install()
+	netcoop_psi_view.install()
 	-- PDA tabs read the simulation board; the simulation itself runs on the
 	-- server, so the client keeps an empty board.
 	if sim_board and sim_board.get_sim_board then

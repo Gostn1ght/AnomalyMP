@@ -24,6 +24,8 @@ local function valid_level()
     local name = level.name()
     return level_weathers.valid_levels[name] == true and name ~= "l13_generators" and name ~= "l11_hospital"
 end
+-- Psi storms (netcoop_psi_storm) use the same surface maps.
+function is_valid_level() return valid_level() end
 local function next_interval(mgr)
     local frequency = math.max(1, math.floor(tonumber(ui_options.get("alife/event/emission_frequency")) or 24))
     mgr._delta = math.random(math.max(1, math.floor(frequency / 2)) * 3600, frequency * 3600)
@@ -235,6 +237,11 @@ local function protected(actor)
     return netcoop_admin_god_enabled(actor:id())
         or load_var(actor, "surge_immuned", false) == true
         or community == "actor_monolith" or community == "actor_zombied"
+end
+-- The shelter a player is in (or nil): psi storms use the emission's covers.
+function player_cover(actor)
+    local cover = safe_cover(manager(), actor)
+    return cover
 end
 local function hit_player(mgr, actor, power)
     -- Drug protection is cached by the single-player manager; clear it between owners.

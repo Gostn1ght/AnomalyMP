@@ -486,6 +486,8 @@ local function server_world_tick()
 	-- There is deliberately no implicit Actor context in that case.
 	if not db.actor and server_debug_file then server_debug_file() end
 	netcoop_emission.update_world()
+	local psi_ok, psi_err = pcall(netcoop_psi_storm.update_world)
+	if not psi_ok then printf("[Lost Zone] psi storm error: %s", tostring(psi_err)) end
 
 	local wm = level_weathers and level_weathers.get_weather_manager()
 	if not wm then return end
@@ -600,6 +602,8 @@ function update_player_tasks()
 	install_hide_hud()
 	server_world_tick()
 	netcoop_emission.update_player(a)
+	local psi_ok, psi_err = pcall(netcoop_psi_storm.update_player, a)
+	if not psi_ok then printf("[Lost Zone] psi storm player error: %s", tostring(psi_err)) end
 	server_debug_file()
 	-- Forget managers of players who left.
 	for id in pairs(player_tasks) do
