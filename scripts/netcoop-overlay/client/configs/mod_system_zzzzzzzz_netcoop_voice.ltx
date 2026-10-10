@@ -6,7 +6,23 @@ min_freq = 3000             ; 30.00 MHz (hundredths)
 max_freq = 5995             ; 59.95 MHz
 freq_step = 5               ; 0.05 MHz
 
-; GAMMA's "walkie" (junk, also a craft part) is the walkie-talkie.
+; GAMMA's "walkie" (junk, also a craft part) is the walkie-talkie. As in Lost
+; Zone it is a hand device (detector slot, left hand, the radio model and
+; GAMMA's radio hands animations): with the right hand empty, hold fire to
+; talk (raised to the face = the device's zoom pose), zoom opens the settings.
+; D_CUSTOM keeps the junk item's server entity (CSE_ALifeItem): saves load.
+; Both roles: the server spawns the item with this class.
 ![walkie]
+class = D_CUSTOM
+slot = 8
+animation_slot = 7
+hud = detector_radio_hud
+visual = dynamics\devices\dev_detector_09\dev_radio_diolator.ogf
+default_to_ruck = true
+snd_draw = weapons\detector\detector_8_draw
+snd_holster = weapons\detector\detector_8_holster
+attach_angle_offset = -1.303,-1.493,-1.202
+attach_position_offset = 0.110,-0.019,0.000
+attach_bone_name = bip01_l_hand
 use1_functor = netcoop_voice_ui.menu_radio
 use1_action_functor = netcoop_voice_ui.open_radio

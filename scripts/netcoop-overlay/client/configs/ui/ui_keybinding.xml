@@ -116,5 +116,6 @@
 		<command id="kb_voice_near"					exe="voice_near"/>
 		<command id="kb_voice_radio"					exe="voice_radio"/>
 		<command id="kb_voice_range"					exe="voice_range"/>
+		<command id="kb_voice_toggle"					exe="voice_toggle"/>
 	</group>
 </keybingidg>

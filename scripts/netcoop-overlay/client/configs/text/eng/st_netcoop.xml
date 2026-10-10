@@ -853,7 +853,7 @@
     <text>Нет рации в инвентаре</text>
   </string>
   <string id="st_voice_radio_off">
-    <text>Рация выключена: включите её в меню рации</text>
+    <text>Рация выключена: включите её (ПКМ с рацией в руке)</text>
   </string>
   <string id="st_voice_radio_menu">
     <text>Настроить рацию</text>
@@ -874,6 +874,15 @@
     <text>Закрыть</text>
   </string>
   <string id="st_voice_radio_hint">
-    <text>Слышат все на этой частоте в радиусе связи</text>
+    <text>Слышат все на этой частоте. В руке: ЛКМ - говорить</text>
+  </string>
+  <string id="kb_voice_toggle">
+    <text>Микрофон вкл/выкл (говорить без удержания)</text>
+  </string>
+  <string id="st_voice_mic_on">
+    <text>Микрофон включён: вас слышат, когда вы говорите</text>
+  </string>
+  <string id="st_voice_mic_off">
+    <text>Микрофон выключен</text>
   </string>
 </string_table>

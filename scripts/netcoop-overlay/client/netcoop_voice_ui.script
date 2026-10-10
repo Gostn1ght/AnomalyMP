@@ -2,6 +2,8 @@
 -- Keys are set in Controls ("Голос и рация"), unbound by default. A walkie
 -- (any radio_items section of [netcoop_voice]) anywhere in the inventory is
 -- enough; its menu "Настроить рацию" sets the frequency and switches it on.
+-- In the left hand (detector slot) with the right hand empty: hold fire to
+-- talk, zoom opens this window (engine). Lost Zone's radio sounds.
 -- The server keeps the setting with the character and decides who hears.
 
 local function tr(id) return game.translate_string(id) end
@@ -29,6 +31,14 @@ local function has_radio()
 		if a:object(s) then return true end
 	end
 	return false
+end
+
+-- The walkie's own sounds (sounds\device\radio, from Lost Zone).
+local sounds = {}
+function play(name)
+	if not (sound_object and db.actor) then return end
+	sounds[name] = sounds[name] or sound_object("device\\radio\\" .. name)
+	sounds[name]:play(db.actor, 0, sound_object.s2d)
 end
 
 local function push()
@@ -78,13 +88,15 @@ function netcoop_radio_wnd:__init() super()
 	btn("-" .. string.format("%.2f", step / 100), 440, 350, 68, function() self:Tune(-step) end)
 	btn("+" .. string.format("%.2f", step / 100), 516, 350, 68, function() self:Tune(step) end)
 	btn("+1.00", 588, 350, 68, function() self:Tune(100) end)
-	self.power = btn("", 368, 396, 288, function() on = not on; send(); self:Fill() end)
+	self.power = btn("", 368, 396, 288, function() on = not on; play(on and "radio_on" or "radio_off"); send(); self:Fill() end)
 	btn(tr("st_voice_close"), 448, 474, 128, function() self:HideDialog() end)
 	self:Fill()
 end
 function netcoop_radio_wnd:Tune(delta)
 	local lo, hi = cfg("min_freq", 3000), cfg("max_freq", 5995)
-	freq = math.max(lo, math.min(hi, (freq or 3500) + delta))
+	local f = math.max(lo, math.min(hi, (freq or 3500) + delta))
+	if f ~= freq then play("radio_freq_set") end
+	freq = f
 	send()
 	self:Fill()
 end

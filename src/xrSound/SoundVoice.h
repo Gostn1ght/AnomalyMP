@@ -52,6 +52,7 @@ public:
 	virtual void StopCapture() = 0;
 	virtual bool Capturing() const = 0;
 	virtual void SetTransmit(bool on) = 0;           // push-to-talk held
+	virtual void SetOpenMic(bool on) = 0;            // microphone on: sends while the player speaks (voice activity)
 	virtual bool Transmitting() const = 0;           // sending frames now
 	virtual float InputLevel() const = 0;            // microphone level 0..1
 	virtual IVoicePlayer* CreatePlayer() = 0;

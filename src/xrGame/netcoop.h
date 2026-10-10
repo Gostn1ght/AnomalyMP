@@ -18,6 +18,7 @@ class CWeapon;
 class CActor;
 class CSE_Abstract;
 class CZoneCampfire;
+class CCustomDevice;
 
 // Console: netcoop_smooth (0 = old network presentation, 1 = doc 38 stage 1),
 // netcoop_interp_ms (interpolation delay for remote objects on a client),
@@ -242,6 +243,7 @@ void client_campfire_request(u16 id, bool on);
 void client_on_campfire(NET_Packet& P);
 // Voice chat and walkie-talkies (netcoop_voice.inc).
 bool client_voice_key(int action, bool pressed);
+bool client_device_talking(CCustomDevice* device);
 void client_voice_update();
 void client_voice_render();
 void client_voice_reset();

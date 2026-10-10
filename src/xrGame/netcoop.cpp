@@ -43,6 +43,7 @@
 #include "BreakableObject.h"
 #include "PhysicsSkeletonObject.h"
 #include "Torch.h"
+#include "CustomDevice.h"
 #include "ZoneCampfire.h"
 #include "alife_simulator.h"
 #include "alife_graph_registry.h"

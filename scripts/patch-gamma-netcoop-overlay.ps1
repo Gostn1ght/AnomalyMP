@@ -229,14 +229,14 @@ Replace-Once $debugLauncher `
 
 foreach ($role in $roles) {
     $overlay = Join-Path $PSScriptRoot "netcoop-overlay\$($role.Name)"
-    foreach ($assetKind in @('configs', 'textures', 'meshes')) {
+    foreach ($assetKind in @('configs', 'textures', 'meshes', 'sounds')) {
         $assets = Join-Path $overlay $assetKind
         if (-not (Test-Path -LiteralPath $assets -PathType Container)) { continue }
         # Both role fsgame files resolve $game_textures$ to gamedata\textures.
         # Only configs and scripts have separate client/server roots. Putting
         # DDS files under client\textures leaves the engine using its missing
         # texture placeholder (a solid square instead of the RP wheel).
-        $target = if ($assetKind -in @('textures', 'meshes')) {
+        $target = if ($assetKind -in @('textures', 'meshes', 'sounds')) {
             Join-Path $runtime ('gamedata\' + $assetKind)
         } else {
             Join-Path $runtime "$($role.Name)\$assetKind"

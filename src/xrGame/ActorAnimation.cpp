@@ -391,6 +391,8 @@ static MotionID netcoop_device_torso(CActor* actor, CCustomDevice* device, u32 m
 			else if (weapon->IsZoomed())
 				action = "aim_0";
 		}
+		else if (!active && (device->GetState() == CCustomDevice::eIdleZoom || device->GetState() == CCustomDevice::eIdleZoomIn))
+			action = "aim_0"; // a walkie-talkie raised to talk (the device's zoom pose)
 	}
 	else if (pda->m_bZoomed)
 		action = "aim_0";

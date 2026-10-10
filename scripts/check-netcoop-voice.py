@@ -5,7 +5,11 @@ on/off, the engine told (freq, on, radio in inventory), the server told;
 server: the setting is kept with the character, a bad frequency is refused,
 the engine gets the stored setting; 'radio get' answers the client. Engine:
 voice keys are bindable actions (unbound by default) in Controls, one message
-both ways with client and server dispatch, codecs built before MSBuild."""
+both ways with client and server dispatch, codecs built before MSBuild.
+Walkie in the hand (Lost Zone): a D_CUSTOM device in the detector slot with
+the radio hud; fire talks (raised: the device's zoom pose, seen by others as
+aim_0), zoom opens the window; the walkie's own sounds play on power, tuning
+and talk start/stop."""
 from pathlib import Path
 import re
 from lupa.lua51 import LuaRuntime
@@ -52,6 +56,9 @@ function CScriptXmlInit() return {ParseFile = function() end, InitStatic = funct
 ui_events = {BUTTON_CLICKED = 1, WINDOW_KEY_PRESSED = 2}
 DIK_keys = {DIK_ESCAPE = 1}
 handlers = {}
+played = {}
+sound_object = setmetatable({s2d = 1}, {__call = function(_, path)
+    return {play = function() played[#played + 1] = path end} end})
 ''')
 g.netcoop_voice_ui = lua.table()
 lua.execute("local env = ...; setfenv(assert(loadstring(select(2, ...))), setmetatable(env,{__index=_G}))()",
@@ -89,8 +96,16 @@ for _ in range(40): h.rb1(None)
 assert g.commands[len(g.commands)] == "radio 3000 1"
 h.rb3(None); h.rb3(None)
 assert g.commands[len(g.commands)] == "radio 3010 1"
+snd = len(g.played)
+h.rb3(None)
+assert g.played[len(g.played)] == r"device\radio\radio_freq_set" and len(g.played) == snd + 1
+h.rb2(None)
+for _ in range(3): h.rb1(None)   # 3010 -> 3000, then at the lower limit: no click
+assert len(g.played) == snd + 3
+h.rb3(None); h.rb3(None)
 h.rb5(None)
 assert g.commands[len(g.commands)] == "radio 3010 0"
+assert g.played[len(g.played)] == r"device\radio\radio_off"
 assert tuple(g.local_calls[len(g.local_calls)].values()) == (3010, False, True)
 v.tip("st_voice_no_radio")
 assert g.msgs[len(g.msgs)] == "<st_voice_no_radio>"
@@ -120,14 +135,14 @@ assert run("other", "", 9) == "-"
 src = root / "src"
 ctl_h = (src / "xrGame/xr_level_controller.h").read_text(encoding="utf-8", errors="replace")
 ctl = (src / "xrGame/xr_level_controller.cpp").read_text(encoding="utf-8", errors="replace")
-for name, act in (("voice_near", "kVOICE_NEAR"), ("voice_radio", "kVOICE_RADIO"), ("voice_range", "kVOICE_RANGE")):
+for name, act in (("voice_near", "kVOICE_NEAR"), ("voice_radio", "kVOICE_RADIO"), ("voice_range", "kVOICE_RANGE"), ("voice_toggle", "kVOICE_TOGGLE")):
     assert act in ctl_h and f'{{"{name}", {act}, _both }}' in ctl
 kb = (ov / "client/configs/ui/ui_keybinding.xml").read_bytes().decode("cp1251")
-assert all(f'exe="{n}"' in kb for n in ("voice_near", "voice_radio", "voice_range")) and "kb_grp_voice" in kb
+assert all(f'exe="{n}"' in kb for n in ("voice_near", "voice_radio", "voice_range", "voice_toggle")) and "kb_grp_voice" in kb
 assert "M_NETCOOP_VOICE" in (src / "xrServerEntities/xrMessages.h").read_text(encoding="utf-8", errors="replace")
 assert "netcoop::client_on_voice(*P)" in (src / "xrGame/Level_network_messages.cpp").read_text(encoding="utf-8", errors="replace")
 assert "netcoop::server_on_voice(this, CL, P)" in (src / "xrGame/xrServer.cpp").read_text(encoding="utf-8", errors="replace")
-inp = (src / "xrGame/level_input.cpp").read_text(encoding="utf-8-sig", errors="replace")
+inp = (src / "xrGame/Level_input.cpp").read_text(encoding="utf-8-sig", errors="replace")
 press = inp[inp.index("void CLevel::IR_OnKeyboardPress"):]
 assert press.index("client_voice_key(get_binded_action(key), true)") < press.index("m_rp_index >= 0")  # works in RP poses
 assert "client_voice_key(get_binded_action(key), false)" in inp
@@ -142,7 +157,31 @@ for lang in ("rus", "eng"):
     t = (ov / f"client/configs/text/{lang}/st_netcoop.xml").read_bytes().decode("cp1251")
     used = set(re.findall(r'"(st_voice_[a-z_]+)"', (ov / "client/netcoop_voice_ui.script").read_text(encoding="utf-8") +
                          (src / "xrGame/netcoop_voice.inc").read_text(encoding="utf-8")))
-    used |= {"kb_grp_voice", "kb_voice_near", "kb_voice_radio", "kb_voice_range"}
+    used |= {"kb_grp_voice", "kb_voice_near", "kb_voice_radio", "kb_voice_range", "kb_voice_toggle"}
     missing = [k for k in used if f'id="{k}"' not in t]
     assert not missing, (lang, missing)
+
+# Walkie in the hand.
+inc = (src / "xrGame/netcoop_voice.inc").read_text(encoding="utf-8")
+key = inc[inc.index("bool client_voice_key("):inc.index("// Lua (the radio window")]
+assert "kWPN_FIRE" in key and "kWPN_ZOOM" in key and "netcoop_voice_ui.open_radio" in key
+assert key.index("NeedCursor()") < key.index("if (hand)")  # a cursor window keeps its clicks
+assert "ItemFromSlot(DETECTOR_SLOT)" in inc and "ActiveItem()) return nullptr" in inc
+upd = inc[inc.index("void client_voice_update()"):]
+assert "(s_voice_key_radio || s_voice_hand_talk) && s_voice_radio_have && s_voice_radio_on" in upd
+assert '"radio_active" : "radio_deactive"' in upd and "netcoop_voice_ui.play" in inc
+dev = (src / "xrGame/CustomDevice.cpp").read_text(encoding="utf-8-sig")
+vis = dev[dev.index("void CCustomDevice::UpdateVisibility"):dev.index("void CCustomDevice::UpdateWork")]
+assert "netcoop::client_device_talking(this)" in vis and "SwitchState(eIdleZoomIn)" in vis
+assert "m_netcoop_state_sync = 0" in dev[dev.index("void CCustomDevice::OnStateSwitch"):]
+anim = (src / "xrGame/ActorAnimation.cpp").read_text(encoding="utf-8-sig", errors="replace")
+assert "!active && (device->GetState() == CCustomDevice::eIdleZoom" in anim
+for role in ("client", "server"):
+    ltx = (ov / f"{role}/configs/mod_system_zzzzzzzz_netcoop_voice.ltx").read_text(encoding="utf-8")
+    w = ltx[ltx.index("![walkie]"):]
+    for line in ("class = D_CUSTOM", "slot = 8", "hud = detector_radio_hud", "attach_bone_name = bip01_l_hand"):
+        assert line in w, (role, line)
+for name in ("radio_active", "radio_deactive", "radio_freq_set", "radio_on", "radio_off"):
+    assert (ov / f"client/sounds/device/radio/{name}.ogg").stat().st_size > 1000
+assert "'sounds'" in (root / "scripts/patch-gamma-netcoop-overlay.ps1").read_text(encoding="utf-8-sig")
 print("netcoop voice: OK")

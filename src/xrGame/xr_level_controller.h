@@ -109,6 +109,7 @@ enum EGameActions
 	kVOICE_NEAR,  // netcoop voice chat: talk to people around (held)
 	kVOICE_RADIO, // talk into the walkie-talkie (held)
 	kVOICE_RANGE, // whisper / normal / shout
+	kVOICE_TOGGLE, // microphone on/off (talks while you speak), like Discord's mute
 	kSAFEMODE,
 	kFREELOOK,
 

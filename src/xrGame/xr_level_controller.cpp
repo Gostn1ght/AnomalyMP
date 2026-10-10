@@ -117,6 +117,7 @@ _action actions[] = {
 	{"voice_near", kVOICE_NEAR, _both },
 	{"voice_radio", kVOICE_RADIO, _both },
 	{"voice_range", kVOICE_RANGE, _both },
+	{"voice_toggle", kVOICE_TOGGLE, _both },
 	{"safemode", kSAFEMODE, _both},
 	{"freelook", kFREELOOK, _both},
 	{"cam_autoaim", kCAM_AUTOAIM, _sp},

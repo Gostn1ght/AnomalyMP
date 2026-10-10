@@ -130,6 +130,10 @@ void CCustomDevice::ToggleDevice(bool bFastMode)
 void CCustomDevice::OnStateSwitch(u32 S, u32 oldState)
 {
 	inherited::OnStateSwitch(S, oldState);
+	// Netcoop: other players see a raised or lowered device (a walkie-talkie
+	// while talking) at once, not with the next 1 s state refresh.
+	if (S == eIdle || S == eIdleZoom)
+		m_netcoop_state_sync = 0;
 
 	switch (S)
 	{
@@ -495,7 +499,13 @@ void CCustomDevice::UpdateVisibility()
 				ShowDevice(true);
 		}
 
-		if (GetState() == eIdleZoom)
+		// Netcoop: a walkie-talkie is raised to the face while its owner talks into it.
+		if (netcoop::client_device_talking(this))
+		{
+			if (GetState() == eIdle || GetState() == eIdleZoomOut)
+				SwitchState(eIdleZoomIn);
+		}
+		else if (GetState() == eIdleZoom)
 			SwitchState(eIdleZoomOut);
 		else if (GetState() == eIdleZoomIn)
 			SwitchState(eIdle);

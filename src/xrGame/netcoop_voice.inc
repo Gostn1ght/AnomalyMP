@@ -6,7 +6,10 @@
 // loudness levels (whisper 4 m, normal 16 m, shout 45 m; "voice range" key).
 // Radio: the "voice radio" key speaks into the walkie-talkie. It works while
 // a walkie-talkie is anywhere in the inventory (no slot, no hands), switched
-// on, on a frequency. Everybody on that frequency within radio range hears
+// on, on a frequency. As in Lost Zone the walkie can also be taken into the
+// left hand (detector slot): with nothing in the right hand, holding fire
+// talks into it (it is raised to the face, others see the pose) and zoom
+// opens its settings. Everybody on that frequency within radio range hears
 // it in the ear with a radio voice, and people standing next to a receiver
 // hear its speaker too; people around the talker hear him directly.
 //
@@ -84,6 +87,9 @@ struct VoicePlayback
 
 static VoiceUplink s_voice_up;
 static bool s_voice_key_near = false, s_voice_key_radio = false, s_voice_capture_tried = false;
+static bool s_voice_open = false; // "voice toggle": microphone on, sends while the player speaks
+static bool s_voice_hand_talk = false; // fire held with the walkie-talkie in the hand
+static bool s_voice_radio_was = false; // talking into the radio last frame (press/release clicks)
 static u32 s_voice_capture_at = 0;
 static u8 s_voice_loudness = 1;
 static bool s_voice_radio_on = false, s_voice_radio_have = false;
@@ -100,19 +106,76 @@ static void voice_tip(LPCSTR id)
 	if (ai().script_engine().functor("netcoop_voice_ui.tip", tip)) tip(id);
 }
 
+static void voice_play(LPCSTR name)
+{
+	::luabind::functor<void> play;
+	if (ai().script_engine().functor("netcoop_voice_ui.play", play)) play(name);
+}
+
+// The walkie-talkie shown in the left hand while the right hand is empty.
+static CCustomDevice* voice_hand_walkie()
+{
+	CActor* actor = Actor();
+	if (!actor || !actor->g_Alive() || actor->inventory().ActiveItem()) return nullptr;
+	CCustomDevice* device = smart_cast<CCustomDevice*>(actor->inventory().ItemFromSlot(DETECTOR_SLOT));
+	if (!device || !voice_radio_section(device->cNameSect().c_str())) return nullptr;
+	const u32 state = device->GetState();
+	if (state != CHUDState::eIdle && state != CHUDState::eBore && state != CCustomDevice::eIdleZoom &&
+		state != CCustomDevice::eIdleZoomIn && state != CCustomDevice::eIdleZoomOut)
+		return nullptr;
+	return device;
+}
+
+// CCustomDevice: raise this device to the face (its zoom pose) while talking into it.
+bool client_device_talking(CCustomDevice* device)
+{
+	return device && pure_client() && s_voice_radio_have && s_voice_radio_on &&
+		(s_voice_hand_talk || s_voice_key_radio) && device == voice_hand_walkie();
+}
+
 // Controls: voice_near / voice_radio held = talking; voice_range cycles loudness.
+// With the walkie-talkie in the hand: fire held = talking into it, zoom = settings.
 bool client_voice_key(int action, bool pressed)
 {
 	if (!pure_client()) return false;
-	if (action != kVOICE_NEAR && action != kVOICE_RADIO && action != kVOICE_RANGE) return false;
+	const bool hand = action == kWPN_FIRE || action == kWPN_ZOOM;
+	if (!hand && action != kVOICE_NEAR && action != kVOICE_RADIO && action != kVOICE_RANGE && action != kVOICE_TOGGLE) return false;
 	if (pressed && CurrentGameUI() && CurrentGameUI()->TopInputReceiver() && CurrentGameUI()->TopInputReceiver()->NeedCursor())
 		return false;
+	if (hand)
+	{
+		if (!pressed)
+		{
+			if (action != kWPN_FIRE || !s_voice_hand_talk) return false;
+			s_voice_hand_talk = false;
+			return true;
+		}
+		if (!voice_hand_walkie()) return false;
+		if (action == kWPN_ZOOM)
+		{
+			::luabind::functor<void> open;
+			if (ai().script_engine().functor("netcoop_voice_ui.open_radio", open)) open();
+			return true;
+		}
+		if (!s_voice_radio_on) voice_tip("st_voice_radio_off");
+		s_voice_hand_talk = true;
+		return true;
+	}
 	if (action == kVOICE_NEAR) { s_voice_key_near = pressed; return true; }
 	if (action == kVOICE_RADIO)
 	{
 		if (pressed && !(s_voice_radio_have && s_voice_radio_on))
 			voice_tip(s_voice_radio_have ? "st_voice_radio_off" : "st_voice_no_radio");
 		s_voice_key_radio = pressed;
+		return true;
+	}
+	if (action == kVOICE_TOGGLE)
+	{
+		if (pressed)
+		{
+			s_voice_open = !s_voice_open;
+			voice_tip(s_voice_open ? "st_voice_mic_on" : "st_voice_mic_off");
+		}
 		return true;
 	}
 	if (action == kVOICE_RANGE)
@@ -142,7 +205,8 @@ LPCSTR script_voice_status()
 	static string64 out;
 	ISoundVoice* voice = voice_audio();
 	const bool talking = voice && voice->Transmitting();
-	xr_sprintf(out, "%d|%d|%d|%.2f", talking ? 1 : 0, s_voice_up.mode, s_voice_loudness, voice ? voice->InputLevel() : 0.f);
+	xr_sprintf(out, "%d|%d|%d|%.2f|%d", talking ? 1 : 0, s_voice_up.mode, s_voice_loudness, voice ? voice->InputLevel() : 0.f,
+		s_voice_open ? 1 : 0);
 	return out;
 }
 
@@ -167,14 +231,22 @@ void client_voice_update()
 		s_voice_capture_at = now;
 		voice->StartCapture(&s_voice_up);
 	}
-	const bool radio = s_voice_key_radio && s_voice_radio_have && s_voice_radio_on;
-	const bool talk = actor && actor->g_Alive() && (radio || s_voice_key_near);
+	if (s_voice_hand_talk && !voice_hand_walkie()) s_voice_hand_talk = false; // put away, took a weapon, died
+	const bool alive = actor && actor->g_Alive();
+	const bool radio = alive && (s_voice_key_radio || s_voice_hand_talk) && s_voice_radio_have && s_voice_radio_on;
+	const bool talk = alive && (radio || s_voice_key_near);
+	if (radio != s_voice_radio_was)
+	{
+		s_voice_radio_was = radio;
+		voice_play(radio ? "radio_active" : "radio_deactive"); // the walkie's own press/release clicks
+	}
 	const u8 mode = radio ? 1 : 0;
 	if (s_voice_up.mode != mode || s_voice_up.loudness != s_voice_loudness) s_voice_up.flush();
 	s_voice_up.mode = mode;
 	s_voice_up.loudness = s_voice_loudness;
 	voice->SetTransmit(talk);
-	if (!talk) s_voice_up.flush();
+	voice->SetOpenMic(alive && s_voice_open); // near voice, sent while speaking
+	if (!talk && !voice->Transmitting()) s_voice_up.flush();
 
 	// Speakers: follow their bodies; walls muffle; forget the silent ones.
 	const Fvector& ear = Device.vCameraPosition;
@@ -264,7 +336,7 @@ void client_voice_render()
 	}
 }
 
-void client_voice_reset() { voice_release_players(); s_voice_key_near = s_voice_key_radio = false; }
+void client_voice_reset() { voice_release_players(); s_voice_key_near = s_voice_key_radio = s_voice_hand_talk = s_voice_radio_was = false; }
 
 //----------------------------------------------------------------------
 // Server

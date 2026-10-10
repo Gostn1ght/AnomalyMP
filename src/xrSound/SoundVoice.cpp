@@ -272,7 +272,7 @@ class CSoundVoice : public ISoundVoice
 	IVoiceSink* m_sink = nullptr;
 	OpusEncoder* m_encoder = nullptr;
 	SpeexPreprocessState* m_pre = nullptr;
-	bool m_ptt = false, m_sending = false;
+	bool m_ptt = false, m_open = false, m_sending = false;
 	u16 m_seq = 0;
 	float m_level = 0.f;
 	u32 m_hang = 0; // frames sent after voice activity stops (no clipped word ends)
@@ -332,6 +332,7 @@ public:
 
 	bool Capturing() const override { return m_capture != nullptr; }
 	void SetTransmit(bool on) override { m_ptt = on; }
+	void SetOpenMic(bool on) override { m_open = on; }
 	bool Transmitting() const override { return m_sending; }
 	float InputLevel() const override { return m_level; }
 
@@ -369,7 +370,7 @@ public:
 			for (s16 s : pcm) peak = _max(peak, fabsf(float(s)) / 32768.f);
 			m_level = _max(peak, m_level * 0.8f);
 			bool send = m_ptt;
-			if (psVoiceActivation && !m_ptt)
+			if ((m_open || psVoiceActivation) && !m_ptt)
 			{
 				if (voice) m_hang = 8; // keep 320 ms after the last voiced frame
 				send = m_hang > 0;
