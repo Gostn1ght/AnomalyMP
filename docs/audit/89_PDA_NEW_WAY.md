@@ -44,7 +44,7 @@ Tabs and frame
 - [x] profile card (PDA name, UID, faction, money "RU", avatar) like the
       NW header (top of Contacts)
 - [ ] PDA held landscape in both hands, in first and third person
-- [ ] other player's PDA: the screen image is shifted down (needs a screenshot)
+- [-] other player's PDA screen image: dropped (owner 2026-10-10: "чужой экран нам не нужен")
 
 Contacts
 - [x] own name + UID line, UID field, Добавить / Открыть / Удалить

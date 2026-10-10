@@ -7,6 +7,7 @@ GAMMA's motion of that name (data and parameters); the motions only GAMMA
 has (devices, binoculars, eating, extras) stay, so nothing GAMMA uses is lost.
 
 usage: merge-player-anims.py <gamma.omf> <source.omf> <out.omf>
+       merge-player-anims.py --subset <source.omf> <out.omf> <prefix>
 """
 import re
 import struct
@@ -144,5 +145,41 @@ def main(gamma_path, source_path, out_path):
     print(f"{replaced} of {len(g['defs'])} motions from {source_path}; the rest GAMMA's -> {out_path}")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and sys.argv[1] != "--subset":
     main(*sys.argv[1:4])
+
+
+def subset(source_path, out_path, prefix):
+    """Only the motions whose names start with prefix, re-indexed (for an
+    extra OMF in actors/modded_stalker_animations, loaded after
+    stalker_animation for every stalker model: other names would shadow
+    nothing but are dropped to keep it clean)."""
+    s = parse(source_path)
+    keep = [d for d in s["defs"] if d["name"].startswith(prefix)]
+    data = s["data"]
+    defs, subs = [], [chunk(0, struct.pack("<I", len(keep)))]
+    for i, d in enumerate(keep):
+        rest = d["raw"][len(d["name"]) + 1:]
+        rest = rest[:6] + struct.pack("<H", i) + rest[8:]
+        defs.append(d["name"].encode("latin1") + b"\0" + rest)
+        subs.append(chunk(i + 1, d["name"].encode("latin1") + b"\0" + s["blobs"][d["motion"]][1]))
+    out = b""
+    for cid, start, size in s["top"]:
+        if cid == OGF_S_SMPARAMS:
+            r = Reader(data, start)
+            r.u16()
+            for _ in range(r.u16()):
+                r.strz()
+                for _ in range(r.u16()):
+                    r.strz(); r.u32()
+            out += chunk(OGF_S_SMPARAMS, data[start:r.p] + struct.pack("<H", len(defs)) + b"".join(defs))
+        elif cid == OGF_S_MOTIONS:
+            out += chunk(OGF_S_MOTIONS, b"".join(subs))
+        else:
+            out += chunk(cid, data[start:start + size])
+    open(out_path, "wb").write(out)
+    print(f"{len(keep)} of {len(s['defs'])} motions ({prefix}*) -> {out_path}")
+
+
+if __name__ == "__main__" and sys.argv[1] == "--subset":
+    subset(*sys.argv[2:5])

@@ -24,6 +24,7 @@
 #include "WeaponKnife.h"
 #include "Pda.h"
 #include "CustomDevice.h"
+#include "Flashlight.h"
 #include "../xrEngine/SkeletonMotions.h"
 #include "xrMessages.h"
 
@@ -371,6 +372,7 @@ static MotionID netcoop_device_torso(CActor* actor, CCustomDevice* device, u32 m
 		return MotionID();
 
 	LPCSTR family = "pda";
+	LPCSTR base = "0"; // xrRazom/xrMPE device poses: xrr_<posture>_torso_<base>_<kind>_<action>
 	LPCSTR action = "aim_1";
 	CHudItem* item = pda;
 	if (device)
@@ -378,15 +380,17 @@ static MotionID netcoop_device_torso(CActor* actor, CCustomDevice* device, u32 m
 		item = device;
 		family = "0+detector";
 		if (smart_cast<CWeaponKnife*>(active))
-			family = "knife+detector";
+			family = "knife+detector", base = "knife";
 		else if (smart_cast<CMissile*>(active))
-			family = "6+detector";
+			family = "6+detector", base = "6";
 		else if (CWeapon* weapon = smart_cast<CWeapon*>(active))
 		{
 			if (weapon->animation_slot() != 1)
 				return MotionID(); // no combined two-handed weapon pose in the asset
-			family = "pistol+detector";
-			if (weapon->GetState() == CWeapon::eFire)
+			family = "pistol+detector", base = "pistol";
+			if (weapon->GetState() == CWeapon::eReload)
+				action = "reload_0";
+			else if (weapon->GetState() == CWeapon::eFire)
 				action = weapon->IsZoomed() ? "attack_0" : "attack_1";
 			else if (weapon->IsZoomed())
 				action = "aim_0";
@@ -417,8 +421,33 @@ static MotionID netcoop_device_torso(CActor* actor, CCustomDevice* device, u32 m
 	}
 
 	string128 name;
+	MotionID motion;
+	if (device)
+	{
+		// The pose that matches first person (xrRazom's xrMPE device poses,
+		// meshes/actors/modded_stalker_animations): a hand flashlight or a
+		// glow stick is held up ("torchelo"), a detector or a walkie-talkie
+		// in front ("detector"). Standing poses stand in for missing crouch ones.
+		LPCSTR kind = smart_cast<CFlashlight*>(device) ? "torchelo" : "detector";
+		// their cycles for a lowered hand: idle_1 / walk_1 / run_1 (ours: aim_1 / aim_2 / aim_3)
+		LPCSTR cycle = !xr_strcmp(action, "aim_1") ? "idle_1" : !xr_strcmp(action, "aim_2") ? "walk_1" :
+			!xr_strcmp(action, "aim_3") ? "run_1" : action;
+		LPCSTR tries[2] = {cycle, action};
+		for (LPCSTR a : tries)
+		{
+			xr_sprintf(name, "xrr_%s_torso_%s_%s_%s", (movement & mcCrouch) ? "cr" : "norm", base, kind, a);
+			motion = model->ID_Cycle_Safe(name);
+			if (!motion.valid())
+			{
+				xr_sprintf(name, "xrr_norm_torso_%s_%s_%s", base, kind, a);
+				motion = model->ID_Cycle_Safe(name);
+			}
+			if (motion.valid())
+				return motion;
+		}
+	}
 	xr_sprintf(name, "%s_torso_%s_%s", (movement & mcCrouch) ? "cr" : "norm", family, action);
-	MotionID motion = model->ID_Cycle_Safe(name);
+	motion = model->ID_Cycle_Safe(name);
 	if (!motion.valid())
 	{
 		// Some Anomaly models only provide standing device motions.

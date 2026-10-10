@@ -4,7 +4,10 @@ scripts/tools/merge-player-anims.py) are well-formed: every motion
 definition has its motion data at its index, under its name; stalker_animation
 keeps GAMMA's device, PDA, binocular and eating motions; partitions are the
 stalker skeleton's. xAGNA's configs do not change NPC behaviour: no movement
-speeds, no fire/shell points (NPC shots stay GAMMA's)."""
+speeds, no fire/shell points (NPC shots stay GAMMA's). Device poses
+(xrRazom's xrMPE set, modded_stalker_animations): only xrr_ names (nothing
+shadows GAMMA's motions), held-up poses for a flashlight/glow stick and
+detector poses for every hand combination; the engine picks them by device."""
 from pathlib import Path
 import importlib.util
 import re
@@ -15,7 +18,7 @@ merge = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(merge)
 
 actors = root / "netcoop-overlay/client/meshes/actors"
-files = sorted(actors.glob("*.omf"))
+files = sorted(actors.glob("*.omf")) + sorted(actors.glob("modded_stalker_animations/*.omf"))
 assert files and (actors / "stalker_animation.omf") in files
 for f in files:
     o = merge.parse(str(f))
@@ -37,4 +40,17 @@ for role in ("client", "server"):
     assert "[stalker_step_manager]" in step and not re.search(r"^!?\[stalker_movement_speeds\]", step, re.M)
     assert not re.search(r"^\s*(fire_point|shell_point)", wpn, re.M | re.I)
     assert len(re.findall(r"^!\[wpn_", wpn, re.M)) > 100
+dev = {d["name"] for d in merge.parse(str(actors / "modded_stalker_animations/netcoop_player_devices.omf"))["defs"]}
+assert all(n.startswith("xrr_") for n in dev) and not dev & main
+for kind in ("torchelo", "detector"):
+    for base in ("0", "6", "knife", "pistol"):
+        actions = ["idle_1", "run_1", "escape_0", "drawdevice_0", "holsterdevice_0", "aim_0"]
+        actions += ["reload_0"] if base == "pistol" else ["walk_1"]
+        for action in actions:
+            assert f"xrr_norm_torso_{base}_{kind}_{action}" in dev, (base, kind, action)
+    for action in ("aim_0", "aim_1", "aim_2", "aim_3"):
+        assert f"xrr_cr_torso_0_{kind}_{action}" in dev
+anim = (root.parent / "src/xrGame/ActorAnimation.cpp").read_text(encoding="utf-8-sig", errors="replace")
+assert 'smart_cast<CFlashlight*>(device) ? "torchelo" : "detector"' in anim
+assert '"xrr_%s_torso_%s_%s_%s"' in anim and '"walk_1"' in anim and '#include "Flashlight.h"' in anim
 print("netcoop anims: OK")
