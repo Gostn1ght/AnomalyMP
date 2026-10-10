@@ -59,6 +59,8 @@ chats = {}          -- list of chat summaries (server order is any; sorted here)
 general = {}        -- newest last, at most KEEP
 opened = nil        -- { id, summary, msgs }
 typing = {}         -- chat id -> { uid, until }
+members = {}        -- group id -> list of { uid, name, icon, online, own } ("Состав")
+notes = {}          -- own notes, newest first: { id, title, text, t, g }
 last_error = nil
 local KEEP = 150
 local listeners = {}
@@ -114,6 +116,17 @@ local function apply(verb, v)
 		if xr_sound and xr_sound.set_sound_play and db.actor then pcall(xr_sound.set_sound_play, db.actor:id(), "pda_tips") end
 	elseif verb == "typing" and type(v) == "table" then
 		typing[v.id] = { uid = v.uid, until_ms = time_global() + 4000 }
+	elseif verb == "members" and type(v) == "table" then
+		members[v.id] = list(v.list)
+	elseif verb == "notes" and type(v) == "table" then
+		notes = list(v)
+	elseif verb == "asent" then
+		if netcoop_pdanet_voice then netcoop_pdanet_voice.on_sent() end
+	elseif verb == "paid" and type(v) == "table" then
+		local n = tonumber(v.amount) or 0
+		if actor_menu and actor_menu.set_msg then
+			actor_menu.set_msg(1, string.format(game.translate_string(n > 0 and "st_pdanet_paid_in" or "st_pdanet_paid_out"), math.abs(n)), 4)
+		end
 	elseif verb == "err" then
 		last_error = v
 	end
@@ -133,6 +146,11 @@ function receive(data)
 	local verb, body = string.match(all, "^(%a+)|(.*)$")
 	if not verb then return end
 	if verb == "err" then apply(verb, body) return end
+	if verb == "audio" then -- a record: "<id>|<base64>", not serialized
+		local aid, data = string.match(body, "^(%x+)|(.*)$")
+		if netcoop_pdanet_voice then netcoop_pdanet_voice.on_audio(aid, data or "") end
+		return
+	end
 	apply(verb, decode(body))
 end
 
@@ -171,6 +189,35 @@ function new_group(name, icon, uids)
 	send("group " .. string.gsub(clean(name), "|", " ") .. "|" .. (icon or "") .. "|" .. table.concat(uids, ","))
 end
 function delete_chat(id) send("delete " .. id) end
+function pay(id, amount)
+	amount = math.floor(tonumber(amount) or 0)
+	if amount > 0 then send("pay " .. id .. " " .. amount) end
+end
+function ask_members(id) send("members " .. id) end
+function ask_notes() send("notes") end
+function save_note(id, title, body)
+	title = string.gsub(clean(title), "|", "/")
+	body = string.gsub(string.gsub(body or "", "[%c]", " "), "|", "/")
+	send("note " .. (id or "new") .. "|" .. title .. "|" .. string.sub(body, 1, 1200))
+end
+function delete_note(id) send("note_del " .. id) end
+
+-- The private chat with a UID (same id as the server's).
+function dm_id(uid)
+	local a, b = me.uid, tostring(uid)
+	if a > b then a, b = b, a end
+	return "d_" .. a .. "_" .. b
+end
+-- A map point (the player's position) straight to a contact.
+function send_point_to(uid, caption)
+	send("dm " .. tostring(uid))
+	post_point(dm_id(uid), caption or "")
+end
+function contact_unread(uid)
+	local id = dm_id(uid)
+	for _, c in ipairs(chats) do if c.id == id then return c.unread or 0 end end
+	return 0
+end
 local typed_at = 0
 function typed(id)
 	if time_global() - typed_at < 3000 then return end
@@ -191,6 +238,23 @@ function when(m)
 	local t = os.date("!*t", 1325376000 + m.g * 60)
 	return string.format("%02d:%02d, %02d.%02d.%04d", t.hour, t.min, t.day, t.month, t.year)
 end
+-- General channel, like New Way: "16:24, Сентябрь 11, 2012"
+function when_long(m)
+	if not m.g then return "" end
+	local t = os.date("!*t", 1325376000 + m.g * 60)
+	return string.format("%02d:%02d, %s %d, %d", t.hour, t.min, game.translate_string("st_pdanet_month_" .. t.month), t.day, t.year)
+end
+-- Chat bubbles: "12.09  15:16"
+function when_short(m)
+	if not m.g then return "" end
+	local t = os.date("!*t", 1325376000 + m.g * 60)
+	return string.format("%02d.%02d  %02d:%02d", t.day, t.month, t.hour, t.min)
+end
+-- The PDA clock (game time).
+function clock()
+	if not (level and level.get_time_hours) then return "" end
+	return string.format("%02d:%02d", level.get_time_hours(), level.get_time_minutes())
+end
 
 function typing_in(id)
 	local t = typing[id]
@@ -204,7 +268,7 @@ function unread_total()
 	return n
 end
 
-local function on_first_update() hello() end
+local function on_first_update() hello(); ask_notes() end
 function on_game_start()
 	if not (netcoop_pure_client and netcoop_pure_client()) then return end
 	RegisterScriptCallback("actor_on_first_update", on_first_update)

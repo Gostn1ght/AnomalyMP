@@ -10,6 +10,15 @@
     <title x="44" y="100" width="420" height="30">
         <text r="218" g="229" b="235" font="letterica18" align="l" vert_align="c"/>
     </title>
+    <clock x="664" y="100" width="116" height="30">
+        <text r="218" g="229" b="235" font="letterica18" align="r" vert_align="c"/>
+    </clock>
+    <money x="0" y="0" width="10" height="30">
+        <text r="235" g="235" b="235" font="graffiti32" align="r" vert_align="c"/>
+    </money>
+    <note_view x="0" y="0" width="10" height="10">
+        <text r="208" g="219" b="226" font="letterica16" align="l" vert_align="t" complex_mode="1"/>
+    </note_view>
     <status x="44" y="672" width="720" height="26">
         <text r="132" g="151" b="163" font="letterica16" align="l" vert_align="c"/>
     </status>
@@ -17,6 +26,13 @@
         <text r="160" g="170" b="160" font="letterica16" align="c" vert_align="c" complex_mode="1"/>
     </hint>
     <!-- a message: header (sender, time) and text -->
+    <hint_left x="0" y="0" width="10" height="10">
+        <text r="160" g="170" b="160" font="letterica16" align="l" vert_align="t" complex_mode="1"/>
+    </hint_left>
+    <seek x="0" y="0" width="10" height="20" stretch="1">
+        <text align="c" vert_align="c" font="letterica16" r="226" g="196" b="120"/>
+        <texture>ui_button_ordinary</texture>
+    </seek>
     <msg_head x="0" y="0" width="10" height="20">
         <text r="132" g="151" b="163" font="letterica16" align="l" vert_align="c"/>
     </msg_head>
@@ -44,6 +60,14 @@
         <text x="8" font="letterica16" complex_mode="0" vert_align="c" r="208" g="219" b="226"/>
         <texture>ui_inGame2_edit_box_2</texture>
     </edit>
+    <edit_amount x="0" y="0" width="10" height="30" max_symb_count="7" numonly="1">
+        <text x="8" font="letterica16" complex_mode="0" vert_align="c" r="208" g="219" b="226"/>
+        <texture>ui_inGame2_edit_box_2</texture>
+    </edit_amount>
+    <edit_note x="0" y="0" width="10" height="32" max_symb_count="1200">
+        <text x="8" font="letterica16" complex_mode="0" vert_align="c" r="208" g="219" b="226"/>
+        <texture>ui_inGame2_edit_box_2</texture>
+    </edit_note>
     <edit_uid x="0" y="0" width="10" height="30" max_symb_count="6" numonly="1">
         <text x="8" font="letterica16" complex_mode="0" vert_align="c" r="208" g="219" b="226"/>
         <texture>ui_inGame2_edit_box_2</texture>

@@ -7,6 +7,7 @@
 #include "SoundRender_TargetA.h"
 #include "SoundRender_Source.h"
 #include "SoundRender_CoreA.h"
+#include "SoundVoice.h"
 
 CSoundRender_Emitter* CSoundRender_Core::i_play(ref_sound* S, BOOL _loop, float delay)
 {
@@ -15,7 +16,42 @@ CSoundRender_Emitter* CSoundRender_Core::i_play(ref_sound* S, BOOL _loop, float 
 	S->_p->feedback = E;
 	E->start(S, _loop, delay);
 	s_emitters.push_back(E);
+	ISoundVoice* v = voice();
+	if (v && v->SoundTap() && s_tap_pending.size() < 256) s_tap_pending.push_back(E);
 	return E;
+}
+
+// The PDA dictaphone: where the listener heard the sounds started since the
+// last update (their positions are set right after play, so not in i_play).
+void CSoundRender_Core::i_tap(const Fvector& P, const Fvector& D, const Fvector& N)
+{
+	if (s_tap_pending.empty()) return;
+	ISoundVoice* v = voice();
+	ISoundTap* tap = v ? v->SoundTap() : nullptr;
+	if (tap)
+	{
+		Fvector right;
+		right.crossproduct(N, D);
+		right.normalize_safe();
+		for (CSoundRender_Emitter* E : s_tap_pending)
+		{
+			if (std::find(s_emitters.begin(), s_emitters.end(), E) == s_emitters.end()) continue;
+			if (!E->owner_data._get() || !E->source() || E->owner_data->s_type == st_Music) continue;
+			const CSound_params& p = E->p_source;
+			Fvector local;
+			if (E->b2D)
+				local = p.position;
+			else
+			{
+				Fvector rel;
+				rel.sub(p.position, P);
+				if (rel.magnitude() > p.max_distance) continue; // not heard here
+				local.set(rel.dotproduct(right), rel.dotproduct(N), rel.dotproduct(D));
+			}
+			tap->OnWorldSound(E->source()->file_name(), local, p.volume, p.min_distance, p.max_distance, E->b2D != FALSE);
+		}
+	}
+	s_tap_pending.clear();
 }
 
 void CSoundRender_Core::update(const Fvector& P, const Fvector& D, const Fvector& N)
@@ -43,6 +79,8 @@ void CSoundRender_Core::update(const Fvector& P, const Fvector& D, const Fvector
 	fTimer_Value = new_tm;
 
 	s_emitters_u ++;
+
+	i_tap(P, D, N);
 
 	// Firstly update emitters, which are now being rendered
 	//Msg	("! update: r-emitters");

@@ -1,0 +1,326 @@
+-- PDA dictaphone and voice messages (owner 2026-10-10, after New Way).
+-- The engine records everything the player hears while recording runs: his
+-- own voice, players talking nearby, voices from the walkie-talkie and from
+-- receivers' speakers, and the world's sounds (netcoop_voice_record.inc).
+-- Voice messages ("Запись" in a chat, up to 2 minutes) go to the server and
+-- to the chat; dictaphone records (up to 10 minutes, recording goes on with
+-- the PDA put away) stay in this PDA, and one can be sent to the open chat.
+
+local MSG_SECONDS, DICT_SECONDS, MAX_RECORDS = 120, 600, 20
+local PART, PARTS_PER_SECOND = 3800, 20
+
+local function tr(id) return game.translate_string(id) end
+local function tip(id, ...)
+	if actor_menu and actor_menu.set_msg then actor_menu.set_msg(1, string.format(tr(id), ...), 3) end
+end
+local function clock_text(secs)
+	secs = math.max(0, math.floor(secs or 0))
+	return string.format("%d:%02d", math.floor(secs / 60), secs % 60)
+end
+local function engine() return netcoop_record_start ~= nil end
+
+----------------------------------------------------------------------
+-- Recording
+----------------------------------------------------------------------
+local rec_kind = nil -- "msg" (voice message) or "dict" (dictaphone)
+local rec_chat = nil
+
+function recording() return rec_kind ~= nil end
+function recording_kind() return rec_kind end
+function recorded_text() return clock_text(engine() and netcoop_record_seconds() or 0) end
+
+local function start(kind, limit)
+	if rec_kind or not engine() then return false end
+	if netcoop_play_stop then netcoop_play_stop() end
+	if not netcoop_record_start(limit) then tip("st_pdanet_rec_no_mic") return false end
+	rec_kind = kind
+	if netcoop_voice_ui and netcoop_voice_ui.play then netcoop_voice_ui.play("radio_freq_set") end
+	return true
+end
+local function finish()
+	local secs = math.max(1, math.ceil(netcoop_record_seconds()))
+	local data = netcoop_record_stop()
+	rec_kind = nil
+	return data ~= "" and data or nil, secs
+end
+
+----------------------------------------------------------------------
+-- Upload (a voice message or a dictaphone record to a chat)
+----------------------------------------------------------------------
+local queue = nil -- { aid, parts = {...}, next }
+
+local function new_aid()
+	local t = {}
+	for i = 1, 16 do t[i] = string.format("%x", math.random(0, 15)) end
+	return table.concat(t)
+end
+
+function upload(cid, data, secs)
+	if queue then tip("st_pdanet_rec_busy") return false end
+	if not (cid and data and data ~= "") then return false end
+	local parts = {}
+	for i = 1, math.ceil(#data / PART) do parts[i] = string.sub(data, (i - 1) * PART + 1, i * PART) end
+	if #parts > 700 then tip("st_pdanet_rec_too_long") return false end
+	local aid = new_aid()
+	queue = { aid = aid, parts = parts, next = 1, at = 0 }
+	netcoop_command(string.format("pdanet abeg %s %s %d %d", aid, cid, secs, #parts))
+	return true
+end
+function uploading()
+	if not queue then return nil end
+	return math.floor((queue.next - 1) * 100 / #queue.parts)
+end
+
+-- the server stored it and posted the message
+function on_sent()
+	queue = nil
+	tip("st_pdanet_rec_sent")
+end
+
+----------------------------------------------------------------------
+-- Voice messages in chats
+----------------------------------------------------------------------
+function start_message()
+	if start("msg", MSG_SECONDS) then tip("st_pdanet_rec_started") end
+end
+function stop_and_send(cid)
+	if rec_kind ~= "msg" then return end
+	local data, secs = finish()
+	if data then upload(cid, data, secs) end
+end
+
+----------------------------------------------------------------------
+-- Playback (cache of fetched records)
+----------------------------------------------------------------------
+local cache, cache_n = {}, 0
+local want = nil   -- record id asked from the server
+playing_id = nil
+
+local function play(id, data, from)
+	local len = netcoop_play_start(data, from or 0)
+	if len <= 0 then tip("st_pdanet_rec_bad") return 0 end
+	playing_id = id
+	return len
+end
+function play_message(m)
+	if not engine() or rec_kind then return end
+	local aid = string.match(m.d or "", "^(%x+)")
+	if not aid then return end
+	if playing_id == aid and netcoop_play_pos() >= 0 then
+		netcoop_play_pause(not netcoop_play_paused())
+		return
+	end
+	if cache[aid] then play(aid, cache[aid]) return end
+	want = aid
+	netcoop_command("pdanet aget " .. aid)
+end
+-- channel "pdanet" verb "audio": "<aid>|<data>"
+function on_audio(aid, data)
+	if not aid or data == "" then return end
+	if cache_n > 12 then cache, cache_n = {}, 0 end
+	if not cache[aid] then cache_n = cache_n + 1 end
+	cache[aid] = data
+	if want == aid then want = nil; play(aid, data) end
+end
+-- position text "0:08 / 0:13" and fraction for a message being played
+function message_progress(m)
+	local aid = string.match(m.d or "", "^(%x+)")
+	local total = tonumber(string.match(m.d or "", "^%x+ (%d+)") or 0) or 0
+	local pos = aid and aid == playing_id and netcoop_play_pos and netcoop_play_pos() or -1
+	if pos < 0 then return clock_text(total), 0 end
+	return clock_text(pos) .. " / " .. clock_text(total), total > 0 and pos / total or 0
+end
+
+----------------------------------------------------------------------
+-- Dictaphone records: kept in this PDA (a file per character's UID)
+----------------------------------------------------------------------
+records = {} -- newest first: { id, t (game minutes), secs, data }
+local loaded_for = nil
+
+local function store_path()
+	local uid = netcoop_pdanet_client and netcoop_pdanet_client.me.uid or ""
+	if uid == "" then return nil end
+	return getFS():update_path("$app_data_root$", "netcoop_dictaphone_" .. uid .. ".txt")
+end
+local function load()
+	local path = store_path()
+	if not path or loaded_for == path then return end
+	loaded_for, records = path, {}
+	local f = io.open(path, "rb")
+	if not f then return end
+	for line in f:lines() do
+		local id, t, secs, data = string.match(line, "^(%x+)|(%d+)|(%d+)|([%w%+/=]+)")
+		if id then records[#records + 1] = { id = id, t = tonumber(t), secs = tonumber(secs), data = data } end
+	end
+	f:close()
+end
+local function save()
+	local path = store_path()
+	if not path then return end
+	local f = io.open(path, "wb")
+	if not f then return end
+	for _, r in ipairs(records) do f:write(string.format("%s|%d|%d|%s\n", r.id, r.t or 0, r.secs or 0, r.data)) end
+	f:close()
+end
+local function game_minutes()
+	local base = game.CTime()
+	if base.set then base:set(2012, 1, 1, 0, 0, 0, 0) end
+	return math.floor(game.get_game_time():diffSec(base) / 60)
+end
+
+function dict_start()
+	load()
+	if start("dict", DICT_SECONDS) then tip("st_pdanet_rec_started") end
+end
+function dict_stop()
+	if rec_kind ~= "dict" then return end
+	local data, secs = finish()
+	if not data then return end
+	load()
+	table.insert(records, 1, { id = new_aid(), t = game_minutes(), secs = secs, data = data })
+	while #records > MAX_RECORDS do table.remove(records) end
+	save()
+end
+function dict_delete(i)
+	load()
+	local r = records[i]
+	if not r then return end
+	if playing_id == r.id then netcoop_play_stop(); playing_id = nil end
+	table.remove(records, i)
+	save()
+end
+function dict_play(i, from)
+	load()
+	local r = records[i]
+	if not (r and engine()) or rec_kind then return end
+	if playing_id == r.id and netcoop_play_pos() >= 0 and not from then
+		netcoop_play_pause(not netcoop_play_paused())
+		return
+	end
+	if playing_id == r.id and netcoop_play_pos() >= 0 then netcoop_play_seek(from) return end
+	play(r.id, r.data, from or 0)
+end
+-- to the chat open in the Chats tab
+function dict_send(i)
+	load()
+	local r = records[i]
+	local o = netcoop_pdanet_client and netcoop_pdanet_client.opened
+	if not r then return end
+	if not o then tip("st_pdanet_rec_open_chat") return end
+	if upload(o.id, r.data, r.secs) then tip("st_pdanet_rec_sending") end
+end
+
+----------------------------------------------------------------------
+-- Each frame: upload parts, the limits of a recording
+----------------------------------------------------------------------
+local function update()
+	if queue and time_global() >= queue.at then
+		queue.at = time_global() + math.floor(1000 / PARTS_PER_SECOND)
+		local n = queue.next
+		if n <= #queue.parts then
+			netcoop_command(string.format("pdanet aup %s %d %s", queue.aid, n, queue.parts[n]))
+			queue.next = n + 1
+		elseif not queue.done_at then
+			queue.done_at = time_global()                  -- all parts sent: wait for "asent"
+		elseif time_global() - queue.done_at > 30000 then
+			queue = nil
+			tip("st_pdanet_rec_failed")
+		end
+	end
+	-- the limit reached: a dictaphone record is kept, a voice message sent
+	if rec_kind and engine() and not netcoop_record_active() then
+		if rec_kind == "dict" then dict_stop() else stop_and_send(rec_chat) end
+	end
+end
+
+function on_game_start()
+	if not (netcoop_pure_client and netcoop_pure_client()) then return end
+	RegisterScriptCallback("actor_on_update", update)
+end
+
+-- the chat the voice message is for (set when recording starts from a chat)
+function set_chat(cid) rec_chat = cid end
+
+----------------------------------------------------------------------
+-- The Диктофон tab
+----------------------------------------------------------------------
+local REC_ROWS, SEEK = 9, 24
+
+class "pdanet_dictaphone" (CUIScriptWnd)
+function pdanet_dictaphone:__init() super()
+	local u = netcoop_pdanet_ui.ui
+	self.u = u
+	u.base(self, "st_pdanet_tab_voice")
+	self.scroll, self.selected = 0, nil
+	u.static(self, "panel", 36, 134, 300, 476)
+	local about = u.static(self, "hint_left", 48, 144, 276, 200)
+	u.text(about, tr("st_pdanet_dict_about"))
+	self.count = u.static(self, "msg_head", 48, 520, 276, 24)
+	self.rec_btn = u.button(self, "", 48, 556, 276, 40, function()
+		if rec_kind == "dict" then dict_stop() elseif not rec_kind then dict_start() end
+		self:Fill()
+	end)
+	u.static(self, "panel", 344, 134, 440, 380)
+	self.rows = {}
+	for r = 1, REC_ROWS do
+		self.rows[r] = u.button(self, "", 350, 138 + (r - 1) * 40, 392, 36, function() self.selected = self.scroll + r; self:Fill() end, "row")
+	end
+	u.button(self, "^", 748, 140, 30, 30, function() self.scroll = math.max(0, self.scroll - 3); self:Fill() end)
+	u.button(self, "v", 748, 476, 30, 30, function() self.scroll = self.scroll + 3; self:Fill() end)
+	-- player: play/pause, a seek strip (click a segment to jump), time
+	u.static(self, "panel", 344, 520, 440, 70)
+	self.play_btn = u.button(self, ">", 352, 528, 40, 30, function()
+		if self.selected then dict_play(self.selected) end
+		self:Fill()
+	end)
+	self.seek = {}
+	for s = 1, SEEK do
+		self.seek[s] = u.button(self, "", 398 + (s - 1) * 15, 532, 14, 22, function()
+			local rec = self.selected and records[self.selected]
+			if rec then dict_play(self.selected, (s - 1) / SEEK * rec.secs) end
+		end, "seek")
+	end
+	self.time = u.static(self, "msg_head", 398, 560, 200, 24)
+	self.send_btn = u.button(self, tr("st_pdanet_rec_send"), 344, 596, 216, 32, function()
+		if self.selected then dict_send(self.selected) end
+	end)
+	self.del_btn = u.button(self, tr("st_pdanet_delete"), 568, 596, 216, 32, function()
+		if self.selected then dict_delete(self.selected); self.selected = nil; self:Fill() end
+	end)
+	self:Fill()
+end
+function pdanet_dictaphone:Update()
+	CUIScriptWnd.Update(self)
+	self.u.tick(self, function() self:Fill() end)
+end
+function pdanet_dictaphone:Fill()
+	load()
+	local u = self.u
+	for r = 1, REC_ROWS do
+		local i = self.scroll + r
+		local rec = records[i]
+		self.rows[r]:Show(rec ~= nil)
+		if rec then
+			local when = netcoop_pdanet_client.when({ g = rec.t })
+			u.text(self.rows[r], string.format("%s%s   %s", self.selected == i and "> " or "", when, clock_text(rec.secs)))
+		end
+	end
+	u.text(self.count, string.format(tr("st_pdanet_dict_count"), #records))
+	u.text(self.rec_btn, rec_kind == "dict" and string.format(tr("st_pdanet_dict_stop"), recorded_text())
+		or tr("st_pdanet_dict_start"))
+	self.rec_btn:Enable(rec_kind == nil or rec_kind == "dict")
+	local rec = self.selected and records[self.selected]
+	local pos = rec and playing_id == rec.id and netcoop_play_pos and netcoop_play_pos() or -1
+	local frac = rec and pos >= 0 and rec.secs > 0 and pos / rec.secs or 0
+	for s = 1, SEEK do
+		self.seek[s]:Show(rec ~= nil)
+		u.text(self.seek[s], (s - 1) / SEEK < frac and "|" or ".")
+	end
+	u.text(self.play_btn, pos >= 0 and not netcoop_play_paused() and "||" or ">")
+	u.text(self.time, rec and string.format("%s / %s", clock_text(math.max(pos, 0)), clock_text(rec.secs)) or "0:00 / 0:00")
+	for _, w in ipairs({ self.play_btn, self.send_btn, self.del_btn }) do w:Show(rec ~= nil) end
+	local up = uploading()
+	u.footer(self, up and string.format(tr("st_pdanet_rec_upload"), up) or "")
+end
+
+function dictaphone_window() return pdanet_dictaphone() end

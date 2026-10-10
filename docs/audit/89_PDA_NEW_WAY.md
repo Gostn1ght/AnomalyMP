@@ -28,6 +28,86 @@ the netcoop command/channel transport and the cluster shared store.
 8. Bug: from the side the PDA *screen image* (not the PDA) is shifted down
    and partly visible; must match the owner's own screen.
 
+## Full checklist (owner's text + all 20 screenshots, re-read 2026-10-10)
+
+Owner, later: "Пока вырезать только фм и добавить новые" - every GAMMA tab
+stays except FM radio; the New Way tabs are added. Marks: [x] code written
+(not verified in game), [ ] not done.
+
+Tabs and frame
+- [x] all GAMMA tabs kept, only FM radio removed; NW tabs added; tab strip
+      scrolls, 4 visible
+- [x] "Карта местности" caption for the map tab
+- [ ] map tab: "Список заданий" button (task list over the map)
+- [x] clock (game time) at the right of the tab strip
+- [x] footer on every NW tab: "<PDA name> - UID nnnnnn"
+- [x] profile card (PDA name, UID, faction, money "RU", avatar) like the
+      NW header (top of Contacts)
+- [ ] PDA held landscape in both hands, in first and third person
+- [ ] other player's PDA: the screen image is shifted down (needs a screenshot)
+
+Contacts
+- [x] own name + UID line, UID field, Добавить / Открыть / Удалить
+- [x] list: avatar, name, UID, "в сети" only for mutual contacts
+- [x] empty-list hint "Список пуст. Спросите у сталкера его UID..."
+- [x] unread count on a contact
+- [ ] unread mark on the Contacts tab caption
+- [x] send a map point to a contact without typing the UID ("Отправить точку")
+- [ ] send a task to a contact
+
+General channel
+- [x] history kept on the server, anonymous checkbox, Отправить
+- [x] sender: name for contacts, "UID nnnnnn" for strangers, avatar
+- [x] date like "16:24, Сентябрь 11, 2011" (game date)
+- [x] "Раскладка: EN/RU" keyboard layout indicator
+
+Chats
+- [x] list: avatar, name, last message, time, unread badge; total unread
+- [x] Новая группа dialog: name, member checkboxes, Создать / Отмена
+- [x] group icon picker ("Значок")
+- [x] header: avatar, name, UID, status; groups "Участников: N - в сети: M"
+- [x] group "Состав" (member list)
+- [x] Удалить чат (group: for everyone)
+- [x] Перевод - money to the contact (server, offline credit)
+- [x] typing indicator "<name> печатает сообщение..."
+- [x] text messages; own on the right, others left with avatar; sender name
+      in groups; date "12.09 15:16"
+- [x] point message: "Точка", description, "Отметить на карте"
+- [ ] point: send button flow ("Точка" picks a map spot / current position)
+- [ ] photo message (image inline) - needs photo capture
+- [x] voice message ("Запись 0:13", play/pause, seek bar, time)
+
+Photo mode ("Фото" tab / "Режим съёмки")
+- [ ] camera overlay: "ФОТОКАМЕРА", corner brackets, "Снимков: N - 1x"
+- [ ] RMB zoom, LMB shot, E / ESC exit
+- [ ] frame capture (engine), stored per character
+
+Gallery
+- [ ] thumbnails with date/time, selected preview: date, place, size
+- [ ] Удалить снимок, Режим съёмки, "Снимков: N"
+- [ ] send a photo to a chat or group
+
+Dictaphone
+- [x] description, "Записей: N", Начать запись / Остановить
+- [x] up to 10 minutes; recording goes on with the PDA put away
+- [x] records the player's voice and what he hears: players talking nearby
+      (where they stood), walkie-talkie voices and receivers' speakers (radio
+      voice), mutants, anomalies, weapons (world sounds replayed around the
+      listener)
+- [x] list of records, play/pause, seek bar "0:00 / 0:00", Удалить
+- [x] send a record to a chat or group
+
+Notes
+- [x] notes tab (NW pda_notes.xml): list, create, edit, delete
+
+Voice messages: up to 2 minutes from "Запись" in a chat; the record goes to
+the server in 3800-character parts, stored in the cluster store
+(pda_audio), fetched by chat members only. Dictaphone records: up to 10
+minutes, kept in the PDA (a file per UID in appdata), one can be sent to the
+chat open in "Чаты". Engine: netcoop_voice_record.inc (recorder, player,
+base64), xrSound ISoundTap (world sounds), ISoundVoice::SetRecord.
+Fixtures: check-netcoop-pdanet.py, check-netcoop-pdanet-voice.py.
+
 ## Stages
 
 - P1 server core (77e1db10d): UID, contacts (mutual status), general

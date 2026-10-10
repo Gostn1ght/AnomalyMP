@@ -14,6 +14,10 @@
 --   pda_uid/<uid>    <char>
 --   pda_chat/<cid>   { seq, kind = "general"|"d"|"g", members = {uid=true}, name, icon, msgs = {...} }
 --   pda_note/<char>  { cid = seq } - the newest message of each chat for him (delivery across servers)
+--   pda_pay/<char>   { sum } - money sent to him, paid out by the server he plays on
+--   pda_memo/<char>  { {id, title, text, t, g}, ... } - his notes ("Заметки")
+--   pda_audio/<aid>  { cid, parts, secs, by } and pda_audio/<aid>.<n> - a voice
+--                    message / dictaphone record (engine recording, base64)
 -- A message: { s = seq, f = sender uid ("" anonymous), k = kind, x = text, d = data, t = os time, g = game minutes }
 -- Client -> server: netcoop command "pdanet <verb> <args>".
 -- Server -> client: channel "pdanet", chunks "n/total|<verb>|<serialized>".
@@ -24,7 +28,10 @@ local ONLINE = 90            -- seconds since the last heartbeat
 local HEARTBEAT = 30
 local CHUNK = 7000
 local MAX_CONTACTS, MAX_CHATS, MAX_GROUP = 200, 100, 20
-local KINDS = { text = true, point = true, photo = true, voice = true, transfer = true }
+local KINDS = { text = true, point = true, photo = true, voice = true }  -- "transfer" only by "pay"
+local MAX_PAY = 1000000
+local NOTES, NOTE_TITLE, NOTE_TEXT = 40, 60, 1200
+local AUDIO_MAX_PARTS, AUDIO_PART, AUDIO_SECS = 700, 56000, 600
 
 local ser = function(v) return netcoop_transit.serialize(v) end
 local function de(text)
@@ -295,6 +302,7 @@ function handlers.group(id, me, char, args)
 		if me.contacts[uid] and not members[uid] and n < MAX_GROUP then members[uid] = true; n = n + 1 end
 	end
 	if n < 2 then return "choose at least one contact" end
+	if icon ~= "" and not string.match(icon, "^ui_mm_faction_%a+$") then icon = "" end
 	local cid
 	for _ = 1, 20 do
 		cid = "g_" .. math.random(10000000, 99999999)
@@ -374,8 +382,151 @@ function handlers.typing(id, me, char, args)
 	end
 end
 
+-- pay <cid> <amount> : money to the other member of a private chat. The
+-- sender's server takes it now; the receiver's server pays it out (also
+-- when he comes online later). The chat shows the transfer to both.
+function handlers.pay(id, me, char, args)
+	local cid, amount = string.match(args, "^([%w_]+) (%d+)$")
+	amount = tonumber(amount)
+	if not (cid and amount and amount >= 1 and amount <= MAX_PAY) then return "bad amount" end
+	local c = me.chats[cid] and read("pda_chat", cid)
+	if not c or c.kind ~= "d" or not c.members[me.uid] then return "no such chat" end
+	local peer
+	for uid in pairs(c.members) do if uid ~= me.uid then peer = uid end end
+	local pchar = peer and netcoop_store_read("pda_uid", peer)
+	if not pchar or pchar == "" then return "no such UID" end
+	local actor = level.object_by_id(id)
+	if not (actor and actor:money() >= amount) then return "not enough money" end
+	actor:give_money(-amount)
+	local _, ok = update("pda_pay", pchar, function(v) return { sum = ((v and tonumber(v.sum)) or 0) + amount } end)
+	if not ok then
+		actor:give_money(amount)
+		return "try again"
+	end
+	local msg = post(cid, me.uid, "transfer", "", tostring(amount))
+	if msg then mark_read(char, cid, msg.s) end
+	printf("[Lost Zone] pdanet transfer %s -> %s: %s RU", char, pchar, amount)
+	send(id, "paid", { amount = -amount })
+end
+
+-- members <cid> : who is in a group ("Состав"), as I see them
+function handlers.members(id, me, char, args)
+	local cid = string.match(args, "^([%w_]+)$")
+	local c = cid and me.chats[cid] and read("pda_chat", cid)
+	if not c or not c.members[me.uid] then return "no such chat" end
+	local out = {}
+	for uid in pairs(c.members) do
+		local v = uid == me.uid and { uid = uid, name = me.name, icon = me.icon, online = true, own = true } or view(me, uid)
+		out[#out + 1] = v
+	end
+	table.sort(out, function(a, b) return a.uid < b.uid end)
+	send(id, "members", { id = cid, list = out })
+end
+
+-- Notes: notes (list), note <id>|<title>|<text> (new: id "new"), note_del <id>
+local function send_notes(id, char)
+	send(id, "notes", read("pda_memo", char) or {})
+end
+function handlers.notes(id, me, char)
+	send_notes(id, char)
+end
+function handlers.note(id, me, char, args)
+	local nid, title, body = string.match(args, "^([%w]+)|([^|]*)|(.*)$")
+	if not nid then return "bad note" end
+	title = string.sub(title, 1, NOTE_TITLE)
+	body = string.sub(string.gsub(body, "\t", "    "), 1, NOTE_TEXT)
+	if title == "" and body == "" then return "empty note" end
+	local err
+	update("pda_memo", char, function(list)
+		list = list or {}
+		if nid == "new" then
+			if #list >= NOTES then err = "too many notes"; return nil end
+			local n = 0
+			for _, x in ipairs(list) do n = math.max(n, tonumber(x.id) or 0) end
+			table.insert(list, 1, { id = tostring(n + 1), title = title, text = body, t = now(), g = game_minutes() })
+			return list
+		end
+		for _, x in ipairs(list) do
+			if x.id == nid then x.title, x.text, x.t, x.g = title, body, now(), game_minutes(); return list end
+		end
+		err = "no such note"
+		return nil
+	end)
+	if err then return err end
+	send_notes(id, char)
+end
+function handlers.note_del(id, me, char, args)
+	local nid = string.match(args, "^(%w+)$")
+	update("pda_memo", char, function(list)
+		for i, x in ipairs(list or {}) do
+			if x.id == nid then table.remove(list, i); return list end
+		end
+		return nil
+	end)
+	send_notes(id, char)
+end
+
+----------------------------------------------------------------------
+-- Voice messages: the client uploads a recording in parts of up to 3800
+-- characters ("abeg" once, then "aup"), the server stores it and posts the
+-- message; members of the chat fetch it with "aget".
+----------------------------------------------------------------------
+local uploads = {} -- entity id -> { aid, cid, secs, total, parts, got, at }
+
+-- abeg <aid> <cid> <secs> <parts>
+function handlers.abeg(id, me, char, args)
+	local aid, cid, secs, total = string.match(args, "^(%x+) ([%w_]+) (%d+) (%d+)$")
+	secs, total = tonumber(secs), tonumber(total)
+	if not aid or #aid ~= 16 or total < 1 or total > AUDIO_MAX_PARTS or secs < 1 or secs > AUDIO_SECS then return "bad record" end
+	local c = me.chats[cid] and read("pda_chat", cid)
+	if not c or not c.members[me.uid] then return "no such chat" end -- chats only, not the general channel
+	if netcoop_store_read("pda_audio", aid) ~= "" then return "try again" end
+	uploads[id] = { aid = aid, cid = cid, secs = secs, total = total, parts = {}, got = 0, at = time_global(), uid = me.uid, char = char }
+end
+
+local function upload_done(id, u)
+	uploads[id] = nil
+	local data = table.concat(u.parts)
+	if not string.match(data, "^[%w%+/]+=*$") then send(id, "err", "bad record") return end
+	local n = math.ceil(#data / AUDIO_PART)
+	for i = 1, n do
+		netcoop_store_swap("pda_audio", u.aid .. "." .. i, netcoop_store_read("pda_audio", u.aid .. "." .. i),
+			string.sub(data, (i - 1) * AUDIO_PART + 1, i * AUDIO_PART))
+	end
+	if not netcoop_store_swap("pda_audio", u.aid, "", ser({ cid = u.cid, parts = n, secs = u.secs, by = u.uid })) then
+		send(id, "err", "try again") return
+	end
+	local msg = post(u.cid, u.uid, "voice", "", u.aid .. " " .. u.secs)
+	if msg then mark_read(u.char, u.cid, msg.s) end
+	send(id, "asent", { aid = u.aid, cid = u.cid })
+end
+
+-- aup <aid> <n> <part> : no profile work per part (many arrive per second)
+local function audio_part(id, args)
+	local aid, n, part = string.match(args, "^(%x+) (%d+) ([%w%+/=]+)$")
+	local u = uploads[id]
+	n = tonumber(n)
+	if not (u and aid == u.aid and n and n >= 1 and n <= u.total and #part <= 3800) then return "" end
+	if not u.parts[n] then u.parts[n] = part; u.got = u.got + 1 end
+	u.at = time_global()
+	if u.got == u.total then upload_done(id, u) end
+	return ""
+end
+
+-- aget <aid> : the record, for members of its chat
+function handlers.aget(id, me, char, args)
+	local aid = string.match(args, "^(%x+)$")
+	local meta = aid and read("pda_audio", aid)
+	if not meta then return "no such record" end
+	if not me.chats[meta.cid] and meta.by ~= me.uid then return "no such record" end
+	local out = {}
+	for i = 1, tonumber(meta.parts) or 0 do out[i] = netcoop_store_read("pda_audio", aid .. "." .. i) end
+	send(id, "audio", aid .. "|" .. table.concat(out))
+end
+
 function command(entity_id, args)
-	local verb, rest = string.match(args or "", "^(%a+)%s?(.*)$")
+	local verb, rest = string.match(args or "", "^([%a_]+)%s?(.*)$")
+	if verb == "aup" then return audio_part(entity_id, rest or "") end
 	local handler = verb and handlers[verb]
 	if not handler then return "" end
 	local me, char = profile(entity_id)
@@ -393,6 +544,23 @@ end
 -- Polling (every 2 s): new messages for players here, from any server
 ----------------------------------------------------------------------
 local next_poll, general_seq, pushed = 0, nil, {}
+
+-- Money sent to a player here: taken from the store (compare-and-swap, so
+-- only one server pays it) and given to his Actor.
+local function pay_out(char, id)
+	local text = netcoop_store_read("pda_pay", char)
+	if text == "" then return end
+	local actor = level.object_by_id(id)
+	if not actor then return end
+	if not netcoop_store_swap("pda_pay", char, text, "") then return end -- changed meanwhile: next poll
+	local v = de(text)
+	local sum = v and tonumber(v.sum) or 0
+	if sum > 0 then
+		actor:give_money(sum)
+		send(id, "paid", { amount = sum })
+		printf("[Lost Zone] pdanet transfer paid to %s: %s RU", char, sum)
+	end
+end
 
 function update_world()
 	if time_global() < next_poll then return end
@@ -428,8 +596,12 @@ function update_world()
 				seen[cid] = s
 			end
 		end
+		pay_out(char, id)
 		-- heartbeat for the online status
 		profile(id)
 	end
 	for char in pairs(pushed) do if not here[char] then pushed[char] = nil end end
+	for id, u in pairs(uploads) do
+		if time_global() - u.at > 60000 then uploads[id] = nil end -- abandoned upload
+	end
 end

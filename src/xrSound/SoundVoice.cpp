@@ -270,7 +270,11 @@ class CSoundVoice : public ISoundVoice
 {
 	ALCdevice* m_capture = nullptr;
 	IVoiceSink* m_sink = nullptr;
+	IVoiceSink* m_record = nullptr;     // dictaphone
+	ISoundTap* m_tap = nullptr;
 	OpusEncoder* m_encoder = nullptr;
+	OpusEncoder* m_rec_encoder = nullptr;
+	u16 m_rec_seq = 0;
 	SpeexPreprocessState* m_pre = nullptr;
 	bool m_ptt = false, m_open = false, m_sending = false;
 	u16 m_seq = 0;
@@ -325,12 +329,29 @@ public:
 	{
 		if (m_capture) { alcCaptureStop(m_capture); alcCaptureCloseDevice(m_capture); m_capture = nullptr; }
 		if (m_encoder) { opus_encoder_destroy(m_encoder); m_encoder = nullptr; }
+		if (m_rec_encoder) { opus_encoder_destroy(m_rec_encoder); m_rec_encoder = nullptr; }
 		if (m_pre) { speex_preprocess_state_destroy(m_pre); m_pre = nullptr; }
 		m_sink = nullptr;
 		m_sending = false;
 	}
 
 	bool Capturing() const override { return m_capture != nullptr; }
+	void SetRecord(IVoiceSink* sink) override
+	{
+		m_record = sink;
+		if (sink && !m_rec_encoder)
+		{
+			int error = 0;
+			m_rec_encoder = opus_encoder_create(VOICE_SAMPLE_RATE, 1, OPUS_APPLICATION_VOIP, &error);
+			if (error != OPUS_OK) { m_rec_encoder = nullptr; return; }
+			opus_encoder_ctl(m_rec_encoder, OPUS_SET_BITRATE(20000));
+			opus_encoder_ctl(m_rec_encoder, OPUS_SET_SIGNAL(OPUS_SIGNAL_VOICE));
+			opus_encoder_ctl(m_rec_encoder, OPUS_SET_DTX(1)); // silence costs almost nothing
+		}
+		if (sink && m_rec_encoder) opus_encoder_ctl(m_rec_encoder, OPUS_RESET_STATE);
+	}
+	void SetSoundTap(ISoundTap* tap) override { m_tap = tap; }
+	ISoundTap* SoundTap() const override { return m_tap; }
 	void SetTransmit(bool on) override { m_ptt = on; }
 	void SetOpenMic(bool on) override { m_open = on; }
 	bool Transmitting() const override { return m_sending; }
@@ -377,6 +398,12 @@ public:
 				if (m_hang) --m_hang;
 			}
 			m_sending = send;
+			if (m_record && m_rec_encoder)
+			{
+				u8 rec[VOICE_MAX_PACKET];
+				const opus_int32 n = opus_encode(m_rec_encoder, pcm, VOICE_FRAME_SAMPLES, rec, VOICE_MAX_PACKET);
+				if (n > 0) m_record->OnVoiceFrame(rec, u32(n), m_rec_seq++);
+			}
 			if (!send || !m_sink) continue;
 			u8 packet[VOICE_MAX_PACKET];
 			const opus_int32 bytes = opus_encode(m_encoder, pcm, VOICE_FRAME_SAMPLES, packet, VOICE_MAX_PACKET);

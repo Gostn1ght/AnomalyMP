@@ -4,7 +4,11 @@ strangers are UID-only; a contact shows name/avatar, and online status only
 when both added each other; the general channel and chats keep history;
 a message to a player on another server (or offline) arrives by polling;
 unread counts; groups only from contacts, deleted for all; anonymous general
-messages; points validated; a non-member cannot post."""
+messages; points validated; a non-member cannot post. Money transfer in a
+private chat: taken from the sender at once, paid out by the receiver's own
+server (also after he logs in), never twice, not more than the sender has,
+no fake "transfer" messages. Group members list, group icons only from the
+emblem set, notes kept with the character."""
 from pathlib import Path
 from lupa.lua51 import LuaRuntime
 
@@ -34,7 +38,9 @@ function netcoop_actor_character(id) return players[id] and players[id].char or 
 level = {object_by_id = function(id)
     local p = players[id]
     if not p then return nil end
-    return {character_name = function() return p.name end, character_icon = function() return "icon_" .. p.char end}
+    p.money = p.money or 1000
+    return {character_name = function() return p.name end, character_icon = function() return "icon_" .. p.char end,
+            money = function() return p.money end, give_money = function(_, n) p.money = p.money + n end}
 end}
 current_server = 1
 function netcoop_players()
@@ -171,13 +177,57 @@ cmd(1, 2, f"pdanet delete {cid}")
 assert not any(x.id == cid for x in last(cmd(1, 2, "pdanet hello"), "state").chats.values())
 assert any(x.id == cid for x in last(cmd(0, 1, "pdanet hello"), "state").chats.values())
 
+# Money: a pays b 300 in their private chat; b is on the other server.
+assert last(cmd(0, 1, f"pdanet pay {cid} 5000"), "err") == "not enough money"
+assert last(cmd(0, 1, f"pdanet pay {gid if False else cid} 0"), "err") == "bad amount"
+assert last(cmd(0, 1, f"pdanet msg {cid} transfer fake	999999"), "err") == "bad message"
+r = cmd(0, 1, f"pdanet pay {cid} 300")
+assert last(r, "paid").amount == -300 and lua.eval("players[1].money") == 700
+assert lua.eval("players[2].money or 1000") == 1000
+poll(0)  # a's server does not pay b
+assert lua.eval("players[2].money or 1000") == 1000
+poll(1); poll(1)
+assert lua.eval("players[2].money") == 1300  # once, by b's server
+o = last(cmd(1, 2, f"pdanet open {cid}"), "chat")
+t = o.msgs[len(o.msgs)]
+assert t.k == "transfer" and t.d == "300" and t.own is False
+# offline receiver: money waits in the store until his server sees him
+lua.execute("players[2].server = 3")
+cmd(0, 1, f"pdanet pay {cid} 100")
+poll(1)
+assert lua.eval("players[2].money") == 1300
+lua.execute("players[2].server = 2")
+poll(1)
+assert lua.eval("players[2].money") == 1400 and lua.eval("players[1].money") == 600
+# a group is not a private chat: no transfer there
+assert last(cmd(0, 1, f"pdanet group Hunters|ui_mm_faction_dolg|{ub}"), "state")
+hg = [x for x in last(cmd(0, 1, "pdanet hello"), "state").chats.values() if x.kind == "g"][0]
+assert hg.icon == "ui_mm_faction_dolg"
+assert last(cmd(0, 1, f"pdanet pay {hg.id} 10"), "err") == "no such chat"
+mem = last(cmd(0, 1, f"pdanet members {hg.id}"), "members")
+assert sorted(x.uid for x in mem.list.values()) == sorted([ua, ub]) and any(x.own for x in mem.list.values())
+assert last(cmd(0, 3, f"pdanet members {hg.id}"), "err") == "no such chat"
+st = last(cmd(0, 1, f"pdanet group Odd|bad/icon|{ub}"), "state")
+assert all(x.icon in ("", "ui_mm_faction_dolg") for x in st.chats.values() if x.kind == "g")
+# Notes
+assert last(cmd(0, 1, "pdanet note new||"), "err") == "empty note"
+n = last(cmd(0, 1, "pdanet note new|Hunt|Meet at the farm at 6"), "notes")
+assert n[1].title == "Hunt" and n[1].text == "Meet at the farm at 6"
+n = last(cmd(0, 1, "pdanet note new|Second|x"), "notes")
+assert n[1].title == "Second" and n[2].title == "Hunt"
+n = last(cmd(0, 1, f"pdanet note {n[2].id}|Hunt|Moved to 7"), "notes")
+assert [x.text for x in n.values()] == ["x", "Moved to 7"]
+n = last(cmd(0, 1, f"pdanet note_del {n[1].id}"), "notes")
+assert [x.title for x in n.values()] == ["Hunt"]
+assert len(last(cmd(0, 3, "pdanet notes"), "notes")) == 0  # someone else's: empty
+
 # History survives a "restart": a fresh module instance reads the same store.
 fresh = lua.table()
 lua.execute("local env = ...; setfenv(assert(loadstring(select(2, ...))), setmetatable(env,{__index=_G}))()", fresh, src)
 g.current_server = 1
 fresh.command(1, f"open {cid}")
 o = last([tuple(x.values()) for x in take(1).values()], "chat")
-assert len(o.msgs) == 3
+assert len(o.msgs) == 5  # 3 + two transfers
 
 # Client: the server's real chunks through netcoop_pdanet_client.
 client = lua.table()
@@ -199,12 +249,15 @@ for chunk in list(g.inbox[1].values()):
 g.inbox[1] = lua.table()
 assert client.me.uid == ua and client.me.name == "Bashka"
 assert client.contacts[1] is not None and len(client.general) >= 2
-assert client.opened.id == cid and len(client.opened.msgs) == 3
+assert client.opened.id == cid and len(client.opened.msgs) == 5
 m = client.opened.msgs[1]
 assert m.own is True and client.sender_name(m) == "Bashka"
 anon = [x for x in client.general.values() if x.f == ""][0]
 assert client.sender_name(anon) == "<st_pdanet_anonymous>"
 assert client.when(lua.eval("{g = 60 * 24 * 31 + 75}")) == "01:15, 01.02.2012"
+assert client.when_long(lua.eval("{g = 60 * 24 * 31 + 75}")) == "01:15, <st_pdanet_month_2> 1, 2012"
+assert client.when_short(lua.eval("{g = 60 * 24 * 31 + 75}")) == "01.02  01:15"
+assert client.dm_id(ub) == cid and client.contact_unread(ub) == 0
 assert g.listeners_fired >= 2
 # a chunked message (> 7000 bytes) is reassembled
 big = "x" * 9000
@@ -224,8 +277,13 @@ ET.fromstring(pda.split("?>", 1)[1] if pda.startswith("<?xml") else pda)
 ids = re.findall(r'<button [^>]*id="(\w+)"', pda)
 assert ids == ["eptTasks", "eptTaskboard", "eptRanking", "eptRelations", "eptContacts", "eptEncyclopedia", "eptLogs"], ids
 assert all('width="137"' in b for b in re.findall(r"<button [^>]*>", pda))
-ET.fromstring((root / "client/configs/ui/ui_netcoop_pdanet.xml").read_bytes().decode("cp1251").split("?>", 1)[1])
+pdxml = (root / "client/configs/ui/ui_netcoop_pdanet.xml").read_bytes().decode("cp1251")
+ET.fromstring(pdxml.split("?>", 1)[1])
+for tpl in set(re.findall(r'xml:Init(?:Static|EditBox|3tButton)\("(\w+)"', ui)) | set(re.findall(r'static\(self, "(\w+)"', ui)) | {"row", "button"}:
+    assert f"<{tpl} " in pdxml, tpl
 used = set(re.findall(r'"(st_pdanet_[a-z_]+)"', ui + (root / "client/netcoop_pdanet_client.script").read_text(encoding="utf-8")))
+used.discard("st_pdanet_month_")
+used |= {f"st_pdanet_month_{i}" for i in range(1, 13)}
 used |= {t + "_soon" for t in used if t.startswith("st_pdanet_tab_") and t not in ("st_pdanet_tab_general", "st_pdanet_tab_chats", "st_pdanet_tab_contacts", "st_pdanet_tab_map")}
 used.add("st_pdanet_tab_map")
 for lang in ("rus", "eng"):

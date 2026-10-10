@@ -110,6 +110,7 @@ void CSoundRender_Core::_clear()
 	for (u32 eit = 0; eit < s_emitters.size(); eit++)
 		xr_delete(s_emitters[eit]);
 	s_emitters.clear();
+	s_tap_pending.clear();
 
 	g_target_temp_data.clear();
 	g_target_temp_data_16.clear();

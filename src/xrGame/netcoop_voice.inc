@@ -247,6 +247,7 @@ void client_voice_update()
 	voice->SetTransmit(talk);
 	voice->SetOpenMic(alive && s_voice_open); // near voice, sent while speaking
 	if (!talk && !voice->Transmitting()) s_voice_up.flush();
+	voice_record_update();
 
 	// Speakers: follow their bodies; walls muffle; forget the silent ones.
 	const Fvector& ear = Device.vCameraPosition;
@@ -301,13 +302,16 @@ void client_on_voice(NET_Packet& P)
 	p.mode = mode; p.loudness = loudness; p.source = source; p.last = Device.dwTimeGlobal;
 	p.player->SetMode(mode != 0, mode != 1);
 	p.player->SetRange(mode == 0 ? voice_range_m[loudness] : voice_speaker_m);
+	Fvector pos;
+	bool placed = false;
 	if (mode != 1)
 	{
 		if (CObject* obj = Level().Objects.net_Find(source))
 		{
-			Fvector pos = obj->Position();
+			pos = obj->Position();
 			pos.y += 1.6f;
 			p.player->SetPosition(pos);
+			placed = true;
 		}
 	}
 	for (u8 i = 0; i < frames && P.r_elapsed() >= 2; ++i)
@@ -317,6 +321,8 @@ void client_on_voice(NET_Packet& P)
 		u8 bytes[VOICE_MAX_PACKET];
 		P.r(bytes, length);
 		p.player->Push(bytes, length, u16(first + i));
+		// the dictaphone hears it too: nearby voices, the radio, receivers' speakers
+		voice_record_heard(speaker, mode, placed ? &pos : nullptr, u16(first + i), bytes, length);
 	}
 	if (mode == 0) s_voice_heard[speaker] = Device.dwTimeGlobal;
 }
@@ -336,7 +342,7 @@ void client_voice_render()
 	}
 }
 
-void client_voice_reset() { voice_release_players(); s_voice_key_near = s_voice_key_radio = s_voice_hand_talk = s_voice_radio_was = false; }
+void client_voice_reset() { voice_record_reset(); voice_release_players(); s_voice_key_near = s_voice_key_radio = s_voice_hand_talk = s_voice_radio_was = false; }
 
 //----------------------------------------------------------------------
 // Server

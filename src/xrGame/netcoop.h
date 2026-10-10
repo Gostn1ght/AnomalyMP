@@ -252,6 +252,18 @@ void server_on_voice(xrServer* server, xrClientData* CL, NET_Packet& P);
 void server_voice_forget(u16 actor);
 void script_voice_radio_local(int freq, bool on, bool have);
 LPCSTR script_voice_status();
+// PDA dictaphone and voice messages (netcoop_voice_record.inc)
+bool script_record_start(int max_seconds);
+bool script_record_active();
+float script_record_seconds();
+LPCSTR script_record_stop();
+float script_play_start(LPCSTR data, float from_seconds);
+void script_play_seek(float seconds);
+void script_play_pause(bool paused);
+void script_play_stop();
+float script_play_pos();
+bool script_play_paused();
+LPCSTR script_keyboard_layout();
 void script_voice_radio_set(u16 actor, int freq, bool on);
 void client_campfire_spawned(CZoneCampfire* campfire);
 // Server: how lit an object is for NPC vision. The renderer lights only what

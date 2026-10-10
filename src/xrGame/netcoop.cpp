@@ -1341,6 +1341,7 @@ static bool world_store_capture_physics_props()
 }
 #include "netcoop_world_store.inc"
 #include "netcoop_campfire.inc"
+#include "netcoop_voice_record.inc"
 #include "netcoop_voice.inc"
 
 // ---------------------------------------------------------------------------

@@ -80,6 +80,30 @@
   `pri_a28_kirillov_radio_on_*` (всё тело; как источник для торса
   рации — проверить, подключены ли они к модели игрока).
 
+Источники анимаций (найдены 2026-10-10; не скачаны — нужно разрешение
+владельца; авторство указать при подключении):
+- xAGNA — анимации игрока из xrMPE, адаптированные под Anomaly-GAMMA (CC,
+  76,6 МБ, автор Chemzs, аниматор xrMPE Nazerttop):
+  https://www.moddb.com/mods/stalker-anomaly/addons/xagna
+- xrRazom v1.4 (кооп Anomaly): хим-свет и ручной фонарь со своими позами
+  со стороны, анимации из xrMPE:
+  https://www.moddb.com/mods/xrrazom-stalker-anomaly-co-op/news/xrrazom-v14-animations-stability-and-more-mods
+- xrMPE (X-Ray Multiplayer Extension), первоисточник анимаций от третьего
+  лица под первое лицо: https://www.moddb.com/mods/x-ray-multiplayer-extension
+- MoveEffects & AlmostTrueProne — спринт с детектором со стороны, ползание
+  (на основе Remade Animations v4):
+  https://www.moddb.com/mods/stalker-anomaly/addons/move-effects-true-prone
+- A.R.E.A Player Animations: Refresh — анимации игрока (меняет
+  stalker_animation.omf): https://www.moddb.com/mods/stalker-anomaly/addons/area-player-animations-refresh
+- NPC Animation Overhaul: Part 1:
+  https://www.moddb.com/mods/stalker-anomaly/addons/npc-animation-overhaul-part-1v10
+- Для рук от первого лица (сверка): Devices of Anomaly Redone
+  https://www.moddb.com/mods/stalker-anomaly/addons/devices-of-anomaly-redone ,
+  Tactical Torch Reanimation https://www.moddb.com/mods/stalker-anomaly/addons/tactorchreanim
+
+Важно: stalker_animation.omf — один общий файл; моды, которые его
+заменяют, конфликтуют, нужен ручной перенос нужных движений.
+
 ## 5. Что проверить в игре (когда владелец разрешит)
 
 1. Микрофон находится, голос рядом слышен и затухает, стены глушат.

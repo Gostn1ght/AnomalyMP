@@ -117,6 +117,9 @@ public:
 	CSoundRender_Source* i_create_source(LPCSTR name);
 	void i_destroy_source(CSoundRender_Source* S);
 	CSoundRender_Emitter* i_play(ref_sound* S, BOOL _loop, float delay);
+	// netcoop dictaphone: sounds started since the last update (ISoundTap)
+	xr_vector<CSoundRender_Emitter*> s_tap_pending;
+	void i_tap(const Fvector& P, const Fvector& D, const Fvector& N);
 	void i_start(CSoundRender_Emitter* E);
 	void i_stop(CSoundRender_Emitter* E);
 	void i_rewind(CSoundRender_Emitter* E);

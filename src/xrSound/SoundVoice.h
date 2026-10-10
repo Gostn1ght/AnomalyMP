@@ -44,6 +44,16 @@ public:
 	virtual float Loudness() const = 0;        // 0..1, for the speaking indicator
 };
 
+// Sounds that start around the listener (the PDA dictaphone records them
+// and plays them again later, in the same place around the listener).
+class ISoundTap
+{
+public:
+	virtual ~ISoundTap() {}
+	// local: the listener's frame (x right, y up, z forward); head: a 2D sound (already local)
+	virtual void OnWorldSound(LPCSTR name, const Fvector& local, float volume, float min_distance, float max_distance, bool head) = 0;
+};
+
 class ISoundVoice
 {
 public:
@@ -55,6 +65,11 @@ public:
 	virtual void SetOpenMic(bool on) = 0;            // microphone on: sends while the player speaks (voice activity)
 	virtual bool Transmitting() const = 0;           // sending frames now
 	virtual float InputLevel() const = 0;            // microphone level 0..1
+	// The dictaphone: every microphone frame (own encoder, not only while
+	// talking) goes to this sink; nullptr stops. The tap gets world sounds.
+	virtual void SetRecord(IVoiceSink* sink) = 0;
+	virtual void SetSoundTap(ISoundTap* tap) = 0;
+	virtual ISoundTap* SoundTap() const = 0;
 	virtual IVoicePlayer* CreatePlayer() = 0;
 	virtual void DestroyPlayer(IVoicePlayer* player) = 0;
 	virtual void Update() = 0;

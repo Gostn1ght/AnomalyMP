@@ -885,4 +885,163 @@
   <string id="st_voice_mic_off">
     <text>Микрофон выключен</text>
   </string>
+  <string id="st_pdanet_layout">
+    <text>Раскладка:</text>
+  </string>
+  <string id="st_pdanet_transfer">
+    <text>Перевод</text>
+  </string>
+  <string id="st_pdanet_transfer_in">
+    <text>Перевод вам: %s RU</text>
+  </string>
+  <string id="st_pdanet_transfer_out">
+    <text>Вы перевели: %s RU</text>
+  </string>
+  <string id="st_pdanet_transfer_to">
+    <text>Перевод: %s   (у вас %d RU)</text>
+  </string>
+  <string id="st_pdanet_send_money">
+    <text>Перевести</text>
+  </string>
+  <string id="st_pdanet_no_money">
+    <text>Недостаточно денег</text>
+  </string>
+  <string id="st_pdanet_paid_in">
+    <text>КПК: вам перевели %d RU</text>
+  </string>
+  <string id="st_pdanet_paid_out">
+    <text>КПК: переведено %d RU</text>
+  </string>
+  <string id="st_pdanet_members_btn">
+    <text>Состав</text>
+  </string>
+  <string id="st_pdanet_you">
+    <text>это вы</text>
+  </string>
+  <string id="st_pdanet_icon">
+    <text>Значок</text>
+  </string>
+  <string id="st_pdanet_close">
+    <text>Закрыть</text>
+  </string>
+  <string id="st_pdanet_send_point">
+    <text>Отправить точку</text>
+  </string>
+  <string id="st_pdanet_point_sent">
+    <text>Точка отправлена: %s</text>
+  </string>
+  <string id="st_pdanet_voice_msg">
+    <text>Запись  %s</text>
+  </string>
+  <string id="st_pdanet_voice_stop">
+    <text>Отправить  %s</text>
+  </string>
+  <string id="st_pdanet_photo_msg">
+    <text>Снимок</text>
+  </string>
+  <string id="st_pdanet_notes_new">
+    <text>Новая заметка</text>
+  </string>
+  <string id="st_pdanet_notes_title">
+    <text>Заголовок</text>
+  </string>
+  <string id="st_pdanet_notes_text">
+    <text>Текст</text>
+  </string>
+  <string id="st_pdanet_notes_save">
+    <text>Сохранить</text>
+  </string>
+  <string id="st_pdanet_notes_empty">
+    <text>Заметок нет. Нажмите «Новая заметка».</text>
+  </string>
+  <string id="st_pdanet_notes_count">
+    <text>Заметок: %d</text>
+  </string>
+  <string id="st_pdanet_month_1">
+    <text>Январь</text>
+  </string>
+  <string id="st_pdanet_month_2">
+    <text>Февраль</text>
+  </string>
+  <string id="st_pdanet_month_3">
+    <text>Март</text>
+  </string>
+  <string id="st_pdanet_month_4">
+    <text>Апрель</text>
+  </string>
+  <string id="st_pdanet_month_5">
+    <text>Май</text>
+  </string>
+  <string id="st_pdanet_month_6">
+    <text>Июнь</text>
+  </string>
+  <string id="st_pdanet_month_7">
+    <text>Июль</text>
+  </string>
+  <string id="st_pdanet_month_8">
+    <text>Август</text>
+  </string>
+  <string id="st_pdanet_month_9">
+    <text>Сентябрь</text>
+  </string>
+  <string id="st_pdanet_month_10">
+    <text>Октябрь</text>
+  </string>
+  <string id="st_pdanet_month_11">
+    <text>Ноябрь</text>
+  </string>
+  <string id="st_pdanet_month_12">
+    <text>Декабрь</text>
+  </string>
+  <string id="st_pdanet_voice_word">
+    <text>Запись</text>
+  </string>
+  <string id="st_pdanet_rec_no_mic">
+    <text>Микрофон не найден</text>
+  </string>
+  <string id="st_pdanet_rec_busy">
+    <text>Дождитесь отправки предыдущей записи</text>
+  </string>
+  <string id="st_pdanet_rec_too_long">
+    <text>Запись слишком большая для отправки</text>
+  </string>
+  <string id="st_pdanet_rec_sent">
+    <text>Запись отправлена</text>
+  </string>
+  <string id="st_pdanet_rec_sending">
+    <text>Запись отправляется...</text>
+  </string>
+  <string id="st_pdanet_rec_started">
+    <text>Идёт запись</text>
+  </string>
+  <string id="st_pdanet_rec_bad">
+    <text>Запись повреждена</text>
+  </string>
+  <string id="st_pdanet_rec_failed">
+    <text>Запись не отправлена: нет ответа сервера</text>
+  </string>
+  <string id="st_pdanet_rec_open_chat">
+    <text>Сначала откройте чат во вкладке «Чаты»</text>
+  </string>
+  <string id="st_pdanet_rec_send">
+    <text>Отправить в открытый чат</text>
+  </string>
+  <string id="st_pdanet_rec_upload">
+    <text>Отправка: %d%%</text>
+  </string>
+  <string id="st_pdanet_dict_about">
+    <text>Диктофон
+Записывает окружение и ваш голос: игроков рядом, голоса из рации, мутантов, аномалии, выстрелы - всё, что вы слышите.
+До 10 минут на запись. Можно убрать КПК и продолжать запись.
+Выберите запись справа. Шкала позволяет перейти к нужному моменту; кнопка - поставить на паузу и продолжить.</text>
+  </string>
+  <string id="st_pdanet_dict_count">
+    <text>Записей: %d</text>
+  </string>
+  <string id="st_pdanet_dict_start">
+    <text>Начать запись</text>
+  </string>
+  <string id="st_pdanet_dict_stop">
+    <text>Остановить запись  %s</text>
+  </string>
 </string_table>
