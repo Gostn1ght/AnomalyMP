@@ -69,7 +69,17 @@ function install()
 	ocs.simulate_battle = function(id_1, id_2, squad_1, squad_2, c1, c2, lid)
 		local ok, err = pcall(announce, id_1, id_2, squad_1, squad_2, c1, c2, lid)
 		if not ok then printf("[Lost Zone] distant battle report error: %s", tostring(err)) end
-		return stock(id_1, id_2, squad_1, squad_2, c1, c2, lid)
+		-- The world's event journal (K08): squads before and after the round.
+		local events, before = netcoop_world_events, nil
+		if events then
+			ok, before = pcall(events.battle_before, id_1, id_2, squad_1, squad_2, c1, c2)
+			if not ok then printf("[Lost Zone] battle record error: %s", tostring(before)); before = nil end
+		end
+		stock(id_1, id_2, squad_1, squad_2, c1, c2, lid)
+		if before then
+			ok, err = pcall(events.battle_after, before, lid)
+			if not ok then printf("[Lost Zone] battle record error: %s", tostring(err)) end
+		end
 	end
 	printf("[Lost Zone] distant battles: offline fights heard by players %s-%s m away", NEAR, FAR)
 end

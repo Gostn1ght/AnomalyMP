@@ -1,0 +1,112 @@
+-- K08 / L19 (doc 43): a bounded journal of what happened in the world.
+--
+-- GAMMA resolves offline fights and kills without leaving any record; the
+-- world only shows the result. The server now keeps the last MAX events in
+-- the world's script state (saved with the world, W1):
+--   battle: a round of GAMMA's offline combat (sim_offline_combat) on this
+--           map - both squads (id, section, community, members before and
+--           after), the place, the game time and the outcome;
+--   death:  an online NPC or mutant died - who, where, when, killed by whom
+--           (player login when a player killed it).
+-- Nothing here changes the battle, the death or the loot; a failure to
+-- record never stops them.
+
+local MAX = 512
+
+local function journal()
+	local state = alife_storage_manager.get_state()
+	local j = state.netcoop_events
+	if type(j) ~= "table" or type(j.list) ~= "table" then
+		j = { seq = 0, list = {} }
+		state.netcoop_events = j
+	end
+	return j
+end
+
+local function game_hours()
+	local base = game.CTime()
+	if base.set then base:set(2012, 1, 1, 0, 0, 0, 0) end
+	return math.floor(game.get_game_time():diffSec(base) / 36) / 100
+end
+
+local function round(v) return math.floor(v * 10 + 0.5) / 10 end
+
+function record(event)
+	local j = journal()
+	j.seq = j.seq + 1
+	event.seq = j.seq
+	event.h = game_hours()
+	j.list[(j.seq - 1) % MAX + 1] = event
+	return event
+end
+
+-- Newest first, at most n.
+function recent(n)
+	local j, out = journal(), {}
+	local seq = j.seq
+	while seq > 0 and #out < (n or MAX) and j.seq - seq < MAX do
+		local e = j.list[(seq - 1) % MAX + 1]
+		if e and e.seq == seq then out[#out + 1] = e end
+		seq = seq - 1
+	end
+	return out
+end
+
+local function members(id)
+	local squad = id and alife_object(id)
+	return squad and squad.npc_count and squad:npc_count() or 0
+end
+
+local function side(id, squad, community)
+	return { id = id, sec = squad.section_name and squad:section_name() or "?", c = community, n = members(id) }
+end
+
+-- Around one simulate_battle round: what both squads were before it.
+function battle_before(id_1, id_2, squad_1, squad_2, c1, c2)
+	local p1, p2 = squad_1.position, squad_2.position
+	return { kind = "battle", a = side(id_1, squad_1, c1), b = side(id_2, squad_2, c2),
+		x = round((p1.x + p2.x) / 2), y = round((p1.y + p2.y) / 2), z = round((p1.z + p2.z) / 2) }
+end
+
+-- ... and after it: who is left; only rounds with losses are kept (GAMMA runs
+-- a round every few seconds while two squads fight).
+function battle_after(event, lid)
+	event.a.after, event.b.after = members(event.a.id), members(event.b.id)
+	local lost_a, lost_b = event.a.n - event.a.after, event.b.n - event.b.after
+	if lost_a <= 0 and lost_b <= 0 then return nil end
+	local sim = alife()
+	event.level = sim and lid and sim:level_name(lid) or "?"
+	if event.b.after == 0 then event.result = "defender destroyed"
+	elseif event.a.after == 0 then event.result = "attacker destroyed"
+	else event.result = string.format("losses %d/%d", lost_a, lost_b) end
+	return record(event)
+end
+
+local function who(obj)
+	if not obj then return nil end
+	local id = obj:id()
+	local login = netcoop_actor_login and netcoop_actor_login(id)
+	if login and login ~= "" then return "player " .. login end
+	local community = obj.character_community and obj:character_community()
+	return string.format("%s (%s)", obj:section(), community or "?")
+end
+
+function on_death(victim, killer)
+	if not victim then return end
+	local p = victim:position()
+	record({ kind = "death", id = victim:id(), sec = victim:section(),
+		c = victim.character_community and victim:character_community() or nil,
+		killer = who(killer) or "unknown", level = level.name(),
+		x = round(p.x), y = round(p.y), z = round(p.z) })
+end
+
+local function safe_death(victim, killer)
+	local ok, err = pcall(on_death, victim, killer)
+	if not ok then printf("[Lost Zone] world event error: %s", tostring(err)) end
+end
+
+function on_game_start()
+	if not (netcoop_enabled and netcoop_enabled()) or (netcoop_pure_client and netcoop_pure_client()) then return end
+	RegisterScriptCallback("npc_on_death_callback", safe_death)
+	RegisterScriptCallback("monster_on_death_callback", safe_death)
+end
