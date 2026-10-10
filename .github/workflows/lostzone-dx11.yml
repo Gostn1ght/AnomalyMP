@@ -169,6 +169,21 @@ jobs:
       - name: Check item instance state model
         shell: pwsh
         run: ./scripts/check-item-state.ps1
+      - name: Build voice codecs (Opus, SpeexDSP)
+        shell: pwsh
+        run: |
+          $out = "src/3rd party/_voice_lib"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          cmake -S "src/3rd party/opus" -B "_voice/opus" -A x64 -DOPUS_BUILD_PROGRAMS=OFF -DBUILD_TESTING=OFF -DOPUS_STACK_PROTECTOR=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL
+          if ($LASTEXITCODE -ne 0) { throw "opus configure failed" }
+          cmake --build "_voice/opus" --config Release --target opus
+          if ($LASTEXITCODE -ne 0) { throw "opus build failed" }
+          cmake -S "src/3rd party/speexdsp" -B "_voice/speexdsp" -A x64 -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          if ($LASTEXITCODE -ne 0) { throw "speexdsp configure failed" }
+          cmake --build "_voice/speexdsp" --config Release
+          if ($LASTEXITCODE -ne 0) { throw "speexdsp build failed" }
+          Copy-Item "_voice/opus/Release/opus.lib", "_voice/speexdsp/Release/speexdsp.lib" $out
+          Get-ChildItem $out
       - name: Build DX11 on GitHub Actions
         shell: pwsh
         run: |

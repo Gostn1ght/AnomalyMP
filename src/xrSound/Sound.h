@@ -431,6 +431,8 @@ public:
 
 	virtual void object_relcase(CObject* obj) = 0;
 	virtual const Fvector& listener_position() = 0;
+	// Voice chat audio (SoundVoice.h); nullptr without an OpenAL device.
+	virtual class ISoundVoice* voice() { return nullptr; }
 #ifdef __BORLANDC__
 	virtual SoundEnvironment_LIB*	get_env_library			()																						= 0;
 	virtual void					refresh_env_library		()																						= 0;

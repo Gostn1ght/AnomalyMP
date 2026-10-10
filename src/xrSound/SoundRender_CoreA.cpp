@@ -4,6 +4,7 @@
 #include "SoundRender_CoreA.h"
 #include "SoundRender_TargetA.h"
 #include "SoundRender_Environment.h"
+#include "SoundVoice.h"
 
 #include "../xrEngine/pure.h"
 #include "../xrEngine/XR_IOConsole.h"
@@ -505,6 +506,7 @@ void CSoundRender_CoreA::_initialize(int stage)
 				break;
 			}
 		}
+		if (!m_voice) m_voice = create_sound_voice();
 	}
 }
 
@@ -518,6 +520,7 @@ void CSoundRender_CoreA::set_master_volume(float f)
 
 void CSoundRender_CoreA::_clear()
 {
+	xr_delete(m_voice); // its sources live in this context
 	inherited::_clear();
 	// remove targets
 	CSoundRender_Target* T = nullptr;
@@ -565,4 +568,5 @@ void CSoundRender_CoreA::update_listener(const Fvector& P, const Fvector& D, con
 	A_CHK(alListener3f (AL_POSITION,Listener.position.x,Listener.position.y,-Listener.position.z));
 	A_CHK(alListener3f (AL_VELOCITY, Listener.prevVelocity.x, Listener.prevVelocity.y, -Listener.prevVelocity.z));
 	A_CHK(alListenerfv (AL_ORIENTATION,&Listener.orientation[0].x));
+	if (m_voice) m_voice->Update();
 }

@@ -22,6 +22,7 @@ class CSoundRender_CoreA : public CSoundRender_Core
 	
 	ALCdevice* pDevice;
 	ALCcontext* pContext;
+	class ISoundVoice* m_voice = nullptr; // voice chat (SoundVoice.cpp)
 	ALDeviceList* pDeviceList;
 
 	struct SListener
@@ -73,6 +74,7 @@ class CSoundRender_CoreA : public CSoundRender_Core
 	LPALGETAUXILIARYEFFECTSLOTFV alGetAuxiliaryEffectSlotfv{};
 
 public:
+	class ISoundVoice* voice() override { return m_voice; }
 	ALuint effect{};
 	ALuint effectfv{};
 	ALuint slot{};
