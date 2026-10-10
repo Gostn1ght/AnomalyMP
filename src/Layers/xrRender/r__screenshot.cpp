@@ -716,7 +716,7 @@ void NetcoopPhotoFlush()
 	desc.Usage = D3D_USAGE_DEFAULT;
 	desc.BindFlags = D3D_BIND_SHADER_RESOURCE;
 
-	ID3DTexture2D* small = nullptr;
+	ID3DTexture2D* resized = nullptr;
 	ID3DTexture2D* staging = nullptr;
 	ID3DTexture2D* opaque = nullptr;
 	ID3DTexture2D* packed = nullptr;
@@ -724,11 +724,11 @@ void NetcoopPhotoFlush()
 	bool ok = false;
 	xr_vector<u32> pixels;
 
-	if (FAILED(HW.pDevice->CreateTexture2D(&desc, NULL, &small))) goto done;
+	if (FAILED(HW.pDevice->CreateTexture2D(&desc, NULL, &resized))) goto done;
 #ifdef USE_DX11
-	if (FAILED(D3DX11LoadTextureFromTexture(HW.pContext, src, NULL, small))) goto done;
+	if (FAILED(D3DX11LoadTextureFromTexture(HW.pContext, src, NULL, resized))) goto done;
 #else
-	if (FAILED(D3DX10LoadTextureFromTexture(src, NULL, small))) goto done;
+	if (FAILED(D3DX10LoadTextureFromTexture(src, NULL, resized))) goto done;
 #endif
 	{
 		D3D_TEXTURE2D_DESC sd = desc;
@@ -738,9 +738,9 @@ void NetcoopPhotoFlush()
 		if (FAILED(HW.pDevice->CreateTexture2D(&sd, NULL, &staging))) goto done;
 	}
 #ifdef USE_DX11
-	HW.pContext->CopyResource(staging, small);
+	HW.pContext->CopyResource(staging, resized);
 #else
-	HW.pDevice->CopyResource(staging, small);
+	HW.pDevice->CopyResource(staging, resized);
 #endif
 	{
 		D3D_MAPPED_TEXTURE2D mapped;
@@ -795,7 +795,7 @@ done:
 	_RELEASE(packed);
 	_RELEASE(opaque);
 	_RELEASE(staging);
-	_RELEASE(small);
+	_RELEASE(resized);
 	_RELEASE(src);
 }
 #else //DX
