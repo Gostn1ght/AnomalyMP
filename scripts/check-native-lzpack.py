@@ -8,8 +8,8 @@ if os.environ.get('GITHUB_ACTIONS')!='true':raise SystemExit('Native checks must
 if os.name!='nt':raise SystemExit('CNG reader check needs Windows')
 root=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(root/'tools/lzpack'));import lzpack
-stream=(root/'src/xrCore/stream_reader.cpp').read_text()
-inline=(root/'src/xrCore/stream_reader_inline.h').read_text()
+stream=(root/'src/xrCore/stream_reader.cpp').read_text(encoding="utf-8")
+inline=(root/'src/xrCore/stream_reader_inline.h').read_text(encoding="utf-8")
 
 def function(text, signature):
     start=text.index(signature);brace=text.index('{',start);depth=1;end=brace+1
@@ -95,7 +95,7 @@ with TemporaryDirectory() as tmp:
     data=bytearray(encrypted.read_bytes());data[24]^=1;(temp/'bad-header.db0').write_bytes(data)
     data=bytearray(encrypted.read_bytes());data[48+lzpack.BLOCK+lzpack.TAG+1]^=1;(temp/'bad-block.db0').write_bytes(data)
     (temp/'lzpack_fixture_key.h').write_text('static const unsigned char lzpack_master_key[32]={'+','.join(str(i)for i in range(32))+'};')
-    cpp.write_text(source)
+    cpp.write_text(source,encoding="utf-8")
     subprocess.run(['cl','/nologo','/std:c++17','/EHsc','/W4','/WX','/DLZPACK_STANDALONE','/DNOMINMAX',
                     '/I'+str(temp),'/I'+str(root/'src/xrCore'),str(cpp),str(root/'src/xrCore/lzpack_archive.cpp'),
                     '/Fe:'+str(exe)],cwd=tmp,check=True)

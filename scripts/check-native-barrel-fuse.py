@@ -5,7 +5,7 @@ import os,subprocess
 if os.environ.get('GITHUB_ACTIONS')!='true':raise SystemExit('Native checks must run in GitHub Actions')
 root=Path(__file__).resolve().parents[1]
 def function(path,signature):
- text=(root/path).read_text();start=text.index(signature);brace=text.index('{',start);depth=1;end=brace+1
+ text=(root/path).read_text(encoding="utf-8");start=text.index(signature);brace=text.index('{',start);depth=1;end=brace+1
  while depth:depth+=(text[end]=='{')-(text[end]=='}');end+=1
  return text[start:end]
 source=r'''
@@ -49,7 +49,7 @@ public:
  Object*cast_game_object(){return &object;}void GenExplodeEvent(const Fvector&,const Fvector&);
 };
 '''
-source+=(root/'src/xrGame/DelayedActionFuse.h').read_text().replace('#pragma once','')
+source+=(root/'src/xrGame/DelayedActionFuse.h').read_text(encoding="utf-8").replace('#pragma once','')
 source+=r'''
 class CExplosiveItem:public Inventory,public CDelayedActionFuse,public CExplosive{
  using inherited=Inventory;
@@ -60,7 +60,7 @@ public:
 '''
 for signature in ('CDelayedActionFuse::CDelayedActionFuse()','void CDelayedActionFuse::SetTimer(','void CDelayedActionFuse::Initialize(','bool CDelayedActionFuse::Update('):
  source+='\n'+function('src/xrGame/DelayedActionFuse.cpp',signature)
-source+='\n'+function('src/xrGame/ExplosiveItem.cpp','void CExplosiveItem::Hit(')
+source+='\n'+function('src/xrGame/ExplosiveItem.cpp','void CExplosiveItem::Hit(SHit*')
 source+='\n'+function('src/xrGame/ExplosiveItem.cpp','void CExplosiveItem::UpdateFuse(')
 source+='\n'+function('src/xrGame/Explosive.cpp','void CExplosive::GenExplodeEvent(')
 source+=r'''
@@ -82,7 +82,7 @@ int main(){
 }
 '''
 with TemporaryDirectory() as tmp:
- cpp=Path(tmp)/'barrel.cpp';exe=Path(tmp)/('barrel.exe' if os.name=='nt' else 'barrel');cpp.write_text(source)
+ cpp=Path(tmp)/'barrel.cpp';exe=Path(tmp)/('barrel.exe' if os.name=='nt' else 'barrel');cpp.write_text(source,encoding="utf-8")
  command=(['cl','/nologo','/std:c++17','/EHsc','/W4','/WX',str(cpp),'/Fe:'+str(exe)] if os.name=='nt' else
           ['g++','-std=c++17','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-omit-frame-pointer',str(cpp),'-o',str(exe)])
  subprocess.run(command,cwd=tmp,check=True);subprocess.run([str(exe)],cwd=tmp,check=True)
