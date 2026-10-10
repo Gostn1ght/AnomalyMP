@@ -522,6 +522,9 @@ function on_script_message(channel, data)
 	elseif channel == "psi_kill" then
 		netcoop_psi_view.killed(data)
 		return
+	elseif channel == "mutant_loot" then
+		netcoop_mutant_loot_view.receive(data)
+		return
 	elseif channel == "battle" then
 		-- A real offline fight on this map (server, doc 43 K10).
 		if netcoop_distant_sound then netcoop_distant_sound.receive(data) end
@@ -946,6 +949,7 @@ end
 local function install_server_item_actions()
 	if not (netcoop_item_action and netcoop_pure_client and netcoop_pure_client()) then return end
 	install_server_containers()
+	netcoop_mutant_loot_view.install()
 	install_server_repair()
 	install_server_furniture()
 	install_weapon_menu_guards()

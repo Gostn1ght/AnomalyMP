@@ -1,0 +1,100 @@
+-- GAMMA's mutant butchering window on a client, fed by the server
+-- (netcoop_mutant_loot): "use" on a body asks the server, the window shows
+-- the parts the server rolled for that body, "take" asks the server for the
+-- chosen parts. GAMMA's animation and sound play here as usual.
+local pending = {}
+
+local function parse(data)
+	local id, status, list = string.match(data or "", "^(%d+)|(%a+)|(.*)$")
+	if not id then return nil end
+	local loot = {}
+	for sec, n in string.gmatch(list, "([^;%*]+)%*(%d+)") do loot[sec] = { count = tonumber(n) } end
+	return tonumber(id), status, loot
+end
+
+local function order(loot)
+	local list = {}
+	for sec, t in pairs(loot or {}) do if t.count and t.count > 0 then list[#list + 1] = sec end end
+	table.sort(list)
+	return list
+end
+
+-- The request for the chosen parts: "all" or counts in the server's order.
+function take_request(loot, chosen, all)
+	if all then return "all" end
+	if not next(chosen) then return nil end
+	local parts = {}
+	for _, sec in ipairs(order(loot)) do parts[#parts + 1] = tostring(chosen[sec] or 0) end
+	return table.concat(parts, ",")
+end
+
+function install()
+	local m = ui_mutant_loot
+	if not m or m.__netcoop then return end
+	m.__netcoop = true
+	m.start = function(obj)
+		if type(obj) == "number" or not obj then return end
+		pending[obj:id()] = true
+		netcoop_item_action(2, obj:id(), 65535, "mloot_open")
+	end
+	local class = m.UIMutantLoot
+	class.FillList = function(self)
+		self.loot = self.netcoop_loot or {}
+		local inv = {}
+		for _, sec in ipairs(order(self.loot)) do
+			for _ = 1, self.loot[sec].count do inv[#inv + 1] = sec end
+		end
+		if #inv == 0 then
+			actor_menu.set_msg(1, "st_body_useless", 3)
+			return false
+		end
+		self:ShowDialog(true)
+		self.CC:Reinit(inv)
+		return true
+	end
+	class.Loot = function(self, loot_all)
+		local chosen = {}
+		if not loot_all then
+			for _, ci in pairs(self.CC.cell) do
+				if ci.flags.selected then chosen[ci.section] = (chosen[ci.section] or 0) + 1 end
+			end
+		end
+		local request = take_request(self.loot, chosen, loot_all)
+		if not request then return end
+		netcoop_item_action(2, self.id, 65535, "mloot_take " .. request)
+		if actor_effects and actor_effects.play_item_fx then
+			local actor, kit = db.actor, nil
+			local backpack = actor:item_in_slot(13)
+			if ui_options.get("gameplay/general/need_equipped_hkit") then kit = backpack and backpack:section() == "kit_hunt"
+			else kit = actor:object("kit_hunt") ~= nil end
+			local boost = (game_achievements and game_achievements.has_achievement("well_dressed") and 1 or 0) + (kit and 1 or 0)
+			actor_effects.play_item_fx(boost == 2 and "mutant_looting_boost_2" or boost == 1 and "mutant_looting_boost_1" or "mutant_looting")
+		end
+		xr_sound.set_sound_play(AC_ID, "inv_mutant_loot_animal")
+		self:Close()
+	end
+	-- "Looted" belongs to the server.
+	class.SetMutantState = function() end
+end
+
+function receive(data)
+	local id, status, loot = parse(data)
+	if not id then return end
+	local asked = pending[id]
+	pending[id] = nil
+	if not asked then return end -- the answer to a take: the window is closed
+	if status == "decayed" then
+		actor_menu.set_msg(1, game.translate_string("st_body_decayed"), 4)
+		return
+	elseif status ~= "ok" then
+		actor_menu.set_msg(1, "st_body_useless", 3)
+		return
+	end
+	local obj = level.object_by_id(id)
+	local m = ui_mutant_loot
+	if not (obj and m) then return end
+	m.GUI = m.GUI or m.UIMutantLoot()
+	if m.GUI:IsShown() then return end
+	m.GUI.netcoop_loot = loot
+	if m.GUI:Reset(obj) then Register_UI("UIMutantLoot", "ui_mutant_loot") end
+end

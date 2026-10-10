@@ -1610,6 +1610,8 @@ function item_action(actor_id, kind, item_id, target_id, action, login)
 		return stash_create(level.object_by_id(actor_id), item, string.sub(action, 14), login or "")
 	elseif kind == 1 and action == "backpack_deploy" then
 		return backpack_deploy(level.object_by_id(actor_id), login or "")
+	elseif kind == 2 and string.match(action, "^mloot_") then
+		return netcoop_mutant_loot.action(level.object_by_id(actor_id), item, action) or "unknown item action"
 	elseif kind == 2 and action == "furniture_pickup" then
 		return furniture_pickup(level.object_by_id(actor_id), item, login or "")
 	elseif kind == 2 and string.match(action, "^access ") then
