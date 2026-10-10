@@ -46,6 +46,9 @@ public:
 };
 
 extern "C" XRPHYSICS_API IPHWorld* __stdcall physics_world();
+// Time spent in physics frame steps (QPC ticks, running total); the netcoop
+// server profile reports it per 10 s window (doc 43 M01).
+extern XRPHYSICS_API u64 g_ph_frame_ticks;
 class CObjectSpace;
 class CObjectList;
 class CRenderDeviceBase;

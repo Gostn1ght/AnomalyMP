@@ -298,6 +298,7 @@ static void world_store_cleanup_loaded()
 
 bool world_store_save_now(LPCSTR reason)
 {
+	ProfileScope profile(prof_io);
 	string64 world;
 	if (!world_store_name(world) || !ai().get_alife() || !g_pGameLevel) return false;
 	s_world_last_attempt = real_time_ms();

@@ -277,6 +277,8 @@ void CPHWorld::SetGravity(float g)
 	dWorldSetGravity(phWorld, 0, -m_gravity, 0); //-2.f*9.81f
 }
 
+u64 g_ph_frame_ticks = 0;
+
 void CPHWorld::OnFrame()
 {
 	// Msg									("------------- physics: %d / %d",u32(Device.dwFrame),u32(m_steps_num));
@@ -291,7 +293,9 @@ void CPHWorld::OnFrame()
 	//DBG_DrawStatBeforeFrameStep();
 #endif
 	Device().StatPhysics()->Physics.Begin();
+	const u64 frame_start = CPU::QPC();
 	FrameStep(Device().fTimeDelta);
+	g_ph_frame_ticks += CPU::QPC() - frame_start;
 	Device().StatPhysics()->Physics.End();
 #ifdef DEBUG
 	//DBG_DrawStatAfterFrameStep();

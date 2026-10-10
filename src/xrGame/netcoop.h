@@ -365,7 +365,9 @@ void metric_ai_notice(u16 npc, u16 player, u32 notice_ms, float distance);
 // Server time profile (plan section 36), summarised every 10 s: AI thinking
 // with the real update interval of each NPC/monster, snapshot replication,
 // item state and per-frame tasks.
-enum EProfileSlot { prof_ai, prof_replication, prof_items, prof_count };
+// prof_io: world snapshot writes on the main thread (characters are written
+// by their own worker thread). Physics frame steps come from xrPhysics.
+enum EProfileSlot { prof_ai, prof_replication, prof_items, prof_io, prof_count };
 struct ProfileScope
 {
 	u32 slot;

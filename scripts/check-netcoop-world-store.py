@@ -35,6 +35,8 @@ unsigned long GetFileAttributesA(const char* path) { return std::ifstream(path) 
 int _commit(int fd) { return fsync(fd); }
 int _fileno(FILE* f) { return fileno(f); }
 #endif
+enum { prof_io = 0 };
+struct ProfileScope { explicit ProfileScope(unsigned) {} };  // netcoop server profile (M01)
 bool fail_pointer=false;
 bool checked_move(const char* from,const char* to,unsigned long flags) {
  if(fail_pointer) return false;

@@ -31,6 +31,7 @@
 #include "PDA.h"
 #include "InventoryBox.h"
 #include "PhysicObject.h"
+#include "xrPhysics/IPHWorld.h"
 #include "PHCollisionDamageReceiver.h"
 #include "PHDestroyable.h"
 #include "hit_immunity.h"
@@ -4567,11 +4568,16 @@ void metrics_update()
 		if (!pure_client())
 		{
 			const double to_ms = 1000.0 / double(CPU::qpc_freq) / 10.0; // per second of the 10 s window
+			static u64 physics_seen = 0;
+			const u64 physics_now = g_ph_frame_ticks;
+			const u64 physics_ticks = physics_now >= physics_seen ? physics_now - physics_seen : physics_now;
+			physics_seen = physics_now;
 			Msg("[Lost Zone][profile] ai %.1f ms/s (%u thinks, NPC update every avg %u max %u ms, %u NPCs) | replication %.1f ms/s"
-				" | items %.1f ms/s",
+				" | items %.1f ms/s | physics %.1f ms/s | io %.1f ms/s (%u world saves)",
 				double(s_prof_ticks[prof_ai]) * to_ms, s_prof_calls[prof_ai], s_ai_updates ? s_ai_interval_sum / s_ai_updates : 0,
 				s_ai_interval_max, u32(s_ai_last_update.size()), double(s_prof_ticks[prof_replication]) * to_ms,
-				double(s_prof_ticks[prof_items]) * to_ms);
+				double(s_prof_ticks[prof_items]) * to_ms, double(physics_ticks) * to_ms, double(s_prof_ticks[prof_io]) * to_ms,
+				s_prof_calls[prof_io]);
 		}
 		if (s_ai_notices)
 			Msg("[Lost Zone][metrics] ai noticed players %u avg %u max %u ms in view", s_ai_notices,
