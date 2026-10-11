@@ -27,9 +27,10 @@ static void server_world_bridge_update()
     if (!s_world_bridge_log || now-s_world_bridge_log>=10000)
     {
         s_world_bridge_log=now;
-        Msg("[world-bridge-shadow] ready=%u fetched=%u accepted=%u rtt_ms=%llu drift_game_ms=%.3f (read only)",
+        Msg("[world-bridge-shadow] ready=%u fetched=%u accepted=%u rtt_ms=%llu drift_game_ms=%.3f weather_phase=%u weather_blend=%.3f emission_phase=%u (read only)",
             diagnostic.ready ? 1u:0u,diagnostic.fetched ? 1u:0u,diagnostic.accepted ? 1u:0u,
-            diagnostic.rtt_ms,diagnostic.drift_game_ms);
+            diagnostic.rtt_ms,diagnostic.drift_game_ms,diagnostic.weather_phase,diagnostic.weather_blend,
+            diagnostic.emission_phase);
     }
 }
 

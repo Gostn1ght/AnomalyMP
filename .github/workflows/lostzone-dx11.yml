@@ -196,6 +196,8 @@ jobs:
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-trade-policy.py
           if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-netcoop-world-bridge.py
+          if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-lzpack.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-weapon-menu.py

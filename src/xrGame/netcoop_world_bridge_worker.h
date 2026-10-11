@@ -9,6 +9,8 @@ struct BridgeDiagnostics
     bool ready=false, fetched=false, accepted=false;
     std::uint64_t rtt_ms=0;
     double drift_game_ms=0;
+    unsigned weather_phase=0,emission_phase=0;
+    double weather_blend=0;
 };
 
 // Parsing, IO, follower errors and threads are isolated in an exception-enabled

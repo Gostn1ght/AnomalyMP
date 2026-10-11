@@ -168,7 +168,16 @@ python -m lostzone bridge-config --config runtime/config.json --destination <ser
 credential. Движок читает файл при запуске и получает /v1/bootstrap на worker
 через WinHTTP loopback без proxy/redirect. Bounded wire parser и LocationClock
 проверяют WorldID/seed/epoch/schema/sequence/holdover; main thread только
-сравнивает estimate с ALife clock. `[world-bridge-shadow]` не назначает backend
+сравнивает estimate с ALife clock. В том же bootstrap читаются versioned
+weather/emission schedules и event watermark: IDs, seed, порядок фаз,
+границы времени и интенсивность проверяются до принятия пакета. Версии и
+watermark не откатываются; schedule с прежним TimelineID неизменяем.
+Фазы и weather blend рассчитываются по follower calendar, включая recovery
+с отставшим сохранённым phase. Диагностика выводит только номера фаз/blend;
+credentials и приватные world states не выводятся. Номер 0 означает отсутствие
+расписания; weather: 1 scheduled, 2 transition, 3 settled;
+emission: 1 scheduled, 2 warning, 3 active, 4 peak, 5 ended.
+`[world-bridge-shadow]` не назначает backend
 владельцем и не изменяет календарь, inventory или AI. Файл конфигурации и DB
 мира должны согласовывать identity отдельно; несовпадение закрывает observer.
 

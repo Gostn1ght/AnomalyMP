@@ -190,6 +190,10 @@ service lifecycle/restart. Listener в lifecycle fixture заменён загл
 игра, native server/bots и рабочая консоль мастера локально не запускались.
 Full backend suite выполняется Linux/Windows workflow.
 
+Console `a754a8636`:
+[World Backend Linux/Windows PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38136534571).
+DX11 проверяется отдельно; до окончания текущего build новый push не выполняется.
+
 Это первый этап отдельного мастера. Текущий engine bridge остаётся observer;
 календарь/погода/персонажи игры используют legacy store, а автоматический NPC
 transit выключен до разделения ALife registry (H11). A01 остаётся 🟡,
@@ -197,3 +201,35 @@ transit выключен до разделения ALife registry (H11). A01 о�
 Следующее подключение: единые WorldID/clock и backend authority в location
 adapter, character/NPC handoff с fencing/ACK, разделение владения ALife и
 единый источник world events/weather. Launcher сам не закрывает эти пункты.
+
+## Bootstrap погоды/выбросов в native location observer
+
+Native bridge раньше разбирал clock/identity и отбрасывал `states` из
+того же HTTP bootstrap. Теперь weather/emission schedules и event watermark
+сохраняются вместе с принятой clock sample. Private/неизвестные world states
+не передаются в diagnostics. Parser проверяет schema, envelopes/version,
+128-bit TimelineID, cycle identifiers, u64 seed, конечные и строго
+упорядоченные phase times, intensity и phase names. Неизвестная фаза,
+повреждённая известная timeline или пропущенный watermark отклоняют весь пакет.
+
+Observer не принимает revision/watermark/version rollback или исчезновение
+ранее принятого расписания. Schedule с тем же TimelineID неизменяем и при
+повышении version; replacement требует нового ID и большей version.
+Weather blend/phase и emission phase вычисляются из единого follower calendar,
+а не из сохранённого phase, который может отставать при event catch-up.
+Последний принятый schedule не заменяется при stale/invalid packet.
+При истечении holdover диагностика закрывает ready и не выдаёт активные фазы.
+
+Расширена actual native fixture `check-netcoop-world-bridge.py`:
+phase boundaries, malformed schedule, same-ID mutation, replacement,
+watermark/revision rollback, restart/stale authority и holdover. На GCC/MSVC
+parser читает настоящий SQLite/World/Timelines bootstrap с weather transition
+и emission peak; Windows отдельно проверяет WinHTTP и worker diagnostics
+через authenticated backend fixture. Fixture выполняется в Foundation и
+теперь также в DX11 checks. Native compilation только в CI.
+
+Это read-only подключение глобального state, не применение погоды/календаря
+в игре. A01/B08/B10 остаются 🟡; B09 исправлен ⬜ → 🟡, поскольку endpoint/wire
+уже существуют, но location adoption/ScaleChanged delivery/remote transport
+ещё открыты. Текущие 188 строк: ✅ 27, 🔧 42, 🟡 67, ⬜ 52; новых игровых ✅ нет.
+CI этой стадии будет зафиксирован после commit/push и успешных прогонов.

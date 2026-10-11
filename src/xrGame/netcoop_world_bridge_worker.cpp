@@ -30,7 +30,7 @@ struct WorldBridgeWorker::State
     std::mutex lock;
     std::condition_variable wake;
     bool stopping=false, pending=false, successful=false;
-    WorldStateSnapshot incoming{};
+    BridgeBootstrap incoming{};
     std::uint64_t sent=0, received=0;
     std::thread worker;
 
@@ -47,7 +47,7 @@ struct WorldBridgeWorker::State
         for (;;)
         {
             { std::lock_guard<std::mutex> guard(lock);if (stopping) return; }
-            WorldStateSnapshot result{};
+            BridgeBootstrap result{};
             const auto started=bridge_mono_ms();
             bool ok=false;
             try
@@ -65,7 +65,7 @@ struct WorldBridgeWorker::State
     }
     BridgeDiagnostics tick(const WorldStateSnapshot& local)
     {
-        WorldStateSnapshot sample{};
+        BridgeBootstrap sample{};
         bool available=false,ok=false;
         std::uint64_t started=0,finished=0;
         {
@@ -79,7 +79,15 @@ struct WorldBridgeWorker::State
             result.accepted=observer.receive(sample,started,finished)==SyncResult::applied;
         const auto now=bridge_mono_ms();
         result.ready=observer.ready(now);
-        if (result.ready) result.drift_game_ms=observer.estimate(now)-local.clock.world_ms;
+        if (result.ready)
+        {
+            const auto calendar=observer.estimate(now);
+            result.drift_game_ms=calendar-local.clock.world_ms;
+            const auto& globals=observer.globals();
+            result.weather_phase=bridge_weather_phase(globals.weather,calendar);
+            result.weather_blend=bridge_weather_blend(globals.weather,calendar);
+            result.emission_phase=bridge_emission_phase(globals.emission,calendar);
+        }
         return result;
     }
 };

@@ -7,9 +7,9 @@
 
 Исторический итог 2026-10-06: ✅ 22, 🔧 37, 🟡 69, ⬜ 60 из 188.
 
-Текущий учёт строк 2026-10-11 (Codex, док 95): ✅ 27, 🔧 42, 🟡 66, ⬜ 53
+Текущий учёт строк 2026-10-11 (Codex, док 95): ✅ 27, 🔧 42, 🟡 67, ⬜ 52
 из 188. Все 188 идентификаторов дока 43 присутствуют; 🔧 не означает
-игровую приёмку. L37 изменён 🟡 → 🔧 в доке 94, L22 ⬜ → 🔧 в доке 95; прочие изменения счётчиков
+игровую приёмку. L37 изменён 🟡 → 🔧 в доке 94, L22 ⬜ → 🔧 и B09 ⬜ → 🟡 в доке 95; прочие изменения счётчиков
 учитывают уже существующие изменения Claude.
 
 Итог CI этой сессии (док 94): коммит `000ecb4f8`,
@@ -107,8 +107,8 @@ Distance/overload tiers для NPC/мутантов/игроков, описан
 | B05 ALife календарь и server environment time factor подключены | ✅ | рестарт сервера: игровое время продолжилось (2026-10-06) |
 | B06 Clock-aware ALife checkpoint: identity/epoch/revision, | 🔧 | native fixtures в CI |
 | B07 Чтения из ALife worker и server thread защищены mutex; | 🔧 | native fixtures в CI |
-| B08 Частично: LocalWorldService и WorldStateSnapshot есть; | 🟡 | backend WorldState; engine не потребляет |
-| B09 Удостоверенный World Service endpoint и wire encoding | ⬜ |  |
+| B08 Частично: LocalWorldService и WorldStateSnapshot есть; | 🟡 | backend WorldState; engine читает calendar/weather/emission coherent bootstrap только в shadow; gameplay adoption ещё нет |
+| B09 Удостоверенный World Service endpoint и wire encoding | 🟡 | authenticated loopback bootstrap/clock, strict native wire parser, worker calendar/weather/emission diagnostics (doc95); полноценная доставка/применение ScaleChanged location runtime и remote transport ещё открыты |
 | B10 Подключить LocationClock к действительным location packets; | 🟡 | кластерный календарь через файлы: отстающий догоняет ускорением (видно в live логах) |
 | B11 Event-time highwater и replay: восстановленное время не | ⬜ |  |
 | B12 Частично: backend event-time mutation/scale barrier реализован; | ⬜ |  |
