@@ -74,4 +74,43 @@ assert "netcoop_artefacts.update_world" in compat
 # the emission sends that event at its end (GAMMA's refill trigger)
 emission = (root / "server/netcoop_emission.script").read_text(encoding="utf-8")
 assert 'SendScriptCallback("actor_on_interaction", "anomalies", nil, "emission_end")' in emission
+# Far fields (doc 43 L06): the emission decides, a field online later gets
+# that emission's refill once, with the emission's chance; restarts keep it.
+lua.execute(r'''
+function netcoop_enabled() return true end
+function netcoop_pure_client() return false end
+callbacks = {}
+function RegisterScriptCallback(n, f) callbacks[n] = f end
+storage = {}
+alife_storage_manager = {get_state = function() return storage end}
+surge = {started = false}; psi = {started = false}
+surge_manager = {get_surge_manager = function() return surge end}
+psi_storm_manager = {get_psi_storm_manager = function() return psi end}
+db = {anomaly_by_name = {near_field = true}}
+far_refills = {}
+binder = {}
+function binder.net_spawn(self, se) return true end
+function binder.respawn_artefacts_and_replace_anomaly_zone(self)
+  far_refills[#far_refills + 1] = self.object:name() .. (surge.started and " surge" or "") .. (psi.started and " psi" or "")
+end
+bind_anomaly_zone = {anomaly_zone_binder = binder}
+function zone(name) return setmetatable({object = {name = function() return name end}}, {__index = binder}) end
+''')
+mod.on_game_start()
+on_int = g.callbacks.actor_on_interaction
+spawn = lambda name: g.binder.net_spawn(g.zone(name), None)
+spawn("far_field")                                  # no emission yet: nothing
+assert len(g.far_refills) == 0
+on_int("anomalies", None, "emission_end")
+assert g.storage.netcoop_af.stamp == 1 and g.storage.netcoop_af.done["near_field"]
+spawn("near_field")                                 # GAMMA refilled it online
+spawn("far_field")                                  # far one: once, emission chance
+spawn("far_field")
+assert list(g.far_refills.values()) == ["far_field surge"], list(g.far_refills.values())
+assert g.surge.started is False                     # the manager's state is restored
+on_int("anomalies", None, "psi_storm_end")
+spawn("far_field")
+assert list(g.far_refills.values())[-1] == "far_field psi" and g.psi.started is False
+on_int("weather", None, "emission_end")             # not an anomaly event
+assert g.storage.netcoop_af.stamp == 2
 print("netcoop artefacts: OK")

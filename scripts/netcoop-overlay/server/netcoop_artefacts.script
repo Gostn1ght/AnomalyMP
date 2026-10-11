@@ -26,6 +26,67 @@ local function arrival()
 	s.spawned = 0
 end
 
+----------------------------------------------------------------------
+-- Anomaly fields far from players (doc 43 L06): GAMMA refills, at the
+-- emission's end, only the fields online then (db.anomaly_by_name) - on a
+-- server, those near a player. A field online later stayed empty until the
+-- next emission, so it was the first player to arrive, not the emission, that
+-- decided. The emission is recorded (with the world: alife storage); a field
+-- that comes online later gets that emission's refill once, with the
+-- emission's chance.
+----------------------------------------------------------------------
+local function store()
+	local m = alife_storage_manager and alife_storage_manager.get_state()
+	if not m then return nil end
+	m.netcoop_af = m.netcoop_af or { stamp = 0, kind = "", done = {} }
+	return m.netcoop_af
+end
+
+local function refill(zone, kind)
+	local s, p = surge_manager and surge_manager.get_surge_manager(), psi_storm_manager and psi_storm_manager.get_psi_storm_manager()
+	local was_s, was_p = s and s.started, p and p.started
+	-- the emission's chance (respawn_artefacts_and_replace_anomaly_zone reads it from the running event)
+	if s then s.started = kind == "emission_end" end
+	if p then p.started = kind == "psi_storm_end" end
+	local ok, err = pcall(zone.respawn_artefacts_and_replace_anomaly_zone, zone)
+	if s then s.started = was_s end
+	if p then p.started = was_p end
+	if not ok then printf("! [Lost Zone] artefact refill failed: %s", tostring(err)) end
+end
+
+local function on_interaction(typ, obj, name)
+	if typ ~= "anomalies" or not (name == "emission_end" or name == "psi_storm_end") then return end
+	local st = store()
+	if not st then return end
+	st.stamp, st.kind, st.done = (st.stamp or 0) + 1, name, {}
+	-- online now: GAMMA refills these itself
+	for zone_name in pairs(db.anomaly_by_name or {}) do st.done[zone_name] = true end
+	printf("[Lost Zone] artefacts: %s #%s, far fields refill when they come online", name, tostring(st.stamp))
+end
+
+local function install_far_refill()
+	local binder = bind_anomaly_zone and bind_anomaly_zone.anomaly_zone_binder
+	if not (binder and binder.net_spawn) or binder.__netcoop then return end
+	binder.__netcoop = true
+	local base = binder.net_spawn
+	binder.net_spawn = function(self, se)
+		if not base(self, se) then return false end
+		local st = store()
+		local zone_name = self.object and self.object:name()
+		if st and zone_name and (st.stamp or 0) > 0 and not st.done[zone_name] then
+			st.done[zone_name] = true
+			refill(self, st.kind)
+		end
+		return true
+	end
+end
+
+function on_game_start()
+	if not (netcoop_enabled and netcoop_enabled()) or (netcoop_pure_client and netcoop_pure_client()) then return end
+	RegisterScriptCallback("actor_on_interaction", on_interaction)
+	install_far_refill()
+end
+
 function update_world()
 	local s = spawner()
 	if not (s and s.grok_artefact_spawner) then return end
