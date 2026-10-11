@@ -22,6 +22,11 @@ prediction владельца и не индексируют неизвестн�
 в DX11/Foundation. Это часть исправления магазина; полный server reload/shot
 acknowledgement не закрыт, мировые статусы и игровые ✅ не повышаются.
 
+Также в доке 95: восстановление выносливости своего актора на pure client
+отделено от server-only `CanBeHarmed`; здоровье и чужие акторы сохраняют
+прежние проверки. Native fixture DX11/Foundation; пункт README ⬜ → 🔧,
+счётчики требований мира остаются прежними.
+
 Исторические статусы строк 2026-10-08: ✅ 27, 🔧 33, 🟡 69, ⬜ 59 из 188.
 G12 закрыт doc76: actual GHAbe30/new private world, native pre-commit and
 failed-checkpoint connection-ID-correlated admission refusals,7controlled

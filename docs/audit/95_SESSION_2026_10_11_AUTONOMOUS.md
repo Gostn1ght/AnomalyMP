@@ -63,3 +63,20 @@ wall clock, неизменный snapshot, generator failure, story/dont_spawn_l
 восстановление глобального RNG и реальный `build_npc_inventory`.
 Items/emission/world-events/Lua scope PASS. L22: ⬜ → 🔧; текущий учёт
 188 требований: ✅ 27, 🔧 42, 🟡 66, ⬜ 53.
+
+## Выносливость владельца
+
+В Anomaly mode `UpdateSatiety` прибавлял stamina только внутри
+`CanBeHarmed`, а тот требует `OnServer()`. Поэтому чистый клиент тратил
+stamina в `ConditionStand/Walk`, но не восстанавливал её по сытости.
+Теперь восстановление по сытости разрешено также собственному control actor
+pure client. Health delta остаётся внутри серверного gate; чужим акторам,
+legacy multiplayer, protected freeplay и menu GodMode исключение не добавлено.
+Коэффициенты сытости/сна/расхода GAMMA и max power clamp сохранены.
+
+`check-native-stamina-recovery.py` выполняет actual `UpdateSatiety`,
+`ConditionStand`, `CanBeHarmed` и inherited `CEntityCondition::UpdateCondition`:
+последовательные кадры восстановления, предел max power, голод/сон, отсутствие
+client health regen, чужой actor/отсутствующий control actor, protected freeplay,
+legacy MP и menu GodMode. Подключена к DX11/Foundation GCC/MSVC;
+локальная компиляция не выполняется. README ⬜ → 🔧, мировые счётчики прежние.
