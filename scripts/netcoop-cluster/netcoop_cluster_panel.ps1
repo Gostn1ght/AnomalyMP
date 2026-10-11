@@ -10,8 +10,17 @@ $wakeDir = Join-Path $Runtime 'appdata\server\netcoop_cluster'
 $logDir = Join-Path $Runtime 'appdata\server\logs'
 # The watchdog publishes this machine's maps as host_view_<computer>.json.
 $viewName = "host_view_$($env:COMPUTERNAME.ToLowerInvariant()).json"
-$watchdogErr = Join-Path $wakeDir 'watchdog_error.log'
-$watchdogOut = Join-Path $wakeDir 'watchdog.log'
+# Each start writes its own log pair: a running watchdog keeps its files open.
+$script:watchdogErr = $null
+function Read-Shared([string]$Path) {
+    # Read without blocking the watchdog's atomic replace of the same file.
+    $stream = [IO.File]::Open($Path, 'Open', 'Read', [IO.FileShare]'ReadWrite, Delete')
+    try { return [IO.StreamReader]::new($stream, [Text.Encoding]::UTF8).ReadToEnd() } finally { $stream.Dispose() }
+}
+function Watchdog-Running {
+    @(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue | Where-Object {
+        $_.CommandLine -like '*netcoop_cluster_watchdog.ps1*' -and $_.CommandLine -like "*$Runtime*" }).Count -gt 0
+}
 # Ticked maps (one per line): what "Запустить" starts. Chosen by the hoster.
 $checkFile = Join-Path $wakeDir 'panel_selected.txt'
 $mapNames = @{
@@ -248,14 +257,17 @@ $script:localMaps = @{}; $script:fresh = $false
 # Management (the watchdog) starts by itself when an action needs it.
 function Connect-Management {
     if ($script:fresh) { return $true }
-    $running = $script:watchdogStarted -and ((Get-Date) - $script:watchdogStarted).TotalSeconds -lt 30
-    if (-not $running) {
-        [IO.Directory]::CreateDirectory($wakeDir) | Out-Null
-        if (Test-Path -LiteralPath $watchdogErr) { Remove-Item -LiteralPath $watchdogErr -Force }
-        $watchdog = Join-Path $PSScriptRoot 'netcoop_cluster_watchdog.ps1'
-        Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',"`"$watchdog`"",'-Runtime',"`"$Runtime`"",'-NoAutoStart') -WindowStyle Hidden -RedirectStandardError $watchdogErr -RedirectStandardOutput $watchdogOut
-        $script:watchdogStarted = Get-Date
-    }
+    # One watchdog per server folder: a running one reads the commands already.
+    if (Watchdog-Running) { if (-not $script:watchdogStarted) { $script:watchdogStarted = Get-Date }; return $false }
+    [IO.Directory]::CreateDirectory($wakeDir) | Out-Null
+    $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+    $script:watchdogErr = Join-Path $wakeDir "watchdog_$stamp.err.log"
+    $watchdog = Join-Path $PSScriptRoot 'netcoop_cluster_watchdog.ps1'
+    Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',"`"$watchdog`"",'-Runtime',"`"$Runtime`"",'-NoAutoStart') -WindowStyle Hidden -RedirectStandardError $script:watchdogErr -RedirectStandardOutput (Join-Path $wakeDir "watchdog_$stamp.log")
+    $script:watchdogStarted = Get-Date
+    # Old logs of finished runs (files still open are skipped).
+    Get-ChildItem -LiteralPath $wakeDir -Filter 'watchdog_*.log' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -Skip 6 |
+        ForEach-Object { try { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop } catch {} }
     return $false
 }
 function Send-Maps([string]$Action, [string[]]$Maps) {
@@ -344,7 +356,8 @@ function Update-Summary {
 $refresh = {
     try {
         $viewPath = Join-Path $wakeDir $viewName
-        $view = if (Test-Path -LiteralPath $viewPath) { [IO.File]::ReadAllText($viewPath) | ConvertFrom-Json } else { $null }
+        $view = $null
+        if (Test-Path -LiteralPath $viewPath) { try { $view = Read-Shared $viewPath | ConvertFrom-Json } catch { $view = $null } }
         $script:fresh = [bool]($view -and ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds()-[long]$view.updated -lt 30))
         $script:localMaps = @{}
         if ($script:fresh) {
@@ -386,12 +399,13 @@ $refresh = {
             } else {
                 $connection.Text = '● управление подключится при запуске'; $connection.ForeColor = $C.muted
             }
-            if ((Test-Path -LiteralPath $watchdogErr) -and (Get-Item -LiteralPath $watchdogErr).Length -gt 0) {
-                $reason = @(Get-Content -LiteralPath $watchdogErr -Encoding Default | Where-Object { $_.Trim() -and $_ -notmatch '^\s*(\+|CategoryInfo|FullyQualifiedErrorId|At |строка|At line)' }) | Select-Object -First 1
+            if ($script:watchdogErr -and (Test-Path -LiteralPath $script:watchdogErr) -and (Get-Item -LiteralPath $script:watchdogErr).Length -gt 0) {
+                $text = try { (Read-Shared $script:watchdogErr) -split "`r?`n" } catch { @() }
+                $reason = @($text | Where-Object { $_.Trim() -and $_ -notmatch '^\s*(\+|CategoryInfo|FullyQualifiedErrorId|At |строка|At line)' }) | Select-Object -First 1
                 $status.ForeColor = $C.red; $status.Text = "Управление не запустилось: $reason"
                 $script:watchdogStarted = $null
             } elseif ($script:watchdogStarted -and ((Get-Date) - $script:watchdogStarted).TotalSeconds -gt 30) {
-                $status.ForeColor = $C.amber; $status.Text = 'Управление не отвечает. Подробности: appdata\server\netcoop_cluster\watchdog.log'
+                $status.ForeColor = $C.amber; $status.Text = 'Управление не отвечает. Подробности: appdata\server\netcoop_cluster\watchdog_*.log'
                 $script:watchdogStarted = $null
             }
         }

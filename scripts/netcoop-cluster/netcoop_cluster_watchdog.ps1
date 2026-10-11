@@ -204,6 +204,9 @@ function Pending-Start($s) {
     try { return ([IO.File]::ReadAllText($file).Trim() -in @('start','restart')) } catch { return $false }
 }
 function Publish-HostState {
+    try { Publish-HostStateNow } catch { Write-Host ("{0:HH:mm:ss} state not published: {1}" -f (Get-Date), $_.Exception.Message) }
+}
+function Publish-HostStateNow {
     $rows = @($servers | ForEach-Object {
         $process = $running[$_.Name]
         [ordered]@{ map=$_.Name; port=$_.Port; processId=$(if ($process -and -not $process.HasExited) { $process.Id } else { 0 });

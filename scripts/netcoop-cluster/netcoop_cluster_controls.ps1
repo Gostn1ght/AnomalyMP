@@ -5,8 +5,18 @@ function Write-ClusterText([string]$Path, [string]$Text) {
     $temporary = "$Path.$PID.$([Guid]::NewGuid().ToString('N')).tmp"
     [IO.File]::WriteAllText($temporary, $Text, [Text.UTF8Encoding]::new($false))
     try {
-        if ([IO.File]::Exists($Path)) { [IO.File]::Replace($temporary, $Path, [NullString]::Value) }
-        else { [IO.File]::Move($temporary, $Path) }
+        # A reader (the panel, every second) may hold the file for a moment:
+        # retry instead of failing the whole watchdog on a sharing violation.
+        for ($attempt = 1; ; $attempt++) {
+            try {
+                if ([IO.File]::Exists($Path)) { [IO.File]::Replace($temporary, $Path, [NullString]::Value) }
+                else { [IO.File]::Move($temporary, $Path) }
+                break
+            } catch [System.IO.IOException], [System.UnauthorizedAccessException] {
+                if ($attempt -ge 40) { throw }
+                Start-Sleep -Milliseconds 50
+            }
+        }
     } finally {
         if ([IO.File]::Exists($temporary)) { [IO.File]::Delete($temporary) }
     }
