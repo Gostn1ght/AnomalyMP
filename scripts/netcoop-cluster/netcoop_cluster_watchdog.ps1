@@ -161,6 +161,10 @@ function Free-BudgetGB {
     $reserve = $SystemReserveGB + $(if ($WithClient -and -not $clientRunning) { $ClientReserveGB } else { 0 })
     return $free - $reserve
 }
+function Free-CommitGB {
+    # RAM + page file still available to new processes, minus the system reserve.
+    return (Get-CimInstance Win32_OperatingSystem).FreeVirtualMemory / 1MB - $SystemReserveGB
+}
 function Players-On($s) {
     $file = Join-Path $Runtime "appdata\server\netcoop_cluster\status_$($s.Port).txt"
     $line = Get-Content $file -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -193,14 +197,22 @@ Write-Host ("{0} map(s) on this machine: {1}" -f $servers.Count, (($servers | Fo
 $wakeDir = Join-Path $Runtime "appdata\server\netcoop_cluster"
 $running = @{}
 $viewFile = "host_view_$($env:COMPUTERNAME.ToLowerInvariant()).json"
+# A start command not read yet (the loop is busy loading another map): queued.
+function Pending-Start($s) {
+    $file = Join-Path $wakeDir "host_command_$($s.Name).txt"
+    if (-not (Test-Path -LiteralPath $file)) { return $false }
+    try { return ([IO.File]::ReadAllText($file).Trim() -in @('start','restart')) } catch { return $false }
+}
 function Publish-HostState {
     $rows = @($servers | ForEach-Object {
         $process = $running[$_.Name]
         [ordered]@{ map=$_.Name; port=$_.Port; processId=$(if ($process -and -not $process.HasExited) { $process.Id } else { 0 });
-            state=$(if ($_.State -and $_.State -ne 'stopped') { $_.State } elseif (-not ($process -and -not $process.HasExited) -and (Get-ClusterHostMode $wakeDir $_.Name) -eq 'on') { 'queued' } elseif ($_.State) { $_.State } else { 'stopped' }); mode=Get-ClusterHostMode $wakeDir $_.Name;
+            state=$(if ($_.State -and $_.State -ne 'stopped') { $_.State } elseif (-not ($process -and -not $process.HasExited) -and ((Get-ClusterHostMode $wakeDir $_.Name) -eq 'on' -or (Pending-Start $_))) { 'queued' } elseif ($_.State) { $_.State } else { 'stopped' }); mode=Get-ClusterHostMode $wakeDir $_.Name;
             players=Players-On $_; progress=Get-LoadProgress $_ }
     })
-    $view = [ordered]@{ updated=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds(); watchdog=$PID; maps=$rows }
+    $os = Get-CimInstance Win32_OperatingSystem
+    $memory = [ordered]@{ free_gb=[math]::Round($os.FreePhysicalMemory / 1MB, 1); commit_gb=[math]::Round($os.FreeVirtualMemory / 1MB, 1); need_gb=[math]::Round(2 * (Server-MemoryGB), 1) }
+    $view = [ordered]@{ updated=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds(); watchdog=$PID; memory=$memory; maps=$rows }
     Write-ClusterText (Join-Path $wakeDir $viewFile) ($view | ConvertTo-Json -Depth 4 -Compress)
 }
 foreach ($s in $servers) {
@@ -250,7 +262,9 @@ while ($true) {
             continue
         }
         if ($mode -eq 'on' -and -not $p) {
-            if (Make-Room (2 * (Server-MemoryGB))) { $running[$s.Name] = Start-Location $s }
+            # The hoster asked for this map: start it when RAM plus the page file
+            # can hold it, even if free RAM alone is short (it used to wait forever).
+            if ((Make-Room (2 * (Server-MemoryGB))) -or (Free-CommitGB) -ge 2 * (Server-MemoryGB)) { $s.State = $null; $running[$s.Name] = Start-Location $s }
             else { $s.State = 'memory' }
             continue
         }
