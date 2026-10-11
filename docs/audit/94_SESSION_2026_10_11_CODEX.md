@@ -30,12 +30,15 @@
 - `engine-steamnet/_build/wip` — черновой box-mass тест с patch;
 - `engine-src/_build/quarantine-script-test` — старый отключённый Lua стенд;
 - `engine-steamnet/_build/intermediate`, `engine-src/_build/intermediate`;
-- `engine-steamnet/_build/policy-check` — скомпилированные проверки.
+- `engine-steamnet/_build/policy-check` — скомпилированные проверки;
 - `engine-steamnet/scripts/__pycache__` — старый Python bytecode;
   новые caches исключены через `.gitignore`.
 
 Manifest: `moved-folders.json` рядом с перенесёнными каталогами.
-Все семь исходных каталогов отсутствуют; все семь retained каталогов существуют.
+Все семь исходных каталогов отсутствуют; все семь архивных каталогов существуют.
+Проверены 181 666 файлов (43 006 709 852 байта, включая manifest).
+Удалённые generated каталоги актуальные CI scripts создают самостоятельно;
+зависимостей от старых live/wip/quarantine стендов в текущих scripts/workflows нет.
 Рекурсивное удаление отклонила автоматическая проверка (`blocked by policy`),
 поэтому выполнен восстановимый перенос. Старые сохранения и учётные данные
 остались в переносимых каталогах; актуальные CI fixtures и release scripts
@@ -105,9 +108,25 @@ indexes сверяются с типами оружия (нож не может 
 
 Сборка всех оставленных Claude коммитов завершилась успешно
 ([38124513546](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38124513546)).
-Оставленные локально четыре коммита отправлены вместе с fixes звука/КПК,
-DX11 run 38125943449 и Foundation run 38125943509. Локальные проверки
-checks-блока (Lua/Python) PASS. Нативные и полная сборка выполняются в CI.
+Оставленные локально четыре коммита отправлены вместе с fixes звука/КПК.
+DX11 run [38125943449](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38125943449)
+и Foundation run [38125943509](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38125943509)
+завершились успешно. Локальные проверки checks-блока (Lua/Python) PASS.
+Следующая группа исправлений отправлена коммитом `000ecb4f8`:
+Foundation [38127111121](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38127111121)
+PASS на GCC/MSVC, включая все четыре новые native fixtures.
+Полная DX11 сборка [38127111116](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38127111116)
+завершилась успешно: checks, native fixtures, компиляция, проверка portable PE
+dependencies и упаковка клиента/сервера/оверлеев PASS. Исходный commit
+`000ecb4f8ff11a34ac38aa4e05958f56c27ee3e0`.
+Готовый artifact: `LostZone-DX11-client-server` (268 964 271 байт),
+диагностика: `LostZone-DX11-build-log`. Релиз владельца локально не заменялся.
+
+Закрыты этапы отправки оставленных Claude коммитов и проверки CI, исправления
+OpenAL/голоса, уведомлений КПК, удаления предмета из рук, cooldown тайников
+L37 и проверки входящих HUD state events. Код/fixtures имеют статус 🔧;
+новых утверждений об игровой приёмке нет. Очистка семи каталогов завершена
+переносом из исходников в архив; manifest сохранён.
 
 Открыто: магазин оружия, порядок приветствия, дальнейшие требования док 43/48.
 

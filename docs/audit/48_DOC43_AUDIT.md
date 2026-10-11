@@ -12,6 +12,11 @@
 игровую приёмку. L37 изменён 🟡 → 🔧 этой сессией, прочие изменения счётчиков
 учитывают уже существующие изменения Claude.
 
+Итог CI этой сессии (док 94): коммит `000ecb4f8`,
+[DX11 build/package PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38127111116),
+[Foundation GCC/MSVC PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38127111121).
+Сборка не заменяет игровую приёмку; счётчики выше остаются без повышения ✅.
+
 Исторические статусы строк 2026-10-08: ✅ 27, 🔧 33, 🟡 69, ⬜ 59 из 188.
 G12 закрыт doc76: actual GHAbe30/new private world, native pre-commit and
 failed-checkpoint connection-ID-correlated admission refusals,7controlled
