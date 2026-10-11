@@ -192,6 +192,7 @@ Full backend suite выполняется Linux/Windows workflow.
 
 Console `a754a8636`:
 [World Backend Linux/Windows PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38136534571).
+В обоих platform logs: 248 tests PASS, включая все семь console tests.
 DX11 проверяется отдельно; до окончания текущего build новый push не выполняется.
 
 Это первый этап отдельного мастера. Текущий engine bridge остаётся observer;
@@ -233,3 +234,22 @@ parser читает настоящий SQLite/World/Timelines bootstrap с weath
 уже существуют, но location adoption/ScaleChanged delivery/remote transport
 ещё открыты. Текущие 188 строк: ✅ 27, 🔧 42, 🟡 67, ⬜ 52; новых игровых ✅ нет.
 CI этой стадии будет зафиксирован после commit/push и успешных прогонов.
+
+## Явная начальная идентичность мастера
+
+Обычный `init` оставляет генерацию случайной identity первому World bootstrap,
+поэтому сам по себе не согласовывает мир с engine observer. Добавлены
+`init --world-id ... --seed ... --initial-ms ... --scale ...`:
+WorldID/seed задаются парой, проверяются u64/bounds и конечность calendar/scale
+до создания credential файла. Другие CLI modes эти options отклоняют, чтобы
+начальный параметр не выглядел как live mutation. Старый config не заменяется.
+
+Три focused tests проверяют настоящий SQLite/World restart с максимальными
+u64 identity, saved calendar/scale вместо initial defaults, конфликт чужого
+WorldID/seed с rollback epoch, отсутствие файла/папки после invalid bootstrap,
+CLI init без открытия DB и запрет bootstrap flags в serve/console/bridge-config.
+Локально PASS; полный backend suite проверяется Linux/Windows CI.
+
+Это preparation нового backend мира: identity согласовывается явно,
+но coherent ALife import, authority adoption и персонажи/предметы не перенесены.
+A01 остаётся 🟡, счётчики не меняются. Новых игровых ✅ нет.

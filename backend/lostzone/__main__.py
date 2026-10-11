@@ -9,14 +9,27 @@ import threading
 import time
 
 from .http import Credentials, Dispatcher, Server
-from .store import Invalid, Store, identifier
+from .store import Invalid, Store, finite, identifier
 from .world import World
 
 
-def create_config(path, locations):
+def create_config(path, locations, *, world_id=None, seed=None, initial_ms=None, scale=None):
     path = Path(path).resolve()
     if path.exists():
         raise Invalid("configuration already exists; credentials were not replaced")
+    if (world_id is None) != (seed is None):
+        raise Invalid("explicit world identity requires both WorldID and seed")
+    bootstrap = {}
+    if world_id is not None:
+        if type(world_id) is not int or not 0 < world_id < 2**64:
+            raise Invalid("invalid WorldID")
+        if type(seed) is not int or not 0 <= seed < 2**64:
+            raise Invalid("invalid world seed")
+        bootstrap.update(world_id=world_id, seed=seed)
+    if initial_ms is not None:
+        bootstrap["initial_ms"] = finite(initial_ms)
+    if scale is not None:
+        bootstrap["scale"] = finite(scale, 0.001, 1000)
     locations = sorted(set(locations or ["hidden_base"]))
     for location in locations:
         identifier(location)
@@ -28,6 +41,7 @@ def create_config(path, locations):
     credentials["observer:engine"] = {"role":"observer","locations":[],"token":secrets.token_urlsafe(48)}
     config = {"schema": 1, "database": "world.sqlite", "port": 38477,
               "signing_key": secrets.token_hex(32), "credentials": credentials}
+    config.update(bootstrap)
     data = json.dumps(config, ensure_ascii=False, indent=2).encode("utf-8")
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
@@ -153,9 +167,17 @@ def main():
     parser.add_argument("--location", action="append", default=[])
     parser.add_argument("--port", type=int)
     parser.add_argument("--destination")
+    parser.add_argument("--world-id", type=int, help="initial WorldID; init only, requires --seed")
+    parser.add_argument("--seed", type=int, help="initial world seed; init only, requires --world-id")
+    parser.add_argument("--initial-ms", type=float, help="initial game calendar in milliseconds; init only")
+    parser.add_argument("--scale", type=float, help="initial game time scale; init only")
     args = parser.parse_args()
+    if args.mode != "init" and any(value is not None for value in
+                                   (args.world_id, args.seed, args.initial_ms, args.scale)):
+        raise Invalid("world bootstrap options apply only to init")
     if args.mode == "init":
-        create_config(args.config, args.location)
+        create_config(args.config, args.location, world_id=args.world_id, seed=args.seed,
+                      initial_ms=args.initial_ms, scale=args.scale)
         print("Created private service configuration. Tokens are not printed.")
     elif args.mode=="bridge-config":
         if not args.destination:
