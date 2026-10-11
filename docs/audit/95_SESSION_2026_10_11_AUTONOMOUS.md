@@ -193,7 +193,8 @@ Full backend suite выполняется Linux/Windows workflow.
 Console `a754a8636`:
 [World Backend Linux/Windows PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38136534571).
 В обоих platform logs: 248 tests PASS, включая все семь console tests.
-DX11 проверяется отдельно; до окончания текущего build новый push не выполняется.
+[DX11 build/package PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38136534589).
+Следующие code commits отправляются только после завершения этого build.
 
 Это первый этап отдельного мастера. Текущий engine bridge остаётся observer;
 календарь/погода/персонажи игры используют legacy store, а автоматический NPC
