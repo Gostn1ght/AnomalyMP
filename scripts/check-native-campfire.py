@@ -80,7 +80,7 @@ source += r'''
 int main(){using namespace netcoop;
  xrServer server;level.Server=&server;xrClientData cl;server.clients.push_back(&cl);
  CActor actor;actor.id=1;CZoneCampfire fire;fire.id=7;
- level.Objects.all={{1,&actor},{7,&fire}};
+ level.Objects.all={{u16(1),&actor},{u16(7),&fire}};
  CEatableItem empty;empty.id=3;empty.uses=0;CEatableItem matches;matches.id=4;
  actor.inv.m_all={&empty,&matches};
  auto request=[&](u8 on){NET_Packet p{{7,0,on}};server_on_campfire(&server,&cl,p);};
