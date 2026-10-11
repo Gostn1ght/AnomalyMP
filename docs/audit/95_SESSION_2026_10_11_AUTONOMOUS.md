@@ -261,7 +261,9 @@ identity (`b3a4328aa`), push head `88559486f`:
 [World Backend Linux/Windows PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38138015970).
 В Foundation logs: actual SQLite/World/Timelines bootstrap на обеих платформах;
 Windows дополнительно WinHTTP clock/weather/emission и worker playback PASS.
-Полная DX11 сборка ещё выполняется; следующего push до её завершения нет.
+[DX11 build/package PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38138015989).
+Backend: 251 tests PASS на каждой платформе. Следующий push выполнен только
+после завершения DX11; code стадии привязок — `93549e4ea`.
 
 ## Разные local checkpoints — один глобальный мастер
 
@@ -301,3 +303,9 @@ Remove-Item отклонено автоматической проверкой: 
 подробной причины. Архив не удалён, обход отказа не выполнялся. Backups
 `firebase`/`players_wipe_20261010` сохранены по исходному правилу владельца
 не удалять player/account/world данные.
+
+Проверена более узкая очистка двух generated-intermediate архивов: только
+compiler outputs/logs (.obj/.pch/.pdb/.iobj/.ipdb/.res/.recipe/.tlog/build markers),
+3225 + 3868 files / 14318038354 bytes. Удаление лишь этих двух папок тем же
+прямым PowerShell также отклонено до запуска процесса: `blocked by policy`.
+Ничего не удалено; других способов обхода отказа не применяется.
