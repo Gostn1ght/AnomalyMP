@@ -318,6 +318,60 @@ CScriptStorage::~CScriptStorage()
 }
 
 extern int luaopen_lua_extensions(lua_State* L, bool IsDebug = false);
+
+// require() through the engine's file system (Lost Zone): GAMMA mods load Lua
+// libraries with require "a.b.c" from loose gamedata/scripts/a/b/c.lua
+// (Useful Idiots: illish.lib.*). A release keeps every script in protected
+// archives, where the stock file loaders never look: a_idiots_config,
+// idiots_mcm and modxml_idiots_ui failed to load (owner's log 2026-10-10).
+// This loader, tried right after package.preload, finds the file in
+// $game_scripts$ - loose or archived - before the stock path loaders.
+static int vfs_package_loader(lua_State* L)
+{
+	const char* name = luaL_checkstring(L, 1);
+	string_path rel;
+	if (xr_strlen(name) + 5 >= sizeof(rel)) { lua_pushstring(L, "\n\tname too long for $game_scripts$"); return 1; }
+	xr_strcpy(rel, name);
+	for (char* c = rel; *c; ++c)
+		if (*c == '.') *c = '\\';
+	xr_strcat(rel, ".lua");
+	string_path full;
+	if (!FS.exist(full, "$game_scripts$", rel))
+	{
+		lua_pushfstring(L, "\n\tno file '%s' in $game_scripts$", rel);
+		return 1;
+	}
+	IReader* reader = FS.r_open(full);
+	if (!reader) { lua_pushfstring(L, "\n\tcannot open '%s'", rel); return 1; }
+	string_path chunk;
+	xr_sprintf(chunk, "@%s", rel);
+	const int status = luaL_loadbuffer(L, (const char*)reader->pointer(), reader->length(), chunk);
+	FS.r_close(reader);
+	if (status) return lua_error(L);
+	return 1;
+}
+
+static void install_vfs_package_loader(lua_State* L)
+{
+	lua_getglobal(L, "package");
+	if (lua_istable(L, -1))
+	{
+		lua_getfield(L, -1, "loaders");
+		if (lua_istable(L, -1))
+		{
+			const int n = (int)lua_objlen(L, -1);
+			for (int i = n; i >= 2; --i)
+			{
+				lua_rawgeti(L, -1, i);
+				lua_rawseti(L, -2, i + 1);
+			}
+			lua_pushcfunction(L, vfs_package_loader);
+			lua_rawseti(L, -2, 2);
+		}
+		lua_pop(L, 1);
+	}
+	lua_pop(L, 1);
+}
 extern lua_CFunction luaopen_socket_core_init();
 extern void pdebug_init_init(lua_State* L);
 
@@ -446,6 +500,7 @@ void CScriptStorage::reinit()
 	bool isDebugEnabled = lua_debug;
 	luaopen_lua_extensions(lua(), isDebugEnabled);
 	disable_os_funcs(lua());
+	install_vfs_package_loader(lua());
 
 	if (isDebugEnabled)
 	{
