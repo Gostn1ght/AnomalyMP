@@ -526,6 +526,10 @@ function on_script_message(channel, data)
 		-- This character's walkie-talkie setting kept by the server.
 		if netcoop_voice_ui then netcoop_voice_ui.receive(data) end
 		return
+	elseif channel == "recipes" then
+		-- Recipes this character learned from books, kept by the server.
+		if netcoop_workshop_view then netcoop_workshop_view.receive_recipes(data) end
+		return
 	elseif channel == "pdanet" then
 		-- The PDA network: contacts, chats, general channel (netcoop_pdanet).
 		if netcoop_pdanet_client then netcoop_pdanet_client.receive(data) end

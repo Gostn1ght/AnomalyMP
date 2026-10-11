@@ -1137,4 +1137,7 @@
   <string id="st_pdanet_task_sent">
     <text>Task sent: %s</text>
   </string>
+  <string id="st_netcoop_workshop_unknown">
+    <text>Open the workshop again</text>
+  </string>
 </string_table>

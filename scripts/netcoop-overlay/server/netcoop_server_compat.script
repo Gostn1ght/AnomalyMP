@@ -1637,6 +1637,14 @@ function item_action(actor_id, kind, item_id, target_id, action, login)
 	elseif kind == 1 and (action == "arty_pack" or action == "arty_unpack" or action == "combine" or action == "package" or string.match(action, "^withdraw %d+$")) then
 		if target and item_id == target_id then return "invalid target" end
 		return netcoop_item_use.container_action(action, item, target) or "unknown item action"
+	elseif (kind == 1 or kind == 2) and string.match(action, "^craft %d+ %d+$") and not target then
+		-- workshop crafting from a toolkit (1) or a vise / furniture workshop nearby (2)
+		return netcoop_workshop.craft(actor_id, kind, item, action)
+	elseif kind == 1 and action == "disassemble" and target then
+		if item_id == target_id then return "invalid target" end
+		return netcoop_workshop.disassemble(item, target)
+	elseif kind == 1 and action == "recipe_read" and not target then
+		return netcoop_workshop.read_recipe(actor_id, item)
 	elseif kind == 1 and target and string.match(action, "^repair %d+$") then
 		local part_id = tonumber(string.match(action, "%d+"))
 		local part = part_id ~= 65535 and level.object_by_id(part_id) or nil

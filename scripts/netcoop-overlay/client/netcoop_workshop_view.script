@@ -1,0 +1,132 @@
+-- The workshop on a netcoop client (server: netcoop_workshop). GAMMA's
+-- windows and checks stay; where GAMMA would create or release items the
+-- client asks the server, which runs the same GAMMA code for this player:
+-- - crafting: "craft <type> <index>" from the workshop the window was opened
+--   with (a toolkit in the inventory, a mechanic's vise, a furniture workshop);
+-- - disassembly: GAMMA picks the tool and asks for confirmation as before,
+--   the server takes the item apart;
+-- - recipes from books: the server learns and keeps them with the character
+--   and sends the list ("recipes" channel), the encyclopedia unlocks them here.
+
+local function tip(id)
+	if actor_menu and actor_menu.set_msg then actor_menu.set_msg(1, game.translate_string(id), 3) end
+end
+local function fx(name)
+	if actor_effects and actor_effects.play_item_fx then pcall(actor_effects.play_item_fx, name) end
+end
+
+-- The workshop the open window belongs to: { kind = 1|2, id }.
+opened_from = nil
+
+----------------------------------------------------------------------
+-- Recipes
+----------------------------------------------------------------------
+function receive_recipes(data)
+	local enc = ui_pda_encyclopedia_tab
+	if not enc then return end
+	for sec in string.gmatch(data or "", "[%w_]+") do
+		if not enc.is_unlocked_note("encyclopedia__notes_" .. sec) then
+			SendScriptCallback("actor_on_interaction", "notes", nil, sec)
+		end
+	end
+end
+
+local function install_recipes()
+	local ir = item_recipe
+	if not ir or ir.__netcoop then return end
+	ir.__netcoop = true
+	ir.func_recipe = function(obj)
+		local sec = obj:section()
+		if not IsItem("recipe", sec) then return end
+		if ui_pda_encyclopedia_tab.is_unlocked_note("encyclopedia__notes_" .. sec) then
+			actor_menu.set_msg(1, game.translate_string("st_recipe_is_known"), 3)
+		else
+			netcoop_item_action(1, obj:id(), 65535, "recipe_read")
+		end
+		if get_hud() then hide_hud_inventory() end
+		if ir.start then ir.start(sec) end
+	end
+end
+
+----------------------------------------------------------------------
+-- Crafting
+----------------------------------------------------------------------
+local function install_craft()
+	local ws = ui_workshop and ui_workshop.UIWorkshopCraft
+	if not ws or ws.__netcoop then return end
+	ws.__netcoop = true
+	-- remember which workshop opened the window
+	local wt = workshop_tool
+	if wt then
+		for _, name in ipairs({ "start_workshop_basic", "start_workshop_advanced", "start_workshop_expert",
+			"start_workshop_medic", "start_workshop_ammo", "start_workshop_artefacts" }) do
+			local base = wt[name]
+			if type(base) == "function" then
+				wt[name] = function(obj, ...)
+					opened_from = obj and obj.id and { kind = 1, id = obj:id() } or opened_from
+					return base(obj, ...)
+				end
+			end
+		end
+	end
+	local fw = ui_furniture_workshop
+	if fw and type(fw.OpenWorkshop) == "function" then
+		local base = fw.OpenWorkshop
+		fw.OpenWorkshop = function(stash_id, ...)
+			if stash_id then opened_from = { kind = 2, id = stash_id } end
+			return base(stash_id, ...)
+		end
+	end
+	ws.Craft = function(self)
+		if not self.craft_allow_r then return end
+		local from = opened_from
+		if not (from and self.last_type and self.selected_index) then tip("st_netcoop_workshop_unknown") return end
+		if not netcoop_item_action(from.kind, from.id, 65535, string.format("craft %d %d", self.last_type, self.selected_index)) then return end
+		if self.btn_craft then self.btn_craft:Enable(false) end
+		-- refresh the window once the server's result has arrived
+		if self.UpdateUi and self.last_cont and self.last_idx and CreateTimeEvent then
+			CreateTimeEvent("netcoop_craft", "update_ui", 0.6, function()
+				pcall(self.UpdateUi, self, self.last_cont, self.last_idx)
+				return true
+			end)
+		end
+	end
+end
+
+-- a mechanic's vise used (bind_awr opens the window from this callback)
+local function on_use(obj, who)
+	if obj and string.match(obj:name() or "", "awr_tiski") then opened_from = { kind = 2, id = obj:id() } end
+end
+
+----------------------------------------------------------------------
+-- Disassembly
+----------------------------------------------------------------------
+local function install_disassembly()
+	local ip = item_parts
+	if not ip or ip.__netcoop then return end
+	ip.__netcoop = true
+	for _, name in ipairs({ "disassembly_item", "disassembly_weapon", "disassembly_outfit" }) do
+		ip[name] = function(obj, obj_d)
+			if not (obj and obj_d) then return end
+			if netcoop_item_action(1, obj:id(), obj_d:id(), "disassemble") then
+				fx(IsWeapon(obj) and "disassemble_metal_fast" or (IsOutfit(obj) or IsHeadgear(obj)) and "disassemble_cloth_fast"
+					or "disassemble_metal_fast")
+			end
+		end
+	end
+end
+
+local function install()
+	if not netcoop_item_action then return end
+	install_recipes()
+	install_craft()
+	install_disassembly()
+	if netcoop_command then netcoop_command("recipes get") end
+end
+
+function on_game_start()
+	if not (netcoop_pure_client and netcoop_pure_client()) then return end
+	-- after every mod's on_game_start patched the workshop
+	RegisterScriptCallback("actor_on_first_update", install)
+	RegisterScriptCallback("physic_object_on_use_callback", on_use)
+end

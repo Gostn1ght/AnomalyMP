@@ -1137,4 +1137,7 @@
   <string id="st_pdanet_task_sent">
     <text>Задание отправлено: %s</text>
   </string>
+  <string id="st_netcoop_workshop_unknown">
+    <text>Откройте верстак заново</text>
+  </string>
 </string_table>

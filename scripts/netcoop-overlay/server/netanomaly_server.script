@@ -128,6 +128,11 @@ function on_client_command(cid, name, entity_id, text, role)
 		if args == "get" and sf and netcoop_send_to_actor then netcoop_send_to_actor(entity_id, "radio", saved) end
 		return ""
 	end
+	-- Recipes this character has learned from books (netcoop_workshop).
+	if cmd == "recipes" then
+		if netcoop_workshop and server_actor(entity_id) then netcoop_workshop.command(entity_id, args) end
+		return ""
+	end
 	-- PDA network: contacts, general channel, chats (netcoop_pdanet).
 	if cmd == "pdanet" then
 		if netcoop_pdanet then netcoop_pdanet.command(entity_id, args) end
