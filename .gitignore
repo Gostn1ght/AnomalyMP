@@ -4,6 +4,8 @@
 !.gitattributes
 
 # exclude binaries and temporary files
+**/__pycache__/
+*.pyc
 _build/
 /src/*.tss
 /**/x64/

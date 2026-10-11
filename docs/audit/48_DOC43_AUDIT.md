@@ -7,7 +7,12 @@
 
 Исторический итог 2026-10-06: ✅ 22, 🔧 37, 🟡 69, ⬜ 60 из 188.
 
-Текущие статусы строк 2026-10-08: ✅ 27, 🔧 33, 🟡 69, ⬜ 59 из 188.
+Текущий учёт строк 2026-10-11 (Codex, док 94): ✅ 27, 🔧 41, 🟡 66, ⬜ 54
+из 188. Все 188 идентификаторов дока 43 присутствуют; 🔧 не означает
+игровую приёмку. L37 изменён 🟡 → 🔧 этой сессией, прочие изменения счётчиков
+учитывают уже существующие изменения Claude.
+
+Исторические статусы строк 2026-10-08: ✅ 27, 🔧 33, 🟡 69, ⬜ 59 из 188.
 G12 закрыт doc76: actual GHAbe30/new private world, native pre-commit and
 failed-checkpoint connection-ID-correlated admission refusals,7controlled
 script-verification failures, ORIGINAL checker restoration, first LZW3
