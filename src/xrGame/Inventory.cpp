@@ -244,7 +244,8 @@ void CInventory::netcoop_remove_from_hands(PIItem item)
 		hud->SetNextState(CHUDState::eHidden);
 		hud->OnStateSwitch(CHUDState::eHidden, hud->GetState());
 	}
-	if (CWeapon* weapon = item->cast_weapon()) weapon->OnZoomOut();
+	if (CWeapon* weapon = item->cast_weapon())
+		if (weapon->IsZoomed()) weapon->OnZoomOut();
 	if (m_iActiveSlot == slot) m_iActiveSlot = NO_ACTIVE_SLOT;
 	if (m_iNextActiveSlot == slot) m_iNextActiveSlot = NO_ACTIVE_SLOT;
 	if (m_iPrevActiveSlot == slot) m_iPrevActiveSlot = NO_ACTIVE_SLOT;

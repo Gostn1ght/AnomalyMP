@@ -30,7 +30,7 @@ struct CHudItem{
  unsigned GetState(){return state;}
  void OnStateSwitch(unsigned s,unsigned){state=s;++hidden;}
 };
-struct CWeapon{unsigned unzoomed=0;void OnZoomOut(){++unzoomed;}};
+struct CWeapon{unsigned unzoomed=0;bool zoomed=true;bool IsZoomed(){return zoomed;}void OnZoomOut(){++unzoomed;}};
 struct Item{
  u16 slot=3;CHudItem hud;CWeapon weapon;bool device=false;
  u16 CurrSlot(){return slot;}
@@ -55,6 +55,8 @@ int main(){
  inv.m_iActiveSlot=3;inv.m_iNextActiveSlot=5;inv.m_iPrevActiveSlot=5;
  inv.netcoop_remove_from_hands(&item);assert(inv.m_iActiveSlot==NO_ACTIVE_SLOT && inv.m_iNextActiveSlot==5 && inv.m_iPrevActiveSlot==5);
  item.device=true;inv.m_iActiveSlot=3;inv.netcoop_remove_from_hands(&item);assert(item.weapon.unzoomed==2);
+ item.device=false;item.weapon.zoomed=false;inv.m_iActiveSlot=5;inv.m_iNextActiveSlot=3;
+ inv.netcoop_remove_from_hands(&item);assert(inv.m_iActiveSlot==5 && inv.m_iNextActiveSlot==NO_ACTIVE_SLOT && item.weapon.unzoomed==2);
  inv.m_iActiveSlot=3;inv.m_iNextActiveSlot=3;inv.m_pOwner=&npc;
  auto count=item.hud.hidden;inv.netcoop_remove_from_hands(&item);assert(item.hud.hidden==count && inv.m_iActiveSlot==3);
  inv.m_pOwner=&actor;netcoop::active=false;inv.netcoop_remove_from_hands(&item);assert(item.hud.hidden==count && inv.m_iActiveSlot==3);
