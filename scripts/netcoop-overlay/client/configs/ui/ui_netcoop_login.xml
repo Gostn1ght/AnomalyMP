@@ -36,6 +36,13 @@
     <text x="8" r="230" g="228" b="214" font="letterica16" vert_align="c" align="l" />
     <texture>ui_inGame2_edit_box_2</texture>
   </input_pass>
+  <cap_pass2 x="282" y="470" width="460" height="21">
+    <text r="221" g="204" b="177" font="letterica16" align="l" vert_align="c" />
+  </cap_pass2>
+  <input_pass2 x="282" y="494" width="460" height="34" max_symb_count="128" password="1">
+    <text x="8" r="230" g="228" b="214" font="letterica16" vert_align="c" align="l" />
+    <texture>ui_inGame2_edit_box_2</texture>
+  </input_pass2>
   <cap_addr x="442" y="294" width="395" height="23">
     <text r="221" g="204" b="177" font="letterica16" align="l" vert_align="c" />
   </cap_addr>

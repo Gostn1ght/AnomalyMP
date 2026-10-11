@@ -115,10 +115,10 @@
     <text>Назад</text>
   </string>
   <string id="st_netcoop_register_title">
-    <text>Регистрация аккаунта</text>
+    <text>Регистрация</text>
   </string>
   <string id="st_netcoop_account_login">
-    <text>Имя аккаунта</text>
+    <text>Позывной (имя аккаунта)</text>
   </string>
   <string id="st_netcoop_account_password">
     <text>Пароль</text>
@@ -127,7 +127,7 @@
     <text>Сервер</text>
   </string>
   <string id="st_netcoop_register_send">
-    <text>Зарегистрироваться</text>
+    <text>Создать аккаунт</text>
   </string>
   <string id="st_netcoop_existing_account">
     <text>Уже есть аккаунт? Войти</text>
@@ -175,7 +175,7 @@
     <text>Сервер не подтвердил вход.</text>
   </string>
   <string id="st_netcoop_connecting">
-    <text>Подождите…</text>
+    <text>Подключение...</text>
   </string>
   <string id="st_netcoop_email">
     <text>Электронная почта</text>
@@ -193,34 +193,34 @@
     <text>Войти</text>
   </string>
   <string id="st_netcoop_verify_title">
-    <text>Подтверждение почты</text>
+    <text>Подтвердите почту</text>
   </string>
   <string id="st_netcoop_verify_help">
-    <text>Откройте ссылку из письма. После подтверждения игра продолжит автоматически. Если адрес неверный, вернитесь к регистрации кнопкой ниже или вкладкой «Регистрация».</text>
+    <text>Откройте ссылку из письма - игра продолжит сама.\nПисьма нет? Проверьте папку "Спам" или отправьте письмо ещё раз.</text>
   </string>
   <string id="st_netcoop_verify_check">
     <text>Я подтвердил почту</text>
   </string>
   <string id="st_netcoop_resend_email">
-    <text>Отправить письмо повторно</text>
+    <text>Отправить письмо ещё раз</text>
   </string>
   <string id="st_netcoop_reset_password">
     <text>Забыли пароль?</text>
   </string>
   <string id="st_netcoop_reset_sent">
-    <text>Если этот адрес зарегистрирован, на него придёт письмо для восстановления пароля.</text>
+    <text>Если почта зарегистрирована, на неё пришло письмо для сброса пароля. Задайте новый пароль по ссылке и войдите.</text>
   </string>
   <string id="st_netcoop_email_invalid">
     <text>Введите действующий адрес электронной почты.</text>
   </string>
   <string id="st_netcoop_email_exists">
-    <text>Эта почта уже зарегистрирована. Выберите «Войти».</text>
+    <text>Эта почта уже зарегистрирована. Введите пароль и нажмите "Войти".</text>
   </string>
   <string id="st_netcoop_cloud_password_invalid">
     <text>Пароль: от 6 до 128 символов.</text>
   </string>
   <string id="st_netcoop_bad_credentials">
-    <text>Не удалось войти. Проверьте почту и пароль.</text>
+    <text>Неверная почта или пароль. Проверьте раскладку и Caps Lock или нажмите "Забыли пароль?".</text>
   </string>
   <string id="st_netcoop_provider_disabled">
     <text>В Firebase нужно включить Authentication &gt; Email/Password.</text>
@@ -439,10 +439,10 @@
     <text>Остаться</text>
   </string>
   <string id="st_netcoop_wrong_email">
-    <text>Назад к регистрации</text>
+    <text>Изменить почту</text>
   </string>
   <string id="st_netcoop_change_email_title">
-    <text>Исправить почту</text>
+    <text>Изменить почту</text>
   </string>
   <string id="st_netcoop_change_email_send">
     <text>Отправить на новый адрес</text>
@@ -451,7 +451,7 @@
     <text>Отмена</text>
   </string>
   <string id="st_netcoop_change_email_help">
-    <text>Укажите правильную почту и пароль, который задали при регистрации. Мы отправим письмо на новый адрес.</text>
+    <text>Введите правильную почту и пароль от аккаунта. На новую почту придёт письмо со ссылкой.</text>
   </string>
   <string id="st_netcoop_email_domain_invalid">
     <text>Домен этой почты не существует или не принимает письма. Исправьте адрес.</text>
@@ -478,10 +478,10 @@
     <text>Вход</text>
   </string>
   <string id="st_netcoop_registration_help">
-    <text>Введите почту, имя аккаунта и пароль. Затем подтвердите почту по ссылке из письма.</text>
+    <text>Почта нужна для подтверждения и восстановления пароля. Позывной: 3-20 символов, латинские буквы, цифры, _ - .</text>
   </string>
   <string id="st_netcoop_login_help">
-    <text>Введите почту и пароль своего аккаунта. Для нового аккаунта откройте вкладку «Регистрация».</text>
+    <text>Введите почту и пароль от аккаунта.</text>
   </string>
   <string id="st_netcoop_loadout_continue">
     <text>Продолжить</text>
@@ -1142,5 +1142,59 @@
   </string>
   <string id="st_netcoop_upgrade_too_many">
     <text>Слишком много улучшений за раз - поставьте часть и повторите</text>
+  </string>
+  <string id="st_netcoop_signed_in_title">
+    <text>Аккаунт Lost Zone</text>
+  </string>
+  <string id="st_netcoop_new_email">
+    <text>Новая почта</text>
+  </string>
+  <string id="st_netcoop_current_password">
+    <text>Пароль от аккаунта</text>
+  </string>
+  <string id="st_netcoop_password_repeat">
+    <text>Повторите пароль</text>
+  </string>
+  <string id="st_netcoop_resend_wait">
+    <text>Отправить ещё раз можно через %d с</text>
+  </string>
+  <string id="st_netcoop_save_email">
+    <text>Отправить письмо на новую почту</text>
+  </string>
+  <string id="st_netcoop_cancel">
+    <text>Отмена</text>
+  </string>
+  <string id="st_netcoop_sign_out">
+    <text>Выйти из аккаунта</text>
+  </string>
+  <string id="st_netcoop_switch_account">
+    <text>Сменить аккаунт</text>
+  </string>
+  <string id="st_netcoop_continue">
+    <text>Продолжить</text>
+  </string>
+  <string id="st_netcoop_verify_sent">
+    <text>Письмо со ссылкой отправлено на %s\nОткройте ссылку из письма - игра продолжит сама.\nПисьма нет? Проверьте папку "Спам" или отправьте ещё раз. Ошиблись в почте - нажмите "Изменить почту".</text>
+  </string>
+  <string id="st_netcoop_resend_done">
+    <text>Письмо отправлено ещё раз. Проверьте почту и папку "Спам".</text>
+  </string>
+  <string id="st_netcoop_change_email_sent">
+    <text>Письмо отправлено на новую почту %s\nОткройте ссылку из письма - игра продолжит сама.</text>
+  </string>
+  <string id="st_netcoop_change_email_same">
+    <text>Это та же почта. Введите другую.</text>
+  </string>
+  <string id="st_netcoop_signed_in_info">
+    <text>Вы вошли как %s\nПочта: %s</text>
+  </string>
+  <string id="st_netcoop_signed_out">
+    <text>Вы вышли из аккаунта.</text>
+  </string>
+  <string id="st_netcoop_passwords_mismatch">
+    <text>Пароли не совпадают.</text>
+  </string>
+  <string id="st_netcoop_wait_request">
+    <text>Подождите окончания запроса.</text>
   </string>
 </string_table>

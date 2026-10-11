@@ -115,10 +115,10 @@
     <text>Back</text>
   </string>
   <string id="st_netcoop_register_title">
-    <text>Create an account</text>
+    <text>Create account</text>
   </string>
   <string id="st_netcoop_account_login">
-    <text>Account username</text>
+    <text>Call sign (account name)</text>
   </string>
   <string id="st_netcoop_account_password">
     <text>Password</text>
@@ -127,7 +127,7 @@
     <text>Server</text>
   </string>
   <string id="st_netcoop_register_send">
-    <text>Register</text>
+    <text>Create account</text>
   </string>
   <string id="st_netcoop_existing_account">
     <text>Already registered? Sign in</text>
@@ -175,7 +175,7 @@
     <text>The server did not confirm sign-in.</text>
   </string>
   <string id="st_netcoop_connecting">
-    <text>Please wait…</text>
+    <text>Connecting...</text>
   </string>
   <string id="st_netcoop_email">
     <text>Email</text>
@@ -193,34 +193,34 @@
     <text>Sign in</text>
   </string>
   <string id="st_netcoop_verify_title">
-    <text>Verify email</text>
+    <text>Confirm your email</text>
   </string>
   <string id="st_netcoop_verify_help">
-    <text>Open the link in your email; the game continues automatically. For an incorrect address, return using the button below or Register.</text>
+    <text>Open the link from the email - the game continues by itself.\nNo email? Check the Spam folder or send it again.</text>
   </string>
   <string id="st_netcoop_verify_check">
     <text>I verified my email</text>
   </string>
   <string id="st_netcoop_resend_email">
-    <text>Send email again</text>
+    <text>Send the email again</text>
   </string>
   <string id="st_netcoop_reset_password">
     <text>Forgot password?</text>
   </string>
   <string id="st_netcoop_reset_sent">
-    <text>If this email is registered, it will receive password reset instructions.</text>
+    <text>If the email is registered, a reset link was sent to it. Set a new password and sign in.</text>
   </string>
   <string id="st_netcoop_email_invalid">
     <text>Enter a valid email address.</text>
   </string>
   <string id="st_netcoop_email_exists">
-    <text>This email is already registered. Choose Sign in.</text>
+    <text>This email is already registered. Enter the password and press "Sign in".</text>
   </string>
   <string id="st_netcoop_cloud_password_invalid">
     <text>Password: 6 to 128 characters.</text>
   </string>
   <string id="st_netcoop_bad_credentials">
-    <text>Sign in failed. Check your email and password.</text>
+    <text>Wrong email or password. Check the keyboard layout and Caps Lock, or press "Forgot password?".</text>
   </string>
   <string id="st_netcoop_provider_disabled">
     <text>Enable Authentication &gt; Email/Password in Firebase.</text>
@@ -439,10 +439,10 @@
     <text>Stay</text>
   </string>
   <string id="st_netcoop_wrong_email">
-    <text>Back to registration</text>
+    <text>Change email</text>
   </string>
   <string id="st_netcoop_change_email_title">
-    <text>Correct email address</text>
+    <text>Change email</text>
   </string>
   <string id="st_netcoop_change_email_send">
     <text>Send to new address</text>
@@ -451,7 +451,7 @@
     <text>Cancel</text>
   </string>
   <string id="st_netcoop_change_email_help">
-    <text>Enter the correct email and the password you chose at registration. We will send a verification link to the new address.</text>
+    <text>Enter the correct email and the account password. A link will be sent to the new address.</text>
   </string>
   <string id="st_netcoop_email_domain_invalid">
     <text>This email domain does not exist or does not accept mail. Correct the address.</text>
@@ -472,16 +472,16 @@
     <text>Could not confirm this account. Sign in again using the email entered at registration.</text>
   </string>
   <string id="st_netcoop_registration_tab">
-    <text>Register</text>
+    <text>Create account</text>
   </string>
   <string id="st_netcoop_login_tab">
     <text>Sign in</text>
   </string>
   <string id="st_netcoop_registration_help">
-    <text>Enter your email, account name and password. Then follow the email verification link.</text>
+    <text>The email confirms the account and restores the password. Call sign: 3-20 characters, Latin letters, digits, _ - .</text>
   </string>
   <string id="st_netcoop_login_help">
-    <text>Enter your account email and password. To create an account, open Register.</text>
+    <text>Enter the account email and password.</text>
   </string>
   <string id="st_netcoop_loadout_continue">
     <text>Continue</text>
@@ -1142,5 +1142,59 @@
   </string>
   <string id="st_netcoop_upgrade_too_many">
     <text>Too many upgrades at once - install some and repeat</text>
+  </string>
+  <string id="st_netcoop_signed_in_title">
+    <text>Lost Zone account</text>
+  </string>
+  <string id="st_netcoop_new_email">
+    <text>New email</text>
+  </string>
+  <string id="st_netcoop_current_password">
+    <text>Account password</text>
+  </string>
+  <string id="st_netcoop_password_repeat">
+    <text>Repeat password</text>
+  </string>
+  <string id="st_netcoop_resend_wait">
+    <text>Send again in %d s</text>
+  </string>
+  <string id="st_netcoop_save_email">
+    <text>Send email to the new address</text>
+  </string>
+  <string id="st_netcoop_cancel">
+    <text>Cancel</text>
+  </string>
+  <string id="st_netcoop_sign_out">
+    <text>Sign out</text>
+  </string>
+  <string id="st_netcoop_switch_account">
+    <text>Switch account</text>
+  </string>
+  <string id="st_netcoop_continue">
+    <text>Continue</text>
+  </string>
+  <string id="st_netcoop_verify_sent">
+    <text>A link was sent to %s\nOpen it - the game continues by itself.\nNo email? Check Spam or send it again. Wrong address - press "Change email".</text>
+  </string>
+  <string id="st_netcoop_resend_done">
+    <text>The email was sent again. Check your inbox and Spam.</text>
+  </string>
+  <string id="st_netcoop_change_email_sent">
+    <text>A link was sent to the new address %s\nOpen it - the game continues by itself.</text>
+  </string>
+  <string id="st_netcoop_change_email_same">
+    <text>This is the same email. Enter another one.</text>
+  </string>
+  <string id="st_netcoop_signed_in_info">
+    <text>Signed in as %s\nEmail: %s</text>
+  </string>
+  <string id="st_netcoop_signed_out">
+    <text>You have signed out.</text>
+  </string>
+  <string id="st_netcoop_passwords_mismatch">
+    <text>The passwords do not match.</text>
+  </string>
+  <string id="st_netcoop_wait_request">
+    <text>Wait for the current request to finish.</text>
   </string>
 </string_table>

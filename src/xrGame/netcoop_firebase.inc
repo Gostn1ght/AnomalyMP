@@ -431,6 +431,17 @@ LPCSTR script_firebase_identity()
 LPCSTR script_firebase_email() { firebase_load(); return s_firebase_session.pending_email.empty() ? s_firebase_session.email.c_str() : s_firebase_session.pending_email.c_str(); }
 LPCSTR script_firebase_login_email() { firebase_load(); return s_firebase_session.email.c_str(); }
 LPCSTR script_firebase_account() { firebase_load(); return s_firebase_session.username.c_str(); }
+// Sign out from the account screen (switch account / sign out buttons):
+// forget the remembered session and its protected file. Not while a request runs.
+bool script_firebase_logout()
+{
+    firebase_load();
+    if (s_firebase_task) return false;
+    if (!s_firebase_session.refresh.empty()) SecureZeroMemory(&s_firebase_session.refresh[0], s_firebase_session.refresh.size());
+    s_firebase_session = FirebaseSession(); s_client_role = role_none;
+    string_path path; FS.update_path(path, "$app_data_root$", "netcoop_firebase.bin");
+    return DeleteFileA(path) || GetLastError() == ERROR_FILE_NOT_FOUND;
+}
 void firebase_frame()
 {
     if (!s_firebase_task || !InterlockedCompareExchange(&s_firebase_task->done, 0, 0)) return;

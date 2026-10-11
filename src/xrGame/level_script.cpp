@@ -76,6 +76,7 @@ LPCSTR script_firebase_email();
 LPCSTR script_firebase_login_email();
 LPCSTR script_firebase_identity();
 LPCSTR script_firebase_account();
+bool script_firebase_logout();
 bool script_save_draft(int slot, LPCSTR name, LPCSTR description, LPCSTR history, LPCSTR faction, int economy, LPCSTR loadout);
 LPCSTR script_draft(int slot, LPCSTR field);
 bool script_profile(LPCSTR description, LPCSTR history);
@@ -2794,6 +2795,7 @@ void CLevel::script_register(lua_State* L)
         def("netcoop_firebase_login_email", &netcoop::script_firebase_login_email),
         def("netcoop_firebase_identity", &netcoop::script_firebase_identity),
 		def("netcoop_firebase_account", &netcoop::script_firebase_account),
+		def("netcoop_firebase_logout", &netcoop::script_firebase_logout),
 		def("netcoop_save_draft", &netcoop::script_save_draft),
 		def("netcoop_draft", &netcoop::script_draft),
 		def("netcoop_character_profile", &netcoop::script_profile),
