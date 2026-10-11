@@ -2184,7 +2184,23 @@ static bool remote_hud_state_allowed(xrServer* server, xrClientData* CL, NET_Pac
 	// Weapons consume five bytes; other HUD items consume one. Reject a
 	// truncated packet before the persistent entity or runtime reads it.
 	const u32 bytes = smart_cast<CSE_ALifeItemWeapon*>(item) ? 5 : 1;
-	return P.r_elapsed() == bytes;
+	if (P.r_elapsed() != bytes) return false;
+	if (bytes == 1) return true;
+	CWeapon* weapon = smart_cast<CWeapon*>(Level().Objects.net_Find(destination));
+	if (!weapon) return false;
+	const u32 pos = P.r_pos;
+	P.r_u8(); // state
+	P.r_u8(); // substate
+	const u8 ammo_type = P.r_u8();
+	const u8 count = P.r_u8();
+	const u8 next_ammo = P.r_u8();
+	P.r_pos = pos;
+	const auto types = weapon->m_ammoTypes.size();
+	// Empty-ammo weapons (knife/binoculars) cannot allocate cartridges;
+	// invalid next-ammo indexes otherwise crash when reload starts.
+	return count <= weapon->GetAmmoMagSize() && (!count || types > 0) &&
+		(types ? ammo_type < types : ammo_type == 0) &&
+		(next_ammo == u8(-1) || next_ammo < types);
 }
 
 bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet& P, u16 type, u16 destination)
