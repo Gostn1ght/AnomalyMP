@@ -46,7 +46,7 @@ struct Item:Object{Object& object(){return *this;}};using PIItem=Item*;
 struct CEatableItem:Item{u8 uses=2;u8 GetRemainingUses(){return uses;}void SetRemainingUses(u8 v){uses=v;}};
 struct CActor:Object{bool alive=true;struct{std::vector<PIItem>m_all;}inv;
  bool g_Alive(){return alive;}auto& inventory(){return inv;}};
-namespace netcoop{void server_campfire_changed(u16,bool);bool client=false;bool pure_client(){return client;}}
+namespace netcoop{void server_campfire_changed(u16,bool);bool pure_client_mode=false;bool pure_client(){return pure_client_mode;}}
 struct CZoneCampfire:Object{
  bool on=false;unsigned applied=0;
  bool is_on(){return on;}void turn_on_script(){on=true;netcoop::server_campfire_changed(id,true);}
@@ -101,7 +101,7 @@ int main(){using namespace netcoop;
  request(1);assert(!fire.on);
  NET_Packet short_request{{7,0}};server_on_campfire(&server,&cl,short_request);assert(!fire.on);
  // Replication before spawn is deferred; malformed list is rejected atomically.
- client=true;NET_Packet pending{{1,0,8,0,1}};client_on_campfire(pending);
+ pure_client_mode=true;NET_Packet pending{{1,0,8,0,1}};client_on_campfire(pending);
  CZoneCampfire later;later.id=8;client_campfire_spawned(&later);assert(later.on && later.applied==1);
  NET_Packet bad{{2,0,7,0,1}};client_on_campfire(bad);assert(!fire.on);
  NET_Packet direct{{1,0,7,0,1}};client_on_campfire(direct);assert(fire.on);
@@ -109,7 +109,7 @@ int main(){using namespace netcoop;
  s_campfire_pending[9]=true;campfires_reset();
  assert(s_campfires.empty() && s_campfire_synced.empty() && s_campfire_pending.empty() && s_campfire_fuel_end.empty() && s_campfire_fuel_next==0);
  CZoneCampfire reused;reused.id=9;client_campfire_spawned(&reused);assert(!reused.on && reused.applied==0);
- client=false;fire.on=false;level.game_time=5;Device.dwTimeGlobal=1;matches.destroyed=false;matches.uses=2;
+ pure_client_mode=false;fire.on=false;level.game_time=5;Device.dwTimeGlobal=1;matches.destroyed=false;matches.uses=2;
  request(1);assert(s_campfire_fuel_end.at(7)==5+campfire_fuel_ms);
  server.sent.clear();server_campfires_update(&server);assert(server.sent.size()==1);
  // GAMMA extinguishes and later relights its own fire without inheriting fuel.
