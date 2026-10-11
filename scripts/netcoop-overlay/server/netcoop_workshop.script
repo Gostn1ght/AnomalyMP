@@ -385,6 +385,8 @@ function disassemble(obj, tool)
 	local ip = item_parts
 	if not (ip and ip.disassembly_item) then return "disassembly is not loaded on the server" end
 	if ip.is_suitable_dtool and not ip.is_suitable_dtool(obj, tool) then return game.translate_string("st_news_dis_items") end
+	-- the item's real parts (cluster store) before GAMMA reads them
+	if netcoop_weapon_parts then netcoop_weapon_parts.ensure(obj) end
 	if IsWeapon(obj) then ip.disassembly_weapon(obj, tool)
 	elseif IsOutfit(obj) or IsHeadgear(obj) then ip.disassembly_outfit(obj, tool)
 	else ip.disassembly_item(obj, tool) end

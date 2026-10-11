@@ -1643,6 +1643,10 @@ function item_action(actor_id, kind, item_id, target_id, action, login)
 	elseif kind == 2 and string.match(action, "^m%a+ %d+") and not target then
 		-- a mechanic NPC nearby: repair, upgrades (GAMMA's "repair" window)
 		return netcoop_workshop.mechanic(actor_id, item, action)
+	elseif kind == 1 and string.match(action, "^wpart_") then
+		-- weapon/outfit parts: maintenance, field strip, a part dragged onto the item
+		if target and item_id == target_id then return "invalid target" end
+		return netcoop_weapon_parts.action(actor_id, item, target, action)
 	elseif kind == 1 and action == "disassemble" and target then
 		if item_id == target_id then return "invalid target" end
 		return netcoop_workshop.disassemble(item, target)

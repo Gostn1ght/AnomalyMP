@@ -738,6 +738,20 @@ LPCSTR script_item_info(u16 id)
 	return text;
 }
 
+// Server: the item's persistent instance id (survives saves, stashes,
+// transfers and other servers of the cluster) as text, "" if none yet. Lua
+// keys per-instance data by it (weapon parts, netcoop_weapon_parts).
+LPCSTR script_item_uid(u16 id)
+{
+	static string32 text;
+	text[0] = 0;
+	if (!g_pGameLevel || pure_client()) return text;
+	auto found = s_item_records.find(id);
+	if (found == s_item_records.end() || !found->second.sent.uid) return text;
+	xr_sprintf(text, "%llu", (unsigned long long)found->second.sent.uid);
+	return text;
+}
+
 // ---- server-executed item actions (stage 3) -----------------------------------
 // GAMMA's item scripts (battery swap, unpacking, kits) create and release
 // items through alife(), which does not exist on a client: there the device

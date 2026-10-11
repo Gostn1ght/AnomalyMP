@@ -1,0 +1,165 @@
+----------------------------------------------------------------------
+-- Weapon/outfit parts with one authority (doc 87 §10, README stage 2):
+-- GAMMA keeps each item's parts (prt_w_*: condition 0-99, -1 = missing) in
+-- se storage. Only the server has that storage for real; a pure client
+-- invented its own on first use, its field strip/maintenance menus were
+-- hidden, and the shooter's wear never reached anyone.
+--
+-- Now the server holds the parts: in se storage (for GAMMA's own code on the
+-- server) and in the cluster store by the item's persistent uid (bucket
+-- "wparts"), so they survive relogs, restarts and other servers.
+-- - "wparts get <id>": the client gets its item's parts (channel "wparts").
+-- - "wparts wear <id> <sec>:<n>,...": the shooter's wear (GAMMA computes it
+--   while firing, arti_jamming); only lower values are taken, never higher,
+--   never a missing part.
+-- - item actions (netcoop_server_compat.item_action): maintenance with a kit
+--   ("wpart_maint <part> <0|1>"), field strip ("wpart_strip <part|all>"),
+--   installing a part dragged onto the item ("wpart_install") - GAMMA's own
+--   functions on the server with these parts.
+----------------------------------------------------------------------
+
+local MAX_LINE = 3500
+
+local function serialize(t)
+	local out = {}
+	for k, v in pairs(t or {}) do
+		if type(k) == "string" and type(v) == "number" and string.match(k, "^[%w_]+$") then
+			out[#out + 1] = k .. ":" .. tostring(math.floor(v))
+		end
+	end
+	table.sort(out)
+	return table.concat(out, ",")
+end
+
+local function parse(text)
+	local t, n = {}, 0
+	for k, v in string.gmatch(text or "", "([%w_]+):(%-?%d+)") do
+		t[k] = tonumber(v)
+		n = n + 1
+		if n > 64 then break end
+	end
+	return t
+end
+
+local function uid_of(obj)
+	local uid = netcoop_item_uid and netcoop_item_uid(obj:id()) or ""
+	return uid ~= "" and uid or nil
+end
+
+-- The item's parts, the same table GAMMA's code on this server uses.
+function ensure(obj)
+	if not (obj and item_parts and item_parts.get_parts_con) then return nil end
+	local id = obj:id()
+	local here = se_load_var(id, nil, "parts")
+	local uid = uid_of(obj)
+	if uid and netcoop_store_read then
+		local stored = netcoop_store_read("wparts", uid)
+		if stored ~= "" then
+			local t = parse(stored)
+			if next(t) then
+				se_save_var(id, nil, "parts", t)
+				return t
+			end
+		end
+	end
+	if not here then here = item_parts.get_parts_con(obj, nil, true) end
+	if type(here) == "table" then commit(obj, here) end
+	return type(here) == "table" and here or nil
+end
+
+function commit(obj, parts)
+	item_parts.set_parts_con(obj:id(), parts)
+	local uid = uid_of(obj)
+	if uid and netcoop_store_swap then
+		local old = netcoop_store_read("wparts", uid)
+		local text = serialize(parts)
+		for _ = 1, 3 do
+			if old == text or netcoop_store_swap("wparts", uid, old, text) then break end
+			old = netcoop_store_read("wparts", uid)
+		end
+	end
+end
+
+local function carried(actor_id, id)
+	local obj = id and level.object_by_id(id)
+	local p = obj and obj:parent()
+	return p and p:id() == actor_id and obj or nil
+end
+
+local function send(actor_id, obj, parts)
+	if netcoop_send_to_actor then netcoop_send_to_actor(actor_id, "wparts", obj:id() .. "|" .. serialize(parts or ensure(obj) or {})) end
+end
+
+-- command "wparts get <id>" / "wparts wear <id> <list>"
+function command(actor_id, args)
+	local verb, id, rest = string.match(args or "", "^(%a+) (%d+)%s*(.*)$")
+	local obj = carried(actor_id, tonumber(id))
+	if not obj then return end
+	if verb == "get" then
+		local parts = ensure(obj)
+		if parts then send(actor_id, obj, parts) end
+	elseif verb == "wear" and #rest <= MAX_LINE then
+		local parts = ensure(obj)
+		if not parts then return end
+		local changed = false
+		for k, v in pairs(parse(rest)) do
+			local now = parts[k]
+			if type(now) == "number" and now >= 0 and v >= 0 and v < now then
+				parts[k] = v
+				changed = true
+			end
+		end
+		if changed then commit(obj, parts) end
+	end
+end
+
+-- item actions: the weapon/outfit is "item" (in the inventory), the kit or
+-- part is "target"
+function action(actor_id, item, target, action)
+	local parts = ensure(item)
+	if not parts then return "this item has no parts" end
+	local repairs, aj = zzzz_arti_jamming_repairs, arti_jamming
+	local maint_part, clean = string.match(action, "^wpart_maint ([%w_]+) ([01])$")
+	if maint_part then
+		if not (target and repairs and repairs.get_suitable_kit) then return "no kit" end
+		local v = parts[maint_part]
+		if type(v) ~= "number" or v < 0 then return "no such part" end
+		local want_clean = clean == "1"
+		local kit = repairs.get_suitable_kit(item, want_clean)
+		if want_clean then
+			if not (v >= 60 and v < 98) then return game.translate_string("st_upgr_cant_do") end
+			-- without a cleaning kit GAMMA offers the repair kit for a worn part
+			if not (kit and kit:section() == target:section()) then
+				local repair = repairs.get_suitable_kit(item, false)
+				if not (repair and repair:section() == target:section()) then return "no kit" end
+			end
+		else
+			if v >= 60 then return game.translate_string("st_upgr_cant_do") end
+			if not (kit and kit:section() == target:section()) then return "no kit" end
+		end
+		parts[maint_part] = 99
+		utils_item.discharge(target)
+		item:set_condition(math.max(0, math.min(0.999, item:condition() + 0.1)))
+		commit(item, parts)
+		send(actor_id, item, parts)
+		return ""
+	end
+	local strip = string.match(action, "^wpart_strip ([%w_]+)$")
+	if strip then
+		if not (repairs and repairs.act_fieldstrip) then return "field strip is not loaded on the server" end
+		repairs.act_fieldstrip(item:id(), strip ~= "all" and strip or nil)
+		local now = se_load_var(item:id(), nil, "parts") or parts
+		commit(item, now)
+		send(actor_id, item, now)
+		return ""
+	end
+	if action == "wpart_install" then
+		if not (target and aj and aj.try_replace_part and aj.is_part and aj.is_part(target:section())) then return "this is not a part" end
+		if type(parts[target:section()]) ~= "number" then return game.translate_string("st_news_parts_incompatible") end
+		aj.try_replace_part(item, parts, target, item_parts.get_suitable_dtool and item_parts.get_suitable_dtool(item))
+		commit(item, se_load_var(item:id(), nil, "parts") or parts)
+		send(actor_id, item, se_load_var(item:id(), nil, "parts") or parts)
+		return ""
+	end
+	return "unknown parts action"
+end

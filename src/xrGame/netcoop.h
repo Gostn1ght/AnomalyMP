@@ -318,6 +318,7 @@ void client_on_item_upgrade(NET_Packet& P);
 void client_items_update(bool flush = false);
 void client_item_forget(u16 id);
 LPCSTR script_item_info(u16 id);
+LPCSTR script_item_uid(u16 id);
 // Atomic transfer of one item between the player and a corpse or a box
 // (netcoop_transfer.inc, stage 2). Client: false outside a pure client.
 bool client_transfer(u16 from, u16 to, u16 item);

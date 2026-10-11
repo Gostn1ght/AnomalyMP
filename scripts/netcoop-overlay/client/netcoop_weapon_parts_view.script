@@ -1,0 +1,135 @@
+-- Weapon/outfit parts on a netcoop client (server: netcoop_weapon_parts).
+-- The server's parts table replaces whatever this client invented: it is
+-- asked for each item with parts the player gets, and the jamming code
+-- (arti_jamming) reloads it. The shooter's wear GAMMA computes here goes to
+-- the server (only lower values count there). Maintenance, field strip and
+-- a part dragged onto a weapon are done by the server; GAMMA's menus,
+-- sounds and checks stay.
+
+local ASK_EVERY, WEAR_EVERY = 10000, 3000
+synced = {}          -- item id -> true once the server's table arrived
+local asked, reported, pending = {}, {}, {}
+
+local function serialize(t)
+	local out = {}
+	for k, v in pairs(t or {}) do
+		if type(k) == "string" and type(v) == "number" and string.match(k, "^[%w_]+$") then
+			out[#out + 1] = k .. ":" .. tostring(math.floor(v))
+		end
+	end
+	table.sort(out)
+	return table.concat(out, ",")
+end
+
+local function has_parts(obj)
+	local aj = arti_jamming
+	if aj and aj.has_parts then
+		local ok, r = pcall(aj.has_parts, obj)
+		if ok then return r end
+	end
+	return false
+end
+
+function ask(obj)
+	if not (obj and netcoop_command) then return end
+	local id = obj:id()
+	local now = time_global()
+	if asked[id] and now - asked[id] < ASK_EVERY then return end
+	asked[id] = now
+	netcoop_command("wparts get " .. id)
+end
+
+-- channel "wparts": "<id>|<sec>:<n>,..."
+function receive(data)
+	local id, list = string.match(data or "", "^(%d+)|(.*)$")
+	id = tonumber(id)
+	if not id then return end
+	local t = {}
+	for k, v in string.gmatch(list, "([%w_]+):(%-?%d+)") do t[k] = tonumber(v) end
+	if not next(t) then return end
+	se_save_var(id, nil, "parts", t)
+	synced[id] = true
+	local aj = arti_jamming
+	if aj and aj.current_id and aj.current_id() == id and aj.reset_cgd then aj.reset_cgd() end
+	if GetActorMenu and GetActorMenu() then pcall(function() GetActorMenu():UpdateItems() end) end
+end
+
+local function report(id)
+	if not synced[id] then return end -- never report an invented table
+	local t = se_load_var(id, nil, "parts")
+	if type(t) ~= "table" then return end
+	netcoop_command(string.format("wparts wear %d %s", id, serialize(t)))
+end
+
+local function install()
+	if not netcoop_item_action then return end
+	local ip, repairs, aj = item_parts, zzzz_arti_jamming_repairs, arti_jamming
+	-- wear: every change GAMMA writes goes to the server, at most every 3 s per item
+	if ip and ip.set_parts_con and not ip.__netcoop_parts then
+		ip.__netcoop_parts = true
+		local base = ip.set_parts_con
+		ip.set_parts_con = function(id, data)
+			base(id, data)
+			if id and synced[id] then pending[id] = true end
+		end
+	end
+	if repairs and not repairs.__netcoop_parts then
+		repairs.__netcoop_parts = true
+		-- maintenance: replace or clean one part with a kit
+		repairs.replace_part = function(id, part, kit_name, clean)
+			local kit = db.actor and db.actor:object(kit_name)
+			if not (kit and part) then return end
+			if netcoop_item_action(1, id, kit:id(), string.format("wpart_maint %s %d", part, clean and 1 or 0)) then
+				if utils_obj and utils_obj.play_sound then
+					pcall(utils_obj.play_sound, clean and "interface\\items_use\\clean_1" or "interface\\items_use\\parts_metal_1")
+				end
+			end
+		end
+		-- field strip: one part or all
+		repairs.act_fieldstrip = function(id, part_name)
+			netcoop_item_action(1, id, 65535, "wpart_strip " .. (part_name or "all"))
+		end
+	end
+	-- a part dragged onto the weapon
+	if aj and aj.try_replace_part and not aj.__netcoop_parts then
+		aj.__netcoop_parts = true
+		aj.try_replace_part = function(wpn, _, part)
+			if wpn and part then netcoop_item_action(1, wpn:id(), part:id(), "wpart_install") end
+		end
+	end
+	-- what the player already carries
+	if db.actor then
+		db.actor:iterate_inventory(function(_, obj) if has_parts(obj) then ask(obj) end end, db.actor)
+	end
+end
+
+local function on_take(obj) if obj and has_parts(obj) then ask(obj) end end
+
+local next_flush, last_active = 0, nil
+local function update()
+	local now = time_global()
+	-- the weapon in hands: make sure its parts came from the server
+	local a = db.actor
+	local w = a and a:active_item()
+	if w and w:id() ~= last_active then
+		last_active = w:id()
+		if not synced[w:id()] and has_parts(w) then ask(w) end
+	end
+	if now < next_flush then return end
+	next_flush = now + 500
+	for id in pairs(pending) do
+		if not reported[id] or now - reported[id] >= WEAR_EVERY then
+			pending[id] = nil
+			reported[id] = now
+			report(id)
+		end
+	end
+end
+
+function on_game_start()
+	if not (netcoop_pure_client and netcoop_pure_client()) then return end
+	RegisterScriptCallback("actor_on_first_update", install)
+	RegisterScriptCallback("actor_on_item_take", on_take)
+	RegisterScriptCallback("actor_item_to_slot", on_take)
+	RegisterScriptCallback("actor_on_update", update)
+end
