@@ -132,6 +132,7 @@ local at = e.scheduled_start(100, 24)
 factor=6; now=(at*3600-100000)*1000/6 + 1000
 e.update_world(); assert(factor==10, "starts at the scheduled hour")
 now=now+223000; e.update_world(); assert(factor==6)
+assert(store.netcoop_emissions==1 and type(store.netcoop_last_emission_hour)=="number", "persist emission context for initial loot")
 now=now+1000; e.update_world(); assert(factor==6, "once per slot")
 ''')
 lua.execute('''

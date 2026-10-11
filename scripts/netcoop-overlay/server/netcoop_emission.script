@@ -159,6 +159,7 @@ function finish()
     SendScriptCallback("actor_on_interaction", "anomalies", nil, "emissions")
     local count_state = alife_storage_manager.get_state()
     count_state.netcoop_emissions = (count_state.netcoop_emissions or 0) + 1
+    count_state.netcoop_last_emission_hour = game_hours()
     SendScriptCallback("actor_on_interaction", "anomalies", nil, "emission_end")
     mark_online_zones() -- these were refilled by emission_end just now
     netcoop_broadcast("emission", payload())

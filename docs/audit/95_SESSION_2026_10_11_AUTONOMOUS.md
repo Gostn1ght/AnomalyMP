@@ -29,3 +29,37 @@ observer/freeplay path, count/type bounds, short packet и cursor consumption.
 после projectile/voice/PDA/hands fixtures. Ошибка любой отдельной проверки
 теперь останавливает job, даже если следующая команда успешна. Предыдущий
 Foundation подтверждал эти fixtures отдельно; результаты не аннулированы.
+
+Коммит `ec9f1cf1d`: [DX11 build/package PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38128861739),
+[Foundation GCC/MSVC PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38128861722).
+Движок локально не собирался; игровая приёмка остаётся открытой.
+
+## L22 — политика первоначального лута NPC
+
+Новый `netcoop_loot_policy` хранит seed в мировом script state и snapshot
+контекста/шансов в se vars конкретного NPC. Контекст включает GAMMA `loots`,
+время последнего завершённого выброса, последнее локальное сражение и их
+периоды влияния. После появления NPC его контекст не обновляется. Генераторы
+GAMMA продолжают создавать сами предметы; шансы допуска каждого этапа
+настраиваются в `configs/netcoop/loot_policy.ltx`. Economy не умножается повторно
+на community/private lists, где её уже применяет GAMMA.
+
+Региональный факт боя сохраняется отдельно от 512-entry журнала: массовые
+death events не снимают его влияние. Завершение выброса сохраняет game hour.
+Изменение действует только на первоначальные наборы обычных NPC; story NPC,
+`dont_spawn_loot`, существующие предметы и rare stash transfers сохраняют
+свои пути. Материалы после выброса/боя становятся реже в новых наборах, а не
+исчезают у уже живущих NPC.
+
+Генерация использует локальный deterministic RNG с Lua 5.1 integer bounds.
+Глобальная `math.random` восстанавливается и после ошибки. Переходы offline/
+online, рестарт или ошибка не генерируют инвентарь заново. Прежние condition
+rolls теперь используют persistent world seed; раньше seed зависел от времени
+старта процесса. Полный ItemLedger и глобальная экономика кластера не закрыты.
+
+Actual Lua fixture: economy/emission/local battle, 600 событий с вытеснением
+журнала, разные карты/истёкшие и будущие события, модульный рестарт при новом
+wall clock, неизменный snapshot, generator failure, story/dont_spawn_loot,
+восстановление глобального RNG и реальный `build_npc_inventory`.
+Items/emission/world-events/Lua scope PASS. L22: ⬜ → 🔧; текущий учёт
+188 требований: ✅ 27, 🔧 42, 🟡 66, ⬜ 53.

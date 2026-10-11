@@ -469,6 +469,11 @@ Simulation Catch-Up, звуковые события/следы. Контрак�
   оставшиеся вещи** на землю с теми же IDs; quest bodies имеют special policy.
 - [ ] L22. Loot generation policy зависит от world events/economy/выброса,
   а не ухода игрока или рестарта; не подменяет rare stash visits.
+  Код/fixtures (док 95): первоначальный инвентарь обычного NPC получает
+  сохранённый контекст GAMMA economy, недавнего выброса и локального боя;
+  configurable chances генераторов, persistent world seed и per-NPC snapshot.
+  Повторный spawn/restart не перебрасывает контекст или готовый инвентарь.
+  Story loot и реальные rare stash transfers остаются отдельными путями.
 - [ ] L23. Mutant territory/food/aggression/migration/species relations
   сохраняют индивидуальный состав стаи и постоянные смерти.
 - [ ] L24. Persistent dens/nests, food/threat/capacity; автопополнение

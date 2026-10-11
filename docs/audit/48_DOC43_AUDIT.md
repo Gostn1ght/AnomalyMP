@@ -7,9 +7,9 @@
 
 Исторический итог 2026-10-06: ✅ 22, 🔧 37, 🟡 69, ⬜ 60 из 188.
 
-Текущий учёт строк 2026-10-11 (Codex, док 94): ✅ 27, 🔧 41, 🟡 66, ⬜ 54
+Текущий учёт строк 2026-10-11 (Codex, док 95): ✅ 27, 🔧 42, 🟡 66, ⬜ 53
 из 188. Все 188 идентификаторов дока 43 присутствуют; 🔧 не означает
-игровую приёмку. L37 изменён 🟡 → 🔧 этой сессией, прочие изменения счётчиков
+игровую приёмку. L37 изменён 🟡 → 🔧 в доке 94, L22 ⬜ → 🔧 в доке 95; прочие изменения счётчиков
 учитывают уже существующие изменения Claude.
 
 Итог CI этой сессии (док 94): коммит `000ecb4f8`,
@@ -288,7 +288,7 @@ Distance/overload tiers для NPC/мутантов/игроков, описан
 | L19 Corpse: entity ID, death time/cause, inventory и quest association | ✅ | рестарт реального сервера: труп с тем же лутом и артефактом NPC, ящик, артефакт на земле - id в id (run-world-persistence-test.ps1, 2026-10-06) |
 | L20 Ragdoll→static→abstract corpse без постоянной удалённой physics | ⬜ |  |
 | L21 Частично: native online/offline detach и backend cleanup есть; | 🟡 | backend corpse batches; TTL отключены; живые NPC сохраняются в мире (save теперь работает) |
-| L22 Loot generation policy зависит от world events/economy/выброса, | ⬜ |  |
+| L22 Loot generation policy зависит от world events/economy/выброса, | 🔧 | configurable initial NPC generation gates, saved economy/emission/local battle context and world seed; no presence/restart reroll, story and stash paths preserved; actual Lua fixture (doc95), no game acceptance |
 | L23 Mutant territory/food/aggression/migration/species relations | ⬜ |  |
 | L24 Persistent dens/nests, food/threat/capacity; автопополнение | ⬜ |  |
 | L25 Лёгкая экология меняет опасность маршрутов и события без Full AI | ⬜ |  |

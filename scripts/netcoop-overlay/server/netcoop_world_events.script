@@ -8,8 +8,9 @@
 --           after), the place, the game time and the outcome;
 --   death:  an online NPC or mutant died - who, where, when, killed by whom
 --           (player login when a player killed it).
--- Nothing here changes the battle, the death or the loot; a failure to
--- record never stops them.
+-- The loot policy observes battles for future NPC birth inventories; this
+-- journal never changes an existing inventory, fight or death. A failed
+-- observer/record never stops the battle or death.
 
 local MAX = 512
 
@@ -37,6 +38,10 @@ function record(event)
 	event.seq = j.seq
 	event.h = game_hours()
 	j.list[(j.seq - 1) % MAX + 1] = event
+	if netcoop_loot_policy then
+		local ok, err = pcall(netcoop_loot_policy.world_event, event)
+		if not ok then printf("[Lost Zone] loot event context error: %s", tostring(err)) end
+	end
 	return event
 end
 

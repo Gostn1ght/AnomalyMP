@@ -1,0 +1,34 @@
+; Initial non-story NPC loot only. No corpse/stash refill or population spawn.
+; Chances gate GAMMA generators, not their internal item counts.
+[policy]
+emission_hours = 2
+battle_hours = 6
+
+[base]
+ammo = 1
+powders = 1
+bullets = 1
+casings = 1
+sin_artefacts = 1
+community = 1
+private = 1
+
+; Newly arriving NPCs carry fewer salvage materials just after a surge.
+[after_emission]
+ammo = 1
+powders = 0.75
+bullets = 0.75
+casings = 0.75
+sin_artefacts = 0.5
+community = 1
+private = 1
+
+; A recent local battle reduces remaining ammunition/materials/valuables.
+[battle]
+ammo = 0.75
+powders = 0.75
+bullets = 0.75
+casings = 0.75
+sin_artefacts = 0.5
+community = 0.9
+private = 0.9

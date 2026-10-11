@@ -754,6 +754,9 @@ end
 -- Everything draws from a seed made of the world seed and the NPC id.
 -- NPCs with a story id (traders, quest givers) keep GAMMA's death loot.
 local WORLD_SEED = (os.time() % 100000) * 7919
+local function world_loot_seed()
+	return netcoop_loot_policy and netcoop_loot_policy.world_seed() or WORLD_SEED
+end
 local CONDITION_DEFAULT = { -- percent, used when MCM has no value
 	novice = { 25, 65 }, trainee = { 30, 70 }, experienced = { 40, 80 }, professional = { 45, 85 },
 	veteran = { 55, 90 }, expert = { 60, 92 }, master = { 65, 95 }, legend = { 70, 95 }, zombied = { 5, 30 },
@@ -832,20 +835,27 @@ local function build_npc_inventory(npc)
 	if get_object_story_id and get_object_story_id(id) then return end
 	local before = count_items(npc)
 	local dm = death_manager
-	math.randomseed(WORLD_SEED + id * 7)
-	local ok, err = with_player_bound(function()
+	local context = netcoop_loot_policy and netcoop_loot_policy.context_for(npc)
+	local function allowed(stage) return not context or netcoop_loot_policy.allows(context, stage) end
+	local function generate()
 		if not no_loot_spawn(npc) then
 			local comm, rank = character_community(npc), ranks.get_obj_rank_name(npc)
-			dm.try_spawn_ammo(npc)
-			dm.try_spawn_powders(npc)
-			dm.try_spawn_bullets(npc)
-			dm.try_spawn_casings(npc)
-			dm.try_spawn_sin_artefacts(npc)
-			if not (dm.get_items_by_npc and dm.get_items_by_npc(id)) then dm.create_item_list(npc, comm, rank, false) end
-			dm.create_item_list(npc, comm, rank, true)
+			if allowed("ammo") then dm.try_spawn_ammo(npc) end
+			if allowed("powders") then dm.try_spawn_powders(npc) end
+			if allowed("bullets") then dm.try_spawn_bullets(npc) end
+			if allowed("casings") then dm.try_spawn_casings(npc) end
+			if allowed("sin_artefacts") then dm.try_spawn_sin_artefacts(npc) end
+			if allowed("community") and not (dm.get_items_by_npc and dm.get_items_by_npc(id)) then dm.create_item_list(npc, comm, rank, false) end
+			if allowed("private") then dm.create_item_list(npc, comm, rank, true) end
 		end
+	end
+	if not context then math.randomseed(world_loot_seed() + id * 7) end
+	local ok, err = with_player_bound(function()
+		if not context then return generate() end
+		local good, result = netcoop_loot_policy.with_random(context, generate)
+		if not good then error(result) end
 	end)
-	math.randomseed(os.time() + id)
+	if not context then math.randomseed(os.time() + id) end
 	se_save_var(id, name, "netcoop_inventory", true)
 	printf("[Lost Zone][loot] npc %s inventory %s: %s -> %s items", name, ok and "made" or ("failed: " .. tostring(err)), before,
 		count_items(npc))
@@ -871,7 +881,7 @@ local function process_pending_inventory()
 			else
 				pending_inventory[id] = nil
 				if not se_load_var(id, npc:name(), "netcoop_item_cond") then
-					local c = condition_npc_items(npc, seeded_random(WORLD_SEED + id * 131))
+					local c = condition_npc_items(npc, seeded_random(world_loot_seed() + id * 131))
 					se_save_var(id, npc:name(), "netcoop_item_cond", true)
 					printf("[Lost Zone][loot] npc %s conditioned: weapons %s, armour %s, devices %s", npc:name(), c.weapon, c.armour, c.device)
 				end
@@ -931,11 +941,11 @@ local function on_npc_death_loot(victim)
 	if lived then
 		for _, name in ipairs(LOOT_GENERATORS) do saved[name] = dm[name]; dm[name] = function() end end
 	end
-	math.randomseed(WORLD_SEED + victim:id() * 7)
+	math.randomseed(world_loot_seed() + victim:id() * 7)
 	local ok, err = with_player_bound(dm.create_release_item, victim)
 	math.randomseed(os.time() + victim:id())
 	for name, fn in pairs(saved) do dm[name] = fn end
-	local kept, removed = cap_corpse_ammo(victim, seeded_random(WORLD_SEED + victim:id() * 17))
+	local kept, removed = cap_corpse_ammo(victim, seeded_random(world_loot_seed() + victim:id() * 17))
 	printf("[Lost Zone][loot] npc %s died: %s loot %s, %s -> %s items, ammo %s left (%s removed)", victim:name(),
 		lived and "lived" or "generated", ok and "ok" or ("failed: " .. tostring(err)), before, count_items(victim), kept, removed)
 end
