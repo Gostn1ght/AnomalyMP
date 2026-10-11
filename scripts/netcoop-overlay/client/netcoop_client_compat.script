@@ -902,6 +902,23 @@ function disable_sleep_need()
 	s.toggle_feature = function() pcall(toggle, false) end
 end
 
+-- FDDA's backpack animation (liz_fdda_redone_backpack) remembers the
+-- backpack in slot 13 at actor_on_first_update and then follows slot
+-- callbacks. Online the inventory comes from the server after that first
+-- update, already in its slots, so the mod thought there was no backpack.
+-- Before each opening it now reads the slot itself (its own setter).
+local function install_backpack_animation()
+	local m = liz_fdda_redone_backpack
+	if not (m and m.try_open_backpack and m.on_item_to_slot) or m.__netcoop then return end
+	m.__netcoop = true
+	local base = m.try_open_backpack
+	m.try_open_backpack = function(...)
+		local bp = db.actor and db.actor:item_in_slot(13)
+		if bp then pcall(m.on_item_to_slot, bp) end
+		return base(...)
+	end
+end
+
 -- Missing authoritative weapon-part metadata must not abort the entire
 -- inventory/corpse context menu. Do not invent parts or reroll them here.
 -- Preserve GAMMA's predicates when a real parts table is available.
@@ -977,6 +994,7 @@ local function install_server_item_actions()
 	install_server_repair()
 	install_server_furniture()
 	install_weapon_menu_guards()
+	install_backpack_animation()
 	disable_sleep_need()
 	-- Corpse loot is made by the server at death (netcoop_server_compat).
 	-- Opening a corpse here ran GAMMA's loot maker without alife(): nothing
