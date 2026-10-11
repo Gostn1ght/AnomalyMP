@@ -1,5 +1,6 @@
 import contextlib
 import io
+import json
 from pathlib import Path
 import signal
 import sys
@@ -28,7 +29,7 @@ class ConsoleTest(unittest.TestCase):
         self.folder = tempfile.TemporaryDirectory()
         self.store = Store(Path(self.folder.name) / "world.sqlite")
         self.ticks = 0
-        self.world = World(self.store, world_id=42, seed=17, initial_ms=1000,
+        self.world = World(self.store, world_id=42, seed=17, initial_ms=1000, scale=1,
                            monotonic=lambda: self.ticks, wall=lambda: 1_000_000_000)
         dispatcher = Dispatcher(self.world, b"k" * 32)
         credentials = Credentials({"master": {"role": "admin", "token": "a" * 48}})
@@ -82,6 +83,46 @@ class ConsoleTest(unittest.TestCase):
         self.assertIn("записей=1024", output)
         self.assertIn("Есть ещё записи", output)
         self.assertNotIn("1100", output)
+
+    def test_weather_and_emission_commands_are_durable_and_read_analytic_phases(self):
+        self.assertIn("ещё не задано", self.console.execute("weather"))
+        self.assertIn("сохранено", self.console.execute("weather clear rain 2"))
+        self.assertIn("сохранено", self.console.execute("emission 1 2 3 .8"))
+        weather = json.loads(self.store.db.execute("SELECT state FROM world_state WHERE name='weather'").fetchone()[0])
+        emission = json.loads(self.store.db.execute("SELECT state FROM world_state WHERE name='emission'").fetchone()[0])
+        self.assertEqual(weather["times"], {"TRANSITION": 1000, "SETTLED": 3000})
+        self.assertEqual(emission["times"], {"WARNING": 1000, "ACTIVE": 2000, "PEAK": 4000, "ENDED": 7000})
+        self.assertTrue(0 <= weather["parameters"]["seed"] < 2**64)
+        # Read uses current calendar even when scheduler hasn't persisted phase.
+        self.ticks = 500_000_000
+        before = len(self.store.events())
+        self.assertIn("TRANSITION; clear -> rain; blend=0.250", self.console.execute("weather"))
+        self.assertIn("WARNING; intensity=0.8", self.console.execute("emission"))
+        self.assertEqual(before, len(self.store.events()))
+        self.ticks = 4_000_000_000
+        # Replacement catches up old phases inside the mutation transaction.
+        self.assertIn("version=4", self.console.execute("weather rain fog 1"))
+        self.server.ready.clear()
+        self.assertIn("Восстановление", self.console.execute("weather"))
+        with self.assertRaises(Unavailable):
+            self.console.execute("emission 1 2 3 1")
+
+    def test_timeline_command_validation_and_private_parameter_isolation(self):
+        for command in ("weather clear rain", "weather clear rain nan", "weather clear rain .0001",
+                        "weather clear rain 86401", "weather bad/cycle rain 1",
+                        "emission 1 2 3 0", "emission 1 2 3 101", "emission 1 2 inf 1",
+                        "emission -1 2 3 1", "emission 1 2 3 1 extra"):
+            with self.assertRaises((Invalid, ValueError)):
+                self.console.execute(command)
+        self.assertEqual(0, len(self.store.events()))
+        self.console.execute("weather clear rain 1")
+        row = self.store.db.execute("SELECT state FROM world_state WHERE name='weather'").fetchone()
+        state = json.loads(row[0]); state["parameters"]["private"] = "DO-NOT-PRINT"
+        self.store.db.execute("UPDATE world_state SET state=? WHERE name='weather'", (json.dumps(state),))
+        output = self.console.execute("weather")
+        self.assertNotIn("DO-NOT-PRINT", output)
+        self.assertNotIn("seed", output)
+        self.assertNotIn("a" * 48, output)
 
     def test_invalid_commands_fail_without_mutation_or_secret_output(self):
         commands = ("scale nan", "scale inf", "scale 0", "scale -1", "scale 1001",

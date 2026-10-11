@@ -6,6 +6,7 @@
 #include "netcoop_world_bridge_worker.h"
 #include "netcoop_world_bridge.h"
 #include <condition_variable>
+#include <cstring>
 #include <fstream>
 #include <memory>
 #include <mutex>
@@ -27,7 +28,7 @@ struct WorldBridgeWorker::State
 {
     BridgeConfig config;
     BridgeObserver observer;
-    std::uint64_t local_world,local_seed;
+    std::uint64_t local_world,local_seed,local_epoch;
     std::mutex lock;
     std::condition_variable wake;
     bool stopping=false, pending=false, successful=false;
@@ -39,7 +40,8 @@ struct WorldBridgeWorker::State
         : config(std::move(connection)),
           observer(config.bound ? config.master_world:local.clock.world_id,
                    config.bound ? config.master_seed:local.world_seed),
-          local_world(local.clock.world_id),local_seed(local.world_seed),worker([this]{run();}) {}
+          local_world(local.clock.world_id),local_seed(local.world_seed),
+          local_epoch(local.clock.authority_epoch),worker([this]{run();}) {}
     ~State()
     {
         { std::lock_guard<std::mutex> guard(lock);stopping=true; }
@@ -67,9 +69,14 @@ struct WorldBridgeWorker::State
             if (wake.wait_for(guard,std::chrono::seconds(5),[this]{return stopping;})) return;
         }
     }
+    bool matches_local(const WorldStateSnapshot& local) const noexcept
+    {
+        return local.clock.world_id==local_world && local.world_seed==local_seed &&
+            local.clock.authority_epoch==local_epoch;
+    }
     BridgeDiagnostics tick(const WorldStateSnapshot& local)
     {
-        if (local.clock.world_id!=local_world || local.world_seed!=local_seed) return {};
+        if (!matches_local(local)) return {};
         BridgeBootstrap sample{};
         bool available=false,ok=false;
         std::uint64_t started=0,finished=0;
@@ -96,6 +103,34 @@ struct WorldBridgeWorker::State
         }
         return result;
     }
+    static BridgeTimelineProjection project(const BridgeTimeline& timeline)
+    {
+        BridgeTimelineProjection result;
+        result.present=timeline.present;result.version=timeline.version;result.seed=timeline.seed;
+        // Sizes are bounded by the wire parser; include each terminating NUL.
+        std::memcpy(result.id,timeline.id.c_str(),timeline.id.size()+1);
+        std::memcpy(result.source,timeline.source.c_str(),timeline.source.size()+1);
+        std::memcpy(result.target,timeline.target.c_str(),timeline.target.size()+1);
+        result.warning=timeline.warning;result.active=timeline.active;result.peak=timeline.peak;
+        result.ended=timeline.ended;result.intensity=timeline.intensity;
+        return result;
+    }
+    bool read_projection(const WorldStateSnapshot& local, MasterProjection& output)
+    {
+        const auto now=bridge_mono_ms();
+        if (!matches_local(local) || !observer.ready(now)) return false;
+        const auto& globals=observer.globals();
+        output.world=globals.world;output.event_watermark=globals.event_watermark;
+        output.local_world=local_world;output.local_seed=local_seed;output.local_epoch=local_epoch;
+        output.master_binding=config.bound;
+        std::memcpy(output.location,config.location.c_str(),config.location.size()+1);
+        output.estimated_world_ms=observer.estimate(now);
+        output.weather=project(globals.weather);output.emission=project(globals.emission);
+        output.weather_phase=bridge_weather_phase(globals.weather,output.estimated_world_ms);
+        output.weather_blend=bridge_weather_blend(globals.weather,output.estimated_world_ms);
+        output.emission_phase=bridge_emission_phase(globals.emission,output.estimated_world_ms);
+        return true;
+    }
 };
 
 WorldBridgeWorker::~WorldBridgeWorker() {stop();}
@@ -121,6 +156,15 @@ BridgeDiagnostics WorldBridgeWorker::tick(const WorldStateSnapshot& local) noexc
     if (!state_) return {};
     try {return state_->tick(local);}
     catch (...) {return {};}
+}
+bool WorldBridgeWorker::read_projection(const WorldStateSnapshot& local, MasterProjection& output) noexcept
+{
+    output={};
+    if (!state_) return false;
+    try {if (state_->read_projection(local,output)) return true;}
+    catch (...) {}
+    output={};
+    return false;
 }
 void WorldBridgeWorker::stop() noexcept
 {

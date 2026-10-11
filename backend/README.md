@@ -135,6 +135,40 @@ HTTP service/checkpoint worker и работает с единственной S
 Quit, EOF и Ctrl+C останавливают workers, сохраняют календарь и освобождают
 service lock. `serve` остаётся режимом без интерактивного ввода.
 
+Глобальные расписания задаются из этой же консоли:
+
+```text
+weather clear rain 120
+emission 60 30 90 .8
+weather
+emission
+```
+
+Имена циклов в примере условные: используйте реальные имена игровых weather
+cycles. Первая команда задаёт переход clear -> rain за 120 игровых секунд;
+вторая — предупреждение 60 секунд, активную фазу до пика 30 секунд и спад
+90 секунд, интенсивность .8. Длительности 0.001..86400 игровых секунд,
+интенсивность (0,100]. Расписание начинается на текущем общем календаре;
+scale влияет на его ход. Каждый вызов получает новый ID и стабильный seed
+из identity мастера и ID команды. Чтение показывает аналитическую фазу и
+blend, даже если scheduler ещё не записал смену фазы; чтение не меняет журнал.
+
+Замена расписания идёт через admin dispatcher и mutation barrier: сначала
+обрабатываются due events, затем назначается следующая версия. `version: null`
+в admin `timeline_schedule` означает такую явную замену; integer version
+сохраняет CAS. Повтор той же command_id возвращает исходный результат без
+повторного сброса расписания. Проверка заранее резервирует версии всех фаз.
+Во время recovery изменение запрещено. Это сохранённое backend расписание;
+runtime применение погоды/выброса на игровых серверах ещё не подключено.
+
+Native `WorldBridgeWorker::read_projection` отдаёт bounded typed копию
+принятого bootstrap на simulation thread после `tick`: master clock/epoch,
+event watermark, schedules/seeds/times и аналитические фазы по одной оценке
+часов. Local WorldID/seed/writer epoch передаются отдельно. При смене local
+identity/epoch, остановке или истечении holdover output очищается и чтение
+отклоняется. JSON, private states и credentials не пересекают этот API;
+он остаётся read-only и не разрешает runtime authority adoption.
+
 Начальную идентичность нового backend мира можно задать явно:
 
 ```powershell

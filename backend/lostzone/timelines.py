@@ -3,7 +3,7 @@ import hashlib
 import json
 
 from .scheduler import Scheduler
-from .store import Conflict, Invalid, canonical, finite, identifier, persistent_id
+from .store import Conflict, Invalid, canonical, finite, identifier, persistent_id, positive
 
 
 class Timelines:
@@ -12,7 +12,10 @@ class Timelines:
         self.scheduler = Scheduler(world)
 
     def schedule(self, actor, command_id, name, timeline_id, version, times, parameters):
-        if name not in ("weather", "emission") or type(version) is not int or not 0 <= version < 2**63:
+        # None is an administrator's explicit replacement after mutation catchup.
+        # Integer versions retain compare-and-swap semantics for API clients.
+        if name not in ("weather", "emission") or (version is not None and
+                (type(version) is not int or not 0 <= version < 2**63)):
             raise Invalid("invalid timeline name/version")
         persistent_id(timeline_id)
         if not isinstance(times, dict) or not isinstance(parameters, dict):
@@ -35,19 +38,22 @@ class Timelines:
                    "version": version, "times": times, "parameters": parameters}
         def apply(tx):
             old = tx.execute("SELECT * FROM world_state WHERE name=?", (name,)).fetchone()
-            if (old["version"] if old else 0) != version:
+            current = old["version"] if old else 0
+            if version is not None and current != version:
                 raise Conflict("timeline version changed")
+            positive(current + len(phases) + 1, "final timeline version")
+            next_version = current + 1
             if tx.execute("SELECT 1 FROM scheduled_event WHERE id=?", (self.event_id(name, timeline_id, phases[0]),)).fetchone():
                 raise Conflict("timeline ID cannot be reused")
             state = {"timeline_id": timeline_id, "phase": "SCHEDULED", "times": times, "parameters": parameters}
             tx.execute("INSERT INTO world_state VALUES(?,?,?) ON CONFLICT(name) DO UPDATE SET version=excluded.version,state=excluded.state",
-                       (name, version + 1, canonical(state)))
+                       (name, next_version, canonical(state)))
             for index, phase in enumerate(phases):
                 self.scheduler.schedule_in(tx, self.event_id(name, timeline_id, phase), times[phase],
-                                           "world:" + name, version + 1 + index, "TimelinePhase",
+                                           "world:" + name, next_version + index, "TimelinePhase",
                                            {"name": name, "timeline_id": timeline_id, "phase": phase})
             event = self.store.event(tx, "world:" + name, "TimelineScheduled", payload, self.world.now())
-            return {"timeline_id": timeline_id, "version": version + 1, "event": event}
+            return {"timeline_id": timeline_id, "version": next_version, "event": event}
         return self.store.command(actor, command_id, payload, self.world.mutation(apply))
 
     @staticmethod

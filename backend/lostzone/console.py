@@ -4,13 +4,19 @@ It operates the real backend, not a second registry or a game server. Native
 location adoption is a separate adapter; its observer is not authority.
 """
 from collections import Counter
+import hashlib
+import json
 import uuid
 
-from .store import Invalid, Unavailable
+from .store import Invalid, Unavailable, finite, identifier
+from .timelines import Timelines
 
 
 HELP = ("Команды: status, clock, locations, characters, npcs, transfers, events, "
-        "scale <число>, help, quit.\n"
+        "scale <число>, weather, emission, help, quit.\n"
+        "weather <исходный цикл> <новый цикл> <секунды перехода>;\n"
+        "emission <секунды предупреждения> <до пика> <после пика> <интенсивность>.\n"
+        "Длительности: 0.001..86400 игровых секунд; интенсивность: (0,100].\n"
         "Подключение игровых серверов к этому мастеру ещё не выполнено.")
 
 
@@ -29,6 +35,55 @@ class Console:
             self.store.require_epoch(self.store.db)
             return [dict(row) for row in self.store.db.execute(query)]
 
+    def submit(self, operation, arguments, command_id=None):
+        if not self.server.ready.is_set():
+            raise Unavailable("world recovery has not completed")
+        return self.dispatcher.execute(self.principal, {
+            "command_id": command_id or uuid.uuid4().hex,
+            "operation": operation, "arguments": arguments,
+        })
+
+    def timeline(self, name, args):
+        if not args:
+            with self.store.lock:
+                self.store.require_epoch(self.store.db)
+                row = self.store.db.execute("SELECT state FROM world_state WHERE name=?", (name,)).fetchone()
+                if not row:
+                    return f"{name}: расписание ещё не задано."
+                if len(row[0]) > 65536:
+                    raise Invalid("timeline exceeds console read limit")
+                state = Timelines.evaluate(name, json.loads(row[0]), self.dispatcher.world.now())
+            parameters = state["parameters"]
+            details = (f"{parameters['source']} -> {parameters['target']}; blend={state['blend']:.3f}"
+                       if name == "weather" else f"intensity={parameters['intensity']}")
+            prefix = "Восстановление; " if not self.server.ready.is_set() else ""
+            return f"{prefix}{name}: {state['phase']}; {details}."
+        if len(args) != (3 if name == "weather" else 4):
+            raise Invalid("invalid timeline command arguments")
+        if name == "weather":
+            parameters = {"source": identifier(args[0]), "target": identifier(args[1])}
+            durations = [finite(float(args[2]), .001, 86400)]
+            phases = ("TRANSITION", "SETTLED")
+        else:
+            durations = [finite(float(value), .001, 86400) for value in args[:3]]
+            intensity = finite(float(args[3]), 0, 100)
+            if intensity == 0:
+                raise Invalid("emission intensity must be positive")
+            parameters = {"intensity": intensity}
+            phases = ("WARNING", "ACTIVE", "PEAK", "ENDED")
+        command_id = uuid.uuid4().hex
+        world = self.dispatcher.world
+        parameters["seed"] = int.from_bytes(hashlib.sha256(
+            f"console-timeline:{world.world_id}:{world.seed}:{name}:{command_id}".encode()).digest()[:8], "big")
+        at = world.now()
+        times = {phases[0]: at}
+        for phase, seconds in zip(phases[1:], durations):
+            at = finite(at + seconds * 1000)
+            times[phase] = at
+        result = self.submit("timeline_schedule", {"name": name, "timeline_id": command_id,
+                             "version": None, "times": times, "parameters": parameters}, command_id)
+        return f"{name}: расписание сохранено; version={result['version']}; ID={result['timeline_id']}."
+
     def execute(self, line):
         if len(line) > 256:
             raise Invalid("console command too long")
@@ -36,15 +91,12 @@ class Console:
         if not parts:
             return ""
         command, args = parts[0].lower(), parts[1:]
+        if command in ("weather", "emission"):
+            return self.timeline(command, args)
         if command == "scale":
             if len(args) != 1:
                 raise Invalid("scale requires one number")
-            if not self.server.ready.is_set():
-                raise Unavailable("world recovery has not completed")
-            result = self.dispatcher.execute(self.principal, {
-                "command_id": uuid.uuid4().hex, "operation": "world_scale",
-                "arguments": {"value": float(args[0])},
-            })
+            result = self.submit("world_scale", {"value": float(args[0])})
             return f"Масштаб времени: {result['scale']}; календарь: {result['world_ms']} мс."
         if args:
             raise Invalid("command does not take arguments")

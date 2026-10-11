@@ -127,6 +127,40 @@ class TimelineTest(unittest.TestCase):
                                     {"TRANSITION": 300, "SETTLED": 400},
                                     {"source": "clear", "target": "rain", "seed": 0})
 
+    def test_replace_after_catchup_is_atomic_and_command_replay_keeps_new_phases(self):
+        times = {"TRANSITION": 100, "SETTLED": 200}
+        parameters = {"source": "clear", "target": "rain", "seed": 0}
+        self.timelines.schedule("admin", uid(), "weather", uid(), 0, times, parameters)
+        self.ns = 300_000_000
+        before = len(self.store.events())
+        with self.assertRaises(Conflict):
+            self.timelines.schedule("admin", uid(), "weather", uid(), 1,
+                                    {"TRANSITION": 400, "SETTLED": 500}, parameters)
+        self.assertEqual(len(self.store.events()), before)
+        self.assertEqual(self.state("weather")["version"], 1)
+        command, timeline = uid(), uid()
+        result = self.timelines.schedule("admin", command, "weather", timeline, None,
+                                        {"TRANSITION": 400, "SETTLED": 500}, parameters)
+        self.assertEqual(result["version"], 4)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event WHERE state='APPLIED'").fetchone()[0], 2)
+        self.ns = 600_000_000
+        self.scheduler.run_due(budget_ms=1000)
+        self.assertEqual(self.state("weather")["version"], 6)
+        self.assertEqual(self.timelines.schedule("admin", command, "weather", timeline, None,
+                                               {"TRANSITION": 400, "SETTLED": 500}, parameters), result)
+        self.assertEqual(self.state("weather")["version"], 6)
+
+    def test_replacement_reserves_versions_for_all_phases_before_writing(self):
+        self.world.set_state("admin", uid(), "weather", 0, {})
+        self.store.db.execute("UPDATE world_state SET version=? WHERE name='weather'", (2**63 - 3,))
+        before = len(self.store.events())
+        with self.assertRaises(Invalid):
+            self.timelines.schedule("admin", uid(), "weather", uid(), None,
+                                    {"TRANSITION": 100, "SETTLED": 200},
+                                    {"source": "clear", "target": "rain", "seed": 0})
+        self.assertEqual(len(self.store.events()), before)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM scheduled_event").fetchone()[0], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

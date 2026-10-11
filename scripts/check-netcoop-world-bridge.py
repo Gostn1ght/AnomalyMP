@@ -155,6 +155,8 @@ int main(int argc,char** argv) {
  bad=binding;bad["local_world_seed"]=false;rejects([&]{BridgeConfig::parse(bad.dump());});
  bad=binding;bad["location"]="bad\nmap";rejects([&]{BridgeConfig::parse(bad.dump());});
  WorldBridgeWorker isolated;
+ MasterProjection projection{};projection.event_watermark=999;
+ assert(!isolated.read_projection(state,projection) && projection.event_watermark==0);
  assert(!isolated.tick(state).ready);
  assert(isolated.start("does-not-exist.json",state)==0);
  {std::ofstream file("invalid.json");file<<"{}";}
@@ -205,8 +207,11 @@ int main(int argc,char** argv) {
   scoped["master_world_id"]=123;scoped["master_world_seed"]=UINT64_MAX;
   scoped["local_world_id"]=900+map_index;scoped["local_world_seed"]=17+map_index;
   auto checkpoint=actual.world;checkpoint.clock.world_id=900+map_index;checkpoint.world_seed=17+map_index;
+  checkpoint.clock.authority_epoch=89+map_index; // Independent local checkpoint writer.
   {std::ofstream file("bound.json");file<<scoped.dump();}
   assert(isolated.start("bound.json",checkpoint,map)==1);
+  projection.event_watermark=999;
+  assert(!isolated.read_projection(checkpoint,projection) && projection.event_watermark==0); // tick must accept first.
   accepted=false;
   for(int i=0;i<100 && !accepted;++i) {
    std::this_thread::sleep_for(std::chrono::milliseconds(20));
@@ -214,10 +219,30 @@ int main(int argc,char** argv) {
    if(accepted)assert(diagnostic.ready && diagnostic.master_binding && diagnostic.weather_phase==2 && diagnostic.emission_phase==4);
   }
   assert(accepted && checkpoint.clock.world_id==900+map_index && checkpoint.world_seed==17+map_index);
+  assert(isolated.read_projection(checkpoint,projection));
+  assert(projection.world.clock.world_id==123 && projection.world.world_seed==UINT64_MAX);
+  assert(projection.world.clock.authority_epoch==actual.world.clock.authority_epoch);
+  assert(projection.local_world==900+map_index && projection.local_seed==17+map_index && projection.local_epoch==89+map_index);
+  assert(projection.master_binding && std::string(projection.location)==map && projection.event_watermark>0);
+  assert(projection.weather.present && projection.weather.version==actual.weather.version && projection.weather.seed==UINT64_MAX);
+  assert(std::string(projection.weather.id)==actual.weather.id && std::string(projection.weather.source)=="clear" &&
+         std::string(projection.weather.target)=="rain" && projection.weather.ended==100000);
+  assert(projection.emission.present && projection.emission.seed==0 && projection.emission.intensity==.8 &&
+         projection.emission.peak==300 && projection.emission.ended==100000);
+  assert(projection.estimated_world_ms>=projection.world.clock.world_ms && projection.weather_phase==2 && projection.emission_phase==4);
   auto foreign_checkpoint=checkpoint;foreign_checkpoint.clock.world_id=902;
   assert(!isolated.tick(foreign_checkpoint).ready);
+  assert(!isolated.read_projection(foreign_checkpoint,projection) && projection.local_world==0 && !projection.weather.present);
+  foreign_checkpoint=checkpoint;foreign_checkpoint.world_seed=999;
+  assert(!isolated.read_projection(foreign_checkpoint,projection) && projection.event_watermark==0);
+  foreign_checkpoint=checkpoint;++foreign_checkpoint.clock.authority_epoch;
+  assert(!isolated.tick(foreign_checkpoint).ready);
+  assert(!isolated.read_projection(foreign_checkpoint,projection) && projection.local_epoch==0);
+  assert(isolated.read_projection(checkpoint,projection));
   isolated.stop();
+  assert(!isolated.read_projection(checkpoint,projection) && !projection.weather.present && projection.event_watermark==0);
  }
+ std::cout<<"PASS: coherent typed projection retains independent local/master epochs and clears stale output on scope change or stop\n";
  std::cout<<"PASS: two distinct local checkpoint scopes bind one master; wrong map/world/seed rejected without identity mutation\n";
  auto mismatched=actual.world;mismatched.world_seed=1;
  assert(isolated.start("observer.json",mismatched)==1);

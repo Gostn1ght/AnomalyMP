@@ -309,3 +309,40 @@ compiler outputs/logs (.obj/.pch/.pdb/.iobj/.ipdb/.res/.recipe/.tlog/build marke
 3225 + 3868 files / 14318038354 bytes. Удаление лишь этих двух папок тем же
 прямым PowerShell также отклонено до запуска процесса: `blocked by policy`.
 Ничего не удалено; других способов обхода отказа не применяется.
+
+## CI explicit location bindings
+
+Code `93549e4ea`, push head `077908785`:
+[Foundation GCC/MSVC PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38139587030),
+[World Backend Linux/Windows PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38139586953).
+Backend: 255 tests PASS на каждой платформе. Windows native log содержит
+`PASS: two distinct local checkpoint scopes bind one master; wrong map/world/seed rejected without identity mutation`.
+Native WinHTTP clock/weather/emission bootstrap и worker playback также PASS.
+[Full DX11 build/package PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38139586937).
+
+## Консоль: глобальные weather/emission и typed engine projection
+
+Добавлены admin команды `weather source target transition_seconds` и
+`emission warning_seconds rise_seconds fall_seconds intensity`, а также
+аналитическое чтение текущей фазы без изменения журнала. Длительности
+0.001..86400 игровых секунд, intensity (0,100], время в календаре мастера,
+новые persistent IDs и stable u64 seed. Recovery не допускает изменения;
+console output не содержит private parameters/tokens.
+
+Замена `timeline_schedule(version=None)` выполняется после due-event catchup
+в той же mutation transaction. Integer CAS сохранён. Заранее проверяется
+запас версий для всех фаз; replay command_id не сбрасывает новое состояние.
+Локально PASS 9 console + 8 timelines SQLite unit tests, без HTTP/game/native
+запусков: catchup/CAS rollback, replay, overflow no-partial-effects,
+analytic read, validation, recovery, private parameter isolation.
+
+Native noexcept API `read_projection` передаёт accepted coherent clock,
+watermark, typed weather/emission schedules и фазы на simulation thread,
+без heap/JSON/private state в public types. Local writer epoch зафиксирован
+отдельно от master epoch; смена local ID/seed/epoch закрывает tick/projection.
+False/stop/expired holdover очищает output. Дополнена существующая GCC/MSVC
+fixture (в CI только), включая реальный Windows WinHTTP bootstrap и два
+разных local checkpoints: master/local epochs, полнота schedules и очищение
+старого output. Это read-only adapter; gameplay clock/weather adoption,
+coherent recovery barrier, LocationLease и NPC/character authority впереди.
+Статусы A01/B08/B09/B10 остаются 🟡; новых game ✅ нет.
