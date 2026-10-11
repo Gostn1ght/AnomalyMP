@@ -6,6 +6,7 @@
 #include "../3rd party/nlohmann/json.hpp"
 #include <string>
 #include <utility>
+#include <type_traits>
 #ifdef _WIN32
 #include <windows.h>
 #include <winhttp.h>
@@ -93,6 +94,7 @@ struct BridgeBootstrap
     std::uint64_t event_watermark=0;
     BridgeTimeline weather,emission;
 };
+static_assert(std::is_nothrow_move_assignable<BridgeBootstrap>::value,"bridge mailbox moves must not throw");
 inline std::string bridge_identifier(const BridgeJson& object, const char* key, bool persistent=false)
 {
     const auto found=object.find(key);

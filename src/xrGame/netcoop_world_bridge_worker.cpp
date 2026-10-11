@@ -59,7 +59,7 @@ struct WorldBridgeWorker::State
             catch (...) {} // Fail closed; no payloads or credentials in logs.
             const auto finished=bridge_mono_ms();
             std::unique_lock<std::mutex> guard(lock);
-            incoming=result;successful=ok;sent=started;received=finished;pending=true;
+            incoming=std::move(result);successful=ok;sent=started;received=finished;pending=true;
             if (wake.wait_for(guard,std::chrono::seconds(5),[this]{return stopping;})) return;
         }
     }
