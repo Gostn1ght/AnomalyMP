@@ -238,6 +238,7 @@ bool world_store_save_now(LPCSTR reason);
 // Campfires (netcoop_campfire.inc): the server lights and puts them out and
 // sends the state; clients ask (matches) and show it.
 void server_campfire_changed(u16 id, bool on);
+void campfires_reset(); // clear state after the level/network session stops
 void server_on_campfire(xrServer* server, xrClientData* CL, NET_Packet& P);
 void client_campfire_request(u16 id, bool on);
 void client_on_campfire(NET_Packet& P);

@@ -162,6 +162,7 @@ void CLevel::net_Stop()
 		Server->Disconnect();
 		xr_delete(Server);
 	}
+	netcoop::campfires_reset();
 
     Msg("Device.LuaGC clear");
     Device.LuaGC.clear();

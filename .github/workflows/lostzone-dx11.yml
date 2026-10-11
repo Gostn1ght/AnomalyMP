@@ -192,6 +192,8 @@ jobs:
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-stamina-recovery.py
           if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-campfire.py
+          if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-lzpack.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-weapon-menu.py

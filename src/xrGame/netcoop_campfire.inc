@@ -21,6 +21,15 @@ static const u64 campfire_fuel_ms = 3ull * 60 * 60 * 1000; // 3 game hours
 static xr_map<u16, u64> s_campfire_fuel_end; // server: id -> game time it goes out
 static u32 s_campfire_fuel_next = 0;
 
+void campfires_reset()
+{
+	s_campfires.clear();
+	s_campfire_synced.clear();
+	s_campfire_pending.clear();
+	s_campfire_fuel_end.clear();
+	s_campfire_fuel_next = 0;
+}
+
 static void campfire_send(xrServer* server, xrClientData* only, const xr_vector<std::pair<u16, bool>>& states)
 {
 	if (states.empty()) return;
@@ -45,6 +54,9 @@ static void campfire_send(xrServer* server, xrClientData* only, const xr_vector<
 void server_campfire_changed(u16 id, bool on)
 {
 	if (pure_client() || !g_pGameLevel || !Level().Server) return;
+	// GAMMA may extinguish a player-lit fire and light its own later.
+	// That new NPC fire must not inherit the former player's deadline.
+	if (!on) s_campfire_fuel_end.erase(id);
 	auto known = s_campfires.find(id);
 	if (known != s_campfires.end() && known->second == on) return;
 	s_campfires[id] = on;
@@ -93,7 +105,9 @@ void server_on_campfire(xrServer* server, xrClientData* CL, NET_Packet& P)
 {
 	if (!CL || !CL->owner || P.r_elapsed() != 3) return;
 	const u16 id = P.r_u16();
-	const bool on = P.r_u8() != 0;
+	const u8 requested = P.r_u8();
+	if (requested > 1) return;
+	const bool on = requested != 0;
 	CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(CL->owner->ID));
 	CZoneCampfire* campfire = smart_cast<CZoneCampfire*>(Level().Objects.net_Find(id));
 	LPCSTR failure = nullptr;
@@ -108,6 +122,9 @@ void server_on_campfire(xrServer* server, xrClientData* CL, NET_Packet& P)
 		for (PIItem item : actor->inventory().m_all)
 			if (item && (!xr_strcmp(item->object().cNameSect(), "matches") || !xr_strcmp(item->object().cNameSect(), "box_matches")))
 			{
+				if (item->object().getDestroy()) continue;
+				CEatableItem* box = smart_cast<CEatableItem*>(item);
+				if (box && box->GetRemainingUses() == 0) continue;
 				matches = item;
 				break;
 			}
