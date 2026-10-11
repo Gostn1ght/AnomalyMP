@@ -398,6 +398,23 @@ function prepare_trade(npc_id)
 	end
 end
 
+-- The price can be positive for an item hidden/rejected by GAMMA's UI.
+-- Apply the same actual policy to forged/stale server requests, before money
+-- or transfer events change. The native caller also checks CanTrade().
+function trade_item_allowed(npc_id, item, actor_sells)
+	local npc = level.object_by_id(npc_id)
+	if not (npc and npc:alive() and item and db.actor and trade_manager and utils_item) then return false end
+	local profile = trade_manager.get_trade_profile(npc_id)
+	if type(profile) ~= "table" or type(profile.cfg_ltx) ~= "string" then return false end
+	local list = profile[actor_sells and "current_buy_condition" or "current_sell_condition"]
+	if type(list) ~= "string" or list == "" then return false end
+	local threshold = actor_sells and tonumber(profile.current_buy_item_condition_factor) or nil
+	if actor_sells and (not threshold or threshold ~= threshold or threshold < 0 or threshold > 1) then return false end
+	return utils_item.get_item_trade_status(item, {
+		mode = actor_sells and 1 or 2, cfg = profile.cfg_ltx, list = list, cond_factor = threshold
+	}) == 4
+end
+
 local game_loaded = false
 local function server_game_load()
 	if game_loaded then return end

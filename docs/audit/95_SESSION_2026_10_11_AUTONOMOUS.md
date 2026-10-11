@@ -122,9 +122,34 @@ boolean в запросе отклоняется. `net_Stop` очищает camp
 малформированные пакеты, deferred spawn и reset с откатом часов новой сессии.
 Подключена к DX11 и Foundation GCC/MSVC. L28 остаётся 🔧; игрового запуска нет.
 
+## Торговля — серверные условия GAMMA
+
+Положительная `GetItemPrice` сама по себе не запрещала предмет ниже порога
+износа торговца. Поддельный запрос мог также передать quest/nontrade item или
+неполную коробку/многоразовый товар, который GAMMA скрывает на стороне NPC.
+Теперь весь basket проходит `CanTrade` и actual `utils_item.get_item_trade_status`
+с текущим серверным профилем NPC до `OnPerformTrade` и `TransferItem`. Условие
+проверяется в том же `ServerVictimScope`, что цены и персональные отношения.
+Отсутствующая функция/профиль и исключение не разрешают сделку. Native price,
+TransactionID/locks и прежние проверки денег/ownership сохраняют свои роли.
+
+Lua fixture выполняет неизменённую функцию GAMMA: порог износа и равенство ему,
+quest/nontrade, запрет секции, полные/неполные ammo и multiuse, anim/fake stock,
+неверный профиль, мёртвый/отсутствующий NPC и отсутствие игрока. Частичные
+ammo/uses по-прежнему можно продавать согласно GAMMA; запрет покупки скрытого
+товара не переносится на продажу. Native fixture проверяет фактический helper,
+fail-closed ошибки и положение admission pass до эффектов сделки; GCC/MSVC в CI.
+Также исполняется actual price/admission loop для смешанной корзины: запрет
+второго предмета, zero price и исключение прерывают весь pass до commit witness.
+L26 остаётся 🟡: dynamic supply/demand/restock events и cluster ItemLedger не
+реализованы этим исправлением. Учёт 188 требований не изменён.
+
 ## Подтверждение продолжения
 
 Первый L22 (`e5d11da55`): [DX11 build/package PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38130460606).
+L22 с сохранённой экономикой и canonical GAMMA lists (`c518bf095`):
+[DX11 build/package PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38133859152),
+включая actual Lua generator fixture и Windows checks перед сборкой.
 Итоговый код `2cab06c88`: [Foundation GCC/MSVC PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38132068951),
 [DX11 build/package PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38132068954);
 в логах обеих платформ есть PASS actual stamina recovery и PASS actual campfires.

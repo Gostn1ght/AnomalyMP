@@ -2387,6 +2387,15 @@ static void prepare_trade(u16 partner_id)
 	}
 }
 
+static bool server_trade_item_allowed(u16 partner_id, PIItem item, bool partner_buys)
+{
+	if (!item || !item->CanTrade()) return false;
+	::luabind::functor<bool> allowed;
+	if (!ai().script_engine().functor("netcoop_server_compat.trade_item_allowed", allowed)) return false;
+	try { return allowed(partner_id, item->object().lua_game_object(), partner_buys); }
+	catch (...) { Msg("! [Lost Zone] trader %u item policy failed", partner_id); return false; }
+}
+
 static void send_trade_result(xrServer* server, xrClientData* CL, bool ok, LPCSTR message)
 {
 	NET_Packet P;
@@ -2515,6 +2524,12 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 
 	for (u32 i = 0; i < items.size(); ++i)
 	{
+		if (!server_trade_item_allowed(partner_id, items[i], partner_buys))
+		{
+			trade->StopTrade();
+			finish(false, "Item does not meet this trader's conditions");
+			return;
+		}
 		const u32 price = trade->GetItemPrice(items[i], partner_buys);
 		if (price == 0)
 		{

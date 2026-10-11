@@ -52,4 +52,47 @@ xr_logic={pick_section_from_condlist=function(actor,other,rule) assert(actor==db
 db.storage[27]={meet={trade_enable='false'}};prepare_trade(27);assert(not allowed)
 db.storage[27].meet.trade_enable='true';prepare_trade(27);assert(allowed)
 ''')
-print('Actual trade Lua: stack submission, missing/empty partner, late profile refresh and freeplay trade gates PASS')
+# Execute the installed GAMMA policy, including ammo/multiuse exceptions and
+# the stricter stock shown on the NPC side. No duplicate price formula here.
+lua.execute(r'''
+trade_profile={cfg_ltx='trade.ltx',current_buy_condition='buy',current_sell_condition='sell',
+ current_buy_item_condition_factor=0.6}
+trade_manager.get_trade_profile=function(_,key) return key and trade_profile[key] or trade_profile end
+forbidden=false;missing_list=false;quest=false;no_trade=false;ammo=false;uses=false;anim=false;fake=false
+function SYS_GetParam(_,_,key) if key=='quest_item' then return quest end;if key=='can_trade' then return not no_trade end end
+function IsItem(kind) return ({ammo=ammo,multiuse=uses,anim=anim,fake_ammo=fake})[kind] end
+function printe() end
+trade_manager.get_trade_cfg=function() return {
+ line_exist=function() return forbidden end, r_string_ex=function() return nil end} end
+item={section=function() return 'item' end,condition=function() return condition end,
+ cost=function() return cost end,ammo_get_count=function() return count end,
+ get_remaining_uses=function() return count end}
+condition=1;cost=100;count=10
+''')
+lua.execute((root / 'scripts/fixtures/trade/get_item_trade_status.lua').read_text(encoding='utf-8'))
+lua.execute('utils_item={get_item_trade_status=get_item_trade_status}')
+lua.execute(r'''
+assert(trade_item_allowed(27,item,true) and trade_item_allowed(27,item,false))
+condition=0.59;assert(not trade_item_allowed(27,item,true),'below threshold rejected despite positive price')
+condition=0.6;assert(trade_item_allowed(27,item,true),'threshold inclusive')
+condition=0.1;ammo=30;assert(trade_item_allowed(27,item,true),'GAMMA ammo exempt from wear threshold')
+count=29;assert(not trade_item_allowed(27,item,false),'partial trader box hidden by GAMMA cannot be purchased')
+count=30;assert(trade_item_allowed(27,item,false));ammo=false;uses=3;count=1
+assert(trade_item_allowed(27,item,true) and not trade_item_allowed(27,item,false),'partial uses may be sold but not bought')
+count=3;assert(trade_item_allowed(27,item,false));uses=false;condition=1
+quest=true;assert(not trade_item_allowed(27,item,true) and not trade_item_allowed(27,item,false));quest=false
+no_trade=true;assert(not trade_item_allowed(27,item,true));no_trade=false
+forbidden=true;assert(not trade_item_allowed(27,item,true) and not trade_item_allowed(27,item,false));forbidden=false
+anim=true;assert(not trade_item_allowed(27,item,false));anim=false
+fake=true;assert(not trade_item_allowed(27,item,false));fake=false
+cost=0;assert(not trade_item_allowed(27,item,false));cost=100
+assert(not trade_item_allowed(28,item,true) and not trade_item_allowed(27,nil,true))
+npc.alive=function() return false end;assert(not trade_item_allowed(27,item,true));npc.alive=function() return true end
+local saved_actor=db.actor;db.actor=nil;assert(not trade_item_allowed(27,item,true));db.actor=saved_actor
+trade_profile.current_buy_item_condition_factor=0/0;assert(not trade_item_allowed(27,item,true))
+trade_profile.current_buy_item_condition_factor=0.6
+trade_profile.current_buy_condition=nil;assert(not trade_item_allowed(27,item,true),'missing buy list cannot fall back to sell list')
+trade_profile.current_sell_condition=nil;assert(not trade_item_allowed(27,item,false))
+trade_profile=nil;assert(not trade_item_allowed(27,item,true),'missing profile fails closed')
+''')
+print('Actual trade Lua: stack requests, player-specific gates, actual GAMMA condition/quest/stock policy, ammo/multiuse exceptions and missing profiles PASS')
