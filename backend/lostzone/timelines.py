@@ -61,6 +61,40 @@ class Timelines:
         return hashlib.sha256(f"timeline:{name}:{timeline_id}:{phase}".encode("utf-8")).hexdigest()[:32]
 
     @staticmethod
+    def public_state(name, envelope):
+        """Bounded native wire contract, excluding arbitrary admin parameters."""
+        if name not in ("weather", "emission") or not isinstance(envelope, dict):
+            raise Invalid("invalid public timeline")
+        version = positive(envelope.get("version"))
+        state = envelope.get("state")
+        if not isinstance(state, dict):
+            raise Invalid("invalid public timeline state")
+        timeline_id = persistent_id(state.get("timeline_id"))
+        phases = ("TRANSITION", "SETTLED") if name == "weather" else ("WARNING", "ACTIVE", "PEAK", "ENDED")
+        phase = state.get("phase")
+        if phase not in ("SCHEDULED", *phases):
+            raise Invalid("invalid public timeline phase")
+        times, parameters = state.get("times"), state.get("parameters")
+        if not isinstance(times, dict) or set(times) != set(phases) or not isinstance(parameters, dict):
+            raise Invalid("incomplete public timeline")
+        values = [finite(times[key]) for key in phases]
+        if any(b <= a for a, b in zip(values, values[1:])):
+            raise Invalid("invalid public timeline times")
+        seed = parameters.get("seed")
+        if type(seed) is not int or not 0 <= seed < 2**64:
+            raise Invalid("invalid public timeline seed")
+        public = {"seed": seed}
+        if name == "weather":
+            public.update(source=identifier(parameters.get("source")), target=identifier(parameters.get("target")))
+        else:
+            intensity = finite(parameters.get("intensity"), 0, 100)
+            if intensity == 0:
+                raise Invalid("invalid public timeline intensity")
+            public["intensity"] = intensity
+        return {"version": version, "state": {"timeline_id": timeline_id, "phase": phase,
+                "times": dict(zip(phases, values)), "parameters": public}}
+
+    @staticmethod
     def evaluate(name, state, world_ms):
         finite(world_ms)
         times = state["times"]

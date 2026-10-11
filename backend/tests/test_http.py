@@ -126,6 +126,28 @@ class HttpTest(unittest.TestCase):
                                ("entity_create",{}),("trade",{}),("offline_combat",{}),("offline_contacts",{}),("offline_hazard",{}),("offline_hazards",{}),("offline_plan",{}),("quest_reconcile",{})):
             self.assertEqual(self.command(operation,args,token="d"*48)[0],403)
 
+    def test_native_bootstrap_is_authenticated_bounded_and_recovery_gated(self):
+        d = self.server.dispatcher
+        d.timelines.schedule("admin", uuid.uuid4().hex, "weather", uuid.uuid4().hex, None,
+                             {"TRANSITION": 0, "SETTLED": 100000},
+                             {"source": "clear", "target": "rain", "seed": 0,
+                              "private": "PRIVATE-PARAMETER" + "x" * 100000})
+        self.world.set_state("admin", uuid.uuid4().hex, "other_private_state", 0,
+                             {"secret": "PRIVATE-STATE" + "x" * 100000})
+        self.wait_idle_workers()
+        status, response = self.call("GET", "/v1/engine-bootstrap", token="d"*48)
+        self.assertEqual(status, 200)
+        self.assertLess(len(json.dumps(response)), 4096)
+        self.assertNotIn("PRIVATE-", json.dumps(response))
+        self.assertEqual(set(response["result"]["states"]), {"weather"})
+        self.assertEqual(response["result"]["clock"]["revision"], response["result"]["state_revision"])
+        for token in (None, "x"*48):
+            self.wait_idle_workers()
+            self.assertEqual(self.call("GET", "/v1/engine-bootstrap", token=token)[0], 401)
+        self.server.ready.clear()
+        self.wait_idle_workers()
+        self.assertEqual(self.call("GET", "/v1/engine-bootstrap", token="d"*48)[0], 503)
+
     def test_duplicate_command_over_real_http_and_contract_rejection(self):
         key = uuid.uuid4().hex
         first = self.command("location_claim", {"location": "cordon"}, command_id=key)

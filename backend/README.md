@@ -169,6 +169,14 @@ identity/epoch, остановке или истечении holdover output о�
 отклоняется. JSON, private states и credentials не пересекают этот API;
 он остаётся read-only и не разрешает runtime authority adoption.
 
+`GET /v1/engine-bootstrap` сохраняет тот же coherent clock/revision/watermark
+contract, но SQL читает только две строки weather/emission. В ответ входят
+лишь известные поля расписаний: extra/private parameters и другие world states
+отсекаются. Размер этих полей ограничен независимо от роста прочего реестра;
+native WinHTTP использует этот endpoint с прежними auth/recovery/64 КБ gates.
+Повреждённое известное расписание закрывает выдачу без сохранения clock sample.
+Полный `/v1/bootstrap` остаётся прежним интерфейсом backend.
+
 Начальную идентичность нового backend мира можно задать явно:
 
 ```powershell
@@ -215,7 +223,7 @@ python -m lostzone bridge-config --config runtime/config.json --destination <ser
 ```
 
 Экспорт никогда не заменяет существующий файл и не использует admin/location
-credential. Движок читает файл при запуске и получает /v1/bootstrap на worker
+credential. Движок читает файл при запуске и получает /v1/engine-bootstrap на worker
 через WinHTTP loopback без proxy/redirect. Bounded wire parser и LocationClock
 проверяют WorldID/seed/epoch/schema/sequence/holdover; main thread только
 сравнивает estimate с ALife clock. В том же bootstrap читаются versioned
@@ -257,7 +265,7 @@ Legacy schema1 export без этих flags сохранён: local и remote id
 local checkpoint writer epoch остаются разными областями владения; их
 согласованный recovery/checkpoint adapter ещё нужен.
 
-GET /v1/clock, /v1/bootstrap; GET /v1/location?id=...&fence=...;
+GET /v1/clock, /v1/bootstrap, /v1/engine-bootstrap; GET /v1/location?id=...&fence=...;
 GET /v1/transfer?id=...; admin GET /v1/events?after=...&limit=...;
 POST /v1/command: command_id (128-bit hex), operation, arguments.
 Каждая mutation возвращает durable result до HTTP ACK. Ошибки 400/401/

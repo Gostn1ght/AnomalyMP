@@ -305,7 +305,7 @@ inline bool bridge_fetch(const BridgeConfig& config, BridgeBootstrap& result)
         WINHTTP_NO_PROXY_NAME,WINHTTP_NO_PROXY_BYPASS,0));
     if (!session.get() || !WinHttpSetTimeouts(session.get(),500,500,500,500)) return false;
     BridgeHttpHandle connection(WinHttpConnect(session.get(),L"127.0.0.1",INTERNET_PORT(config.port),0));
-    BridgeHttpHandle request(connection.get() ? WinHttpOpenRequest(connection.get(),L"GET",L"/v1/bootstrap",nullptr,
+    BridgeHttpHandle request(connection.get() ? WinHttpOpenRequest(connection.get(),L"GET",L"/v1/engine-bootstrap",nullptr,
         WINHTTP_NO_REFERER,WINHTTP_DEFAULT_ACCEPT_TYPES,0) : nullptr);
     if (!request.get()) return false;
     DWORD redirect=WINHTTP_OPTION_REDIRECT_POLICY_NEVER;

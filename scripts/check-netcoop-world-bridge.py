@@ -178,6 +178,34 @@ int main(int argc,char** argv) {
  assert(bridge_emission_phase(persisted_global.emission,1500)==4);
  assert(persisted_global.weather.version==2 && persisted_global.emission.version==4);
  std::cout<<"PASS: actual SQLite/World/Timelines bootstrap decoded by native parser on GCC/MSVC\n";
+ // Genuine backend checkpoints across a Store/World restart, delivered with
+ // deterministic asymmetric delay, duplicates, reorder and a long outage.
+ const auto recovery=BridgeJson::parse(persisted).at("recovery");
+ const auto before_restart=parse_bridge_globals(recovery.at(0).dump());
+ const auto after_restart=parse_bridge_globals(recovery.at(1).dump());
+ const auto after_catchup=parse_bridge_globals(recovery.at(2).dump());
+ BridgeObserver recovering(123,UINT64_MAX);
+ assert(recovering.receive(persisted_global,100,140)==SyncResult::applied);
+ const double presented=recovering.estimate(140);
+ assert(recovering.receive(before_restart,160,220)==SyncResult::applied);
+ assert(recovering.estimate(220)>=presented);
+ assert(recovering.receive(before_restart,220,220)==SyncResult::stale);
+ assert(recovering.receive(persisted_global,220,220)==SyncResult::stale);
+ auto too_late=before_restart;++too_late.world.clock.sequence;
+ assert(recovering.receive(too_late,220,2220)==SyncResult::invalid);
+ assert(recovering.globals().world.clock.sequence==before_restart.world.clock.sequence);
+ assert(!recovering.ready(32000));
+ assert(after_restart.world.clock.authority_epoch>before_restart.world.clock.authority_epoch);
+ assert(after_restart.world.clock.world_ms==before_restart.world.clock.world_ms); // Downtime frozen.
+ assert(recovering.receive(after_restart,40000,40080)==SyncResult::applied && recovering.ready(40080));
+ assert(recovering.globals().weather.id==before_restart.weather.id && recovering.globals().emission.id==before_restart.emission.id);
+ auto old_epoch=before_restart;old_epoch.world.clock.sequence=999;
+ assert(recovering.receive(old_epoch,40080,40080)!=SyncResult::applied);
+ assert(recovering.globals().world.clock.authority_epoch==after_restart.world.clock.authority_epoch);
+ assert(recovering.receive(after_catchup,40300,40320)==SyncResult::applied);
+ assert(recovering.globals().emission.version==5 && bridge_emission_phase(recovering.globals().emission,after_catchup.world.clock.world_ms)==5);
+ assert(recovering.globals().event_watermark>after_restart.event_watermark);
+ std::cout<<"PASS: real durable backend restart -> native observer; asymmetric delivery, duplicates/reorder, loss/holdover, epoch fencing and phase catchup\n";
 #ifdef _WIN32
  assert(argc==3);
  config["port"]=unsigned(std::strtoul(argv[2],nullptr,10));
@@ -274,7 +302,8 @@ with TemporaryDirectory(prefix="world-bridge-") as tmp:
     subprocess.run(command,check=True,cwd=tmp)
     fixture_store=Store(Path(tmp)/"bootstrap.db")
     try:
-        fixture_world=World(fixture_store,world_id=123,seed=2**64-1,initial_ms=1500,scale=1,monotonic=lambda:0)
+        fixture_ns=[0]
+        fixture_world=World(fixture_store,world_id=123,seed=2**64-1,initial_ms=1500,scale=1,monotonic=lambda:fixture_ns[0])
         fixture_timelines=Timelines(fixture_world)
         fixture_timelines.schedule("admin",uuid.uuid4().hex,"weather",uuid.uuid4().hex,0,
                                   {"TRANSITION":1000,"SETTLED":2000},
@@ -284,7 +313,20 @@ with TemporaryDirectory(prefix="world-bridge-") as tmp:
                                   {"intensity":.8,"seed":0})
         fixture_timelines.scheduler.run_due(limit=64,budget_ms=1000)
         fixture_path=Path(tmp)/"bootstrap.json"
-        fixture_path.write_text(json.dumps({"result":fixture_world.bootstrap_snapshot()}),encoding="utf-8")
+        fixture_world.set_state("admin",uuid.uuid4().hex,"unrelated",0,{"private":"x"*100000})
+        initial=fixture_world.engine_bootstrap_snapshot()
+        fixture_ns[0]=50_000_000
+        before_restart=fixture_world.engine_bootstrap_snapshot()
+        fixture_store.close()
+        fixture_ns[0]=1_000_000_000_000
+        fixture_store=Store(Path(tmp)/"bootstrap.db")
+        fixture_world=World(fixture_store,world_id=123,seed=2**64-1,monotonic=lambda:fixture_ns[0])
+        after_restart=fixture_world.engine_bootstrap_snapshot()
+        fixture_ns[0]+=300_000_000
+        Timelines(fixture_world).scheduler.run_due(limit=64,budget_ms=1000)
+        after_catchup=fixture_world.engine_bootstrap_snapshot()
+        fixture_path.write_text(json.dumps({"result":initial,"recovery":[{"result":sample} for sample in
+                                (before_restart,after_restart,after_catchup)]}),encoding="utf-8")
     finally:
         fixture_store.close()
     if os.name=="nt":
@@ -298,6 +340,7 @@ with TemporaryDirectory(prefix="world-bridge-") as tmp:
                            {"WARNING":100,"ACTIVE":200,"PEAK":300,"ENDED":100000},
                            {"intensity":.8,"seed":0})
         timelines.scheduler.run_due(limit=64,budget_ms=1000)
+        world.set_state("admin",uuid.uuid4().hex,"unrelated",0,{"private":"x"*100000})
         credentials=Credentials({"observer":{"role":"observer","token":"t"*48}})
         server=Server(("127.0.0.1",0),Dispatcher(world,b"k"*32),credentials)
         worker=threading.Thread(target=server.serve_forever)

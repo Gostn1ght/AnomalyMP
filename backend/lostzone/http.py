@@ -255,6 +255,8 @@ class Handler(BaseHTTPRequestHandler):
                     result = dispatcher.world.sample()
                 elif uri.path == "/v1/bootstrap":
                     result = dispatcher.world.bootstrap_snapshot()
+                elif uri.path == "/v1/engine-bootstrap":
+                    result = dispatcher.world.engine_bootstrap_snapshot()
                 elif uri.path == "/v1/events" and principal.role == "admin":
                     query = parse_qs(uri.query, strict_parsing=True)
                     result = {"events": dispatcher.store.events(int(query.get("after", ["0"])[0]),

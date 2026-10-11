@@ -113,13 +113,25 @@ class World:
                 "world_ms": now, "time_scale": self._scale, "revision": row["revision"]}
 
     def bootstrap_snapshot(self):
+        return self._bootstrap_snapshot()
+
+    def engine_bootstrap_snapshot(self):
+        return self._bootstrap_snapshot(engine=True)
+
+    def _bootstrap_snapshot(self, *, engine=False):
         with self.store.transaction() as tx:
             clock = self.sample_in(tx)
-            rows = tx.execute("SELECT * FROM world_state ORDER BY name").fetchall()
+            query = ("SELECT * FROM world_state WHERE name IN ('weather','emission') ORDER BY name"
+                     if engine else "SELECT * FROM world_state ORDER BY name")
+            rows = tx.execute(query).fetchall()
             watermark = tx.execute("SELECT COALESCE(MAX(sequence),0) FROM world_event").fetchone()[0]
+            states = {row["name"]: {"version": row["version"], "state": json.loads(row["state"])} for row in rows}
+            if engine:
+                from .timelines import Timelines
+                states = {name: Timelines.public_state(name, state) for name, state in states.items()}
             return {"schema": 1, "clock": clock, "world_seed": self.seed,
                     "state_revision": clock["revision"], "event_watermark": watermark,
-                    "states": {row["name"]: {"version": row["version"], "state": json.loads(row["state"])} for row in rows}}
+                    "states": states}
 
     def set_state(self, actor, command_id, name, version, state):
         identifier(name)

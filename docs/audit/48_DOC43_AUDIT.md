@@ -7,9 +7,9 @@
 
 Исторический итог 2026-10-06: ✅ 22, 🔧 37, 🟡 69, ⬜ 60 из 188.
 
-Текущий учёт строк 2026-10-11 (Codex, док 95): ✅ 27, 🔧 42, 🟡 67, ⬜ 52
+Текущий учёт строк 2026-10-11 (Codex, док 95): ✅ 27, 🔧 42, 🟡 68, ⬜ 51
 из 188. Все 188 идентификаторов дока 43 присутствуют; 🔧 не означает
-игровую приёмку. L37 изменён 🟡 → 🔧 в доке 94, L22 ⬜ → 🔧 и B09 ⬜ → 🟡 в доке 95; прочие изменения счётчиков
+игровую приёмку. L37 изменён 🟡 → 🔧 в доке 94, L22 ⬜ → 🔧 и B09/B13 ⬜ → 🟡 в доке 95; прочие изменения счётчиков
 учитывают уже существующие изменения Claude.
 
 Итог CI этой сессии (док 94): коммит `000ecb4f8`,
@@ -108,11 +108,11 @@ Distance/overload tiers для NPC/мутантов/игроков, описан
 | B06 Clock-aware ALife checkpoint: identity/epoch/revision, | 🔧 | native fixtures в CI |
 | B07 Чтения из ALife worker и server thread защищены mutex; | 🔧 | native fixtures в CI |
 | B08 Частично: LocalWorldService и WorldStateSnapshot есть; | 🟡 | backend WorldState; engine читает calendar/weather/emission coherent bootstrap только в shadow; typed full projection сохраняет разные local/master epochs и очищает stale output (doc95); gameplay adoption ещё нет |
-| B09 Удостоверенный World Service endpoint и wire encoding | 🟡 | authenticated loopback bootstrap/clock, strict native wire parser, worker calendar/weather/emission diagnostics (doc95); полноценная доставка/применение ScaleChanged location runtime и remote transport ещё открыты |
+| B09 Удостоверенный World Service endpoint и wire encoding | 🟡 | authenticated loopback engine-bootstrap/clock, bounded public timeline projection, strict native wire parser, worker calendar/weather/emission diagnostics (doc95); полноценная доставка/применение ScaleChanged location runtime и remote transport ещё открыты |
 | B10 Подключить LocationClock к действительным location packets; | 🟡 | кластерный календарь через файлы: отстающий догоняет ускорением (видно в live логах) |
 | B11 Event-time highwater и replay: восстановленное время не | ⬜ |  |
 | B12 Частично: backend event-time mutation/scale barrier реализован; | ⬜ |  |
-| B13 ClockSync: asymmetric delay, loss/reorder, длительный разрыв | ⬜ |  |
+| B13 ClockSync: asymmetric delay, loss/reorder, длительный разрыв | 🟡 | native observer fixture использует actual durable backend restore samples: synthetic asymmetric delay/duplicates/reorder/long outage, epoch fencing и phase catchup (doc95); real game Location Server restart/transport recovery ещё не проверены |
 
 ## C
 

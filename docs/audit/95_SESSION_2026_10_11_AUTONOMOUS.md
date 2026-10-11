@@ -346,3 +346,38 @@ fixture (в CI только), включая реальный Windows WinHTTP bo
 старого output. Это read-only adapter; gameplay clock/weather adoption,
 coherent recovery barrier, LocationLease и NPC/character authority впереди.
 Статусы A01/B08/B09/B10 остаются 🟡; новых game ✅ нет.
+
+CI code `1b3d42e1c`:
+[Foundation GCC/MSVC PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38141892925),
+[World Backend Linux/Windows PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38141892934).
+Backend: 259 tests PASS на каждой платформе. Windows logs: coherent typed
+projection, independent local/master epochs, scope change/stop clearing;
+two local checkpoints/one master и actual WinHTTP bootstrap PASS.
+DX11 build/package записывается после окончания прогона 38141892906.
+
+## Компактный native bootstrap и durable restart delivery fixture
+
+Прежний `/v1/bootstrap` возвращает все world states и произвольные параметры;
+его размер мог выйти за 64 КБ native reader при росте прочего WorldState.
+Добавлен `/v1/engine-bootstrap` с общей clock/revision/watermark транзакцией,
+SQL выборкой только weather/emission и строгой public field projection.
+Private/extra parameters и прочие состояния не выдаются; поля ограничены
+независимо от их роста. Native WinHTTP переключён на этот endpoint, без
+fallback на большой bootstrap. Authentication/readiness gates сохранены;
+malformed known state отклоняется с rollback clock sample. Полный backend
+bootstrap совместим с прежними потребителями.
+
+Локально PASS 3 SQLite focused tests: >100 КБ private world/parameters дают
+ответ <4 КБ без утечек; coherent revision/watermark; restart сохраняет
+calendar/schedules и увеличивает только master epoch; invalid timeline
+не сохраняет clock sequence. Реальный authenticated HTTP/recovery тест и
+native WinHTTP с большим unrelated state идут только в CI.
+
+Существующая native fixture расширена actual Store/World close/reopen
+с сохранёнными global schedules, calendar, event watermark. GCC/MSVC получают
+настоящие сериализованные before/after restore snapshots; delivery timestamps
+детерминированно моделируют asymmetric delay, повтор/перестановку и long
+outage. Проверяются holdover expiry, отказ старой epoch, повторный bootstrap
+и дальнейший emission ENDED catchup. Это backend/native observer integration,
+не рестарт настоящего игрового Location Server и не runtime recovery barrier.
+B13 ⬜ → 🟡; текущие 188: ✅27 / 🔧42 / 🟡68 / ⬜51.
