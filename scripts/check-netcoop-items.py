@@ -421,5 +421,22 @@ assert(stash_visit(box, always)=="too soon",'legacy visits migrate with a cooldo
 hour=45.9; assert(stash_visit(box, always)=="too soon")
 hour=46; assert(stash_visit(box, always)=="deposit")
 hour=45; assert(stash_visit(box, always)=="too soon",'clock rollback never opens a visit')
+-- FactionAccessible: a box at a faction's base is visited by its own NPCs only
+local gv={level_id=function() return 1 end}
+game_graph=function() return {vertex=function() return gv end} end
+SIMBOARD={smarts={[1]={smrt={props={base=1},faction='dolg',m_game_vertex_id=5,position=vector():set(10,0,0)}}}}
+local base_box=make_box(710,{make_item(711,'bread',1)})
+base_box.game_vertex_id=function() return 5 end
+community='stalker'; character_community=function() return community end
+hour=60
+assert(stash_visit(base_box, always)=="faction stash",'another faction never touches a base box')
+community='dolg'
+local r1=stash_visit(base_box, always); assert(r1=="take" or r1=="deposit",'its own faction may: '..tostring(r1))
+local far_box=make_box(720,{make_item(721,'bread',1)})
+far_box.game_vertex_id=function() return 5 end
+far_box.position=function() return vector():set(200,0,0) end
+npc.position=function() return vector():set(201,0,0) end
+community='stalker'
+local r2=stash_visit(far_box, always); assert(r2=="take" or r2=="deposit",'away from bases anyone may: '..tostring(r2))
 ''')
 print("Stash visits: rare, real item moves, no weapons/armour/artefacts deposited, not watched, protected stashes untouched PASS")

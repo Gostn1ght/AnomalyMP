@@ -1534,6 +1534,31 @@ local function visitor_near(box)
 	return best
 end
 
+-- FactionAccessible (doc 43 L15): a world box at a faction's base (a smart
+-- terrain with base props within 60 m) belongs to the faction holding that
+-- base; only its own NPCs visit it. nil: anyone may.
+local BASE_REACH = 60
+local base_owner_cache = {} -- box id -> { faction or false, at }
+local function base_faction(box)
+	local id = box:id()
+	local c = base_owner_cache[id]
+	if c and time_global() - c.at < 600000 then return c.faction or nil end
+	local best, best_d = nil, BASE_REACH
+	local pos = box:position()
+	local board = SIMBOARD and SIMBOARD.smarts
+	for _, v in pairs(board or {}) do
+		local smart = v.smrt
+		if smart and smart.props and (smart.props.base or 0) > 0 and smart.position
+			and game_graph and game_graph():vertex(smart.m_game_vertex_id):level_id() == game_graph():vertex(box:game_vertex_id()):level_id() then
+			local d = smart.position:distance_to(pos)
+			if d < best_d then best, best_d = smart, d end
+		end
+	end
+	local faction = best and (best.faction or best.default_faction) or false
+	base_owner_cache[id] = { faction = faction, at = time_global() }
+	return faction or nil
+end
+
 -- One look at one stash; returns what happened (for the log and tests).
 function stash_visit(box, roll)
 	if not box or protected_box(box) then return "protected" end
@@ -1552,6 +1577,8 @@ function stash_visit(box, roll)
 	if players_near(box:position(), STASH_VISIT.player_clear) then return "watched" end
 	local npc = visitor_near(box)
 	if not npc then return "nobody near" end
+	local owner = base_faction(box)
+	if owner and character_community and character_community(npc) ~= owner then return "faction stash" end
 	if players_near(npc:position(), STASH_VISIT.player_clear) then return "watched" end
 	local in_box, on_npc = {}, {}
 	box:iterate_inventory_box(function(_, item) if item and take_allowed(item) then in_box[#in_box + 1] = item end end, box)
