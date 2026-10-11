@@ -573,6 +573,14 @@ void CActor::netcoop_follow_owner(NET_Packet& P)
 		if (m_netcoop_owner_time && time_stamp > m_netcoop_owner_time)
 			dt = float(time_stamp - m_netcoop_owner_time) / 1000.f;
 		clamp(dt, 0.02f, 1.f);
+		// The owner's clock is not trusted alone: forged time stamps one
+		// second apart, sent 30 times a second, moved 13 m per update. A
+		// distance budget on the server's clock (12 m/s, at most 13 m saved
+		// up, so updates bunched after a lag still fit) bounds the steps.
+		const u32 now = Level().timeServer();
+		if (m_netcoop_move_budget_time)
+			m_netcoop_move_budget = _min(13.f, m_netcoop_move_budget + 12.f * float(now - m_netcoop_move_budget_time) / 1000.f);
+		m_netcoop_move_budget_time = now;
 		if (!m_netcoop_owner_time || time_stamp > m_netcoop_owner_time)
 		{
 			m_netcoop_owner_time = time_stamp;
@@ -600,7 +608,7 @@ void CActor::netcoop_follow_owner(NET_Packet& P)
 		Fvector delta;
 		delta.sub(position, Position());
 		const float horizontal = _sqrt(delta.x * delta.x + delta.z * delta.z);
-		const float allowed_h = 12.f * dt + 1.f;
+		const float allowed_h = _min(12.f * dt + 1.f, m_netcoop_move_budget);
 		const float allowed_up = 8.f * dt + 1.f;
 		const bool limited = horizontal > allowed_h || delta.y > allowed_up;
 		if (horizontal > allowed_h)
@@ -611,6 +619,7 @@ void CActor::netcoop_follow_owner(NET_Packet& P)
 		}
 		if (delta.y > allowed_up)
 			delta.y = allowed_up;
+		m_netcoop_move_budget = _max(0.f, m_netcoop_move_budget - _sqrt(delta.x * delta.x + delta.z * delta.z));
 		if (limited)
 			netcoop::metric_owner_step_rejected(position.distance_to(Position()));
 

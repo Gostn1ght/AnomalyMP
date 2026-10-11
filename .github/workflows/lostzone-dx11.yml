@@ -68,6 +68,7 @@ jobs:
           python scripts/check-netcoop-workshop.py
           python scripts/check-netcoop-npc-loot.py
           python scripts/check-netcoop-backpack-anim.py
+          python scripts/check-netcoop-move-speed.py
           python scripts/check-netcoop-anims.py
           python scripts/check-netcoop-artefacts.py
           python scripts/check-netcoop-voice.py

@@ -587,6 +587,9 @@ public:
 	// Server time when the newest owner update arrived: the time stamp of
 	// this player's snapshots (the owner-clock mapping jumped, s102).
 	u32 m_netcoop_owner_received = 0;
+	// Server: metres the owner may still move (refilled at 12 m/s).
+	float m_netcoop_move_budget = 13.f;
+	u32 m_netcoop_move_budget_time = 0;
 	// The owner's active slot from its updates (what other players see in
 	// its hands); 0xff until the first update.
 	u8 m_netcoop_owner_slot = 0xff;
