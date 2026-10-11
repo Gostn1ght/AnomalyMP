@@ -551,7 +551,25 @@ bool server_character_load_actor(xrClientData* CL, CSE_Abstract* actor)
 	{
 		trader->m_character_name = character->name;
 		trader->m_character_name_str = character->name;
-		if (!character->initialized) trader->set_character_profile(shared_str((xr_string("actor_") + character->faction).c_str()));
+		if (!character->initialized)
+		{
+			trader->set_character_profile(shared_str((xr_string("actor_") + character->faction).c_str()));
+			// Freeplay's starting money for the faction (new_game_loadouts.ltx
+			// [<faction>_money]); only while the account has no money yet -
+			// money belongs to the account, a second character keeps it.
+			Account* account = account_find(CL->netcoop_login.c_str());
+			string_path path;
+			if (account && !account->has_money && FS.exist(path, "$game_config$", "items\\settings\\new_game_loadouts.ltx"))
+			{
+				CInifile ini(path, TRUE, TRUE, FALSE);
+				const xr_string section = character->faction + "_money";
+				if (ini.line_exist(section.c_str(), "money"))
+				{
+					trader->m_dwMoney = u32(_max(0.f, ini.r_float(section.c_str(), "money")));
+					Msg("[Lost Zone] new character '%s': %u RU (%s)", character->name.c_str(), trader->m_dwMoney, section.c_str());
+				}
+			}
+		}
 		// The faction may have changed since the Actor was saved (accepted,
 		// expelled, renegade; doc 47): the character's faction wins.
 		else if (!character->faction.empty())
