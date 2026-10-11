@@ -10,6 +10,7 @@
 #include "../xrEngine/gamemtllib.h"
 #include "level.h"
 #include "string_table.h"
+#include "netcoop.h"
 
 #define BULLET_MANAGER_SECTION "bullet_manager"
 
@@ -240,7 +241,13 @@ void CWeaponAmmo::net_Import(NET_Packet& P)
 {
 	inherited::net_Import(P);
 
-	P.r_u16(m_boxCurr);
+	u16 count = 0;
+	P.r_u16(count);
+	// Like the owner's magazine, this box is predicted locally. A delayed
+	// ordinary snapshot must not undo rounds consumed by a reload. Explicit
+	// authoritative item snapshots still reconcile it through item_apply.
+	if (!netcoop::client_owns_hud_item(this))
+		m_boxCurr = _min(count, m_boxSize);
 }
 
 CInventoryItem* CWeaponAmmo::can_make_killing(const CInventory* inventory) const

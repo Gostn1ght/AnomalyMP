@@ -17,6 +17,11 @@
 [Foundation GCC/MSVC PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38127111121).
 Сборка не заменяет игровую приёмку; счётчики выше остаются без повышения ✅.
 
+Продолжение 2026-10-11 (док 95): ordinary ammo-box/shotgun imports сохраняют
+prediction владельца и не индексируют неизвестные типы патронов. Native fixture
+в DX11/Foundation. Это часть исправления магазина; полный server reload/shot
+acknowledgement не закрыт, мировые статусы и игровые ✅ не повышаются.
+
 Исторические статусы строк 2026-10-08: ✅ 27, 🔧 33, 🟡 69, ⬜ 59 из 188.
 G12 закрыт doc76: actual GHAbe30/new private world, native pre-commit and
 failed-checkpoint connection-ID-correlated admission refusals,7controlled

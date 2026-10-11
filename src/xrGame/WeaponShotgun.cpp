@@ -7,6 +7,7 @@
 #include "level.h"
 #include "actor.h"
 #include "script_game_object.h"
+#include "netcoop.h"
 
 CWeaponShotgun::CWeaponShotgun()
 {
@@ -296,11 +297,16 @@ void CWeaponShotgun::net_Export(NET_Packet& P)
 void CWeaponShotgun::net_Import(NET_Packet& P)
 {
 	inherited::net_Import(P);
+	if (P.r_elapsed() < 1) return;
 	u8 AmmoCount = P.r_u8();
+	if (P.r_elapsed() < AmmoCount) return;
+	const bool own = netcoop::client_owns_hud_item(&CHudItem::object());
 	for (u32 i = 0; i < AmmoCount; i++)
 	{
 		u8 LocalAmmoType = P.r_u8();
-		if (i >= m_magazine.size()) continue;
+		// Consume the whole extension even for the owner, without changing
+		// locally predicted cartridges. Never index an unknown ammo type.
+		if (own || i >= m_magazine.size() || LocalAmmoType >= m_ammoTypes.size()) continue;
 		CCartridge& l_cartridge = *(m_magazine.begin() + i);
 		if (LocalAmmoType == l_cartridge.m_LocalAmmoType) continue;
 #ifdef DEBUG
