@@ -381,3 +381,28 @@ outage. Проверяются holdover expiry, отказ старой epoch, �
 и дальнейший emission ENDED catchup. Это backend/native observer integration,
 не рестарт настоящего игрового Location Server и не runtime recovery barrier.
 B13 ⬜ → 🟡; текущие 188: ✅27 / 🔧42 / 🟡68 / ⬜51.
+
+CI compact bootstrap/recovery code `c9e8b8697`, push head `ac03a2cbb`:
+[Foundation GCC/MSVC PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38143506058),
+[World Backend Linux/Windows PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38143505969).
+Backend: 263 tests PASS на каждой платформе. GCC/MSVC logs содержат
+`PASS: real durable backend restart -> native observer; asymmetric delivery, duplicates/reorder, loss/holdover, epoch fencing and phase catchup`.
+Windows native WinHTTP к compact endpoint с >100 КБ unrelated state,
+typed projection и independent local/master epochs также PASS.
+[DX11 build/package PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38143506023).
+Native сборки, игровые серверы и боты локально не запускались.
+Local Lua scope PASS, 188 unique task IDs
+и счётчики сверены; owner handoff 93 оставлен untracked без изменений.
+
+Проверен следующий integration участок: `netcoop_transit.script` по умолчанию
+требует opt-in `-netcoop_npc_transit`, потому что каждый ALife ещё содержит
+whole-Zone population (H11). Native `netcoop_transit_queue.inc` — local-host
+mailbox/tombstones, а `cluster_move` персонажа пишет shared ticket/account/
+character checkpoint и снимает legacy account lease. Эти пути не являются
+backend Transfers/Session Service. Backend `Ownership.location_state` уже
+проверяет actual location owner/fence и возвращает его entities/item ledger;
+текущий engine observer credential не может заявить такое владение.
+Следующая точка внедрения: отдельный location-authority adapter с LocationLease,
+scoped registry bootstrap и persistent UID mapping; затем привязка existing
+capture/spawn/retirement к backend prepare/claim/commit. Clock projection
+сама по себе не заменяет эту последовательность и не включает NPC transit.
