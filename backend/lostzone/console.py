@@ -4,6 +4,8 @@ It operates the real backend, not a second registry or a game server. Native
 location adoption is a separate adapter; its observer is not authority.
 """
 from collections import Counter
+import os
+import sys
 import hashlib
 import json
 import uuid
@@ -151,13 +153,52 @@ class Console:
         raise Invalid("unknown console command")
 
 
+class Style:
+    """ANSI colours only for a real console window; tests and pipes get plain text."""
+    def __init__(self, enabled):
+        self.enabled = enabled
+
+    def __call__(self, code, text):
+        return f"\x1b[{code}m{text}\x1b[0m" if self.enabled else text
+
+    @staticmethod
+    def detect(read, write):
+        if read is not input or write is not print or not sys.stdout.isatty():
+            return Style(False)
+        if os.name == "nt":
+            try:  # enable VT processing for cmd.exe (Windows 10+)
+                import ctypes
+                kernel = ctypes.windll.kernel32
+                handle = kernel.GetStdHandle(-11)
+                mode = ctypes.c_uint32()
+                if not kernel.GetConsoleMode(handle, ctypes.byref(mode)) or \
+                        not kernel.SetConsoleMode(handle, mode.value | 0x0004):
+                    return Style(False)
+            except Exception:
+                return Style(False)
+        return Style(True)
+
+
+ACCENT, MUTED, ERROR, OK = "38;2;217;164;65", "38;2;140;140;145", "38;2;229;83;75", "38;2;76;195;138"
+
+
 def run_console(server, stop, read=input, write=print):
     console = Console(server, stop)
-    write("Lost Zone — отдельный мастер кластера")
-    write(HELP)
+    style = Style.detect(read, write)
+    rule = style(MUTED, "─" * 64)
+    write(rule)
+    write(style("1;" + ACCENT, "  LOST ZONE") + style(MUTED, "  ·  мастер кластера"))
+    try:
+        write("  " + console.execute("status").replace("\n", "\n  "))
+    except Exception as error:
+        write("  " + style(ERROR, f"Состояние недоступно ({type(error).__name__})."))
+    write(rule)
+    write(style(MUTED, HELP))
+    write("")
+    prompt = style(ACCENT, "master") + style(MUTED, " › ")
     while not stop.is_set():
         try:
-            line = read("master> ")
+            line = read(prompt)
         except (EOFError, KeyboardInterrupt):
             stop.set()
             break
@@ -168,4 +209,4 @@ def run_console(server, stop, read=input, write=print):
         except Exception as error:
             # Configs, command arguments and exception text can contain secrets.
             # The operator sees the error class, never tokens/state/checkpoints.
-            write(f"Команда не выполнена ({type(error).__name__}). help — список команд.")
+            write(style(ERROR, f"Команда не выполнена ({type(error).__name__}). help — список команд."))
