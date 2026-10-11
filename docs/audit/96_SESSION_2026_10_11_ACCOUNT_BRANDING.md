@@ -74,3 +74,20 @@ World Backend PASS. Client/server EXE SHA256 `98FC1393D06F736373D1CFA94214F779CF
 Установлено в `J:\LostZone\Lost Zone` и `J:\LostZone_Work\Lost Zone Server`;
 прежние exe/конфиги — `J:\LostZone_Work\_work\before_000003_20261011`.
 Раздача: версия игры 2026.10.11.1, лаунчер 1.2.3. Игра/сервер не запускались.
+
+## Сервер друга: мёртвые кнопки панели и падение «нехватка памяти» (`54b5c43c6`)
+
+- Панель локаций читала `host_view.json`, а watchdog с самого начала пишет
+  `host_view_<компьютер>.json` → панель всегда считала управление
+  отключённым, все кнопки карт были неактивны. Теперь читается файл своего
+  ПК; ошибка скрытого watchdog пишется в `appdata\server\netcoop_cluster\
+  watchdog_error.log` и показывается в панели. Если в плане ни один адрес не
+  локальный (внешний IP для игры через интернет), все карты считаются своими.
+  Проверено настоящим watchdog на временной папке (без запуска серверов):
+  панель видит подключение, 4 кнопки активны — для 127.0.0.1 и для внешнего IP.
+- Падение выделенного сервера у друга (RTX 5060, `[error][8] Недостаточно
+  ресурсов памяти`, адрес по PDB → `dx103DFluidManager.cpp:200`): сервер
+  создавал 3D-текстуры объёмного дыма. `o.volumetricfog` теперь ложно при
+  `g_dedicated_server` (R3/R4), `FluidManager.Initialize` и `Load3DFluid`
+  выходят сразу. В игре не проверено.
+CI: [DX11 PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38154408964); новый dedicated exe установлен в `J:\LostZone_Work\Lost Zone Server`, прежний — `_work\before_54b5c43_20261011`.
