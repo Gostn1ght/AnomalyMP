@@ -7,6 +7,7 @@
 
 #include <dinput.h>
 #include "../actor.h"
+#include "../netcoop.h"
 #include "../ActorCondition.h"
 #include "../EntityCondition.h"
 #include "../CustomOutfit.h"
@@ -429,6 +430,11 @@ void CUIMainIngameWnd::RenderQuickInfos()
 
 void CUIMainIngameWnd::ReceiveNews(GAME_NEWS_DATA* news)
 {
+	// Keep the actor's history, but a PDA notification requires a PDA in
+	// its equipment slot. Spoken NPC dialogue remains available without it.
+	if (netcoop::pure_client() && news->m_type == GAME_NEWS_DATA::eNews &&
+		(!Actor() || !Actor()->GetPDA()))
+		return;
 	VERIFY(news->texture_name.size());
 
 	CurrentGameUI()->m_pMessagesWnd->AddIconedPdaMessage(news);

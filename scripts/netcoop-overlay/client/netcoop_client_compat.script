@@ -1044,6 +1044,7 @@ end
 
 function on_game_start()
 	install_actor_lifecycle()
+	netcoop_pdanet_client.install_notification_sound()
 	install_weather_follow()
 	-- Keep the faction relations the engine read from the table: base-game's
 	-- reset_all_relations (run when no faction select window marked a new

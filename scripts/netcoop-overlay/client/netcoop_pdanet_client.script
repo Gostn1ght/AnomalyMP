@@ -66,6 +66,22 @@ local KEEP = 150
 local listeners = {}
 local parts = {}
 
+function equipped()
+	local actor = db and db.actor
+	local item = actor and actor:item_in_slot(8) -- PDA_SLOT
+	return item and string.find(item:section(), "device_pda", 1, true) ~= nil or false
+end
+
+function install_notification_sound()
+	if not xr_sound or not xr_sound.set_sound_play or xr_sound.__netcoop_pda_sound then return end
+	local play = xr_sound.set_sound_play
+	xr_sound.set_sound_play = function(id, name, ...)
+		if name == "pda_tips" and not equipped() then return end
+		return play(id, name, ...)
+	end
+	xr_sound.__netcoop_pda_sound = true
+end
+
 function on_change(fn) listeners[#listeners + 1] = fn end
 local function changed(what)
 	for _, fn in ipairs(listeners) do pcall(fn, what) end
@@ -109,13 +125,13 @@ local function apply(verb, v)
 		end
 		if not found and v.summary then chats[#chats + 1] = v.summary end
 		sort_chats()
-		if opened and opened.id == v.id then
+		if equipped() and opened and opened.id == v.id then
 			for _, m in ipairs(v.msgs or {}) do
 				if not opened.msgs[#opened.msgs] or m.s > opened.msgs[#opened.msgs].s then opened.msgs[#opened.msgs + 1] = m end
 			end
 			read_chat(v.id)
 		end
-		if xr_sound and xr_sound.set_sound_play and db.actor then pcall(xr_sound.set_sound_play, db.actor:id(), "pda_tips") end
+		if equipped() and xr_sound and xr_sound.set_sound_play then pcall(xr_sound.set_sound_play, db.actor:id(), "pda_tips") end
 	elseif verb == "typing" and type(v) == "table" then
 		typing[v.id] = { uid = v.uid, until_ms = time_global() + 4000 }
 	elseif verb == "members" and type(v) == "table" then
