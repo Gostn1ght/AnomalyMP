@@ -283,7 +283,7 @@ Distance/overload tiers для NPC/мутантов/игроков, описан
 | L34 Частично: штатный smart-terrain/SMR NPC/mutant replenishment | ✅ | spawners night/guards/bounty и replenishment отключены (live лог) |
 | L35 Сохранить полное состояние живых NPC/мутантов при restart | ✅ | рестарт реального сервера: все 77 живых NPC и мутантов Болот вернулись с теми же id, секцией, группировкой, отрядом и всеми 235 предметами, рядом с местом сохранения (run-world-living-test.ps1, 2026-10-07) |
 | L36 Частично: release_item_manager и native inventory/weapon/grenade | 🟡 | backend corpse batches; TTL отключены; живые NPC сохраняются в мире (save теперь работает) |
-| L37 Новое наполнение тайников: редко, обычные consumables/materials/ammo; | 🟡 | мебель/тайники/визиты в тайники/костры в серверном Lua (цикл заработал только 2026-10-06) |
+| L37 Новое наполнение тайников: редко, обычные consumables/materials/ammo; | 🔧 | netcoop_server_compat: NPC в 2 м, без наблюдателя в 50 м, только расходники/материалы/патроны (не quest/оружие/броня/артефакты), максимум 2 реальных предмета; попытка раз в 6 игровых часов с шансом 8 %; неудачный roll также сохраняется и не перебрасывается scan/restart; check-netcoop-items.py PASS; в игре не проверено |
 | L38 Проверить цепочку artifact→NPC→corpse→player→trader→player | ⬜ |  |
 
 ## M

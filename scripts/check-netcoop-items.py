@@ -392,7 +392,14 @@ game.get_game_time=function() return {diffSec=function() return hour * 3600 end}
 hours_since_2012=function() return game.get_game_time():diffSec(game.CTime()) / 3600 end
 local function always() return 0 end
 local box=make_box(700,{make_item(701,'bread',1)})
-assert(stash_visit(box, function() return 0.99 end)=="no visit",'rare: 8%')
+local failed_box=make_box(730,{make_item(731,'bread',1)})
+assert(stash_visit(failed_box, function() return 0.99 end)=="no visit",'rare: 8%')
+local rolls=0
+assert(stash_visit(failed_box, function() rolls=rolls+1; return 0 end)=="too soon" and rolls==0,
+    'a failed opportunity is not rerolled on the next scan')
+local saved_visits=alife_storage_manager.get_state().netcoop_stash_visits_v2
+alife_storage_manager.get_state().netcoop_stash_visits_v2={[730]=saved_visits[730]}
+assert(stash_visit(failed_box, always)=="too soon",'restored failed attempt still has cooldown')
 npc._inv={make_item(402,'wpn_ak74',1), make_item(403,'af_medusa',1), make_item(404,'outfit_sun',1)}
 assert(stash_visit(box, always)=="take" and moves[1].from==700 and moves[1].to==400,'nothing allowed to deposit: the NPC takes')
 assert(stash_visit(box, always)=="too soon",'6 game hours between visits')

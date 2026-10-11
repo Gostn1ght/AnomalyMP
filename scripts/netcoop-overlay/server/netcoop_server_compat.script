@@ -1573,13 +1573,18 @@ function stash_visit(box, roll)
 		return "too soon"
 	end
 	if last and now - last < STASH_VISIT.min_game_hours then return "too soon" end
-	if roll() >= STASH_VISIT.chance then return "no visit" end
 	if players_near(box:position(), STASH_VISIT.player_clear) then return "watched" end
 	local npc = visitor_near(box)
 	if not npc then return "nobody near" end
 	local owner = base_faction(box)
 	if owner and character_community and character_community(npc) ~= owner then return "faction stash" end
 	if players_near(npc:position(), STASH_VISIT.player_clear) then return "watched" end
+	-- Persist an eligible attempt, including a failed roll/empty inventory.
+	-- Otherwise restart or the next scan rerolls the same opportunity until
+	-- the nominally rare visit succeeds. Watched/protected/busy boxes do not
+	-- consume an opportunity: no NPC could interact with them in that case.
+	visits[box:id()] = now
+	if roll() >= STASH_VISIT.chance then return "no visit" end
 	local in_box, on_npc = {}, {}
 	box:iterate_inventory_box(function(_, item) if item and take_allowed(item) then in_box[#in_box + 1] = item end end, box)
 	npc:iterate_inventory(function(_, item)
@@ -1595,7 +1600,6 @@ function stash_visit(box, roll)
 		if deposit then from:transfer_item(item, box) else box:transfer_item(item, npc) end
 		moved = moved + 1
 	end
-	visits[box:id()] = now
 	printf("[Lost Zone][stash] %s %s %s item(s) %s stash %s", npc:name(), deposit and "put" or "took", moved,
 		deposit and "into" or "from", box:id())
 	return deposit and "deposit" or "take"
