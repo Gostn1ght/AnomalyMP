@@ -232,6 +232,24 @@ void CInventory::Take(CGameObject* pObj, bool bNotActivate, bool strict_placemen
 	};
 }
 
+void CInventory::netcoop_remove_from_hands(PIItem item)
+{
+	if (!netcoop::enabled() || !smart_cast<CActor*>(m_pOwner)) return;
+	const u16 slot = item->CurrSlot();
+	if (m_iActiveSlot != slot && m_iNextActiveSlot != slot) return;
+	// The slot is about to disappear. Waiting for a hide animation after
+	// clearing it loses ActiveItem(), leaving the old HUD model attached.
+	if (CHudItem* hud = item->cast_hud_item())
+	{
+		hud->SetNextState(CHUDState::eHidden);
+		hud->OnStateSwitch(CHUDState::eHidden, hud->GetState());
+	}
+	if (CWeapon* weapon = item->cast_weapon()) weapon->OnZoomOut();
+	if (m_iActiveSlot == slot) m_iActiveSlot = NO_ACTIVE_SLOT;
+	if (m_iNextActiveSlot == slot) m_iNextActiveSlot = NO_ACTIVE_SLOT;
+	if (m_iPrevActiveSlot == slot) m_iPrevActiveSlot = NO_ACTIVE_SLOT;
+}
+
 bool CInventory::DropItem(CGameObject* pObj, bool just_before_destroy, bool dont_create_shell)
 {
 	CInventoryItem* pIItem = smart_cast<CInventoryItem*>(pObj);
@@ -276,6 +294,7 @@ bool CInventory::DropItem(CGameObject* pObj, bool just_before_destroy, bool dont
 	case eItemPlaceSlot:
 		{
 			VERIFY(InSlot(pIItem));
+			netcoop_remove_from_hands(pIItem);
 			if (m_iActiveSlot == pIItem->CurrSlot())
 			{
 				CActor* pActor = smart_cast<CActor*>(m_pOwner);
@@ -445,6 +464,7 @@ bool CInventory::Slot(u16 slot_id, PIItem pIItem, bool bNotActivate, bool strict
 	bool in_slot = InSlot(pIItem);
 	if (in_slot && (pIItem->CurrSlot() != slot_id))
 	{
+		netcoop_remove_from_hands(pIItem);
 		if (GetActiveSlot() == pIItem->CurrSlot())
 			Activate(NO_ACTIVE_SLOT);
 
@@ -478,6 +498,7 @@ bool CInventory::Belt(PIItem pIItem, bool strict_placement)
 	bool in_slot = InSlot(pIItem);
 	if (in_slot)
 	{
+		netcoop_remove_from_hands(pIItem);
 		if (GetActiveSlot() == pIItem->CurrSlot())
 			Activate(NO_ACTIVE_SLOT);
 
@@ -528,6 +549,7 @@ bool CInventory::Ruck(PIItem pIItem, bool strict_placement)
 	//вещь была в слоте
 	if (in_slot)
 	{
+		netcoop_remove_from_hands(pIItem);
 		if (GetActiveSlot() == pIItem->CurrSlot())
 			Activate(NO_ACTIVE_SLOT);
 
