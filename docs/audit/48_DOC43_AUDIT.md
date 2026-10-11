@@ -27,6 +27,13 @@ acknowledgement не закрыт, мировые статусы и игровы
 прежние проверки. Native fixture DX11/Foundation; пункт README ⬜ → 🔧,
 счётчики требований мира остаются прежними.
 
+L22 читает saved `diff_eco` override/preset и `plugins/difficulty.ltx` до
+первого `on_game_load`: NPC birth snapshot не зависит от инициализации
+глобального GAMMA cache после входа первого игрока. Community/private lists
+для этой генерации читаются из исходного INI со snapshot экономики и стабильным
+порядком; прежние cache/shuffle counters восстанавливаются даже при ошибке.
+Проверка выполняет настоящий GAMMA `create_item_list` (док 95).
+
 Исторические статусы строк 2026-10-08: ✅ 27, 🔧 33, 🟡 69, ⬜ 59 из 188.
 G12 закрыт doc76: actual GHAbe30/new private world, native pre-commit and
 failed-checkpoint connection-ID-correlated admission refusals,7controlled

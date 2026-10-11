@@ -470,7 +470,8 @@ Simulation Catch-Up, звуковые события/следы. Контрак�
 - [ ] L22. Loot generation policy зависит от world events/economy/выброса,
   а не ухода игрока или рестарта; не подменяет rare stash visits.
   Код/fixtures (док 95): первоначальный инвентарь обычного NPC получает
-  сохранённый контекст GAMMA economy, недавнего выброса и локального боя;
+  контекст GAMMA economy, недавнего выброса и локального боя, зафиксированный
+  при регистрации ALife, включая offline NPC до первого наблюдателя;
   configurable chances генераторов, persistent world seed и per-NPC snapshot.
   Повторный spawn/restart не перебрасывает контекст или готовый инвентарь.
   Story loot и реальные rare stash transfers остаются отдельными путями.
@@ -485,7 +486,11 @@ Simulation Catch-Up, звуковые события/следы. Контрак�
   не нужен постоянный distant fire tick.
   Частично (код): на старте сервера костры не горят, зажигают NPC через лагерную
   логику GAMMA или игрок спичками через сервер, состояние рассылается всем
-  (netcoop_campfire.inc). Расчёта fuel/end по времени нет.
+  (netcoop_campfire.inc). Код/fixtures (док 95): костёр игрока гаснет через
+  3 игровых часа; пустая/уничтожаемая коробка спичек отклоняется, повторное
+  зажигание горящего костра не расходует спички и не продлевает fuel deadline.
+  Тушение снимает таймер; net_Stop очищает fuel/sync/pending states. Проверяется
+  actual native fixture DX11/Foundation, в игре не проверено.
 - [ ] L29. Door open/lock/destroyed state сохраняется и влияет на offline route.
   Частично (код): состояние дверей (ph_door binder) и физика входят в снимок мира
   (world_store_capture_physics_props); влияние на офлайн-маршрут не сделано.

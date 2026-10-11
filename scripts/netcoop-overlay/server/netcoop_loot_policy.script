@@ -44,6 +44,21 @@ function random(seed)
     end
 end
 local stages = {"ammo", "powders", "bullets", "casings", "sin_artefacts", "community", "private"}
+local function economy_factor(state)
+    -- ALife registers NPCs before GAMMA's on_game_load initializes factors.
+    -- Prefer the actual saved override/preset rather than a stale module cache.
+    local saved = type(state.diff_eco) == "table" and state.diff_eco or nil
+    local value = saved and tonumber(saved.loots)
+    if not saved then value = game_difficulties and game_difficulties.get_eco_factor("loots") end
+    if value == nil then
+        local preset = tonumber(saved and saved.type) or 1
+        if preset ~= preset or preset < 1 or preset > 3 then preset = 1 end
+        value = ini_file("plugins\\difficulty.ltx"):r_float_ex("econ_" .. math.floor(preset), "loots")
+    end
+    value = tonumber(value) or 1
+    if value ~= value then value = 1 end
+    return math.max(0, math.min(3, value))
+end
 function world_event(event)
     if event.kind ~= "battle" or type(event.level) ~= "string" or type(event.h) ~= "number" then return end
     world_seed()
@@ -57,10 +72,7 @@ function context_for(npc, map)
     if type(saved) == "table" and saved.schema == 1 and (not saved.name or saved.name == name) then return saved end
     map = map or level.name()
     local state, now = alife_storage_manager.get_state(), hours()
-    local economy = game_difficulties and game_difficulties.get_eco_factor("loots") or 1
-    economy = tonumber(economy) or 1
-    if economy ~= economy then economy = 1 end
-    economy = math.max(0.1, math.min(3, economy))
+    local economy = economy_factor(state)
     local last_emission = tonumber(state.netcoop_last_emission_hour)
     local after_emission = last_emission and now >= last_emission and
         now - last_emission < number("policy", "emission_hours", 2, 0, 168) or false
@@ -98,10 +110,52 @@ function allows(context, stage)
     if chance == nil then return false end
     return random(context.seed + hash(stage))() < chance
 end
+local function upvalue(fn, wanted)
+    if type(fn) ~= "function" or not (debug and debug.getupvalue and debug.setupvalue) then return nil end
+    for i = 1, 64 do
+        local name, value = debug.getupvalue(fn, i)
+        if not name then return nil end
+        if name == wanted then return i, value end
+    end
+end
+local function prepare_lists(context)
+    local fn = death_manager and death_manager.create_item_list
+    local ini = itms_manager and itms_manager.ini_death
+    local index, original = upvalue(fn, "item_by_community")
+    local count_index, counts = upvalue(fn, "shuffle_cnt")
+    if not (ini and index and count_index and type(original) == "table") then return nil end
+    -- GAMMA scales cached chances before the first player initializes economy,
+    -- then shuffles shared lists according to which NPCs came online first.
+    -- Use fresh, canonical lists with the saved economy for this birth only.
+    local lists = setmetatable({}, {__index = function(t, profile)
+        if not original[profile] then return nil end
+        local list = {}
+        if ini:section_exist(profile) then
+            for i = 0, ini:line_count(profile) - 1 do
+                local _, section, chance = ini:r_line_ex(profile, i, "", "")
+                local factor = ini:line_exist("exclude_from_multi", section) and 1 or context.economy
+                list[#list + 1] = {sec = section, cha = (tonumber(chance) or 0) * factor}
+            end
+        else
+            for _, row in ipairs(original[profile]) do list[#list + 1] = {sec = row.sec, cha = row.cha} end
+        end
+        table.sort(list, function(a, b) return a.sec == b.sec and a.cha < b.cha or a.sec < b.sec end)
+        t[profile] = list
+        return list
+    end})
+    debug.setupvalue(fn, index, lists)
+    debug.setupvalue(fn, count_index, {})
+    return function()
+        debug.setupvalue(fn, index, original)
+        debug.setupvalue(fn, count_index, counts)
+    end
+end
 function with_random(context, fn)
     local previous = math.random
     math.random = random(context.seed)
-    local ok, result = pcall(fn)
+    local restore
+    local ok, result = pcall(function() restore = prepare_lists(context); return fn() end)
+    if restore then restore() end
     math.random = previous -- also restore after a generator error
     return ok, result
 end

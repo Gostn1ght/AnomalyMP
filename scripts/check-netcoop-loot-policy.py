@@ -24,7 +24,9 @@ alife_storage_manager={get_state=function() return state end}
 game={CTime=function() return {set=function() end} end,
  get_game_time=function() return {diffSec=function() return now_hours*3600 end} end}
 level={name=function() return here end}
-ini_file=function() return {r_float_ex=function(_,section,key)
+local presets={econ_1={loots=1.2},econ_2={loots=0.6},econ_3={loots=0.3}}
+ini_file=function(path) return {r_float_ex=function(_,section,key)
+ if path=="plugins\\difficulty.ltx" then return presets[section] and presets[section][key] end
  local t=config_sections[section];return t and t[key] end} end
 game_difficulties={get_eco_factor=function() return economy end}
 -- GAMMA's se vars are keyed by ID; the policy must verify names itself.
@@ -148,5 +150,77 @@ callbacks.server_entity_on_register(offline,"se_stalker");game_graph=lookup
 -- Real se_load_var is keyed by id; the policy itself validates a recycled id's name.
 local replacement=npc(11);replacement.name=function() return "different_npc" end
 assert(p.context_for(replacement)~=birth,"recycled id never inherits another NPC context")
+-- Saved settings precede GAMMA's first-player on_game_load callback.
+economy=nil;state.diff_eco={type=2};local boot=p.context_for(npc(13));assert(boot.economy==0.6)
+economy=3;state.diff_eco={type=3,loots=0.4};assert(p.context_for(npc(14)).economy==0.4,"saved override precedes stale cache")
+state.diff_eco={type=3};assert(p.context_for(npc(15)).economy==0.3,"saved preset precedes stale cache")
+state.diff_eco={type=0/0};assert(p.context_for(npc(16)).economy==1.2,"invalid preset uses GAMMA default")
+state.diff_eco=nil;economy=nil;assert(p.context_for(npc(17)).economy==1.2,"fresh world before factor initialization")
+state.diff_eco={loots=0/0};assert(p.context_for(npc(18)).economy==1,"invalid saved override bounded")
+state.diff_eco={loots=0};local disabled=p.context_for(npc(19))
+assert(disabled.economy==0 and not p.allows(disabled,"ammo"),"zero GAMMA loot factor remains disabled")
+assert(p.context_for(npc(13))==boot and boot.economy==0.6,"initialization never rerolls boot snapshot")
 ''')
-print("PASS actual saved loot policy: ALife birth before observation, identity, economy/emission/local battle, journal eviction, restart RNG/context, initial generation once, story/protection/errors and Lua 5.1 bounds")
+# Run GAMMA's actual create_item_list against its real named cache upvalues.
+stock = (root / "scripts/fixtures/loot/create_item_list.lua").read_text(encoding="utf-8")
+g.stock_source = stock
+lua.execute(r'''
+local src=[[local enble_trade_items=true
+local item_by_community={stalker_veteran={{sec="b",cha=0.99},{sec="a",cha=0.99},{sec="essential",cha=1}},
+ stalker_private_veteran={{sec="b",cha=0.99},{sec="a",cha=0.99}}}
+local item_count={a={1,1},b={1,1},essential={1,1}}
+local shuffle_cnt={stalker_veteran=100,stalker_private_veteran=100};local shuffle_max=2
+]]..stock_source..[[
+return create_item_list,item_by_community,shuffle_cnt]]
+local original,cache,counts=assert(loadstring(src))()
+death_manager={create_item_list=original};flags={}
+local profiles={stalker_veteran={{"b",0.8},{"a",0.6},{"essential",1}},
+ stalker_private_veteran={{"b",0.8},{"a",0.6}}}
+itms_manager={ini_death={section_exist=function(_,sec) return profiles[sec]~=nil end,
+ line_count=function(_,sec) return #profiles[sec] end,
+ r_line_ex=function(_,sec,i) local r=profiles[sec][i+1];return true,r[1],tostring(r[2]) end,
+ line_exist=function(_,sec,item) return sec=="exclude_from_multi" and item=="essential" end}}
+function IsItem() return false end
+local records,shuffled={},0
+function create_item(_,sec,count,chance)
+ if bad_generator then error("stock generator failure") end
+ records[#records+1]={sec=sec,count=count,chance=chance,roll=math.random(1,1000)}
+end
+function shuffle_table(t) shuffled=shuffled+1;math.random();t[1],t[#t]=t[#t],t[1] end
+function printdbg() end
+local function same_cache()
+ local found=0
+ for i=1,64 do
+  local name,value=debug.getupvalue(original,i);if not name then break end
+  if name=="item_by_community" then assert(value==cache);found=found+1 end
+  if name=="shuffle_cnt" then assert(value==counts);found=found+1 end
+ end
+ assert(found==2 and counts.stalker_veteran==100 and counts.stalker_private_veteran==100)
+end
+local function run()
+ records={};local n=npc(20)
+ assert(netcoop_loot_policy.with_random({seed=913,economy=0.5},function()
+  death_manager.create_item_list(n,"stalker","veteran",false)
+  death_manager.create_item_list(n,"stalker","veteran",true)
+ end))
+ assert(#records==5 and records[1].sec=="a" and records[1].chance==0.3)
+ assert(records[2].sec=="b" and records[2].chance==0.4)
+ assert(records[3].sec=="essential" and records[3].chance==1)
+ assert(records[4].sec=="a" and records[4].chance==0.3 and shuffled==0)
+ same_cache();return records
+end
+bad_generator=false;local first=run()
+-- Zero/stale scaled caches and other NPC activation order cannot change this birth.
+for _,list in pairs(cache) do for _,row in ipairs(list) do row.cha=0 end;list[1],list[#list]=list[#list],list[1] end
+local second=run();for i,row in ipairs(first) do assert(row.sec==second[i].sec and row.roll==second[i].roll) end
+local previous=math.random;bad_generator=true
+local ok=netcoop_loot_policy.with_random({seed=913,economy=0.5},function()
+ death_manager.create_item_list(npc(20),"stalker","veteran",false) end)
+assert(not ok and math.random==previous);same_cache()
+bad_generator=false;records={}
+assert(netcoop_loot_policy.with_random({seed=1,economy=0},function()
+ death_manager.create_item_list(npc(20),"stalker","veteran",false) end))
+assert(#records==1 and records[1].sec=="essential","GAMMA exclude_from_multi remains exempt")
+same_cache()
+''')
+print("PASS actual saved loot policy and GAMMA generator: ALife birth, bootstrap/saved/zero economy, canonical lists independent of cached scale/shuffle, restored upvalues/RNG, events, restart and generation once")

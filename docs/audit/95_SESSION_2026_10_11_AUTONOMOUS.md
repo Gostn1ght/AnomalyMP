@@ -67,9 +67,25 @@ wall clock, неизменный snapshot, generator failure, story/dont_spawn_l
 load, а script state и часы загружает до регистрации объектов. Поэтому
 restart registration сохраняет старый snapshot; старые миры фиксируют
 отсутствующие snapshots при загрузке. Первое online появление только
-исполняет уже зафиксированный план. Контекст дополнительно проверяет имя
+исполняет сохранённые seed, stage gates и экономику; это не snapshot полного
+списка предметов и всех GAMMA inputs. Контекст дополнительно проверяет имя
 NPC при повторном использовании object ID. Fixture проверяет offline birth,
 другую карту сервера, спустя 20 часов первого наблюдателя и повторный register.
+Отдельно проверен bootstrap экономики: GAMMA инициализирует `factors_eco`
+в `on_game_load` уже после регистрации NPC. Политика читает saved `diff_eco`
+overrides/preset и `plugins/difficulty.ltx` непосредственно; старый module cache
+не перекрывает настройки нового мира. Fixture покрывает uninitialized factors,
+saved override/preset, stale cache, NaN и fresh-world preset до первого игрока.
+Обнаружена также зависимость actual `create_item_list` от общих local tables:
+GAMMA заранее умножает шансы на экономику и перемешивает списки после NPC.
+Для первоначальной генерации адаптер временно подставляет canonical lists из
+`itms_manager.ini_death` с сохранённой экономикой, учитывает `exclude_from_multi`
+и сохраняет исходный выбор профиля/проверки GAMMA. Старые cache и shuffle counters
+восстанавливаются после успеха и ошибки; другие вызовы генератора продолжают
+работать как прежде. Fixture выполняет неизменённую функцию GAMMA из
+`scripts/fixtures/loot/create_item_list.lua`: stale scale/order/counters не меняют
+результат, нулевая экономика сохраняет excluded items, ошибка восстанавливает
+upvalues и RNG. Полный immutable inventory plan остаётся за рамками L22.
 Items/emission/world-events/Lua scope PASS. L22: ⬜ → 🔧; текущий учёт
 188 требований: ✅ 27, 🔧 42, 🟡 66, ⬜ 53.
 
@@ -105,3 +121,16 @@ boolean в запросе отклоняется. `net_Stop` очищает camp
 пустая/уничтожаемая коробка, точный game-time deadline, тушение, late join,
 малформированные пакеты, deferred spawn и reset с откатом часов новой сессии.
 Подключена к DX11 и Foundation GCC/MSVC. L28 остаётся 🔧; игрового запуска нет.
+
+## Подтверждение продолжения
+
+Первый L22 (`e5d11da55`): [DX11 build/package PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38130460606).
+Итоговый код `2cab06c88`: [Foundation GCC/MSVC PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38132068951),
+[DX11 build/package PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38132068954);
+в логах обеих платформ есть PASS actual stamina recovery и PASS actual campfires.
+Предыдущие Windows-прогоны остановили `/WX` из-за типов ID и имени глобальной
+заглушки новой campfire fixture; исправлены именно заглушки, строгость сохранена.
+
+Учёт 188 уникальных строк повторно проверен: ✅ 27, 🔧 42, 🟡 66, ⬜ 53.
+Полный протокол server shot/reload/unload acknowledgement остаётся открытым;
+исправление ordinary imports не повышает этот пункт до закрытого.
