@@ -47,13 +47,23 @@ $perServer = if ($plan["cluster"] -and $plan["cluster"]["per_server"]) { [int]$p
 $local = @("127.0.0.1", "localhost", $env:COMPUTERNAME.ToLower())
 try { $local += (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop | ForEach-Object { $_.IPAddress }) } catch {}
 
+# A map belongs here when its host is one of this machine's addresses. A
+# single-host plan that lists the router's public IP (as the README says for
+# play over the internet) matches no local interface: then every map is ours.
+$anyHost = $false
+foreach ($map in $plan["locations"].Keys) {
+    $hostName = ($plan["locations"][$map] -split ":")[0]
+    if ($local -contains $hostName.ToLower()) { $anyHost = $false; break }
+    $anyHost = $true
+}
+if ($anyHost) { Write-Host "no plan address is local: all maps run on this machine" }
 $servers = @()
 foreach ($map in $plan["locations"].Keys) {
     if ($map -notmatch '^\w+$') { throw 'Invalid map key in cluster plan' }
     if ($Maps.Count -and $Maps -notcontains $map) { continue }
     $address = $plan["locations"][$map]
     $hostName, $port = $address -split ":"
-    if ($local -notcontains $hostName.ToLower()) { continue }
+    if (-not $anyHost -and $local -notcontains $hostName.ToLower()) { continue }
     $start = $plan["launch"][$map]
     if (-not $start) { Write-Host "skip $map`: no [launch] start section"; continue }
     if ($start -notmatch '^\w+$' -or [int]$port -lt 1 -or [int]$port -gt 65534) { throw "Invalid launch plan for $map" }

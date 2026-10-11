@@ -363,7 +363,9 @@ void CRender::create()
 	//.	o.sunstatic			= (strstr(Core.Params,"-sunstatic"))?	TRUE	:FALSE	;
 	o.sunstatic = r2_sun_static;
 	o.advancedpp = r2_advanced_pp;
-	o.volumetricfog = ps_r2_ls_flags.test(R3FLAG_VOLUMETRIC_SMOKE);
+	// A dedicated server draws nothing: no 3D smoke volumes (70^3 render targets per map
+	// process). On an RTX 5060 host they failed with ERROR_NOT_ENOUGH_MEMORY at start.
+	o.volumetricfog = ps_r2_ls_flags.test(R3FLAG_VOLUMETRIC_SMOKE) && !g_dedicated_server;
 	o.sjitter = (strstr(Core.Params, "-sjitter")) ? TRUE : FALSE;
 	o.depth16 = (strstr(Core.Params, "-depth16")) ? TRUE : FALSE;
 	if (strstr(Core.Params, "-noshadows") || strstr(Core.Params, "-r4_dev"))

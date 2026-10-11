@@ -8,6 +8,12 @@ $planPath = Join-Path $Runtime 'appdata\server\netcoop_cluster.ltx'
 if (-not (Test-Path -LiteralPath $planPath)) { throw "Cluster plan missing: $planPath" }
 $wakeDir = Join-Path $Runtime 'appdata\server\netcoop_cluster'
 $logDir = Join-Path $Runtime 'appdata\server\logs'
+# The watchdog publishes this machine's maps as host_view_<computer>.json
+# (several hosts may share one plan); the panel used to read host_view.json,
+# never saw a fresh view and kept every map button disabled.
+$viewName = "host_view_$($env:COMPUTERNAME.ToLowerInvariant()).json"
+$watchdogErr = Join-Path $wakeDir 'watchdog_error.log'
+$watchdogOut = Join-Path $wakeDir 'watchdog.log'
 $mapNames = @{
     k00_marsh='Болота'; l01_escape='Кордон'; l02_garbage='Свалка'; l03_agroprom='Агропром';
     l03u_agr_underground='Подземелья Агропрома'; l04_darkvalley='Тёмная долина'; l04u_labx18='Лаборатория X18';
@@ -173,7 +179,11 @@ $manage = New-Button 'Подключить управление' $true
 $manage.Add_Click({
     try {
         $watchdog = Join-Path $PSScriptRoot 'netcoop_cluster_watchdog.ps1'
-        Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',"`"$watchdog`"",'-Runtime',"`"$Runtime`"",'-NoAutoStart') -WindowStyle Hidden
+        [IO.Directory]::CreateDirectory($wakeDir) | Out-Null
+        if (Test-Path -LiteralPath $watchdogErr) { Remove-Item -LiteralPath $watchdogErr -Force }
+        # The hidden watchdog's errors go to a file the panel shows instead of vanishing.
+        Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',"`"$watchdog`"",'-Runtime',"`"$Runtime`"",'-NoAutoStart') -WindowStyle Hidden -RedirectStandardError $watchdogErr -RedirectStandardOutput $watchdogOut
+        $script:watchdogStarted = Get-Date
         $status.ForeColor = $C.muted; $status.Text = 'Управление подключается. Затем выберите карту и нажмите «Запустить».'
     } catch { $status.ForeColor = $C.red; $status.Text = $_.Exception.Message }
 })
@@ -207,7 +217,7 @@ $states=@{running='Работает';loading='Загружается';stopped='�
 $modes=@{on='Включена вручную';off='Выключена вручную';auto='Автоматически'}
 $refresh = {
     try {
-        $viewPath = Join-Path $wakeDir 'host_view.json'
+        $viewPath = Join-Path $wakeDir $viewName
         $view = if (Test-Path -LiteralPath $viewPath) { [IO.File]::ReadAllText($viewPath) | ConvertFrom-Json } else { $null }
         $fresh = $view -and ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds()-[long]$view.updated -lt 30)
         $script:localMaps = @{}
@@ -231,12 +241,19 @@ $refresh = {
                 }
             }
             $connection.Text = '● управление подключено'; $connection.ForeColor = $C.green
+            if ($script:watchdogStarted) { $script:watchdogStarted = $null; $status.ForeColor = $C.muted; $status.Text = 'Управление подключено. Выберите карту и действие.' }
         } else {
             foreach ($map in $locations.Keys) {
                 $stateByMap[$map]='none'; $rowByMap[$map].Cells[2].Value='Нет связи'; $rowByMap[$map].Cells[2].Style.ForeColor=$C.dim; $rowByMap[$map].Cells[2].Style.SelectionForeColor=$C.dim
                 $rowByMap[$map].Cells[3].Value='—'; $rowByMap[$map].Cells[4].Value='—'
             }
             $connection.Text = '● управление не подключено — нажмите «Подключить управление»'; $connection.ForeColor = $C.amber
+            if ((Test-Path -LiteralPath $watchdogErr) -and (Get-Item -LiteralPath $watchdogErr).Length -gt 0) {
+                $reason = @(Get-Content -LiteralPath $watchdogErr -Encoding Default | Where-Object { $_.Trim() -and $_ -notmatch '^\s*(\+|CategoryInfo|FullyQualifiedErrorId|At |строка|At line)' }) | Select-Object -First 1
+                $status.ForeColor = $C.red; $status.Text = "Управление не запустилось: $reason"
+            } elseif ($script:watchdogStarted -and ((Get-Date) - $script:watchdogStarted).TotalSeconds -gt 20) {
+                $status.ForeColor = $C.amber; $status.Text = 'Управление не отвечает. Подробности: appdata\server\netcoop_cluster\watchdog.log'
+            }
         }
         $summary.Text = "Работает $running из $($locations.Count)   ·   игроков $players"
         $enabled = $fresh -and $grid.SelectedRows.Count -and $script:localMaps.ContainsKey([string]$grid.SelectedRows[0].Tag)
