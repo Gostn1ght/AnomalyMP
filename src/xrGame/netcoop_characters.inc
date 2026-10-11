@@ -403,7 +403,10 @@ static bool character_validate_loadout(LPCSTR faction, u8 economy, LPCSTR loadou
 	xr_sprintf(budget_key, "total_points_eco_%u", economy);
 	const float budget = ini.r_float("points", budget_key);
 	float used = 0.f;
-	u32 cells=0;
+	// No backpack-cell limit here: freeplay's points already bound the kit,
+	// and GAMMA's mandatory items alone fill 29 of the 60 cells - every real
+	// kit with two guns and armour was refused ("loadout_save_failed", owner's
+	// log 2026-10-10). Over 60 cells the player just cannot pick up more.
 	xr_map<xr_string, u32> selected;
 	const u32 count = _GetItemCount(loadout);
 	if (count > 256) return false;
@@ -413,8 +416,6 @@ static bool character_validate_loadout(LPCSTR faction, u8 economy, LPCSTR loadou
 		_GetItem(loadout, i, item);
 		_Trim(item);
 		if (!pSettings->section_exist(item) || !ini.line_exist(section.c_str(), item)) return false;
-		cells+=storage_section_cost(item);
-		if (cells>storage_capacity(false)) return false;
 		LPCSTR values = ini.r_string(section.c_str(), item);
 		_GetItem(values, 1, field); const u32 available = u32(atoi(field));
 		_GetItem(values, 2, field); const float price = float(atof(field));
@@ -650,11 +651,9 @@ void server_character_spawn_items(xrClientData* CL)
 	else
 	{
 		const u32 count = _GetItemCount(character->loadout.c_str());
-		u32 starter_cells=0;
 		for (u32 i = 0; character->loadout.size() && i < count; ++i)
 		{
 			string128 section; _GetItem(character->loadout.c_str(), i, section); _Trim(section);
-			starter_cells+=storage_section_cost(section);
 			CSE_Abstract* item = server->game->spawn_begin(section);
 			if (!item) return;
 			item->ID_Parent = CL->owner->ID;
@@ -679,11 +678,9 @@ void server_character_spawn_items(xrClientData* CL)
                 if (!pSettings->section_exist(ammo)) continue;
                 const u32 box = pSettings->line_exist(ammo, "box_size") ? pSettings->r_u32(ammo, "box_size") : 50;
                 u32 remaining = ini.line_exist("ammo_count", ammo) ? ini.r_u32("ammo_count", ammo) : (box < 30 ? box * 2 : box);
+                // freeplay's whole allowance (the backpack cells do not cut it)
                 while (remaining && box)
                 {
-                    const u32 ammo_cells=storage_section_cost(ammo);
-                    if (starter_cells+ammo_cells>storage_capacity(false)) break;
-                    starter_cells+=ammo_cells;
                     CSE_Abstract* item = server->game->spawn_begin(ammo);
                     if (!item) return;
                     CSE_ALifeItemAmmo* bullets = smart_cast<CSE_ALifeItemAmmo*>(item);

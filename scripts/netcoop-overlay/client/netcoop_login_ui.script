@@ -53,6 +53,26 @@ local function log_error(element, trace)
 	end
 	pcall(function() get_console():execute("flush") end)
 end
+-- The craft-use tooltip mod (zzz_craft_use_in_tooltip_mcm) reads craft.ltx
+-- into a local only at on_game_start; the loadout picker shows item tooltips
+-- before any game: "attempt to index upvalue 'ini_craft'" on every tooltip
+-- (owner's log 2026-10-10). The mod's own ini is given to it here.
+local function craft_tooltip_ready()
+	local m = rawget(_G, "zzz_craft_use_in_tooltip_mcm") or zzz_craft_use_in_tooltip_mcm
+	if not (m and debug and debug.getupvalue and debug.setupvalue) then return end
+	for _, fn_name in ipairs({ "getCraftableItems", "getCookableItems" }) do
+		local fn = m[fn_name]
+		if type(fn) == "function" then
+			for n = 1, 32 do
+				local name, value = debug.getupvalue(fn, n)
+				if not name then break end
+				if name == "ini_craft" and value == nil then debug.setupvalue(fn, n, ini_file("items\\settings\\craft.ltx")) end
+				if name == "ini_cook" and value == nil then debug.setupvalue(fn, n, ini_file("items\\settings\\cook.ltx")) end
+			end
+		end
+	end
+end
+
 -- Interactive room objects (menu_room object index -> label and action).
 -- The objects themselves are the buttons: hover highlights, click activates.
 local ROOM_OBJECTS = {
@@ -552,7 +572,7 @@ function netcoop_login_wnd:ShowCharacters()
         connect:TextControl():SetText(tr("enter_zone")); self:Register(connect, "server_connect")
         self:Bind("server_connect", function() self:SelectCharacter(self.slot) end)
         local check = xml:Init3tButton("server_check", self.server_panel)
-        check:TextControl():SetText("Обновить персонажей и доступ")
+        check:TextControl():SetText("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ")
         self:Register(check, "server_check"); self:Bind("server_check", self.CheckServer)
         self.room_back = xml:Init3tButton("room_back", self)
         self.room_back:TextControl():SetText(tr("back")); self:Register(self.room_back, "room_back")
@@ -586,7 +606,7 @@ function netcoop_login_wnd:ShowCharacters()
     self.slot = self.slot or 1; self.character_panel:Show(true); self:ChangeSlot(0)
     self.details_panel:Show(false)
     self:SetMsg(auth_message or "")
-    self.account_caption:TextControl():SetText(self.pending_login .. (self:CharacterLimit() == 10 and "  /  Администратор" or "  /  Сталкер"))
+    self.account_caption:TextControl():SetText(self.pending_login .. (self:CharacterLimit() == 10 and "  /  пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ" or "  /  пїЅпїЅпїЅпїЅпїЅпїЅпїЅ"))
     for i = 1, 10 do self.slot_buttons[i]:Show(i <= self:CharacterLimit()) end
     for i = 1, self:CharacterLimit() do
         self.slot_buttons[i]:TextControl():SetText(string.format("%d   %s", i, self.names[i] and self.names[i] ~= "" and self.names[i] or tr("empty_slot")))
@@ -610,7 +630,7 @@ function netcoop_login_wnd:ChangeSlot(delta)
     self.enter:TextControl():SetText(tr(name and name ~= "" and "enter_zone" or "create_character"))
     local description, history = "", ""
     if cloud_enabled() then description = netcoop_draft(self.slot, "description"); history = netcoop_draft(self.slot, "history") end
-    self.character_description:TextControl():SetText((description ~= "" and description .. "\n\n" or "") .. (history ~= "" and history or "Личное дело сталкера. Снаряжение и прогресс сохраняются на выбранном сервере."))
+    self.character_description:TextControl():SetText((description ~= "" and description .. "\n\n" or "") .. (history ~= "" and history or "пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ. пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ."))
     for i = 1, 10 do self.slot_buttons[i]:Enable(i ~= self.slot) end
     self.storage_revision=nil
     if self.room_view == "character" then self.view_index=2; netcoop_preview_focus(2)
@@ -675,6 +695,7 @@ function netcoop_login_wnd:ShowLoadout(slot)
     self.creator.list_map:Show(false)
     self:HideDialog()
     netcoop_preview_clear()
+    pcall(craft_tooltip_ready)
     self.creator:ShowDialog(true)
     self.creator:Show(true)
 end

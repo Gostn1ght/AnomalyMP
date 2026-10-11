@@ -70,6 +70,7 @@ jobs:
           python scripts/check-netcoop-backpack-anim.py
           python scripts/check-netcoop-move-speed.py
           python scripts/check-netcoop-weapon-parts.py
+          python scripts/check-netcoop-loadout.py
           python scripts/check-netcoop-anims.py
           python scripts/check-netcoop-artefacts.py
           python scripts/check-netcoop-voice.py
