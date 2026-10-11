@@ -109,6 +109,40 @@ engine handles, а не durable registry.
 
 ## Сервис и интерфейс
 
+Отдельный процесс мастера запускается из своей консоли:
+
+```powershell
+cd backend
+python -m lostzone init --config runtime/config.json --location k00_marsh --location l01_escape
+python -m lostzone console --config runtime/config.json
+```
+
+`init` выполняется один раз для нового backend мира; существующий config и
+DB сохраняются. Для всех карт добавьте их настоящие map IDs через `--location`
+при первоначальной настройке. Для уже настроенного мира достаточно
+`Start Lost Zone Master.cmd` или команды `console`. Нужен Python 3.13.
+
+Консоль содержит `status`, `clock`, `locations`, `characters`, `npcs`,
+`transfers`, `events`, `scale <число>`, `help`, `quit`. Она запускает тот же
+HTTP service/checkpoint worker и работает с единственной SQLite базой;
+не поднимает игровые серверы локаций. Scale проходит настоящий command dispatcher
+и mutation barrier; recovery не разрешает команды изменения. Диагностика
+показывает metadata без tokens, character state и transfer checkpoints.
+Числа персонажей, сессий, NPC и переходов ограничены выборкой до 1024 записей;
+при превышении лимита консоль отмечает наличие остальных записей. Локаций
+показывается до 64, последних событий — до 10. Диагностика не сканирует весь
+реестр под блокировкой мастера.
+Quit, EOF и Ctrl+C останавливают workers, сохраняют календарь и освобождают
+service lock. `serve` остаётся режимом без интерактивного ввода.
+
+Владельцем подтверждена целевая схема: мастер ведёт общий календарь, погоду,
+события, межлокационное владение NPC и персонажами; игровые серверы ведут
+локальную симуляцию. Консоль — готовый первый шаг, не готовность игрового
+подключения: engine observer ещё не применяет backend state. NPC transit
+остаётся выключенным до H11/identity/fencing; текущий игровой календарь и
+персонажи используют legacy cluster store. Эти данные не переносятся в новую
+DB автоматически, и два реестра не объявляются одним миром.
+
 Из каталога backend:
 
 ```powershell

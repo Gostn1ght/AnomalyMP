@@ -146,6 +146,11 @@ L26 остаётся 🟡: dynamic supply/demand/restock events и cluster ItemL
 
 ## Подтверждение продолжения
 
+Защита торговли `89c34bd28`:
+[Foundation GCC/MSVC PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38135294040),
+[DX11 build/package PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38135294031),
+в обеих platform logs есть PASS actual native trade admission и mixed basket.
+
 Первый L22 (`e5d11da55`): [DX11 build/package PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38130460606).
 L22 с сохранённой экономикой и canonical GAMMA lists (`c518bf095`):
 [DX11 build/package PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38133859152),
@@ -159,3 +164,36 @@ L22 с сохранённой экономикой и canonical GAMMA lists (`c5
 Учёт 188 уникальных строк повторно проверен: ✅ 27, 🔧 42, 🟡 66, ⬜ 53.
 Полный протокол server shot/reload/unload acknowledgement остаётся открытым;
 исправление ordinary imports не повышает этот пункт до закрытого.
+
+## Отдельная консоль мастера — уточнение владельца
+
+Владелец подтвердил целевую схему: отдельная консоль запускает мастер;
+мастер ведёт общий календарь/погоду/глобальные события и переносы NPC/персонажей;
+серверы локаций выполняют локальные physics/combat/AI. Character identity,
+инвентарь и индивидуальный состав NPC сохраняются при переходе; source и target
+не владеют ими одновременно. Новая DB не подменяет существующий игровой мир.
+
+Добавлен `python -m lostzone console --config ...` и отдельный Windows launcher
+`backend/Start Lost Zone Master.cmd`. Console запускает существующий World
+Service с HTTP/checkpoint workers и единственным OS-locked SQLite store.
+Status, clock, locations, characters, NPC/mutant/group counts, transfer states
+и последние 10 event metadata читают настоящий backend. Registry summaries
+ограничены выборкой до 1024 записей, locations — до 64; наличие остальных
+записей отмечается явно. Нет полного сканирования реестра под store lock. Private payloads,
+tokens и checkpoints не выводятся. Scale использует существующий admin
+dispatcher и durable mutation barrier, закрыт при recovery. Quit/EOF/Ctrl+C
+ведут через общий final-save/shutdown; signal handlers восстанавливаются.
+
+Семь focused Python tests выполняют настоящий Store/World/Dispatcher,
+calendar continuity, recovery/stale epoch, private output, bounded registry summaries, EOF/interrupt и
+service lifecycle/restart. Listener в lifecycle fixture заменён заглушкой:
+игра, native server/bots и рабочая консоль мастера локально не запускались.
+Full backend suite выполняется Linux/Windows workflow.
+
+Это первый этап отдельного мастера. Текущий engine bridge остаётся observer;
+календарь/погода/персонажи игры используют legacy store, а автоматический NPC
+transit выключен до разделения ALife registry (H11). A01 остаётся 🟡,
+пункт полного выноса игрового мастера — ⬜; счётчики 188 задач прежние.
+Следующее подключение: единые WorldID/clock и backend authority в location
+adapter, character/NPC handoff с fencing/ACK, разделение владения ALife и
+единый источник world events/weather. Launcher сам не закрывает эти пункты.

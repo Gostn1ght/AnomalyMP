@@ -64,12 +64,14 @@ def create_bridge_config(config_path, destination):
     return destination
 
 
-def run(path, port_override=None):
+def run(path, port_override=None, interactive=False):
     path = Path(path).resolve()
     config = json.loads(path.read_text(encoding="utf-8"))
     if config.get("schema") != 1:
         raise Invalid("unsupported service configuration")
     credentials = Credentials(config.get("credentials"))
+    if interactive and not any(principal.role == "admin" for _, principal in credentials.entries):
+        raise Invalid("master console requires an administrator credential")
     key = bytes.fromhex(config["signing_key"])
     port = port_override if port_override is not None else config.get("port", 38477)
     if type(port) is not int or not 0 <= port <= 65535:
@@ -83,6 +85,7 @@ def run(path, port_override=None):
     stop = threading.Event()
     worker = None
     checkpoint = None
+    previous_signals = {}
     try:
         world = World(store, world_id=config.get("world_id"), seed=config.get("seed"),
                       initial_ms=config.get("initial_ms", 0), scale=config.get("scale", 10))
@@ -104,15 +107,29 @@ def run(path, port_override=None):
         worker = threading.Thread(target=server.serve_forever, name="world-http")
         worker.start()
         if threading.current_thread() is threading.main_thread():
+            def request_stop(signum, frame):
+                stop.set()
+                if interactive:
+                    raise KeyboardInterrupt
             for name in ("SIGINT", "SIGTERM"):
                 if hasattr(signal, name):
-                    signal.signal(getattr(signal, name), lambda signum, frame: stop.set())
+                    code = getattr(signal, name)
+                    previous_signals[code] = signal.signal(code, request_stop)
         print(f"Lost Zone World listening on 127.0.0.1:{server.server_address[1]}; epoch={store.epoch}", flush=True)
-        while not stop.wait(1):
-            if not worker.is_alive():
-                raise RuntimeError("world listener stopped")
+        if interactive:
+            from .console import run_console
+            try:
+                run_console(server, stop)
+            except KeyboardInterrupt:
+                stop.set()
+        else:
+            while not stop.wait(1):
+                if not worker.is_alive():
+                    raise RuntimeError("world listener stopped")
     finally:
         stop.set()
+        for code, previous in previous_signals.items():
+            signal.signal(code, previous)
         if checkpoint is not None:
             checkpoint.join()
         if server is not None:
@@ -131,7 +148,7 @@ def run(path, port_override=None):
 
 def main():
     parser = argparse.ArgumentParser(description="Lost Zone local World Service")
-    parser.add_argument("mode", choices=("init", "serve", "bridge-config"))
+    parser.add_argument("mode", choices=("init", "serve", "console", "bridge-config"))
     parser.add_argument("--config", required=True)
     parser.add_argument("--location", action="append", default=[])
     parser.add_argument("--port", type=int)
@@ -146,7 +163,7 @@ def main():
         create_bridge_config(args.config,args.destination)
         print("Created private read-only engine bridge configuration. Token is not printed.")
     else:
-        run(args.config, args.port)
+        run(args.config, args.port, interactive=args.mode == "console")
 
 
 if __name__ == "__main__":
