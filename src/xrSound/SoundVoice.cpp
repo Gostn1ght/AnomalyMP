@@ -77,8 +77,9 @@ class CVoicePlayer : public IVoicePlayer
 	{
 		alGetError();
 		alGenSources(1, &m_source);
+		if (alGetError() != AL_NO_ERROR) { destroy_al(); return; }
 		alGenBuffers(NUM_BUFFERS, m_buffers);
-		if (alGetError() != AL_NO_ERROR) { m_source = 0; return; }
+		if (alGetError() != AL_NO_ERROR) { destroy_al(); return; }
 		m_free.clear();
 		for (ALuint b : m_buffers) m_free.push_back(b);
 		alSourcei(m_source, AL_LOOPING, AL_FALSE);
@@ -93,9 +94,15 @@ class CVoicePlayer : public IVoicePlayer
 			alSourceStop(m_source);
 			alSourcei(m_source, AL_BUFFER, 0);
 			alDeleteSources(1, &m_source);
-			alDeleteBuffers(NUM_BUFFERS, m_buffers);
 		}
 		m_source = 0;
+		// A failed buffer allocation may still have created a source (or
+		// some buffers). Release each valid handle before the next attempt.
+		for (ALuint& buffer : m_buffers)
+		{
+			if (buffer && alIsBuffer(buffer)) alDeleteBuffers(1, &buffer);
+			buffer = 0;
+		}
 		m_free.clear();
 	}
 	void apply_mode()
@@ -165,7 +172,6 @@ public:
 		if (error != OPUS_OK) m_decoder = nullptr;
 		m_hp.set(true, 320.f, 0.707f);
 		m_lowp.set(false, 3100.f, 0.9f);
-		create_al();
 	}
 	~CVoicePlayer() override
 	{
@@ -215,9 +221,19 @@ public:
 	void SetMuffle(float amount) override { m_muffle = clampf(amount, 0.f, 1.f); }
 	bool IsActive() const override { return m_talking || !m_pcm.empty(); }
 	float Loudness() const override { return m_talking ? m_loudness : 0.f; }
+	void ResetPlayback()
+	{
+		destroy_al();
+		m_pcm.clear();
+		m_started = m_have_seq = m_talking = false;
+		m_loudness = 0.f;
+	}
 
 	void Update()
 	{
+		// An idle contact must not occupy a hardware source. Sources are
+		// acquired when actual audio arrives and released after it drains.
+		if (!m_source && !IsActive()) return;
 		if (!m_source || !alIsSource(m_source)) { destroy_al(); create_al(); if (!m_source) return; }
 		const u32 now = GetTickCount();
 		if (m_talking && now - m_last_packet > SILENCE_MS)
@@ -259,7 +275,11 @@ public:
 		}
 		alSourcef(m_source, AL_GAIN, clampf(volume, 0.f, 2.f));
 		if (state != AL_PLAYING && m_free.size() < NUM_BUFFERS) alSourcePlay(m_source); // something is queued
-		if (m_pcm.empty() && !m_talking && state != AL_PLAYING) m_started = false;
+		if (m_pcm.empty() && !m_talking && m_free.size() == NUM_BUFFERS)
+		{
+			m_started = false;
+			destroy_al();
+		}
 	}
 };
 
@@ -369,6 +389,10 @@ public:
 		if (it == m_players.end()) return;
 		xr_delete(*it);
 		m_players.erase(it);
+	}
+	void ResetPlayback() override
+	{
+		for (CVoicePlayer* p : m_players) p->ResetPlayback();
 	}
 
 	void Update() override

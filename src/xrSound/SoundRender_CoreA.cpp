@@ -331,6 +331,7 @@ void CSoundRender_CoreA::switch_device(LPCSTR device_name)
 
 	bReady = false;
 	pause_emitters(true);
+	if (m_voice) m_voice->ResetPlayback(); // still in the old context
 
 	for (u32 it = 0; it < s_targets.size(); it++)
 	{
@@ -486,9 +487,18 @@ void CSoundRender_CoreA::_initialize(int stage)
 
 	if (stage == 1) //first initialize
 	{
+		// The world pool used to exhaust all 256 sources on typical devices,
+		// starving voice/chat playback. Respect the context's source budget
+		// and leave room for simultaneous speakers and PDA recordings.
+		ALCint mono_sources = 0, stereo_sources = 0;
+		alcGetIntegerv(pDevice, ALC_MONO_SOURCES, 1, &mono_sources);
+		alcGetIntegerv(pDevice, ALC_STEREO_SOURCES, 1, &stereo_sources);
+		const int available_sources = mono_sources + stereo_sources;
+		const int target_limit = available_sources > 0 ?
+			_min(psSoundTargets, _max(1, available_sources - 32)) : psSoundTargets;
 		// Pre-create targets
 		CSoundRender_Target* T = nullptr;
-		for (u32 tit = 0; tit < u32(psSoundTargets); tit++)
+		for (u32 tit = 0; tit < u32(target_limit); tit++)
 		{
 			T = xr_new<CSoundRender_TargetA>();
 			if (T->_initialize())

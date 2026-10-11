@@ -177,6 +177,7 @@ jobs:
           python scripts/check-native-barrel-fuse.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-projectile-shot.py
+          python scripts/check-native-voice-resources.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-lzpack.py
           if errorlevel 1 exit /b %errorlevel%

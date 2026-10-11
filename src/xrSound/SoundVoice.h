@@ -72,6 +72,7 @@ public:
 	virtual ISoundTap* SoundTap() const = 0;
 	virtual IVoicePlayer* CreatePlayer() = 0;
 	virtual void DestroyPlayer(IVoicePlayer* player) = 0;
+	virtual void ResetPlayback() = 0; // release handles before switching the OpenAL context
 	virtual void Update() = 0;
 };
 
