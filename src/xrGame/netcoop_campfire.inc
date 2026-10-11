@@ -13,6 +13,13 @@ static const float campfire_reach = 3.5f;
 static xr_map<u16, bool> s_campfires; // server: id -> burning
 static xr_map<u32, bool> s_campfire_synced; // server: ClientID -> got the full list
 static xr_map<u16, bool> s_campfire_pending; // client: state for a campfire not spawned yet
+// Fuel (doc 43 L28): a fire a player lit burns this long in game time, then
+// goes out by itself; only these fires are looked at (no distant fire tick).
+// NPC camp fires stay under GAMMA's camp logic, which lights and puts out its
+// own; at a server start every fire is out anyway.
+static const u64 campfire_fuel_ms = 3ull * 60 * 60 * 1000; // 3 game hours
+static xr_map<u16, u64> s_campfire_fuel_end; // server: id -> game time it goes out
+static u32 s_campfire_fuel_next = 0;
 
 static void campfire_send(xrServer* server, xrClientData* only, const xr_vector<std::pair<u16, bool>>& states)
 {
@@ -66,6 +73,19 @@ static void server_campfires_update(xrServer* server)
 		}
 	} sync = {server};
 	server->ForEachClientDo(sync);
+
+	if (s_campfire_fuel_end.empty() || Device.dwTimeGlobal < s_campfire_fuel_next) return;
+	s_campfire_fuel_next = Device.dwTimeGlobal + 2000;
+	const u64 now = Level().GetGameTime();
+	for (auto it = s_campfire_fuel_end.begin(); it != s_campfire_fuel_end.end();)
+	{
+		CZoneCampfire* campfire = smart_cast<CZoneCampfire*>(Level().Objects.net_Find(it->first));
+		if (!campfire || !campfire->is_on()) { it = s_campfire_fuel_end.erase(it); continue; }
+		if (now < it->second) { ++it; continue; }
+		Msg("[NetAnomaly][campfire] campfire %u burned out", it->first);
+		it = s_campfire_fuel_end.erase(it);
+		campfire->turn_off_script();
+	}
 }
 
 // A player asks to light (with matches) or put out a campfire.
@@ -108,8 +128,16 @@ void server_on_campfire(xrServer* server, xrClientData* CL, NET_Packet& P)
 		}
 		else matches->object().DestroyObject();
 	}
-	if (on) campfire->turn_on_script();
-	else campfire->turn_off_script();
+	if (on)
+	{
+		campfire->turn_on_script();
+		s_campfire_fuel_end[id] = Level().GetGameTime() + campfire_fuel_ms;
+	}
+	else
+	{
+		campfire->turn_off_script();
+		s_campfire_fuel_end.erase(id);
+	}
 	Msg("[NetAnomaly][campfire] player=%s %s campfire %u", CL->netcoop_login.c_str(), on ? "lit" : "put out", id);
 }
 
