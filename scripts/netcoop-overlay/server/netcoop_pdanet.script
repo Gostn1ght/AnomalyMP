@@ -555,11 +555,32 @@ end
 function handlers.aget(id, me, char, args) return fetch(id, me, args, "pda_audio", "audio", "no such record") end
 function handlers.pget(id, me, char, args) return fetch(id, me, args, "pda_photo", "photo", "no such photo") end
 
+-- Flood limit for what other players see (README «лимиты сообщений»): per
+-- player a budget of BURST posts refilled at one per RATE_MS; "aup" parts,
+-- reads and lists are not counted.
+local LIMITED = { say = true, msg = true, dm = true, group = true, pay = true, abeg = true, pbeg = true, add = true }
+local BURST, RATE_MS = 6, 1500
+local budget = {} -- entity id -> { n, at }
+local function allowed(id)
+	local now = time_global()
+	local b = budget[id] or { n = BURST, at = now }
+	b.n = math.min(BURST, b.n + (now - b.at) / RATE_MS)
+	b.at = now
+	budget[id] = b
+	if b.n < 1 then return false end
+	b.n = b.n - 1
+	return true
+end
+
 function command(entity_id, args)
 	local verb, rest = string.match(args or "", "^([%a_]+)%s?(.*)$")
 	if verb == "aup" then return audio_part(entity_id, rest or "") end
 	local handler = verb and handlers[verb]
 	if not handler then return "" end
+	if LIMITED[verb] and not allowed(entity_id) then
+		send(entity_id, "err", "too many messages, wait a moment")
+		return ""
+	end
 	local me, char = profile(entity_id)
 	if not me then return "" end
 	local ok, err = pcall(handler, entity_id, me, char, rest or "")

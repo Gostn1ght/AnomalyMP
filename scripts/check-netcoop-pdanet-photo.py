@@ -188,6 +188,8 @@ on_key = g.callbacks.on_key_press
 def run(pid, command):
     """A netcoop command from player pid; returns what pid received."""
     assert command.startswith("pdanet ") and len(command) <= 4000, len(command)
+    if not command.startswith("pdanet aup "):
+        g.tg += 1500  # one post per 1.5 s (flood limit)
     server.command(pid, command[7:])
     out = list(g.inbox[pid].values()) if g.inbox[pid] else []
     g.inbox[pid] = lua.table()

@@ -86,6 +86,7 @@ take = g.take
 def cmd(server, pid, text):
     g.current_server = server + 1
     assert text.startswith("pdanet ")
+    g.tg += 1500  # a player types at most one post per 1.5 s here (flood limit)
     servers[server].command(pid, text[7:])  # netanomaly_server passes the arguments
     return [tuple(x.values()) for x in take(pid).values()]
 def poll(server):
@@ -290,4 +291,16 @@ for lang in ("rus", "eng"):
     table = (root / f"client/configs/text/{lang}/st_netcoop.xml").read_bytes().decode("cp1251")
     missing = [k for k in used if f'id="{k}"' not in table]
     assert not missing, (lang, missing)
+# Flood limit: six posts at once, then one per 1.5 s; reads are free.
+g.tg += 60000
+seq0 = lua.eval("netcoop_transit.deserialize(netcoop_store_read('pda_chat', 'general'))").seq
+for i in range(10):
+    servers[0].command(1, f"say 0 spam {i}")
+seq1 = lua.eval("netcoop_transit.deserialize(netcoop_store_read('pda_chat', 'general'))").seq
+assert seq1 - seq0 == 6, seq1 - seq0
+servers[0].command(1, "hello")                      # not limited
+g.tg += 1500
+servers[0].command(1, "say 0 again")
+assert lua.eval("netcoop_transit.deserialize(netcoop_store_read('pda_chat', 'general'))").seq == seq1 + 1
+assert "too many messages" in (root / "server/netcoop_pdanet.script").read_text(encoding="utf-8")
 print("netcoop pdanet: OK")
