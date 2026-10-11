@@ -13,6 +13,7 @@ engine=(root/'src/xrGame/netcoop.cpp').read_text(encoding='utf-8')
 light=engine[engine.index('float server_luminocity('):engine.index('// Memory of a location server')]
 weapon=(root/'src/xrGame/Weapon.cpp').read_text(encoding='latin-1')
 branch=weapon[weapon.index('\tcase GE_NETCOOP_WPN_AIM:'):weapon.index('\tcase GE_ADDON_CHANGE:')]
+rate=weapon[weapon.index('bool CWeapon::netcoop_shot_allowed()'):weapon.index('void CWeapon::OnEvent')]
 source=r'''
 #include <cassert>
 #include <cmath>
@@ -23,6 +24,8 @@ source=r'''
 using u32=uint32_t;using u8=uint8_t;
 constexpr float EPS=0.00001f;
 template<class T>T _max(T a,T b){return a>b?a:b;}
+template<class T>T _min(T a,T b){return a<b?a:b;}
+void Msg(const char*,...){}
 void clamp(float& v,float lo,float hi){v=v<lo?lo:v>hi?hi:v;}
 struct Fvector{float x=0,y=0,z=0;
  Fvector& set(const Fvector& v){*this=v;return *this;}
@@ -67,6 +70,9 @@ struct{u32 dwTimeGlobal=1000;}Device;
 constexpr int GE_NETCOOP_WPN_AIM=0;
 struct CWeapon:CHudItem{
  CObject* parent=nullptr;Fvector m_netcoop_aim_pos,m_netcoop_aim_dir;u32 m_netcoop_aim_time=0,m_netcoop_last_shot=0;
+ float fOneShotTime=0.1f,fModeShotTime=0.f,m_netcoop_shot_budget=3.f;u32 m_netcoop_budget_time=0;
+ struct Name{const char* c_str()const{return "wpn";}};Name cNameSect()const{return Name{};}
+ bool netcoop_shot_allowed();
  unsigned iAmmoElapsed=1;std::vector<int> m_magazine{1};unsigned sounds=0,callbacks=0,bullets=0;
  CObject* H_Parent(){return parent;}bool OnServer(){return netcoop::enabled()&&!netcoop::pure_client();}
  void OnShot(){assert(bullets==0);if(OnServer())assert(netcoop::fixture_scoped_actor==parent);++sounds;++callbacks;}
@@ -77,6 +83,7 @@ struct CWeapon:CHudItem{
 '''+branch+r'''
  }}
 };
+'''+rate+r'''
 int main(){
  CActor owner;ROS ros;owner.ros=&ros;CScriptGameObject script;script.value=&owner;
  netcoop::fixture_owner=&owner;
@@ -106,9 +113,14 @@ int main(){
   if(fault==1)bad.position.x=std::numeric_limits<float>::quiet_NaN();
   if(fault==2)bad.direction={};
   if(fault==3)rejected.m_magazine.clear();
-  if(fault==4)rejected.m_netcoop_last_shot=Device.dwTimeGlobal-10;
+  if(fault==4){rejected.m_netcoop_shot_budget=0.5f;rejected.m_netcoop_budget_time=Device.dwTimeGlobal;}
   rejected.receive(bad);assert(rejected.sounds==0&&rejected.callbacks==0&&rejected.bullets==0);
  }
+ // the weapon's own rate: three bunched shots pass, then one per interval (x1.5 room)
+ {CWeapon burst;burst.parent=&owner;burst.iAmmoElapsed=10;burst.m_magazine.assign(10,1);burst.fOneShotTime=0.6f;
+  unsigned shots=0;for(int i=0;i<5;++i){NET_Packet p;burst.sounds=burst.callbacks=burst.bullets=0;burst.receive(p);shots+=burst.bullets;}
+  assert(shots==3);Device.dwTimeGlobal+=400;NET_Packet p;burst.sounds=burst.callbacks=burst.bullets=0;burst.receive(p);assert(burst.bullets==1);
+  NET_Packet q;burst.sounds=burst.callbacks=burst.bullets=0;burst.receive(q);assert(burst.bullets==0);Device.dwTimeGlobal-=400;}
  CGameObject npc;CWeapon other;other.parent=&npc;packet.reads=0;other.receive(packet);assert(other.sounds==0&&other.bullets==0);
  netcoop::fixture_client=true;CWeapon replica;replica.parent=&owner;packet.reads=0;replica.receive(packet);
  assert(replica.sounds==1&&replica.callbacks==1&&replica.bullets==0);
