@@ -1,0 +1,103 @@
+"""NPCs searching corpses on the server (actual netcoop_npc_loot, Lua 5.1).
+GAMMA takes every lootable item at once (callback npc_on_get_all_from_corpse
+before each transfer); right after the search the NPC gives back the least
+valuable of those items until it is within GAMMA's 30 kg; an NPC with room
+keeps all; items it had before stay; GAMMA's "not near the actor" counts
+living players, not the server's own Actor."""
+from pathlib import Path
+from lupa.lua51 import LuaRuntime
+
+root = Path(__file__).resolve().parent / "netcoop-overlay"
+lua = LuaRuntime(unpack_returned_tuples=True)
+g = lua.globals()
+lua.execute(r'''
+function printf() end
+function netcoop_enabled() return true end
+function netcoop_pure_client() return false end
+callbacks = {}
+function RegisterScriptCallback(n, f) callbacks[n] = f end
+queue = {}
+function CreateTimeEvent(ev, act, t, f, ...) local k = ev .. act; if not queue[k] then queue[k] = {f = f, p = {...}} end end
+function run_events() for k, e in pairs(queue) do if e.f(unpack(e.p)) then queue[k] = nil end end end
+objects = {}
+function vec(x, z) return {x = x, z = z, distance_to = function(a, b) return math.sqrt((a.x - b.x) ^ 2 + (a.z - b.z) ^ 2) end} end
+function make(id, extra)
+  local o = {_id = id, _alive = false, _pos = vec(0, 0)}
+  for k, v in pairs(extra or {}) do o[k] = v end
+  function o:id() return self._id end
+  function o:name() return "obj" .. self._id end
+  function o:alive() return self._alive end
+  function o:position() return self._pos end
+  function o:parent() return self._parent and objects[self._parent] end
+  function o:cost() return self._cost or 0 end
+  function o:condition() return self._cond or 1 end
+  function o:weight() return self._w or 0 end
+  function o:get_total_weight()
+    local w = 0
+    for _, it in pairs(objects) do if it._parent == self._id then w = w + it._w end end
+    return w
+  end
+  function o:transfer_item(it, to) it._parent = to:id() end
+  objects[id] = o
+  return o
+end
+level = {object_by_id = function(id) return objects[id] end}
+''')
+mod = lua.table()
+lua.execute("local env = ...; setfenv(assert(loadstring(select(2, ...))), setmetatable(env,{__index=_G}))()",
+            mod, (root / "server/netcoop_npc_loot.script").read_text(encoding="utf-8"))
+lua.execute("xr_corpse_detection, xr_gather_items = {}, {}")
+mod.on_game_start()
+on_get = g.callbacks.npc_on_get_all_from_corpse
+make = lua.eval("make")
+
+def item(i, parent, w, cost, cond=1):
+    return make(i, lua.table_from({"_parent": parent, "_w": w, "_cost": cost, "_cond": cond}))
+
+def gamma_search(npc, corpse):
+    """GAMMA's get_all_from_corpse: callback, then transfer, for each lootable item."""
+    for it in sorted([o for o in g.objects.values() if o._parent == corpse._id], key=lambda o: o._id):
+        on_get(npc, corpse, it, True)
+        corpse.transfer_item(corpse, it, npc)
+
+npc = make(1, lua.table_from({"_alive": True}))
+corpse = make(2)
+item(10, 1, 20, 1000)            # what the NPC carried before (20 kg)
+item(20, 2, 4, 3000)             # rifle: valuable
+item(21, 2, 4, 50)               # junk
+item(22, 2, 3, 900, 0.5)         # value 450
+item(23, 2, 2, 400)              # value 400
+item(24, 2, 5, 100)              # value 100
+gamma_search(npc, corpse)
+assert npc.get_total_weight(npc) == 38
+g.run_events()
+# within 30 kg; the cheapest went back first (junk 50, then 100), the rest kept
+kept = sorted(o._id for o in g.objects.values() if o._parent == 1)
+back = sorted(o._id for o in g.objects.values() if o._parent == 2)
+assert kept == [10, 20, 22, 23] and back == [21, 24], (kept, back)
+assert npc.get_total_weight(npc) <= 30
+# an NPC with room keeps everything
+npc2 = make(3, lua.table_from({"_alive": True}))
+corpse2 = make(4)
+item(30, 4, 2, 10); item(31, 4, 3, 20)
+gamma_search(npc2, corpse2)
+g.run_events()
+assert all(g.objects[i]._parent == 3 for i in (30, 31))
+# not lootable: not counted
+on_get(npc2, corpse2, g.objects[30], False)
+assert len(list(g.queue.keys())) == 0
+
+# "not near the actor" = any living player within the option's distance
+lua.execute("""
+ui_options = {get = function() return '10' end}
+local p = make(100, {_alive = true, _pos = vec(5, 0)})
+function netcoop_players() return '100' end
+""")
+near = make(200, lua.table_from({"_pos": g.vec(9, 0)}))
+far = make(201, lua.table_from({"_pos": g.vec(40, 0)}))
+assert g.xr_corpse_detection.near_actor(near) is True and g.xr_gather_items.near_actor(far) is False
+lua.execute("objects[100]._alive = false")
+assert mod.near_player(near) is False
+lua.execute("ui_options = {get = function() return '0' end}; objects[100]._alive = true")
+assert mod.near_player(near) is False
+print("NPC corpse search: 30 kg like GAMMA, least valuable left first, players count as the actor: PASS")

@@ -1,0 +1,81 @@
+----------------------------------------------------------------------
+-- NPCs searching corpses on the server (doc 43 L16, README stage 2в).
+-- GAMMA's xr_corpse_detection takes every lootable item from a corpse at
+-- once; it only stops an NPC that is already over 30 kg from searching
+-- again (utils_item.is_overweight). Here the NPC keeps what it can carry:
+-- right after GAMMA's search (same server frame) the least valuable of the
+-- items it just took (cost x condition) go back into the corpse until the
+-- NPC is within GAMMA's 30 kg, so a corpse is not emptied into an endless
+-- inventory and the rest stays there for players.
+-- GAMMA's "don't loot near the actor" (npc_loot_distance) measured to the
+-- server's own Actor, never to a player, so NPCs searched corpses in front
+-- of players: it is measured to the nearest living player here.
+----------------------------------------------------------------------
+
+local MAX_WEIGHT = 30 -- utils_item.is_overweight
+
+local taken = {} -- npc id -> { corpse = id, items = { id, ... } }
+
+local function value(obj)
+	local ok, v = pcall(function() return obj:cost() * obj:condition() end)
+	return ok and v or 0
+end
+
+-- after GAMMA's search: give back what does not fit, least valuable first
+function settle(npc_id)
+	local t = taken[npc_id]
+	taken[npc_id] = nil
+	local npc = t and level.object_by_id(npc_id)
+	local corpse = npc and level.object_by_id(t.corpse)
+	if not (npc and corpse and npc:alive()) then return true end
+	local weight = npc:get_total_weight()
+	if weight <= MAX_WEIGHT then return true end
+	local items = {}
+	for _, id in ipairs(t.items) do
+		local it = level.object_by_id(id)
+		local p = it and it:parent()
+		if p and p:id() == npc_id then items[#items + 1] = it end
+	end
+	table.sort(items, function(a, b) return value(a) < value(b) end)
+	local back = 0
+	for _, it in ipairs(items) do
+		if weight <= MAX_WEIGHT then break end
+		weight = weight - (it:weight() or 0)
+		npc:transfer_item(it, corpse)
+		back = back + 1
+	end
+	if back > 0 then printf("[Lost Zone][loot] %s left %s item(s) in %s: no room", npc:name(), tostring(back), corpse:name()) end
+	return true
+end
+
+-- GAMMA calls this for each item of the corpse right before taking it
+local function on_get(npc, corpse, item, lootable)
+	if not (lootable and npc and corpse and item) then return end
+	local id = npc:id()
+	local t = taken[id]
+	if not t or t.corpse ~= corpse:id() then
+		t = { corpse = corpse:id(), items = {} }
+		taken[id] = t
+	end
+	t.items[#t.items + 1] = item:id()
+	CreateTimeEvent("netcoop_npc_loot", tostring(id), 0, settle, id)
+end
+
+-- "not near the actor": within the option's distance of any living player
+function near_player(obj)
+	local dist = tonumber(ui_options and ui_options.get("gameplay/general/npc_loot_distance"))
+	if not (dist and dist > 0 and obj) then return false end
+	local pos = obj:position()
+	for id in string.gmatch(netcoop_players and netcoop_players() or "", "%d+") do
+		local p = level.object_by_id(tonumber(id))
+		if p and p:alive() and p:position():distance_to(pos) < dist then return true end
+	end
+	return false
+end
+
+function on_game_start()
+	if not (netcoop_enabled and netcoop_enabled()) or (netcoop_pure_client and netcoop_pure_client()) then return end
+	RegisterScriptCallback("npc_on_get_all_from_corpse", on_get)
+	if xr_corpse_detection then xr_corpse_detection.near_actor = near_player end
+	if xr_gather_items then xr_gather_items.near_actor = near_player end
+end
