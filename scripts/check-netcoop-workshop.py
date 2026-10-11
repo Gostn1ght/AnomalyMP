@@ -73,6 +73,7 @@ function make(sec, parent, extra)
     function o:clsid() return self._clsid or 1 end
     function o:get_remaining_uses() return 1 end
     function o:position() return self._pos or {x = 0, y = 0, z = 0} end
+    function o:parent() if self._parent == 0 then return actor end return objects[self._parent] end
     function o:iterate_inventory_box(fn, arg)
         for _, it in pairs(objects) do if it._parent == self._id then fn(arg, it) end end
     end
@@ -285,6 +286,46 @@ assert server.upgrade(0, kit, "upgrade 0 1.1") == "this item has no upgrades"
 assert server.upgrade(0, pm2, "upgrade 77 1.2") == "this is not a workshop"
 assert server.upgrade(0, pm2, "upgrade 0") == "nothing to install"
 
+# 7c. a mechanic NPC's repair and upgrades: the mechanic is the speaker
+lua.execute("""
+events = {}
+function SetEvent(k, v) events[k] = v end
+function GetEvent(k) return events[k] end
+function IsStalker(o) return o._stalker == true end
+money = 5000
+speakers, paid = {}, {}
+inventory_upgrades = {
+  precondition_functor_a = function(_, stats)
+    speakers[#speakers + 1] = events.used_npc_id
+    return (stats == 'cheap' and money >= 100) and 0 or 2 end,
+  effect_upgrade_item = function(obj) paid[#paid + 1] = 'lend ' .. obj:section() end,
+  can_repair_item = function(sec) return sec == 'wpn_pm' end,
+  can_afford_repair_item = function() return money >= 200 end,
+  effect_repair_item = function(sec, cond) money = money - 200; paid[#paid + 1] = 'repair ' .. sec .. ' by ' .. tostring(events.used_npc_id) end,
+}
+tree[1][1].stats = 'cheap'; tree[1][2].stats = 'cheap'; tree[1][3].stats = 'dear'
+""")
+mech = item("stalker_mechanic", 9999, _stalker=True, _alive=True)
+lua.execute(f"local m = objects[{mech._id}]; function m:alive() return true end")
+pm3 = item("wpn_pm")
+lua.execute(f"""local o = objects[{pm3._id}]; o._cond = 0.4
+function o:install_upgrade(s) inst3 = inst3 or {{}}; inst3[s] = true; return true end
+function o:force_unload_magazine() end
+function o:set_condition(c) self._cond = c end""")
+lua.execute(f"installed = {{}}; utils_item.get_upgrades_installed = function(obj) local t = {{}}; for s in pairs(inst3 or {{}}) do t[s] = true end; return t end")
+assert server.mechanic(0, mech, f"mupgrade {pm3._id} 1.1") == ""
+assert g.inst3["up_firsta_pm"] and list(g.speakers.values())[-1] == mech._id and g.events.used_npc_id is None
+assert server.mechanic(0, mech, f"mupgrade {pm3._id} 1.2") == "<st_upgr_disable>"      # the pair
+assert server.mechanic(0, mech, f"mupgrade {pm3._id} 1.3") == "<st_upgr_disable>"      # his price/rules
+lua.execute("tree[1][3].stats = 'cheap'")
+assert server.mechanic(0, mech, f"mupgrade {pm3._id} 1.3") == ""                       # parent installed
+assert server.mechanic(0, mech, f"mrepair {pm3._id}") == "" and g.objects[pm3._id]._cond > 0.99
+assert g.money == 4800 and f"repair wpn_pm by {mech._id}" in list(g.paid.values())
+assert server.mechanic(0, mech, f"mrepair {pm3._id}") == "<st_upgr_cant_do>"            # already repaired
+assert server.mechanic(0, kit, f"mrepair {pm3._id}") == "this is not a mechanic"
+foreign = item("wpn_pm", 9999)
+assert server.mechanic(0, mech, f"mrepair {foreign._id}") == "item is not in your inventory"
+
 # 8. server routing (netcoop_server_compat.item_action) and the command
 compat = (root / "server/netcoop_server_compat.script").read_text(encoding="utf-8")
 assert 'string.match(action, "^craft %d+ %d+$") and not target' in compat
@@ -339,7 +380,7 @@ assert list(g.interactions.values()) == ["notes recipe_basic_1"]
 g.item_recipe.func_recipe(book3)                   # known now: no request
 assert len(g.actions) == 5
 # the upgrade window sends the newly checked cells
-lua.execute("installed = {up_firsta_pm = true}")
+lua.execute("installed = {up_firsta_pm = true}; utils_item.get_upgrades_installed = function() local t = {}; for k in pairs(installed) do t[k] = true end; return t end")
 upwin = lua.eval("""function(obj)
   local function cell(on) return {btn = {GetCheck = function() return on end}} end
   return {CC = {GetCell_Selected = function() return obj end}, upgr = tree,
@@ -349,6 +390,16 @@ end""")(pm2)
 g.utils_obj = lua.eval("{play_sound = function() end}")
 g.ui_workshop.UIWorkshopUpgrade.Upgrade(upwin)
 assert g.actions[len(g.actions)] == f"1 {pm2._id} 65535 upgrade 0 1.3" and upwin.closed
+# the mechanic's window asks the server
+lua.execute("""ui_inventory = {UIInventory = {}}
+function CreateTimeEvent() end""")
+g.callbacks.actor_on_first_update()                 # install again: now ui_inventory is there
+rwin = lua.eval(f"{{npc_id = {mech._id}, upgr = {{id = {pm3._id}}}, upgr_last_row = 1, upgr_last_col = 2, upgr_last_ii = 1,"
+                "upx = {[1] = {btn = {SetCheck = function() end}}}, npc_up_repair = {Enable = function() end}}")
+g.ui_inventory.UIInventory.RMode_UpgradeYes(rwin)
+assert g.actions[len(g.actions)] == f"2 {mech._id} 65535 mupgrade {pm3._id} 1.2", g.actions[len(g.actions)]
+g.ui_inventory.UIInventory.RMode_RepairYes(rwin)
+assert g.actions[len(g.actions)] == f"2 {mech._id} 65535 mrepair {pm3._id}"
 cc = (root / "client/netcoop_client_compat.script").read_text(encoding="utf-8")
 assert 'channel == "recipes"' in cc and "netcoop_workshop_view.receive_recipes(data)" in cc
 for lang in ("rus", "eng"):

@@ -122,6 +122,46 @@ local function install_upgrades()
 	end
 end
 
+----------------------------------------------------------------------
+-- A mechanic NPC's window (ui_inventory "repair" mode): the server repairs
+-- and installs, with the mechanic's rules and the player's server money.
+----------------------------------------------------------------------
+local function refresh_later(self)
+	if CreateTimeEvent then
+		CreateTimeEvent("netcoop_mechanic", "update", 0.6, function()
+			if self.IsShown and self:IsShown() then
+				if self.RMode_InitItem and self.upgr and self.upgr.id then
+					local obj = level.object_by_id(self.upgr.id)
+					if obj then pcall(self.RMode_InitItem, self, obj) end
+				end
+				if self.On_Item_Update then pcall(self.On_Item_Update, self) end
+			end
+			return true
+		end)
+	end
+end
+
+local function install_mechanic()
+	local ui = ui_inventory and ui_inventory.UIInventory
+	if not ui or ui.__netcoop_mechanic then return end
+	ui.__netcoop_mechanic = true
+	ui.RMode_UpgradeYes = function(self)
+		local row, col, ii = self.upgr_last_row, self.upgr_last_col, self.upgr_last_ii
+		if not (row and col and self.npc_id and self.upgr and self.upgr.id) then return end
+		if netcoop_item_action(2, self.npc_id, 65535, string.format("mupgrade %d %d.%d", self.upgr.id, row, col)) then
+			if self.upx and self.upx[ii] and self.upx[ii].btn then self.upx[ii].btn:SetCheck(true) end
+			refresh_later(self)
+		end
+	end
+	ui.RMode_RepairYes = function(self)
+		if not (self.npc_id and self.upgr and self.upgr.id) then return end
+		if netcoop_item_action(2, self.npc_id, 65535, string.format("mrepair %d", self.upgr.id)) then
+			if self.npc_up_repair then self.npc_up_repair:Enable(false) end
+			refresh_later(self)
+		end
+	end
+end
+
 -- a mechanic's vise used (bind_awr opens the window from this callback)
 local function on_use(obj, who)
 	if obj and string.match(obj:name() or "", "awr_tiski") then opened_from = { kind = 2, id = obj:id() } end
@@ -150,6 +190,7 @@ local function install()
 	install_recipes()
 	install_craft()
 	install_upgrades()
+	install_mechanic()
 	install_disassembly()
 	if netcoop_command then netcoop_command("recipes get") end
 end

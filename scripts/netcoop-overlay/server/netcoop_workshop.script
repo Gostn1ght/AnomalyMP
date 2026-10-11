@@ -304,6 +304,80 @@ function upgrade(actor_id, obj, action)
 end
 
 ----------------------------------------------------------------------
+-- A mechanic NPC's repair and upgrades (GAMMA ui_inventory "repair" mode):
+-- the window paid and changed the item on the client, where install_upgrade
+-- does nothing (no ALife) and money and condition belong to the server.
+-- "mupgrade <item> <row>.<col>" / "mrepair <item>" from the mechanic (kind 2,
+-- within reach): GAMMA's own checks with the mechanic as the speaker
+-- (get_speaker reads used_npc_id) - his allowed upgrades and price, the
+-- player's money, the pair and parent rules - then the engine installs and
+-- inventory_upgrades takes the money; repair takes GAMMA's price.
+----------------------------------------------------------------------
+local function as_speaker(npc, fn, ...)
+	local prev = GetEvent and GetEvent("used_npc_id")
+	if SetEvent then SetEvent("used_npc_id", npc:id()) end
+	local ok, a = pcall(fn, ...)
+	if SetEvent then SetEvent("used_npc_id", prev) end
+	if not ok then error(a, 0) end
+	return a
+end
+
+local function mechanic_upgrade(npc, obj, row, col)
+	local tree = utils_item.get_upgrades_tree(obj:section())
+	local info = tree and tree[row] and tree[row][col]
+	if not info then return "no such upgrade" end
+	local installed = utils_item.get_upgrades_installed(obj, nil, true)
+	if installed[info.section] then return "this upgrade is installed" end
+	if not info.solo then
+		local other = tree[row][(col % 2 == 1) and col + 1 or col - 1]
+		if other and installed[other.section] then return game.translate_string("st_upgr_disable") end
+	end
+	if col > 2 then
+		local parent = false
+		for _, v in pairs(tree[row]) do
+			if v.effect and v.effect[info.section] and installed[v.section] then parent = true end
+		end
+		if not parent then return game.translate_string("st_upgr_parents") end
+	end
+	local iu = inventory_upgrades
+	if as_speaker(npc, iu.precondition_functor_a, nil, info.stats) ~= 0 then return game.translate_string("st_upgr_disable") end
+	if IsWeapon(obj) and not IsItem("fake_ammo_wpn", obj:section()) then
+		obj:force_unload_magazine(true)
+		if item_weapon and item_weapon.clear_cache then item_weapon.clear_cache(obj) end
+	end
+	if not as_speaker(npc, function() return obj:install_upgrade(info.section) end) then return game.translate_string("st_upgr_cant_do") end
+	as_speaker(npc, iu.effect_upgrade_item, obj)
+	printf("[Lost Zone][workshop] %s upgraded %s at %s", tostring(db.actor and db.actor:id()), info.section, npc:name())
+	return ""
+end
+
+local function mechanic_repair(npc, obj)
+	local iu, sec, cond = inventory_upgrades, obj:section(), obj:condition()
+	if cond >= 0.99 or not iu.can_repair_item(sec, cond) then return game.translate_string("st_upgr_cant_do") end
+	if not iu.can_afford_repair_item(sec, cond) then return game.translate_string("ui_inv_not_enought_money") end
+	as_speaker(npc, iu.effect_repair_item, sec, cond)
+	obj:set_condition(0.99999)
+	return ""
+end
+
+function mechanic(actor_id, npc, action)
+	local verb, iid, rest = string.match(action, "^(m%a+) (%d+)%s*(.*)$")
+	local obj = iid and level.object_by_id(tonumber(iid))
+	local parent = obj and obj:parent()
+	if not (parent and parent:id() == actor_id) then return "item is not in your inventory" end
+	if not (IsStalker and IsStalker(npc) and npc:alive()) then return "this is not a mechanic" end
+	if not (inventory_upgrades and utils_item) then return "the mechanic is not loaded on the server" end
+	if verb == "mupgrade" then
+		local row, col = string.match(rest, "^(%d+)%.(%d+)$")
+		if not row then return "bad upgrade" end
+		return mechanic_upgrade(npc, obj, tonumber(row), tonumber(col))
+	elseif verb == "mrepair" and rest == "" then
+		return mechanic_repair(npc, obj)
+	end
+	return "bad request"
+end
+
+----------------------------------------------------------------------
 -- Disassembly: the item and the tool in the player's inventory; GAMMA's own
 -- disassembly (parts, chance, tool wear, battery out of a device).
 ----------------------------------------------------------------------
