@@ -181,6 +181,7 @@ jobs:
           python scripts/check-native-voice-resources.py
           python scripts/check-native-pda-notifications.py
           python scripts/check-native-inventory-hands.py
+          python scripts/check-native-hud-state-authority.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-lzpack.py
           if errorlevel 1 exit /b %errorlevel%

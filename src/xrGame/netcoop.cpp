@@ -68,6 +68,7 @@
 #include "Explosive.h"
 #include "script_engine.h"
 #include "xrServer_Objects_ALife_Monsters.h"
+#include "xrServer_Objects_ALife_Items.h"
 #include "game_base_space.h"
 #include "PhraseDialog.h"
 #include "PhraseDialogManager.h"
@@ -2176,6 +2177,16 @@ static bool accessible_corpse(xrClientData* CL, CSE_Abstract* entity)
 		!inventory->deadbody_closed_status() && actor->Position().distance_to(body->Position()) <= 3.f;
 }
 
+static bool remote_hud_state_allowed(xrServer* server, xrClientData* CL, NET_Packet& P, u16 destination)
+{
+	CSE_Abstract* item = server->game->get_entity_from_eid(destination);
+	if (!item || !CL->owner || item->ID_Parent != CL->owner->ID) return false;
+	// Weapons consume five bytes; other HUD items consume one. Reject a
+	// truncated packet before the persistent entity or runtime reads it.
+	const u32 bytes = smart_cast<CSE_ALifeItemWeapon*>(item) ? 5 : 1;
+	return P.r_elapsed() == bytes;
+}
+
 bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet& P, u16 type, u16 destination)
 {
 	if (!enabled() || !CL || CL->flags.bLocal)
@@ -2183,6 +2194,8 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 
 	switch (type)
 	{
+	case GE_WPN_STATE_CHANGE:
+		return remote_hud_state_allowed(server, CL, P, destination);
 	case GE_MONEY:
 		return false; // money changes only on the server
 
