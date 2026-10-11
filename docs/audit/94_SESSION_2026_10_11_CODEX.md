@@ -135,3 +135,21 @@ L37 и проверки входящих HUD state events. Код/fixtures им�
 в актуальном доке 48 есть все 188. Подтверждённые в игре статусы не повышены.
 Все 96 Python fixture paths DX11 workflow существуют и проходят syntax parse.
 Четыре новые native fixtures подключены и к DX11, и к Foundation (GCC/MSVC).
+
+## Постраничный срез реестра локации (довершено Claude)
+
+Для загрузки большой карты `/v1/location` собирал все объекты сразу, и между
+отдельными запросами данные могли меняться. Новый `backend/lostzone/location_bootstrap.py`
+(`GET /v1/location-bootstrap`, `POST /v1/location-bootstrap-release`) держит
+один read-only снимок SQLite на владельца карты, отдаёт страницы ≤64 записей и
+≤60 KB (сущности → предметы мира → инвентари), проверяет живой lease/fence/epoch
+до и после сборки каждой страницы, подписывает курсор HMAC, ограничивает 32
+одновременных среза по 15 с и закрывает их при ошибке checkpoint worker и
+остановке сервиса. Добавлены индексы `entity_writer_cursor`, `item_inventory_cursor`
+(аддитивно, без миграции схемы).
+
+Проверено локально: `python -m unittest discover -s backend/tests` — 273 PASS
+(включая 29 тестов среза и 2 HTTP теста). Порядок блокировок capture → store
+соблюдён: `reap()` вызывается вне store.lock, `worker_failed` — без store.lock.
+Движковый адаптер, который применяет срез к ALife, ещё не написан: срез не даёт
+права спавнить объекты. Игровой приёмки нет (🔧).

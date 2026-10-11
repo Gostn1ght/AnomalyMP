@@ -236,6 +236,10 @@ class Store:
                 raise Unavailable("unsupported database schema")
             if self.db.execute("PRAGMA foreign_key_check").fetchone() is not None:
                 raise Unavailable("database ownership references are inconsistent")
+            # Additive schema-v4 indexes for bounded registry bootstrap scans;
+            # existing data and saved semantic versions are unchanged.
+            self.db.execute("CREATE INDEX IF NOT EXISTS entity_writer_cursor ON entity(location,writer,fence,id)")
+            self.db.execute("CREATE INDEX IF NOT EXISTS item_inventory_cursor ON item(holder,id) WHERE kind NOT IN ('WORLD','DESTROYED')")
         except BaseException:
             self.close()
             raise

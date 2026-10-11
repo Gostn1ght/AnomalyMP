@@ -267,6 +267,12 @@ local checkpoint writer epoch остаются разными областями
 
 GET /v1/clock, /v1/bootstrap, /v1/engine-bootstrap; GET /v1/location?id=...&fence=...;
 GET /v1/transfer?id=...; admin GET /v1/events?after=...&limit=...;
+location GET /v1/location-bootstrap?location=&fence=&epoch=&request_id= (затем
+capture_id=&after=<next>) и POST /v1/location-bootstrap-release — постраничный
+неизменяемый срез реестра карты: один read-only SQLite снимок (WAL) на
+владельца карты, страница ≤64 записей и ≤60 KB, живой lease/fence/epoch
+проверяется на каждой странице, курсор подписан HMAC, срез живёт 15 с и
+сбрасывается при ошибке worker. Срез не даёт права создавать объекты в движке.
 POST /v1/command: command_id (128-bit hex), operation, arguments.
 Каждая mutation возвращает durable result до HTTP ACK. Ошибки 400/401/
 403/409/429/503 не содержат tokens/tracebacks. Body limit=64 KiB;

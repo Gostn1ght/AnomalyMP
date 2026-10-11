@@ -148,6 +148,58 @@ class HttpTest(unittest.TestCase):
         self.wait_idle_workers()
         self.assertEqual(self.call("GET", "/v1/engine-bootstrap", token="d"*48)[0], 503)
 
+    def test_location_registry_cut_is_scoped_paged_and_released_over_http(self):
+        _, response = self.command("location_claim", {"location": "cordon"})
+        fence = response["result"]["fence"]
+        d = self.server.dispatcher
+        for number in range(1, 66):
+            d.ownership.create_entity("cordon-server", uuid.uuid4().hex, f"{number:032x}", "NPC",
+                                      "cordon", fence, {"health": .8})
+        query = {"location": "cordon", "fence": fence, "epoch": self.store.epoch, "request_id": uuid.uuid4().hex}
+        path = "/v1/location-bootstrap?" + urlencode(query)
+        self.wait_idle_workers()
+        status, body = self.call("GET", path)
+        self.assertEqual(status, 200)
+        first = body["result"]
+        self.assertEqual(len(first["entries"]), 64)
+        self.assertEqual(first["owner"], "cordon-server")
+        for token, expected in (("c"*48, 403), ("d"*48, 403), ("a"*48, 403), ("x"*48, 401)):
+            self.wait_idle_workers()
+            self.assertEqual(self.call("GET", path, token=token)[0], expected)
+        continued = {"location": "cordon", "fence": fence, "epoch": self.store.epoch,
+                     "capture_id": first["capture_id"], "after": first["next"]}
+        self.wait_idle_workers()
+        status, body = self.call("GET", "/v1/location-bootstrap?" + urlencode(continued))
+        self.assertEqual(status, 200)
+        self.assertEqual(len(body["result"]["entries"]), 1)
+        self.assertEqual(body["result"]["clock"], first["clock"])
+        self.assertEqual(body["result"]["entries"][0]["id"], f"{65:032x}")
+        release = {key: continued[key] for key in ("location", "fence", "epoch", "capture_id")}
+        for _ in range(2):
+            self.wait_idle_workers()
+            self.assertEqual(self.call("POST", "/v1/location-bootstrap-release", release)[0], 200)
+        self.assertFalse(d.location_bootstrap.captures)
+        self.wait_idle_workers()
+        self.assertEqual(self.call("GET", "/v1/location-bootstrap?" + urlencode(continued))[0], 409)
+
+    def test_registry_bootstrap_query_recovery_and_worker_failure_close_readers(self):
+        _, response = self.command("location_claim", {"location": "cordon"})
+        fence = response["result"]["fence"]
+        query = {"location": "cordon", "fence": fence, "epoch": self.store.epoch, "request_id": uuid.uuid4().hex}
+        path = "/v1/location-bootstrap?" + urlencode(query)
+        for suffix in ("&fence=1", "&unknown=1", "&capture_id=" + uuid.uuid4().hex, "&after=bad"):
+            self.wait_idle_workers()
+            self.assertEqual(self.call("GET", path + suffix)[0], 400)
+        self.wait_idle_workers()
+        self.assertEqual(self.call("GET", path)[0], 200)
+        db = next(iter(self.server.dispatcher.location_bootstrap.captures.values()))["db"]
+        self.server.worker_failed(RuntimeError("private"))
+        self.assertFalse(self.server.dispatcher.location_bootstrap.captures)
+        with self.assertRaises(Exception):
+            db.execute("SELECT 1")
+        self.wait_idle_workers()
+        self.assertEqual(self.call("GET", path)[0], 503)
+
     def test_duplicate_command_over_real_http_and_contract_rejection(self):
         key = uuid.uuid4().hex
         first = self.command("location_claim", {"location": "cordon"}, command_id=key)

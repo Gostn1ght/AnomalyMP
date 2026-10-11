@@ -97,6 +97,8 @@ class Dispatcher:
         self.world, self.store = world, world.store
         self.ownership, self.transfers = Ownership(world), Transfers(world, signing_key)
         self.timelines = Timelines(world)
+        from .location_bootstrap import LocationBootstrap
+        self.location_bootstrap = LocationBootstrap(world)
         self.quests = Quests(world, quest_definitions or {},scheduler=self.timelines.scheduler)
         self.offline = Offline(world, self.timelines.scheduler)
         self.catalog = Catalog(catalog)
@@ -269,6 +271,20 @@ class Handler(BaseHTTPRequestHandler):
                     location, fence = query.get("id", [""])[0], int(query.get("fence", ["0"])[0])
                     dispatcher.allowed(principal, location)
                     result = dispatcher.ownership.location_state(principal.actor, location, fence)
+                elif uri.path == "/v1/location-bootstrap":
+                    if principal.role != "location":
+                        raise PermissionError("registry bootstrap requires a location authority")
+                    query = parse_qs(uri.query, strict_parsing=True, keep_blank_values=True)
+                    required = {"location", "fence", "epoch"}
+                    allowed = required | {"request_id", "capture_id", "after"}
+                    if not required <= set(query) or set(query) - allowed or any(len(v) != 1 for v in query.values()):
+                        raise Invalid("invalid registry bootstrap query")
+                    location = query["location"][0]
+                    dispatcher.allowed(principal, location)
+                    result = dispatcher.location_bootstrap.page(
+                        principal.actor, location, int(query["fence"][0]), int(query["epoch"][0]),
+                        request_id=query.get("request_id", [None])[0], capture_id=query.get("capture_id", [None])[0],
+                        after=query.get("after", [None])[0])
                 elif uri.path == "/v1/quest-requirements":
                     if principal.role != "location":
                         raise PermissionError("quest requirements are restricted to location authorities")
@@ -307,6 +323,14 @@ class Handler(BaseHTTPRequestHandler):
                         raise Invalid("snapshot endpoint takes an empty object")
                     dispatcher.world.sample()
                     result = dispatcher.store.snapshot()
+                elif uri.path == "/v1/location-bootstrap-release":
+                    if principal.role != "location":
+                        raise PermissionError("registry bootstrap requires a location authority")
+                    args = strict_json(data)
+                    if not isinstance(args, dict) or set(args) != {"location", "fence", "epoch", "capture_id"}:
+                        raise Invalid("invalid registry release request")
+                    dispatcher.allowed(principal, args["location"])
+                    result = dispatcher.location_bootstrap.release(principal.actor, **args)
                 else:
                     self.respond(404, {"error": "unknown or unavailable endpoint"})
                     return
@@ -358,6 +382,7 @@ class Server(socketserver.ThreadingMixIn, HTTPServer):
         if type(processed) is not int or not 0<=processed<=256:
             raise Invalid("invalid checkpoint worker event count")
         world=self.dispatcher.world
+        self.dispatcher.location_bootstrap.reap() # Outside store.lock: capture -> store lock order.
         with world.store.lock:
             world.store.require_epoch(world.store.db)
             pending=world.store.db.execute("SELECT 1 FROM scheduled_event WHERE state='PENDING' AND due_world_ms<=? LIMIT 1",(world.now(),)).fetchone()
@@ -376,6 +401,13 @@ class Server(socketserver.ThreadingMixIn, HTTPServer):
             # Keep only its class; the pending event identifies what is held.
             self._worker_error_type=type(error).__name__
             self.ready.clear()
+        self.dispatcher.location_bootstrap.invalidate()
+
+    def server_close(self):
+        try:
+            super().server_close() # Join request threads before closing their readers.
+        finally:
+            self.dispatcher.location_bootstrap.close()
 
     def recovery_status(self):
         world=self.dispatcher.world
