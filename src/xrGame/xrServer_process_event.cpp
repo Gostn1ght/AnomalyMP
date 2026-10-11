@@ -287,6 +287,7 @@ void xrServer::Process_event(NET_Packet& P, ClientID sender)
 				break;
 			}
 			iitem->add_upgrade(upgrade_id);
+			netcoop::server_item_upgraded(this, receiver->ID, upgrade_id.c_str());
 		}
 		break;
 	case GE_INV_BOX_STATUS:

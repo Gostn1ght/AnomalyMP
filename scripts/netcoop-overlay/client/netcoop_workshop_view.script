@@ -93,6 +93,35 @@ local function install_craft()
 	end
 end
 
+----------------------------------------------------------------------
+-- Upgrades: the cells the player checked, the server installs them
+----------------------------------------------------------------------
+local function install_upgrades()
+	local up = ui_workshop and ui_workshop.UIWorkshopUpgrade
+	if not up or up.__netcoop then return end
+	up.__netcoop = true
+	up.Upgrade = function(self)
+		local obj = self.CC and self.CC:GetCell_Selected(true)
+		if not obj then return end
+		local before = utils_item.get_upgrades_installed(obj, nil, true) or {}
+		local picks = {}
+		for row, cols in pairs(self.upgr or {}) do
+			for col, v in pairs(cols) do
+				local cell = self.upgr_xml[row] and self.upgr_xml[row][col]
+				if cell and cell.btn and cell.btn:GetCheck() and not before[v.section] then picks[#picks + 1] = row .. "." .. col end
+			end
+		end
+		if #picks == 0 then return end
+		local stash = self.stashId or (self.owner and self.owner.stashId) or 0
+		local action = "upgrade " .. stash .. " " .. table.concat(picks, " ")
+		if #action > 63 then tip("st_netcoop_upgrade_too_many") return end
+		if netcoop_item_action(1, obj:id(), 65535, action) then
+			if utils_obj and utils_obj.play_sound then pcall(utils_obj.play_sound, "interface\\inv_properties_2") end
+		end
+		if self.Close then self:Close() end
+	end
+end
+
 -- a mechanic's vise used (bind_awr opens the window from this callback)
 local function on_use(obj, who)
 	if obj and string.match(obj:name() or "", "awr_tiski") then opened_from = { kind = 2, id = obj:id() } end
@@ -120,6 +149,7 @@ local function install()
 	if not netcoop_item_action then return end
 	install_recipes()
 	install_craft()
+	install_upgrades()
 	install_disassembly()
 	if netcoop_command then netcoop_command("recipes get") end
 end

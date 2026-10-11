@@ -1140,4 +1140,7 @@
   <string id="st_netcoop_workshop_unknown">
     <text>Open the workshop again</text>
   </string>
+  <string id="st_netcoop_upgrade_too_many">
+    <text>Too many upgrades at once - install some and repeat</text>
+  </string>
 </string_table>

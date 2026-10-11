@@ -1140,4 +1140,7 @@
   <string id="st_netcoop_workshop_unknown">
     <text>Откройте верстак заново</text>
   </string>
+  <string id="st_netcoop_upgrade_too_many">
+    <text>Слишком много улучшений за раз - поставьте часть и повторите</text>
+  </string>
 </string_table>

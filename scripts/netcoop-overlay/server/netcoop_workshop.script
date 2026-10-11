@@ -220,6 +220,90 @@ function craft(actor_id, kind, obj, action)
 end
 
 ----------------------------------------------------------------------
+-- Upgrades: "upgrade <stash id|0> <row.col> ..." for an item in the player's
+-- inventory. The server opens GAMMA's upgrade window headless on that item
+-- (installed upgrades, workshop kit, upgrade kits from the inventory, the
+-- workshop's stash and stashes in range), clicks the chosen cells in tree
+-- order exactly as a player would (a cell GAMMA keeps disabled cannot be
+-- chosen: no kit, the other upgrade of the pair, the previous column missing)
+-- and runs GAMMA's Upgrade: kits used up, upgrades installed by the engine
+-- (clients get them through M_NETCOOP_ITEM_UPGRADE).
+----------------------------------------------------------------------
+local function check_box()
+	local b = { checked = false, enabled = true }
+	function b:GetCheck() return self.checked end
+	function b:SetCheck(v) self.checked = v and true or false end
+	function b:Enable(v) self.enabled = v and true or false end
+	return b
+end
+
+local function upgrade_order()
+	local order = {}
+	for _, g in ipairs({ "first", "secon", "third", "fourt", "fifth" }) do
+		for _, i in ipairs({ "a", "b", "c", "d", "e", "f" }) do order[#order + 1] = g .. i end
+	end
+	return order
+end
+
+function upgrade(actor_id, obj, action)
+	local stash, rest = string.match(action, "^upgrade (%d+)(.*)$")
+	stash = tonumber(stash)
+	if not stash then return "bad upgrade" end
+	local U = ui_workshop and ui_workshop.UIWorkshopUpgrade
+	if not (U and U.EvaluateUpgrades and U.Upgrade and utils_item and utils_item.get_upgrades_tree) then
+		return "the workshop is not loaded on the server"
+	end
+	local stash_id = nil
+	if stash ~= 0 then
+		local s = level.object_by_id(stash)
+		local actor = level.object_by_id(actor_id)
+		if not (s and actor and is_workshop_stash(stash) and actor:position():distance_to(s:position()) <= 5) then
+			return "this is not a workshop"
+		end
+		stash_id = stash
+	end
+	local picks = {}
+	for r, c in string.gmatch(rest, "(%d+)%.(%d+)") do picks[#picks + 1] = { tonumber(r), tonumber(c) } end
+	if #picks == 0 then return "nothing to install" end
+	table.sort(picks, function(a, b) return a[2] < b[2] or (a[2] == b[2] and a[1] < b[1]) end)
+
+	local w = setmetatable({
+		owner = { dbg = false, stashId = stash_id, toolkits_state = {}, Close = function() end },
+		CC = { GetCell_Selected = function() return obj end },
+		inst_upgr = {}, inst_upgr_xml = {}, upgr = {}, upgr_xml = {}, upgr_idx = {}, upgr_tools = {},
+		upgr_tools_pick = {}, upgr_flags = {}, upgr_order = upgrade_order(), update_cache = {},
+		toolkits_state = {}, stashId = stash_id, last_cont = false, last_idx = false, step = 0,
+	}, { __index = function(_, k)
+		local m = U[k]
+		if m ~= nil then return m end
+		return stub
+	end })
+	w.inst_upgr = utils_item.get_upgrades_installed(obj, nil, true)
+	w.upgr_toolkit = w:GetWorkshopkit(obj) or "na"
+	w.upgr_tools = w:CollectUpgradekits(w.upgr_toolkit)
+	w.upgr = utils_item.get_upgrades_tree(obj:section())
+	if not (w.upgr and next(w.upgr)) then return "this item has no upgrades" end
+	for row, cols in pairs(w.upgr) do
+		w.upgr_xml[row] = {}
+		for col in pairs(cols) do w.upgr_xml[row][col] = { btn = check_box(), txt = stub, itm = stub, itm_temp = stub, pic = stub } end
+	end
+	quietly(U.EvaluateUpgrades, w)
+	for _, p in ipairs(picks) do
+		local cell = w.upgr_xml[p[1]] and w.upgr_xml[p[1]][p[2]]
+		local info = w.upgr[p[1]] and w.upgr[p[1]][p[2]]
+		if not (cell and info) then return "no such upgrade" end
+		if w.inst_upgr[info.section] then return "this upgrade is installed" end
+		if not cell.btn.enabled then return game.translate_string("st_upgr_disable") end
+		cell.btn.checked = true
+		quietly(U.EvaluateUpgrades, w)
+		if not w.inst_upgr[info.section] then return game.translate_string("st_upgr_disable") end
+	end
+	quietly(U.Upgrade, w)
+	printf("[Lost Zone][workshop] %s upgraded %s", tostring(actor_id), obj:section())
+	return ""
+end
+
+----------------------------------------------------------------------
 -- Disassembly: the item and the tool in the player's inventory; GAMMA's own
 -- disassembly (parts, chance, tool wear, battery out of a device).
 ----------------------------------------------------------------------

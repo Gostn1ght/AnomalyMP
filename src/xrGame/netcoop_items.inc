@@ -578,6 +578,50 @@ static void client_item_apply(CObject* object, const item_state::State& s, u16 m
 	}
 }
 
+// ---- upgrades installed by the server (workshop) --------------------------
+// A client has no ALife, so CScriptGameObject::InstallUpgrade does nothing
+// there; the server installs (netcoop_workshop runs GAMMA's upgrade window)
+// and the GE_INSTALL_UPGRADE it raises reaches the server entity
+// (xrServer_process_event) and, from here, every client's copy of the item:
+// the same property changes, recorded as installed without a new event.
+void server_item_upgraded(xrServer* server, u16 item, LPCSTR upgrade)
+{
+	if (!enabled() || pure_client() || !server || !upgrade || !upgrade[0]) return;
+	NET_Packet P;
+	P.w_begin(M_NETCOOP_ITEM_UPGRADE);
+	P.w_u16(item);
+	P.w_stringZ(upgrade);
+	struct Send
+	{
+		xrServer* server; NET_Packet* packet;
+		void operator()(IClient* client)
+		{
+			xrClientData* CL = static_cast<xrClientData*>(client);
+			if (CL == server->GetServerClient() || !CL->flags.bConnected) return;
+			server->SendTo(CL->ID, *packet, net_flags(TRUE, TRUE));
+		}
+	} send = {server, &P};
+	server->ForEachClientDo(send);
+}
+
+void client_on_item_upgrade(NET_Packet& P)
+{
+	if (!pure_client() || P.r_elapsed() < 3) return;
+	const u16 id = P.r_u16();
+	string256 upgrade;
+	if (!read_string(P, upgrade, sizeof(upgrade)) || !pSettings->section_exist(upgrade)) return;
+	CInventoryItem* item = smart_cast<CInventoryItem*>(Level().Objects.net_Find(id));
+	if (!item || item->has_upgrade(upgrade) || !pSettings->line_exist(upgrade, "section")) return;
+	// As Manager::upgrade_install: the upgrade's property section, then the id.
+	// No pre_install_upgrade here: the server already unloaded the magazine and
+	// the magazine comes with the item state; unloading again would ask for ammo.
+	LPCSTR properties = pSettings->r_string(upgrade, "section");
+	if (!properties || !pSettings->section_exist(properties)) return;
+	item->install_upgrade(properties);
+	item->add_upgrade(upgrade, true); // loading: no event back
+	Msg("[NetAnomaly][item] upgrade %s on %u", upgrade, id);
+}
+
 void client_on_item_state(NET_Packet& P)
 {
 	if (P.r_elapsed() < 2) return;

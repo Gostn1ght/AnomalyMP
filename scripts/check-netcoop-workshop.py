@@ -236,6 +236,55 @@ pm = item("wpn_pm")
 assert server.disassemble(pm, kit) == "" and g.dis[1] == "weapon wpn_pm"
 assert server.disassemble(pm, adv) == "<st_news_dis_items>" and len(g.dis) == 1
 
+# 7b. upgrades: GAMMA's tree evaluated headless, cells clicked in tree order
+lua.execute("""
+SECTIONS.itm_upgrade_kit = "kit"; SECTIONS.itm_gunsmith_toolkit = "kit"
+installed = {}
+tree = {[1] = {
+  [1] = {section = "up_firsta_pm", tool = "itm_upgrade_kit", effect = {up_seconda_pm = true}},
+  [2] = {section = "up_firstb_pm", tool = "itm_upgrade_kit", effect = {up_seconda_pm = true}},
+  [3] = {section = "up_seconda_pm", tool = "itm_upgrade_kit", solo = true},
+}}
+function k2t_table(t) local keys = {}; for k in pairs(t) do keys[#keys + 1] = k end; for k in pairs(keys) do end
+  for k in pairs(t) do t[k] = nil end; for i, k in ipairs(keys) do t[i] = k end end
+function t2k_table(t) local n = #t; for i = 1, n do t[t[i]] = true; t[i] = nil end end
+function is_not_empty(t) return t and next(t) ~= nil end
+function random_key_table(t) local keys = {}; for k in pairs(t) do keys[#keys + 1] = k end; table.sort(keys); return keys[1] end
+function odd(n) return n % 2 == 1 end
+inventory_upgrades = {}
+item_weapon = {clear_cache = function() end}
+function SendScriptCallback() end
+function GetItemList(kind) if kind == "workshop" then return {itm_gunsmith_toolkit = {wpn_pm = true}} end return {} end
+local base_isitem = IsItem
+function IsItem(kind, sec, obj)
+  sec = sec or (obj and obj:section())
+  if kind == "upgrade" then return SECTIONS[sec] == "kit" and sec ~= "itm_gunsmith_toolkit" end
+  return base_isitem(kind, sec, obj)
+end
+utils_item.get_item_remaining_uses = function() return 1 end
+utils_item.get_upgrades_tree = function(sec) return sec == "wpn_pm" and tree or nil end
+utils_item.get_upgrades_installed = function(obj, _, to_key)
+  local t = {}; for s in pairs(installed) do t[s] = true end; return t end
+""")
+pm2 = item("wpn_pm")
+lua.execute(f"local o = objects[{pm2._id}]; function o:install_upgrade(s) installed[s] = true; return true end; function o:force_unload_magazine() unloaded = true end")
+gun_kit = item("itm_gunsmith_toolkit")
+k1 = item("itm_upgrade_kit"); k2 = item("itm_upgrade_kit")
+# the second column needs the first: alone it stays disabled
+assert server.upgrade(0, pm2, "upgrade 0 1.3") == "<st_upgr_disable>" and not g.installed["up_seconda_pm"]
+# first and second column: both installed, two kits used up, magazine unloaded
+assert server.upgrade(0, pm2, "upgrade 0 1.3 1.1") == ""
+assert g.installed["up_firsta_pm"] and g.installed["up_seconda_pm"] and g.unloaded
+assert k1._id not in g.objects and k2._id not in g.objects
+# the pair's other upgrade cannot be added any more; no kit, no upgrade
+k3 = item("itm_upgrade_kit")
+assert server.upgrade(0, pm2, "upgrade 0 1.2") == "<st_upgr_disable>" and not g.installed["up_firstb_pm"]
+assert server.upgrade(0, pm2, "upgrade 0 1.1") == "this upgrade is installed"
+assert server.upgrade(0, pm2, "upgrade 0 2.1") == "no such upgrade"
+assert server.upgrade(0, kit, "upgrade 0 1.1") == "this item has no upgrades"
+assert server.upgrade(0, pm2, "upgrade 77 1.2") == "this is not a workshop"
+assert server.upgrade(0, pm2, "upgrade 0") == "nothing to install"
+
 # 8. server routing (netcoop_server_compat.item_action) and the command
 compat = (root / "server/netcoop_server_compat.script").read_text(encoding="utf-8")
 assert 'string.match(action, "^craft %d+ %d+$") and not target' in compat
@@ -289,9 +338,32 @@ view.receive_recipes("recipe_basic_1,recipe_basic_1")
 assert list(g.interactions.values()) == ["notes recipe_basic_1"]
 g.item_recipe.func_recipe(book3)                   # known now: no request
 assert len(g.actions) == 5
+# the upgrade window sends the newly checked cells
+lua.execute("installed = {up_firsta_pm = true}")
+upwin = lua.eval("""function(obj)
+  local function cell(on) return {btn = {GetCheck = function() return on end}} end
+  return {CC = {GetCell_Selected = function() return obj end}, upgr = tree,
+    upgr_xml = {[1] = {[1] = cell(true), [2] = cell(false), [3] = cell(true)}}, closed = false,
+    Close = function(self) self.closed = true end}
+end""")(pm2)
+g.utils_obj = lua.eval("{play_sound = function() end}")
+g.ui_workshop.UIWorkshopUpgrade.Upgrade(upwin)
+assert g.actions[len(g.actions)] == f"1 {pm2._id} 65535 upgrade 0 1.3" and upwin.closed
 cc = (root / "client/netcoop_client_compat.script").read_text(encoding="utf-8")
 assert 'channel == "recipes"' in cc and "netcoop_workshop_view.receive_recipes(data)" in cc
 for lang in ("rus", "eng"):
     table = (root / f"client/configs/text/{lang}/st_netcoop.xml").read_bytes().decode("cp1251")
     assert 'id="st_netcoop_workshop_unknown"' in table, lang
-print("Workshop on the server: GAMMA craft headless, stashes, toolkits, recipes from books, disassembly: PASS")
+    assert 'id="st_netcoop_upgrade_too_many"' in table, lang
+# engine: the server installs, clients get the upgrade, a client cannot install
+src = here.parent / "src"
+msgs = (src / "xrServerEntities/xrMessages.h").read_text(encoding="utf-8", errors="replace")
+assert msgs.index("M_NETCOOP_VOICE,") < msgs.index("M_NETCOOP_ITEM_UPGRADE,") < msgs.index("MSG_FORCEDWORD")
+nc = (src / "xrGame/netcoop.cpp").read_text(encoding="utf-8", errors="replace")
+assert re.search(r"case GE_INSTALL_UPGRADE:\s*return false;", nc)
+assert "netcoop::server_item_upgraded(this, receiver->ID" in (src / "xrGame/xrServer_process_event.cpp").read_text(encoding="utf-8", errors="replace")
+items = (src / "xrGame/netcoop_items.inc").read_text(encoding="utf-8", errors="replace")
+up = items[items.index("void client_on_item_upgrade"):items.index("void client_on_item_state")]
+assert 'r_string(upgrade, "section")' in up and "add_upgrade(upgrade, true)" in up and "pre_install_upgrade" not in up.split("No pre_install")[0]
+assert "netcoop::client_on_item_upgrade(*P)" in (src / "xrGame/Level_network_messages.cpp").read_text(encoding="utf-8", errors="replace")
+print("Workshop on the server: GAMMA craft/upgrade headless, stashes, toolkits, recipes from books, disassembly: PASS")

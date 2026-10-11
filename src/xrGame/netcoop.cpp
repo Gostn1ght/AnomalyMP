@@ -2215,8 +2215,13 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 			return dest && dest->owner == CL;
 		}
 
-	case GE_DESTROY:
+	// Upgrades are installed by the server (workshop, netcoop_workshop); a
+	// client cannot install one (no ALife) and a forged event wrote a free
+	// upgrade into the item.
 	case GE_INSTALL_UPGRADE:
+		return false;
+
+	case GE_DESTROY:
 	case GE_ADDON_ATTACH:
 	case GE_ADDON_DETACH:
 		{

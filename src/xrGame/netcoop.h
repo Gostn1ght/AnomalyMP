@@ -309,6 +309,10 @@ void server_item_touch(u16 id);
 void server_item_used(CActor* actor, u16 item, LPCSTR section);
 void item_destroyed(u16 id); // both sides, from CInventoryItem::net_Destroy
 void client_on_item_state(NET_Packet& P);
+// An upgrade the server installed on an item (workshop): every client's copy
+// of the item gets it too (netcoop_items.inc).
+void server_item_upgraded(xrServer* server, u16 item, LPCSTR upgrade);
+void client_on_item_upgrade(NET_Packet& P);
 // Every frame (rate-limited); flush = report own item changes now, before an
 // event that moves an item to someone else.
 void client_items_update(bool flush = false);
