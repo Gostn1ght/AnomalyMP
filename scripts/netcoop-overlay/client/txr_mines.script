@@ -1,4 +1,15 @@
 -- Lost Zone: never create, destroy or trigger mines on a pure client.
+-- GAMMA's public mine data: DotMarks and the Modded Exes unlocalizers read
+-- these from txr_mines (ui_hud_dotmarks.parse_file_data crashed on nil).
+MIN_FORGET_TIME = 60*10
+MAX_FORGET_TIME = 60*30
+FUSE_TIME = 5
+TRIGGER_RADIUS = 2.5
+FX_BY_SECTION = { mine_new = 'mine', ied_rpg_new = 'ied_rpg', ied_new = 'ied' }
+EXPLOSIVE_SECTION_LOOKUP = { mine_new = 'mine_new_blow', ied_rpg_new = 'rpg_new_blow', ied_new = 'ied_new_blow' }
+EXPLOSIVE_TYPE = { mine_new = 'mine', ied_rpg_new = 'ied_rpg', ied_new = 'ied' }
+_mines = {}
+function release_item(id) return true end -- the server owns item lifetime
 function str_prox_plant() return "st_plant_explosive_prox" end
 function str_timer_plant_10() return "st_plant_explosive_timer_10" end
 function str_timer_plant_30() return "st_plant_explosive_timer_30" end

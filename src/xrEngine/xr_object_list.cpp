@@ -399,16 +399,20 @@ void CObjectList::net_Import(NET_Packet* Packet)
 		if (P)
 		{
 			u32 rsize = Packet->r_tell();
+			R_ASSERT2(rsize + size <= Packet->B.count, "update chunk exceeds its packet");
 
-			P->net_Import(*Packet);
+			// Each object reads exactly its own chunk: optional trailing fields
+			// test r_elapsed(), which on the shared packet counted the following
+			// objects too (garbage NPC body yaw when the NPC was not last). One
+			// layout mismatch cannot corrupt the rest either.
+			static thread_local NET_Packet own;
+			own.construct(&Packet->B.data[rsize], size);
+			own.r_pos = 0;
+			own.timeReceive = Packet->timeReceive;
+			P->net_Import(own);
+			Packet->r_seek(rsize + size);
 
-			// Stay aligned on the object chunk even if an object reads a different
-			// layout than its server entity wrote (netcoop replicates NPCs, which the
-			// stock engine never sent), so one mismatch cannot corrupt the rest.
-			if (Packet->r_tell() != rsize + size)
-				Packet->r_seek(rsize + size);
-
-			if (g_Dump_Import_Obj) Msg("* %s : %d - %d", *(P->cNameSect()), size, Packet->r_tell() - rsize);
+			if (g_Dump_Import_Obj) Msg("* %s : %d - %d", *(P->cNameSect()), size, own.r_pos);
 		}
 		else Packet->r_advance(size);
 	}

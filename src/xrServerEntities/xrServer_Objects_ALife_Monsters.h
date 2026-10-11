@@ -530,6 +530,9 @@ SERVER_ENTITY_DECLARE_BEGIN2(CSE_ALifeHumanStalker, CSE_ALifeHumanAbstract, CSE_
 	// Item in hands: active inventory slot and flags (bit 0: weapon strapped).
 	u16 m_netcoop_active_slot;
 	u8 m_netcoop_hands_flags;
+	// Body yaw of the server's bone callbacks and torso-look sight (relayed).
+	float m_netcoop_body_yaw;
+	u8 m_netcoop_torso_look;
 
 	CSE_ALifeHumanStalker(LPCSTR caSection);
 	virtual ~CSE_ALifeHumanStalker();
