@@ -84,7 +84,7 @@ Distance/overload tiers для NPC/мутантов/игроков, описан
 
 | Пункт | Статус | Что есть |
 |---|---|---|
-| A01 Частично: исполняемый local World Service; engine adoption впереди | 🟡 | backend World Service с отдельной console lifecycle/status/clock/registry/transfer diagnostics и explicit initial WorldID/seed/calendar (doc95); engine только observer/частичные адаптеры; целевой мастер и серверы локаций подтверждены владельцем |
+| A01 Частично: исполняемый local World Service; engine adoption впереди | 🟡 | backend World Service с отдельной console lifecycle/status/clock/registry/transfer diagnostics, explicit initial WorldID/seed/calendar и local-checkpoint→master shadow bindings (doc95); engine только observer/частичные адаптеры; целевой мастер и серверы локаций подтверждены владельцем |
 | A02 Независимые Location Runtime: каждый процесс изменяет только | 🟡 | процесс на карту; чужое generic население удаляется (live), но ALife всей Зоны всё ещё грузится |
 | A03 Authority lease и fencing между процессами/хостами: старый | 🟡 | lease аккаунта + файловые замки (работают по общей сетевой папке); межхостового fencing нет |
 | A04 Частично: backend Player Persistence с транзакциями; game bridge впереди | 🟡 | backend World Service (Codex); engine только observer/частичные адаптеры |

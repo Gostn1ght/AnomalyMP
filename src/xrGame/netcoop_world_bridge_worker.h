@@ -7,6 +7,7 @@ namespace netcoop_world
 struct BridgeDiagnostics
 {
     bool ready=false, fetched=false, accepted=false;
+    bool master_binding=false;
     std::uint64_t rtt_ms=0;
     double drift_game_ms=0;
     unsigned weather_phase=0,emission_phase=0;
@@ -25,7 +26,7 @@ public:
     WorldBridgeWorker(const WorldBridgeWorker&)=delete;
     WorldBridgeWorker& operator=(const WorldBridgeWorker&)=delete;
     // 0: absent optional config; -1: invalid/unavailable; 1: started observer.
-    int start(const char* config_path, const WorldStateSnapshot& local) noexcept;
+    int start(const char* config_path, const WorldStateSnapshot& local, const char* location=nullptr) noexcept;
     BridgeDiagnostics tick(const WorldStateSnapshot& local) noexcept;
     void stop() noexcept;
 };

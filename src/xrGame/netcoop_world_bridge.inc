@@ -6,7 +6,9 @@ static u64 s_world_bridge_tick=0, s_world_bridge_log=0;
 static void server_world_bridge_update()
 {
     if (s_world_bridge_checked && !s_world_bridge_active) return;
-    if (!ai().get_alife()) return;
+    if (!g_pGameLevel || !ai().get_alife()) return;
+    LPCSTR location=*Level().name();
+    if (!location || !location[0]) return;
     const u64 now=GetTickCount64();
     if (s_world_bridge_tick && now-s_world_bridge_tick<1000) return;
     s_world_bridge_tick=now;
@@ -17,7 +19,7 @@ static void server_world_bridge_update()
         s_world_bridge_checked=true;
         string_path path;
         FS.update_path(path,"$app_data_root$","netcoop_world_bridge.json");
-        const int result=s_world_shadow_bridge.start(path,local);
+        const int result=s_world_shadow_bridge.start(path,local,location);
         s_world_bridge_active=result==1;
         if (result<0) Msg("! [world-bridge-shadow] invalid private configuration; bridge disabled");
         if (result==1) Msg("[world-bridge-shadow] private loopback observer configured; authority remains local");
@@ -27,10 +29,10 @@ static void server_world_bridge_update()
     if (!s_world_bridge_log || now-s_world_bridge_log>=10000)
     {
         s_world_bridge_log=now;
-        Msg("[world-bridge-shadow] ready=%u fetched=%u accepted=%u rtt_ms=%llu drift_game_ms=%.3f weather_phase=%u weather_blend=%.3f emission_phase=%u (read only)",
+        Msg("[world-bridge-shadow] ready=%u fetched=%u accepted=%u rtt_ms=%llu drift_game_ms=%.3f weather_phase=%u weather_blend=%.3f emission_phase=%u master_binding=%u (read only)",
             diagnostic.ready ? 1u:0u,diagnostic.fetched ? 1u:0u,diagnostic.accepted ? 1u:0u,
             diagnostic.rtt_ms,diagnostic.drift_game_ms,diagnostic.weather_phase,diagnostic.weather_blend,
-            diagnostic.emission_phase);
+            diagnostic.emission_phase,diagnostic.master_binding ? 1u:0u);
     }
 }
 

@@ -197,6 +197,32 @@ emission: 1 scheduled, 2 warning, 3 active, 4 peak, 5 ended.
 владельцем и не изменяет календарь, inventory или AI. Файл конфигурации и DB
 мира должны согласовывать identity отдельно; несовпадение закрывает observer.
 
+Существующие карты сохраняются в разных local ALife worlds (`zone`,
+`zone_escape`, `zone_<map>`), поэтому их checkpoint WorldID нельзя просто
+заменить глобальным ID мастера. Для наблюдения за одним мастером с разных карт
+есть explicit binding config schema2:
+
+```powershell
+python -m lostzone bridge-config --config runtime/config.json --destination <server-userdata>/netcoop_world_bridge.json --location l01_escape --local-world-id 900 --local-seed 17
+```
+
+Значения local ID/seed в примере учебные; нужны настоящие значения existing
+checkpoint identity конкретной карты. Master config должен содержать явные
+`world_id`/`seed`, настроенные при `init`. Карта должна быть в его configured
+locations. Экспорт содержит только observer token, global identity мастера,
+location и expected local checkpoint identity; не читает и не изменяет ALife
+save/DB. Native startup сверяет actual Level name, local WorldID/seed до
+создания worker. Worker проверяет remote bootstrap по master WorldID/seed;
+смена local identity закрывает diagnostics. Несовпадение не вызывает fallback
+или переписывание checkpoint. `master_binding=1` в shadow diagnostics означает
+эту привязку, а не передачу игровой власти.
+
+Legacy schema1 export без этих flags сохранён: local и remote identity должны
+совпадать. Ни schema1, ни schema2 не применяют clock/weather в игре, не
+переносят NPC/персонажей и не разделяют gameplay registry. Master epoch и
+local checkpoint writer epoch остаются разными областями владения; их
+согласованный recovery/checkpoint adapter ещё нужен.
+
 GET /v1/clock, /v1/bootstrap; GET /v1/location?id=...&fence=...;
 GET /v1/transfer?id=...; admin GET /v1/events?after=...&limit=...;
 POST /v1/command: command_id (128-bit hex), operation, arguments.

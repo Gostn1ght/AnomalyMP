@@ -139,6 +139,21 @@ int main(int argc,char** argv) {
  bad=config;bad["mode"]="authoritative";rejects([&]{BridgeConfig::parse(bad.dump());});
  bad=config;bad["token"]="x\r\nHost:example.com";rejects([&]{BridgeConfig::parse(bad.dump());});
  bad=config;bad["port"]=65536;rejects([&]{BridgeConfig::parse(bad.dump());});
+ auto binding=config;binding["schema"]=2;
+ binding["master_world_id"]=123;binding["master_world_seed"]=UINT64_MAX;
+ binding["local_world_id"]=900;binding["local_world_seed"]=0;binding["location"]="cordon";
+ const auto bound=BridgeConfig::parse(binding.dump());
+ auto local_scope=state;local_scope.clock.world_id=900;local_scope.world_seed=0;
+ assert(bound.bound && bound.matches_local(local_scope,"cordon"));
+ assert(!bound.matches_local(local_scope,"garbage") && !bound.matches_local(local_scope));
+ auto wrong_scope=local_scope;wrong_scope.clock.world_id=901;
+ assert(!bound.matches_local(wrong_scope,"cordon"));
+ wrong_scope=local_scope;wrong_scope.world_seed=1;
+ assert(!bound.matches_local(wrong_scope,"cordon"));
+ bad=binding;bad.erase("master_world_seed");rejects([&]{BridgeConfig::parse(bad.dump());});
+ bad=binding;bad["master_world_id"]=0;rejects([&]{BridgeConfig::parse(bad.dump());});
+ bad=binding;bad["local_world_seed"]=false;rejects([&]{BridgeConfig::parse(bad.dump());});
+ bad=binding;bad["location"]="bad\nmap";rejects([&]{BridgeConfig::parse(bad.dump());});
  WorldBridgeWorker isolated;
  assert(!isolated.tick(state).ready);
  assert(isolated.start("does-not-exist.json",state)==0);
@@ -147,6 +162,9 @@ int main(int argc,char** argv) {
  assert(!isolated.tick(state).ready);
  {std::ofstream file("oversize.json");file<<std::string(4097,' ');}
  assert(isolated.start("oversize.json",state)==-1);
+ {std::ofstream file("bound.json");file<<binding.dump();}
+ assert(isolated.start("bound.json",local_scope,"garbage")==-1);
+ assert(isolated.start("bound.json",wrong_scope,"cordon")==-1);
  isolated.stop();isolated.stop();
  assert(argc>=2);
  std::ifstream persisted_file(argv[1]);
@@ -172,13 +190,35 @@ int main(int argc,char** argv) {
  for (int i=0;i<100 && !accepted;++i) {
   std::this_thread::sleep_for(std::chrono::milliseconds(20));
   auto diagnostic=isolated.tick(actual.world);accepted=diagnostic.accepted;
-  if(accepted)assert(diagnostic.ready && diagnostic.fetched && diagnostic.weather_phase==2 &&
+  if(accepted)assert(diagnostic.ready && diagnostic.fetched && !diagnostic.master_binding && diagnostic.weather_phase==2 &&
                     diagnostic.weather_blend>0 && diagnostic.weather_blend<1 && diagnostic.emission_phase==4);
  }
  assert(accepted);
  auto stopped=std::chrono::steady_clock::now();isolated.stop();
  assert(std::chrono::steady_clock::now()-stopped<std::chrono::seconds(3));
  assert(!isolated.tick(actual.world).ready);
+ // Two independently persisted ALife identities observe the same global
+ // master without rewriting either checkpoint or weakening remote identity.
+ for(unsigned map_index=0;map_index<2;++map_index) {
+  const char* map=map_index==0 ? "cordon":"garbage";
+  auto scoped=config;scoped["schema"]=2;scoped["location"]=map;
+  scoped["master_world_id"]=123;scoped["master_world_seed"]=UINT64_MAX;
+  scoped["local_world_id"]=900+map_index;scoped["local_world_seed"]=17+map_index;
+  auto checkpoint=actual.world;checkpoint.clock.world_id=900+map_index;checkpoint.world_seed=17+map_index;
+  {std::ofstream file("bound.json");file<<scoped.dump();}
+  assert(isolated.start("bound.json",checkpoint,map)==1);
+  accepted=false;
+  for(int i=0;i<100 && !accepted;++i) {
+   std::this_thread::sleep_for(std::chrono::milliseconds(20));
+   const auto diagnostic=isolated.tick(checkpoint);accepted=diagnostic.accepted;
+   if(accepted)assert(diagnostic.ready && diagnostic.master_binding && diagnostic.weather_phase==2 && diagnostic.emission_phase==4);
+  }
+  assert(accepted && checkpoint.clock.world_id==900+map_index && checkpoint.world_seed==17+map_index);
+  auto foreign_checkpoint=checkpoint;foreign_checkpoint.clock.world_id=902;
+  assert(!isolated.tick(foreign_checkpoint).ready);
+  isolated.stop();
+ }
+ std::cout<<"PASS: two distinct local checkpoint scopes bind one master; wrong map/world/seed rejected without identity mutation\n";
  auto mismatched=actual.world;mismatched.world_seed=1;
  assert(isolated.start("observer.json",mismatched)==1);
  for (int i=0;i<20;++i) {

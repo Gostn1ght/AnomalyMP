@@ -13,6 +13,14 @@ from .store import Invalid, Store, finite, identifier
 from .world import World
 
 
+def world_identity(world_id, seed):
+    if type(world_id) is not int or not 0 < world_id < 2**64:
+        raise Invalid("invalid WorldID")
+    if type(seed) is not int or not 0 <= seed < 2**64:
+        raise Invalid("invalid world seed")
+    return world_id, seed
+
+
 def create_config(path, locations, *, world_id=None, seed=None, initial_ms=None, scale=None):
     path = Path(path).resolve()
     if path.exists():
@@ -21,10 +29,7 @@ def create_config(path, locations, *, world_id=None, seed=None, initial_ms=None,
         raise Invalid("explicit world identity requires both WorldID and seed")
     bootstrap = {}
     if world_id is not None:
-        if type(world_id) is not int or not 0 < world_id < 2**64:
-            raise Invalid("invalid WorldID")
-        if type(seed) is not int or not 0 <= seed < 2**64:
-            raise Invalid("invalid world seed")
+        world_identity(world_id, seed)
         bootstrap.update(world_id=world_id, seed=seed)
     if initial_ms is not None:
         bootstrap["initial_ms"] = finite(initial_ms)
@@ -56,12 +61,14 @@ def create_config(path, locations, *, world_id=None, seed=None, initial_ms=None,
     return path
 
 
-def create_bridge_config(config_path, destination):
+def create_bridge_config(config_path, destination, *, local_world_id=None, local_seed=None, location=None):
     # Export only a read-only observer, never an admin/location token. The
     # engine owns its existing WorldID/seed; this file does not adopt a new DB.
     config_path,destination = Path(config_path).resolve(),Path(destination).resolve()
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    Credentials(config.get("credentials"))
+    if config.get("schema") != 1:
+        raise Invalid("unsupported service configuration")
+    credentials = Credentials(config.get("credentials"))
     entry = config.get("credentials",{}).get("observer:engine")
     if not entry or entry.get("role")!="observer":
         raise Invalid("a dedicated read-only engine observer is required")
@@ -70,8 +77,18 @@ def create_bridge_config(config_path, destination):
         raise Invalid("shadow bridge requires a fixed loopback port")
     if destination.name!="netcoop_world_bridge.json":
         raise Invalid("engine bridge file must be netcoop_world_bridge.json")
+    body = {"schema":1,"mode":"shadow","host":"127.0.0.1","port":port,"token":entry["token"]}
+    if any(value is not None for value in (local_world_id, local_seed, location)):
+        world_identity(local_world_id, local_seed)
+        identifier(location)
+        if not any(principal.role == "location" and location in principal.locations
+                   for _, principal in credentials.entries):
+            raise Invalid("binding location is not configured in the master")
+        master_id, master_seed = world_identity(config.get("world_id"), config.get("seed"))
+        body.update(schema=2, master_world_id=master_id, master_world_seed=master_seed,
+                    local_world_id=local_world_id, local_world_seed=local_seed, location=location)
     destination.parent.mkdir(parents=True,exist_ok=True)
-    encoded = json.dumps({"schema":1,"mode":"shadow","host":"127.0.0.1","port":port,"token":entry["token"]}).encode("utf-8")
+    encoded = json.dumps(body).encode("utf-8")
     descriptor = os.open(destination,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
     with os.fdopen(descriptor,"wb") as file:
         file.write(encoded);file.flush();os.fsync(file.fileno())
@@ -171,10 +188,14 @@ def main():
     parser.add_argument("--seed", type=int, help="initial world seed; init only, requires --world-id")
     parser.add_argument("--initial-ms", type=float, help="initial game calendar in milliseconds; init only")
     parser.add_argument("--scale", type=float, help="initial game time scale; init only")
+    parser.add_argument("--local-world-id", type=int, help="existing ALife checkpoint WorldID; bridge-config only")
+    parser.add_argument("--local-seed", type=int, help="existing ALife checkpoint seed; bridge-config only")
     args = parser.parse_args()
     if args.mode != "init" and any(value is not None for value in
                                    (args.world_id, args.seed, args.initial_ms, args.scale)):
         raise Invalid("world bootstrap options apply only to init")
+    if args.mode != "bridge-config" and any(value is not None for value in (args.local_world_id, args.local_seed)):
+        raise Invalid("local checkpoint binding options apply only to bridge-config")
     if args.mode == "init":
         create_config(args.config, args.location, world_id=args.world_id, seed=args.seed,
                       initial_ms=args.initial_ms, scale=args.scale)
@@ -182,7 +203,10 @@ def main():
     elif args.mode=="bridge-config":
         if not args.destination:
             raise Invalid("bridge-config requires --destination in the server userdata folder")
-        create_bridge_config(args.config,args.destination)
+        if len(args.location) > 1:
+            raise Invalid("a bridge config binds exactly one location")
+        create_bridge_config(args.config,args.destination,local_world_id=args.local_world_id,
+                             local_seed=args.local_seed,location=args.location[0] if args.location else None)
         print("Created private read-only engine bridge configuration. Token is not printed.")
     else:
         run(args.config, args.port, interactive=args.mode == "console")

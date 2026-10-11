@@ -27,6 +27,7 @@ struct WorldBridgeWorker::State
 {
     BridgeConfig config;
     BridgeObserver observer;
+    std::uint64_t local_world,local_seed;
     std::mutex lock;
     std::condition_variable wake;
     bool stopping=false, pending=false, successful=false;
@@ -35,7 +36,10 @@ struct WorldBridgeWorker::State
     std::thread worker;
 
     State(BridgeConfig connection, const WorldStateSnapshot& local)
-        : config(std::move(connection)), observer(local.clock.world_id,local.world_seed), worker([this]{run();}) {}
+        : config(std::move(connection)),
+          observer(config.bound ? config.master_world:local.clock.world_id,
+                   config.bound ? config.master_seed:local.world_seed),
+          local_world(local.clock.world_id),local_seed(local.world_seed),worker([this]{run();}) {}
     ~State()
     {
         { std::lock_guard<std::mutex> guard(lock);stopping=true; }
@@ -65,6 +69,7 @@ struct WorldBridgeWorker::State
     }
     BridgeDiagnostics tick(const WorldStateSnapshot& local)
     {
+        if (local.clock.world_id!=local_world || local.world_seed!=local_seed) return {};
         BridgeBootstrap sample{};
         bool available=false,ok=false;
         std::uint64_t started=0,finished=0;
@@ -73,6 +78,7 @@ struct WorldBridgeWorker::State
             if (pending) {sample=incoming;available=true;ok=successful;started=sent;finished=received;pending=false;}
         }
         BridgeDiagnostics result;
+        result.master_binding=config.bound;
         result.fetched=available && ok;
         result.rtt_ms=finished>=started ? finished-started : 0;
         if (result.fetched)
@@ -93,7 +99,7 @@ struct WorldBridgeWorker::State
 };
 
 WorldBridgeWorker::~WorldBridgeWorker() {stop();}
-int WorldBridgeWorker::start(const char* path, const WorldStateSnapshot& local) noexcept
+int WorldBridgeWorker::start(const char* path, const WorldStateSnapshot& local, const char* location) noexcept
 {
     stop();
     try
@@ -103,6 +109,7 @@ int WorldBridgeWorker::start(const char* path, const WorldStateSnapshot& local) 
         if (!input) return 0;
         char bytes[4097];input.read(bytes,sizeof(bytes));
         auto config=BridgeConfig::parse(std::string(bytes,std::size_t(input.gcount())));
+        if (!config.matches_local(local,location)) return -1;
         auto state=std::make_unique<State>(std::move(config),local);
         state_=state.release();
         return 1;

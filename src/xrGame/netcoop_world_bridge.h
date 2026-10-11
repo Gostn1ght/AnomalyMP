@@ -202,10 +202,20 @@ struct BridgeConfig
 {
     unsigned port=0;
     std::string token;
+    bool bound=false;
+    std::uint64_t master_world=0,master_seed=0,local_world=0,local_seed=0;
+    std::string location;
+    bool matches_local(const WorldStateSnapshot& state, const char* map=nullptr) const
+    {
+        return !bound || (state.clock.world_id==local_world && state.world_seed==local_seed &&
+                         map && location==map);
+    }
     static BridgeConfig parse(const std::string& encoded)
     {
         const auto body=bridge_json(encoded,4096);
-        if (!body.is_object() || body.size()!=5 || bridge_unsigned(body,"schema")!=1 ||
+        if (!body.is_object()) throw std::invalid_argument("invalid bridge config object");
+        const auto schema=bridge_unsigned(body,"schema");
+        if ((schema!=1 && schema!=2) || body.size()!=(schema==1 ? 5u:10u) ||
             !body.contains("mode") || body["mode"]!="shadow" || !body.contains("host") || body["host"]!="127.0.0.1" ||
             !body.contains("token") || !body["token"].is_string()) throw std::invalid_argument("invalid read-only bridge config");
         const auto port=bridge_unsigned(body,"port");
@@ -213,7 +223,19 @@ struct BridgeConfig
         if (!port || port>65535 || token.size()<32 || token.size()>256 ||
             token.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")!=std::string::npos)
             throw std::invalid_argument("invalid bridge credential/port");
-        return {unsigned(port),token};
+        BridgeConfig result;
+        result.port=unsigned(port);result.token=token;
+        if (schema==2)
+        {
+            result.master_world=bridge_unsigned(body,"master_world_id");
+            result.master_seed=bridge_unsigned(body,"master_world_seed");
+            result.local_world=bridge_unsigned(body,"local_world_id");
+            result.local_seed=bridge_unsigned(body,"local_world_seed");
+            result.location=bridge_identifier(body,"location");
+            if (!result.master_world || !result.local_world) throw std::invalid_argument("zero bridge WorldID");
+            result.bound=true;
+        }
+        return result;
     }
 };
 

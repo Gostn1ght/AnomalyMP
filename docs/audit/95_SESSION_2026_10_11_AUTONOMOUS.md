@@ -254,3 +254,50 @@ CLI init без открытия DB и запрет bootstrap flags в serve/con
 Это preparation нового backend мира: identity согласовывается явно,
 но coherent ALife import, authority adoption и персонажи/предметы не перенесены.
 A01 остаётся 🟡, счётчики не меняются. Новых игровых ✅ нет.
+
+Wire schedules (`27399db76`, noexcept mailbox `db0bbcb86`) и explicit initial
+identity (`b3a4328aa`), push head `88559486f`:
+[Foundation GCC/MSVC PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38138016065),
+[World Backend Linux/Windows PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38138015970).
+В Foundation logs: actual SQLite/World/Timelines bootstrap на обеих платформах;
+Windows дополнительно WinHTTP clock/weather/emission и worker playback PASS.
+Полная DX11 сборка ещё выполняется; следующего push до её завершения нет.
+
+## Разные local checkpoints — один глобальный мастер
+
+Текущий watchdog запускает карты с разными save names (`zone`, `zone_escape`,
+`zone_<map>`), а native authority record содержит local WorldID/seed/epoch.
+Прямая замена ID/epoch на мастерские несовместима с существующим checkpoint
+validator. Добавлен read-only explicit binding config schema2: global
+master WorldID/seed + expected location/local WorldID/seed. Native startup
+проверяет actual Level name и local identity до создания worker; remote
+bootstrap валидируется по global identity. Local checkpoint не переписывается;
+смена local identity закрывает observer diagnostics. Старый schema1 режим
+с совпадающей local/remote identity остаётся совместимым. Invalid schema2
+никогда не переключается на schema1 или другого мастера автоматически.
+
+Exporter `bridge-config --location ... --local-world-id ... --local-seed ...`
+берёт master identity из explicit initial config и проверяет configured
+location. Только observer credential, O_EXCL export; нет admin/location token,
+signing key, открытия DB или импорта saves. Четыре focused Python tests PASS:
+две карты/один master, private credential isolation, invalid/incomplete scopes,
+CLI mode/location guards и legacy compatibility. Расширенная native fixture
+проверяет wrong map/world/seed rejection; Windows подключает две разные local
+checkpoint identities к одному настоящему backend и подтверждает одинаковые
+global schedules без изменения local IDs. Native fixtures только в CI.
+
+Это cross-location shadow binding, не runtime authority adoption. Master epoch
+и local checkpoint writer epoch нельзя подставлять друг вместо друга;
+coherent capture/recovery и character/NPC ownership bootstrap остаются впереди.
+A01/B08/B09/B10 остаются 🟡, 188 счётчиков без нового изменения.
+
+## Повторный запрос удаления старых бэкапов
+
+После явного запроса владельца повторно проверен единственный архив прежней
+engine cleanup: `_backups/engine_cleanup_20261011`, 181666 files /
+43006709852 bytes, 7 folders + manifest. Absolute target строго внутри workspace,
+unexpected entries и reparse points отсутствуют. Прямое PowerShell recursive
+Remove-Item отклонено автоматической проверкой: `blocked by policy`, без
+подробной причины. Архив не удалён, обход отказа не выполнялся. Backups
+`firebase`/`players_wipe_20261010` сохранены по исходному правилу владельца
+не удалять player/account/world данные.
