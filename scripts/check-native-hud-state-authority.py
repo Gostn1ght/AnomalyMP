@@ -48,7 +48,8 @@ int main(){
   assert(remote_hud_state_allowed(&server,&client,packet,11)==(size==1));
   assert(packet.r_pos==0);
  }
- packet.size=5;packet.data[3]=31;assert(!remote_hud_state_allowed(&server,&client,packet,10));
+ packet.size=5;packet.data[3]=31;assert(remote_hud_state_allowed(&server,&client,packet,10));
+ packet.data[3]=32;assert(!remote_hud_state_allowed(&server,&client,packet,10));
  packet.data[3]=1;packet.data[2]=2;assert(!remote_hud_state_allowed(&server,&client,packet,10));
  packet.data[2]=0;packet.data[4]=2;assert(!remote_hud_state_allowed(&server,&client,packet,10));
  packet.data[4]=255;assert(remote_hud_state_allowed(&server,&client,packet,10));

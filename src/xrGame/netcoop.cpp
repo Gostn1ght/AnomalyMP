@@ -2198,7 +2198,9 @@ static bool remote_hud_state_allowed(xrServer* server, xrClientData* CL, NET_Pac
 	const auto types = weapon->m_ammoTypes.size();
 	// Empty-ammo weapons (knife/binoculars) cannot allocate cartridges;
 	// invalid next-ammo indexes otherwise crash when reload starts.
-	return count <= weapon->GetAmmoMagSize() && (!count || types > 0) &&
+	// Match item reports: a loaded chamber may add one round to the magazine.
+	const u32 capacity = u32(weapon->GetAmmoMagSize()) + (types ? 1 : 0);
+	return count <= capacity && (!count || types > 0) &&
 		(types ? ammo_type < types : ammo_type == 0) &&
 		(next_ammo == u8(-1) || next_ammo < types);
 }
