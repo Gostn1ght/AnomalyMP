@@ -261,7 +261,7 @@ Distance/overload tiers для NPC/мутантов/игроков, описан
 | L12 Persistent stash: содержимое, lock/owner/version/discovery/quest links | 🟡 | мебель/тайники/визиты в тайники/костры в серверном Lua (цикл заработал только 2026-10-06) |
 | L13 Loot seed фиксируется при создании; открытие/рестарт не reroll | ✅ | рестарт реального сервера: труп с тем же лутом и артефактом NPC, ящик, артефакт на земле - id в id (run-world-persistence-test.ps1, 2026-10-06) |
 | L14 Частично: backend route discovery/редкость/общие contact reserves | 🟡 | мебель/тайники/визиты в тайники/костры в серверном Lua (цикл заработал только 2026-10-06) |
-| L15 Stash access: PlayerOnly/QuestProtected/NPCAccessible/FactionAccessible | 🟡 | мебель/тайники/визиты в тайники/костры в серверном Lua (цикл заработал только 2026-10-06) |
+| L15 Stash access: PlayerOnly/QuestProtected/NPCAccessible/FactionAccessible | 🟡 | PlayerOnly: тайники/мебель игрока (владелец + список доступа), созданные игроком; QuestProtected: сюжетные id и закрытые ящики; NPCAccessible: прочие ящики мира (визиты NPC, netcoop_server_compat STASH_VISIT); FactionAccessible (ящики базы только для своей группировки) - нет |
 | L16 Scavenging ограничен carry capacity/needs/value/faction; | 🔧 | netcoop_npc_loot (2026-10-11): после обыска GAMMA NPC возвращает на труп самое дешёвое сверх 30 кг GAMMA; «не обыскивать рядом с актором» считает живых игроков; check-netcoop-npc-loot.py (CI); в игре не проверено |
 | L17 Смена оружия NPC оставляет прежнее оружие с тем же item identity | ⬜ |  |
 | L18 Containers имеют authoritative inventory/owner/lock/version; | ✅ | рестарт реального сервера: труп с тем же лутом и артефактом NPC, ящик, артефакт на земле - id в id (run-world-persistence-test.ps1, 2026-10-06) |
