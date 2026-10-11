@@ -1619,6 +1619,19 @@ void CApplication::Level_Set(u32 L)
 	//SECUROM_MARKER_PERFORMANCE_OFF(9)
 }
 
+// Map archives describe themselves with level_name/level_ver. Lost Zone's own
+// archives (scripts, overlay, patches) carry a header without them: skip such
+// archives instead of a fatal r_string (dedicated start crashed in
+// GetArchiveHeader, called for the server's own client connection).
+static bool archive_level(const CLocatorAPI::archive& A, LPCSTR& name, LPCSTR& ver)
+{
+	if (!A.header || !A.header->line_exist("header", "level_name") || !A.header->line_exist("header", "level_ver"))
+		return false;
+	name = A.header->r_string("header", "level_name");
+	ver = A.header->r_string("header", "level_ver");
+	return name && ver;
+}
+
 int CApplication::Level_ID(LPCSTR name, LPCSTR ver, bool bSet)
 {
 	PROF_EVENT();
@@ -1634,10 +1647,9 @@ int CApplication::Level_ID(LPCSTR name, LPCSTR ver, bool bSet)
 	for (; it != it_e; ++it)
 	{
 		CLocatorAPI::archive& A = *it;
-		if (A.hSrcFile == NULL)
+		LPCSTR ln, lv;
+		if (A.hSrcFile == NULL && archive_level(A, ln, lv))
 		{
-			LPCSTR ln = A.header->r_string("header", "level_name");
-			LPCSTR lv = A.header->r_string("header", "level_ver");
 			if (0 == stricmp(ln, name) && 0 == stricmp(lv, ver))
 			{
 				FS.LoadArchive(A);
@@ -1682,8 +1694,9 @@ CInifile* CApplication::GetArchiveHeader(LPCSTR name, LPCSTR ver)
 	{
 		CLocatorAPI::archive& A = *it;
 
-		LPCSTR ln = A.header->r_string("header", "level_name");
-		LPCSTR lv = A.header->r_string("header", "level_ver");
+		LPCSTR ln, lv;
+		if (!archive_level(A, ln, lv))
+			continue;
 		if (0 == stricmp(ln, name) && 0 == stricmp(lv, ver))
 		{
 			return A.header;

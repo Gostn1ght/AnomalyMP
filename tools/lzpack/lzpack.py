@@ -105,7 +105,8 @@ def files_under(folder):
 def make_db(rows, dest, entry_point):
     # Standard uncompressed DB for small script/bugfix patches. Big base
     # archives keep xrCompress's compression; protection never recompresses.
-    header = ('[header]\nauto_load = true\nentry_point = ' + entry_point + '\n').encode('cp1251')
+    # level_name/level_ver: older engines read them from every archive header.
+    header = ('[header]\nauto_load = true\nentry_point = ' + entry_point + '\nlevel_name = lostzone\nlevel_ver = 1.0\n').encode('cp1251')
     offset = 8 + len(header) + 8
     table, names = bytearray(), set()
     total = sum(p.stat().st_size for _,p in rows)

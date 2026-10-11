@@ -81,10 +81,37 @@ function Find-Log($s) {
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
 }
 
+# Milestones of a location server start, in log order, with the share of the
+# load done when they appear (measured on Cordon: ~4 min to the first save).
+$loadMilestones = @(
+    @('Loading DLL: xrGame\.dll', 4), @('Starting RENDER device', 8), @('\* phase time: 0 ms', 12),
+    @('\[world\] acquired|no saved world yet|loading saved world', 16), @('Loading spawn registry', 50),
+    @('spawn points are successfully loaded', 58), @('Loading HOM', 76), @('squad\(s\), \d+ NPC\(s\) of other maps', 90),
+    @('ALife switch distance|\[world\] saved \S+ \(bootstrap\)', 100)
+)
+$readyPattern = 'ALife switch distance|\[world\] saved \S+ \(bootstrap\)'
+function Get-LoadProgress($s) {
+    if ($s.State -eq 'running') { return 100 }
+    if ($s.State -ne 'loading' -or -not $s.LoadStarted) { return 0 }
+    $file = Find-Log $s
+    $done = 1; $next = 4
+    if ($file -and $file.LastWriteTime -gt $s.LoadStarted) {
+        $seen = @(Select-String -LiteralPath $file.FullName -Pattern ($loadMilestones | ForEach-Object { $_[0] }) -ErrorAction SilentlyContinue | ForEach-Object { $_.Line })
+        foreach ($m in $loadMilestones) {
+            if (@($seen | Where-Object { $_ -match $m[0] }).Count) { $done = $m[1] } else { $next = $m[1]; break }
+        }
+    }
+    if ($done -ge 100) { return 99 }
+    # Creep toward the next milestone (never reaching it) while the log is quiet.
+    $since = if ($s.MilestoneAt -and $s.MilestoneValue -eq $done) { $s.MilestoneAt } else { $s.MilestoneValue = $done; $s.MilestoneAt = Get-Date; $s.MilestoneAt }
+    $creep = [math]::Min(0.85, ((Get-Date) - $since).TotalSeconds / 90.0)
+    return [int][math]::Floor($done + ($next - $done) * $creep)
+}
+
 function Start-Location($s) {
     $oldStop = Join-Path $wakeDir "host_stop_$($s.Port).txt"
     if (Test-Path -LiteralPath $oldStop) { Remove-Item -LiteralPath $oldStop -Force }
-    $s.State = 'loading'
+    $s.State = 'loading'; $s.LoadStarted = Get-Date; $s.MilestoneAt = $null
     Publish-HostState
     $log = if ($s.Name -eq "k00_marsh") { "srv" } else { "srv_$($s.Name)" }
     $arguments = "-nosplashwindow -noprefetch -netcoop -dbg -multi_instance -logname $log -fsltx fsgame_server.ltx " +
@@ -107,7 +134,8 @@ function Start-Location($s) {
     while (((Get-Date) - $since).TotalSeconds -lt $LoadTimeoutSeconds -and -not $p.HasExited) {
         Publish-HostState
         $file = Find-Log $s
-        if ($file -and $file.LastWriteTime -gt $since -and (Select-String -Path $file.FullName -Pattern "\[world\] saved \S+ \(bootstrap\)|loading saved world" -Quiet)) { $ready = $true; break }
+        # "loading saved world" is written when loading BEGINS: it is not readiness.
+        if ($file -and $file.LastWriteTime -gt $since -and (Select-String -Path $file.FullName -Pattern $readyPattern -Quiet)) { $ready = $true; break }
         Start-Sleep -Seconds 5
     }
     $s.State = if ($p.HasExited) { 'stopped' } elseif ($ready) { 'running' } else { 'loading_timeout' }
@@ -169,8 +197,8 @@ function Publish-HostState {
     $rows = @($servers | ForEach-Object {
         $process = $running[$_.Name]
         [ordered]@{ map=$_.Name; port=$_.Port; processId=$(if ($process -and -not $process.HasExited) { $process.Id } else { 0 });
-            state=$(if ($_.State) { $_.State } else { 'stopped' }); mode=Get-ClusterHostMode $wakeDir $_.Name;
-            players=Players-On $_ }
+            state=$(if ($_.State -and $_.State -ne 'stopped') { $_.State } elseif (-not ($process -and -not $process.HasExited) -and (Get-ClusterHostMode $wakeDir $_.Name) -eq 'on') { 'queued' } elseif ($_.State) { $_.State } else { 'stopped' }); mode=Get-ClusterHostMode $wakeDir $_.Name;
+            players=Players-On $_; progress=Get-LoadProgress $_ }
     })
     $view = [ordered]@{ updated=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds(); watchdog=$PID; maps=$rows }
     Write-ClusterText (Join-Path $wakeDir $viewFile) ($view | ConvertTo-Json -Depth 4 -Compress)

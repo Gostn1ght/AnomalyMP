@@ -441,6 +441,8 @@ void CMapListHelper::Load()
 	{
 		if (arch.hSrcFile)
 			continue; // skip if loaded
+		if (!arch.header || !arch.header->line_exist("header", "level_name") || !arch.header->line_exist("header", "level_ver"))
+			continue; // not a map archive
 		const char* levelName = arch.header->r_string("header", "level_name");
 		const char* levelVersion = arch.header->r_string("header", "level_ver");
 		FS.LoadArchive(arch, tempRoot);
