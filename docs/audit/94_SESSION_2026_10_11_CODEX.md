@@ -31,8 +31,11 @@
 - `engine-src/_build/quarantine-script-test` — старый отключённый Lua стенд;
 - `engine-steamnet/_build/intermediate`, `engine-src/_build/intermediate`;
 - `engine-steamnet/_build/policy-check` — скомпилированные проверки.
+- `engine-steamnet/scripts/__pycache__` — старый Python bytecode;
+  новые caches исключены через `.gitignore`.
 
 Manifest: `moved-folders.json` рядом с перенесёнными каталогами.
+Все семь исходных каталогов отсутствуют; все семь retained каталогов существуют.
 Рекурсивное удаление отклонила автоматическая проверка (`blocked by policy`),
 поэтому выполнен восстановимый перенос. Старые сохранения и учётные данные
 остались в переносимых каталогах; актуальные CI fixtures и release scripts
@@ -101,3 +104,9 @@ DX11 run 38125943449 и Foundation run 38125943509. Локальные пров�
 checks-блока (Lua/Python) PASS. Нативные и полная сборка выполняются в CI.
 
 Открыто: магазин оружия, порядок приветствия, дальнейшие требования док 43/48.
+
+Текущий учёт 188 требований: ✅ 27, 🔧 41, 🟡 66, ⬜ 54; отсутствующих
+идентификаторов нет. Последний summary Claude указывал 178 строк — фактически
+в актуальном доке 48 есть все 188. Подтверждённые в игре статусы не повышены.
+Все 96 Python fixture paths DX11 workflow существуют и проходят syntax parse.
+Четыре новые native fixtures подключены и к DX11, и к Foundation (GCC/MSVC).
