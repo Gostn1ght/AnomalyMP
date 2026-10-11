@@ -353,7 +353,7 @@ CI code `1b3d42e1c`:
 Backend: 259 tests PASS на каждой платформе. Windows logs: coherent typed
 projection, independent local/master epochs, scope change/stop clearing;
 two local checkpoints/one master и actual WinHTTP bootstrap PASS.
-DX11 build/package записывается после окончания прогона 38141892906.
+[DX11 build/package PASS](https://github.com/Gostn1ght/AnomalyMP/actions/runs/38141892906).
 
 ## Компактный native bootstrap и durable restart delivery fixture
 
