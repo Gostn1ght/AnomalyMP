@@ -293,7 +293,7 @@ Distance/overload tiers для NPC/мутантов/игроков, описан
 | L19 Corpse: entity ID, death time/cause, inventory и quest association | ✅ | рестарт реального сервера: труп с тем же лутом и артефактом NPC, ящик, артефакт на земле - id в id (run-world-persistence-test.ps1, 2026-10-06) |
 | L20 Ragdoll→static→abstract corpse без постоянной удалённой physics | ⬜ |  |
 | L21 Частично: native online/offline detach и backend cleanup есть; | 🟡 | backend corpse batches; TTL отключены; живые NPC сохраняются в мире (save теперь работает) |
-| L22 Loot generation policy зависит от world events/economy/выброса, | 🔧 | configurable initial NPC generation gates, saved economy/emission/local battle context and world seed; no presence/restart reroll, story and stash paths preserved; actual Lua fixture (doc95), no game acceptance |
+| L22 Loot generation policy зависит от world events/economy/выброса, | 🔧 | configurable initial NPC generation gates; economy/emission/local battle context latched at ALife registration before first observation, including offline NPCs; saved world seed/context, no restart reroll, story and stash paths preserved; actual Lua fixture (doc95), no game acceptance |
 | L23 Mutant territory/food/aggression/migration/species relations | ⬜ |  |
 | L24 Persistent dens/nests, food/threat/capacity; автопополнение | ⬜ |  |
 | L25 Лёгкая экология меняет опасность маршрутов и события без Full AI | ⬜ |  |

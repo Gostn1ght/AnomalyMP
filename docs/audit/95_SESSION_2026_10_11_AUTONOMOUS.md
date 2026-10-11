@@ -61,6 +61,15 @@ Actual Lua fixture: economy/emission/local battle, 600 событий с выт�
 журнала, разные карты/истёкшие и будущие события, модульный рестарт при новом
 wall clock, неизменный snapshot, generator failure, story/dont_spawn_loot,
 восстановление глобального RNG и реальный `build_npc_inventory`.
+Дополнительная проверка закрыла зависимость от первого наблюдателя:
+контекст фиксируется по `server_entity_on_register` даже для offline NPC,
+с картой его game graph vertex. Engine запускает script callbacks до ALife
+load, а script state и часы загружает до регистрации объектов. Поэтому
+restart registration сохраняет старый snapshot; старые миры фиксируют
+отсутствующие snapshots при загрузке. Первое online появление только
+исполняет уже зафиксированный план. Контекст дополнительно проверяет имя
+NPC при повторном использовании object ID. Fixture проверяет offline birth,
+другую карту сервера, спустя 20 часов первого наблюдателя и повторный register.
 Items/emission/world-events/Lua scope PASS. L22: ⬜ → 🔧; текущий учёт
 188 требований: ✅ 27, 🔧 42, 🟡 66, ⬜ 53.
 

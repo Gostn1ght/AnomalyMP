@@ -51,10 +51,11 @@ function world_event(event)
     policy.battles = policy.battles or {}
     policy.battles[event.level] = {hour = event.h, seq = event.seq or 0}
 end
-function context_for(npc)
+function context_for(npc, map)
     local id, name = npc:id(), npc:name()
     local saved = se_load_var(id, name, "netcoop_loot_context")
-    if type(saved) == "table" and saved.schema == 1 then return saved end
+    if type(saved) == "table" and saved.schema == 1 and (not saved.name or saved.name == name) then return saved end
+    map = map or level.name()
     local state, now = alife_storage_manager.get_state(), hours()
     local economy = game_difficulties and game_difficulties.get_eco_factor("loots") or 1
     economy = tonumber(economy) or 1
@@ -67,18 +68,18 @@ function context_for(npc)
     world_seed()
     local policy = state.netcoop_loot_policy
     local horizon = number("policy", "battle_hours", 6, 0, 168)
-    local battle = policy.battles and policy.battles[level.name()]
+    local battle = policy.battles and policy.battles[map]
     if battle and now >= battle.hour and now - battle.hour < horizon then battle_seq = battle.seq end
     if netcoop_world_events then
         -- Migration/catch-up for worlds whose older journal predates this hook.
         for _, event in ipairs(netcoop_world_events.recent(64)) do
-            if event.kind == "battle" and event.level == level.name() and
+            if event.kind == "battle" and event.level == map and
                 type(event.h) == "number" and now >= event.h and now - event.h < horizon then
                 battle_seq = math.max(battle_seq, event.seq or 0)
             end
         end
     end
-    local context = {schema = 1, hour = now, economy = economy, battle_seq = battle_seq,
+    local context = {schema = 1, name = name, level = map, hour = now, economy = economy, battle_seq = battle_seq,
         emissions = state.netcoop_emissions or 0, after_emission = after_emission, chances = {}}
     context.seed = (world_seed() + id * 7 + hash(name) + context.emissions * 104729 + battle_seq * 65537) % 2147483647
     for _, stage in ipairs(stages) do
@@ -103,4 +104,21 @@ function with_random(context, fn)
     local ok, result = pcall(fn)
     math.random = previous -- also restore after a generator error
     return ok, result
+end
+
+-- Registration is an ALife event even for offline NPCs, before a player
+-- observes them. Existing worlds latch missing contexts when loading.
+local function registered(se, kind)
+    if kind ~= "se_stalker" or not se:alive() then return end
+    local ok, err = pcall(function()
+        local graph, sim = game_graph(), alife()
+        local map = sim:level_name(graph:vertex(se.m_game_vertex_id):level_id())
+        context_for({id = function() return se.id end, name = function() return se:name() end}, map)
+    end)
+    if not ok then printf("[Lost Zone] NPC birth loot context error: %s", tostring(err)) end
+end
+
+function on_game_start()
+    if not (netcoop_enabled and netcoop_enabled()) or (netcoop_pure_client and netcoop_pure_client()) then return end
+    RegisterScriptCallback("server_entity_on_register", registered)
 end

@@ -27,8 +27,9 @@ level={name=function() return here end}
 ini_file=function() return {r_float_ex=function(_,section,key)
  local t=config_sections[section];return t and t[key] end} end
 game_difficulties={get_eco_factor=function() return economy end}
-function se_load_var(id,name,key) return vars[id..":"..name..":"..key] end
-function se_save_var(id,name,key,value) vars[id..":"..name..":"..key]=value end
+-- GAMMA's se vars are keyed by ID; the policy must verify names itself.
+function se_load_var(id,name,key) return vars[id..":"..key] end
+function se_save_var(id,name,key,value) vars[id..":"..key]=value end
 logs={};function printf(fmt,...) logs[#logs+1]=string.format(fmt,...) end
 function npc(id)
  local n={_id=id,inv={}}
@@ -124,5 +125,28 @@ local callback=p.world_event;p.world_event=function() error("broken policy") end
 local death=observer.record({kind="battle",level=here});assert(death.seq>0,"policy failure does not stop journal")
 p.world_event=callback
 economy=0/0;local bounded=p.context_for(npc(10));assert(bounded.economy==1)
+-- Actual ALife registration latches before the NPC ever comes online.
+callbacks={};function RegisterScriptCallback(name,fn) callbacks[name]=fn end
+function netcoop_enabled() return true end;function netcoop_pure_client() return false end
+function game_graph() return {vertex=function(_,id) return {level_id=function() return id end} end} end
+function alife() return {level_name=function(_,id) return id==1 and "k00_marsh" or "l01_escape" end} end
+here="l01_escape";now_hours=30;economy=0.5
+p.world_event({kind="battle",level="k00_marsh",h=29,seq=77})
+p.on_game_start();local offline={id=11,m_game_vertex_id=1,name=function() return "npc_11" end,alive=function() return true end}
+callbacks.server_entity_on_register(offline,"se_stalker")
+local birth=p.context_for(npc(11));assert(birth.hour==30 and birth.level=="k00_marsh" and birth.battle_seq==77)
+now_hours=50;economy=3;bad_generator=false;here="k00_marsh"
+assert(p.context_for(npc(11))==birth and birth.economy==0.5,"first observer cannot reroll birth context")
+callbacks.server_entity_on_register(offline,"se_stalker")
+assert(p.context_for(npc(11))==birth,"restart registration preserves saved birth")
+build(npc(11));assert(se_load_var(11,"npc_11","netcoop_inventory"),"birth inventory generated on later online spawn")
+local ignored={id=12,m_game_vertex_id=1,name=function() return "npc_12" end,alive=function() return false end}
+callbacks.server_entity_on_register(ignored,"se_stalker");assert(not se_load_var(12,"npc_12","netcoop_loot_context"))
+callbacks.server_entity_on_register(offline,"se_monster")
+local lookup=game_graph;game_graph=function() error("graph failure") end
+callbacks.server_entity_on_register(offline,"se_stalker");game_graph=lookup
+-- Real se_load_var is keyed by id; the policy itself validates a recycled id's name.
+local replacement=npc(11);replacement.name=function() return "different_npc" end
+assert(p.context_for(replacement)~=birth,"recycled id never inherits another NPC context")
 ''')
-print("PASS actual saved loot policy: economy/emission/local battle, journal eviction, restart RNG/context, initial generation once, story/protection/errors and Lua 5.1 bounds")
+print("PASS actual saved loot policy: ALife birth before observation, identity, economy/emission/local battle, journal eviction, restart RNG/context, initial generation once, story/protection/errors and Lua 5.1 bounds")
