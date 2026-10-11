@@ -1199,6 +1199,30 @@ bool CWeapon::netcoop_player_copy()
 	return netcoop::server_player_copy(H_Parent());
 }
 
+// Netcoop server: no faster than the weapon fires. The fastest of the
+// weapon's own intervals (single and mode/burst), with room for upgrades and
+// scripted rate bonuses (x1.5), and a budget of three so shots bunched in one
+// network packet are not lost. A client sending shots faster (a forged
+// fire rate) gets them dropped; the fixed 30 ms before let any weapon fire
+// 2000 rounds a minute.
+bool CWeapon::netcoop_shot_allowed()
+{
+	float interval = fOneShotTime;
+	if (fModeShotTime > EPS && fModeShotTime < interval) interval = fModeShotTime;
+	const float min_ms = _max(30.f, interval * 1000.f / 1.5f);
+	const u32 now = Device.dwTimeGlobal;
+	m_netcoop_shot_budget = _min(3.f, m_netcoop_shot_budget + float(now - m_netcoop_budget_time) / min_ms);
+	m_netcoop_budget_time = now;
+	if (m_netcoop_shot_budget < 1.f)
+	{
+		static u32 logged = 0;
+		if (now - logged > 5000) { logged = now; Msg("! [NetAnomaly][wpn] %s: shot faster than the weapon fires, dropped", cNameSect().c_str()); }
+		return false;
+	}
+	m_netcoop_shot_budget -= 1.f;
+	return true;
+}
+
 void CWeapon::OnEvent(NET_Packet& P, u16 type)
 {
 	switch (type)
@@ -1222,7 +1246,7 @@ void CWeapon::OnEvent(NET_Packet& P, u16 type)
 				// the owner's aim (the copy's own firing loop is off: it did
 				// not know the owner's fire mode and never stopped in time).
 				if (netcoop::server_player_copy(H_Parent()) && iAmmoElapsed > 0 && !m_magazine.empty() &&
-					Device.dwTimeGlobal - m_netcoop_last_shot >= 30)
+					netcoop_shot_allowed())
 				{
 					m_netcoop_last_shot = Device.dwTimeGlobal;
 					netcoop::ServerVictimScope shot_actor_scope(smart_cast<CActor*>(H_Parent()));

@@ -62,6 +62,10 @@ public:
 	Fvector m_netcoop_aim_dir;
 	u32 m_netcoop_aim_time = 0;
 	u32 m_netcoop_last_shot = 0;
+	// Shots the owner may still fire now (refilled at the weapon's own rate).
+	float m_netcoop_shot_budget = 3.f;
+	u32 m_netcoop_budget_time = 0;
+	bool netcoop_shot_allowed();
 public:
 	// Netcoop: a copy of another player's weapon (on the server or another
 	// client) - it fires only shot by shot from the owner.
