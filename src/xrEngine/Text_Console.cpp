@@ -230,7 +230,17 @@ void CTextConsole::Initialize()
 	inherited::Initialize();
 
 	m_pMainWnd = &Device.m_hWnd;
-	SetWindowTextA(*m_pMainWnd, "Lost Zone / Dedicated Server");
+	// Several maps run at once: the title names this one (its log name and port).
+	string256 title = "Lost Zone Server";
+	string64 log_name = {}, port = {};
+	if (LPCSTR arg = strstr(Core.Params, "-logname "))
+		sscanf(arg + 9, "%63s", log_name);
+	if (LPCSTR arg = strstr(Core.Params, "-netport "))
+		sscanf(arg + 9, "%63s", port);
+	LPCSTR map = strncmp(log_name, "srv_", 4) ? log_name : log_name + 4;
+	if (map[0] || port[0])
+		xr_sprintf(title, "Lost Zone Server - %s%s%s", map[0] ? map : "", map[0] && port[0] ? " : " : "", port);
+	SetWindowTextA(*m_pMainWnd, title);
 	m_dwLastUpdateTime = GetTickCount();
 	m_last_time = GetTickCount();
 

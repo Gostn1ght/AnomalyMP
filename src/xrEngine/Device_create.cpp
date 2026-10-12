@@ -177,6 +177,24 @@ PROTECT_API void CRenderDevice::Create()
 	GetMonitorResolution(w, h);
 	int monX, monY;
 	GetMonitorPosition(monX, monY);
+	// Lost Zone: a location server is an ordinary desktop window. The game's
+	// fullscreen/borderless setting made it cover the whole monitor, on top
+	// of everything, with no frame to move it (owner 2026-10-12). Several
+	// maps run at once: each window is offset by its port.
+	int server_x = monX, server_y = monY;
+	if (g_dedicated_server)
+	{
+		g_screenmode = 0;
+		psCurrentVidMode[0] = _max(900u, _min(1280u, w * 55 / 100));
+		psCurrentVidMode[1] = _max(560u, _min(800u, h * 60 / 100));
+		LPCSTR port_arg = strstr(Core.Params, "-netport ");
+		const int port = port_arg ? atoi(port_arg + 9) : 0;
+		const int step = (port / 2) % 10;
+		server_x = monX + int(w - psCurrentVidMode[0]) / 2 + (step - 5) * 32;
+		server_y = monY + int(h - psCurrentVidMode[1]) / 2 + (step - 5) * 24;
+		server_x = _max(monX, server_x);
+		server_y = _max(monY, server_y);
+	}
 	if (psCurrentVidMode[0] == 0 || psCurrentVidMode[1] == 0)
 	{
 		psCurrentVidMode[0] = w;
@@ -200,7 +218,15 @@ PROTECT_API void CRenderDevice::Create()
 		style |= WS_CLIPCHILDREN;
 
 	SetWindowLongPtr(m_hWnd, GWL_STYLE, style);
-	SetWindowPos(m_hWnd, HWND_TOP, monX, monY, w, h, SWP_FRAMECHANGED);
+	if (g_dedicated_server)
+	{
+		RECT frame = {0, 0, LONG(w), LONG(h)};
+		AdjustWindowRect(&frame, style, FALSE);
+		SetWindowPos(m_hWnd, HWND_NOTOPMOST, server_x, server_y, frame.right - frame.left, frame.bottom - frame.top,
+		             SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+	}
+	else
+		SetWindowPos(m_hWnd, HWND_TOP, monX, monY, w, h, SWP_FRAMECHANGED);
 
 	Statistic = xr_new<CStats>();
 #ifdef DEBUG

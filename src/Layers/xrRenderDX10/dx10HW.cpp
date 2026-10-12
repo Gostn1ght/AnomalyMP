@@ -1193,6 +1193,16 @@ BOOL CHW::support(D3DFORMAT fmt, DWORD type, DWORD usage)
 
 void CHW::updateWindowProps(HWND m_hWnd)
 {
+	// Lost Zone: the location server window keeps its frame, place and size
+	// (CRenderDevice::Create), and the hoster's mouse cursor stays usable.
+	if (g_dedicated_server)
+	{
+		const LONG style = GetWindowLong(m_hWnd, GWL_STYLE);
+		SetWindowLong(m_hWnd, GWL_STYLE, style | WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_VISIBLE);
+		SetWindowPos(m_hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED);
+		ClipCursor(nullptr);
+		return;
+	}
 	//	BOOL	bWindowed				= strstr(Core.Params,"-dedicated") ? TRUE : !psDeviceFlags.is	(rsFullscreen);
     BOOL bWindowed = (g_screenmode != 2);
 
