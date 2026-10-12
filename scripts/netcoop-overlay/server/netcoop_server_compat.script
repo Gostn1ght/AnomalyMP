@@ -1343,7 +1343,9 @@ local function furniture_pickup(actor, obj, login)
 end
 
 local function new_stash(actor, item_section, name, login)
-	local se = alife_create("inv_backpack", actor:position(), actor:level_vertex_id(), actor:game_vertex_id())
+	local pos, lvid, gvid = actor:position(), actor:level_vertex_id(), actor:game_vertex_id()
+	if netcoop_ground then pos, lvid, gvid = netcoop_ground.safe_point(pos, lvid, gvid) end -- doc 43 L11
+	local se = alife_create("inv_backpack", pos, lvid, gvid)
 	if not se then return nil end
 	if not name or name == "" then
 		name = strformat(game.translate_string("st_itm_stash_of_character"), actor:character_name())

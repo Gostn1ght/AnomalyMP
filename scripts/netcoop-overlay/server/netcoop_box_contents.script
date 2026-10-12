@@ -139,21 +139,39 @@ function prepare(obj, spawn_ini)
 	return plan
 end
 
-local function spawn_plan(obj, plan)
+-- Where item `index` of `total` lands: spread around the crate on the ground
+-- (doc 43 L11), not all inside the crate's centre.
+local function drop_point(obj, index, total)
 	local pos = vector():set(obj:position()); pos.y = pos.y + 0.3
+	if netcoop_ground and netcoop_ground.safe_point then
+		return netcoop_ground.safe_point(pos, obj:level_vertex_id(), obj:game_vertex_id(), index, total)
+	end
+	return pos, obj:level_vertex_id(), obj:game_vertex_id()
+end
+
+local function settle(se)
+	if netcoop_ground and netcoop_ground.settle then netcoop_ground.settle(se) end
+end
+
+local function spawn_plan(obj, plan)
 	local created = {}
+	local total, index = 0, 0
+	for _, row in ipairs(plan.items) do total = total + (row.ammo and 1 or row.count) end
 	local ok, err = pcall(function()
 		for _, row in ipairs(plan.items) do
 			local count = row.ammo and 1 or row.count
 			for _ = 1, count do
-				local made = alife_create_item(row.section, {pos, obj:level_vertex_id(), obj:game_vertex_id()}, row.ammo and {ammo = row.count} or nil)
+				index = index + 1
+				local pos, lvid, gvid = drop_point(obj, index, total)
+				local made = alife_create_item(row.section, {pos, lvid, gvid}, row.ammo and {ammo = row.count} or nil)
 				assert(made, "Crate loot spawn failed: " .. row.section)
 				if type(made) == "table" and made.id == nil then
-					for _, entity in ipairs(made) do created[#created + 1] = entity end
+					for _, entity in ipairs(made) do created[#created + 1] = entity; settle(entity) end
 					local size = ini_sys:r_float_ex((resolved_section(row.section, true)), "box_size")
 					assert(row.ammo and #made == math.max(1, math.ceil(row.count / size)), "Partial ammo creation")
 				else
 					created[#created + 1] = made
+					settle(made)
 				end
 			end
 		end

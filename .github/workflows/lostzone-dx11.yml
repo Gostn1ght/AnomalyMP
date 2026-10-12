@@ -75,6 +75,7 @@ jobs:
           python scripts/check-netcoop-loadout.py
           python scripts/check-netcoop-anims.py
           python scripts/check-netcoop-artefacts.py
+          python scripts/check-netcoop-ground.py
           python scripts/check-netcoop-voice.py
       - name: Check actual item interpolation
         run: python scripts/check-netcoop-physics.py

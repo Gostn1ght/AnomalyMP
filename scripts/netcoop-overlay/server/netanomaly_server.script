@@ -57,8 +57,13 @@ local function spawn_world(entity_id, section, x, y, z)
 		lvid = obj:level_vertex_id()
 	end
 	local gvid = obj and obj:game_vertex_id() or 0
+	-- An item is put on the ground below the point (doc 43 L11).
+	if is_item_section(section) and netcoop_ground then
+		pos, lvid, gvid = netcoop_ground.safe_point(pos, lvid, gvid)
+	end
 	local se = alife():create(section, pos, lvid, gvid)
 	if not se then return "! cannot create " .. section end
+	if is_item_section(section) and netcoop_ground then netcoop_ground.settle(se) end
 
 	-- A squad section creates an empty group: fill it like the debug spawner.
 	if se.create_npc then

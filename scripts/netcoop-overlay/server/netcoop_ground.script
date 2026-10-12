@@ -1,0 +1,91 @@
+-- Lost Zone: safe ground placement for items the server creates in the world
+-- (doc 43 L11). An item lands on a surface below its point, not inside a wall
+-- or the crate it came from, not in the air and not under the terrain; several
+-- items from one point are spread around it instead of stacking in one spot
+-- (physics pushed stacked crate loot through walls and floors).
+--
+--   local pos, lvid, gvid = netcoop_ground.safe_point(origin, lvid, gvid, index, count)
+--   netcoop_ground.settle(se)          -- random yaw for a created item
+--
+-- Static level geometry is what a ray hits here: the dedicated server loads it
+-- for physics. Without a usable hit the AI grid vertex is used: it is always
+-- on walkable ground.
+
+local LIFT = 1.2          -- rays start this far above the point (out of crates/props)
+local MAX_DROP = 6.0      -- and search this far below it
+local REST = 0.05         -- an item rests this far above the surface
+local MIN_NORMAL_Y = 0.55 -- steeper than ~57 degrees is a wall, not ground
+local RING = 0.35         -- spacing of items spread around the point
+local STATIC = 2          -- collide::rqtStatic
+local INVALID_VERTEX = 4294967295
+
+local function valid_vertex(lvid)
+	return lvid and lvid >= 0 and lvid < INVALID_VERTEX
+end
+
+local function cast(from, dir, range)
+	local pick = ray_pick()
+	pick:set_position(from)
+	pick:set_direction(dir)
+	pick:set_range(range)
+	pick:set_flags(STATIC)
+	if not pick:query() then return nil end
+	return pick:get_distance(), pick:get_normal()
+end
+
+-- Surface under a point, or nil: a wall, a steep slope or nothing below.
+function surface_below(pos)
+	local from = vector():set(pos.x, pos.y + LIFT, pos.z)
+	local dist, normal = cast(from, vector():set(0, -1, 0), LIFT + MAX_DROP)
+	if not dist or dist < 0 then return nil end
+	if normal and normal.y < MIN_NORMAL_Y then return nil end
+	return vector():set(pos.x, from.y - dist + REST, pos.z)
+end
+
+-- True when static geometry stands between two points at item height.
+local function blocked(a, b)
+	local from = vector():set(a.x, a.y + 0.3, a.z)
+	local to = vector():set(b.x, b.y + 0.3, b.z)
+	local dir = vector():set(to.x - from.x, to.y - from.y, to.z - from.z)
+	local length = dir:magnitude()
+	if length < 0.01 then return false end
+	dir:normalize()
+	local dist = cast(from, dir, length)
+	return dist ~= nil and dist >= 0 and dist < length
+end
+
+-- Offset of item `index` of `count` around the point (sunflower spread).
+local function offset(index, count)
+	if not count or count <= 1 or not index or index <= 1 then return 0, 0 end
+	local r = RING * math.sqrt(index - 1)
+	local a = (index - 1) * 2.39996323 -- golden angle
+	return r * math.cos(a), r * math.sin(a)
+end
+
+function safe_point(origin, lvid, gvid, index, count)
+	local dx, dz = offset(index, count)
+	local candidates = {}
+	if dx ~= 0 or dz ~= 0 then candidates[#candidates + 1] = vector():set(origin.x + dx, origin.y, origin.z + dz) end
+	candidates[#candidates + 1] = vector():set(origin.x, origin.y, origin.z)
+	for _, point in ipairs(candidates) do
+		local ground = surface_below(point)
+		if ground and not blocked(origin, ground) then
+			local v = level.vertex_id(ground)
+			return ground, valid_vertex(v) and v or lvid, gvid
+		end
+	end
+	-- No usable surface (a hole, a roof edge, broken geometry): the AI vertex.
+	if valid_vertex(lvid) then
+		local p = level.vertex_position(lvid)
+		return vector():set(p.x, p.y + REST, p.z), lvid, gvid
+	end
+	return vector():set(origin.x, origin.y, origin.z), lvid, gvid
+end
+
+-- A random yaw: items from one place do not all face the same way.
+function settle(se)
+	if se and se.angle then
+		pcall(function() se.angle = vector():set(0, math.random() * 6.2831853, 0) end)
+	end
+	return se
+end

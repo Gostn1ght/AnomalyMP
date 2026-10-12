@@ -289,7 +289,7 @@ Distance/overload tiers для NPC/мутантов/игроков, описан
 | L08 NPC ищут артефакты offline с equipment/experience/danger/task | ⬜ |  |
 | L09 Артефакт остаётся у NPC, затем в corpse inventory после смерти | ✅ | рестарт реального сервера: труп с тем же лутом и артефактом NPC, ящик, артефакт на земле - id в id (run-world-persistence-test.ps1, 2026-10-06) |
 | L10 GroundLootCluster уменьшает число активных entities; | ⬜ |  |
-| L11 Safe ground placement: поверхность, rotation и downward validation; | ⬜ |  |
+| L11 Safe ground placement: поверхность, rotation и downward validation; | 🔧 | netcoop_ground: луч вниз по статике, стены/склоны/дыры, разброс, yaw; лут ящиков, админ-спавн, тайник (док 97) |
 | L12 Persistent stash: содержимое, lock/owner/version/discovery/quest links | 🟡 | мебель/тайники/визиты в тайники/костры в серверном Lua (цикл заработал только 2026-10-06) |
 | L13 Loot seed фиксируется при создании; открытие/рестарт не reroll | ✅ | рестарт реального сервера: труп с тем же лутом и артефактом NPC, ящик, артефакт на земле - id в id (run-world-persistence-test.ps1, 2026-10-06) |
 | L14 Частично: backend route discovery/редкость/общие contact reserves | 🟡 | мебель/тайники/визиты в тайники/костры в серверном Lua (цикл заработал только 2026-10-06) |
