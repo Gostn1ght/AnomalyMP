@@ -113,4 +113,36 @@ spawn("far_field")
 assert list(g.far_refills.values())[-1] == "far_field psi" and g.psi.started is False
 on_int("weather", None, "emission_end")             # not an anomaly event
 assert g.storage.netcoop_af.stamp == 2
-print("netcoop artefacts: OK")
+
+# L07: a far field's refill is the same whenever it comes online - GAMMA's own
+# rolls run on the actual netcoop_loot_policy generator seeded by world seed,
+# emission number and field name; math.random is GAMMA's again afterwards.
+policy = lua.table()
+lua.execute("local env = ...; setfenv(assert(loadstring(select(2, ...))), setmetatable(env,{__index=_G}))()",
+            policy, (root / "server/netcoop_loot_policy.script").read_text(encoding="utf-8"))
+g.netcoop_loot_policy = policy
+lua.execute(r'''
+rolls = {}
+function binder.respawn_artefacts_and_replace_anomaly_zone(self)
+  local r = {}
+  for i = 1, 6 do r[#r + 1] = math.random(1, 100) end   -- layer, chance, type, path, point...
+  rolls[#rolls + 1] = self.object:name() .. ":" .. table.concat(r, ",")
+end
+game_random = math.random
+''')
+def refill_after(world, noise, field="far_b"):
+    g.storage = lua.table()
+    g.storage.netcoop_loot_policy = lua.eval("{seed = %d}" % world)
+    for _ in range(noise):
+        g.math.random()                              # other code used the generator
+    on_int("anomalies", None, "emission_end")
+    spawn(field)
+    assert lua.eval("math.random == game_random")    # restored
+    return g.rolls[len(g.rolls)]
+a = refill_after(4242, 0)
+b = refill_after(4242, 37)                           # later / after other rolls: same
+assert a == b, (a, b)
+assert refill_after(4243, 0) != a                    # another world: other rolls
+assert refill_after(4242, 0, "far_c").split(":")[1] != a.split(":")[1]
+assert int(mod.refill_seed("far_b", "emission_end", 2)) != int(mod.refill_seed("far_b", "emission_end", 1))
+print("netcoop artefacts: OK (far refill deterministic per world/emission/field)")

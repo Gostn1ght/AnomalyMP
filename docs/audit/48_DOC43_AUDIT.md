@@ -285,7 +285,7 @@ Distance/overload tiers для NPC/мутантов/игроков, описан
 | L04 Детерминированные offline anomaly injuries/deaths/item consequences | ⬜ |  |
 | L05 ArtifactID и одно authoritative состояние world/inventory/container | ✅ | рестарт реального сервера: труп с тем же лутом и артефактом NPC, ящик, артефакт на земле - id в id (run-world-persistence-test.ps1, 2026-10-06) |
 | L06 ArtifactSpawnEvents после EmissionEnd определяются заранее, | 🔧 | выброс/пси-шторм записывается в мир (netcoop_artefacts): поля онлайн заполняет GAMMA, дальнее поле при выходе в онлайн один раз получает заполнение этого события с его шансом; check-netcoop-artefacts.py (CI); в игре не проверено |
-| L07 Safe deterministic artifact placement при hydration | ⬜ |  |
+| L07 Safe deterministic artifact placement при hydration | 🔧 | дальнее поле после выброса заполняется бросками GAMMA (слой, шанс, тип, путь и точка пути авторов карты внутри поля) на генераторе от seed мира, номера выброса и имени поля: тот же мир и выброс - те же артефакты в тех же точках, когда бы поле ни вышло в онлайн; check-netcoop-artefacts.py (док 97); в игре не проверено |
 | L08 NPC ищут артефакты offline с equipment/experience/danger/task | ⬜ |  |
 | L09 Артефакт остаётся у NPC, затем в corpse inventory после смерти | ✅ | рестарт реального сервера: труп с тем же лутом и артефактом NPC, ящик, артефакт на земле - id в id (run-world-persistence-test.ps1, 2026-10-06) |
 | L10 GroundLootCluster уменьшает число активных entities; | ⬜ |  |

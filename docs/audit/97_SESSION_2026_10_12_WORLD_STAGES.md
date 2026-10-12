@@ -43,3 +43,14 @@ GAMMA `xr_gather_items.gather_item` при подборе с земли не п�
 
 Fixture `check-netcoop-npc-gather.py` на копии GAMMA
 `scripts/fixtures/npc-gather/xr_gather_items.script`.
+
+## L07. Детерминированное заполнение дальних полей
+
+`server/netcoop_artefacts.script`: дальнее поле (L06) при выходе в онлайн
+заполняется `respawn_artefacts_and_replace_anomaly_zone` GAMMA, но на время
+вызова `math.random` — генератор `netcoop_loot_policy.random` с seed
+`world_seed + hash(поле) + hash(событие)*7 + номер_выброса*104729`. Слой,
+шанс, тип артефакта, путь и точка пути (точки авторов карты внутри поля) —
+одинаковые при любом времени прихода игрока; после вызова генератор GAMMA
+возвращается. Fixture `check-netcoop-artefacts.py`: тот же мир — те же броски
+даже после посторонних вызовов `math.random`; другой мир/поле/выброс — другие.
