@@ -90,6 +90,11 @@ try {
     }
     if (-not $listening) { throw 'Test master did not become available.' }
     foreach ($map in $Maps) {
+        # External orchestration can stop at a safe boundary without killing a map.
+        if (Test-Path -LiteralPath (Join-Path $root "$RunName.stop")) {
+            Write-Output 'Requested stop after the last completed map.'
+            break
+        }
         $port = $ports[$map]; $clientPort = $port+1
         $logName = "${RunName}_$map"
         $since = Get-Date

@@ -127,3 +127,20 @@ native fixture настоящих функций: CPU setup, прерывани�
 но следующий пакет включает отдельное исправление фоновых потоков/логгера.
 Остальные повторы Underground пока завершались 0; полный прогон 33 карт
 и приёмка второго исправления на новом exe остаются обязательными.
+
+## Приёмка исправлений завершения, 2026-10-12
+
+DX11 `d567e0a45` и World Foundation GREEN. Native fixtures реальных
+watchdog/worker/logger-функций PASS. Артефакт установлен только в srvtest,
+старые хардлинки перемещены, ключ совместим с локальными архивами.
+`console_fixed_20261012`: Jupiter Underground, Jupiter, Bar, Yantar —
+на каждой ready/master/saved_exit/clean_exit true, exit_code=0, errors=0.
+Логи и результаты сохранены в srvtest, master stderr пуст.
+
+На прежнем `b686fa13e` также чисто прошли Marsh, Military, Darkscape,
+Trucks Cemetery, Cordon, Garbage, Agroprom, Agroprom Underground,
+Dark Valley, X18, Rostok; эти результаты не заменяют приёмку нового exe.
+Прогон прежней версии остановлен после текущей карты через marker,
+с сохранением мира, перед заменой exe. Для полного покрытия `d567e0a45`
+остаётся отдельный прогон `console_verify_20261012` на 29 остальных картах.
+H09/H11, клиентские проверки владельца и публикация остаются открыты.
