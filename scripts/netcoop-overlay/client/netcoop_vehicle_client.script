@@ -1,0 +1,81 @@
+----------------------------------------------------------------------
+-- Lost Zone: car prompts near the crosshair (doc 100, V5)
+----------------------------------------------------------------------
+-- The engine says what F does at the car under the crosshair (the seat
+-- behind the door looked at, a taken seat, the trunk) or that the player
+-- sits in a car; this shows it the way the barter prompt does.
+
+local prompt
+local seated_since
+
+local function tr(id) return game.translate_string(id) end
+
+local function key(bind, default)
+	local ok, name = pcall(function() return dik_to_keyname(bind_to_dik(key_bindings[bind])) end)
+	return (ok and name and name ~= "") and string.upper(name) or default
+end
+
+class "UIVehiclePrompt" (CUIScriptWnd)
+function UIVehiclePrompt:__init() super()
+	self:SetWndRect(Frect():set(0, 0, 1024, 768))
+	self.text = CUITextWnd()
+	self.text:SetAutoDelete(true)
+	self.text:SetWndRect(Frect():set(162, 420, 862, 446))
+	self.text:SetFont(GetFontLetterica18Russian())
+	self.text:SetTextAlignment(2)
+	self.text:SetTextColor(GetARGB(255, 235, 230, 220))
+	self:AttachChild(self.text)
+	self.shown = false
+end
+function UIVehiclePrompt:Set(text, y)
+	if text then
+		self.text:SetWndRect(Frect():set(162, y or 420, 862, (y or 420) + 26))
+		self.text:SetText(text)
+		if not self.shown then get_hud():AddDialogToRender(self); self.shown = true end
+	elseif self.shown then
+		get_hud():RemoveDialogToRender(self); self.shown = false
+	end
+end
+
+local VERBS = {
+	driver = "st_netcoop_car_drive",
+	passenger = "st_netcoop_car_sit",
+	trunk = "st_netcoop_car_trunk",
+}
+
+-- What to show for one engine answer; nil for nothing.
+function prompt_text(state, now)
+	if state == "taken" then return tr("st_netcoop_seat_taken") end
+	if VERBS[state] then return string.format("[%s]  %s", key("kUSE", "F"), tr(VERBS[state])) end
+	if state == "seated_driver" or state == "seated" then
+		seated_since = seated_since or now
+		-- The controls for the first seconds in the seat.
+		if now - seated_since > 8000 then return nil end
+		if state == "seated" then return string.format("[%s]  %s", key("kUSE", "F"), tr("st_netcoop_car_exit")) end
+		return string.format("[%s] %s   [%s] %s   [%s] %s   [%s] %s", key("kUSE", "F"), tr("st_netcoop_car_exit"),
+			key("kJUMP", "SPACE"), tr("st_netcoop_car_handbrake"), key("kTORCH", "L"), tr("st_netcoop_car_lights"),
+			key("kDETECTOR", "O"), tr("st_netcoop_car_engine"))
+	end
+	seated_since = nil
+	return nil
+end
+
+local next_update = 0
+local function actor_on_update()
+	if time_global() < next_update then return end
+	next_update = time_global() + 100
+	local ok, err = pcall(function()
+		local state = netcoop_vehicle_prompt and netcoop_vehicle_prompt() or ""
+		local text = prompt_text(state, time_global())
+		if text or prompt then
+			prompt = prompt or UIVehiclePrompt()
+			prompt:Set(text, (state == "seated_driver" or state == "seated") and 700 or 420)
+		end
+	end)
+	if not ok then printf("! [Lost Zone] vehicle prompt: %s", tostring(err)); next_update = time_global() + 5000 end
+end
+
+function on_game_start()
+	if not (netcoop_pure_client and netcoop_pure_client()) then return end
+	RegisterScriptCallback("actor_on_update", actor_on_update)
+end

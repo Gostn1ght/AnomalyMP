@@ -1278,4 +1278,25 @@
   <string id="st_netcoop_seat_taken">
     <text>This seat is taken</text>
   </string>
+  <string id="st_netcoop_car_drive">
+    <text>Drive</text>
+  </string>
+  <string id="st_netcoop_car_sit">
+    <text>Get in</text>
+  </string>
+  <string id="st_netcoop_car_trunk">
+    <text>Open the trunk</text>
+  </string>
+  <string id="st_netcoop_car_exit">
+    <text>Get out</text>
+  </string>
+  <string id="st_netcoop_car_handbrake">
+    <text>Handbrake</text>
+  </string>
+  <string id="st_netcoop_car_lights">
+    <text>Lights</text>
+  </string>
+  <string id="st_netcoop_car_engine">
+    <text>Engine</text>
+  </string>
 </string_table>

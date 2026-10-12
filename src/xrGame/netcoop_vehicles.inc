@@ -20,7 +20,32 @@ enum
 	vehicle_op_exit, // client -> server
 	vehicle_op_input, // client -> server: u16 car, u8 keys
 	vehicle_op_toggle, // client -> server: u16 car, u8 what (0 engine, 1 head lights)
+	vehicle_op_trunk, // client -> server: u16 car
+	vehicle_op_trunk_open, // server -> client: u16 box
 };
+
+// ---------------------------------------------------------------------------
+// Boxes kept away from what they belong to (a car's trunk under the map):
+// a player may move items with such a box while next to its anchor.
+// ---------------------------------------------------------------------------
+static xr_map<u16, u16> s_box_anchor; // box id -> anchor object id
+
+void script_box_anchor(u16 box, u16 anchor)
+{
+	if (!pure_client() && box != anchor)
+		s_box_anchor[box] = anchor;
+}
+
+bool box_anchor_within_reach(u16 box, const Fvector& from)
+{
+	auto found = s_box_anchor.find(box);
+	if (found == s_box_anchor.end())
+		return false;
+	CObject* anchor = Level().Objects.net_Find(found->second);
+	if (!anchor || anchor->getDestroy())
+		return false;
+	return from.distance_to(anchor->Position()) <= anchor->Radius() + 2.5f;
+}
 static const u16 vehicle_seat_free = 0xffff;
 static const u8 vehicle_max_seats = 8;
 
@@ -233,9 +258,12 @@ void server_on_vehicle(xrServer* server, xrClientData* CL, NET_Packet& P)
 				vehicle_unseat_server(smart_cast<CCar*>(Level().Objects.net_Find(it->first)), it->second, i);
 		return;
 	}
-	if (P.r_elapsed() < 3)
+	if (P.r_elapsed() < 2)
 		return;
 	const u16 car_id = P.r_u16();
+	// enter, input and toggle carry one more byte
+	if (op != vehicle_op_trunk && P.r_elapsed() < 1)
+		return;
 	CCar* car = smart_cast<CCar*>(Level().Objects.net_Find(car_id));
 	if (!car || car->getDestroy() || car->netcoop_destroyed())
 		return;
@@ -281,6 +309,29 @@ void server_on_vehicle(xrServer* server, xrClientData* CL, NET_Packet& P)
 				return;
 			car->netcoop_toggle(what);
 			v.dirty = true;
+		}
+		break;
+	case vehicle_op_trunk:
+		{
+			// From outside, next to the car. The trunk is a hidden box the
+			// server Lua keeps for the car (netcoop_vehicles.trunk_box).
+			if (actor->netcoop_seated() || !poses->trunk ||
+				actor->Position().distance_to(car->Position()) > car->Radius() + 2.5f)
+				return;
+			::luabind::functor<int> trunk_box;
+			int box = 0;
+			if (ai().script_engine().functor("netcoop_vehicles.trunk_box", trunk_box))
+			{
+				try { box = trunk_box(int(car->ID())); }
+				catch (...) { Msg("! [Lost Zone][vehicle] trunk_box failed"); }
+			}
+			if (box <= 0 || box >= 0xffff)
+				return;
+			NET_Packet answer;
+			answer.w_begin(M_NETCOOP_VEHICLE);
+			answer.w_u8(vehicle_op_trunk_open);
+			answer.w_u16(u16(box));
+			server->SendTo(CL->ID, answer, net_flags(TRUE, TRUE));
 		}
 		break;
 	}
@@ -389,9 +440,22 @@ static void vehicle_send(u8 op, u16 car, int value)
 	Level().Send(P, net_flags(TRUE, TRUE));
 }
 
+static u16 s_trunk_pending = 0xffff;
+static u32 s_trunk_pending_until = 0;
+
 void client_on_vehicle(NET_Packet& P)
 {
-	if (!pure_client() || P.r_elapsed() < 1 || P.r_u8() != vehicle_op_state || P.r_elapsed() < 13)
+	if (!pure_client() || P.r_elapsed() < 1)
+		return;
+	const u8 op = P.r_u8();
+	if (op == vehicle_op_trunk_open && P.r_elapsed() == 2)
+	{
+		// A new box arrives a moment later: opened by script_vehicle_prompt.
+		s_trunk_pending = P.r_u16();
+		s_trunk_pending_until = Device.dwTimeGlobal + 3000;
+		return;
+	}
+	if (op != vehicle_op_state || P.r_elapsed() < 13)
 		return;
 	const u16 car_id = P.r_u16();
 	const u8 flags = P.r_u8();
@@ -453,7 +517,10 @@ bool vehicle_use(CActor* actor, CObject* object, const Fvector& aim)
 	inverse.transform_tiny(local, aim);
 	const int seat = vehicle_aim(*poses, local);
 	if (seat == -2)
-		return true; // the trunk (doc 100, V4)
+	{
+		vehicle_send(vehicle_op_trunk, car->ID(), -1);
+		return true;
+	}
 	if (seat < 0)
 		return true;
 	auto known = s_vehicles_cl.find(car->ID());
@@ -512,6 +579,52 @@ void vehicle_key(CActor* actor, int cmd, bool pressed)
 	case kCAM_2: actor->cam_Set(eacLookAt); break;
 
 	}
+}
+
+// Lua (netcoop_vehicle_client, 10 Hz): what F would do at the car under the
+// crosshair - "driver", "passenger", "taken", "trunk" - or "seated_driver" /
+// "seated" in a car; "" otherwise. Also opens a trunk the server granted.
+LPCSTR script_vehicle_prompt()
+{
+	if (!pure_client() || !g_pGameLevel)
+		return "";
+	CActor* actor = smart_cast<CActor*>(Level().CurrentControlEntity());
+	if (!actor || !actor->g_Alive())
+		return "";
+	if (s_trunk_pending != 0xffff)
+	{
+		if (CInventoryBox* box = smart_cast<CInventoryBox*>(Level().Objects.net_Find(s_trunk_pending)))
+		{
+			s_trunk_pending = 0xffff;
+			if (CUIGameSP* game = smart_cast<CUIGameSP*>(CurrentGameUI()))
+				game->StartCarBody(actor, box);
+		}
+		else if (Device.dwTimeGlobal > s_trunk_pending_until)
+			s_trunk_pending = 0xffff;
+	}
+	if (actor->netcoop_seated())
+		return actor->m_netcoop_seat_driver ? "seated_driver" : "seated";
+	collide::rq_result& RQ = HUD().GetRQ();
+	CCar* car = smart_cast<CCar*>(RQ.O);
+	if (!car || RQ.range >= 3.5f || car->netcoop_destroyed())
+		return "";
+	const VehicleSeats* poses = vehicle_seats(car);
+	if (!poses)
+		return "";
+	Fvector aim, local;
+	aim.mad(Device.vCameraPosition, Device.vCameraDirection, RQ.range);
+	Fmatrix inverse;
+	inverse.invert(car->XFORM());
+	inverse.transform_tiny(local, aim);
+	const int seat = vehicle_aim(*poses, local);
+	if (seat == -2)
+		return "trunk";
+	if (seat < 0)
+		return "";
+	auto known = s_vehicles_cl.find(car->ID());
+	if (known != s_vehicles_cl.end() && u32(seat) < known->second.size() && known->second[seat] != vehicle_seat_free)
+		return "taken";
+	return poses->seats[seat].driver ? "driver" : "passenger";
 }
 
 // Held pedals are repeated: the server lets go after 2 s of silence.

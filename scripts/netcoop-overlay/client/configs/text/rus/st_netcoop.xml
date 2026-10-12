@@ -1278,4 +1278,25 @@
   <string id="st_netcoop_seat_taken">
     <text>Место занято</text>
   </string>
+  <string id="st_netcoop_car_drive">
+    <text>Сесть за руль</text>
+  </string>
+  <string id="st_netcoop_car_sit">
+    <text>Сесть пассажиром</text>
+  </string>
+  <string id="st_netcoop_car_trunk">
+    <text>Открыть багажник</text>
+  </string>
+  <string id="st_netcoop_car_exit">
+    <text>Выйти</text>
+  </string>
+  <string id="st_netcoop_car_handbrake">
+    <text>Ручник</text>
+  </string>
+  <string id="st_netcoop_car_lights">
+    <text>Фары</text>
+  </string>
+  <string id="st_netcoop_car_engine">
+    <text>Двигатель</text>
+  </string>
 </string_table>

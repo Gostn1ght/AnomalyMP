@@ -12,7 +12,7 @@ start=method.index('state.previous_position = state.position;')
 prepare=method[start:method.index('PHGetSyncItem(i)->set_State(state);',start)]
 server=(root/'src/xrGame/netcoop.cpp').read_text(encoding='utf-8-sig')
 begin=server.index('const bool item_or_corpse =',server.index('void server_physics_update('))
-select=server[begin:server.index('if (!item_or_corpse && !prop) continue;',begin)]
+select=server[begin:server.index('if (!item_or_corpse && !prop && !vehicle) continue;',begin)]
 effects=(root/'src/xrGame/physics_game.cpp').read_text(encoding='latin-1')
 begin=effects.index('static float netcoop_contact_effect_criterion(')
 effect_method=effects[begin:effects.index('template <class Pars>',begin)]
@@ -39,6 +39,7 @@ struct CObject {virtual ~CObject()=default;};
 struct CInventoryItem:CObject {};
 struct CPhysicObject:CObject {};
 struct CPhysicsSkeletonObject:CObject {};
+struct CCar:CObject {};
 struct CEntityAlive:CObject {bool alive=true;bool g_Alive()const{return alive;}};
 template<class T>T smart_cast(CObject* object){return dynamic_cast<T>(object);}
 bool pure=true;namespace netcoop{bool pure_client(){return pure;}}
@@ -63,7 +64,7 @@ struct dMass{float mass=0;};void dBodyGetMass(Body* b,dMass* m){m->mass=b->mass;
 bool selected(CObject* object){
  auto* creature=smart_cast<CEntityAlive*>(object);
 '''+select+r'''
- return item_or_corpse||prop;
+ return item_or_corpse||prop||vehicle;
 }
 SPHNetState prepare_replica(SPHNetState state){
 '''+prepare+r'''
@@ -109,6 +110,7 @@ int main(){
  pure=true;
  assert(!selected(&unrelated)&&!selected(&live));
  assert(selected(&item)&&selected(&corpse)&&selected(&prop)&&selected(&fragment));
+ {CCar car;assert(selected(&car));} // server-driven cars (doc 100)
  std::mt19937 gen(92831);std::uniform_real_distribution<float> value(-10000,10000);
  for(int i=0;i<10000;++i){
   SPHNetState snapshot;snapshot.position={value(gen),value(gen),value(gen)};

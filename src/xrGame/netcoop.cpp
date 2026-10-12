@@ -3997,6 +3997,8 @@ void script_watchdog_start()
 #include "visual_memory_manager.h"
 #include "Car.h"
 #include "actor_anim_defs.h"
+#include "HUDManager.h"
+#include "UIGameSP.h"
 #include "CharacterPhysicsSupport.h"
 #include "PHMovementControl.h"
 

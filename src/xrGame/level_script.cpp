@@ -2830,6 +2830,8 @@ void CLevel::script_register(lua_State* L)
 		def("netcoop_world_save", &netcoop::world_store_save_now),
 		def("netcoop_actor_login", &netcoop::script_actor_login),
 		def("netcoop_players", &netcoop::script_players),
+		def("netcoop_vehicle_prompt", &netcoop::script_vehicle_prompt),
+		def("netcoop_box_anchor", &netcoop::script_box_anchor),
 		def("netcoop_cluster_maps", &netcoop::script_cluster_maps),
 		def("netcoop_prop_shell_mass", &netcoop::script_prop_shell_mass),
 		def("netcoop_mass_props", &netcoop::script_mass_props),

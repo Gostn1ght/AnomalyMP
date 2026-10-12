@@ -48,8 +48,8 @@ static ETransferEnd transfer_end(xrServer* server, xrClientData* CL, u16 id, CAc
 	CInventoryBox* box = smart_cast<CInventoryBox*>(Level().Objects.net_Find(id));
 	// Player-made stashes and storage furniture open only for their owner
 	// and the players on its access list (netcoop_server_compat.can_access).
-	if (box && actor && !box->closed() && actor->Position().distance_to(box->Position()) <= transfer_reach &&
-		server_object_access(id, CL))
+	if (box && actor && !box->closed() && server_object_access(id, CL) &&
+		(actor->Position().distance_to(box->Position()) <= transfer_reach || box_anchor_within_reach(id, actor->Position())))
 		return transfer_end_box;
 	return transfer_end_none;
 }

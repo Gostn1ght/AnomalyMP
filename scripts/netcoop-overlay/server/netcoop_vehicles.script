@@ -1,0 +1,57 @@
+----------------------------------------------------------------------
+-- Lost Zone: car trunks on the server (doc 100, V4)
+----------------------------------------------------------------------
+-- A car's trunk is a hidden box under the map (the way GAMMA keeps the
+-- workshop's stash), kept per car in the world's script state:
+--   netcoop_car_trunks[car id] = box id
+-- The engine opens it for a player standing next to the car and lets items
+-- move while the player stays next to the car (netcoop_box_anchor).
+
+local TRUNK_SECTION = "netcoop_car_trunk"
+
+local function trunks()
+	local state = alife_storage_manager.get_state()
+	state.netcoop_car_trunks = state.netcoop_car_trunks or {}
+	return state.netcoop_car_trunks
+end
+
+-- The engine (vehicle_op_trunk): the box id of the car's trunk, made on
+-- first use; 0 when there is none.
+function trunk_box(car_id)
+	car_id = tonumber(car_id)
+	local car = car_id and level.object_by_id(car_id)
+	if not car then return 0 end
+	local list = trunks()
+	local box_id = list[car_id]
+	local se = box_id and alife_object(box_id)
+	if not (se and IsInvbox(nil, se:clsid())) then
+		local pos = car:position()
+		se = alife_create(TRUNK_SECTION, vector():set(pos.x, pos.y - 50, pos.z), car:level_vertex_id(), car:game_vertex_id())
+		if not se then
+			printf("! [Lost Zone][vehicle] cannot make a trunk for %s", tostring(car_id))
+			return 0
+		end
+		list[car_id] = se.id
+		printf("[Lost Zone][vehicle] trunk %s for car %s (%s)", se.id, car_id, car:section())
+	end
+	-- Always online, wherever the car drives.
+	alife():set_switch_online(se.id, true)
+	alife():set_switch_offline(se.id, false)
+	if netcoop_box_anchor then netcoop_box_anchor(se.id, car_id) end
+	return se.id
+end
+
+-- A car that is gone takes its trunk along.
+local function server_entity_on_unregister(se_obj)
+	local list = trunks()
+	local box_id = se_obj and list[se_obj.id]
+	if not box_id then return end
+	list[se_obj.id] = nil
+	local box = alife_object(box_id)
+	if box then alife_release(box) end
+end
+
+function on_game_start()
+	if netcoop_pure_client and netcoop_pure_client() then return end
+	RegisterScriptCallback("server_entity_on_unregister", server_entity_on_unregister)
+end

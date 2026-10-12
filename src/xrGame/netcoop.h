@@ -237,6 +237,10 @@ void vehicle_server_update(xrServer* server);
 bool vehicle_use(CActor* actor, CObject* object, const Fvector& aim);
 void vehicle_key(CActor* actor, int cmd, bool pressed);
 void vehicle_input_tick(CActor* actor);
+LPCSTR script_vehicle_prompt();
+// A box kept away from its anchor (a car's trunk): reachable next to the anchor.
+void script_box_anchor(u16 box, u16 anchor);
+bool box_anchor_within_reach(u16 box, const Fvector& from);
 
 // Network smoothness (doc 38, stages 0 and 1).
 bool smooth();
