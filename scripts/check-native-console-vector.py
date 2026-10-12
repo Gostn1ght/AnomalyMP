@@ -11,6 +11,7 @@ text = (root / "src/xrEngine/xr_ioc_cmd.h").read_text(encoding="latin-1")
 start = text.index("bool parse(LPCSTR args, Fvector4& v)", text.index("class CCC_Vector4"))
 method = text[start:text.index("\n\tpublic", start)]
 source = r'''
+#define _CRT_SECURE_NO_WARNINGS
 #include <cassert>
 #include <cstdio>
 #include <initializer_list>
