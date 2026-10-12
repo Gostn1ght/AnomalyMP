@@ -78,6 +78,8 @@ jobs:
           python scripts/check-netcoop-artefacts.py
           python scripts/check-netcoop-artefact-hunt.py
           python scripts/check-netcoop-master.py
+          python scripts/check-netcoop-barter.py
+          python scripts/check-netcoop-barter-client.py
           python scripts/check-netcoop-ground.py
           python scripts/check-netcoop-voice.py
       - name: Check actual item interpolation

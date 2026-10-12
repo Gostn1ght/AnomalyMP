@@ -1197,4 +1197,76 @@
   <string id="st_netcoop_wait_request">
     <text>Wait for the current request to finish.</text>
   </string>
+  <string id="st_netcoop_barter_title">
+    <text>Barter</text>
+  </string>
+  <string id="st_netcoop_barter_offer">
+    <text>Offer barter</text>
+  </string>
+  <string id="st_netcoop_barter_accept">
+    <text>Accept barter</text>
+  </string>
+  <string id="st_netcoop_barter_with">
+    <text>Barter: %s</text>
+  </string>
+  <string id="st_netcoop_barter_bag">
+    <text>Your backpack (click to offer)</text>
+  </string>
+  <string id="st_netcoop_barter_give">
+    <text>You give</text>
+  </string>
+  <string id="st_netcoop_barter_get">
+    <text>You get</text>
+  </string>
+  <string id="st_netcoop_barter_money">
+    <text>Your money, RU:</text>
+  </string>
+  <string id="st_netcoop_barter_their_money">
+    <text>Partner's money: %d RU</text>
+  </string>
+  <string id="st_netcoop_barter_you_ready">
+    <text>You are ready</text>
+  </string>
+  <string id="st_netcoop_barter_you_wait">
+    <text>Press Ready when the deal suits you</text>
+  </string>
+  <string id="st_netcoop_barter_they_ready">
+    <text>%s is ready</text>
+  </string>
+  <string id="st_netcoop_barter_they_wait">
+    <text>%s is still deciding</text>
+  </string>
+  <string id="st_netcoop_barter_ready">
+    <text>Ready</text>
+  </string>
+  <string id="st_netcoop_barter_cancel">
+    <text>Cancel</text>
+  </string>
+  <string id="st_netcoop_barter_invited">
+    <text>%s offers a barter. Look at them and press %s.</text>
+  </string>
+  <string id="st_netcoop_barter_sent">
+    <text>Barter offer sent to %s</text>
+  </string>
+  <string id="st_netcoop_barter_declined">
+    <text>%s cannot barter now</text>
+  </string>
+  <string id="st_netcoop_barter_done">
+    <text>Barter complete</text>
+  </string>
+  <string id="st_netcoop_barter_closed_cancel">
+    <text>Barter cancelled</text>
+  </string>
+  <string id="st_netcoop_barter_closed_far">
+    <text>Barter ended: you walked apart</text>
+  </string>
+  <string id="st_netcoop_barter_closed_left">
+    <text>Barter ended: the partner left</text>
+  </string>
+  <string id="st_netcoop_barter_closed_items">
+    <text>Barter ended: the items are gone</text>
+  </string>
+  <string id="st_netcoop_barter_closed_money">
+    <text>Barter ended: not enough money</text>
+  </string>
 </string_table>

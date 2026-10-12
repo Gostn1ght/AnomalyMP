@@ -1,0 +1,208 @@
+-- Lost Zone: barter between players (owner 2026-10-12). One player looks at
+-- another and presses the use key: an invitation. The other looks back and
+-- presses it: only then a barter window opens for both. Each puts items from
+-- the backpack and money into the offer; the deal happens when both pressed
+-- "Ready" for the same version of both offers - any change clears both
+-- marks. The server checks everything again and moves all items and money
+-- at once, or nothing. Walking apart, dying, leaving or cancelling ends it.
+--
+-- Client -> server: "barter <verb> ..." (netanomaly_server.on_client_command)
+--   invite <target>   accept <from>   decline <from>   cancel
+--   add <item>   remove <item>   money <amount>   ready <version>
+-- Server -> client, channel "barter":
+--   invited|<from>|<name>     sent|<target>|<name>     declined|<name>
+--   open|<partner>|<name>     closed|<reason>     done
+--   state|<version>|<my money>|<their money>|<my ready>|<their ready>|<mine>|<theirs>
+--     items: id,section,condition;...
+
+local REACH = 3.0       -- metres to invite or accept
+local KEEP = 4.5        -- an open barter ends beyond this
+local INVITE_MS = 30000 -- an invitation lasts
+local MAX_ITEMS = 40    -- per side
+
+local invites = {}   -- target id -> { from = id, at = time_global() }
+local sessions = {}  -- session table, shared by both player ids
+local by_player = {} -- player id -> session
+
+local function actor(id)
+	local obj = id and level.object_by_id(id)
+	if obj and obj.alive and obj:alive() then return obj end
+	return nil
+end
+
+local function count(t)
+	local n = 0
+	for _ in pairs(t) do n = n + 1 end
+	return n
+end
+
+local function is_player(id)
+	for p in string.gmatch(netcoop_players and netcoop_players() or "", "%d+") do
+		if tonumber(p) == id then return true end
+	end
+	return false
+end
+
+local function name_of(obj)
+	local ok, name = pcall(function() return obj:character_name() end)
+	return (ok and name and name ~= "") and name or "?"
+end
+
+local function send(id, text)
+	if netcoop_send_to_actor then netcoop_send_to_actor(id, "barter", text) end
+end
+
+local function near(a, b, limit)
+	return a and b and a:position():distance_to(b:position()) <= limit
+end
+
+local function other(s, id) return s.a == id and s.b or s.a end
+
+local function item_line(list)
+	local out = {}
+	for item_id in pairs(list) do
+		local item = level.object_by_id(item_id)
+		if item then
+			out[#out + 1] = string.format("%d,%s,%.2f", item_id, item:section(), item:condition())
+		end
+	end
+	table.sort(out)
+	return table.concat(out, ";")
+end
+
+local function push_state(s)
+	for _, id in ipairs({ s.a, s.b }) do
+		local o = other(s, id)
+		send(id, string.format("state|%d|%d|%d|%d|%d|%s|%s", s.version, s.money[id], s.money[o],
+			s.ready[id] and 1 or 0, s.ready[o] and 1 or 0, item_line(s.items[id]), item_line(s.items[o])))
+	end
+end
+
+local function close(s, reason)
+	if not s or s.closed then return end
+	s.closed = true
+	by_player[s.a], by_player[s.b] = nil, nil
+	sessions[s] = nil
+	send(s.a, "closed|" .. reason)
+	send(s.b, "closed|" .. reason)
+	printf("[Lost Zone][barter] %s - %s closed: %s", tostring(s.a), tostring(s.b), reason)
+end
+
+-- Items a player may offer: in his own backpack, not quest items, not worn.
+local function offerable(owner, item)
+	if not (owner and item) then return false end
+	local parent = item:parent()
+	if not (parent and parent:id() == owner:id()) then return false end
+	local section = item:section()
+	if ini_sys:r_bool_ex(section, "quest_item", false) then return false end
+	if owner.is_on_belt and owner:is_on_belt(item) then return false end
+	for slot = 1, 16 do
+		local worn = owner:item_in_slot(slot)
+		if worn and worn:id() == item:id() then return false end
+	end
+	return true
+end
+
+local function changed(s)
+	s.version = s.version + 1
+	s.ready[s.a], s.ready[s.b] = false, false
+	push_state(s)
+end
+
+-- Both sides again, then everything moves; any failure moves nothing.
+local function execute(s)
+	local a, b = actor(s.a), actor(s.b)
+	if not (a and b and near(a, b, KEEP)) then return close(s, "far") end
+	for _, side in ipairs({ { a, s.a }, { b, s.b } }) do
+		local owner, id = side[1], side[2]
+		if owner:money() < s.money[id] then return close(s, "money") end
+		for item_id in pairs(s.items[id]) do
+			if not offerable(owner, level.object_by_id(item_id)) then return close(s, "items") end
+		end
+	end
+	for item_id in pairs(s.items[s.a]) do a:transfer_item(level.object_by_id(item_id), b) end
+	for item_id in pairs(s.items[s.b]) do b:transfer_item(level.object_by_id(item_id), a) end
+	if s.money[s.a] > 0 then a:give_money(-s.money[s.a]); b:give_money(s.money[s.a]) end
+	if s.money[s.b] > 0 then b:give_money(-s.money[s.b]); a:give_money(s.money[s.b]) end
+	printf("[Lost Zone][barter] %s gave %s item(s) + %s RU, %s gave %s item(s) + %s RU", name_of(a),
+		tostring(count(s.items[s.a])), tostring(s.money[s.a]), name_of(b), tostring(count(s.items[s.b])), tostring(s.money[s.b]))
+	s.closed = true
+	by_player[s.a], by_player[s.b] = nil, nil
+	sessions[s] = nil
+	send(s.a, "done"); send(s.b, "done")
+end
+
+function command(id, args)
+	local verb, rest = string.match(args or "", "^(%S+)%s*(.*)$")
+	local me = actor(id)
+	if not (verb and me and is_player(id)) then return end
+	local number = tonumber(string.match(rest or "", "^(%d+)"))
+	if verb == "invite" then
+		local target = number and actor(number)
+		if not (target and number ~= id and is_player(number)) then return end
+		if by_player[id] or by_player[number] then return send(id, "declined|" .. name_of(target)) end
+		if not near(me, target, REACH) then return end
+		invites[number] = { from = id, at = time_global() }
+		send(number, "invited|" .. id .. "|" .. name_of(me))
+		send(id, "sent|" .. number .. "|" .. name_of(target))
+	elseif verb == "accept" then
+		local invite = invites[id]
+		local from = number and actor(number)
+		if not (invite and invite.from == number and from and time_global() - invite.at <= INVITE_MS) then return end
+		invites[id] = nil
+		if by_player[id] or by_player[number] or not near(me, from, REACH) then return end
+		local s = { a = number, b = id, version = 1, money = { [number] = 0, [id] = 0 },
+			items = { [number] = {}, [id] = {} }, ready = { [number] = false, [id] = false } }
+		sessions[s], by_player[number], by_player[id] = true, s, s
+		send(number, "open|" .. id .. "|" .. name_of(me))
+		send(id, "open|" .. number .. "|" .. name_of(from))
+		push_state(s)
+		printf("[Lost Zone][barter] %s and %s opened a barter", name_of(from), name_of(me))
+	elseif verb == "decline" then
+		local invite = invites[id]
+		if invite and invite.from == number then
+			invites[id] = nil
+			send(number, "declined|" .. name_of(me))
+		end
+	else
+		local s = by_player[id]
+		if not s then return end
+		if verb == "cancel" then return close(s, "cancel") end
+		if verb == "add" and number then
+			local item = level.object_by_id(number)
+			if count(s.items[id]) < MAX_ITEMS and not s.items[id][number] and offerable(me, item) then
+				s.items[id][number] = true
+				changed(s)
+			end
+		elseif verb == "remove" and number then
+			if s.items[id][number] then s.items[id][number] = nil; changed(s) end
+		elseif verb == "money" and number then
+			local amount = math.max(0, math.min(number, me:money()))
+			if amount ~= s.money[id] then s.money[id] = amount; changed(s) end
+		elseif verb == "ready" and number then
+			if number ~= s.version then return push_state(s) end
+			s.ready[id] = true
+			if s.ready[s.a] and s.ready[s.b] then return execute(s) end
+			push_state(s)
+		end
+	end
+end
+
+-- Server tick: invitations expire, a barter ends when the two part.
+function update()
+	local now = time_global()
+	for target, invite in pairs(invites) do
+		if now - invite.at > INVITE_MS then invites[target] = nil end
+	end
+	local open = {}
+	for s in pairs(sessions) do open[#open + 1] = s end
+	for _, s in ipairs(open) do
+		local a, b = actor(s.a), actor(s.b)
+		if not (a and b) or not (is_player(s.a) and is_player(s.b)) then close(s, "left")
+		elseif not near(a, b, KEEP) then close(s, "far") end
+	end
+end
+
+-- Tests.
+function reset() invites, sessions, by_player = {}, {}, {} end
+function session_of(id) return by_player[id] end

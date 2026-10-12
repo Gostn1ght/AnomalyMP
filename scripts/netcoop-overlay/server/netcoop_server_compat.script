@@ -523,6 +523,10 @@ local function server_world_tick()
 		local art_ok, art_err = pcall(netcoop_artefacts.update_world)
 		if not art_ok then printf("[Lost Zone] artefact update error: %s", tostring(art_err)) end
 	end
+	if netcoop_barter then
+		local barter_ok, barter_err = pcall(netcoop_barter.update)
+		if not barter_ok then printf("[Lost Zone] barter error: %s", tostring(barter_err)) end
+	end
 	local psi_ok, psi_err = pcall(netcoop_psi_storm.update_world)
 	if not psi_ok then printf("[Lost Zone] psi storm error: %s", tostring(psi_err)) end
 	if netcoop_pdanet then

@@ -538,6 +538,10 @@ function on_script_message(channel, data)
 		-- The PDA network: contacts, chats, general channel (netcoop_pdanet).
 		if netcoop_pdanet_client then netcoop_pdanet_client.receive(data) end
 		return
+	elseif channel == "barter" then
+		-- Barter between players (netcoop_barter on the server).
+		if netcoop_barter_client then netcoop_barter_client.receive(data) end
+		return
 	elseif channel == "mutant_loot" then
 		if netcoop_mutant_loot_view then netcoop_mutant_loot_view.receive(data) end
 		return

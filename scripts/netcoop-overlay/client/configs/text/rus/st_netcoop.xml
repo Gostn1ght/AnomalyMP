@@ -1197,4 +1197,76 @@
   <string id="st_netcoop_wait_request">
     <text>Подождите окончания запроса.</text>
   </string>
+  <string id="st_netcoop_barter_title">
+    <text>Бартер</text>
+  </string>
+  <string id="st_netcoop_barter_offer">
+    <text>Предложить бартер</text>
+  </string>
+  <string id="st_netcoop_barter_accept">
+    <text>Принять бартер</text>
+  </string>
+  <string id="st_netcoop_barter_with">
+    <text>Бартер: %s</text>
+  </string>
+  <string id="st_netcoop_barter_bag">
+    <text>Ваш рюкзак (щёлкните, чтобы предложить)</text>
+  </string>
+  <string id="st_netcoop_barter_give">
+    <text>Вы отдаёте</text>
+  </string>
+  <string id="st_netcoop_barter_get">
+    <text>Вы получаете</text>
+  </string>
+  <string id="st_netcoop_barter_money">
+    <text>Ваши деньги, RU:</text>
+  </string>
+  <string id="st_netcoop_barter_their_money">
+    <text>Деньги партнёра: %d RU</text>
+  </string>
+  <string id="st_netcoop_barter_you_ready">
+    <text>Вы готовы к обмену</text>
+  </string>
+  <string id="st_netcoop_barter_you_wait">
+    <text>Нажмите «Готов», когда предложение устраивает</text>
+  </string>
+  <string id="st_netcoop_barter_they_ready">
+    <text>%s готов к обмену</text>
+  </string>
+  <string id="st_netcoop_barter_they_wait">
+    <text>%s ещё думает</text>
+  </string>
+  <string id="st_netcoop_barter_ready">
+    <text>Готов</text>
+  </string>
+  <string id="st_netcoop_barter_cancel">
+    <text>Отмена</text>
+  </string>
+  <string id="st_netcoop_barter_invited">
+    <text>%s предлагает бартер. Посмотрите на него и нажмите %s.</text>
+  </string>
+  <string id="st_netcoop_barter_sent">
+    <text>Предложение бартера отправлено: %s</text>
+  </string>
+  <string id="st_netcoop_barter_declined">
+    <text>%s сейчас не может обменяться</text>
+  </string>
+  <string id="st_netcoop_barter_done">
+    <text>Обмен завершён</text>
+  </string>
+  <string id="st_netcoop_barter_closed_cancel">
+    <text>Бартер отменён</text>
+  </string>
+  <string id="st_netcoop_barter_closed_far">
+    <text>Бартер прерван: вы разошлись</text>
+  </string>
+  <string id="st_netcoop_barter_closed_left">
+    <text>Бартер прерван: партнёр ушёл</text>
+  </string>
+  <string id="st_netcoop_barter_closed_items">
+    <text>Бартер прерван: предметов уже нет</text>
+  </string>
+  <string id="st_netcoop_barter_closed_money">
+    <text>Бартер прерван: не хватает денег</text>
+  </string>
 </string_table>

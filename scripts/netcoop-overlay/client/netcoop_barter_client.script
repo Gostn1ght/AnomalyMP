@@ -1,0 +1,277 @@
+-- Lost Zone: barter between players, the client side (owner 2026-10-12).
+-- Look at another player within reach: a prompt "[F] Offer barter - Name".
+-- The use key sends the invitation; the invited player sees a message and,
+-- looking back, "[F] Accept barter - Name". Only after that the barter window
+-- opens for both. The server (netcoop_barter) owns the deal; this window only
+-- shows its state and sends the player's choices.
+
+local REACH = 2.5
+local INVITE_MS = 30000
+
+local invited_by = {} -- player id -> { name, at }
+local prompt
+local window
+
+local function tr(id) return game.translate_string(id) end
+
+local function key_name()
+	local ok, name = pcall(function() return dik_to_keyname(bind_to_dik(key_bindings.kUSE)) end)
+	return (ok and name and name ~= "") and string.upper(name) or "F"
+end
+
+-- The other player the crosshair is on, within reach.
+function looked_at_player()
+	if not db.actor then return nil end
+	local obj = db.actor.get_actor_object_looking_at and db.actor:get_actor_object_looking_at()
+	if not obj then
+		local ok, target = pcall(level.get_target_obj)
+		obj = ok and target or nil
+	end
+	if not obj or obj:id() == db.actor:id() or not (IsActor and IsActor(obj) or obj:clsid() == clsid.actor) then return nil end
+	if not (obj.alive and obj:alive()) then return nil end
+	if obj:position():distance_to(db.actor:position()) > REACH then return nil end
+	return obj
+end
+
+local function player_name(obj)
+	local ok, name = pcall(function() return obj:character_name() end)
+	return (ok and name and name ~= "") and name or "?"
+end
+
+local function news(text)
+	if db.actor then db.actor:give_game_news(tr("st_netcoop_barter_title"), text, "ui_inGame2_Pered_zadaniyami_voennih", 0, 6000) end
+end
+
+----------------------------------------------------------------------
+-- Prompt near the crosshair
+----------------------------------------------------------------------
+class "UIBarterPrompt" (CUIScriptWnd)
+function UIBarterPrompt:__init() super()
+	self:SetWndRect(Frect():set(0, 0, 1024, 768))
+	self.text = CUITextWnd()
+	self.text:SetAutoDelete(true)
+	self.text:SetWndRect(Frect():set(262, 420, 762, 446))
+	self.text:SetFont(GetFontLetterica18Russian())
+	self.text:SetTextAlignment(2)
+	self.text:SetTextColor(GetARGB(255, 235, 230, 220))
+	self:AttachChild(self.text)
+	self.shown = false
+end
+function UIBarterPrompt:Set(text)
+	if text then
+		self.text:SetText(text)
+		if not self.shown then get_hud():AddDialogToRender(self); self.shown = true end
+	elseif self.shown then
+		get_hud():RemoveDialogToRender(self); self.shown = false
+	end
+end
+
+local function update_prompt()
+	if window and window:IsShown() then if prompt then prompt:Set(nil) end return end
+	local obj = looked_at_player()
+	local text
+	if obj then
+		local inv = invited_by[obj:id()]
+		local verb = (inv and time_global() - inv.at <= INVITE_MS) and "st_netcoop_barter_accept" or "st_netcoop_barter_offer"
+		text = string.format("[%s]  %s - %s", key_name(), tr(verb), player_name(obj))
+	end
+	if text or prompt then
+		prompt = prompt or UIBarterPrompt()
+		prompt:Set(text)
+	end
+end
+
+local function on_key_press(dik)
+	if dik_to_bind(dik) ~= key_bindings.kUSE then return end
+	if window and window:IsShown() then return end
+	local obj = looked_at_player()
+	if not obj then return end
+	local inv = invited_by[obj:id()]
+	if inv and time_global() - inv.at <= INVITE_MS then
+		invited_by[obj:id()] = nil
+		netcoop_command("barter accept " .. obj:id())
+	else
+		netcoop_command("barter invite " .. obj:id())
+	end
+end
+
+----------------------------------------------------------------------
+-- The barter window
+----------------------------------------------------------------------
+class "UIBarter" (CUIScriptWnd)
+function UIBarter:__init(partner, name) super()
+	self.partner, self.partner_name = partner, name
+	self.version, self.mine, self.theirs = 0, {}, {}
+	self:SetWndRect(Frect():set(0, 0, 1024, 768))
+	self:SetAutoDelete(true)
+	local xml = CScriptXmlInit()
+	xml:ParseFile("ui_netcoop_barter.xml")
+	self.xml = xml
+	self.dialog = xml:InitStatic("barter:background", self)
+	self.caption = xml:InitTextWnd("barter:caption", self.dialog)
+	self.caption:SetText(string.format(tr("st_netcoop_barter_with"), name))
+	xml:InitTextWnd("barter:title_bag", self.dialog):SetText(tr("st_netcoop_barter_bag"))
+	xml:InitTextWnd("barter:title_give", self.dialog):SetText(tr("st_netcoop_barter_give"))
+	xml:InitTextWnd("barter:title_get", self.dialog):SetText(tr("st_netcoop_barter_get"))
+	self.bag = utils_ui.UICellContainer("bag", self, nil, "barter:cont_bag", self.dialog)
+	self.give = utils_ui.UICellContainer("give", self, nil, "barter:cont_give", self.dialog)
+	self.get = utils_ui.UICellContainer("get", self, nil, "barter:cont_get", self.dialog)
+	self.get.showcase = true
+	for _, cc in ipairs({ self.bag, self.give, self.get }) do cc.disable_drag = true end
+	self.item_info = utils_ui.UIInfoItem(self, 500)
+	xml:InitTextWnd("barter:money_label", self.dialog):SetText(tr("st_netcoop_barter_money"))
+	self.money = xml:InitEditBox("barter:money_edit", self.dialog)
+	self:Register(self.money, "money_edit")
+	self.their_money = xml:InitTextWnd("barter:their_money", self.dialog)
+	self.status_mine = xml:InitTextWnd("barter:status_mine", self.dialog)
+	self.status_theirs = xml:InitTextWnd("barter:status_theirs", self.dialog)
+	self.btn_ready = xml:Init3tButton("barter:btn_ready", self.dialog)
+	self:Register(self.btn_ready, "btn_ready")
+	self.btn_cancel = xml:Init3tButton("barter:btn_cancel", self.dialog)
+	self:Register(self.btn_cancel, "btn_cancel")
+	self:AddCallback("btn_ready", ui_events.BUTTON_CLICKED, self.OnReady, self)
+	self:AddCallback("btn_cancel", ui_events.BUTTON_CLICKED, self.OnCancel, self)
+	self:AddCallback("money_edit", ui_events.EDIT_TEXT_COMMIT, self.OnMoney, self)
+	self:Apply("0", "0", "0", "0", "0", "", "")
+end
+
+-- My backpack: everything not worn, not on the belt and not offered.
+function UIBarter:Backpack()
+	local list = {}
+	if not db.actor then return list end
+	local worn = {}
+	for slot = 1, 16 do
+		local item = db.actor:item_in_slot(slot)
+		if item then worn[item:id()] = true end
+	end
+	db.actor:iterate_ruck(function(_, item)
+		if item and not worn[item:id()] and not self.mine[item:id()] and not db.actor:is_on_belt(item) then
+			list[#list + 1] = item
+		end
+	end, db.actor)
+	return list
+end
+
+local function parse_items(text)
+	local out = {}
+	for id, sec, cond in string.gmatch(text or "", "(%d+),([^,;]+),([%d%.]+)") do
+		out[#out + 1] = { id = tonumber(id), section = sec, condition = tonumber(cond) }
+	end
+	return out
+end
+
+function UIBarter:Apply(version, my_money, their_money, my_ready, their_ready, mine, theirs)
+	self.version = tonumber(version) or 0
+	self.mine = {}
+	local give = {}
+	for _, it in ipairs(parse_items(mine)) do
+		self.mine[it.id] = true
+		local obj = level.object_by_id(it.id)
+		if obj then give[#give + 1] = obj end
+	end
+	local get = {}
+	for _, it in ipairs(parse_items(theirs)) do get[#get + 1] = it.section end
+	self.bag:Reinit(self:Backpack())
+	self.give:Reinit(give)
+	self.get:Reinit(get)
+	if not self.money_editing then self.money:SetText(tostring(tonumber(my_money) or 0)) end
+	self.their_money:SetText(string.format(tr("st_netcoop_barter_their_money"), tonumber(their_money) or 0))
+	self.ready_mine = my_ready == "1"
+	self.status_mine:SetText(tr(self.ready_mine and "st_netcoop_barter_you_ready" or "st_netcoop_barter_you_wait"))
+	self.status_theirs:SetText(string.format(tr(their_ready == "1" and "st_netcoop_barter_they_ready" or "st_netcoop_barter_they_wait"), self.partner_name))
+end
+
+function UIBarter:On_CC_Mouse1(cont, idx)
+	local cc = (cont == "bag" and self.bag) or (cont == "give" and self.give) or nil
+	local ci = cc and cc.cell[idx]
+	if not (ci and ci.ID) then return end
+	netcoop_command(string.format("barter %s %d", cont == "bag" and "add" or "remove", ci.ID))
+end
+UIBarter.On_CC_Mouse1_DB = UIBarter.On_CC_Mouse1
+
+function UIBarter:OnMoney()
+	local amount = math.max(0, math.floor(tonumber(self.money:GetText()) or 0))
+	netcoop_command("barter money " .. amount)
+end
+
+function UIBarter:OnReady()
+	self:OnMoney()
+	netcoop_command("barter ready " .. self.version)
+end
+
+function UIBarter:OnCancel()
+	netcoop_command("barter cancel")
+	self:Close()
+end
+
+function UIBarter:Close()
+	if self:IsShown() then self:HideDialog() end
+	window = nil
+end
+
+function UIBarter:Update()
+	CUIScriptWnd.Update(self)
+	local found = false
+	for _, cc in ipairs({ self.bag, self.give, self.get }) do
+		if cc:Update(self.item_info) then found = true end
+	end
+	if not found then self.item_info:Update() end
+end
+
+function UIBarter:OnKeyboard(dik, action)
+	local res = CUIScriptWnd.OnKeyboard(self, dik, action)
+	if res == false and action == ui_events.WINDOW_KEY_PRESSED and dik == DIK_keys.DIK_ESCAPE then
+		self:OnCancel()
+		return true
+	end
+	return res
+end
+
+----------------------------------------------------------------------
+-- Server messages, channel "barter"
+----------------------------------------------------------------------
+function receive(data)
+	local parts = {}
+	for part in string.gmatch((data or "") .. "|", "([^|]*)|") do parts[#parts + 1] = part end
+	local verb = parts[1]
+	if verb == "invited" then
+		local from = tonumber(parts[2])
+		if from then
+			invited_by[from] = { name = parts[3], at = time_global() }
+			news(string.format(tr("st_netcoop_barter_invited"), parts[3] or "?", key_name()))
+		end
+	elseif verb == "sent" then
+		news(string.format(tr("st_netcoop_barter_sent"), parts[3] or "?"))
+	elseif verb == "declined" then
+		news(string.format(tr("st_netcoop_barter_declined"), parts[2] or "?"))
+	elseif verb == "open" then
+		if window then window:Close() end
+		window = UIBarter(tonumber(parts[2]), parts[3] or "?")
+		window:ShowDialog(true)
+	elseif verb == "state" then
+		if window then window:Apply(parts[2], parts[3], parts[4], parts[5], parts[6], parts[7], parts[8]) end
+	elseif verb == "closed" then
+		if window then window:Close() end
+		news(tr("st_netcoop_barter_closed_" .. (parts[2] or "cancel")))
+	elseif verb == "done" then
+		if window then window:Close() end
+		news(tr("st_netcoop_barter_done"))
+	end
+end
+
+local next_prompt = 0
+local function actor_on_update()
+	if time_global() < next_prompt then return end
+	next_prompt = time_global() + 100
+	local ok, err = pcall(update_prompt)
+	if not ok then printf("! [Lost Zone] barter prompt: %s", tostring(err)); next_prompt = time_global() + 5000 end
+end
+
+function on_game_start()
+	if not (netcoop_pure_client and netcoop_pure_client()) then return end
+	RegisterScriptCallback("actor_on_update", actor_on_update)
+	RegisterScriptCallback("on_key_press", on_key_press)
+end
+
+-- Tests.
+function current_window() return window end
