@@ -110,7 +110,7 @@ Distance/overload tiers для NPC/мутантов/игроков, описан
 | B08 Частично: LocalWorldService и WorldStateSnapshot есть; | 🟡 | backend WorldState; engine читает calendar/weather/emission coherent bootstrap только в shadow; typed full projection сохраняет разные local/master epochs и очищает stale output (doc95); gameplay adoption ещё нет |
 | B09 Удостоверенный World Service endpoint и wire encoding | 🟡 | authenticated loopback engine-bootstrap/clock, bounded public timeline projection, strict native wire parser, worker calendar/weather/emission diagnostics (doc95); полноценная доставка/применение ScaleChanged location runtime и remote transport ещё открыты |
 | B10 Подключить LocationClock к действительным location packets; | 🟡 | кластерный календарь через файлы: отстающий догоняет ускорением (видно в live логах) |
-| B11 Event-time highwater и replay: восстановленное время не | ⬜ |  |
+| B11 Event-time highwater и replay: восстановленное время не | 🔧 | backend: каждое событие поднимает event_highwater, рестарт сервиса начинает с MAX(world_ms, event_highwater) — время не уходит раньше подтверждённых событий; test_world.test_restart_preserves_identity_and_committed_event_clock_floor (док 97 — переучёт); движок мира к backend не подключён |
 | B12 Частично: backend event-time mutation/scale barrier реализован; | ⬜ |  |
 | B13 ClockSync: asymmetric delay, loss/reorder, длительный разрыв | 🟡 | native observer fixture использует actual durable backend restore samples: synthetic asymmetric delay/duplicates/reorder/long outage, epoch fencing и phase catchup (doc95); real game Location Server restart/transport recovery ещё не проверены |
 
@@ -279,8 +279,8 @@ Distance/overload tiers для NPC/мутантов/игроков, описан
 
 | Пункт | Статус | Что есть |
 |---|---|---|
-| L01 Abstract Anomaly State с ID/type/position/radius/intensity, | ⬜ |  |
-| L02 Anomaly prewarm создаёт gameplay volumes до replication; | ⬜ |  |
+| L01 Abstract Anomaly State с ID/type/position/radius/intensity, | 🟡 | офлайн-аномалия — ALife-сущность (ID, секция-тип, позиция, форма-радиус, сила) без тиков столкновений/урона; цикл выброса - слои GAMMA и запись выброса для дальних полей (L06/L07); отдельного cooldown/seed-состояния нет (док 97) |
+| L02 Anomaly prewarm создаёт gameplay volumes до replication; | 🔧 | аномалия — серверный объект, онлайн у сервера в 650 м от игрока раньше, чем клиент получает её spawn; удар (CCustomZone::CreateHit), смена состояния (SwitchZoneState) и выброс тел считает только сервер (OnServer), у клиента это частицы/звук (док 97 — переучёт); в игре не проверено |
 | L03 Route anomaly risk учитывает опыт, faction, экипировку и знания NPC | ⬜ |  |
 | L04 Детерминированные offline anomaly injuries/deaths/item consequences | ⬜ |  |
 | L05 ArtifactID и одно authoritative состояние world/inventory/container | ✅ | рестарт реального сервера: труп с тем же лутом и артефактом NPC, ящик, артефакт на земле - id в id (run-world-persistence-test.ps1, 2026-10-06) |
@@ -298,7 +298,7 @@ Distance/overload tiers для NPC/мутантов/игроков, описан
 | L17 Смена оружия NPC оставляет прежнее оружие с тем же item identity | 🔧 | подбор с земли GAMMA (xr_gather_items) клонировал оружие и пересоздавал артефакты/патроны с новым ID; netcoop_npc_loot берёт тот же объект (take_item), чужой уже поднятый предмет не трогает; старое оружие остаётся в инвентаре, на трупе GAMMA его не удаляет; check-netcoop-npc-gather.py (док 97); в игре не проверено |
 | L18 Containers имеют authoritative inventory/owner/lock/version; | ✅ | рестарт реального сервера: труп с тем же лутом и артефактом NPC, ящик, артефакт на земле - id в id (run-world-persistence-test.ps1, 2026-10-06) |
 | L19 Corpse: entity ID, death time/cause, inventory и quest association | ✅ | рестарт реального сервера: труп с тем же лутом и артефактом NPC, ящик, артефакт на земле - id в id (run-world-persistence-test.ps1, 2026-10-06) |
-| L20 Ragdoll→static→abstract corpse без постоянной удалённой physics | ⬜ |  |
+| L20 Ragdoll→static→abstract corpse без постоянной удалённой physics | 🔧 | ragdoll считает только сервер (у клиентов коллайдеры копий неподвижны); уснувшее тело отправляет финальную позу один раз надёжно, затем сверку раз в 10 с (props 60 с), толчок/удар будит; вне радиуса ALife труп уходит в офлайн с тем же ID и вещами (L19/L35); netcoop.cpp physics sync (док 97 — переучёт существующего кода); в игре не проверено |
 | L21 Частично: native online/offline detach и backend cleanup есть; | 🟡 | backend corpse batches; TTL отключены; живые NPC сохраняются в мире (save теперь работает) |
 | L22 Loot generation policy зависит от world events/economy/выброса, | 🔧 | configurable initial NPC generation gates; economy/emission/local battle context latched at ALife registration before first observation, including offline NPCs; saved world seed/context, no restart reroll, story and stash paths preserved; actual Lua fixture (doc95), no game acceptance |
 | L23 Mutant territory/food/aggression/migration/species relations | ⬜ |  |
