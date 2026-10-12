@@ -3995,6 +3995,10 @@ void script_watchdog_start()
 #include "memory_manager.h"
 #include "enemy_manager.h"
 #include "visual_memory_manager.h"
+#include "Car.h"
+#include "actor_anim_defs.h"
+#include "CharacterPhysicsSupport.h"
+#include "PHMovementControl.h"
 
 int g_netcoop_smooth = 1;
 int g_netcoop_interp_ms = 100;
@@ -4014,9 +4018,13 @@ void client_on_physics(NET_Packet& P)
 struct PhysicsSent { bool sleeping = false; u32 last = 0; };
 static xr_map<u16, PhysicsSent> s_physics_sent;
 
+void vehicle_server_update(xrServer* server);
+
 void server_physics_update(xrServer* server)
 {
 	if (!g_pGameLevel || pure_client()) return;
+	// Seated players follow their seats every frame (doc 100).
+	vehicle_server_update(server);
 	static u32 previous = 0;
 	static u32 tick = 0;
 	const u32 now = real_time_ms();
@@ -4063,7 +4071,9 @@ void server_physics_update(xrServer* server)
 		// Their bodies must follow the authority just like their source props.
 		const bool prop = !item_or_corpse && !creature &&
 			(smart_cast<CPhysicObject*>(object) || smart_cast<CPhysicsSkeletonObject*>(object));
-		if (!item_or_corpse && !prop) continue;
+		// Cars (doc 100): the server drives them; clients show replicas.
+		const bool vehicle = !item_or_corpse && smart_cast<CCar*>(object) != nullptr;
+		if (!item_or_corpse && !prop && !vehicle) continue;
 		if (prop && s_physics_sent.find(holder->ID()) == s_physics_sent.end())
 		{
 			if (settling) continue;
@@ -4078,6 +4088,7 @@ void server_physics_update(xrServer* server)
 		// movement contact to props/fragments, including sleeping ones.
 		for (const FootContact& foot : feet)
 		{
+			if (vehicle) break; // players walking into a car do not push it
 			for (u16 i = 0; i < count; ++i)
 			{
 				SPHNetState body; holder->PHGetSyncItem(i)->get_State(body);
@@ -4102,12 +4113,12 @@ void server_physics_update(xrServer* server)
 		// fell asleep sends its final pose once to every client, then a
 		// refresh every 10 s; a push or a hit wakes it and sending resumes.
 		const bool awake = holder->PPhysicsShell()->isEnabled();
-		if (prop && s_physics_sent.find(holder->ID()) == s_physics_sent.end())
+		if ((prop || vehicle) && s_physics_sent.find(holder->ID()) == s_physics_sent.end())
 		{
 			if (!awake) continue; // untouched props still consume no pose traffic
 			Msg("[Lost Zone][physics] prop %s (%u) moved: its pose goes to the players", holder->cName().c_str(), holder->ID());
 		}
-		if (awake && !creature && !smart_cast<CMissile*>(object))
+		if (awake && !creature && !vehicle && !smart_cast<CMissile*>(object))
 		{
 			// Loose props/debris are limited; thrown grenades and bolts keep
 			// their configured ballistics (CMissile is their common base).
@@ -4171,6 +4182,7 @@ void server_physics_update(xrServer* server)
 		server->ForEachClientDo(send);
 	}
 }
+#include "netcoop_vehicles.inc"
 } // namespace netcoop
 
 namespace netcoop

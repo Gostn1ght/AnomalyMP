@@ -1316,6 +1316,10 @@ void CActor::UpdateCL()
 			NET.empty() ? -1 : s32(netcoop::snapshot_now() - NET.back().dwTimeStamp));
 	if (g_Alive() && Remote() && netcoop::pure_client())
 		netcoop_update_remote();
+	// In a car (doc 100): at the car's pose times the seat, after the
+	// snapshot interpolation above.
+	if (netcoop_seated())
+		netcoop_seat_place();
 	if (g_dedicated_server)
 	{
 		// Movement is stepped once in shedule_Update; the remaining work here
@@ -1961,6 +1965,36 @@ void CActor::shedule_Update(u32 DT)
 		}
 	}
 
+	if (netcoop_seated() && !m_holder && getEnabled() && Ready())
+	{
+		// In a car (doc 100): no movement of one's own and no input queue;
+		// the seat places the body and the seat pose plays.
+		m_sDefaultObjAction = NULL;
+		mstate_wishful = 0;
+		NET_Jump = 0;
+		// Movement inputs still in flight from before sitting down are dropped:
+		// replayed after getting out they would walk the player off.
+		if (OnServer() && Level().Server)
+		{
+			struct DropInputs
+			{
+				u16 id;
+				void operator()(IClient* client)
+				{
+					xrClientData* CL = static_cast<xrClientData*>(client);
+					if (!CL || !CL->owner || CL->owner->ID != id) return;
+					CL->m_pending_inputs.clear();
+					CL->m_current_intent.mstate = 0;
+					CL->m_pending_jump_edge = false;
+				}
+			} drop = {ID()};
+			Level().Server->ForEachClientDo(drop);
+		}
+		if (g_Alive())
+			g_SetAnimation(mstate_real);
+		inherited::shedule_Update(DT);
+		return;
+	}
 	if (m_holder || !getEnabled() || !Ready())
 	{
 		m_sDefaultObjAction = NULL;

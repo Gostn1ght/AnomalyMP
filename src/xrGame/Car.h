@@ -591,6 +591,30 @@ private:
 	bool WheelHit(float P, s16 element, ALife::EHitType hit_type);
 	bool DoorHit(float P, s16 element, ALife::EHitType hit_type);
 public:
+	// Lost Zone multiplayer (netcoop_vehicles.inc, doc 100). The server drives
+	// the car with the driver's keys; a client's replica only shows it.
+	enum
+	{
+		netcoop_key_forward = 1,
+		netcoop_key_back = 2,
+		netcoop_key_left = 4,
+		netcoop_key_right = 8,
+		netcoop_key_handbrake = 16,
+	};
+	u8 m_netcoop_keys = 0; // server: the driver's held keys
+	bool m_netcoop_lights = false;
+	float m_netcoop_rpm = 0.f; // client replica: from the server
+	float m_netcoop_steer = 0.f;
+	void netcoop_drive(u8 keys); // server
+	void netcoop_engage(bool driver); // server: a driver sat down / left
+	void netcoop_toggle(u8 what); // server: 0 engine, 1 head lights
+	void netcoop_replica_state(bool engine, bool lights, float rpm, float steer); // client
+	bool netcoop_engine_on() const { return b_engine_on; }
+	float netcoop_rpm() const { return m_current_rpm; }
+	float netcoop_steer() const { return m_steer_angle; }
+	bool netcoop_destroyed() { return b_exploded || CPHDestroyable::Destroyed(); }
+	const Fvector& netcoop_camera_position() const { return m_camera_position; }
+public:
 	virtual bool allowWeapon() const { return true; };
 	virtual bool HUDView() const;
 	virtual Fvector ExitPosition();

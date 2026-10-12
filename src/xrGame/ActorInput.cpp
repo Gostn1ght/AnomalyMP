@@ -36,6 +36,7 @@
 #include "Flashlight.h"
 #include "../xrPhysics/IElevatorState.h"
 #include "holder_custom.h"
+#include "Car.h"
 #include "Weapon.h"
 #include "CustomOutfit.h"
 
@@ -53,6 +54,12 @@ void CActor::IR_OnKeyboardPress(int cmd)
 
 	if (IsTalking()) return;
 	if (m_input_external_handler && !m_input_external_handler->authorized(cmd)) return;
+	// In a car (doc 100) the keys drive, get out or switch the view.
+	if (netcoop_seated())
+	{
+		netcoop::vehicle_key(this, cmd, true);
+		return;
+	}
 
 	switch (cmd)
 	{
@@ -283,6 +290,7 @@ BOOL mouseWheelInvertZoom = FALSE;
 void CActor::IR_OnMouseWheel(int direction)
 {
 	if (m_rp_index >= 0) return;
+	if (netcoop_seated()) return;
 	if (hud_adj_mode)
 	{
 		g_player_hud->tune(Ivector().set(0, 0, direction));
@@ -330,6 +338,11 @@ void CActor::IR_OnKeyboardRelease(int cmd)
 	if (Remote()) return;
 
 	if (m_input_external_handler && !m_input_external_handler->authorized(cmd)) return;
+	if (netcoop_seated())
+	{
+		netcoop::vehicle_key(this, cmd, false);
+		return;
+	}
 
 	if (g_Alive())
 	{
@@ -365,6 +378,7 @@ void CActor::IR_OnKeyboardHold(int cmd)
 	if (Remote() || !g_Alive()) return;
 	if (m_input_external_handler && !m_input_external_handler->authorized(cmd)) return;
 	if (IsTalking()) return;
+	if (netcoop_seated()) return;
 
 	if (m_holder)
 	{
@@ -594,6 +608,15 @@ void CActor::ActorUse()
 		}
 		else
 		{
+			// Cars in multiplayer (doc 100): the seat behind the door looked at.
+			if (object && netcoop::enabled() && smart_cast<CCar*>(object))
+			{
+				Fvector aim;
+				aim.mad(Device.vCameraPosition, Device.vCameraDirection, RQ.range);
+				if (RQ.range < 3.5f)
+					netcoop::vehicle_use(this, object, aim);
+				return;
+			}
 			if (object && smart_cast<CHolderCustom*>(object))
 			{
 				NET_Packet P;

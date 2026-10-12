@@ -1275,4 +1275,7 @@
   <string id="st_netcoop_role_player">
     <text>Администратор сервера снял с вас права администратора</text>
   </string>
+  <string id="st_netcoop_seat_taken">
+    <text>Место занято</text>
+  </string>
 </string_table>

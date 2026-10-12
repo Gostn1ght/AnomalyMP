@@ -20,6 +20,7 @@ class CSE_Abstract;
 class CZoneCampfire;
 class CCustomDevice;
 struct SConsolePlayer;
+class CCar;
 
 // Console: netcoop_smooth (0 = old network presentation, 1 = doc 38 stage 1),
 // netcoop_interp_ms (interpolation delay for remote objects on a client),
@@ -229,6 +230,13 @@ bool server_apply_role_online(LPCSTR login, u8 role);
 void server_list_bans(xr_string& out);
 bool server_leader(LPCSTR login, u8 slot, LPCSTR faction, xr_string& message);
 void console_players(xr_vector<SConsolePlayer>& out);
+// Vehicles (netcoop_vehicles.inc, doc 100).
+void server_on_vehicle(xrServer* server, xrClientData* CL, NET_Packet& P);
+void client_on_vehicle(NET_Packet& P);
+void vehicle_server_update(xrServer* server);
+bool vehicle_use(CActor* actor, CObject* object, const Fvector& aim);
+void vehicle_key(CActor* actor, int cmd, bool pressed);
+void vehicle_input_tick(CActor* actor);
 
 // Network smoothness (doc 38, stages 0 and 1).
 bool smooth();

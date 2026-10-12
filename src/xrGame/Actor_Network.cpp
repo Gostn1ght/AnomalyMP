@@ -118,6 +118,9 @@ void CActor::net_ImportInputAck(NET_Packet& P)
 	if (!_valid(auth_pos) || !_valid(auth_vel) ||
 		!is_sequence_newer_or_equal(m_next_input_sequence - 1, ack_seq))
 		return;
+	// In a car (doc 100) the seat places the player, not the server's ACK.
+	if (netcoop_seated())
+		return;
 	
 	// STRICTLY NEWER ACK Sequence Validation (Drop reordered/delayed/duplicate ACKs)
 	if (!is_sequence_newer(ack_seq, m_last_applied_server_ack)) return;
@@ -561,7 +564,9 @@ void CActor::netcoop_follow_owner(NET_Packet& P)
 		}
 	}
 
-	if (_valid(position))
+	// A seated player (doc 100) is placed by the server at the car's seat:
+	// their claimed position is not followed, the car's speed is not theirs.
+	if (_valid(position) && !netcoop_seated())
 	{
 		// Speed check instead of a per-update step limit: a step longer than
 		// the limit used to be dropped, and every later update was then even

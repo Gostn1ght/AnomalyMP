@@ -1,0 +1,60 @@
+; Lost Zone (doc 100): seats of the drivable cars in multiplayer.
+; netcoop_seats = bone[:x:y:z], ... - an offset in the car's space from the
+; bone; the first seat drives. Rear rows without a bone of their own are
+; offsets from the front seats (the car faces +z). Models whose axes are
+; turned keep only their own seat bones.
+; netcoop_passenger_drop - passenger pose root below the seat (m).
+; netcoop_trunk - false: no trunk.
+
+![veh_niva]
+netcoop_seats = seat_left, seat_right, seat_left:0:0:-0.85, seat_right:0:0:-0.85
+
+![veh_uaz_01]
+netcoop_seats = seat_left, seat_right, seat_back:-0.4:0:0, seat_back:0.4:0:0
+
+![veh_uaz_02]
+netcoop_seats = seat_left, seat_right, seat_back:-0.4:0:0, seat_back:0.4:0:0
+
+![veh_uaz_buhanka]
+netcoop_seats = seat_left, seat_left:0.95:0:0, seat_left:0.2:0:-1.4, seat_left:0.8:0:-1.4
+
+![veh_zaz]
+netcoop_seats = seat_left, seat_right, seat_left:0:0:-0.8, seat_right:0:0:-0.8
+
+![veh_zaz_968]
+netcoop_seats = seat_left, seat_right, seat_back
+
+![veh_moskvich]
+netcoop_seats = seat_left, seat_right
+
+![veh_gaz]
+netcoop_seats = seat_left, seat_right, seat_left:-0.3:-0.1:-2.6, seat_right:0.3:-0.1:-2.6
+
+![veh_kamaz]
+netcoop_seats = seat_left, seat_right, seat_left:-0.1:-0.2:-4.0, seat_right:0.1:-0.2:-4.0
+
+![veh_kamaz_fura]
+netcoop_seats = seat_left, seat_right
+
+![veh_zil_130]
+netcoop_seats = seat_left_, seat_right
+
+![veh_zil_131]
+netcoop_seats = seat_left_, seat_right
+
+![veh_btr]
+netcoop_seats = seat_left, seat_right, seat_left:0:0:-1.6, seat_right:0:0:-1.6
+netcoop_trunk = false
+
+![veh_hl2baggi]
+netcoop_seats = seat_left, seat_right
+
+![veh_kavz]
+netcoop_seats = seat_left, seat_left:0.9:0:-1.0, seat_left:0:0:-1.8, seat_left:0.9:0:-1.8
+
+![veh_laz]
+netcoop_seats = seat_left
+
+![veh_tr13]
+netcoop_seats = seat_left
+netcoop_trunk = false

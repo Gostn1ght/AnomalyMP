@@ -30,9 +30,16 @@ local function server_actor(entity_id)
 	return obj, se
 end
 
+-- Drivable cars (doc 100) have a cost too, but stand in the world.
+local VEHICLE_CLASSES = { SCRPTCAR = true, C_NIVA = true }
+local function is_vehicle_section(section)
+	return VEHICLE_CLASSES[ini_sys:r_string_ex(section, "class") or ""] == true
+end
+
 local function is_item_section(section)
 	-- Items have an inventory cost; creatures, squads and props do not.
 	return ini_sys:line_exist(section, "cost") and not ini_sys:line_exist(section, "npc_in_squad")
+		and not is_vehicle_section(section)
 end
 
 local function spawn_items(entity_id, section, count)
@@ -224,6 +231,11 @@ function on_client_command(cid, name, entity_id, text, role)
 			local obj = server_actor(entity_id)
 			if not obj then return "! your Actor is not on the server" end
 			local p = obj:position()
+			if is_vehicle_section(section) then
+				-- A car 5 m in front of the player, not on top of them.
+				local d = obj:direction()
+				return spawn_world(entity_id, section, p.x + d.x * 5, p.y + 0.5, p.z + d.z * 5)
+			end
 			return spawn_world(entity_id, section, p.x + 2, p.y, p.z + 2)
 		end
 		return spawn_items(entity_id, section, count)

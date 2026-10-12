@@ -1275,4 +1275,7 @@
   <string id="st_netcoop_role_player">
     <text>The server administrator removed your administrator rights</text>
   </string>
+  <string id="st_netcoop_seat_taken">
+    <text>This seat is taken</text>
+  </string>
 </string_table>

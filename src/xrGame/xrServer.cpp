@@ -1162,6 +1162,10 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
 		if (!CL->flags.bLocal && CL->netcoop_role != netcoop::role_none)
 			netcoop::server_on_voice(this, CL, P);
 		break;
+	case M_NETCOOP_VEHICLE:
+		if (!CL->flags.bLocal && CL->netcoop_role != netcoop::role_none)
+			netcoop::server_on_vehicle(this, CL, P);
+		break;
 	case M_NETCOOP_ITEM_ACTION:
 		if (!CL->flags.bLocal && CL->netcoop_role != netcoop::role_none)
 			netcoop::server_on_item_action(this, CL, P);

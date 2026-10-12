@@ -17,6 +17,7 @@
 #include "CameraLook.h"
 #include "CameraFirstEye.h"
 #include "holder_custom.h"
+#include "Car.h"
 #include "UIGameCustom.h"
 //.#include "ui/uiinventoryWnd.h"
 #include "game_base_space.h"
@@ -378,6 +379,9 @@ void CActor::OnEvent(NET_Packet& P, u16 type)
 				break;
 			}
 			VERIFY(m_holder==NULL);
+			// Multiplayer cars have their own seats (netcoop_vehicles.inc, doc 100).
+			if (netcoop::enabled() && smart_cast<CCar*>(O))
+				break;
 			CHolderCustom* holder = smart_cast<CHolderCustom*>(O);
 			if (!holder->Engaged()) use_Holder(holder);
 		}

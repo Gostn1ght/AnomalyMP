@@ -39,6 +39,7 @@ BONE_P_MAP CCar::bone_map = BONE_P_MAP();
 #ifdef CAR_NEW
 #include "script_game_object.h"
 #include "script_hit.h"
+#include "netcoop.h"
 #endif
 
 CCar::CCar()
@@ -1983,6 +1984,15 @@ void CCar::ResetScriptData(void* P)
 
 void CCar::PhDataUpdate(float step)
 {
+	// Lost Zone: a client's car is a replica of the server's; power, rpm and
+	// steering come from the server (netcoop_replica_state). Computing them
+	// from the fixed replica wheels stalled the engine on every client.
+	if (netcoop::pure_client())
+	{
+		m_current_rpm = m_netcoop_rpm;
+		m_steer_angle = m_netcoop_steer;
+		return;
+	}
 #ifdef CAR_NEW
     if (m_car_drone)
     {
@@ -2439,4 +2449,94 @@ Fvector CCar::ExitPosition()
 	if (!m_doors.empty())m_doors.begin()->second.GetExitPosition(m_exit_position);
 	else m_exit_position.set(Position());
 	return m_exit_position;
+}
+// ---------------------------------------------------------------------------
+// Lost Zone multiplayer (doc 100): the server drives with the driver's keys.
+// ---------------------------------------------------------------------------
+void CCar::netcoop_drive(u8 keys)
+{
+	const u8 changed = keys ^ m_netcoop_keys;
+	if (!changed)
+		return;
+	// The engine starts by itself when the driver presses a pedal.
+	if ((keys & (netcoop_key_forward | netcoop_key_back)) && !b_engine_on)
+	{
+		StartEngine();
+		Clutch();
+	}
+	struct KeyMap { u8 bit; void (CCar::*press)(); void (CCar::*release)(); };
+	static const KeyMap map[] = {
+		{netcoop_key_forward, &CCar::PressForward, &CCar::ReleaseForward},
+		{netcoop_key_back, &CCar::PressBack, &CCar::ReleaseBack},
+		{netcoop_key_left, &CCar::PressLeft, &CCar::ReleaseLeft},
+		{netcoop_key_right, &CCar::PressRight, &CCar::ReleaseRight},
+		{netcoop_key_handbrake, &CCar::PressBreaks, &CCar::ReleaseBreaks},
+	};
+	// Releases first, so a key swapped in the same packet presses cleanly.
+	for (const KeyMap& key : map)
+		if ((changed & key.bit) && !(keys & key.bit))
+			(this->*key.release)();
+	for (const KeyMap& key : map)
+		if ((changed & key.bit) && (keys & key.bit))
+			(this->*key.press)();
+	m_netcoop_keys = keys;
+	if (keys)
+		PPhysicsShell()->Enable();
+}
+
+void CCar::netcoop_engage(bool driver)
+{
+	if (driver)
+	{
+		// What attach_Actor does for the single-player driver.
+		PPhysicsShell()->Enable();
+		processing_activate();
+		ReleaseHandBreak();
+		return;
+	}
+	netcoop_drive(0);
+	NeutralDrive();
+	Unclutch();
+	ResetKeys();
+	StopEngine();
+	HandBreak();
+	m_current_rpm = m_min_rpm;
+}
+
+void CCar::netcoop_toggle(u8 what)
+{
+	if (what == 0)
+	{
+		if (b_engine_on) StopEngine();
+		else StartEngine();
+	}
+	else if (what == 1)
+	{
+		m_lights.SwitchHeadLights();
+		m_netcoop_lights = !m_netcoop_lights;
+	}
+}
+
+void CCar::netcoop_replica_state(bool engine, bool lights, float rpm, float steer)
+{
+	if (engine != b_engine_on)
+	{
+		if (engine)
+		{
+			// The replica has no fuel of its own; the server spends it.
+			if (m_fuel < EPS) m_fuel = 1.f;
+			StartEngine();
+		}
+		else
+			StopEngine();
+	}
+	if (lights != m_netcoop_lights)
+	{
+		m_lights.SwitchHeadLights();
+		m_netcoop_lights = lights;
+	}
+	m_netcoop_rpm = rpm;
+	m_netcoop_steer = steer;
+	m_current_rpm = rpm;
+	m_steer_angle = steer;
 }

@@ -141,6 +141,7 @@ enum
 	M_NETCOOP_CAMPFIRE, // server -> client: u16 n, n x (u16 id, u8 on); client -> server: u16 id, u8 on
 	M_NETCOOP_VOICE, // voice frames: client -> server (talker), server -> client (listeners); netcoop_voice.inc
 	M_NETCOOP_ITEM_UPGRADE, // server -> client: u16 item, stringZ upgrade (installed by the server)
+	M_NETCOOP_VEHICLE, // vehicles (netcoop_vehicles.inc): u8 op, then the op's fields
 	MSG_FORCEDWORD = u32(-1)
 };
 static_assert(M_CL_INPUT == 9 && M_CL_UPDATE == 10 && M_CL_INPUT_ACK == 53,

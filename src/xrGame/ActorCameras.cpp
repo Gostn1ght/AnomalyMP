@@ -587,6 +587,9 @@ void CActor::cam_Update(float dt, float fFOV)
 	float _viewport_near = VIEWPORT_NEAR;
 	// calc point
 	xform.transform_tiny(point);
+	// In a car (doc 100) the eye is the seat's, moving with the car.
+	if (netcoop_seated())
+		point.set(m_netcoop_seat_eye_world);
 
 	CCameraBase* C = cam_Active();
 

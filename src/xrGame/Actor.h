@@ -614,6 +614,25 @@ public:
 	void rp_finish();
 	bool rp_play_motion(const shared_str& name);
 	void rp_send(u8 index);
+
+	// Netcoop vehicle seat (netcoop_vehicles.inc, doc 100): on the server, the
+	// own client and every other client the seated player is placed at the
+	// car's pose times the seat; no character capsule, no own movement.
+	u16 m_netcoop_seat_car = 0xffff;
+	u8 m_netcoop_seat = 0;
+	bool m_netcoop_seat_driver = false;
+	Fmatrix m_netcoop_seat_local; // seat root in the car's space
+	Fvector m_netcoop_seat_eye; // eye in the car's space
+	Fvector m_netcoop_seat_eye_world;
+	float m_netcoop_seat_car_yaw = 0.f;
+	bool m_netcoop_seat_yaw_valid = false;
+	bool m_netcoop_seat_character = false; // had a character capsule before sitting down
+	MotionID m_netcoop_seat_motion;
+	bool netcoop_seated() const { return m_netcoop_seat_car != 0xffff; }
+	void netcoop_seat_enter(u16 car, u8 seat, bool driver, const Fmatrix& local, const Fvector& eye);
+	void netcoop_seat_leave(const Fvector& exit);
+	void netcoop_seat_place();
+	bool netcoop_seat_animation();
 	// Offset = the least delay seen in the current and the previous second:
 	// the first updates after a join arrive seconds late, and a minimum over
 	// all time made the player's snapshot times jump back by those seconds.

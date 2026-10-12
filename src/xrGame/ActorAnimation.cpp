@@ -497,6 +497,9 @@ void CActor::g_SetAnimation(u32 mstate_rl)
 	// A netcoop RP animation drives the whole body while it plays.
 	if (m_rp_index >= 0 && rp_update())
 		return;
+	// Sitting in a car (doc 100): the steering or passenger pose.
+	if (netcoop_seated() && g_Alive() && netcoop_seat_animation())
+		return;
 	if (!g_Alive())
 	{
 		if (m_current_legs || m_current_torso)
