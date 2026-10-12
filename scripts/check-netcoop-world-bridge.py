@@ -308,6 +308,9 @@ with TemporaryDirectory(prefix="world-bridge-") as tmp:
         fixture_timelines.schedule("admin",uuid.uuid4().hex,"weather",uuid.uuid4().hex,0,
                                   {"TRANSITION":1000,"SETTLED":2000},
                                   {"source":"clear","target":"rain","seed":2**64-1})
+        # Background catch-up first: a mutation resolves earlier due events only
+        # within a 5 ms real-time budget and refuses otherwise (slow CI runners).
+        fixture_timelines.scheduler.run_due(limit=64,budget_ms=1000)
         fixture_timelines.schedule("admin",uuid.uuid4().hex,"emission",uuid.uuid4().hex,0,
                                   {"WARNING":1100,"ACTIVE":1200,"PEAK":1400,"ENDED":1800},
                                   {"intensity":.8,"seed":0})
