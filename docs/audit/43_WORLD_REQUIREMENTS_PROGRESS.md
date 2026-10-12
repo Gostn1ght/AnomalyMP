@@ -461,6 +461,13 @@ Simulation Catch-Up, звуковые события/следы. Контрак�
 - [ ] L16. Scavenging ограничен carry capacity/needs/value/faction;
   NPC не получает бесконечный инвентарь.
 - [ ] L17. Смена оружия NPC оставляет прежнее оружие с тем же item identity.
+  Код/fixture (док 97): GAMMA `xr_gather_items.gather_item` при подборе с земли
+  клонировал оружие (`alife_clone_weapon`) и пересоздавал прочее, включая
+  артефакты, с новым ID. На сервере NPC берёт тот же объект (`npc:take_item`):
+  ID, апгрейды, состояние частей и число патронов сохраняются; предмет, который
+  успел поднять игрок, остаётся у игрока. Прежнее оружие остаётся в инвентаре
+  (best_weapon выбирает движок), торговые работы GAMMA оружие не продают,
+  death_manager оружие на трупе не удаляет. В игре не проверено.
 - [ ] L18. Containers имеют authoritative inventory/owner/lock/version;
   pickup/trade выполняются общей транзакцией.
 - [ ] L19. Corpse: entity ID, death time/cause, inventory и quest association.

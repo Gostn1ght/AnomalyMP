@@ -73,9 +73,87 @@ function near_player(obj)
 	return false
 end
 
+----------------------------------------------------------------------
+-- NPCs picking items up from the ground keep the same item (doc 43 L17).
+-- GAMMA's xr_gather_items.gather_item never picks the item up: a weapon is
+-- cloned (alife_clone_weapon: new object, old one released) and anything
+-- else, artefacts included, is created anew in the NPC and the ground one
+-- released. The weapon an NPC changes to, the artefact it finds, the ammo
+-- box (with its real count) changed ID, lost its upgrades/parts state and
+-- its persistent identity. Here the NPC takes that very object (Modded
+-- Exes npc:take_item, a normal ownership event on the server); GAMMA's
+-- own code runs unchanged, only these three calls inside xr_gather_items
+-- are shadowed in its module table. An item someone picked up meanwhile is
+-- left with them (GAMMA released it from their inventory and gave the NPC a
+-- copy). An exe without take_item keeps GAMMA's behaviour otherwise.
+----------------------------------------------------------------------
+
+local NO_PARENT = 65535
+
+local function take(npc_id, item_id)
+	local npc = level.object_by_id(npc_id)
+	local item = level.object_by_id(item_id)
+	if not (npc and item and npc.take_item and npc:alive()) then return false end
+	if item:parent() then return false end
+	npc:take_item(item)
+	return true
+end
+
+local deferred -- gather_item's alife_create_item(section, npc), waiting for its release
+
+local function flush(create)
+	local d = deferred
+	deferred = nil
+	if d then create(d.section, d.where, d.props) end
+end
+
+function hook_gather(m)
+	if not m or m.netcoop_same_item then return end
+	m.netcoop_same_item = true
+	local clone, create, release = alife_clone_weapon, alife_create_item, alife_release
+	m.alife_clone_weapon = function(se, section, parent_id)
+		if se and parent_id and se.parent_id == NO_PARENT and (section == nil or section == se:section_name())
+		and take(parent_id, se.id) then
+			return se
+		end
+		return clone(se, section, parent_id)
+	end
+	m.alife_create_item = function(section, where, props)
+		flush(create)
+		local object = type(where) == "userdata" or type(where) == "table" and where.id ~= nil
+		if props == nil and object then
+			deferred = {section = section, where = where, props = props}
+			return
+		end
+		return create(section, where, props)
+	end
+	m.alife_release = function(se, ...)
+		local d = deferred
+		if d and se and se.parent_id ~= NO_PARENT and se:section_name() == d.section then
+			-- someone (a player) picked it up first: GAMMA would release it
+			-- from their inventory and give the NPC a copy
+			deferred = nil
+			return false
+		end
+		if d and se and se.parent_id == NO_PARENT and se:section_name() == d.section then
+			local ok, npc_id = pcall(function() return d.where:id() end)
+			if ok and npc_id and take(npc_id, se.id) then
+				deferred = nil
+				printf("[Lost Zone][loot] %s picked up %s (id %s kept)", tostring(d.where:name()), d.section, tostring(se.id))
+				return true
+			end
+		end
+		flush(create)
+		return release(se, ...)
+	end
+end
+
 function on_game_start()
 	if not (netcoop_enabled and netcoop_enabled()) or (netcoop_pure_client and netcoop_pure_client()) then return end
 	RegisterScriptCallback("npc_on_get_all_from_corpse", on_get)
 	if xr_corpse_detection then xr_corpse_detection.near_actor = near_player end
-	if xr_gather_items then xr_gather_items.near_actor = near_player end
+	if xr_gather_items then
+		xr_gather_items.near_actor = near_player
+		hook_gather(xr_gather_items)
+	end
 end
