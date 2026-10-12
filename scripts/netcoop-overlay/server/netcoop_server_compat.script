@@ -127,6 +127,12 @@ end
 
 function install()
 	if installed then return end
+	-- Lost Zone: the dedicated anchor has no player binder, but spawning its
+	-- torch still reads Actor persistent variables before any player connects.
+	-- Give it storage without making it db.actor or replacing saved values.
+	if type(db.storage) == "table" and db.storage[STORY_AC_ID] == nil then
+		db.storage[STORY_AC_ID] = { pstor = {} }
+	end
 	install_actor_conditions()
 	installed = true
 	isolate_callbacks()

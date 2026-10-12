@@ -1,0 +1,10 @@
+// Lost Zone: use GAMMA's thermal calculation for the optional full-screen
+// heatvision pass. The DX9 placeholder is not a DX11 pixel shader.
+#include "thermal_utils.h"
+
+float4 main(p_screen I) : SV_Target
+{
+    gbuffer_data gbd = gbuffer_load_data(I.tc0, I.hpos, 0);
+    float heat = infrared(gbd, I.hpos.xy, I.tc0);
+    return float4(heat, heat, heat, 1.0);
+}

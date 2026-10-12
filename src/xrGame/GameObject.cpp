@@ -1195,7 +1195,13 @@ LPCSTR CGameObject::visual_name(CSE_Abstract* server_entity)
 {
 	const CSE_Visual* visual = smart_cast<const CSE_Visual*>(server_entity);
 	VERIFY(visual);
-	return (visual->get_visual());
+	LPCSTR name = visual->get_visual();
+	// An unset spawn visual (map inventory boxes) means the section's default.
+	// Resolve it before trying to load a model named "". Explicit missing model
+	// names still take the diagnostic fallback in net_Spawn.
+	if ((!name || !*name) && pSettings->line_exist(cNameSect(), "visual"))
+		return pSettings->r_string(cNameSect(), "visual");
+	return name;
 }
 
 bool CGameObject::animation_movement_controlled() const

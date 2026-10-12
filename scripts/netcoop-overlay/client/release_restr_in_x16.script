@@ -1,0 +1,27 @@
+local function on_game_load()
+	
+	if has_alife_info("x16_restr_release") then
+		return
+	end
+	
+	for i=1, 65534 do
+		
+		local sobj = alife_object(i)
+		
+		if sobj and sobj:name() == "yan_attack_zombies_space_restrictor" then
+			
+			-- Lost Zone: second argument is the diagnostic release reason, not a boolean.
+			alife_release(sobj)
+			give_info("x16_restr_release")
+			
+			break
+		
+		end
+		
+	end
+	
+end
+
+function on_game_start()
+	RegisterScriptCallback("on_game_load", on_game_load)
+end

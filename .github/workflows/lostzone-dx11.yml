@@ -38,6 +38,8 @@ jobs:
           python scripts/check-netcoop-mines.py
           python scripts/check-lzpack.py
           python scripts/check-lzpack-release.py
+          python scripts/check-gamma-exclusive-jobs.py
+          python scripts/check-gamma-console-fixes.py
           python scripts/check-netcoop-world-rules.py
           python scripts/check-netcoop-sandbox.py
           python scripts/check-netcoop-traders.py
@@ -153,6 +155,8 @@ jobs:
           python scripts/check-native-console-capture.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-console-vector.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-spawn-visual.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-script-watchdog.py
           if errorlevel 1 exit /b %errorlevel%
