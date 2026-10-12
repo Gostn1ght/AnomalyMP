@@ -42,6 +42,7 @@ template<class...T>void strconcat(unsigned size,char* out,T...){assert(size>0);o
 template<class...T>void Msg(LPCSTR,T...){}
 constexpr bool FALSE=false;
 bool psNET_direct_connect=false,g_dedicated_server=false;
+int terminated=0;void FlushLog(){}void* GetCurrentProcess(){return nullptr;}bool TerminateProcess(void*,unsigned){++terminated;return true;}
 namespace xrServer {enum {ErrConnect=7};}
 struct CoreType {const char* Params="";} Core;
 struct ConsoleType {int calls=0;void Execute(LPCSTR){++calls;}} console;
@@ -104,7 +105,7 @@ int main(){
   if(captured && !covered)assert(dummy.activated==1 && level.deactivated==1);
   else assert(dummy.activated==0 && overlay.activated==0);
  }
- {CLevel level;reset(level,false);g_dedicated_server=true;assert(level.net_start6());assert(!unsafe_deletions && !menu.switched);}
+ {CLevel level;reset(level,false);g_dedicated_server=true;terminated=0;assert(level.net_start6());assert(!unsafe_deletions && !menu.switched);assert(terminated==1);}
  {CLevel level;reset(level,true);psNET_direct_connect=true;level.m_connect_server_err=xrServer::ErrConnect;assert(level.net_start6());assert(!unsafe_deletions && !menu.switched);}
  // Successful admission keeps the level and input ownership and runs OnConnected.
  {CLevel level;reset(level,true);level.net_start_result_total=true;assert(level.net_start6());assert(!level.deleted && !level.released && input.contains(&level) && ui.connected==1);}
