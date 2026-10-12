@@ -1,3 +1,5 @@
+-- Lost Zone: save_state must capture the same surge flag as actor_on_update.
+local new_surge = true
 -- werejew
 
 -- this file is going to be used to determine faction stats such as respawn times for now.
@@ -265,7 +267,7 @@ end
 local last_update
 
 local first_update = true
-local new_surge = true
+-- Lost Zone: new_surge is declared before save_state.
 local old_surge_cnt
 
 -- callback for the actors update method

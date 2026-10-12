@@ -20,11 +20,12 @@ def mask_lua(source, strings=True):
     """Blank comments/strings but preserve lines; long Lua brackets may use '='."""
     output = list(source)
     position = 0
+    bracket = re.compile(r'\[(=*)\[')
     while position < len(source):
         begin = position
         comment = source.startswith('--', position)
         content = position + 2 if comment else position
-        long = re.match(r'\[(=*)\[', source[content:])
+        long = bracket.match(source, content)
         if long:
             close = ']' + long.group(1) + ']'
             finish = source.find(close, content + len(long.group(0)))

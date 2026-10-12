@@ -29,7 +29,9 @@ FIXES = {
         '-- Lost Zone: an old update label, not an error.')],
     "warfare.script": [(
         '\t\tprintf("~ Warfare is not loaded, unregistered warfare callbacks")',
-        '\t\t-- Lost Zone: warfare is intentionally disabled in GAMMA; callbacks were removed.')],
+        '\t\t-- Lost Zone: warfare is intentionally disabled in GAMMA; callbacks were removed.'), (
+        'local new_surge = true\r\n',
+        '-- Lost Zone: new_surge is declared before save_state.\r\n')],
     "release_restr_in_x16.script": [(
         '\t\t\talife_release(sobj, true)',
         '\t\t\t-- Lost Zone: second argument is the diagnostic release reason, not a boolean.\r\n'
@@ -44,7 +46,9 @@ FIXES = {
         '\tif not opt_val[id] then\r\n\t\tprinte("!MCM given bad path:%s",id)\r\n\t\treturn\r\n\tend',
         '\t-- Lost Zone: mods read options they never put in the menu, with their own\r\n'
         '\t-- default (PAW, Faction ID, MilPDA, EA): not an error, no console line.\r\n'
-        '\tif not opt_val[id] then\r\n\t\treturn\r\n\tend')],
+        '\tif not opt_val[id] then\r\n\t\treturn\r\n\tend'), (
+        'local GUI\r\n',
+        '-- Lost Zone: GUI is declared before get_gui.\r\n')],
     "callbacks_gameobject.script": [(
         'AddScriptCallback("imgui_on_render")\r\n',
         '-- Lost Zone: axr_main already declares imgui_on_render; adding it again was an error.\r\n')],
@@ -78,6 +82,10 @@ def apply(name, pairs):
         if text.count(old) != 1:
             raise SystemExit(f"{name}: pattern found {text.count(old)} times: {old[:60]!r}")
         text = text.replace(old, new)
+    if name == "ui_mcm.script":
+        text = '-- Lost Zone: get_gui must capture the same window used by UI_MCM.\r\nlocal GUI\r\n' + text
+    elif name == "warfare.script":
+        text = '-- Lost Zone: save_state must capture the same surge flag as actor_on_update.\r\nlocal new_surge = true\r\n' + text
     data = text.encode("latin-1")
     for side in ("client", "server"):
         (O / side / name).write_bytes(data)

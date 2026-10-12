@@ -1,3 +1,5 @@
+-- Lost Zone: get_gui must capture the same window used by UI_MCM.
+local GUI
 
 --[[
 	RavenAcsendant
@@ -767,7 +769,7 @@ end
 --//////////////////////// OPTIONS //////////////////////////
 --===========================================================
 UIMCM = {} --old monkey patch black hole
-local GUI
+-- Lost Zone: GUI is declared before get_gui.
 class "UI_MCM" (CUIScriptWnd)
 
 function UI_MCM:__init() super()
