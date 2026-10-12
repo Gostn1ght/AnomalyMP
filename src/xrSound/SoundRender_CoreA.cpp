@@ -11,6 +11,8 @@
 
 #include <AL/efx.h>
 
+extern bool g_dedicated_server;
+
 BOOL reverb_overwrite = FALSE;
 
 float psReverbDensity                = AL_EAXREVERB_DEFAULT_DENSITY;
@@ -428,7 +430,9 @@ void CSoundRender_CoreA::_initialize(int stage)
 	A_CHK(alListener3f (AL_VELOCITY,0.f,0.f,0.f));
 	Fvector orient[2] = {{0.f, 0.f, 1.f}, {0.f, 1.f, 0.f}};
 	A_CHK(alListenerfv (AL_ORIENTATION,&orient[0].x));
-	A_CHK(alListenerf (AL_GAIN,1.f));
+	// A dedicated server keeps its sound logic (NPCs hear shots) but is silent:
+	// it played the game's sounds on the hoster's speakers (owner 2026-10-12).
+	A_CHK(alListenerf (AL_GAIN,g_dedicated_server ? 0.f : 1.f));
 
 	// Check for EFX extension
 
@@ -524,7 +528,7 @@ void CSoundRender_CoreA::set_master_volume(float f)
 {
 	if (bPresent)
 	{
-		A_CHK(alListenerf (AL_GAIN,f));
+		A_CHK(alListenerf (AL_GAIN,g_dedicated_server ? 0.f : f));
 	}
 }
 
