@@ -179,7 +179,7 @@ Distance/overload tiers для NPC/мутантов/игроков, описан
 | Пункт | Статус | Что есть |
 |---|---|---|
 | F01 PersistentID, version, owner и fence для всех persistent entities | 🟡 | backend ItemLedger/CAS/dedup/fault tests (Codex); native adapter нет |
-| F02 Реестр entity mapping: engine object ↔ persistent representation | ⬜ |  |
+| F02 Реестр entity mapping: engine object ↔ persistent representation | 🟡 | предметы: серверный реестр engine ID ↔ 64-битный uid с поколением (incarnation) при переиспользовании ID; uid переживает уход в офлайн (s_item_offline) и восстановление персонажа (s_item_restore) — netcoop_items.inc, netcoop_item_uid; для NPC/прочих сущностей persistent ID — ID ALife в сохранении мира; 128-битного реестра нет (док 97) |
 | F03 ItemLedger: предмет существует ровно в одном месте/инвентаре | 🟡 | backend ItemLedger/CAS/dedup/fault tests (Codex); native adapter нет |
 | F04 Единый atomic MoveItem вместо независимых remove/add | 🟡 | backend ItemLedger/CAS/dedup/fault tests (Codex); native adapter нет |
 | F05 WORLD/PLAYER/NPC/CORPSE/STASH/CONTAINER/TRADE/TRANSFER/DESTROYED | 🟡 | backend ItemLedger/CAS/dedup/fault tests (Codex); native adapter нет |
