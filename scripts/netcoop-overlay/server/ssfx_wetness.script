@@ -1,0 +1,6 @@
+-- Lost Zone server: Screen Space Shaders' wetness/gloss settings are client graphics.
+-- A dedicated server renders nothing and has no MCM values for them: it sent
+-- "ssfx_gloss_minmax (0,0,0)" with zeros, an invalid console command, on every start.
+-- Other scripts only test that the module is present.
+module_installed = true
+function on_game_start() end

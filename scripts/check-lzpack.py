@@ -59,5 +59,16 @@ with TemporaryDirectory() as tmp:
     root=Path(__file__).resolve().parents[1]
     for role in ('client','server'):
         template=(root/f'scripts/dist/fsgame_{role}.template').read_text()
-        assert template.index('$arch_dir_lostzone_updates$')>template.index('$game_scripts$')
+        if '$arch_dir_lostzone_updates$' in template:
+            assert template.index('$arch_dir_lostzone_updates$')>template.index('$game_scripts$')
+        else:
+            # The server mounts one resources folder. Archive filename order
+            # gives 99_lz_patch_* precedence over the 95_server_* base; the
+            # actual release builder and mounted layout are checked below by
+            # check-lzpack-release.py as well.
+            aliases=[line.split('=')[0].strip() for line in template.splitlines()
+                     if line.startswith('$arch_dir')]
+            assert aliases==['$arch_dir$'], aliases
+            assert '$arch_dir$ = false | false | {ROOT}resources\\' in template
+            assert '95_server_base.db0' < '99_lz_patch_000006_server.db0'
 print('PASS protected archives: random reads, full roundtrip, wrong key/tampered headers/cipher/tags/block swaps rejected, patch table and latest precedence, no private files')

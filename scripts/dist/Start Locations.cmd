@@ -54,7 +54,7 @@ exit /b 0
 rem %1 название, %2 карта, %3 порт, %4 стартовая точка, %5 мир, %6 имя лога
 set /a PORTCL=%3+1
 echo [%time:~0,8%] Запуск: %1 (порт %3)
-start "LZ %2 %3" /belownormal "dedicated\LostZoneServerDX11.exe" -nosplashwindow -noprefetch -netcoop -dbg -multi_instance -logname %6 -fsltx fsgame_server.ltx -netport %3 -netcoop_start_location=%4 -netcoop_world=%5 -netcoop_hibernate=120 -start "server(all/single/alife/new/portsv=%3/maxplayers=129)" "client(localhost/name=serverauthority/port=%3/portcl=%PORTCL%)"
+start "LZ %2 %3" /belownormal "dedicated\LostZoneServerDX11.exe" -nosplashwindow -noprefetch -netcoop -multi_instance -logname %6 -fsltx fsgame_server.ltx -netport %3 -netcoop_start_location=%4 -netcoop_world=%5 -netcoop_hibernate=120 -start "server(all/single/alife/new/portsv=%3/maxplayers=129)" "client(localhost/name=serverauthority/port=%3/portcl=%PORTCL%)"
 echo           жду %WAIT% с, пока карта загрузится...
 timeout /t %WAIT% /nobreak >nul
 exit /b 0

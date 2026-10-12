@@ -114,7 +114,7 @@ function Start-Location($s) {
     $s.State = 'loading'; $s.LoadStarted = Get-Date; $s.MilestoneAt = $null
     Publish-HostState
     $log = if ($s.Name -eq "k00_marsh") { "srv" } else { "srv_$($s.Name)" }
-    $arguments = "-nosplashwindow -noprefetch -netcoop -dbg -multi_instance -logname $log -fsltx fsgame_server.ltx " +
+    $arguments = "-nosplashwindow -noprefetch -netcoop -multi_instance -logname $log -fsltx fsgame_server.ltx " +
         "-netport $($s.Port) -netcoop_start_location=$($s.Start) -netcoop_world=$($s.World) " +
         # Empty for 2 min: hibernate (world saved, RAM returned, wakes on connect).
         # On-demand maps exit only after 6 h empty, or when Make-Room needs memory.

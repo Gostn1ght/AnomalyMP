@@ -392,7 +392,13 @@ protected:
 		if (4 != sscanf(args, "%f,%f,%f,%f", &v.x, &v.y, &v.z, &v.w))
 		{
 			if (4 != sscanf(args, "(%f,%f,%f,%f)", &v.x, &v.y, &v.z, &v.w))
-				return false;
+			{
+				// Screen Space Shaders scripts of older updates send three values
+				// for some of these settings (ssfx_gloss_minmax): the last one is 0.
+				v.w = 0.f;
+				if (3 != sscanf(args, "(%f,%f,%f)", &v.x, &v.y, &v.z) && 3 != sscanf(args, "%f,%f,%f", &v.x, &v.y, &v.z))
+					return false;
+			}
 		}
 
 		if (v.x < min.x || v.y < min.y || v.z < min.z || v.w < min.w)

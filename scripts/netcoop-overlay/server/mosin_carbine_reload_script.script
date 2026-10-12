@@ -1,0 +1,180 @@
+local cache = {}
+local previous_anim = ""
+local bolt_close_anim = "anm_close"
+local add_cartridge_anim = "anm_add_cartridge"
+local bolt_open_anim = "anm_open"
+local event_id = script_name()
+local play_holser_next = false
+local is_playing_empty_reload = false
+local hide_anim_time = 0
+
+function get_anm_info(item, motion)
+	if not (item and motion) then
+		return false
+	end
+	
+	local sec = item:section()
+	if cache[sec] and (cache[sec][motion] ~= nil) then
+		return cache[sec][motion]
+	end
+	
+	-- Caching for the first time
+	if (not cache[sec]) then
+		cache[sec] = {}
+	end
+	
+	local hud_sec = ini_sys:r_string_ex(sec,"hud")
+	if (not hud_sec) then
+		cache[sec][motion] = false
+		return  false
+	end
+	
+	cache[sec][motion] = ini_sys:r_string_ex(hud_sec,motion) and game.get_motion_length(hud_sec, motion, 1) / 1000 or false
+	return cache[sec][motion]
+end
+
+function try_force_bolt_close(anim_name, item)
+	if item:get_ammo_in_magazine() == 0 then
+		return
+	end
+	
+	local is_hide = anim_name == "anm_hide"
+
+	if ( (previous_anim == add_cartridge_anim) and 
+		 anim_name ~= bolt_close_anim and 
+		 (anim_name ~= add_cartridge_anim)
+	) or (previous_anim == bolt_open_anim and is_hide) then				
+		if is_hide then
+			CreateTimeEvent(event_id, "hide_arisaka", get_anm_info(item, "anm_close")-0.85, function()
+				CreateTimeEvent(event_id, 
+					"state_hidden", 
+					item:play_hud_motion("anm_hide", true, 3, 1, 0) / 1000 + 0.25, function()
+						item:switch_state(3)
+						return true
+					end
+				)
+				return true
+			end)
+		end
+
+		return true
+	end
+end
+
+function try_skip_bolt_close_on_empty_reload(anim_name, item)
+	if item:get_ammo_in_magazine() == 0 then
+		return
+	end
+	
+	if anim_name ~= bolt_close_anim and (not is_playing_empty_reload) then
+		return
+	end
+
+	is_playing_empty_reload = false
+
+	return true
+end
+
+function try_play_empty_reload(anim_name, item)
+	if item:get_ammo_in_magazine() ~= 0 then
+		return
+	end
+
+	if anim_name ~= bolt_open_anim then
+		return
+	end
+
+	is_playing_empty_reload = true
+
+	return true
+end
+
+anm_handlers = {
+	{ cond = try_play_empty_reload, 				anim = "anm_reload_empty" 	}, 
+	{ cond = try_skip_bolt_close_on_empty_reload, 	anim = "anm_skip_close"		}, 
+	{ cond = try_force_bolt_close, 					anim = bolt_close_anim 		},
+}
+
+function get_custom_anim_name(anim_name, item)
+	for i = 1, #anm_handlers do
+		local handler = anm_handlers[i]
+		if get_anm_info(item, handler.anim) then
+			anim_name = handler.cond(anim_name, item) and handler.anim or anim_name
+		end
+	end
+	return anim_name
+end
+
+
+function actor_on_hud_animation_play(anm_table, item)
+	local item = db.actor:active_item()
+	if not IsShotgun(item) then 
+		return
+	end
+
+	if not (item and SYS_GetParam(1, item:section(), "stripper_clip", false)) then
+        return
+    end
+
+	anm_table.anm_name = get_custom_anim_name(anm_table.anm_name, item)
+
+
+	if(anm_table.anm_name == "anm_reload_empty") then
+		xr_effects.play_snd(db.actor, nil, {[1] = "weapons\\arisaka\\handling\\arisaka_reload_full_stripper_clip" .. math.random(4)})
+	end
+
+	if(anm_table.anm_name == "anm_close") then
+		xr_effects.play_snd(db.actor, nil, {[1] = "weapons\\arisaka\\handling\\arisaka_bolt_end" .. math.random(2)})
+	end
+	
+	
+	previous_anim = anm_table.anm_name
+end
+
+function actor_on_hud_animation_mark(value,name)
+	local itm = db.actor:active_item()
+	if not (itm and IsWeapon(itm) and cache[itm:section()]) then
+		return
+	end
+	local wpn = itm:cast_Weapon()
+	if not (wpn) then
+		return
+	end
+	if (name ~= "reload_complete") then
+		return
+	end
+	-- Reload on empty.
+	local ammo_list = utils_item.get_ammo(nil,itm:id())
+	local ammo_name = ammo_list[itm:get_ammo_type() + 1]
+	local ammo_have = utils_item.get_amount(db.actor,ammo_name) or 0
+	local num = math.min(wpn:GetAmmoMagSize(),ammo_have)
+	--printf("GhenTuong: %s %s %s",ammo_name,ammo_have,num)
+	wpn:SetAmmoElapsed(num)
+	reduce_ammo(ammo_name,num)
+end
+
+function reduce_ammo(section,num)
+	local function f(_,itm)
+		if (itm and (itm:section() == section)) then
+			if (num <= 0) then
+				return
+			end
+			if (itm:ammo_get_count() > num) then
+				itm:ammo_set_count(itm:ammo_get_count() - num)
+				num = 0
+				return
+			end
+			num = num - itm:ammo_get_count()
+			alife_release(itm)
+		end
+	end
+	db.actor:iterate_inventory(f)
+end
+
+function on_game_start()
+	RegisterScriptCallback("actor_on_hud_animation_play",actor_on_hud_animation_play)
+    --RegisterScriptCallback("actor_on_hud_animation_end",actor_on_hud_animation_end)
+	RegisterScriptCallback("actor_on_hud_animation_mark",actor_on_hud_animation_mark)
+	-- Lost Zone: this script defines no actor_on_first_update (a nil callback).
+	if actor_on_first_update then RegisterScriptCallback("actor_on_first_update", actor_on_first_update) end
+end
