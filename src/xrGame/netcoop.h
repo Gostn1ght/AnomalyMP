@@ -214,6 +214,9 @@ bool server_open_ui(u16 actor_id, LPCSTR kind, u16 partner_id);
 bool script_trade(u16 partner_id, bool actor_sells, LPCSTR ids);
 // Starts the thread that reports and aborts a script call hanging a frame.
 void script_watchdog_start();
+// Main thread: bracket a level lifetime before Lua/object teardown begins.
+void script_watchdog_level_begin();
+void script_watchdog_level_end();
 void client_on_script(NET_Packet& P);
 bool server_set_role(LPCSTR login, u8 role, xr_string& message);
 void server_list_accounts(xr_string& out);

@@ -5,7 +5,8 @@ param(
     [int]$HoldSeconds = 45,
     [int]$LoadTimeoutSeconds = 300,
     [string[]]$Maps = @(),
-    [string]$RunName = 'console_20261012'
+    [string]$RunName = 'console_20261012',
+    [string]$TraceSymbols = ''
 )
 $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath($Runtime).TrimEnd('\')
@@ -19,6 +20,22 @@ $logs = Join-Path $root 'appdata\server\logs'
 $resultsFile = Join-Path $root "$RunName.results.json"
 $masterPort = 38777
 . (Join-Path $PSScriptRoot 'netcoop-cluster\netcoop_cluster_controls.ps1')
+
+function Read-TestLog([string]$Path, [int]$Attempts = 1) {
+    for ($attempt=0; $attempt -lt $Attempts; $attempt++) {
+        $reader = $null; $stream = $null
+        try {
+            $sharing = [IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete
+            $stream = [IO.FileStream]::new($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,$sharing)
+            $reader = [IO.StreamReader]::new($stream)
+            return $reader.ReadToEnd()
+        } catch [IO.IOException] {
+            # The engine may reopen/flush its log during startup.
+            if ($attempt+1 -lt $Attempts) { Start-Sleep -Milliseconds 200 }
+        } finally { if ($reader) { $reader.Dispose() } elseif ($stream) { $stream.Dispose() } }
+    }
+    return $null
+}
 
 # Use the complete production map/start list, with isolated local test ports.
 $sections = @{}; $section = ''
@@ -40,7 +57,11 @@ $plan += "[launch]`r`n"
 foreach ($map in $allMaps) { $plan += "$map = $($sections.launch[$map])`r`n" }
 Write-ClusterText (Join-Path $root 'appdata\server\netcoop_cluster.ltx') $plan
 
-$masterProcess = $null; $serverProcess = $null; $results = @()
+$masterProcess = $null; $serverProcess = $null; $traceProcess = $null; $results = @()
+if ($TraceSymbols) {
+    $TraceSymbols = [IO.Path]::GetFullPath($TraceSymbols).TrimEnd('\')
+    if (-not (Test-Path -LiteralPath (Join-Path $TraceSymbols 'LostZoneServerDX11.pdb'))) { throw 'CI dedicated symbols are required.' }
+}
 try {
     Push-Location $master
     try {
@@ -77,12 +98,18 @@ try {
                 "-start `"server(all/single/alife/new/portsv=$port/maxplayers=129)`" `"client(localhost/name=serverauthority/port=$port/portcl=$clientPort)`""
         Write-Output "START $map port=$port"
         $serverProcess = Start-Process -FilePath $exe -ArgumentList $args -WorkingDirectory $root -WindowStyle Hidden -PassThru
+        if ($TraceSymbols) {
+            $traceTool = Join-Path (Split-Path $PSScriptRoot) 'tools\trace-srvtest-exit.py'
+            $traceArgs = '"{0}" {1} "{2}"' -f $traceTool, $serverProcess.Id, $TraceSymbols
+            $traceProcess = Start-Process -FilePath (Get-Command python).Source -ArgumentList $traceArgs -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $root "$logName.trace.log") -RedirectStandardError (Join-Path $root "$logName.trace.err")
+        }
         $ready = $false; $connected = $false; $log = $null
         $deadline = (Get-Date).AddSeconds($LoadTimeoutSeconds)
         while (-not $serverProcess.HasExited -and (Get-Date) -lt $deadline) {
             $log = Get-ChildItem -LiteralPath $logs -Filter "xray_${logName}_*.log" -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -ge $since } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
             if ($log) {
-                $content = [IO.File]::ReadAllText($log.FullName)
+                $content = Read-TestLog $log.FullName
+                if ($null -eq $content) { Start-Sleep -Milliseconds 200; continue }
                 $ready = $content -match 'ALife switch distance|\[world\] saved \S+ \(bootstrap\)'
                 $connected = $content -match '\[master\] connected to the world master'
                 if ($ready -and $connected) { break }
@@ -97,7 +124,17 @@ try {
         }
         $savedExit = $serverProcess.HasExited
         if (-not $savedExit) { Stop-Process -Id $serverProcess.Id -Force; $serverProcess.WaitForExit() }
-        $lines = if ($log) { [IO.File]::ReadAllLines($log.FullName) } else { @() }
+        if ($traceProcess -and -not $traceProcess.HasExited) {
+            $null = $traceProcess.WaitForExit(10000)
+            if (-not $traceProcess.HasExited) { Stop-Process -Id $traceProcess.Id -Force }
+        }
+        $traceProcess = $null
+        $lines = @()
+        if ($log) {
+            $content = Read-TestLog $log.FullName 20
+            if ($null -eq $content) { throw 'Completed test log cannot be read; no result accepted.' }
+            $lines = $content -split "`r?`n"
+        }
         $errors = @($lines | Where-Object { $_ -match '^!|^~|STACK TRACEBACK|\bERROR\b|\bWARNING\b| is missing\. Replace with stub|\bFATAL\b' })
         $savedExit = $savedExit -and [bool]($lines -match 'hoster requested stop: characters and world saved')
         $cleanExit = $savedExit -and $serverProcess.ExitCode -eq 0
@@ -109,5 +146,6 @@ try {
     }
 } finally {
     if ($serverProcess -and -not $serverProcess.HasExited) { Stop-Process -Id $serverProcess.Id -Force }
+    if ($traceProcess -and -not $traceProcess.HasExited) { Stop-Process -Id $traceProcess.Id -Force }
     if ($masterProcess -and -not $masterProcess.HasExited) { Stop-Process -Id $masterProcess.Id -Force }
 }

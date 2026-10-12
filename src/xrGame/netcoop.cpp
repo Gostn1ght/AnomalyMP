@@ -3693,6 +3693,8 @@ bool server_open_ui(u16 actor_id, LPCSTR kind, u16 partner_id)
 namespace
 {
 volatile LONG wd_armed = 0;
+volatile LONG wd_quiescent = 0;
+SRWLOCK wd_hook_guard = SRWLOCK_INIT;
 volatile u32 wd_frame = 0;
 volatile u32 wd_since = 0;
 volatile bool wd_logged = false;
@@ -3703,9 +3705,26 @@ void wd_disarm(lua_State* L)
 	InterlockedExchange(&wd_armed, 0);
 }
 
+void wd_pause(lua_State* (*state)())
+{
+	// Serialize hook installation with level teardown. Lua is still alive here.
+	AcquireSRWLockExclusive(&wd_hook_guard);
+	InterlockedExchange(&wd_quiescent, 1);
+	if (wd_armed) wd_disarm(state());
+	ReleaseSRWLockExclusive(&wd_hook_guard);
+}
+
+void wd_resume()
+{
+	AcquireSRWLockExclusive(&wd_hook_guard);
+	wd_frame = 0;
+	InterlockedExchange(&wd_quiescent, 0);
+	ReleaseSRWLockExclusive(&wd_hook_guard);
+}
+
 void wd_hook(lua_State* L, lua_Debug*)
 {
-	if (Device.dwFrame != wd_frame)
+	if (InterlockedCompareExchange(&wd_quiescent, 0, 0) || Device.dwFrame != wd_frame)
 	{
 		wd_disarm(L);
 		return;
@@ -3736,6 +3755,27 @@ void wd_hook(lua_State* L, lua_Debug*)
 		FlushLog();
 		luaL_error(L, "netcoop: script hung for %u s", stuck / 1000);
 	}
+}
+
+bool wd_try_arm(u32 frame, u32 since, u32 now, lua_State* (*state)())
+{
+	AcquireSRWLockExclusive(&wd_hook_guard);
+	bool armed = false;
+	if (!wd_quiescent && !wd_armed && wd_frame != frame)
+	{
+		// Fetch Lua only under the same guard used before its level is destroyed.
+		lua_State* L = state();
+		if (L)
+		{
+			wd_frame = frame; wd_since = since; wd_logged = false;
+			InterlockedExchange(&wd_armed, 1);
+			Msg("! [Lost Zone] frame %u stuck for %u s, watching scripts", frame, (now - since) / 1000);
+			lua_sethook(L, wd_hook, LUA_MASKCOUNT, 10000);
+			armed = true;
+		}
+	}
+	ReleaseSRWLockExclusive(&wd_hook_guard);
+	return armed;
 }
 
 // Hitch sampling: a frame over 100 ms gets the main thread's native stack
@@ -3872,6 +3912,11 @@ DWORD WINAPI wd_thread(void*)
 		Sleep(10);
 		const u32 frame = Device.dwFrame;
 		const u32 now = GetTickCount();
+		if (InterlockedCompareExchange(&wd_quiescent, 0, 0))
+		{
+			last_frame = frame; since = now;
+			continue; // Unloading objects is not a gameplay frame.
+		}
 		if (sampling && g_pGameLevel) sample_profile_step(profile, now);
 		if (frame != last_frame)
 		{
@@ -3895,15 +3940,20 @@ DWORD WINAPI wd_thread(void*)
 		}
 		if (now - since < 20000 || wd_armed || !g_pGameLevel || wd_frame == frame)
 			continue;
-		wd_frame = frame;
-		wd_since = since;
-		wd_logged = false;
-		InterlockedExchange(&wd_armed, 1);
-		Msg("! [Lost Zone] frame %u stuck for %u s, watching scripts", frame, (now - since) / 1000);
-		lua_sethook(ai().script_engine().lua(), wd_hook, LUA_MASKCOUNT, 10000);
+		wd_try_arm(frame, since, now, []() -> lua_State* { return ai().script_engine().lua(); });
 	}
 }
 } // namespace
+
+void script_watchdog_level_begin()
+{
+	if (enabled()) wd_resume();
+}
+
+void script_watchdog_level_end()
+{
+	if (enabled()) wd_pause([]() -> lua_State* { return ai().script_engine().lua(); });
+}
 
 void script_watchdog_start()
 {

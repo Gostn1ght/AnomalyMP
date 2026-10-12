@@ -135,7 +135,7 @@ snd_close = weapons\walther\walther_close
 !snd_silncer_shot
 ''')
     text = (G.parent / "configs/environment/effects.ltx").read_bytes().decode("latin-1")
-    # The actual shipped sounds_ambient.db0 has wind1..4/storm1..3, no wind_01..10.
+    # The actual shipped sounds.db0 has wind1..4/storm1..3, no wind_01..10.
     # Keep the effect timing/strength and use the original wind recordings.
     winds = ("wind1", "wind2", "wind3", "wind4", "wind4",
              "wind_storm1", "wind_storm1", "wind_storm2", "wind_storm3", "wind_storm3")

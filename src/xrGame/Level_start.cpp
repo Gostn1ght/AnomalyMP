@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "level.h"
+#include "netcoop.h"
 #include "Level_Bullet_Manager.h"
 #include "xrserver.h"
 #include "game_cl_base.h"
@@ -30,6 +31,7 @@ void CLevel::net_StartPlayDemo()
 
 bool CLevel::net_Start(const char* op_server, const char* op_client)
 {
+	netcoop::script_watchdog_level_begin();
 	net_start_result_total = TRUE;
 
 	pApp->LoadBegin();
