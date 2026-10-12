@@ -188,7 +188,10 @@ function hunt_look(hour)
 	local here = sim and level_of(sim:actor())
 	if not here then return 0 end
 	local squads = hunting_squads(here)
-	if #squads == 0 then return 0 end
+	if #squads == 0 then
+		printf("[Lost Zone][artefacts] offline search: no hunting squad at a smart terrain")
+		return 0
+	end
 	local lying = {}
 	sim:iterate_objects(function(se)
 		if se.parent_id == NO_PARENT and se.online ~= true and IsArtefact(nil, se:clsid()) and level_of(se) == here
@@ -218,6 +221,8 @@ function hunt_look(hour)
 			end
 		end
 	end
+	printf("[Lost Zone][artefacts] offline search: %s squads, %s artefacts lying offline, %s found", tostring(#squads),
+		tostring(#lying), tostring(taken))
 	return taken
 end
 
