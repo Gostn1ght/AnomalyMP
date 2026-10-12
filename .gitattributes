@@ -10,3 +10,21 @@
 **/*.gs linguist-language=HLSL
 **/*.vs linguist-language=HLSL
 **/*.cs linguist-language=HLSL
+
+# GAMMA console-fix copies retain CRLF on every checkout, including Linux CI.
+scripts/netcoop-overlay/*/gamma_dynamic_radiation_areas_from_arzsi.script text eol=crlf
+scripts/netcoop-overlay/*/smr_pop.script text eol=crlf
+scripts/netcoop-overlay/*/craft_use_in_tooltip_mcm.script text eol=crlf
+scripts/netcoop-overlay/*/grok_artefacts_random_condition.script text eol=crlf
+scripts/netcoop-overlay/*/warfare.script text eol=crlf
+scripts/netcoop-overlay/*/release_restr_in_x16.script text eol=crlf
+scripts/netcoop-overlay/*/xrs_rnd_npc_loadout.script text eol=crlf
+scripts/netcoop-overlay/*/smart_terrain.script text eol=crlf
+scripts/netcoop-overlay/*/ui_mcm.script text eol=crlf
+scripts/netcoop-overlay/*/callbacks_gameobject.script text eol=crlf
+scripts/netcoop-overlay/*/liz_fdda_redone_consumables_ssfx_dof.script text eol=crlf
+scripts/netcoop-overlay/*/mosin_carbine_reload_script.script text eol=crlf
+scripts/netcoop-overlay/*/ui_hud_dotmarks.script text eol=crlf
+scripts/netcoop-overlay/*/treasure_manager.script text eol=crlf
+scripts/netcoop-overlay/*/ssfx_water.script text eol=crlf
+scripts/netcoop-overlay/*/ssfx_wetness.script text eol=crlf
