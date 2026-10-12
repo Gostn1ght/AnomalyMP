@@ -367,10 +367,36 @@ bool CLevel::Connect2Server(const char* options)
 		FS.auth_generate(tmp_ignore, tmp_check);
 	}
 
+	// A dedicated server's own client connects over loopback in the same
+	// process. Right after a quick restart the transport sometimes reports a
+	// local problem on the first attempt (2026-10-12, local release test):
+	// retry a few times instead of leaving an empty process behind.
+	for (int attempt = 1; g_dedicated_server && attempt < 6; ++attempt)
+	{
+		if (Connect(options))
+		{
+			const u32 probe = GetTickCount();
+			while (!net_isFails_Connect() && !net_isDisconnected() && !m_bConnectResultReceived &&
+			       GetTickCount() - probe < 3000)
+			{
+				ClientReceive();
+				Sleep(5);
+				if (Server) Server->Update();
+			}
+			if (!net_isFails_Connect() && !net_isDisconnected())
+				goto connected;
+		}
+		Msg("! [Lost Zone] dedicated: own client could not connect (attempt %d), retrying", attempt);
+		Disconnect();
+		m_bConnectResultReceived = false;
+		m_bConnectResult = true;
+		Sleep(1000 * attempt);
+	}
 	if (!Connect(options))
 	{
 		OnInvalidHost(); Disconnect(); return FALSE;
 	}
+connected:
 	//---------------------------------------------------------------------------
 	if (psNET_direct_connect) m_bConnectResultReceived = true;
 	const u32 started = GetTickCount();

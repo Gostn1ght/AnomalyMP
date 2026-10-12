@@ -268,6 +268,12 @@ bool CLevel::net_start6()
 	else
 	{
 		Msg("! Failed to start client. Check the connection or level existance.");
+		if (g_dedicated_server)
+		{
+			Msg("! [Lost Zone] dedicated: the location did not start; exiting so it can be restarted");
+			FlushLog();
+			TerminateProcess(GetCurrentProcess(), 3);
+		}
 		// Map loading can capture this level's input before admission fails.
 		// Several branches below delete it without net_Stop(); detach it before
 		// returning to the menu, which will capture input on its next frame.

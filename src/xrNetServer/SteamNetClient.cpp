@@ -149,9 +149,12 @@ bool SteamNetClient::CreateConnection(ClientConnectionOptions & connectOpt)
 
 	int sv_port = connectOpt.sv_port;
 
-	if (stricmp(connectOpt.server_name, "localhost") == 0) // 127.0.0.1 ?!
+	if (stricmp(connectOpt.server_name, "localhost") == 0)
 	{
-		serverAddr.SetIPv6LocalHost((uint16)sv_port);
+		// IPv4 loopback: the listen socket is always bound for IPv4, while
+		// [::1] fails on PCs with IPv6 disabled (a dedicated server's own
+		// client then never connected and the map stayed empty).
+		serverAddr.SetIPv4(0x7f000001u, (uint16)sv_port);
 	}
 	else
 	{
