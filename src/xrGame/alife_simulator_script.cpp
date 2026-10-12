@@ -388,8 +388,9 @@ void teleport_object(CALifeSimulator* alife, ALife::_OBJECT_ID id, GameGraph::_G
 // ownership events (game_object:take_item / transfer_item).
 bool netcoop_take_offline(CALifeSimulator* alife, ALife::_OBJECT_ID who, ALife::_OBJECT_ID what)
 {
-	CSE_ALifeDynamicObject* owner = alife->objects().object(who, true);
-	CSE_ALifeDynamicObject* object = alife->objects().object(what, true);
+	const CALifeObjectRegistry& registry = static_cast<const CALifeSimulator*>(alife)->objects();
+	CSE_ALifeDynamicObject* owner = registry.object(who, true);
+	CSE_ALifeDynamicObject* object = registry.object(what, true);
 	if (!owner || !object || owner == object || owner->m_bOnline || object->m_bOnline)
 		return false;
 	CSE_ALifeInventoryItem* item = smart_cast<CSE_ALifeInventoryItem*>(object);
