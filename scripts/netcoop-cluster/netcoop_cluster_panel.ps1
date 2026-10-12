@@ -144,52 +144,13 @@ $header.Controls.Add($title,0,0); $header.Controls.Add($summary,1,0); $header.Co
 # World master (owner 2026-10-12: "the master server must be visible"): the
 # World Service process with its own console window; the panel starts it,
 # stops it and brings its console to the front. It ships with its own Python.
-$masterDir = Join-Path $PSScriptRoot 'master'
-$masterPython = Join-Path $masterDir 'python\python.exe'
-$masterConfig = Join-Path $masterDir 'runtime\config.json'
-$masterPort = 38477
+. (Join-Path $PSScriptRoot 'netcoop_master_control.ps1')
 try {
     Add-Type -Namespace LostZone -Name Win -MemberDefinition @'
 [System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool ShowWindow(System.IntPtr hWnd, int nCmdShow);
 [System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool SetForegroundWindow(System.IntPtr hWnd);
 '@
 } catch {}
-function Master-Processes {
-    @(Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue | Where-Object {
-        $_.CommandLine -like '*lostzone*' -and $_.ExecutablePath -and $_.ExecutablePath -like "$masterDir*" })
-}
-function Master-Listening {
-    $client = [Net.Sockets.TcpClient]::new()
-    try { return $client.ConnectAsync('127.0.0.1', $masterPort).Wait(150) -and $client.Connected } catch { return $false } finally { $client.Dispose() }
-}
-function Start-Master {
-    if (-not (Test-Path -LiteralPath $masterPython)) { throw 'Мастер не установлен: нет hoster\master\python. Скопируйте папку сервера целиком.' }
-    if (@(Master-Processes).Count) { return 'Мастер уже работает.' }
-    if (-not (Test-Path -LiteralPath $masterConfig)) {
-        # First start on this PC: a private configuration and an empty world
-        # with every location of the plan; tokens are never shown.
-        $arguments = @('-m','lostzone','init','--config','runtime\config.json') + @($locations.Keys | ForEach-Object { '--location'; $_ })
-        $init = Start-Process -FilePath $masterPython -ArgumentList $arguments -WorkingDirectory $masterDir -WindowStyle Hidden -Wait -PassThru
-        if ($init.ExitCode -ne 0) { throw "Мастер не смог создать конфигурацию (код $($init.ExitCode))." }
-    }
-    $title = 'Lost Zone - мастер мира'
-    Start-Process -FilePath 'cmd.exe' -WorkingDirectory $masterDir -ArgumentList "/c title $title & color 07 & python\python.exe -m lostzone console --config runtime\config.json || pause"
-    $script:masterStarted = Get-Date
-    return 'Мастер запускается в своём окне.'
-}
-function Stop-Master {
-    $processes = @(Master-Processes)
-    if (-not $processes.Count) { return 'Мастер не запущен.' }
-    # Every change is an SQLite transaction (WAL, synchronous FULL): stopping
-    # the process cannot leave half a write behind.
-    foreach ($p in $processes) {
-        foreach ($parent in @(Get-CimInstance Win32_Process -Filter "ProcessId=$($p.ParentProcessId)" -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq 'cmd.exe' })) {
-            try { Stop-Process -Id $parent.ProcessId -Force -ErrorAction Stop } catch {}
-        }
-        try { Stop-Process -Id $p.ProcessId -Force -ErrorAction Stop } catch {}
-    }
-    return 'Мастер остановлен.'
-}
 function Show-MasterConsole {
     foreach ($p in @(Master-Processes)) {
         foreach ($candidate in @($p.ParentProcessId, $p.ProcessId)) {
@@ -228,10 +189,10 @@ function Update-Master {
     $listening = $running -and (Master-Listening)
     $script:masterState = if (-not (Test-Path -LiteralPath $masterPython)) { 'missing' } elseif ($listening) { 'running' } elseif ($running) { 'starting' } else { 'stopped' }
     $masterInfo.Text = switch ($script:masterState) {
-        'running'  { "Работает · 127.0.0.1:$masterPort · время, погода и выбросы мира, журнал событий. Консоль — в отдельном окне." }
+        'running'  { "Работает · 127.0.0.1:$masterPort · календарь, погода, выбросы и пси-шторма всех карт. Консоль — в отдельном окне." }
         'starting' { 'Запускается…' }
         'missing'  { 'Не установлен: в hoster\master нет Python. Скопируйте папку сервера целиком.' }
-        default    { 'Выключен. Сервис мира: общее время, погода, выбросы и журнал. Карты работают и без него.' }
+        default    { 'Выключен. Без мастера карты не пускают игроков: он ведёт календарь, погоду, выбросы и пси-шторма.' }
     }
     $masterToggle.Text = if ($running) { 'Остановить мастер' } else { 'Запустить мастер' }
     $masterShow.Enabled = $running
@@ -424,7 +385,7 @@ function Checked-Maps { @($locations.Keys | Where-Object { $checked[$_] }) }
 $start = New-Button 'Запустить отмеченные' $true
 $start.Add_Click({
     # The world master comes up with the maps (they run without it as well).
-    if ((Test-Path -LiteralPath $masterPython) -and -not @(Master-Processes).Count) { try { [void](Start-Master) } catch {} }
+    if ((Test-Path -LiteralPath $masterPython) -and -not @(Master-Processes).Count) { try { [void](Start-Master $Runtime @($locations.Keys)) } catch { $status.ForeColor = $C.red; $status.Text = $_.Exception.Message } }
     # Already running maps stay as they are; queued ones load one after another.
     Send-Maps 'start' @(Checked-Maps | Where-Object { $stateByMap[$_] -notin @('running','loading','queued') })
     if (-not @(Checked-Maps | Where-Object { $stateByMap[$_] -notin @('running','loading','queued') }).Count -and @(Checked-Maps).Count) {
@@ -439,7 +400,11 @@ foreach ($b in @($start, $stop, $restart)) { [void]$left.Controls.Add($b) }
 $masterToggle = New-Button 'Запустить мастер'; $masterToggle.Margin = [Windows.Forms.Padding]::new(0,6,8,0)
 $masterToggle.Add_Click({
     try {
-        $message = if (@(Master-Processes).Count) { Stop-Master } else { Start-Master }
+        $message = if (@(Master-Processes).Count) {
+            $running = @($locations.Keys | Where-Object { $stateByMap[$_] -in @('running','loading') }).Count
+            if ($running -and [Windows.Forms.MessageBox]::Show($form, "Без мастера карты перестанут пускать игроков, погода и выбросы остановятся. Остановить мастер?", 'Lost Zone', 'YesNo', 'Warning') -ne 'Yes') { 'Мастер оставлен работать.' }
+            else { Stop-Master }
+        } else { Start-Master $Runtime @($locations.Keys) }
         $status.ForeColor = $C.muted; $status.Text = $message; Update-Master
     } catch { $status.ForeColor = $C.red; $status.Text = $_.Exception.Message }
 })
