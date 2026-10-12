@@ -34,6 +34,49 @@ $mapNames = @{
     jupiter='Юпитер'; jupiter_underground='Путепровод'; pripyat='Восточная Припять';
     zaton='Затон'; k01_darkscape='Тёмная лощина'; k02_trucks_cemetery='Кладбище техники'; y04_pole='Луга'
 }
+# Every location is ready to start (owner 2026-10-12): maps missing from the
+# hoster's plan are added from the full template with the host he set for his
+# own maps (his external address stays) and start when a player heads there.
+function Read-Plan([string]$Path) {
+    $data = [ordered]@{}; $current = ''
+    foreach ($line in Get-Content -LiteralPath $Path -Encoding Default) {
+        $text = ($line -split ';',2)[0].Trim()
+        if ($text -match '^\[(.+)\]$') { $current = $Matches[1]; if (-not $data.Contains($current)) { $data[$current] = [ordered]@{} }; continue }
+        if ($current -and $text -match '^([\w.]+)\s*=\s*(.*)$') { $data[$current][$Matches[1]] = $Matches[2].Trim() }
+    }
+    return $data
+}
+function Merge-Plan {
+    $template = Join-Path $PSScriptRoot 'netcoop_cluster.ltx.full'
+    if (-not (Test-Path -LiteralPath $template)) { return 0 }
+    $plan = Read-Plan $planPath; $full = Read-Plan $template
+    foreach ($name in @('cluster','locations','launch','on_demand')) { if (-not $plan.Contains($name)) { $plan[$name] = [ordered]@{} } }
+    $missing = @($full['locations'].Keys | Where-Object { -not $plan['locations'].Contains($_) })
+    if (-not $missing.Count) { return 0 }
+    $hosts = @($plan['locations'].Values | ForEach-Object { ($_ -split ':')[0] } | Group-Object | Sort-Object Count -Descending)
+    $hostName = if ($hosts.Count) { $hosts[0].Name } else { '127.0.0.1' }
+    $used = @{}; foreach ($address in $plan['locations'].Values) { $p = 0; if ([int]::TryParse(($address -split ':')[-1], [ref]$p)) { $used[$p] = $true; $used[$p + 1] = $true } }
+    foreach ($map in $missing) {
+        $port = [int](($full['locations'][$map] -split ':')[-1])
+        while ($used[$port] -or $used[$port + 1]) { $port += 2 }
+        $used[$port] = $true; $used[$port + 1] = $true
+        $plan['locations'][$map] = "${hostName}:$port"
+        if (-not $plan['launch'].Contains($map) -and $full['launch'].Contains($map)) { $plan['launch'][$map] = $full['launch'][$map] }
+        if (-not $plan['on_demand'].Contains($map)) { $plan['on_demand'][$map] = '1' }
+    }
+    Copy-Item -LiteralPath $planPath -Destination "$planPath.before_all_maps" -Force
+    $out = [Collections.Generic.List[string]]::new()
+    $out.Add('; Lost Zone location plan. [locations] map = address players use : port (UDP port and port+1).')
+    $out.Add('; [launch] = start point, [on_demand] 1 = starts when a player heads there. Edited by the panel.')
+    foreach ($name in $plan.Keys) {
+        $out.Add(''); $out.Add("[$name]")
+        foreach ($key in $plan[$name].Keys) { $out.Add("$key = $($plan[$name][$key])") }
+    }
+    [IO.File]::WriteAllLines($planPath, $out, [Text.Encoding]::Default)
+    return $missing.Count
+}
+$script:addedMaps = Merge-Plan
+
 $locations = [ordered]@{}; $onDemand = @{}; $section = ''
 foreach ($line in Get-Content -LiteralPath $planPath -Encoding Default) {
     $text = ($line -split ';',2)[0].Trim()
@@ -73,13 +116,13 @@ try {
 
 $form = [Windows.Forms.Form]::new()
 $form.Text = 'Lost Zone — локации сервера'
-$form.Size = [Drawing.Size]::new(1160,740); $form.MinimumSize = [Drawing.Size]::new(900,540)
+$form.Size = [Drawing.Size]::new(1160,860); $form.MinimumSize = [Drawing.Size]::new(900,620)
 $form.StartPosition = 'CenterScreen'; $form.BackColor = $C.bg; $form.ForeColor = $C.text; $form.Font = $fontUi
 $form.Add_HandleCreated({ try { $on = 1; [void][LostZone.Dwm]::DwmSetWindowAttribute($form.Handle, 20, [ref]$on, 4) } catch {} })
 
-$layout = [Windows.Forms.TableLayoutPanel]::new(); $layout.Dock = 'Fill'; $layout.ColumnCount = 1; $layout.RowCount = 5
+$layout = [Windows.Forms.TableLayoutPanel]::new(); $layout.Dock = 'Fill'; $layout.ColumnCount = 1; $layout.RowCount = 6
 $layout.Padding = [Windows.Forms.Padding]::new(24,18,24,10); $layout.BackColor = $C.bg
-foreach ($height in @(64, -1, 54, 60, 26)) {
+foreach ($height in @(64, 74, -1, 54, 60, 26)) {
     if ($height -lt 0) { [void]$layout.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Percent,100)) }
     else { [void]$layout.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,$height)) }
 }
@@ -98,7 +141,103 @@ $summary = New-Label '' ([Drawing.Font]::new('Segoe UI Semibold',11)) $C.text 'B
 $connection = New-Label '' $fontSmall $C.muted 'TopRight'
 $header.Controls.Add($title,0,0); $header.Controls.Add($summary,1,0); $header.Controls.Add($subtitle,0,1); $header.Controls.Add($connection,1,1)
 
-# Location list: tick box, state dot, name, state, load progress, players, mode, address.
+# World master (owner 2026-10-12: "the master server must be visible"): the
+# World Service process with its own console window; the panel starts it,
+# stops it and brings its console to the front. It ships with its own Python.
+$masterDir = Join-Path $PSScriptRoot 'master'
+$masterPython = Join-Path $masterDir 'python\python.exe'
+$masterConfig = Join-Path $masterDir 'runtime\config.json'
+$masterPort = 38477
+try {
+    Add-Type -Namespace LostZone -Name Win -MemberDefinition @'
+[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool ShowWindow(System.IntPtr hWnd, int nCmdShow);
+[System.Runtime.InteropServices.DllImport("user32.dll")] public static extern bool SetForegroundWindow(System.IntPtr hWnd);
+'@
+} catch {}
+function Master-Processes {
+    @(Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue | Where-Object {
+        $_.CommandLine -like '*lostzone*' -and $_.ExecutablePath -and $_.ExecutablePath -like "$masterDir*" })
+}
+function Master-Listening {
+    $client = [Net.Sockets.TcpClient]::new()
+    try { return $client.ConnectAsync('127.0.0.1', $masterPort).Wait(150) -and $client.Connected } catch { return $false } finally { $client.Dispose() }
+}
+function Start-Master {
+    if (-not (Test-Path -LiteralPath $masterPython)) { throw 'Мастер не установлен: нет hoster\master\python. Скопируйте папку сервера целиком.' }
+    if (@(Master-Processes).Count) { return 'Мастер уже работает.' }
+    if (-not (Test-Path -LiteralPath $masterConfig)) {
+        # First start on this PC: a private configuration and an empty world
+        # with every location of the plan; tokens are never shown.
+        $arguments = @('-m','lostzone','init','--config','runtime\config.json') + @($locations.Keys | ForEach-Object { '--location'; $_ })
+        $init = Start-Process -FilePath $masterPython -ArgumentList $arguments -WorkingDirectory $masterDir -WindowStyle Hidden -Wait -PassThru
+        if ($init.ExitCode -ne 0) { throw "Мастер не смог создать конфигурацию (код $($init.ExitCode))." }
+    }
+    $title = 'Lost Zone - мастер мира'
+    Start-Process -FilePath 'cmd.exe' -WorkingDirectory $masterDir -ArgumentList "/c title $title & color 07 & python\python.exe -m lostzone console --config runtime\config.json || pause"
+    $script:masterStarted = Get-Date
+    return 'Мастер запускается в своём окне.'
+}
+function Stop-Master {
+    $processes = @(Master-Processes)
+    if (-not $processes.Count) { return 'Мастер не запущен.' }
+    # Every change is an SQLite transaction (WAL, synchronous FULL): stopping
+    # the process cannot leave half a write behind.
+    foreach ($p in $processes) {
+        foreach ($parent in @(Get-CimInstance Win32_Process -Filter "ProcessId=$($p.ParentProcessId)" -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq 'cmd.exe' })) {
+            try { Stop-Process -Id $parent.ProcessId -Force -ErrorAction Stop } catch {}
+        }
+        try { Stop-Process -Id $p.ProcessId -Force -ErrorAction Stop } catch {}
+    }
+    return 'Мастер остановлен.'
+}
+function Show-MasterConsole {
+    foreach ($p in @(Master-Processes)) {
+        foreach ($candidate in @($p.ParentProcessId, $p.ProcessId)) {
+            $process = Get-Process -Id $candidate -ErrorAction SilentlyContinue
+            if ($process -and $process.MainWindowHandle -ne [IntPtr]::Zero) {
+                [void][LostZone.Win]::ShowWindow($process.MainWindowHandle, 9); [void][LostZone.Win]::SetForegroundWindow($process.MainWindowHandle)
+                return $true
+            }
+        }
+    }
+    return $false
+}
+$masterCard = [Windows.Forms.TableLayoutPanel]::new(); $masterCard.Dock = 'Fill'; $masterCard.ColumnCount = 3; $masterCard.RowCount = 2
+$masterCard.BackColor = $C.surface; $masterCard.Margin = [Windows.Forms.Padding]::new(0,4,0,10); $masterCard.Padding = [Windows.Forms.Padding]::new(14,6,10,6)
+[void]$masterCard.ColumnStyles.Add([Windows.Forms.ColumnStyle]::new([Windows.Forms.SizeType]::Absolute,22))
+[void]$masterCard.ColumnStyles.Add([Windows.Forms.ColumnStyle]::new([Windows.Forms.SizeType]::Percent,100))
+[void]$masterCard.ColumnStyles.Add([Windows.Forms.ColumnStyle]::new([Windows.Forms.SizeType]::AutoSize))
+[void]$masterCard.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Percent,50))
+[void]$masterCard.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Percent,50))
+$script:masterState = 'stopped'
+$masterDot = [Windows.Forms.Panel]::new(); $masterDot.Dock = 'Fill'
+$masterDot.Add_Paint({
+    param($sender, $e)
+    $color = @{ running=$C.green; starting=$C.amber; stopped=$C.dim; missing=$C.red }[$script:masterState]
+    $e.Graphics.SmoothingMode = 'AntiAlias'
+    $brush = [Drawing.SolidBrush]::new($color); $e.Graphics.FillEllipse($brush, 4, [int]($masterDot.Height / 2) - 5, 10, 10); $brush.Dispose()
+})
+$masterName = New-Label 'МАСТЕР МИРА' $fontHead $C.text 'BottomLeft'
+$masterInfo = New-Label '' $fontSmall $C.muted 'TopLeft'
+$masterButtons = [Windows.Forms.FlowLayoutPanel]::new(); $masterButtons.AutoSize = $true; $masterButtons.WrapContents = $false; $masterButtons.Dock = 'Fill'
+$masterCard.Controls.Add($masterDot,0,0); $masterCard.SetRowSpan($masterDot,2)
+$masterCard.Controls.Add($masterName,1,0); $masterCard.Controls.Add($masterInfo,1,1)
+$masterCard.Controls.Add($masterButtons,2,0); $masterCard.SetRowSpan($masterButtons,2)
+function Update-Master {
+    $running = @(Master-Processes).Count -gt 0
+    $listening = $running -and (Master-Listening)
+    $script:masterState = if (-not (Test-Path -LiteralPath $masterPython)) { 'missing' } elseif ($listening) { 'running' } elseif ($running) { 'starting' } else { 'stopped' }
+    $masterInfo.Text = switch ($script:masterState) {
+        'running'  { "Работает · 127.0.0.1:$masterPort · время, погода и выбросы мира, журнал событий. Консоль — в отдельном окне." }
+        'starting' { 'Запускается…' }
+        'missing'  { 'Не установлен: в hoster\master нет Python. Скопируйте папку сервера целиком.' }
+        default    { 'Выключен. Сервис мира: общее время, погода, выбросы и журнал. Карты работают и без него.' }
+    }
+    $masterToggle.Text = if ($running) { 'Остановить мастер' } else { 'Запустить мастер' }
+    $masterShow.Enabled = $running
+    $masterDot.Invalidate()
+}
+
 $grid = [Windows.Forms.DataGridView]::new(); $grid.Dock = 'Fill'; $grid.ReadOnly = $true
 $grid.AllowUserToAddRows = $false; $grid.AllowUserToDeleteRows = $false; $grid.AllowUserToResizeRows = $false
 $grid.MultiSelect = $false; $grid.SelectionMode = 'FullRowSelect'; $grid.RowHeadersVisible = $false
@@ -284,6 +423,8 @@ function Send-Maps([string]$Action, [string[]]$Maps) {
 function Checked-Maps { @($locations.Keys | Where-Object { $checked[$_] }) }
 $start = New-Button 'Запустить отмеченные' $true
 $start.Add_Click({
+    # The world master comes up with the maps (they run without it as well).
+    if ((Test-Path -LiteralPath $masterPython) -and -not @(Master-Processes).Count) { try { [void](Start-Master) } catch {} }
     # Already running maps stay as they are; queued ones load one after another.
     Send-Maps 'start' @(Checked-Maps | Where-Object { $stateByMap[$_] -notin @('running','loading','queued') })
     if (-not @(Checked-Maps | Where-Object { $stateByMap[$_] -notin @('running','loading','queued') }).Count -and @(Checked-Maps).Count) {
@@ -295,6 +436,16 @@ $stop.Add_Click({ Send-Maps 'stop' @(Checked-Maps) })
 $restart = New-Button 'Перезапустить отмеченные'
 $restart.Add_Click({ Send-Maps 'restart' @(Checked-Maps) })
 foreach ($b in @($start, $stop, $restart)) { [void]$left.Controls.Add($b) }
+$masterToggle = New-Button 'Запустить мастер'; $masterToggle.Margin = [Windows.Forms.Padding]::new(0,6,8,0)
+$masterToggle.Add_Click({
+    try {
+        $message = if (@(Master-Processes).Count) { Stop-Master } else { Start-Master }
+        $status.ForeColor = $C.muted; $status.Text = $message; Update-Master
+    } catch { $status.ForeColor = $C.red; $status.Text = $_.Exception.Message }
+})
+$masterShow = New-Button 'Консоль мастера'; $masterShow.Margin = [Windows.Forms.Padding]::new(0,6,0,0)
+$masterShow.Add_Click({ if (-not (Show-MasterConsole)) { $status.ForeColor = $C.amber; $status.Text = 'Окно мастера не найдено: возможно, он ещё запускается.' } })
+[void]$masterButtons.Controls.Add($masterToggle); [void]$masterButtons.Controls.Add($masterShow)
 $logs = New-Button 'Логи'
 $logs.Add_Click({
     try { [IO.Directory]::CreateDirectory($logDir) | Out-Null; Start-Process -FilePath 'explorer.exe' -ArgumentList "`"$logDir`"" }
@@ -317,7 +468,7 @@ $grid.Add_CellMouseDown({
 $grid.ContextMenuStrip = $menu
 
 $status = New-Label 'Отметьте локации галочками и нажмите «Запустить отмеченные». Правая кнопка мыши — действие для одной карты.' $fontSmall $C.muted
-$layout.Controls.Add($header,0,0); $layout.Controls.Add($grid,0,1); $layout.Controls.Add($progressPanel,0,2); $layout.Controls.Add($actions,0,3); $layout.Controls.Add($status,0,4)
+$layout.Controls.Add($header,0,0); $layout.Controls.Add($masterCard,0,1); $layout.Controls.Add($grid,0,2); $layout.Controls.Add($progressPanel,0,3); $layout.Controls.Add($actions,0,4); $layout.Controls.Add($status,0,5)
 $form.Controls.Add($layout)
 
 $states=@{running='Работает';loading='Загружается';queued='В очереди';stopped='Выключена';saving='Сохраняется';memory='Ждёт память';loading_timeout='Загрузка затянулась'}
@@ -414,4 +565,6 @@ $refresh = {
     } catch { $status.ForeColor = $C.red; $status.Text = $_.Exception.Message }
 }
 $timer=[Windows.Forms.Timer]::new(); $timer.Interval=1000; $timer.Add_Tick($refresh); $timer.Start()
-try { & $refresh; [void]$form.ShowDialog() } finally { $timer.Stop(); $timer.Dispose(); $form.Dispose() }
+$masterTimer=[Windows.Forms.Timer]::new(); $masterTimer.Interval=2000; $masterTimer.Add_Tick({ try { Update-Master } catch {} }); $masterTimer.Start()
+if ($script:addedMaps) { $status.ForeColor = $C.muted; $status.Text = "Добавлены все локации ($($script:addedMaps) новых, не отмечены; старый план сохранён рядом как .before_all_maps). Новые запускаются сами, когда игрок идёт туда." }
+try { & $refresh; try { Update-Master } catch {}; [void]$form.ShowDialog() } finally { $timer.Stop(); $timer.Dispose(); $masterTimer.Stop(); $masterTimer.Dispose(); $form.Dispose() }
