@@ -116,7 +116,7 @@ function restore(text, x, y, z, game_vertex)
 	local pos = vector():set(x, y, z)
 	local lvid = level.vertex_id(pos)
 	if not lvid or lvid >= 4294967295 then
-		printf("! [Lost Zone][vehicle] no ground for a %s at %.1f %.1f %.1f", record.section, x, y, z)
+		printf("! [Lost Zone][vehicle] no ground for a %s at %s %s %s", record.section, tostring(x), tostring(y), tostring(z))
 		return 0
 	end
 	local se = alife():create(record.section, pos, lvid, game_vertex)
@@ -139,7 +139,7 @@ function restore(text, x, y, z, game_vertex)
 			end
 		end
 	end
-	printf("[Lost Zone][vehicle] %s (%s) arrived with %d item(s) in the trunk", record.section, se.id,
+	printf("[Lost Zone][vehicle] %s (%s) arrived with %s item(s) in the trunk", record.section, se.id,
 		type(record.trunk) == "table" and #record.trunk or 0)
 	return se.id
 end
