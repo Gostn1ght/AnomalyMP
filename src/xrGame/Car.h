@@ -614,6 +614,8 @@ public:
 	float netcoop_steer() const { return m_steer_angle; }
 	bool netcoop_destroyed() { return b_exploded || CPHDestroyable::Destroyed(); }
 	const Fvector& netcoop_camera_position() const { return m_camera_position; }
+	float netcoop_fuel() const { return m_fuel; }
+	void netcoop_set_fuel(float fuel) { m_fuel = fuel; }
 public:
 	virtual bool allowWeapon() const { return true; };
 	virtual bool HUDView() const;

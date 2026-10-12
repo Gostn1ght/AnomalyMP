@@ -478,7 +478,7 @@ static void vehicle_transit(xrServer* server, CCar* car, VehicleRuntime& v, CLev
 	xr_string text = "lostzone-car 1\n";
 	string512 line;
 	xr_sprintf(line, "%s\n%.3f %.3f %.3f %u %.4f %.4f\n%s\n", level, arrival.x, arrival.y, arrival.z, u32(game_vertex),
-		car->GetfHealth(), car->GetfFuel(), seats);
+		car->GetfHealth(), car->netcoop_fuel(), seats);
 	text += line;
 	text += record;
 	string_path dir, path;
@@ -592,7 +592,7 @@ static void vehicle_arrivals(xrServer* server)
 		if (car)
 		{
 			car->SetfHealth(it->health);
-			car->SetfFuel(it->fuel);
+			car->netcoop_set_fuel(it->fuel);
 		}
 		if (car || now > it->until) it = s_vehicle_conditions.erase(it);
 		else ++it;
