@@ -70,11 +70,14 @@ IC float Area(Fvector& v0, Fvector& v1, Fvector& v2)
 void CHOM::Load()
 {
 	// Find and open file
+	// A dedicated server draws nothing: occlusion culling is never used there.
+	if (g_dedicated_server) return;
 	string_path fName;
 	FS.update_path(fName, "$level$", "level.hom");
 	if (!FS.exist(fName))
 	{
-		Msg(" WARNING: Occlusion map '%s' not found.", fName);
+		// Underground levels ship without one; culling simply stays off.
+		Msg("* HOM: no occlusion map for this level, culling off");
 		return;
 	}
 	Msg("* Loading HOM: %s", fName);
@@ -97,6 +100,7 @@ void CHOM::Load()
 
 	// Create RASTER-triangles
 	m_pTris = xr_alloc<occTri>(u32(CL.getTS()));
+	u32 degenerate = 0;
 	for (u32 it = 0; it < CL.getTS(); it++)
 	{
 		CDB::TRI& clT = CL.getT()[it];
@@ -112,15 +116,14 @@ void CHOM::Load()
 		rT.flags = clT.dummy;
 		rT.area = Area(v0, v1, v2);
 
-		if (rT.area < EPS_L)
-		{
-			Msg("! Invalid HOM triangle (%f,%f,%f)-(%f,%f,%f)-(%f,%f,%f)", VPUSH(v0), VPUSH(v1), VPUSH(v2));
-		}
+		if (rT.area < EPS_L) ++degenerate; // zero-area faces in the map data never occlude
 
 		rT.plane.build(v0, v1, v2);
 		rT.skip = 0;
 		rT.center.add(v0, v1).add(v2).div(3.f);
 	}
+
+	if (degenerate) Msg("* HOM: %u zero-area triangles ignored", degenerate);
 
 	// Create AABB-tree
 	m_pModel = xr_new<CDB::MODEL>();

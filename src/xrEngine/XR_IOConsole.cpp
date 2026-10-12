@@ -612,7 +612,24 @@ static bool player_internal_command(LPCSTR name, LPCSTR args)
         "cl_dynamiccrosshair", "wpn_aim_toggle", "show_actor_body",
         "smooth_ads_transition", "pda_show_map_labels", "pda_map_zoom_in_to_mouse",
         "pda_map_zoom_out_to_mouse", "use_separate_ubgl_keybind",
-        "use_english_text_for_missing_translations", "viewport_near", "vignette_control"};
+        "use_english_text_for_missing_translations", "viewport_near", "vignette_control",
+        // Owner 2026-10-12 ("sniper scopes black, others too transparent"):
+        // GAMMA's optics, thermal and weapon-feel addons set these on the
+        // client every start; refused, the 3D scopes lost their parameters.
+        // All of them only change what this player sees, hears or presses.
+        "zoom_step_count", "new_zoom_enable", "new_zoom_delta_algorithm", "binoculars_dynamic_zoom_check",
+        "g_ironsights_zoom_factor", "g_launcher_dynamic_range_zoom", "g_aimpos", "g_aimpos_zoom",
+        "g_firepos", "g_firepos_zoom", "aimmode_remember", "apply_pdm_to_ads", "g_interrupt_fire_on_aim_toggle",
+        "weapon_sway", "head_bob_factor", "cam_slide_inert", "freelook_cam_limit", "freelook_while_reloading",
+        "allow_accel_during_lookout", "allow_weapon_control_inertion_factor", "allow_outfit_control_inertion_factor",
+        "g_use_non_linear_inertia", "disable_actor_body_rotation_delay", "g_nearwall", "g_nearwall_trace",
+        "g_clamp_actor_camera_collision", "g_firedir_third_person", "con_sensitive", "keyboard_buffer_size",
+        "render_short_tracers", "g_use_tracers", "allow_silencer_hide_tracer", "scale_hud_motion_marks_by_speed",
+        "blend_move_anims", "mt_update_weapon_sounds", "particle_update_mod", "g_wallmark_range_skeleton",
+        "g_wallmark_range_static", "print_bone_warnings", "print_dltx_warnings", "log_timestamps", "dump_cvar",
+        "string_table_error_msg", "dltx_use_cache", "crash_save", "crash_save_count", "stat_memory", "r2em",
+        "netcoop_interp_ms", "netcoop_player_predict", "netcoop_smooth", "netcoop_metrics",
+        "lua_gcstep", "lua_parallel_gc", "lua_parallel_gc_call_amount", "lua_parallel_gcstep"};
     for (const char* item : safe) if (!xr_strcmp(name, item)) return true;
     if (!xr_strcmp(name, "start"))
     {
@@ -623,7 +640,9 @@ static bool player_internal_command(LPCSTR name, LPCSTR args)
     }
     // Local rendering/sound controls have no authority over gameplay.
     const char* prefixes[] = {"r1_", "r2_", "r3_", "r4_", "r__", "rs_", "vid_", "snd_", "hud_",
-        "ssfx_", "shader_param_", "scope_", "mouse_", "g_crosshair_", "first_person_death"};
+        "ssfx_", "shader_param_", "scope_", "mouse_", "g_crosshair_", "first_person_death",
+        "s3ds_", "sds_", "heat_vision_", "sil_glow_", "markswitch_", "voice_", "g_legs", "ik_",
+        "g_recon_", "slot_"};
     for (const char* prefix : prefixes)
         if (!strncmp(name, prefix, strlen(prefix))) return !strstr(name, "wireframe");
     return false;
@@ -664,7 +683,12 @@ void CConsole::ExecuteCommand(LPCSTR cmd_str, bool record_cmd)
 	}
 	text_editor::split_cmd(first, last, edt);
 	if (!player_console_allowed() && !player_internal_command(first, last))
-	{ Msg("! [Lost Zone] command requires an administrator: %s", first); return; }
+	{
+		// Gameplay settings belong to the server. A config or script setting
+		// one on a client has no effect: skipped quietly; a typed one is told.
+		if (record_cmd) Msg("~ [Lost Zone] %s: only an administrator can change this", first);
+		return;
+	}
 
 	// search
 	vecCMD_IT it = Commands.find(first);

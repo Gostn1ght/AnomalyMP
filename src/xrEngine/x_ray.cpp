@@ -336,6 +336,12 @@ static void apply_lost_zone_graphics()
 void execUserScript()
 {
 	Console->Execute("default_controls");
+	// First start (always on a new server folder): no user config yet. The
+	// defaults are written first, so loading it is never a "cannot open" error.
+	string_path user_config;
+	FS.update_path(user_config, "$app_data_root$", Console->ConfigFile);
+	if (!FS.exist(user_config))
+		Console->Execute("cfg_save");
 	Console->ExecuteScript(Console->ConfigFile);
 	apply_lost_zone_graphics();
 	Console->Execute("dump_cvar");

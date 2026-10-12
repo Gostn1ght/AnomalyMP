@@ -3863,6 +3863,9 @@ DWORD WINAPI wd_thread(void*)
 	u32 sampled_frame = 0;
 	u32 next_sample = 0;
 	const bool sampling = strstr(Core.Params, "-netcoop_sample_profile") != nullptr;
+	// Stack traces of slow frames are a developer tool (owner 2026-10-12: no
+	// stack traces in the consoles): only with -netcoop_hitch_trace.
+	const bool hitch_trace = strstr(Core.Params, "-netcoop_hitch_trace") != nullptr;
 	SampleProfile profile;
 	for (;;)
 	{
@@ -3876,7 +3879,7 @@ DWORD WINAPI wd_thread(void*)
 			since = now;
 			continue;
 		}
-		if (g_netcoop_metrics && g_pGameLevel && now - since >= 100 && sampled_frame != frame && now >= next_sample)
+		if (hitch_trace && g_pGameLevel && now - since >= 100 && sampled_frame != frame && now >= next_sample)
 		{
 			sampled_frame = frame;
 			next_sample = now + 1000;

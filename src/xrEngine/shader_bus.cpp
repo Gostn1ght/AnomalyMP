@@ -353,7 +353,11 @@ void ShaderBus::note_legacy_write(LPCSTR command, LPCSTR writer)
 			return;
 
 	g_bus_legacy_logged.push_back(pair_key);
-	Msg("~ [SHADER-BUS] %s written from %s, register a shader_bus lane instead", command, writer);
+	// GAMMA's addons write these parameters directly by design; the table
+	// above keeps it for the shader bus console report. Logged for addon
+	// authors only (owner 2026-10-12: a clean console).
+	if (strstr(Core.Params, "-shader_bus_log"))
+		Msg("~ [SHADER-BUS] %s written from %s, register a shader_bus lane instead", command, writer);
 }
 
 bool ShaderBus::legacy_writer(LPCSTR command, string256& out)

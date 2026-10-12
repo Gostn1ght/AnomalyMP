@@ -86,6 +86,13 @@ int main() {
     assert(!player_internal_command("start","server(all/single/alife/new) client(localhost)"));
     assert(!player_internal_command("start","SeRvEr(all/single/alife/new)"));
     assert(!player_internal_command("rs_wireframe","on"));
+    // GAMMA's optics/thermal/voice settings are local (owner 2026-10-12: black scopes).
+    for (auto name : {"s3ds_param_1", "sds_enable", "heat_vision_mode", "zoom_step_count", "voice_volume",
+                      "sil_glow_color", "markswitch_current", "slot_0", "netcoop_smooth", "lua_gcstep"})
+        assert(player_internal_command(name,"1"));
+    for (auto name : {"lua_studio_connect", "lua_debug", "time_factor", "ai_die_in_anomaly", "g_game_difficulty",
+                      "wpn_degradation", "ph_iterations", "r4_wireframe", "g_hit_pwr_modif"})
+        assert(!player_internal_command(name,"1"));
     xrClientData client;
     assert(!character_select(nullptr,1,"x","stalker",1,""));
     assert(character_select(&client,1,"x","stalker",1,""));
