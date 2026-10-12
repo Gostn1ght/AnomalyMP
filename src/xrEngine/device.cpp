@@ -377,11 +377,25 @@ extern int ps_framelimiter;
 extern u32 g_screenmode;
 
 CTimer FreezeTimer;
-void mt_FreezeThread(void *ptr) {
+static HANDLE maintenance_stop = nullptr;
+static HANDLE freeze_worker = nullptr, discord_worker = nullptr;
+
+static void stop_maintenance_workers()
+{
+	if (!maintenance_stop) return;
+	SetEvent(maintenance_stop);
+	for (HANDLE* worker : {&freeze_worker, &discord_worker})
+	{
+		if (*worker) { WaitForSingleObject(*worker, INFINITE); CloseHandle(*worker); *worker = nullptr; }
+	}
+	CloseHandle(maintenance_stop); maintenance_stop = nullptr;
+}
+
+void mt_FreezeThread(void*) {
 	float freezetime = 0.f;
 	float repeatcheck = 500.f;
 
-	while (true)
+	while (WaitForSingleObject(maintenance_stop, 0) == WAIT_TIMEOUT)
 	{
 		PROF_EVENT();
 
@@ -400,7 +414,7 @@ void mt_FreezeThread(void *ptr) {
 		}
 		STOP_PROFILE;
 
-		Sleep(repeatcheck);
+		if (WaitForSingleObject(maintenance_stop, DWORD(repeatcheck)) != WAIT_TIMEOUT) return;
 	}
 }
 
@@ -669,13 +683,13 @@ void CRenderDevice::message_loop()
 
 void mt_DiscordThread(void*)
 {
-	while (true)
+	while (WaitForSingleObject(maintenance_stop, 0) == WAIT_TIMEOUT)
 	{
 		if (!pApp)
 		{
-			Msg("[Discord] pApp destroyed, killing thread");
 			return;
 		}
+		DWORD interval = 1000;
 
 		//Discord
 		if (use_discord && psDeviceFlags2.test(rsDiscord))
@@ -684,12 +698,9 @@ void mt_DiscordThread(void*)
 			discord_core->RunCallbacks();
 			updateDiscordPresence();
 			STOP_PROFILE;
-			Sleep(int(discord_update_rate * 1000));
+			interval = DWORD(discord_update_rate * 1000);
 		}
-		else
-		{
-			Sleep(1000); // Sleep for 1 second if Discord is not used or disabled
-		}
+		if (WaitForSingleObject(maintenance_stop, interval) != WAIT_TIMEOUT) return;
 	}
 }
 
@@ -714,9 +725,11 @@ void CRenderDevice::Run()
 	// InitializeCriticalSection (&mt_csLeave);
 	mt_csEnter.Enter();
 	mt_bMustExit = FALSE;
-	thread_spawn(mt_FreezeThread, "Freeze detecting thread", 0, 0);
+	maintenance_stop = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+	R_ASSERT2(maintenance_stop, "Cannot create maintenance worker stop event");
+	freeze_worker = thread_spawn_joinable(mt_FreezeThread, "Freeze detecting thread", 0, nullptr);
 	thread_spawn(mt_Thread, "X-RAY Secondary thread", 0, this);
-	thread_spawn(mt_DiscordThread, "X-RAY Discord thread", 0, 0);
+	discord_worker = thread_spawn_joinable(mt_DiscordThread, "X-RAY Discord thread", 0, nullptr);
 	// Message cycle
 	seqAppStart.Process(rp_AppStart);
 	m_pRender->ClearTarget();
@@ -727,6 +740,8 @@ void CRenderDevice::Run()
         IsIconic(m_hWnd)), 0);
     Msg("[Lost Zone] startup window: visible=%d active=%d", IsWindowVisible(m_hWnd), b_is_Active);
 	message_loop();
+	// pApp, Discord, filesystem and the shared-string pool are still alive.
+	stop_maintenance_workers();
 	seqAppEnd.Process(rp_AppEnd);
 	// Stop Balance-Thread
 	mt_bMustExit = TRUE;

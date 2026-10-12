@@ -65,5 +65,7 @@ extern XRCORE_API void thread_spawn(
 	unsigned stack,
 	void* arglist
 );
+// Caller owns the Windows thread handle and must wait/close it before teardown.
+extern XRCORE_API void* thread_spawn_joinable(thread_t* entry, const char* name, unsigned stack, void* arglist);
 
 #endif //__XR_MATH_H__

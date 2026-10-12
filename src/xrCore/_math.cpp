@@ -400,6 +400,22 @@ void thread_spawn(thread_t* entry, const char* name, unsigned stack, void* argli
 	_beginthread(thread_entry, stack, startup);
 }
 
+unsigned __stdcall thread_entry_joinable(void* params)
+{
+	thread_entry(params);
+	return 0;
+}
+
+void* thread_spawn_joinable(thread_t* entry, const char* name, unsigned stack, void* arglist)
+{
+	Debug._initialize(false);
+	THREAD_STARTUP* startup = xr_new<THREAD_STARTUP>();
+	startup->entry = entry; startup->name = (char*)name; startup->args = arglist;
+	const auto handle = _beginthreadex(nullptr, stack, thread_entry_joinable, startup, 0, nullptr);
+	if (!handle) xr_delete(startup);
+	return reinterpret_cast<void*>(handle);
+}
+
 //void spline1(float t, Fvector* p, Fvector* ret)
 //{
 //    float t2 = t * t;

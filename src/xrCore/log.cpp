@@ -28,28 +28,30 @@ static xrCriticalSection logCS;
 xr_vector<xr_string> LogFile;
 static LogCallback LogCB = 0;
 static size_t log_flushed_lines = 0;
+static volatile LONG log_closed = 0;
+static shared_str log_last_str;
+static int log_repeat_count = 0;
 
 void FlushLog()
 {
+	if (InterlockedCompareExchange(&log_closed, 0, 0)) return;
 	PROF_EVENT();
 
-	if (!no_log)
+	logCS.Enter();
+	if (log_closed || no_log) { logCS.Leave(); return; }
+	PROF_EVENT("Flushing");
+	IWriter* f = FS.w_open(logFName);
+	if (f)
 	{
-		PROF_EVENT("Flushing");
-		logCS.Enter();
-		IWriter* f = FS.w_open(logFName);
-		if (f)
+		for (const auto& i : LogFile)
 		{
-			for (const auto& i : LogFile)
-			{
-				LPCSTR s = i.c_str();
-				f->w_string(s ? s : "");
-			}
-			FS.w_close(f);
-			log_flushed_lines = LogFile.size();
+			LPCSTR s = i.c_str();
+			f->w_string(s ? s : "");
 		}
-		logCS.Leave();
+		FS.w_close(f);
+		log_flushed_lines = LogFile.size();
 	}
+	logCS.Leave();
 }
 
 // Appends the lines logged since the last flush instead of rewriting the
@@ -58,9 +60,9 @@ void FlushLog()
 // keeps its first form on disk.
 void FlushLogAppend()
 {
-	if (no_log)
-		return;
+	if (InterlockedCompareExchange(&log_closed, 0, 0)) return;
 	logCS.Enter();
+	if (log_closed || no_log) { logCS.Leave(); return; }
 	if (!log_flushed_lines || log_flushed_lines > LogFile.size())
 	{
 		logCS.Leave();
@@ -132,8 +134,9 @@ extern bool is_console_mark(Console_mark type);
 
 void AddOne(const char* split)
 {
-
+	if (InterlockedCompareExchange(&log_closed, 0, 0)) return;
 	logCS.Enter();
+	if (log_closed) { logCS.Leave(); return; }
 
 #ifdef DEBUG
     OutputDebugString(split);
@@ -154,20 +157,18 @@ void AddOne(const char* split)
 			t = c + "[" + timeInHMSMMM() + "] " + t;
 		}
 		auto temp = shared_str(t.c_str());
-		static shared_str last_str;
-		static int items_count;
 
-		if (last_str.equal(temp))
+		if (!LogFile.empty() && log_last_str.equal(temp))
 		{
 			xr_string tmp = temp.c_str();
 
-			if (items_count == 0)
-				items_count = 2;
+			if (log_repeat_count == 0)
+				log_repeat_count = 2;
 			else
-				items_count++;
+				log_repeat_count++;
 
 			tmp += " [";
-			tmp += std::to_string(items_count).c_str();
+			tmp += std::to_string(log_repeat_count).c_str();
 			tmp += "]";
 
 			LogFile.erase(LogFile.end()-1);
@@ -177,16 +178,16 @@ void AddOne(const char* split)
 		{
 			// DUMP_PHASE;
 			LogFile.push_back(xr_string(temp.c_str()));
-			last_str = temp;
-			items_count = 0;
+			log_last_str = temp;
+			log_repeat_count = 0;
 
 			// NetAnomaly: hard cap on the in-memory log, see tools/patch_logcap.py
 			if (LogFile.size() > 40000)
 			{
 				LogFile.erase(LogFile.begin(), LogFile.begin() + 20000);
-				last_str = shared_str("~ [Lost Zone] log trimmed: 20000 oldest lines dropped");
-				LogFile.push_back(xr_string(last_str.c_str()));
-				items_count = 0;
+				log_last_str = shared_str("~ [Lost Zone] log trimmed: 20000 oldest lines dropped");
+				LogFile.push_back(xr_string(log_last_str.c_str()));
+				log_repeat_count = 0;
 			}
 		}
 	}
@@ -326,7 +327,10 @@ LPCSTR log_name()
 
 void InitLog()
 {
+	logCS.Enter();
+	InterlockedExchange(&log_closed, 0);
 	LogFile.reserve(10000);
+	logCS.Leave();
 }
 
 void CreateLog(BOOL nl)
@@ -353,8 +357,16 @@ void CreateLog(BOOL nl)
 
 void CloseLog(void)
 {
+	logCS.Enter();
 	FlushLog();
+	InterlockedExchange(&log_closed, 1);
+	no_log = TRUE;
+	LogCB = nullptr;
+	log_last_str = shared_str();
+	log_repeat_count = 0;
 	LogFile.clear();
+	log_flushed_lines = 0;
+	logCS.Leave();
 }
 
 xr_string FormatString(LPCSTR fmt, ...)

@@ -1,6 +1,6 @@
 """Attach only to the authorized srvtest dedicated; trace unhandled exceptions.
 
-No dumps, locals, registers or process data are printed: only symbol frames.
+No dumps, locals or registers are printed: only symbol frames and known engine thread labels.
 python tools/trace-srvtest-exit.py <pid> <CI dedicated directory>
 """
 import ctypes as C
@@ -51,6 +51,7 @@ dbg.SymCleanup.argtypes = [W.HANDLE]
 dbg.StackWalk64.argtypes = [W.DWORD, W.HANDLE, W.HANDLE, C.c_void_p, C.c_void_p, C.c_void_p, C.c_void_p, C.c_void_p, C.c_void_p]
 k.GetThreadContext.argtypes = [W.HANDLE, C.c_void_p]
 k.GetFinalPathNameByHandleW.argtypes = [W.HANDLE, W.LPWSTR, W.DWORD, W.DWORD]
+k.ReadProcessMemory.argtypes = [W.HANDLE,C.c_void_p,C.c_void_p,C.c_size_t,C.POINTER(C.c_size_t)]
 k.WaitForDebugEvent.argtypes = [C.c_void_p, W.DWORD]
 k.ContinueDebugEvent.argtypes = [W.DWORD, W.DWORD, W.DWORD]
 dbg.SymSetOptions(0x2 | 0x10 | 0x80000) # names/lines; no interactive symbol prompts.
@@ -101,6 +102,8 @@ def trace(thread_id):
 
 
 attached = False
+thread_names = {}
+known_threads = {b"X-RAY Discord thread", b"X-RAY Secondary thread", b"Freeze detecting thread", b"X-RAY Primary thread"}
 try:
     if not k.DebugActiveProcess(pid): raise C.WinError(C.get_last_error())
     attached=True;k.DebugSetProcessKillOnExit(False)
@@ -120,10 +123,23 @@ try:
             if handle:k.CloseHandle(handle)
         elif event.code==1:
             code=struct.unpack_from("<I",data,0)[0];first=struct.unpack_from("<I",data,152)[0]
+            # MSVC's thread-name exception carries a public literal, not locals.
+            # Only source-verified engine labels may appear in the output.
+            if code==0x406D1388 and first and struct.unpack_from("<I",data,24)[0]>=3:
+                kind,address,thread_id=struct.unpack_from("<QQQ",data,32)
+                label=C.create_string_buffer(128);read=C.c_size_t()
+                if kind & 0xffffffff==0x1000 and address and k.ReadProcessMemory(process,address,label,len(label),C.byref(read)):
+                    value=bytes(label).split(b"\0",1)[0]
+                    if value in known_threads:
+                        thread_names[event.tid if thread_id & 0xffffffff==0xffffffff else thread_id & 0xffffffff]=value.decode()
             if code!=0x80000003:
                 continuation=0x80010001
                 if not first:
-                    print(f"Unhandled exception 0x{code:x}",flush=True);trace(event.tid)
+                    print(f"Unhandled exception 0x{code:x}",flush=True)
+                    print("Exception thread:",thread_names.get(event.tid,"unclassified engine thread"),flush=True)
+                    trace(event.tid)
+        elif event.code==4:
+            thread_names.pop(event.tid,None)
         elif event.code==5:
             print(f"Exit code 0x{struct.unpack_from('<I',data,0)[0]:x}",flush=True)
             k.ContinueDebugEvent(event.pid,event.tid,continuation); attached=False;break
