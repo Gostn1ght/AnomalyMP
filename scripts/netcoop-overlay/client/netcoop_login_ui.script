@@ -6,6 +6,7 @@ local LAST_FILE = "netcoop_last_server.txt"
 local DEF_ADDR  = "127.0.0.1:1267"
 local auth_return, auth_message
 local wnd
+local autojoin_done = false
 local function cloud_enabled() return netcoop_firebase_request ~= nil end
 local function account_state() return cloud_enabled() and netcoop_firebase_state() or netcoop_account_state() end
 local function tr(id) return game.translate_string("st_netcoop_" .. id) end
@@ -1079,6 +1080,16 @@ function show_login(menu, verified)
             local populated = false
             for i = 1, wnd:CharacterLimit() do if wnd.names[i] and wnd.names[i] ~= "" then populated = true end end
             if not populated then wnd:ShowProfile(1) end
+            -- Test entry without clicks (owner 2026-10-12: "start a location and
+            -- join it"): -netcoop_autojoin enters the first character of the last
+            -- server, or creates a test stalker there.
+            if not autojoin_done and string.find(command_line(), "-netcoop_autojoin", 1, true) then
+                autojoin_done = true
+                local slot
+                for i = 1, wnd:CharacterLimit() do if wnd.names[i] and wnd.names[i] ~= "" then slot = i; break end end
+                printf("[Lost Zone] autojoin: %s", slot and ("character " .. slot) or "new test character")
+                if slot then wnd:SelectCharacter(slot) else wnd:EnterCharacter(1, "Tester", "stalker", 1, "") end
+            end
         else
             wnd:Reset()
             if account_state() ~= 0 then wnd:CloudRequest("refresh") end
