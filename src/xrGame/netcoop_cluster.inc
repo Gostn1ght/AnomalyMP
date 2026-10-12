@@ -762,8 +762,8 @@ static void cluster_clock_update(bool observed)
 			const double extra = observed ? double(normal) * 0.25 : 900.0 - double(normal);
 			factor = normal + float(_max(0.0, _min(behind / 30000.0, extra)));
 		}
-		else if (behind < -2000.0)
-			factor = normal * (observed ? 0.8f : 0.5f);
+		else if (behind < -2000.0) // ahead: slower in proportion, never below half speed
+			factor = _max(normal * (observed ? 0.8f : 0.5f), normal + float(behind / 30000.0));
 		if (_abs(factor - s_cluster_clock_factor) > normal * 0.01f)
 		{
 			Msg("[Lost Zone][master] calendar %.0f s %s the master: time factor %.2f", _abs(behind) / 1000.0,

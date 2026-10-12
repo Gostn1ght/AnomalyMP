@@ -10,7 +10,7 @@ static bool s_world_bridge_checked=false, s_world_bridge_active=false;
 static u64 s_world_bridge_tick=0, s_world_bridge_log=0, s_world_bridge_retry=0;
 static bool s_master_required=false, s_master_ready=false, s_master_was_ready=false;
 static netcoop_world::MasterProjection s_master{};
-static u64 s_master_wait_log=0;
+static u64 s_master_wait_log=0, s_master_mono=0;
 
 static bool master_cluster_plan()
 {
@@ -25,7 +25,10 @@ bool master_ready() { return s_master_ready; }
 bool master_clock(double& world_ms, double& scale)
 {
     if (!s_master_ready) return false;
-    world_ms=s_master.estimated_world_ms; scale=s_master.world.clock.time_scale;
+    // Projected to this moment: a hibernating server runs few frames, and the
+    // snapshot taken on one of them is seconds old by the next clock check.
+    scale=s_master.world.clock.time_scale;
+    world_ms=s_master.estimated_world_ms+double(GetTickCount64()-s_master_mono)*scale;
     return world_ms>0 && scale>0;
 }
 
@@ -99,7 +102,7 @@ static void server_world_bridge_update()
     if (have && projection.authority) s_master_required=true;
     // Only an authority file grants the master its role; a shadow file never does.
     s_master_ready=have && projection.authority;
-    if (s_master_ready) s_master=projection;
+    if (s_master_ready) { s_master=projection; s_master_mono=now; }
     if (s_master_required && s_master_ready!=s_master_was_ready)
     {
         s_master_was_ready=s_master_ready;
