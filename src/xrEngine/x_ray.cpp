@@ -297,10 +297,47 @@ void destroyEngine()
 	Engine.Destroy();
 }
 
+// Lost Zone (owner 2026-10-12, "graphics addons mostly do not work"): the
+// client ran the engine's default graphics, with GAMMA's 3D scopes, LUT,
+// interactive grass, HUD drops, weapon DOF, colour grading and more off.
+// GAMMA's preset is applied once per preset version; the player's own
+// resolution, screen mode, v-sync and texture quality are not in it, and any
+// later change of theirs stays.
+static void apply_lost_zone_graphics()
+{
+	if (g_dedicated_server) return;
+	const int version = 1;
+	string_path marker;
+	FS.update_path(marker, "$app_data_root$", "lz_graphics_preset.txt");
+	int applied = 0;
+	if (IReader* reader = FS.r_open(marker))
+	{
+		string64 text = {};
+		reader->r_string(text, sizeof(text));
+		applied = atoi(text);
+		FS.r_close(reader);
+	}
+	if (applied >= version) return;
+	string_path preset;
+	FS.update_path(preset, "$fs_root$", "client\\configs\\netcoop\\graphics_gamma.ltx");
+	if (!FS.exist(preset)) return;
+	Console->Execute("cfg_load client\\configs\\netcoop\\graphics_gamma");
+	Console->Execute("cfg_save");
+	if (IWriter* writer = FS.w_open(marker))
+	{
+		string16 text;
+		xr_sprintf(text, "%d", version);
+		writer->w_string(text);
+		FS.w_close(writer);
+	}
+	Msg("[Lost Zone] GAMMA graphics preset %d applied", version);
+}
+
 void execUserScript()
 {
 	Console->Execute("default_controls");
 	Console->ExecuteScript(Console->ConfigFile);
+	apply_lost_zone_graphics();
 	Console->Execute("dump_cvar");
 }
 

@@ -1042,6 +1042,23 @@ local function install_server_item_actions()
 	end
 end
 
+-- GAMMA's addons start on "the loading screen was dismissed" (engine
+-- OnLoadingScreenDismissed after the single-player "press any key" intro).
+-- A netcoop client enters the level through the server connection and that
+-- intro never runs: Interaction Dot Marks never began scanning (no "[F] Talk /
+-- Take" prompts, owner 2026-10-12), and other addons waited the same way.
+-- A second after the own Actor appears the callback is sent; GAMMA guards it
+-- with doOnce, so a real dismissal earlier changes nothing.
+function loading_screen_done()
+	CreateTimeEvent("netcoop_client", "loading_screen_done", 1, function()
+		if _G.OnLoadingScreenDismissed then
+			local ok, err = pcall(_G.OnLoadingScreenDismissed)
+			if not ok then printf("! [Lost Zone] loading screen callbacks failed: %s", tostring(err)) end
+		end
+		return true
+	end)
+end
+
 function on_game_start()
 	install_actor_lifecycle()
 	netcoop_pdanet_client.install_notification_sound()
@@ -1061,6 +1078,7 @@ function on_game_start()
 	RegisterScriptCallback("actor_on_update", function() report_player_state() end)
 	-- After every module's on_game_start (item_device registers its handlers there).
 	RegisterScriptCallback("actor_on_first_update", install_server_item_actions)
+	RegisterScriptCallback("actor_on_first_update", loading_screen_done)
 	RegisterScriptCallback("actor_on_item_take", on_item_take)
 	init_event_managers()
 	netcoop_emission_view.install()
