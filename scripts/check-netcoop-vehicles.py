@@ -70,4 +70,79 @@ callbacks.server_entity_on_unregister({id = 42})
 assert(released[1] == 501 and state.netcoop_car_trunks[42] == nil, "a car that is gone takes its trunk")
 assert(trunk_box(42) == 502, "a new trunk for a car seen again")
 ''')
-print("Vehicles: seat/trunk/taken prompts, driver controls hint for 8 s, trunk made once under the car, anchored, always online, released with the car PASS")
+# V6: a car through a passage keeps its trunk's items and their state.
+srv.execute(r"""
+records = {}
+local function copy(v) if type(v) ~= "table" then return v end local c = {} for k, x in pairs(v) do c[k] = copy(x) end return c end
+netcoop_transit = {
+    serialize = function(t) records[#records + 1] = copy(t) return "rec" .. #records end,
+    deserialize = function(s) return copy(records[tonumber(s:sub(4))]) end,
+}
+utils_stpk = {
+    get_object_data = function(se) return se.data and copy(se.data) end,
+    set_object_data = function(d, se) se.data = d end,
+}
+ini_sys = {section_exist = function(_, s) return s ~= "bogus" end}
+level.vertex_id = function(pos) return pos.y > -40 and 77 or 4294967295 end
+created = {}
+function alife()
+    return {
+        set_switch_online = function(_, id, v) online[id] = v end, set_switch_offline = function() end,
+        create = function(_, section, pos, lv, gv)
+            next_id = next_id + 1
+            local se = {id = next_id, section = section, pos = pos, gv = gv}
+            function se:section_name() return self.section end
+            function se:clsid() return "car" end
+            objects[se.id] = se; created[#created + 1] = se
+            return se
+        end,
+    }
+end
+function alife_create_item(section, parent)
+    next_id = next_id + 1
+    local se = {id = next_id, section = section, parent = parent.id,
+        data = {condition = 1, upgrades = "", game_vertex_id = 9, level_vertex_id = 8}}
+    objects[se.id] = se
+    return se
+end
+-- The car 42 with a trunk holding a worn rifle (upgraded) and an ammo box.
+objects[42] = {id = 42, section_name = function() return "veh_niva" end}
+local box = trunk_box(42)
+objects[600] = {id = 600, data = {condition = 0.9, upgrades = "up_sect_a", game_vertex_id = 1, level_vertex_id = 2}}
+objects[601] = {id = 601, data = {ammo_left = 30, game_vertex_id = 1, level_vertex_id = 2}}
+local items = {
+    {id = function() return 600 end, section = function() return "wpn_ak74" end, condition = function() return 0.42 end},
+    {id = function() return 601 end, section = function() return "ammo_5.45x39_fmj" end, condition = function() return 1 end,
+     ammo_get_count = function() return 12 end},
+}
+local box_obj = {iterate_inventory_box = function(self, fn, owner) for _, it in ipairs(items) do fn(owner, it) end end}
+level.object_by_id = function(id) if id == 42 then return car end if id == box then return box_obj end end
+local text = capture(42)
+assert(text == "rec1", "the car is captured as one record")
+local saved = records[1]
+assert(saved.section == "veh_niva" and #saved.trunk == 2)
+assert(saved.trunk[1].data.condition == 0.42 and saved.trunk[1].data.upgrades == "up_sect_a", "condition from the live item, upgrades kept")
+assert(saved.trunk[2].data.ammo_left == 12, "ammo count from the live box")
+released = {}
+release(42)
+assert(objects[42] == nil and objects[box] == nil and objects[600] == nil and objects[601] == nil, "car, trunk and items leave")
+assert(state.netcoop_car_trunks[42] == nil)
+-- The target map.
+local id = restore(text, 100, 3, 200, 55)
+local car_se = objects[id]
+assert(car_se and car_se.section == "veh_niva" and car_se.gv == 55, "the car arrives at the passage's vertex")
+local new_box = state.netcoop_car_trunks[id]
+assert(new_box and online[new_box], "with a trunk, always online")
+local rifle, ammo
+for _, se in pairs(objects) do
+    if se.parent == new_box and se.section == "wpn_ak74" then rifle = se end
+    if se.parent == new_box and se.section == "ammo_5.45x39_fmj" then ammo = se end
+end
+assert(rifle and rifle.data.condition == 0.42 and rifle.data.upgrades == "up_sect_a", "the rifle keeps its state")
+assert(rifle.data.game_vertex_id == 9 and rifle.data.level_vertex_id == 8, "placed on the new map, not the old")
+assert(ammo and ammo.data.ammo_left == 12)
+assert(restore(text, 100, -60, 200, 55) == 0, "no ground, no car")
+records[2] = {section = "bogus", trunk = {}}
+assert(restore("rec2", 1, 1, 1, 1) == 0, "an unknown car is refused")
+""")
+print("Vehicles: seat/trunk/taken prompts, driver controls hint for 8 s, trunk made once under the car, anchored, always online, released with the car, passage capture/release/restore with item state PASS")
