@@ -18,7 +18,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from .ownership import Ownership
 from .quests import Quests
-from .store import Conflict, Invalid, Unavailable, canonical, identifier
+from .store import Conflict, Invalid, Unavailable, canonical, identifier, persistent_id
 from .transfers import Transfers
 from .timelines import Timelines
 from .offline import Offline
@@ -34,6 +34,22 @@ class Principal:
     actor: str
     role: str
     locations: tuple
+
+
+def runtime_principal(principal, instance):
+    """Fence separate processes that legitimately share one map credential.
+
+    The credential continues to bound permissions and rate limiting. A fresh
+    process nonce gives a distinct lease owner, so a second process cannot
+    renew the first one's lease just because both read the same config.
+    """
+    if instance is None:
+        return principal
+    if principal.role != "location":
+        raise PermissionError("only location authorities may bind a runtime instance")
+    persistent_id(instance)
+    account = hashlib.sha256(principal.actor.encode("utf-8")).hexdigest()
+    return Principal("runtime:" + account + ":" + instance, principal.role, principal.locations)
 
 
 class Credentials:
@@ -242,6 +258,21 @@ class Handler(BaseHTTPRequestHandler):
             if not self.server.rate_limit.allow(principal.actor):
                 self.respond(429, {"error": "server request limit reached"})
                 return
+            instances = self.headers.get_all("X-LostZone-Instance", [])
+            if len(instances) > 1:
+                raise Invalid("one runtime instance header is required")
+            principal = runtime_principal(principal, instances[0] if instances else None)
+            bindings = self.headers.get_all("X-LostZone-World", [])
+            if bindings:
+                if len(bindings) != 1 or not instances:
+                    raise Invalid("one bound runtime world header is required")
+                match = re.fullmatch(r"([1-9][0-9]{0,19}):(0|[1-9][0-9]{0,19}):([1-9][0-9]{0,18})", bindings[0])
+                if not match:
+                    raise Invalid("invalid bound world identity")
+                world_id, seed, epoch = (int(part) for part in match.groups())
+                world = self.server.dispatcher.world
+                if world_id != world.world_id or seed != world.seed or epoch != world.store.epoch:
+                    raise Conflict("runtime world identity or master epoch changed")
             uri = urlsplit(self.path)
             if method == "GET" and uri.path == "/v1/status":
                 if principal.role != "admin":

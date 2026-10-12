@@ -76,6 +76,8 @@ static void server_world_bridge_update()
         if (result<0 && first) Msg("! [Lost Zone][master] invalid world master configuration (netcoop_world_bridge.json)");
         if (result==1)
         {
+            // The first asynchronous sample is pending, not a connection failure.
+            if (first) s_master_wait_log=now;
             // An authority file makes the master required at once, before its first answer.
             IReader* file=FS.r_open(path);
             if (file)
@@ -112,7 +114,7 @@ static void server_world_bridge_update()
     if (!s_master_ready && s_master_required && (!s_master_wait_log || now-s_master_wait_log>=15000))
     {
         s_master_wait_log=now;
-        Msg("! [Lost Zone][master] waiting for the world master (127.0.0.1:38477): players are not admitted");
+        Msg("! [Lost Zone][master] waiting for the configured world master: players are not admitted");
     }
     if (s_master_required) return; // the diagnostics below are for the read-only shadow observer
     if (!s_world_bridge_log || now-s_world_bridge_log>=10000)

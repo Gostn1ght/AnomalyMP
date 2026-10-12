@@ -14,7 +14,10 @@
 //
 STextureList::~STextureList()
 {
-	DEV->_DeleteTextureList(this);
+	// Standalone lists (including the empty menu list) are not manager-owned.
+	// Their static destructors can run after the render device has gone away.
+	if (dwFlags & xr_resource_flagged::RF_REGISTERED)
+		DEV->_DeleteTextureList(this);
 }
 
 SMatrixList::~SMatrixList()

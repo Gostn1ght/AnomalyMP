@@ -332,7 +332,11 @@ void CCC_LoadCFG::Execute(LPCSTR args)
 	}
 	else
 	{
-		Msg("! Cannot open script file [%s]", cfg_full_name);
+		// A fresh installation has no saved user preferences yet.
+		if (0 == xr_strcmp(cfg_name, "user.ltx") && NULL == FS.exist(cfg_full_name))
+			Msg("No saved user.ltx: using default preferences.");
+		else
+			Msg("! Cannot open script file [%s]", cfg_full_name);
 	}
 }
 
@@ -1083,7 +1087,10 @@ void CCC_Register()
 	// bone damage modifier
 	CMD4(CCC_Float, "g_hit_pwr_modif", &hit_modifier, .5f, 3.f);
 	extern float g_ai_sound_range_cap;
-	CMD4(CCC_Float, "ai_sound_range_cap", &g_ai_sound_range_cap, 0.f, 1000.f);
+	// Resolve AUTO before cfg_save; accept the -1 sentinel in older preferences.
+	if (g_ai_sound_range_cap < 0.f)
+		g_ai_sound_range_cap = strstr(Core.Params, "-netcoop") ? 120.f : 0.f;
+	CMD4(CCC_Float, "ai_sound_range_cap", &g_ai_sound_range_cap, -1.f, 1000.f);
 
 	CMD4(CCC_Float, "g_dispersion_base", &g_dispersion_base, 0.0f, 5.0f);
 	CMD4(CCC_Float, "g_dispersion_factor", &g_dispersion_factor, 0.1f, 10.0f);

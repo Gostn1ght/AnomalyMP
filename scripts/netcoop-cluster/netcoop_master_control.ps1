@@ -22,8 +22,16 @@ function Master-Listening {
     $client = [Net.Sockets.TcpClient]::new()
     try { return $client.ConnectAsync('127.0.0.1', $masterPort).Wait(150) -and $client.Connected } catch { return $false } finally { $client.Dispose() }
 }
+function Master-Argument([string]$Argument) {
+    # Start-Process joins an argument array without quoting on Windows PS 5.1.
+    # Follow the CRT argv rules, including quotes and trailing backslashes.
+    $escaped = [regex]::Replace($Argument, '(\\*)"', '$1$1\"')
+    $escaped = [regex]::Replace($escaped, '(\\+)$', '$1$1')
+    return '"' + $escaped + '"'
+}
 function Master-Run([string[]]$Arguments) {
-    $process = Start-Process -FilePath $masterPython -ArgumentList $Arguments -WorkingDirectory $masterDir -WindowStyle Hidden -Wait -PassThru
+    $encoded = (@($Arguments | ForEach-Object { Master-Argument $_ }) -join ' ')
+    $process = Start-Process -FilePath $masterPython -ArgumentList $encoded -WorkingDirectory $masterDir -WindowStyle Hidden -Wait -PassThru
     return $process.ExitCode
 }
 # The most advanced calendar the maps of this folder already reached (the
@@ -63,6 +71,11 @@ function Initialize-Master([string]$RuntimeRoot, [string[]]$Locations) {
     if ($fresh) {
         $code = Master-Run @('-m','lostzone','bridge-config','--config','runtime\config.json','--destination',$bridge,'--authority','--replace')
         if ($code -ne 0) { throw "Мастер не смог выдать картам ключ доступа (код $code)." }
+    }
+    foreach ($location in $Locations) {
+        $writer = Join-Path $RuntimeRoot "appdata\server\netcoop_world_writer_$location.json"
+        $code = Master-Run @('-m','lostzone','writer-config','--config','runtime\config.json','--location',$location,'--destination',$writer,'--replace')
+        if ($code -ne 0) { throw "Мастер не смог выдать карте $location доступ к журналу (код $code)." }
     }
 }
 function Start-Master([string]$RuntimeRoot, [string[]]$Locations) {

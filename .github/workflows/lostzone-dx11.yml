@@ -109,6 +109,7 @@ jobs:
         run: |
           ./scripts/check-netcoop-load-harness.ps1
           ./scripts/check-netcoop-host-controls.ps1
+          ./scripts/check-netcoop-master-arguments.ps1
           python -m pip install lupa==2.8 cryptography==46.0.2
           python scripts/check-netcoop-server-pda.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -157,6 +158,8 @@ jobs:
           python scripts/check-native-console-vector.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-spawn-visual.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-texture-list-lifetime.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-script-watchdog.py
           if errorlevel 1 exit /b %errorlevel%
@@ -209,6 +212,8 @@ jobs:
           python scripts/check-native-trade-policy.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-world-bridge.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-netcoop-world-writer.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-lzpack.py
           if errorlevel 1 exit /b %errorlevel%

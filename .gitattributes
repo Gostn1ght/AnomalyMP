@@ -12,6 +12,7 @@
 **/*.cs linguist-language=HLSL
 
 # GAMMA console-fix copies retain CRLF on every checkout, including Linux CI.
+scripts/netcoop-overlay/*/utils_catspaw_common.script text eol=crlf
 scripts/netcoop-overlay/*/gamma_dynamic_radiation_areas_from_arzsi.script text eol=crlf
 scripts/netcoop-overlay/*/smr_pop.script text eol=crlf
 scripts/netcoop-overlay/*/craft_use_in_tooltip_mcm.script text eol=crlf

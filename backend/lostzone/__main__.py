@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import re
 import signal
 import threading
 import time
@@ -108,6 +109,51 @@ def create_bridge_config(config_path, destination, *, local_world_id=None, local
     return destination
 
 
+def create_writer_config(config_path, destination, location, *, replace=False):
+    """Export one map's trusted-server credential, never admin or observer keys."""
+    if not isinstance(location, str) or not re.fullmatch(r"[A-Za-z0-9_]{1,64}", location):
+        raise Invalid("invalid engine location name")
+    destination = Path(destination).resolve()
+    if destination.name != "netcoop_world_writer_" + location + ".json":
+        raise Invalid("writer config filename must match its location")
+    config = json.loads(Path(config_path).read_text(encoding="utf-8"))
+    if config.get("schema") != 1:
+        raise Invalid("unsupported service configuration")
+    Credentials(config.get("credentials"))
+    actor = "location:" + location
+    credential = config["credentials"].get(actor)
+    if not credential or credential.get("role") != "location" or credential.get("locations") != [location]:
+        raise Invalid("one dedicated location credential is required")
+    world_id, seed = world_identity(config.get("world_id"), config.get("seed"))
+    port = config.get("port", 38477)
+    if type(port) is not int or not 1 <= port <= 65535:
+        raise Invalid("writer requires a fixed loopback port")
+    body = {"schema": 1, "mode": "writer", "host": "127.0.0.1", "port": port,
+            "token": credential["token"], "actor": actor, "location": location,
+            "master_world_id": world_id, "master_world_seed": seed}
+    encoded = json.dumps(body, separators=(",", ":")).encode("utf-8")
+    if destination.exists() and destination.read_bytes() == encoded:
+        return destination
+    if destination.exists() and not replace:
+        raise FileExistsError("writer config exists; explicit replacement required")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(destination.name + "." + secrets.token_hex(16) + ".tmp")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "wb") as output:
+            output.write(encoded)
+            output.flush()
+            os.fsync(output.fileno())
+        if replace:
+            os.replace(temporary, destination)
+        else:
+            # Link, rather than replace: refuse a concurrent creator too.
+            os.link(temporary, destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return destination
+
+
 def run(path, port_override=None, interactive=False):
     path = Path(path).resolve()
     config = json.loads(path.read_text(encoding="utf-8"))
@@ -199,7 +245,7 @@ def run(path, port_override=None, interactive=False):
 
 def main():
     parser = argparse.ArgumentParser(description="Lost Zone local World Service")
-    parser.add_argument("mode", choices=("init", "serve", "console", "bridge-config"))
+    parser.add_argument("mode", choices=("init", "serve", "console", "bridge-config", "writer-config"))
     parser.add_argument("--config", required=True)
     parser.add_argument("--location", action="append", default=[])
     parser.add_argument("--port", type=int)
@@ -211,14 +257,18 @@ def main():
     parser.add_argument("--local-world-id", type=int, help="existing ALife checkpoint WorldID; bridge-config only")
     parser.add_argument("--local-seed", type=int, help="existing ALife checkpoint seed; bridge-config only")
     parser.add_argument("--authority", action="store_true", help="bridge-config: every map follows this master")
-    parser.add_argument("--replace", action="store_true", help="bridge-config --authority: rewrite an existing file")
+    parser.add_argument("--replace", action="store_true", help="bridge-config --authority or writer-config: rewrite an existing private file")
     args = parser.parse_args()
     if args.mode != "init" and any(value is not None for value in
                                    (args.world_id, args.seed, args.initial_ms, args.scale)):
         raise Invalid("world bootstrap options apply only to init")
     if args.mode != "bridge-config" and any(value is not None for value in (args.local_world_id, args.local_seed)):
         raise Invalid("local checkpoint binding options apply only to bridge-config")
-    if args.mode == "init":
+    if args.mode == "writer-config":
+        if not args.destination or len(args.location) != 1 or args.authority:
+            raise Invalid("writer-config requires one location and its destination")
+        create_writer_config(args.config, args.destination, args.location[0], replace=args.replace)
+    elif args.mode == "init":
         create_config(args.config, args.location, world_id=args.world_id, seed=args.seed,
                       initial_ms=args.initial_ms, scale=args.scale)
         print("Created private service configuration. Tokens are not printed.")

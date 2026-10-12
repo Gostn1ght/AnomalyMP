@@ -79,6 +79,55 @@ class HttpTest(unittest.TestCase):
         self.assertEqual(self.command("trade", {"location": "garbage"})[0], 403)
         self.assertEqual(self.call("GET", "/v1/events")[0], 404)
 
+    def test_runtime_instances_cannot_share_or_renew_another_process_lease(self):
+        a, b = {"X-LostZone-Instance": "a" * 32}, {"X-LostZone-Instance": "b" * 32}
+        def command(operation, arguments, headers, command_id=None):
+            return self.call("POST", "/v1/command", {"command_id":command_id or uuid.uuid4().hex,
+                    "operation":operation, "arguments":arguments}, headers=headers)
+        status, result = command("location_claim", {"location":"cordon", "ttl_ms":1000}, a)
+        self.assertEqual(200, status)
+        fence = result["result"]["fence"]
+        self.assertTrue(result["result"]["owner"].endswith(":" + "a" * 32))
+        self.assertEqual(409, command("location_claim", {"location":"cordon"}, b)[0])
+        self.assertEqual(409, command("location_renew", {"location":"cordon", "fence":fence}, b)[0])
+        self.assertEqual(200, self.call("GET", f"/v1/location?id=cordon&fence={fence}", headers=a)[0])
+        self.assertEqual(409, self.call("GET", f"/v1/location?id=cordon&fence={fence}", headers=b)[0])
+        self.assertEqual(403, command("location_claim", {"location":"garbage"}, a)[0])
+        with patch.object(self.world, "real_ms", return_value=self.world.real_ms()+2000):
+            status, result = command("location_claim", {"location":"cordon"}, b)
+            self.assertEqual(200, status)
+            self.assertEqual(fence+1, result["result"]["fence"])
+            self.assertEqual(409, command("location_renew", {"location":"cordon", "fence":fence}, a)[0])
+
+    def test_runtime_instance_header_is_bounded_location_only_and_cannot_bypass_rate_limit(self):
+        from lostzone.http import RateLimit
+        for instance in ("", "../bad", "A" * 32, "a" * 33):
+            self.assertEqual(400, self.call("GET", "/v1/clock", headers={"X-LostZone-Instance":instance})[0])
+        for token in ("a" * 48, "d" * 48):
+            self.assertEqual(403, self.call("GET", "/v1/clock", token=token, headers={"X-LostZone-Instance":"a" * 32})[0])
+        self.server.rate_limit = RateLimit(rate=0, burst=1)
+        self.assertEqual(200, self.call("GET", "/v1/clock", headers={"X-LostZone-Instance":"a" * 32})[0])
+        self.assertEqual(429, self.call("GET", "/v1/clock", headers={"X-LostZone-Instance":"b" * 32})[0])
+
+    def test_bound_runtime_commands_refuse_wrong_world_seed_or_master_epoch_before_mutating(self):
+        epoch = self.store.epoch
+        correct = f"{self.world.world_id}:{self.world.seed}:{epoch}"
+        body = {"command_id":uuid.uuid4().hex,"operation":"location_claim","arguments":{"location":"cordon"}}
+        for binding in (f"{self.world.world_id+1}:{self.world.seed}:{epoch}",
+                        f"{self.world.world_id}:{self.world.seed+1}:{epoch}",
+                        f"{self.world.world_id}:{self.world.seed}:{epoch+1}"):
+            self.assertEqual(409, self.call("POST", "/v1/command", body,
+                             headers={"X-LostZone-Instance":"a"*32,"X-LostZone-World":binding})[0])
+        self.assertEqual(0, self.store.db.execute("SELECT COUNT(*) FROM location_lease").fetchone()[0])
+        for binding in ("", "0:0:1", "1:1:0", "1:01:1", "1:1:1\n", "1:1:1:1"):
+            if "\n" in binding:
+                continue # http.client correctly refuses header injection itself.
+            self.assertEqual(400, self.call("POST", "/v1/command", body,
+                             headers={"X-LostZone-Instance":"a"*32,"X-LostZone-World":binding})[0])
+        self.assertEqual(400, self.call("POST", "/v1/command", body, headers={"X-LostZone-World":correct})[0])
+        self.assertEqual(200, self.call("POST", "/v1/command", body,
+                         headers={"X-LostZone-Instance":"a"*32,"X-LostZone-World":correct})[0])
+
     def test_real_http_location_quest_requirements_are_scoped_and_versioned(self):
         _, claimed = self.command("location_claim", {"location":"cordon"})
         fence = claimed["result"]["fence"]

@@ -9,6 +9,10 @@ G = ROOT.parent / "gamma-runtime" / "gamedata" / "scripts"
 O = ROOT / "scripts" / "netcoop-overlay"
 
 FIXES = {
+    "utils_catspaw_common.script": [(
+        'logdiv = "~ ------------------------------------------------------------------------\\n"',
+        '-- Lost Zone: feature-report separators are informational, not warnings.\r\n'
+        'logdiv = "------------------------------------------------------------------------\\n"')],
     "gamma_dynamic_radiation_areas_from_arzsi.script": [(
         '          level.vertex_id(smart.position), ',
         '          -- Lost Zone: use the smart\'s own map vertex, never the currently loaded level.\r\n'
@@ -131,7 +135,12 @@ snd_close = weapons\walther\walther_close
 !snd_silncer_shot
 ''')
     text = (G.parent / "configs/environment/effects.ltx").read_bytes().decode("latin-1")
-    for old, new in ((r"nature\wind_05", r"nature\wind_04"), (r"nature\wind_07", r"nature\wind_06")):
+    # The actual shipped sounds_ambient.db0 has wind1..4/storm1..3, no wind_01..10.
+    # Keep the effect timing/strength and use the original wind recordings.
+    winds = ("wind1", "wind2", "wind3", "wind4", "wind4",
+             "wind_storm1", "wind_storm1", "wind_storm2", "wind_storm3", "wind_storm3")
+    for index, name in enumerate(winds, 1):
+        old, new = rf"nature\wind_{index:02}", rf"nature\{name}"
         assert old in text, old
         text = text.replace(old, new)
     write_config("environment/effects.ltx", "; Lost Zone: use existing wind sounds.\r\n" + text)
