@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "Text_Console.h"
 #include "line_editor.h"
+#include "IGame_Level.h"
 
 extern char const* const ioc_prompt;
 extern char const* const ch_cursor;
@@ -565,6 +566,18 @@ inherited::IR_OnKeyboardPress( dik );
 void CTextConsole::OnFrame()
 {
 	inherited::OnFrame();
+	// Once the level is up the title names it (Marsh logs as plain "srv").
+	static shared_str titled;
+	if (g_pGameLevel && m_pMainWnd && g_pGameLevel->name().size() && titled != g_pGameLevel->name())
+	{
+		titled = g_pGameLevel->name();
+		string64 port = {};
+		if (LPCSTR arg = strstr(Core.Params, "-netport "))
+			sscanf(arg + 9, "%63s", port);
+		string256 title;
+		xr_sprintf(title, "Lost Zone Server - %s%s%s", titled.c_str(), port[0] ? " : " : "", port);
+		SetWindowTextA(*m_pMainWnd, title);
+	}
 	RefreshIfChanged();
 }
 
