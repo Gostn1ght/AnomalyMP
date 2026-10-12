@@ -161,6 +161,9 @@ void CLevelChanger::feel_touch_new(CObject* tpObject)
 	// server's own Actor never change the level.
 	if (netcoop::enabled() && (!netcoop::pure_client() || l_tpActor != Actor()))
 		return;
+	// In a car nobody is asked: the driver takes the whole car through.
+	if (netcoop::enabled() && l_tpActor->netcoop_seated())
+		return;
 	// Arrival can overlap the reverse portal. First leave its real shape,
 	// then a deliberate re-entry may offer the return journey.
 	if (netcoop::pure_client() && m_netcoop_arrival_block) return;
@@ -236,7 +239,7 @@ void CLevelChanger::update_actor_invitation()
 		CActor* l_tpActor = smart_cast<CActor*>(*it);
 		VERIFY(l_tpActor);
 
-		if (!l_tpActor->g_Alive())
+		if (!l_tpActor->g_Alive() || (netcoop::enabled() && l_tpActor->netcoop_seated()))
 			continue;
 		if (netcoop::enabled() && (!netcoop::pure_client() || l_tpActor != Actor()))
 			continue;

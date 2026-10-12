@@ -41,6 +41,109 @@ function trunk_box(car_id)
 	return se.id
 end
 
+----------------------------------------------------------------------
+-- Through a passage (doc 100, V6)
+----------------------------------------------------------------------
+-- The engine writes the record to the cluster folder; the target map's
+-- server calls restore with it. The trunk's items keep their state
+-- (condition, upgrades, ammo) the way NPC transit keeps a squad's.
+local PLACE = { "game_vertex_id", "distance", "direct_control", "level_vertex_id", "story_id", "spawn_story_id" }
+
+local function trunk_items(box)
+	local items = {}
+	box:iterate_inventory_box(function(_, item)
+		local se_item = alife_object(item:id())
+		local data = se_item and utils_stpk.get_object_data(se_item)
+		if data then
+			-- The online item knows its condition and ammo better than its
+			-- server copy.
+			if data.condition ~= nil then data.condition = item:condition() end
+			if data.ammo_left ~= nil and item.ammo_get_count then data.ammo_left = item:ammo_get_count() end
+		end
+		items[#items + 1] = { section = item:section(), data = data }
+	end, box)
+	return items
+end
+
+-- The engine: the car as text for the target server; "" when it cannot go.
+function capture(car_id)
+	car_id = tonumber(car_id)
+	local se = car_id and alife_object(car_id)
+	if not (se and netcoop_transit and netcoop_transit.serialize) then return "" end
+	local record = { v = 1, section = se:section_name(), trunk = {} }
+	local box_id = trunks()[car_id]
+	local box = box_id and level.object_by_id(box_id)
+	if box then
+		local ok, items = pcall(trunk_items, box)
+		if not ok then
+			printf("! [Lost Zone][vehicle] trunk of %s not saved: %s", tostring(car_id), tostring(items))
+			return ""
+		end
+		record.trunk = items
+	end
+	local text = netcoop_transit.serialize(record)
+	return type(text) == "string" and text or ""
+end
+
+-- The engine, after the record is safely written: the car and its trunk
+-- leave this map.
+function release(car_id)
+	car_id = tonumber(car_id)
+	local list = trunks()
+	local box_id = car_id and list[car_id]
+	local box = box_id and level.object_by_id(box_id)
+	if box then
+		local ids = {}
+		box:iterate_inventory_box(function(_, item) ids[#ids + 1] = item:id() end, box)
+		for _, id in ipairs(ids) do
+			local se_item = alife_object(id)
+			if se_item then alife_release(se_item) end
+		end
+	end
+	if box_id then
+		list[car_id] = nil
+		local se_box = alife_object(box_id)
+		if se_box then alife_release(se_box) end
+	end
+	local se = car_id and alife_object(car_id)
+	if se then alife_release(se) end
+end
+
+-- The target map's engine: the car arrives; its id, or 0.
+function restore(text, x, y, z, game_vertex)
+	local record = netcoop_transit and netcoop_transit.deserialize and netcoop_transit.deserialize(text)
+	if not (type(record) == "table" and record.section and ini_sys:section_exist(record.section)) then return 0 end
+	local pos = vector():set(x, y, z)
+	local lvid = level.vertex_id(pos)
+	if not lvid or lvid >= 4294967295 then
+		printf("! [Lost Zone][vehicle] no ground for a %s at %.1f %.1f %.1f", record.section, x, y, z)
+		return 0
+	end
+	local se = alife():create(record.section, pos, lvid, game_vertex)
+	if not se then return 0 end
+	if type(record.trunk) == "table" and #record.trunk > 0 then
+		local box = alife_create(TRUNK_SECTION, vector():set(x, y - 50, z), lvid, game_vertex)
+		if box then
+			trunks()[se.id] = box.id
+			alife():set_switch_online(box.id, true)
+			alife():set_switch_offline(box.id, false)
+			for _, saved in ipairs(record.trunk) do
+				if type(saved) == "table" and saved.section and ini_sys:section_exist(saved.section) then
+					local item = alife_create_item(saved.section, box)
+					local fresh = item and saved.data and utils_stpk.get_object_data(item)
+					if fresh then
+						for _, key in ipairs(PLACE) do saved.data[key] = fresh[key] end
+						utils_stpk.set_object_data(saved.data, item)
+					end
+				end
+			end
+		end
+	end
+	printf("[Lost Zone][vehicle] %s (%s) arrived with %d item(s) in the trunk", record.section, se.id,
+		type(record.trunk) == "table" and #record.trunk or 0)
+	return se.id
+end
+
 -- A car that is gone takes its trunk along.
 local function server_entity_on_unregister(se_obj)
 	local list = trunks()

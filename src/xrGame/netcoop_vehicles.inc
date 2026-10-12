@@ -195,6 +195,8 @@ struct VehicleRuntime
 	u32 keys_time = 0;
 	u32 sent = 0;
 	bool dirty = true;
+	u32 transit_check = 0; // driving into a passage (V6)
+	u32 transit_refused = 0;
 };
 static xr_map<u16, VehicleRuntime> s_vehicles_sv;
 
@@ -369,13 +371,280 @@ static void vehicle_send_state(xrServer* server, CCar* car, const VehicleRuntime
 	server->ForEachClientDo(send);
 }
 
+// ---------------------------------------------------------------------------
+// Through a passage with the passengers (doc 100, V6)
+// ---------------------------------------------------------------------------
+// The driver takes the car into a level changer: the car (with its trunk, the
+// Lua record of netcoop_vehicles.capture) goes to the cluster folder as
+// car_<target map>_*.txt, everybody in it goes through the passage the
+// player's way (cluster_move), and the car leaves this map. The target map's
+// server picks the file up, puts the car down at the arrival point and seats
+// each player in their seat as they arrive.
+struct VehicleArrival
+{
+	xr_string login; // lower case
+	u8 slot = 1;
+	u16 car = 0xffff;
+	u8 seat = 0;
+	u32 until = 0;
+};
+static xr_vector<VehicleArrival> s_vehicle_arrivals;
+struct VehicleCondition { u16 car; float health; float fuel; u32 until; };
+static xr_vector<VehicleCondition> s_vehicle_conditions; // applied once the car is online
+static u32 s_vehicle_inbox_check = 0;
+
+static xrClientData* vehicle_client_of(xrServer* server, u16 actor_id)
+{
+	struct Find
+	{
+		u16 id;
+		xrClientData* found;
+		void operator()(IClient* client)
+		{
+			xrClientData* CL = static_cast<xrClientData*>(client);
+			if (!found && CL && CL->owner && CL->owner->ID == id && CL->netcoop_login.size()) found = CL;
+		}
+	} find = {actor_id, nullptr};
+	server->ForEachClientDo(find);
+	return find.found;
+}
+
+static bool vehicle_write_file(LPCSTR path, const xr_string& text)
+{
+	string_path temp;
+	xr_sprintf(temp, "%s.%u.tmp", path, GetCurrentProcessId());
+	FILE* f = fopen(temp, "wb");
+	if (!f) return false;
+	const bool ok = fwrite(text.data(), 1, text.size(), f) == text.size() && fflush(f) == 0 && _commit(_fileno(f)) == 0;
+	fclose(f);
+	if (ok && MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) return true;
+	DeleteFileA(temp);
+	return false;
+}
+
+static void vehicle_transit(xrServer* server, CCar* car, VehicleRuntime& v, CLevelChanger* changer, CActor* driver)
+{
+	const u32 now = Level().timeServer();
+	xrClientData* driver_client = vehicle_client_of(server, driver->ID());
+	v.transit_refused = now + 5000; // one try per 5 s, and none while this one runs
+	auto refuse = [&](LPCSTR text)
+	{
+		if (driver_client) cluster_refuse(server, driver_client, text);
+	};
+	if (!changer->IsLevelChangerEnabled()) return refuse("this passage is closed");
+	const GameGraph::_GRAPH_ID game_vertex = changer->next_game_vertex();
+	if (!ai().game_graph().valid_vertex_id(game_vertex)) return;
+	const LPCSTR level = *ai().game_graph().header().level(ai().game_graph().vertex(game_vertex)->level_id()).name();
+	xr_string host;
+	u32 port = 0;
+	if (!xr_strcmp(level, cluster_current_level()) || !cluster_location(level, host, port) || port == cluster_port())
+		return refuse("no server runs that map yet");
+	if (LPCSTR problem = cluster_target_problem(port))
+		if (problem[0])
+		{
+			if (strstr(problem, "offline") && cluster_on_demand(level))
+			{
+				cluster_wake(level);
+				return refuse("the server of that map is starting");
+			}
+			return refuse(problem);
+		}
+	// Everybody aboard must be able to go now.
+	string1024 seats = "";
+	for (u8 i = 0; i < v.seats.size(); ++i)
+	{
+		if (v.seats[i] == vehicle_seat_free) continue;
+		xrClientData* CL = vehicle_client_of(server, v.seats[i]);
+		if (!CL || s_character_restore.find(v.seats[i]) != s_character_restore.end())
+			return refuse("the character is still loading");
+		string128 entry;
+		xr_sprintf(entry, "%s%s:%u:%u", seats[0] ? "," : "", CL->netcoop_login.c_str(), CL->netcoop_character_slot, i);
+		xr_strcat(seats, entry);
+	}
+	::luabind::functor<LPCSTR> capture;
+	xr_string record;
+	if (ai().script_engine().functor("netcoop_vehicles.capture", capture))
+	{
+		try { LPCSTR text = capture(int(car->ID())); record = text ? text : ""; }
+		catch (...) { record.clear(); }
+	}
+	if (record.empty())
+		return refuse("the car could not be saved");
+	// The car comes down a few metres past the arrival point.
+	Fvector arrival = changer->next_position(), ahead;
+	ahead.setHP(changer->next_angles().y, 0.f);
+	arrival.mad(ahead, 5.f);
+	arrival.y += 0.5f;
+	xr_string text = "lostzone-car 1\n";
+	string512 line;
+	xr_sprintf(line, "%s\n%.3f %.3f %.3f %u %.4f %.4f\n%s\n", level, arrival.x, arrival.y, arrival.z, u32(game_vertex),
+		car->GetfHealth(), car->GetfFuel(), seats);
+	text += line;
+	text += record;
+	string_path dir, path;
+	cluster_dir(dir);
+	xr_sprintf(path, "%scar_%s_%llu_%u.txt", dir, level, cluster_unix_ms(), car->ID());
+	if (!vehicle_write_file(path, text))
+		return refuse("the car could not be saved");
+	Msg("[Lost Zone][vehicle] %s (%u) leaves for %s with %s", car->cName().c_str(), car->ID(), level, seats);
+	for (u8 i = 0; i < v.seats.size(); ++i)
+	{
+		if (v.seats[i] == vehicle_seat_free) continue;
+		const u16 actor_id = v.seats[i];
+		vehicle_unseat_server(car, v, i);
+		if (xrClientData* CL = vehicle_client_of(server, actor_id))
+			cluster_move(server, CL, changer);
+	}
+	::luabind::functor<void> release;
+	if (ai().script_engine().functor("netcoop_vehicles.release", release))
+	{
+		try { release(int(car->ID())); }
+		catch (...) { Msg("! [Lost Zone][vehicle] release failed"); }
+	}
+}
+
+// The target map: cars that came through a passage.
+static void vehicle_inbox(xrServer* server)
+{
+	string_path dir, pattern;
+	cluster_dir(dir);
+	xr_sprintf(pattern, "%scar_%s_*.txt", dir, cluster_current_level());
+	WIN32_FIND_DATAA found;
+	HANDLE search = FindFirstFileA(pattern, &found);
+	if (search == INVALID_HANDLE_VALUE) return;
+	xr_vector<xr_string> names;
+	do names.push_back(found.cFileName); while (FindNextFileA(search, &found));
+	FindClose(search);
+	for (const xr_string& name : names)
+	{
+		string_path path, claimed;
+		xr_sprintf(path, "%s%s", dir, name.c_str());
+		xr_sprintf(claimed, "%s.claim%u", path, GetCurrentProcessId());
+		if (!MoveFileA(path, claimed)) continue; // another server took it
+		xr_string text;
+		if (FILE* f = fopen(claimed, "rb"))
+		{
+			char buffer[4096];
+			size_t n;
+			while ((n = fread(buffer, 1, sizeof(buffer), f)) > 0 && text.size() < 4 * 1024 * 1024) text.append(buffer, n);
+			fclose(f);
+		}
+		// lostzone-car 1 / level / x y z gv health fuel / seats / record
+		size_t lines[4] = {};
+		size_t at = 0;
+		bool ok = true;
+		for (int i = 0; i < 4 && ok; ++i)
+		{
+			at = text.find('\n', at);
+			ok = at != xr_string::npos;
+			if (ok) lines[i] = at++;
+		}
+		float x = 0, y = 0, z = 0, health = 1, fuel = 0;
+		unsigned gv = 0;
+		ok = ok && !text.compare(0, 14, "lostzone-car 1") &&
+			sscanf(text.c_str() + lines[1] + 1, "%f %f %f %u %f %f", &x, &y, &z, &gv, &health, &fuel) == 6;
+		int car_id = 0;
+		if (ok)
+		{
+			::luabind::functor<int> restore;
+			if (ai().script_engine().functor("netcoop_vehicles.restore", restore))
+			{
+				try { car_id = restore(text.c_str() + lines[3] + 1, x, y, z, int(gv)); }
+				catch (...) { car_id = 0; }
+			}
+		}
+		if (car_id <= 0 || car_id >= 0xffff)
+		{
+			string_path failed;
+			xr_sprintf(failed, "%s.failed", path);
+			MoveFileA(claimed, failed);
+			Msg("! [Lost Zone][vehicle] a car from %s could not be put down", name.c_str());
+			continue;
+		}
+		const xr_string seats = text.substr(lines[2] + 1, lines[3] - lines[2] - 1);
+		for (u32 i = 0, count = _GetItemCount(seats.c_str()); i < count; ++i)
+		{
+			string128 item, login, value;
+			_GetItem(seats.c_str(), i, item);
+			if (_GetItemCount(item, ':') != 3) continue;
+			VehicleArrival arrival;
+			arrival.login = _GetItem(item, 0, login, ':');
+			to_lower(arrival.login);
+			arrival.slot = u8(atoi(_GetItem(item, 1, value, ':')));
+			arrival.seat = u8(atoi(_GetItem(item, 2, value, ':')));
+			arrival.car = u16(car_id);
+			arrival.until = Level().timeServer() + 180000;
+			s_vehicle_arrivals.push_back(arrival);
+		}
+		VehicleCondition condition = {u16(car_id), health, fuel, Level().timeServer() + 60000};
+		s_vehicle_conditions.push_back(condition);
+		DeleteFileA(claimed);
+		Msg("[Lost Zone][vehicle] a car arrived (%u) for %s", car_id, seats.c_str());
+	}
+}
+
+static void vehicle_arrivals(xrServer* server)
+{
+	const u32 now = Level().timeServer();
+	for (auto it = s_vehicle_conditions.begin(); it != s_vehicle_conditions.end();)
+	{
+		CCar* car = smart_cast<CCar*>(Level().Objects.net_Find(it->car));
+		if (car)
+		{
+			car->SetfHealth(it->health);
+			car->SetfFuel(it->fuel);
+		}
+		if (car || now > it->until) it = s_vehicle_conditions.erase(it);
+		else ++it;
+	}
+	for (auto it = s_vehicle_arrivals.begin(); it != s_vehicle_arrivals.end();)
+	{
+		if (now > it->until) { it = s_vehicle_arrivals.erase(it); continue; }
+		struct Find
+		{
+			const VehicleArrival* arrival;
+			xrClientData* found;
+			void operator()(IClient* client)
+			{
+				xrClientData* CL = static_cast<xrClientData*>(client);
+				if (found || !CL || !CL->owner || !CL->netcoop_login.size() || CL->netcoop_character_slot != arrival->slot) return;
+				xr_string name = CL->netcoop_login.c_str();
+				to_lower(name);
+				if (name == arrival->login) found = CL;
+			}
+		} find = {&*it, nullptr};
+		server->ForEachClientDo(find);
+		CCar* car = smart_cast<CCar*>(Level().Objects.net_Find(it->car));
+		CActor* actor = find.found ? smart_cast<CActor*>(Level().Objects.net_Find(find.found->owner->ID)) : nullptr;
+		const VehicleSeats* poses = car ? vehicle_seats(car) : nullptr;
+		if (!actor || !actor->g_Alive() || !poses || s_character_restore.find(actor->ID()) != s_character_restore.end())
+		{
+			++it;
+			continue;
+		}
+		VehicleRuntime& v = *vehicle_runtime(car, *poses);
+		if (!actor->netcoop_seated() && it->seat < v.seats.size() && v.seats[it->seat] == vehicle_seat_free)
+			vehicle_seat_server(car, v, *poses, it->seat, actor);
+		it = s_vehicle_arrivals.erase(it);
+	}
+}
+
 // Every server frame: seated players follow their seats, drivers that went
 // silent stop, and the state goes out (10 Hz while used, 0.5 Hz parked).
 void vehicle_server_update(xrServer* server)
 {
-	if (s_vehicles_sv.empty() || !g_pGameLevel || pure_client())
+	if (!g_pGameLevel || pure_client())
 		return;
 	const u32 now = Level().timeServer();
+	if (cluster_config_present() && now - s_vehicle_inbox_check >= 2000)
+	{
+		s_vehicle_inbox_check = now;
+		vehicle_inbox(server);
+	}
+	if (!s_vehicle_arrivals.empty() || !s_vehicle_conditions.empty())
+		vehicle_arrivals(server);
+	if (s_vehicles_sv.empty())
+		return;
 	for (auto it = s_vehicles_sv.begin(); it != s_vehicles_sv.end();)
 	{
 		VehicleRuntime& v = it->second;
@@ -400,6 +669,18 @@ void vehicle_server_update(xrServer* server)
 			s_vehicle_seats.erase(it->first);
 			it = s_vehicles_sv.erase(it);
 			continue;
+		}
+		// The driver takes the car into a passage.
+		if (!v.seats.empty() && v.seats[0] != vehicle_seat_free && now - v.transit_check >= 250 && now >= v.transit_refused)
+		{
+			v.transit_check = now;
+			if (CActor* driver = smart_cast<CActor*>(Level().Objects.net_Find(v.seats[0])))
+				for (CLevelChanger* changer : g_lchangers)
+					if (changer->feel_touch_contact(driver))
+					{
+						vehicle_transit(server, car, v, changer, driver);
+						break;
+					}
 		}
 		// A driver whose client stopped sending lets go of the pedals.
 		if (v.keys && now - v.keys_time > 2000)

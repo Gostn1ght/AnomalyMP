@@ -45,7 +45,8 @@ struct CInifile{
 template<class T>using xr_vector=std::vector<T>;
 struct Fvector{float x=0,y=0,z=0;};
 struct CObject{virtual ~CObject()=default;};
-struct CActor:CObject{unsigned fixture_id=7;unsigned ID(){return fixture_id;}bool alive=true;bool g_Alive()const{return alive;}};
+struct CActor:CObject{unsigned fixture_id=7;unsigned ID(){return fixture_id;}bool alive=true;bool g_Alive()const{return alive;}
+ bool seated=false;bool netcoop_seated()const{return seated;}};
 template<class T,class U>T smart_cast(U* o){return dynamic_cast<T>(o);}
 CActor owner,remote;CActor* Actor(){return &owner;}
 namespace netcoop{bool active=true,client=true;bool enabled(){return active;}bool pure_client(){return active&&client;}}
@@ -92,6 +93,7 @@ int main(){
   netcoop::active=true;netcoop::client=true;
   c.feel_touch_new(&remote);assert(ui.calls==calls&&fixture_level.sends==sends);
   owner.alive=false;c.feel_touch_new(&owner);assert(ui.calls==calls);owner.alive=true;
+  owner.seated=true;c.feel_touch_new(&owner);assert(ui.calls==calls);owner.seated=false; // a car goes through whole (doc 100)
   c.feel_touch_new(&owner);assert(ui.calls==calls+1&&fixture_level.sends==sends&&ui.last_enabled);
   c.update_actor_invitation();assert(ui.calls==calls+1);
   Device.fTimeGlobal+=6;c.update_actor_invitation();assert(ui.calls==calls+2&&fixture_level.sends==sends);

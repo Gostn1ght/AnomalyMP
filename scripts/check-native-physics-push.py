@@ -9,6 +9,8 @@ if os.environ.get('GITHUB_ACTIONS') != 'true':
 root=Path(__file__).resolve().parents[1]
 text=(root/'src/xrGame/netcoop.cpp').read_text(encoding='utf-8')
 loop=text[text.index('struct PhysicsSent {'):text.index('} // namespace netcoop',text.index('struct PhysicsSent {'))]
+# Vehicles (doc 100) live in their own include; this loop only selects and replicates cars.
+loop=loop.replace('#include "netcoop_vehicles.inc"','')
 source=r'''
 #include <cassert>
 #include <cmath>
@@ -73,6 +75,7 @@ struct CGrenade:CMissile{};
 struct CBolt:CMissile{};
 struct CPhysicObject:CPhysicsShellHolder{};
 struct CPhysicsSkeletonObject:CPhysicsShellHolder{};
+struct CCar:CPhysicsShellHolder{};
 constexpr u32 mcFwd=1,mcBack=2,mcLStrafe=4,mcRStrafe=8,mcJump=16,mcClimb=32;
 struct CActor:CEntityAlive{u32 move=mcFwd;u32 MovingState(){return move;}float netcoop_model_yaw(){return 0;}};
 template<class T>T smart_cast(CObject* o){return dynamic_cast<T>(o);}
@@ -100,6 +103,7 @@ struct World{::Objects Objects;u32 timeServer(){return fixture_now;}} world;
 World& Level(){return world;}
 namespace netcoop{bool fixture_client=false;bool pure_client(){return fixture_client;}
 '''+loop+r'''
+void vehicle_server_update(xrServer*){}
 }
 void tick(xrServer& server){fixture_now+=50;netcoop::server_physics_update(&server);}
 template<class T>void place(T& o,u16 id,float y=0.2f,float z=0.3f){o.id=id;o.position.set(0,y,z);o.shell.elements[0].state.position=o.position;}

@@ -574,6 +574,8 @@ void server_on_change_level(xrServer* server, xrClientData* CL, NET_Packet& P)
 	P.r(&level_vertex, sizeof(level_vertex));
 	CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(CL->owner->ID));
 	if (!actor || !actor->g_Alive()) return;
+	// In a car the whole car goes through (netcoop_vehicles.inc, doc 100).
+	if (actor->netcoop_seated()) return;
 	// The client names the changer; position and destination come from the
 	// server's own copy of it.
 	CLevelChanger* changer = nullptr;
