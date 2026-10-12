@@ -1,6 +1,7 @@
 """NPCs search for artefacts offline (doc 43 L08). Actual netcoop_artefacts
 with the actual netcoop_loot_policy generator (Lua 5.1): an offline squad of
-an artefact-hunting community that reached its smart terrain takes an
+an artefact-hunting community staying at its smart terrain (GAMMA resets
+current_action on load: by position) takes an
 offline artefact within 80 m into its best hunter's inventory with the same
 ID (alife():netcoop_take_offline). The chance follows rank, detector and the
 artefact's danger; online/moving/non-hunting squads, far, online, carried,
@@ -70,7 +71,8 @@ function T:diffSec() return hours * 3600 end
 game = {CTime = function() return setmetatable({}, T) end, get_game_time = function() return setmetatable({}, T) end}
 SIMBOARD = {smarts = {}}
 function squad(id, smart_id, community, members, extra)
-  local s = make(id, {section = "squad", cls = "squad", current_action = 1, current_target_id = smart_id,
+  local s = make(id, {section = "squad", cls = "squad", current_action = 0, smart_id = smart_id,
+                      position = vec(objects[smart_id].position.x + 20, objects[smart_id].position.z),
                       community = community, members = members})
   for k, v in pairs(extra or {}) do s[k] = v end
   function s:get_squad_community() return self.community end
@@ -148,8 +150,8 @@ def never(desc, setup, undo):
     assert hits == 0, desc
 
 never("online squad", "objects[200].online = true", "objects[200].online = nil")
-never("squad on the move", "objects[200].current_action = 0", "objects[200].current_action = 1")
-never("not at its own smart", "objects[200].current_target_id = 999", "objects[200].current_target_id = 100")
+never("squad away from its smart", "objects[200].position = vec(61, 0)", "objects[200].position = vec(20, 0)")
+never("squad sent elsewhere", "objects[200].assigned_target_id = 999", "objects[200].assigned_target_id = nil")
 never("not a hunting community", "objects[200].community = 'zombied'", "objects[200].community = 'stalker'")
 never("story squad", "objects[200].story = 'x'", "objects[200].story = nil")
 never("hunter online", "objects[12].online = true; objects[10].online = true", "objects[12].online = nil; objects[10].online = nil")

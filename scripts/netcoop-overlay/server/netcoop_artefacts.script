@@ -91,7 +91,7 @@ end
 -- players the fields kept everything for the first player to come. Once a
 -- game hour the server looks at artefacts lying offline on this map: a
 -- squad of one of GAMMA's artefact-hunting communities (artifact_communities
--- in ai_tweaks\xr_gather_items.ltx) that has reached its smart terrain
+-- in ai_tweaks\xr_gather_items.ltx) staying at its smart terrain
 -- within reach of one may take it. The chance follows the best hunter of
 -- the squad: experience (rank), equipment (the detector he carries) and the
 -- danger of the find (a costlier artefact lies in a worse anomaly). The
@@ -105,6 +105,7 @@ end
 local HUNT = {
 	every_hours = 1,  -- game hours between looks
 	reach = 80,       -- metres from the squad's smart terrain to the artefact
+	at_smart = 60,    -- a squad this close to its smart terrain is staying there
 	base = 0.10,      -- chance per artefact and look: experienced hunter, basic detector, cheap artefact
 	max_per_look = 2, -- artefacts taken on this map per look
 }
@@ -161,7 +162,11 @@ local function hunting_squads(level_id)
 		if smart and level_of(smart) == level_id then
 			for squad_id in pairs(info.squads or {}) do
 				local squad = alife_object(squad_id)
-				if squad and squad.online ~= true and squad.current_action == 1 and squad.current_target_id == smart_id
+				-- at the smart terrain it went to (GAMMA resets current_action on
+				-- load, so the squad's own position decides) and not sent elsewhere
+				if squad and squad.online ~= true and squad.position and smart.position
+					and squad.position:distance_to(smart.position) <= HUNT.at_smart
+					and (squad.assigned_target_id == nil or squad.assigned_target_id == smart_id)
 					and hunters()[squad.get_squad_community and squad:get_squad_community() or ""]
 					and not (get_object_story_id and get_object_story_id(squad_id)) then
 					local best, best_skill = nil, 0
