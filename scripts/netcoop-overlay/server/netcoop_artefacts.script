@@ -85,6 +85,166 @@ local function on_interaction(typ, obj, name)
 	printf("[Lost Zone] artefacts: %s #%s, far fields refill when they come online", name, tostring(st.stamp))
 end
 
+----------------------------------------------------------------------
+-- NPCs search for artefacts offline (doc 43 L08). GAMMA's stalkers pick
+-- artefacts up only online (xr_gather_items, near a player); far from
+-- players the fields kept everything for the first player to come. Once a
+-- game hour the server looks at artefacts lying offline on this map: a
+-- squad of one of GAMMA's artefact-hunting communities (artifact_communities
+-- in ai_tweaks\xr_gather_items.ltx) that has reached its smart terrain
+-- within reach of one may take it. The chance follows the best hunter of
+-- the squad: experience (rank), equipment (the detector he carries) and the
+-- danger of the find (a costlier artefact lies in a worse anomaly). The
+-- artefact goes into his inventory with its own ID
+-- (alife():netcoop_take_offline, ALife's offline attach) and stays with
+-- him, then on his corpse (L09). The rolls come from the world seed, the
+-- artefact and the hour: a restart or a player's arrival does not reroll
+-- them. A field coming online forgets artefacts taken from it, so GAMMA
+-- can refill those places.
+----------------------------------------------------------------------
+local HUNT = {
+	every_hours = 1,  -- game hours between looks
+	reach = 80,       -- metres from the squad's smart terrain to the artefact
+	base = 0.10,      -- chance per artefact and look: experienced hunter, basic detector, cheap artefact
+	max_per_look = 2, -- artefacts taken on this map per look
+}
+local HUNT_RANK = { novice = 0.6, trainee = 0.8, experienced = 1.0, professional = 1.15, veteran = 1.3,
+	expert = 1.4, master = 1.5, legend = 1.6 }
+local HUNT_DETECTOR = { detector_simple = 1.0, detector_advanced = 1.3, detector_elite = 1.5, detector_scientific = 1.7 }
+local HUNT_NO_DETECTOR = 0.3
+local NO_PARENT = 65535
+local hunter_communities
+
+local function hunters()
+	if hunter_communities then return hunter_communities end
+	hunter_communities = {}
+	local ok, list = pcall(function()
+		return utils_data.collect_section(ini_file("ai_tweaks\\xr_gather_items.ltx"), "artifact_communities", true)
+	end)
+	for k, v in pairs(ok and list or {}) do
+		if v == true then hunter_communities[k] = true elseif type(v) == "string" then hunter_communities[v] = true end
+	end
+	return hunter_communities
+end
+
+local function game_hours()
+	local base = game.CTime()
+	base:set(2012, 1, 1, 0, 0, 0, 0)
+	return math.floor(game.get_game_time():diffSec(base) / 3600)
+end
+
+local function level_of(se)
+	local ok, id = pcall(function() return game_graph():vertex(se.m_game_vertex_id):level_id() end)
+	return ok and id or nil
+end
+
+-- How good a member is at finding artefacts (0: he cannot hunt).
+function hunter_skill(member)
+	if not (member and member:alive()) then return 0 end
+	local rank = ranks and ranks.get_se_obj_rank_name and ranks.get_se_obj_rank_name(member)
+	local skill = HUNT_RANK[rank or ""] or 1.0
+	local detector = HUNT_NO_DETECTOR
+	for id in alife():get_children(member) do
+		local item = alife_object(id)
+		local d = item and HUNT_DETECTOR[item:section_name()]
+		if d and d > detector then detector = d end
+	end
+	return skill * detector
+end
+
+-- Offline squads staying at their smart terrain on this map, each with its best hunter.
+local function hunting_squads(level_id)
+	local found = {}
+	local board = SIMBOARD and SIMBOARD.smarts
+	for smart_id, info in pairs(board or {}) do
+		local smart = info.smrt or alife_object(smart_id)
+		if smart and level_of(smart) == level_id then
+			for squad_id in pairs(info.squads or {}) do
+				local squad = alife_object(squad_id)
+				if squad and squad.online ~= true and squad.current_action == 1 and squad.current_target_id == smart_id
+					and hunters()[squad.get_squad_community and squad:get_squad_community() or ""]
+					and not (get_object_story_id and get_object_story_id(squad_id)) then
+					local best, best_skill = nil, 0
+					for member in squad:squad_members() do
+						local se = alife_object(member.id)
+						local skill = se and se.online ~= true and hunter_skill(se) or 0
+						if skill > best_skill then best, best_skill = se, skill end
+					end
+					if best then found[#found + 1] = { smart = smart, hunter = best, skill = best_skill } end
+				end
+			end
+		end
+	end
+	return found
+end
+
+local function artefact_danger(section)
+	local cost = ini_sys and ini_sys:r_float_ex(section, "cost") or 0
+	return math.max(0.35, math.min(1, 1 - (cost or 0) / 50000))
+end
+
+function hunt_look(hour)
+	local sim = alife()
+	local here = sim and level_of(sim:actor())
+	if not here then return 0 end
+	local squads = hunting_squads(here)
+	if #squads == 0 then return 0 end
+	local lying = {}
+	sim:iterate_objects(function(se)
+		if se.parent_id == NO_PARENT and se.online ~= true and IsArtefact(nil, se:clsid()) and level_of(se) == here
+			and not (ini_sys and ini_sys:r_bool_ex(se:section_name(), "quest_item", false)) then
+			lying[#lying + 1] = se
+		end
+		return false
+	end)
+	table.sort(lying, function(a, b) return a.id < b.id end)
+	local seed = netcoop_loot_policy.world_seed()
+	local taken = 0
+	for _, af in ipairs(lying) do
+		if taken >= HUNT.max_per_look then break end
+		local best, best_skill = nil, 0
+		for _, sq in ipairs(squads) do
+			if sq.skill > best_skill and sq.smart.position:distance_to(af.position) <= HUNT.reach then
+				best, best_skill = sq, sq.skill
+			end
+		end
+		if best then
+			local roll = netcoop_loot_policy.random((seed + af.id * 7919 + hour * 104729) % 2147483647)()
+			if roll < HUNT.base * best_skill * artefact_danger(af:section_name())
+				and sim:netcoop_take_offline(best.hunter.id, af.id) then
+				taken = taken + 1
+				printf("[Lost Zone][artefacts] %s found %s (id %s) offline near %s", best.hunter:name(),
+					af:section_name(), tostring(af.id), best.smart:name())
+			end
+		end
+	end
+	return taken
+end
+
+function hunt_update()
+	local sim = alife and alife()
+	if not (sim and sim.netcoop_take_offline and netcoop_loot_policy and alife_storage_manager) then return end
+	local m = alife_storage_manager.get_state()
+	local hour = game_hours()
+	m.netcoop_af_hunt = m.netcoop_af_hunt or {}
+	local last = m.netcoop_af_hunt.hour
+	if last and hour - last < HUNT.every_hours then return end
+	m.netcoop_af_hunt.hour = hour
+	local ok, err = pcall(hunt_look, hour)
+	if not ok then printf("! [Lost Zone] artefact hunt failed: %s", tostring(err)) end
+end
+
+-- A field coming online forgets artefacts that left it while it was offline.
+function forget_taken(zone)
+	local gone = {}
+	for id in pairs(zone.artefact_ways_by_id or {}) do
+		local se = alife_object(tonumber(id))
+		if not se or se.parent_id ~= NO_PARENT then gone[#gone + 1] = tonumber(id) end
+	end
+	for _, id in ipairs(gone) do pcall(zone.on_artefact_take, zone, { id = id }) end
+	return #gone
+end
+
 local function install_far_refill()
 	local binder = bind_anomaly_zone and bind_anomaly_zone.anomaly_zone_binder
 	if not (binder and binder.net_spawn) or binder.__netcoop then return end
@@ -92,6 +252,7 @@ local function install_far_refill()
 	local base = binder.net_spawn
 	binder.net_spawn = function(self, se)
 		if not base(self, se) then return false end
+		forget_taken(self)
 		local st = store()
 		local zone_name = self.object and self.object:name()
 		if st and zone_name and (st.stamp or 0) > 0 and not st.done[zone_name] then
@@ -109,6 +270,7 @@ function on_game_start()
 end
 
 function update_world()
+	hunt_update()
 	local s = spawner()
 	if not (s and s.grok_artefact_spawner) then return end
 	local now, any = {}, false

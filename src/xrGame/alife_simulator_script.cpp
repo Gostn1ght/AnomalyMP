@@ -382,6 +382,23 @@ void teleport_object(CALifeSimulator* alife, ALife::_OBJECT_ID id, GameGraph::_G
 	alife->teleport_object(id, game_vertex_id, level_vertex_id, position);
 }
 
+// Lost Zone (doc 43 L08): an offline item lying in the world goes into an
+// offline creature's inventory with the same ID - ALife's own offline attach,
+// as offline trading does. Online objects are refused: they move through
+// ownership events (game_object:take_item / transfer_item).
+bool netcoop_take_offline(CALifeSimulator* alife, ALife::_OBJECT_ID who, ALife::_OBJECT_ID what)
+{
+	CSE_ALifeDynamicObject* owner = alife->objects().object(who, true);
+	CSE_ALifeDynamicObject* object = alife->objects().object(what, true);
+	if (!owner || !object || owner == object || owner->m_bOnline || object->m_bOnline)
+		return false;
+	CSE_ALifeInventoryItem* item = smart_cast<CSE_ALifeInventoryItem*>(object);
+	if (!item || object->ID_Parent != 0xffff || !smart_cast<CSE_ALifeTraderAbstract*>(owner))
+		return false;
+	alife->graph().attach(*owner, item, object->m_tGraphID, true, true);
+	return true;
+}
+
 void IterateInfo(const CALifeSimulator* alife, const ALife::_OBJECT_ID& id, const ::luabind::functor<void>& functor)
 {
 	const KNOWN_INFO_VECTOR* known_info = registry(alife, id);
@@ -642,6 +659,7 @@ void CALifeSimulator::script_register(lua_State* L)
 		//Alundaio: renamed to set_switch_distance from switch_distance
 		//Alundaio: extend alife simulator exports
 		.def("teleport_object", &teleport_object)
+		.def("netcoop_take_offline", &netcoop_take_offline)
 		.def("iterate_info", &IterateInfo)
 		.def("clone_weapon", &try_to_clone_object)
 		.def("register", &reprocess_spawn)
