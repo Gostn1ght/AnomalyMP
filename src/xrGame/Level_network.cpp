@@ -120,6 +120,7 @@ extern CUISequencer* g_tutorial2;
 
 void CLevel::net_Stop()
 {
+	netcoop::script_watchdog_level_end();
 	Msg("- Disconnect");
 
 	if (CurrentGameUI())

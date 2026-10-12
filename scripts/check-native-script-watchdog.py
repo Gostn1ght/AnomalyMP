@@ -10,7 +10,7 @@ text=(root/'src/xrGame/netcoop.cpp').read_text(encoding='latin-1')
 start=text.index('volatile LONG wd_armed = 0;')
 method=text[start:text.index('// Hitch sampling:',start)]
 assert 'g_loading_events.empty()' in method and 'Device.dwPrecacheFrame' in method
-stop = (root/'src/xrGame/level_network.cpp').read_text(encoding='latin-1')
+stop = (root/'src/xrGame/Level_network.cpp').read_text(encoding='latin-1')
 start_level = (root/'src/xrGame/Level_start.cpp').read_text(encoding='latin-1')
 assert stop.index('netcoop::script_watchdog_level_end();', stop.index('void CLevel::net_Stop()')) < stop.index('remove_objects();')
 assert 'netcoop::script_watchdog_level_begin();' in start_level
