@@ -92,7 +92,7 @@ struct BridgeBootstrap
 {
     WorldStateSnapshot world{};
     std::uint64_t event_watermark=0;
-    BridgeTimeline weather,emission;
+    BridgeTimeline weather,emission,psi_storm;
 };
 static_assert(std::is_nothrow_move_assignable<BridgeBootstrap>::value,"bridge mailbox moves must not throw");
 inline std::string bridge_identifier(const BridgeJson& object, const char* key, bool persistent=false)
@@ -171,6 +171,8 @@ inline BridgeBootstrap parse_bridge_globals(const std::string& encoded)
     if (result.event_watermark>=(std::uint64_t(1)<<63)) throw std::invalid_argument("invalid event watermark");
     result.weather=parse_bridge_timeline(state["states"],"weather",true);
     result.emission=parse_bridge_timeline(state["states"],"emission",false);
+    // Psi storms use the emission's phases (an older master has none).
+    result.psi_storm=parse_bridge_timeline(state["states"],"psi_storm",false);
     return result;
 }
 inline unsigned bridge_weather_phase(const BridgeTimeline& state, double world_ms)
@@ -203,10 +205,14 @@ struct BridgeConfig
     unsigned port=0;
     std::string token;
     bool bound=false;
+    // schema 3 (owner 2026-10-12): the master is the authority for every map
+    // of the server folder; one file, bound to the level actually loaded.
+    bool authority=false;
     std::uint64_t master_world=0,master_seed=0,local_world=0,local_seed=0;
     std::string location;
     bool matches_local(const WorldStateSnapshot& state, const char* map=nullptr) const
     {
+        if (authority) return map && *map;
         return !bound || (state.clock.world_id==local_world && state.world_seed==local_seed &&
                          map && location==map);
     }
@@ -215,8 +221,9 @@ struct BridgeConfig
         const auto body=bridge_json(encoded,4096);
         if (!body.is_object()) throw std::invalid_argument("invalid bridge config object");
         const auto schema=bridge_unsigned(body,"schema");
-        if ((schema!=1 && schema!=2) || body.size()!=(schema==1 ? 5u:10u) ||
-            !body.contains("mode") || body["mode"]!="shadow" || !body.contains("host") || body["host"]!="127.0.0.1" ||
+        if ((schema!=1 && schema!=2 && schema!=3) || body.size()!=(schema==1 ? 5u:schema==2 ? 10u:7u) ||
+            !body.contains("mode") || body["mode"]!=(schema==3 ? "authority":"shadow") ||
+            !body.contains("host") || body["host"]!="127.0.0.1" ||
             !body.contains("token") || !body["token"].is_string()) throw std::invalid_argument("invalid read-only bridge config");
         const auto port=bridge_unsigned(body,"port");
         const auto token=body["token"].get<std::string>();
@@ -234,6 +241,13 @@ struct BridgeConfig
             result.location=bridge_identifier(body,"location");
             if (!result.master_world || !result.local_world) throw std::invalid_argument("zero bridge WorldID");
             result.bound=true;
+        }
+        if (schema==3)
+        {
+            result.master_world=bridge_unsigned(body,"master_world_id");
+            result.master_seed=bridge_unsigned(body,"master_world_seed");
+            if (!result.master_world) throw std::invalid_argument("zero bridge WorldID");
+            result.bound=result.authority=true;
         }
         return result;
     }
@@ -273,7 +287,8 @@ public:
         if (have_globals_ && (state.world.state_revision<globals_.world.state_revision ||
             state.event_watermark<globals_.event_watermark ||
             !bridge_timeline_forward(globals_.weather,state.weather) ||
-            !bridge_timeline_forward(globals_.emission,state.emission))) return SyncResult::invalid;
+            !bridge_timeline_forward(globals_.emission,state.emission) ||
+            !bridge_timeline_forward(globals_.psi_storm,state.psi_storm))) return SyncResult::invalid;
         auto candidate=state; // Allocate before advancing the follower.
         const auto result=receive(state.world,sent,received);
         if (result==SyncResult::applied) {globals_=std::move(candidate);have_globals_=true;}

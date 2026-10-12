@@ -2804,6 +2804,7 @@ void CLevel::script_register(lua_State* L)
 		def("netcoop_trade", &netcoop::script_trade),
 		def("netcoop_item_info", &netcoop::script_item_info),
 		def("netcoop_item_uid", &netcoop::script_item_uid),
+		def("netcoop_master_state", &netcoop::script_master_state),
 		def("netcoop_item_action", &netcoop::script_item_action),
 		def("netcoop_voice_radio_local", &netcoop::script_voice_radio_local),
 		def("netcoop_voice_status", &netcoop::script_voice_status),

@@ -1,0 +1,84 @@
+-- Lost Zone: the world master's schedules for this location server (owner
+-- 2026-10-12: "the master syncs weather, emissions and similar events to the
+-- maps"). The engine reads them from the master (netcoop_world_bridge.inc)
+-- and passes one line, parsed here:
+--   "0"  no master (a single server keeps GAMMA's own schedules)
+--   "2"  the master is required but unavailable: nothing new starts
+--   "1 world_ms scale|weather id source target transition settled|
+--      emission id warning ended|psi id warning ended"  ("-" = none yet)
+-- Times are the game calendar in milliseconds, the same clock the engine
+-- keeps (the server follows the master's calendar).
+
+local function numbers(text, count)
+	local out = {}
+	for value in string.gmatch(text or "", "%S+") do out[#out + 1] = value end
+	if #out ~= count then return nil end
+	return out
+end
+
+local function event(text)
+	local v = text ~= "-" and numbers(text, 3)
+	if not v then return nil end
+	local warning, ended = tonumber(v[2]), tonumber(v[3])
+	if not (warning and ended and ended > warning) then return nil end
+	return { id = v[1], warning = warning, ended = ended }
+end
+
+-- The parsed state, or nil without a usable master; second value: required.
+function state(line)
+	line = line or (netcoop_master_state and netcoop_master_state()) or "0"
+	local head = string.sub(line, 1, 1)
+	if head ~= "1" then return nil, head == "2" end
+	local parts = {}
+	for part in string.gmatch(line, "[^|]+") do parts[#parts + 1] = part end
+	local clock = numbers(parts[1], 3)
+	if not clock or #parts ~= 4 then return nil, true end
+	local result = { world_ms = tonumber(clock[2]), scale = tonumber(clock[3]) }
+	if not (result.world_ms and result.scale and result.scale > 0) then return nil, true end
+	local w = parts[2] ~= "-" and numbers(parts[2], 5)
+	if w then
+		result.weather = { id = w[1], source = w[2], target = w[3], transition = tonumber(w[4]), settled = tonumber(w[5]) }
+	end
+	result.emission = event(parts[3])
+	result.psi_storm = event(parts[4])
+	return result, true
+end
+
+-- The master decides (true) or GAMMA's local schedule does (false).
+function governs()
+	local s, required = state()
+	return s ~= nil or required
+end
+
+function weather_cycle(s)
+	local w = s and s.weather
+	if not (w and w.transition) then return nil end
+	return s.world_ms >= w.transition and w.target or w.source
+end
+
+-- Is the master's `name` event ("emission"/"psi_storm") running now? Returns
+-- true and the real seconds already elapsed (a server started in the middle
+-- resumes at the same phase), and the event id. An event already finished on
+-- this server (finished_id) does not start again.
+function event_due(s, name, finished_id)
+	local e = s and s[name]
+	if not e or e.id == finished_id then return false end
+	if s.world_ms < e.warning or s.world_ms >= e.ended then return false end
+	return true, (s.world_ms - e.warning) / 1000 / s.scale, e.id
+end
+
+-- Game seconds until the master's next `name` event (nil when none ahead).
+-- GAMMA's weather turns "pre-blowout" two game hours before an emission or
+-- a psi storm by its manager's _delta: it is aligned with the master.
+function seconds_until(s, name)
+	local e = s and s[name]
+	if not e or s.world_ms >= e.warning then return nil end
+	return (e.warning - s.world_ms) / 1000
+end
+
+function align_manager(mgr, last_field, s, name)
+	local wait = seconds_until(s, name)
+	if not (mgr and wait and mgr[last_field]) then return end
+	local ok, since = pcall(function() return game.get_game_time():diffSec(mgr[last_field]) end)
+	if ok and since then mgr._delta = math.floor(since + wait) end
+end

@@ -153,6 +153,7 @@ function finish()
     started_at = nil
     local state = alife_storage_manager.get_state()
     if state.netcoop_emission_slot then state.netcoop_emission_done = state.netcoop_emission_slot end
+    if state.netcoop_master_emission then state.netcoop_master_emission_done = state.netcoop_master_emission end
     level.set_time_factor(normal_factor or 6)
     next_interval(mgr)
     SetEvent("surge", "state", false)
@@ -206,7 +207,15 @@ function update_world()
     install()
     local mgr = manager()
     if not started_at and valid_level() and ui_options.get("alife/event/emission_state") then
-        if cluster_mode() then
+        -- The world master decides (owner 2026-10-12); while a required master
+        -- is unavailable no emission starts here.
+        local master, required = netcoop_master.state()
+        if master or required then
+            local state = alife_storage_manager.get_state()
+            local due, at, id = netcoop_master.event_due(master, "emission", state.netcoop_master_emission_done)
+            if due and start(at) then state.netcoop_master_emission = id end
+            if not due then netcoop_master.align_manager(mgr, "last_surge_time", master, "emission") end
+        elseif cluster_mode() then
             local due, elapsed = cluster_due()
             if due then start(elapsed) end
         elseif game.get_game_time():diffSec(mgr.last_surge_time) >= mgr._delta then

@@ -126,6 +126,7 @@ struct WorldBridgeWorker::State
         std::memcpy(output.location,config.location.c_str(),config.location.size()+1);
         output.estimated_world_ms=observer.estimate(now);
         output.weather=project(globals.weather);output.emission=project(globals.emission);
+        output.psi_storm=project(globals.psi_storm);output.authority=config.authority;
         output.weather_phase=bridge_weather_phase(globals.weather,output.estimated_world_ms);
         output.weather_blend=bridge_weather_blend(globals.weather,output.estimated_world_ms);
         output.emission_phase=bridge_emission_phase(globals.emission,output.estimated_world_ms);

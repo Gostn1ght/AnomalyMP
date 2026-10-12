@@ -12,6 +12,10 @@ from lupa.lua51 import LuaRuntime
 
 root = Path(__file__).resolve().parent / "netcoop-overlay"
 lua = LuaRuntime(unpack_returned_tuples=True)
+_master = lua.table()
+lua.execute("local env=...; setfenv(assert(loadstring(select(2,...))), setmetatable(env,{__index=_G}))()",
+            _master, (root / 'server/netcoop_master.script').read_text(encoding='utf-8'))
+lua.globals().netcoop_master = _master
 g = lua.globals()
 lua.execute(r'''
 now, factor, hours0 = 0, 6, 100000

@@ -501,6 +501,16 @@ local function install_cluster_weather(wm)
 	end
 end
 
+-- With the master GAMMA never picks a cycle itself: the master changes it.
+function install_master_weather(wm)
+	if wm.__netcoop_master then return end
+	wm.__netcoop_master = true
+	wm.is_next_change_date = function() return false end
+	wm.get_next_weather_cycle = function(self, current)
+		return netcoop_master.weather_cycle(netcoop_master.state()) or current
+	end
+end
+
 local function server_world_tick()
 	local now = time_global()
 	if now < world_next then return end
@@ -522,10 +532,29 @@ local function server_world_tick()
 
 	local wm = level_weathers and level_weathers.get_weather_manager()
 	if not wm then return end
-	install_cluster_weather(wm)
-	if in_cluster() then hour_seed(cluster_hour()) end
+	-- The world master's weather cycle (owner 2026-10-12): every map of the
+	-- Zone switches to it at the same game time; presets within the cycle use
+	-- the hour seed below, so all maps pick the same one.
+	local master, master_required = netcoop_master.state()
+	if master or master_required then
+		install_master_weather(wm)
+		local cycle = netcoop_master.weather_cycle(master)
+		if cycle and wm.cycle ~= cycle and wm.presets and wm.presets[cycle] then
+			hour_seed(cluster_hour())
+			wm.cycle = cycle
+			wm.preset = random_key_table(wm.presets[cycle])
+			wm.transition_period = true
+			local ok, err = pcall(wm.select_weather, wm, false)
+			math.randomseed(os.time() + time_global())
+			if not ok then printf("[Lost Zone] master weather error: %s", tostring(err)) end
+			printf("[Lost Zone][master] weather cycle %s", cycle)
+		end
+	else
+		install_cluster_weather(wm)
+	end
+	if in_cluster() or master then hour_seed(cluster_hour()) end
 	local ok, err = pcall(wm.update, wm)
-	if in_cluster() then math.randomseed(os.time() + time_global()) end
+	if in_cluster() or master then math.randomseed(os.time() + time_global()) end
 	if not ok then printf("[Lost Zone] weather update error: %s", tostring(err)) end
 	local weather = wm.weather_file or (level.get_weather and level.get_weather()) or ""
 	if weather ~= "" and (weather ~= weather_sent or now >= weather_next) then

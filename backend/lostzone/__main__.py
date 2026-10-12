@@ -61,7 +61,8 @@ def create_config(path, locations, *, world_id=None, seed=None, initial_ms=None,
     return path
 
 
-def create_bridge_config(config_path, destination, *, local_world_id=None, local_seed=None, location=None):
+def create_bridge_config(config_path, destination, *, local_world_id=None, local_seed=None, location=None,
+                         authority=False, replace=False):
     # Export only a read-only observer, never an admin/location token. The
     # engine owns its existing WorldID/seed; this file does not adopt a new DB.
     config_path,destination = Path(config_path).resolve(),Path(destination).resolve()
@@ -78,7 +79,17 @@ def create_bridge_config(config_path, destination, *, local_world_id=None, local
     if destination.name!="netcoop_world_bridge.json":
         raise Invalid("engine bridge file must be netcoop_world_bridge.json")
     body = {"schema":1,"mode":"shadow","host":"127.0.0.1","port":port,"token":entry["token"]}
-    if any(value is not None for value in (local_world_id, local_seed, location)):
+    if authority:
+        # Every location server of this folder follows this master (owner
+        # 2026-10-12): weather, emissions, psi storms and the calendar come
+        # from it, and a server without it admits no players. One file serves
+        # all maps; the engine binds it to the level it actually loaded.
+        if any(value is not None for value in (local_world_id, local_seed, location)):
+            raise Invalid("an authority bridge is not bound to one checkpoint")
+        master_id, master_seed = world_identity(config.get("world_id"), config.get("seed"))
+        body = {"schema":3,"mode":"authority","host":"127.0.0.1","port":port,"token":entry["token"],
+                "master_world_id":master_id,"master_world_seed":master_seed}
+    elif any(value is not None for value in (local_world_id, local_seed, location)):
         world_identity(local_world_id, local_seed)
         identifier(location)
         if not any(principal.role == "location" and location in principal.locations
@@ -89,6 +100,8 @@ def create_bridge_config(config_path, destination, *, local_world_id=None, local
                     local_world_id=local_world_id, local_world_seed=local_seed, location=location)
     destination.parent.mkdir(parents=True,exist_ok=True)
     encoded = json.dumps(body).encode("utf-8")
+    if replace and authority and destination.exists():
+        destination.unlink()  # the same master's file, rewritten after a new init
     descriptor = os.open(destination,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
     with os.fdopen(descriptor,"wb") as file:
         file.write(encoded);file.flush();os.fsync(file.fileno())
@@ -122,11 +135,18 @@ def run(path, port_override=None, interactive=False):
                       initial_ms=config.get("initial_ms", 0), scale=config.get("scale", 10))
         server = Server(("127.0.0.1", port), Dispatcher(world, key, config.get("quests", {}),
                         config.get("items", {}), config.get("traders", {}), config.get("scavenging", {}), config.get("offline_planning")), credentials)
+        from .director import Director
+        director = Director(world, server.dispatcher.timelines, config.get("director"))
         def checkpoints():
             last = time.monotonic()
+            planned = 0.0
             while not stop.wait(1):
                 try:
                     processed=server.dispatcher.timelines.scheduler.run_due(limit=64, budget_ms=10)
+                    if time.monotonic() - planned >= 2:
+                        planned = time.monotonic()
+                        for line in director.tick():
+                            print(f"[мир] {line}", flush=True)
                     if time.monotonic() - last >= 5:
                         world.sample()
                         last = time.monotonic()
@@ -190,6 +210,8 @@ def main():
     parser.add_argument("--scale", type=float, help="initial game time scale; init only")
     parser.add_argument("--local-world-id", type=int, help="existing ALife checkpoint WorldID; bridge-config only")
     parser.add_argument("--local-seed", type=int, help="existing ALife checkpoint seed; bridge-config only")
+    parser.add_argument("--authority", action="store_true", help="bridge-config: every map follows this master")
+    parser.add_argument("--replace", action="store_true", help="bridge-config --authority: rewrite an existing file")
     args = parser.parse_args()
     if args.mode != "init" and any(value is not None for value in
                                    (args.world_id, args.seed, args.initial_ms, args.scale)):
@@ -206,8 +228,9 @@ def main():
         if len(args.location) > 1:
             raise Invalid("a bridge config binds exactly one location")
         create_bridge_config(args.config,args.destination,local_world_id=args.local_world_id,
-                             local_seed=args.local_seed,location=args.location[0] if args.location else None)
-        print("Created private read-only engine bridge configuration. Token is not printed.")
+                             local_seed=args.local_seed,location=args.location[0] if args.location else None,
+                             authority=args.authority,replace=args.replace)
+        print("Created private engine bridge configuration. Token is not printed.")
     else:
         run(args.config, args.port, interactive=args.mode == "console")
 

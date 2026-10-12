@@ -139,6 +139,7 @@ function finish()
 	mgr.last_psi_storm_time = game.get_game_time()
 	local state = alife_storage_manager.get_state()
 	if state.netcoop_psi_slot then state.netcoop_psi_done = state.netcoop_psi_slot end
+	if state.netcoop_master_psi then state.netcoop_master_psi_done = state.netcoop_master_psi end
 	state.netcoop_psi_next = nil
 	level.set_time_factor(normal_factor or 6)
 	SetEvent("psi_storm", "state", false)
@@ -247,7 +248,13 @@ function update_world()
 	install()
 	if not started_at then
 		if enabled() and netcoop_emission and netcoop_emission.is_valid_level() and netcoop_emission.current_elapsed() < 0 then
-			if netcoop_emission.cluster_mode() then
+			local master, required = netcoop_master.state()
+			if master or required then
+				local state = alife_storage_manager.get_state()
+				local due, at, id = netcoop_master.event_due(master, "psi_storm", state.netcoop_master_psi_done)
+				if due and start(at) then state.netcoop_master_psi = id end
+				if not due then netcoop_master.align_manager(manager(), "last_psi_storm_time", master, "psi_storm") end
+			elseif netcoop_emission.cluster_mode() then
 				local due, at = cluster_due()
 				if due then start(at) end
 			elseif single_due() then

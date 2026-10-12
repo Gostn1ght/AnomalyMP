@@ -31,7 +31,9 @@ struct MasterProjection
     bool master_binding=false;
     double estimated_world_ms=0,weather_blend=0;
     unsigned weather_phase=0,emission_phase=0;
-    BridgeTimelineProjection weather{},emission{};
+    BridgeTimelineProjection weather{},emission{},psi_storm{};
+    bool authority=false;
+    char master_location[129]{};
 };
 
 // Parsing, IO, follower errors and threads are isolated in an exception-enabled

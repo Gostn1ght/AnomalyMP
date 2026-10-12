@@ -38,6 +38,28 @@ class BridgeBindingTest(unittest.TestCase):
             self.assertEqual(original, config_path.read_bytes())
             self.assertFalse((Path(folder) / "world.sqlite").exists())
 
+    def test_authority_bridge_serves_every_map_of_the_folder(self):
+        with tempfile.TemporaryDirectory() as folder:
+            config_path = Path(folder) / "config.json"
+            create_config(config_path, ["k00_marsh", "l01_escape"], world_id=77, seed=5)
+            destination = Path(folder) / "server" / "netcoop_world_bridge.json"
+            create_bridge_config(config_path, destination, authority=True)
+            result = json.loads(destination.read_bytes())
+            self.assertEqual((3, "authority", 77, 5), tuple(result[k] for k in ("schema", "mode", "master_world_id", "master_world_seed")))
+            self.assertNotIn("location", result)
+            config = json.loads(config_path.read_bytes())
+            self.assertEqual(config["credentials"]["observer:engine"]["token"], result["token"])
+            self.assertNotIn(config["credentials"]["admin"]["token"].encode(), destination.read_bytes())
+            with self.assertRaises(FileExistsError):
+                create_bridge_config(config_path, destination, authority=True)
+            create_bridge_config(config_path, destination, authority=True, replace=True)
+            with self.assertRaises(Invalid):
+                create_bridge_config(config_path, Path(folder) / "x" / "netcoop_world_bridge.json", authority=True, location="k00_marsh")
+            no_identity = Path(folder) / "plain.json"
+            create_config(no_identity, ["k00_marsh"])
+            with self.assertRaises(Invalid):
+                create_bridge_config(no_identity, Path(folder) / "y" / "netcoop_world_bridge.json", authority=True)
+
     def test_invalid_or_incomplete_binding_leaves_no_file_or_directory(self):
         with tempfile.TemporaryDirectory() as folder:
             config_path = Path(folder) / "config.json"

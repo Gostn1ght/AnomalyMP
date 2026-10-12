@@ -6,6 +6,11 @@ from .scheduler import Scheduler
 from .store import Conflict, Invalid, canonical, finite, identifier, persistent_id, positive
 
 
+PHASES = {"weather": ("TRANSITION", "SETTLED"),
+          "emission": ("WARNING", "ACTIVE", "PEAK", "ENDED"),
+          "psi_storm": ("WARNING", "ACTIVE", "PEAK", "ENDED")}
+
+
 class Timelines:
     def __init__(self, world):
         self.world, self.store = world, world.store
@@ -14,13 +19,13 @@ class Timelines:
     def schedule(self, actor, command_id, name, timeline_id, version, times, parameters):
         # None is an administrator's explicit replacement after mutation catchup.
         # Integer versions retain compare-and-swap semantics for API clients.
-        if name not in ("weather", "emission") or (version is not None and
+        if name not in PHASES or (version is not None and
                 (type(version) is not int or not 0 <= version < 2**63)):
             raise Invalid("invalid timeline name/version")
         persistent_id(timeline_id)
         if not isinstance(times, dict) or not isinstance(parameters, dict):
             raise Invalid("invalid timeline schedule")
-        phases = ("TRANSITION", "SETTLED") if name == "weather" else ("WARNING", "ACTIVE", "PEAK", "ENDED")
+        phases = PHASES[name]
         if set(times) != set(phases):
             raise Invalid("timeline phases are incomplete")
         values = [finite(times[phase]) for phase in phases]
@@ -63,14 +68,14 @@ class Timelines:
     @staticmethod
     def public_state(name, envelope):
         """Bounded native wire contract, excluding arbitrary admin parameters."""
-        if name not in ("weather", "emission") or not isinstance(envelope, dict):
+        if name not in PHASES or not isinstance(envelope, dict):
             raise Invalid("invalid public timeline")
         version = positive(envelope.get("version"))
         state = envelope.get("state")
         if not isinstance(state, dict):
             raise Invalid("invalid public timeline state")
         timeline_id = persistent_id(state.get("timeline_id"))
-        phases = ("TRANSITION", "SETTLED") if name == "weather" else ("WARNING", "ACTIVE", "PEAK", "ENDED")
+        phases = PHASES[name]
         phase = state.get("phase")
         if phase not in ("SCHEDULED", *phases):
             raise Invalid("invalid public timeline phase")
@@ -98,7 +103,7 @@ class Timelines:
     def evaluate(name, state, world_ms):
         finite(world_ms)
         times = state["times"]
-        phases = ("TRANSITION", "SETTLED") if name == "weather" else ("WARNING", "ACTIVE", "PEAK", "ENDED")
+        phases = PHASES[name]
         phase = "SCHEDULED"
         for candidate in phases:
             if world_ms >= times[candidate]:

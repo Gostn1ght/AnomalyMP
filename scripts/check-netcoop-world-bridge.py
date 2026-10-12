@@ -72,9 +72,18 @@ int main(int argc,char** argv) {
   const double times[]={1099,1100,1200,1400,1800};
   assert(bridge_emission_phase(global.emission,times[i])==i+1);
  }
+ assert(!global.psi_storm.present); // an older master has no psi storms
+ auto with_psi=body;with_psi["result"]["states"]["psi_storm"]={{"version",1},{"state",{
+  {"timeline_id",std::string(32,'c')},{"phase","WARNING"},
+  {"times",{{"WARNING",3000},{"ACTIVE",3100},{"PEAK",3500},{"ENDED",4000}}},
+  {"parameters",{{"intensity",100},{"seed",7}}}}}};
+ const auto psi=parse_bridge_globals(with_psi.dump());
+ assert(psi.psi_storm.present && psi.psi_storm.warning==3000 && psi.psi_storm.ended==4000 && psi.psi_storm.seed==7);
+ auto broken_psi=with_psi;broken_psi["result"]["states"]["psi_storm"]["state"]["times"]["ENDED"]=3200;
+ rejects([&]{parse_bridge_globals(broken_psi.dump());});
  auto empty=BridgeJson::parse(text);empty["result"]["event_watermark"]=0;
  auto absent=parse_bridge_globals(empty.dump());
- assert(!absent.weather.present && !absent.emission.present);
+ assert(!absent.weather.present && !absent.emission.present && !absent.psi_storm.present);
  assert(bridge_weather_phase(absent.weather,1500)==0 && bridge_emission_phase(absent.emission,1500)==0);
  rejects([&]{parse_bridge_globals(text);}); // Watermark is mandatory.
  auto broken=body;broken["result"]["event_watermark"]=-1;
@@ -154,6 +163,18 @@ int main(int argc,char** argv) {
  bad=binding;bad["master_world_id"]=0;rejects([&]{BridgeConfig::parse(bad.dump());});
  bad=binding;bad["local_world_seed"]=false;rejects([&]{BridgeConfig::parse(bad.dump());});
  bad=binding;bad["location"]="bad\nmap";rejects([&]{BridgeConfig::parse(bad.dump());});
+ // schema 3: the master is the authority for every map of the folder.
+ BridgeJson authority={{"schema",3},{"mode","authority"},{"host","127.0.0.1"},{"port",38477},
+     {"token",std::string(48,'t')},{"master_world_id",77},{"master_world_seed",5}};
+ const auto master=BridgeConfig::parse(authority.dump());
+ assert(master.authority && master.bound && master.master_world==77 && master.master_seed==5);
+ assert(master.matches_local(local_scope,"cordon") && master.matches_local(wrong_scope,"garbage"));
+ assert(!master.matches_local(local_scope) && !master.matches_local(local_scope,""));
+ bad=authority;bad["mode"]="shadow";rejects([&]{BridgeConfig::parse(bad.dump());});
+ bad=authority;bad["master_world_id"]=0;rejects([&]{BridgeConfig::parse(bad.dump());});
+ bad=authority;bad["location"]="cordon";rejects([&]{BridgeConfig::parse(bad.dump());});
+ bad=authority;bad.erase("master_world_seed");rejects([&]{BridgeConfig::parse(bad.dump());});
+ bad=config;bad["mode"]="authority";rejects([&]{BridgeConfig::parse(bad.dump());});
  WorldBridgeWorker isolated;
  MasterProjection projection{};projection.event_watermark=999;
  assert(!isolated.read_projection(state,projection) && projection.event_watermark==0);

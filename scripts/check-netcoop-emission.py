@@ -4,6 +4,10 @@ from lupa.lua51 import LuaRuntime
 
 root = Path(__file__).resolve().parent / 'netcoop-overlay'
 lua = LuaRuntime(unpack_returned_tuples=True)
+_master = lua.table()
+lua.execute("local env=...; setfenv(assert(loadstring(select(2,...))), setmetatable(env,{__index=_G}))()",
+            _master, (root / 'server/netcoop_master.script').read_text(encoding='utf-8'))
+lua.globals().netcoop_master = _master
 lua.execute('''
 now, factor, respawns, tasks, mortality, starts, ends, updates = 0, 6, 0, {}, 0, 0, 0, 0
 local time_mt = {}
@@ -156,7 +160,31 @@ e2.update_world()
 assert(factor == 10, "the restarted server resumes the emission")
 assert(broadcast:match("|1|"), "and tells clients it is active: " .. tostring(broadcast))
 ''')
-print('PASS: shared clock, shelter IDs, per-owner protection, late join, single respawn and client presentation')
+# World master (owner 2026-10-12): the master's emission starts here, resumed
+# at its phase; a required but unavailable master starts nothing locally.
+lua.execute('netcoop_emission = {}')
+lua.execute('setfenv(assert(loadstring(...)), setmetatable(netcoop_emission,{__index=_G}))()',
+            (root/'server/netcoop_emission.script').read_text())
+lua.execute('''
+local e3 = netcoop_emission
+store = {}
+master_line = "2"
+function netcoop_master_state() return master_line end
+factor = 6
+local at = e3.scheduled_start(170, 24)
+now = (at*3600 - 100000)*1000/6 + 1000   -- the local cluster slot is due
+e3.update_world(); assert(factor == 6, "no local emission while the master is required")
+master_line = "1 1000000 10.0000|-|EM1 990000 3210000|-"
+e3.update_world(); assert(factor == 10, "the master's emission starts")
+assert(store.netcoop_master_emission == "EM1")
+assert(broadcast:match("^%d+|1|1%.000|222$"), "resumed one real second in: " .. broadcast)
+now = now + 223000; e3.update_world(); assert(factor ~= 10, "finished")
+assert(store.netcoop_master_emission_done == "EM1")
+e3.update_world(); assert(factor ~= 10, "the same master emission never runs twice here")
+master_line = "1 4000000 10.0000|-|EM1 990000 3210000|-"
+e3.update_world(); assert(factor ~= 10)
+''')
+print('PASS: shared clock, shelter IDs, per-owner protection, late join, single respawn, world master and client presentation')
 
 # Exact GAMMA end_surge: normal completion deliberately does NOT stop WFX.
 # The client adapter's extra stop used to cut its recovery tail. Test the

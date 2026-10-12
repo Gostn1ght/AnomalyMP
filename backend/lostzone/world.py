@@ -121,7 +121,7 @@ class World:
     def _bootstrap_snapshot(self, *, engine=False):
         with self.store.transaction() as tx:
             clock = self.sample_in(tx)
-            query = ("SELECT * FROM world_state WHERE name IN ('weather','emission') ORDER BY name"
+            query = ("SELECT * FROM world_state WHERE name IN ('weather','emission','psi_storm') ORDER BY name"
                      if engine else "SELECT * FROM world_state ORDER BY name")
             rows = tx.execute(query).fetchall()
             watermark = tx.execute("SELECT COALESCE(MAX(sequence),0) FROM world_event").fetchone()[0]

@@ -463,6 +463,13 @@ static bool cluster_on_login(xrClientData* CL, LPCSTR login, u8 slot, xr_string&
 		error = "The world is still being prepared; try again in a minute";
 		return false;
 	}
+	// The master is the world's authority (owner 2026-10-12): without it
+	// weather, emissions and the calendar would split between the maps.
+	if (master_required() && !master_ready())
+	{
+		error = "The world master is unavailable; try again in a minute";
+		return false;
+	}
 	// The whole Zone takes at most [cluster] max_players (default 512).
 	if (cluster_config_present())
 	{
@@ -741,10 +748,34 @@ static u64 cluster_unix_ms()
 static void cluster_clock_update(bool observed)
 {
 	if (!ai().get_alife()) return;
+	CALifeTimeManager& time = const_cast<CALifeSimulator*>(ai().get_alife())->time_manager();
+	// With the world master its calendar is the target (owner 2026-10-12):
+	// a server behind it runs faster, one ahead slows down; never a jump.
+	double master_ms = 0, master_scale = 0;
+	if (master_clock(master_ms, master_scale))
+	{
+		const float normal = float(master_scale);
+		const double behind = master_ms - double(time.game_time());
+		float factor = normal;
+		if (behind > 2000.0)
+		{
+			const double extra = observed ? double(normal) * 0.25 : 900.0 - double(normal);
+			factor = normal + float(_max(0.0, _min(behind / 30000.0, extra)));
+		}
+		else if (behind < -2000.0)
+			factor = normal * (observed ? 0.8f : 0.5f);
+		if (_abs(factor - s_cluster_clock_factor) > normal * 0.01f)
+		{
+			Msg("[Lost Zone][master] calendar %.0f s %s the master: time factor %.2f", _abs(behind) / 1000.0,
+				behind >= 0 ? "behind" : "ahead of", factor);
+			time.set_time_factor(factor);
+			s_cluster_clock_factor = factor;
+		}
+		return;
+	}
 	string_path config;
 	FS.update_path(config, "$app_data_root$", "netcoop_cluster.ltx");
 	if (GetFileAttributesA(config) == INVALID_FILE_ATTRIBUTES) return; // single server
-	CALifeTimeManager& time = const_cast<CALifeSimulator*>(ai().get_alife())->time_manager();
 	const float normal = time.normal_time_factor();
 	if (!(normal > 0.f)) return;
 	const u64 now = cluster_unix_ms(), own = time.game_time();
