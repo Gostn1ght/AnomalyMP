@@ -1269,4 +1269,10 @@
   <string id="st_netcoop_barter_closed_money">
     <text>Barter ended: not enough money</text>
   </string>
+  <string id="st_netcoop_role_admin">
+    <text>The server administrator made you an administrator</text>
+  </string>
+  <string id="st_netcoop_role_player">
+    <text>The server administrator removed your administrator rights</text>
+  </string>
 </string_table>

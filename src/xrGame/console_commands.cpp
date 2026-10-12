@@ -2539,7 +2539,71 @@ public:
 		xr_string message;
 		const u8 value = !xr_strcmp(role, "admin") ? netcoop::role_admin : netcoop::role_player;
 		const bool ok = netcoop::server_set_role(login, value, message);
-		Msg("%s sv_account_role: %s (takes effect on the next login)", ok ? "*" : "!", message.c_str());
+		// An online player gets the role now (the client unlocks or locks its admin tools).
+		const bool live = ok && netcoop::server_apply_role_online(login, value);
+		Msg("%s sv_account_role: %s%s", ok ? "*" : "!", message.c_str(),
+			!ok ? "" : live ? " (online, applied now)" : " (takes effect on the next login)");
+	}
+};
+
+// Server console (and its Players tab): hardware bans and faction leaders.
+class CCC_NetcoopBan : public IConsole_Command
+{
+	bool m_ban;
+public:
+	CCC_NetcoopBan(LPCSTR N, bool ban) : IConsole_Command(N), m_ban(ban) { bEmptyArgsHandled = TRUE; };
+	virtual void Execute(LPCSTR args)
+	{
+		string64 login = "";
+		if (!args || sscanf_s(args, "%63s", login, (unsigned)sizeof(login)) != 1)
+		{
+			Msg("~ usage: %s <login>", cName);
+			return;
+		}
+		if (!g_pGameLevel || !Level().Server)
+		{
+			Msg("! %s: this instance is not a server", cName);
+			return;
+		}
+		xr_string message;
+		const bool ok = m_ban ? netcoop::server_ban(login, message) : netcoop::server_unban(login, message);
+		Msg("%s %s: %s", ok ? "*" : "!", cName, message.c_str());
+	}
+};
+
+class CCC_NetcoopBans : public IConsole_Command
+{
+public:
+	CCC_NetcoopBans(LPCSTR N) : IConsole_Command(N) { bEmptyArgsHandled = TRUE; };
+	virtual void Execute(LPCSTR args)
+	{
+		xr_string list;
+		netcoop::server_list_bans(list);
+		Msg("%s", list.c_str());
+	}
+};
+
+class CCC_NetcoopLeader : public IConsole_Command
+{
+public:
+	CCC_NetcoopLeader(LPCSTR N) : IConsole_Command(N) { bEmptyArgsHandled = TRUE; };
+	virtual void Execute(LPCSTR args)
+	{
+		string64 login = "", faction = "";
+		unsigned slot = 0;
+		if (!args || sscanf_s(args, "%63s %u %63s", login, (unsigned)sizeof(login), &slot, faction, (unsigned)sizeof(faction)) != 3)
+		{
+			Msg("~ usage: sv_leader <login> <slot> <faction|off>");
+			return;
+		}
+		if (!g_pGameLevel || !Level().Server)
+		{
+			Msg("! sv_leader: this instance is not a server");
+			return;
+		}
+		xr_string message;
+		const bool ok = netcoop::server_leader(login, u8(slot), faction, message);
+		Msg("%s sv_leader: %s", ok ? "*" : "!", message.c_str());
 	}
 };
 
@@ -2641,6 +2705,10 @@ void CCC_RegisterCommands()
 	CMD1(CCC_NetcoopBots, "netcoop_bots");
 	CMD1(CCC_NetcoopAccountRole, "sv_account_role");
 	CMD1(CCC_NetcoopUnbind, "sv_account_unbind");
+	CMD2(CCC_NetcoopBan, "sv_ban", true);
+	CMD2(CCC_NetcoopBan, "sv_unban", false);
+	CMD1(CCC_NetcoopBans, "sv_bans");
+	CMD1(CCC_NetcoopLeader, "sv_leader");
 	//Not needed for a singleplayer-only mod
 	//g_OptConCom.Init();
 

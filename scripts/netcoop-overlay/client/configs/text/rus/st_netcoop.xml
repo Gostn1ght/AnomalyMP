@@ -1269,4 +1269,10 @@
   <string id="st_netcoop_barter_closed_money">
     <text>Бартер прерван: не хватает денег</text>
   </string>
+  <string id="st_netcoop_role_admin">
+    <text>Администратор сервера выдал вам права администратора</text>
+  </string>
+  <string id="st_netcoop_role_player">
+    <text>Администратор сервера снял с вас права администратора</text>
+  </string>
 </string_table>

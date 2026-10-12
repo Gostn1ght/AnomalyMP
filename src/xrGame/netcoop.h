@@ -19,6 +19,7 @@ class CActor;
 class CSE_Abstract;
 class CZoneCampfire;
 class CCustomDevice;
+struct SConsolePlayer;
 
 // Console: netcoop_smooth (0 = old network presentation, 1 = doc 38 stage 1),
 // netcoop_interp_ms (interpolation delay for remote objects on a client),
@@ -220,6 +221,14 @@ void script_watchdog_level_end();
 void client_on_script(NET_Packet& P);
 bool server_set_role(LPCSTR login, u8 role, xr_string& message);
 void server_list_accounts(xr_string& out);
+// Hardware bans (the account's device digest) and the dedicated console's
+// Players tab (netcoop_console.inc).
+bool server_ban(LPCSTR login, xr_string& message);
+bool server_unban(LPCSTR login, xr_string& message);
+bool server_apply_role_online(LPCSTR login, u8 role);
+void server_list_bans(xr_string& out);
+bool server_leader(LPCSTR login, u8 slot, LPCSTR faction, xr_string& message);
+void console_players(xr_vector<SConsolePlayer>& out);
 
 // Network smoothness (doc 38, stages 0 and 1).
 bool smooth();

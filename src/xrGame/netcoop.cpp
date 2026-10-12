@@ -1417,6 +1417,7 @@ static void reject(xrServer* server, xrClientData* CL, LPCSTR message)
 
 #include "netcoop_cluster.inc"
 #include "netcoop_shared_store.inc"
+#include "netcoop_console.inc"
 
 // The server's PBKDF2 (60000 rounds) took ~100 ms of a frame for every
 // login; with many players joining the world stuttered for everyone. It runs
@@ -1667,6 +1668,12 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
     if (!a->device.empty() && !constant_time_equal(a->device, pending->device))
     {
         reject(server, CL, "Account is bound to another device; contact the server administrator");
+        return;
+    }
+    // Hardware ban (server console): this login or this computer.
+    if (server_banned(a->login, pending->device))
+    {
+        reject(server, CL, "You are banned on this server");
         return;
     }
     if (a->device.empty() && !pending->device.empty())
@@ -3625,6 +3632,15 @@ void client_on_script(NET_Packet& P)
 	if (!read_string(P, channel, sizeof(channel)) || !read_string(P, data, sizeof(data)))
 		return;
 	if (!xr_strcmp(channel, "netcoop_transfer")) return client_cluster_transfer(data);
+	if (!xr_strcmp(channel, "netcoop_role"))
+	{
+		// The server console changed this account's role while it is online.
+		const bool admin = !xr_strcmp(data, "admin");
+		s_client_role = admin ? role_admin : role_player;
+		s_client_role_verified = true;
+		if (!admin) psActorFlags.set(AF_GODMODE, FALSE);
+		return client_on_server_text(*CStringTable().translate(admin ? "st_netcoop_role_admin" : "st_netcoop_role_player"));
+	}
 	if (!xr_strcmp(channel, "netcoop_transfer_refused"))
 	{
 		// The server names the reason in English; the player reads it in the

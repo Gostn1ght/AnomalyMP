@@ -34,8 +34,42 @@ private:
 	void SetLogFilter(int filter);
 	void DrawLog(HDC hDC, RECT* pRect);
 
+	// Lost Zone: tabs (log / players), clickable controls laid out on paint.
+	struct SButton
+	{
+		RECT rect;
+		int action;
+		int arg;
+	};
+	xr_vector<SButton> m_buttons;
+	int m_tab;
+	int m_player_filter;
+	int m_player_scroll;
+	int m_player_visible_rows;
+	int m_player_count;
+	xr_vector<SConsolePlayer> m_players;
+	u32 m_players_time;
+	string64 m_selected_login;
+	bool m_selected_banned;
+	int m_confirm_action;
+	u32 m_confirm_until;
+	wchar_t m_notice[160];
+	u32 m_notice_until;
+	int AddButton(HDC dc, int x, int y, int height, const wchar_t* label, int action, int arg, int style);
+	void DrawHeader(HDC dc, int width, int line_height);
+	void DrawLogTab(HDC dc, int top, int width, int height, int line_height);
+	void DrawPlayersTab(HDC dc, int top, int width, int height, int line_height);
+	bool PlayerShown(const SConsolePlayer& player) const;
+	const SConsolePlayer* SelectedPlayer() const;
+	void OnAction(int action, int arg);
+	void RunPlayerAction(int action);
+	void CopyLog();
+	void Notice(const wchar_t* text);
+
 private:
 	HFONT m_hLogWndFont;
+	HFONT m_hTitleFont;
+	HFONT m_hSmallFont;
 	HFONT m_hPrevFont;
 	HBRUSH m_hBackGroundBrush;
 
@@ -73,6 +107,7 @@ public:
 	void OnLogClick(int x, int y);
 	void OnLogDrag(int y);
 	void EndLogDrag();
+	HBRUSH CommandBrush() const { return m_hBackGroundBrush; }
 }; // class TextConsole
 
 //extern ENGINE_API CTextConsole* TextConsole;

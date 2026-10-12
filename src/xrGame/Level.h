@@ -324,6 +324,7 @@ public:
 	// XXX nitrocaster: why c_str?
 	shared_str version() const { return map_data.m_map_version.c_str(); }
 	virtual void GetLevelInfo(CServerInfo* si);
+	virtual void GetConsolePlayers(xr_vector<SConsolePlayer>& out);
 	// gets the time from the game simulation
 	ALife::_TIME_ID GetStartGameTime();
 	ALife::_TIME_ID GetGameTime();

@@ -53,6 +53,25 @@ public:
 	};
 };
 
+// One row of the dedicated console's Players tab (Lost Zone): an online
+// player, or a banned account. Text is in the game's codepage (1251).
+struct SConsolePlayer
+{
+	enum { role_player = 0, role_leader = 1, role_admin = 2 };
+	string64 login;
+	string64 name;
+	string32 faction;
+	u16 id;
+	u8 slot;
+	u8 role; // player / leader / admin
+	bool admin;
+	bool leader;
+	bool deputy; // appointed by the faction's leader (shown, not changed here)
+	bool online;
+	bool banned;
+	u32 ping;
+};
+
 //-----------------------------------------------------------------------------------------------------------
 class ENGINE_API IGame_Level :
 	public DLL_Pure,
@@ -98,6 +117,8 @@ public:
 
 	virtual shared_str name() const = 0;
 	virtual void GetLevelInfo(CServerInfo* si) = 0;
+	// Dedicated console Players tab; called on the main thread about once a second.
+	virtual void GetConsolePlayers(xr_vector<SConsolePlayer>& out) { out.clear(); }
 
 	virtual bool net_Start(const char* op_server, const char* op_client) = 0;
 	virtual void net_Load(const char* name) = 0;

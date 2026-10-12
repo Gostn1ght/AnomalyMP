@@ -2,10 +2,132 @@
 #include "Text_Console.h"
 #include "line_editor.h"
 #include "IGame_Level.h"
+#include <shellapi.h>
+#pragma comment(lib, "shell32.lib")
 
 extern char const* const ioc_prompt;
 extern char const* const ch_cursor;
 int g_svTextConsoleUpdateRate = 1;
+
+namespace
+{
+// Lost Zone palette, the same as the hoster panel's: near-black surfaces,
+// one warm accent, status colours only where they mean something.
+const COLORREF c_bg = RGB(10, 10, 11), c_surface = RGB(16, 16, 18), c_raised = RGB(24, 24, 27),
+	c_hover = RGB(32, 32, 36), c_line = RGB(38, 38, 42), c_text = RGB(232, 230, 225),
+	c_muted = RGB(140, 140, 145), c_dim = RGB(90, 90, 95), c_accent = RGB(217, 164, 65),
+	c_green = RGB(76, 195, 138), c_amber = RGB(224, 168, 74), c_red = RGB(229, 83, 75);
+
+enum
+{
+	act_tab = 1, act_log_filter, act_copy_log, act_logs_folder, act_player_filter, act_row,
+	act_ban, act_unban, act_admin, act_unadmin, act_leader, act_unleader,
+};
+enum
+{
+	style_chip, style_chip_active, style_disabled, style_danger, style_confirm, style_tab, style_tab_active, style_primary,
+};
+enum { filter_all, filter_players, filter_leaders, filter_admins, filter_banned, filter_count };
+
+void fill(HDC dc, const RECT& r, COLORREF color)
+{
+	SetBkColor(dc, color);
+	ExtTextOutW(dc, 0, 0, ETO_OPAQUE, &r, nullptr, 0, nullptr);
+}
+
+// Game text (log lines, names) is in codepage 1251.
+int widen(LPCSTR text, wchar_t* out, int size)
+{
+	const int n = MultiByteToWideChar(1251, 0, text ? text : "", -1, out, size);
+	if (n <= 0)
+	{
+		out[0] = 0;
+		return 0;
+	}
+	out[size - 1] = 0;
+	return n - 1;
+}
+
+void text_w(HDC dc, int x, int y, const wchar_t* text, COLORREF color, const RECT* clip = nullptr)
+{
+	SetTextColor(dc, color);
+	ExtTextOutW(dc, x, y, clip ? ETO_CLIPPED : 0, clip, text, UINT(wcslen(text)), nullptr);
+}
+
+void text_a(HDC dc, int x, int y, LPCSTR text, COLORREF color, const RECT* clip = nullptr)
+{
+	wchar_t wide[1024];
+	const int n = widen(text, wide, 1024);
+	SetTextColor(dc, color);
+	ExtTextOutW(dc, x, y, clip ? ETO_CLIPPED : 0, clip, wide, n, nullptr);
+}
+
+int text_width(HDC dc, const wchar_t* text)
+{
+	SIZE size = {};
+	GetTextExtentPoint32W(dc, text, int(wcslen(text)), &size);
+	return size.cx;
+}
+
+struct FactionStyle
+{
+	LPCSTR id;
+	const wchar_t* title;
+	COLORREF color;
+};
+const FactionStyle factions[] = {
+	{"stalker", L"\u041e\u0434\u0438\u043d\u043e\u0447\u043a\u0438", RGB(226, 196, 98)},
+	{"dolg", L"\u0414\u043e\u043b\u0433", RGB(214, 76, 66)},
+	{"freedom", L"\u0421\u0432\u043e\u0431\u043e\u0434\u0430", RGB(96, 190, 98)},
+	{"csky", L"\u0427\u0438\u0441\u0442\u043e\u0435 \u041d\u0435\u0431\u043e", RGB(88, 160, 232)},
+	{"ecolog", L"\u0423\u0447\u0451\u043d\u044b\u0435", RGB(110, 204, 204)},
+	{"killer", L"\u041d\u0430\u0451\u043c\u043d\u0438\u043a\u0438", RGB(110, 132, 224)},
+	{"army", L"\u0412\u043e\u0435\u043d\u043d\u044b\u0435", RGB(156, 168, 92)},
+	{"bandit", L"\u0411\u0430\u043d\u0434\u0438\u0442\u044b", RGB(176, 128, 84)},
+	{"monolith", L"\u041c\u043e\u043d\u043e\u043b\u0438\u0442", RGB(222, 222, 236)},
+	{"renegade", L"\u0420\u0435\u043d\u0435\u0433\u0430\u0442\u044b", RGB(196, 112, 84)},
+	{"greh", L"\u0413\u0440\u0435\u0445", RGB(176, 96, 176)},
+	{"isg", L"ISG", RGB(124, 176, 146)},
+	{"zombied", L"\u0417\u043e\u043c\u0431\u0438\u0440\u043e\u0432\u0430\u043d\u043d\u044b\u0435", RGB(130, 130, 130)},
+};
+
+const FactionStyle* faction_style(LPCSTR id)
+{
+	for (const FactionStyle& style : factions)
+		if (id && !xr_strcmp(style.id, id))
+			return &style;
+	return nullptr;
+}
+
+void dark_title_bar(HWND wnd)
+{
+	// Windows 10 1809+ / 11; ignored elsewhere.
+	if (HMODULE dwm = LoadLibraryA("dwmapi.dll"))
+	{
+		typedef HRESULT(WINAPI* set_attribute_t)(HWND, DWORD, LPCVOID, DWORD);
+		if (set_attribute_t set = reinterpret_cast<set_attribute_t>(GetProcAddress(dwm, "DwmSetWindowAttribute")))
+		{
+			BOOL on = TRUE;
+			if (FAILED(set(wnd, 20, &on, sizeof(on))))
+				set(wnd, 19, &on, sizeof(on));
+		}
+	}
+}
+
+HFONT make_font(int height, int weight, LPCSTR face)
+{
+	LOGFONT lf = {};
+	lf.lfHeight = height;
+	lf.lfWeight = weight;
+	lf.lfCharSet = DEFAULT_CHARSET;
+	lf.lfOutPrecision = OUT_STRING_PRECIS;
+	lf.lfClipPrecision = CLIP_STROKE_PRECIS;
+	lf.lfQuality = CLEARTYPE_QUALITY;
+	lf.lfPitchAndFamily = VARIABLE_PITCH | FF_SWISS;
+	xr_strcpy(lf.lfFaceName, sizeof(lf.lfFaceName), face);
+	return CreateFontIndirect(&lf);
+}
+} // namespace
 
 CTextConsole::CTextConsole()
 {
@@ -15,6 +137,8 @@ CTextConsole::CTextConsole()
 	m_hCommandWnd = NULL;
 	m_originalCommandProc = NULL;
 	m_hLogWndFont = NULL;
+	m_hTitleFont = NULL;
+	m_hSmallFont = NULL;
 	m_hDC_LogWnd = NULL;
 	m_hDC_LogWnd_BackBuffer = NULL;
 	m_hBB_BM = NULL;
@@ -30,6 +154,19 @@ CTextConsole::CTextConsole()
 	m_dashboard_bottom = 190;
 	m_log_top = 226;
 	m_log_bottom = 400;
+
+	m_tab = 0;
+	m_player_filter = filter_all;
+	m_player_scroll = 0;
+	m_player_visible_rows = 1;
+	m_player_count = 0;
+	m_players_time = 0;
+	m_selected_login[0] = 0;
+	m_selected_banned = false;
+	m_confirm_action = 0;
+	m_confirm_until = 0;
+	m_notice[0] = 0;
+	m_notice_until = 0;
 
 	m_bNeedUpdate = false;
 	m_host_window_ready = false;
@@ -63,7 +200,7 @@ void CTextConsole::CreateConsoleWnd()
 		0, TextConsole_WndProc, 0, 0, hInstance,
 		NULL,
 		LoadCursor(hInstance, IDC_ARROW),
-		GetStockBrush(GRAY_BRUSH),
+		GetStockBrush(BLACK_BRUSH),
 		NULL, wndclass
 	};
 	RegisterClass(&wndClass);
@@ -112,12 +249,6 @@ void CTextConsole::CreateLogWnd()
 
 	// Set the window's initial style
 	u32 dwWindowStyle = WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
-	// u32 dwWindowStyleEx = WS_EX_CLIENTEDGE;
-
-	// Set the window's initial width
-	RECT rc;
-	SetRect(&rc, lX, lY, lWidth, lHeight);
-	// AdjustWindowRect( &rc, dwWindowStyle, FALSE );
 
 	// Create the render window
 	m_hLogWnd = CreateWindow(wndclass, "XRAY Text Console Log", dwWindowStyle,
@@ -129,23 +260,9 @@ void CTextConsole::CreateLogWnd()
 	//---------------------------------------------------------------------------
 	ShowWindow(m_hLogWnd, SW_SHOW);
 	//-----------------------------------------------
-	LOGFONT lf = {};
-	lf.lfHeight = -15;
-	lf.lfWidth = 0;
-	lf.lfEscapement = 0;
-	lf.lfOrientation = 0;
-	lf.lfWeight = FW_NORMAL;
-	lf.lfItalic = 0;
-	lf.lfUnderline = 0;
-	lf.lfStrikeOut = 0;
-	lf.lfCharSet = DEFAULT_CHARSET;
-	lf.lfOutPrecision = OUT_STRING_PRECIS;
-	lf.lfClipPrecision = CLIP_STROKE_PRECIS;
-	lf.lfQuality = CLEARTYPE_QUALITY;
-	lf.lfPitchAndFamily = VARIABLE_PITCH | FF_SWISS;
-	xr_strcpy(lf.lfFaceName, sizeof(lf.lfFaceName), "Segoe UI");
-
-	m_hLogWndFont = CreateFontIndirect(&lf);
+	m_hLogWndFont = make_font(-15, FW_NORMAL, "Segoe UI");
+	m_hSmallFont = make_font(-13, FW_SEMIBOLD, "Segoe UI");
+	m_hTitleFont = make_font(-21, FW_SEMIBOLD, "Bahnschrift");
 	R_ASSERT2(m_hLogWndFont, "Unable to Create Font for Log Window");
 	//------------------------------------------------
 	m_hDC_LogWnd = GetDC(m_hLogWnd);
@@ -165,10 +282,11 @@ void CTextConsole::CreateLogWnd()
 	//------------------------------------------------
 	m_hPrevFont = (HFONT)SelectObject(m_hDC_LogWnd_BackBuffer, m_hLogWndFont);
 	//------------------------------------------------
-	SetTextColor(m_hDC_LogWnd_BackBuffer, RGB(255, 255, 255));
-	SetBkColor(m_hDC_LogWnd_BackBuffer, RGB(11, 14, 20));
+	SetTextColor(m_hDC_LogWnd_BackBuffer, c_text);
+	SetBkColor(m_hDC_LogWnd_BackBuffer, c_bg);
 	//------------------------------------------------
-	m_hBackGroundBrush = CreateSolidBrush(RGB(11, 14, 20));
+	// The command field's background (WM_CTLCOLOREDIT).
+	m_hBackGroundBrush = CreateSolidBrush(c_raised);
 	UpdateWindow(m_hLogWnd);
 
 	// The old GDI prompt depended on DirectInput's keyboard capture and could
@@ -242,6 +360,7 @@ void CTextConsole::Initialize()
 	if (map[0] || port[0])
 		xr_sprintf(title, "Lost Zone Server - %s%s%s", map[0] ? map : "", map[0] && port[0] ? " : " : "", port);
 	SetWindowTextA(*m_pMainWnd, title);
+	dark_title_bar(*m_pMainWnd);
 	m_dwLastUpdateTime = GetTickCount();
 	m_last_time = GetTickCount();
 
@@ -273,6 +392,8 @@ void CTextConsole::Destroy()
 
 	if (m_hBB_BM) DeleteObject(m_hBB_BM);
 	if (m_hLogWndFont) DeleteObject(m_hLogWndFont);
+	if (m_hTitleFont) DeleteObject(m_hTitleFont);
+	if (m_hSmallFont) DeleteObject(m_hSmallFont);
 	if (m_hBackGroundBrush) DeleteObject(m_hBackGroundBrush);
 
 	DeleteDC(m_hDC_LogWnd_BackBuffer);
@@ -284,7 +405,7 @@ void CTextConsole::Destroy()
 
 void CTextConsole::OnRender()
 {
-} //disable СConsole::OnRender()
+} //disable CConsole::OnRender()
 
 void CTextConsole::OnPaint()
 {
@@ -300,33 +421,55 @@ void CTextConsole::OnPaint()
 	GetClientRect(m_hLogWnd, &wRC);
 	DrawLog(m_hDC_LogWnd_BackBuffer, &wRC);
 
-
 	BitBlt(ps.hdc,
 	       wRC.left, wRC.top,
 	       wRC.right - wRC.left, wRC.bottom - wRC.top,
 	       m_hDC_LogWnd_BackBuffer,
 	       wRC.left, wRC.top,
-	       SRCCOPY); //(FullUpdate) ? SRCCOPY : NOTSRCCOPY);
-	/*
-	 Msg ("URect - %d:%d - %d:%d", ps.rcPaint.left, ps.rcPaint.top, ps.rcPaint.right, ps.rcPaint.bottom);
-	 */
+	       SRCCOPY);
 	EndPaint(m_hLogWnd, &ps);
 }
 
-void CTextConsole::DrawLog(HDC hDC, RECT* pRect)
+// A chip, tab or button; returns its width. Disabled controls take no clicks.
+int CTextConsole::AddButton(HDC dc, int x, int y, int height, const wchar_t* label, int action, int arg, int style)
 {
-	RECT bounds = *pRect;
-	GetClientRect(m_hLogWnd, &bounds);
-	FillRect(hDC, &bounds, m_hBackGroundBrush);
-	SetBkMode(hDC, TRANSPARENT);
-	TEXTMETRIC tm = {};
-	GetTextMetrics(hDC, &tm);
-	const int width = bounds.right;
-	const int height = bounds.bottom;
-	const int line_height = tm.tmHeight + 3;
-	if (width <= 0 || height <= 0)
-		return;
+	HGDIOBJ old_font = SelectObject(dc, m_hSmallFont);
+	const int width = text_width(dc, label) + (style == style_tab || style == style_tab_active ? 16 : 24);
+	RECT rect = {x, y, x + width, y + height};
+	COLORREF back = c_raised, fore = c_muted;
+	switch (style)
+	{
+	case style_chip_active: back = RGB(58, 45, 22); fore = c_accent; break;
+	case style_disabled: back = c_surface; fore = c_dim; break;
+	case style_danger: back = RGB(50, 22, 21); fore = c_red; break;
+	case style_confirm: back = c_red; fore = RGB(20, 10, 10); break;
+	case style_primary: back = RGB(58, 45, 22); fore = c_accent; break;
+	case style_tab: back = c_surface; fore = c_muted; break;
+	case style_tab_active: back = c_surface; fore = c_text; break;
+	}
+	fill(dc, rect, back);
+	if (style == style_tab_active)
+	{
+		RECT underline = {x, y + height - 3, x + width, y + height};
+		fill(dc, underline, c_accent);
+	}
+	SetBkMode(dc, TRANSPARENT);
+	SIZE size = {};
+	GetTextExtentPoint32W(dc, label, int(wcslen(label)), &size);
+	text_w(dc, x + (width - size.cx) / 2, y + (height - size.cy) / 2 - (style == style_tab_active ? 1 : 0), label, fore);
+	SelectObject(dc, old_font);
+	if (style != style_disabled)
+	{
+		SButton button = {rect, action, arg};
+		m_buttons.push_back(button);
+	}
+	return width;
+}
 
+void CTextConsole::DrawHeader(HDC dc, int width, int line_height)
+{
+	RECT bounds;
+	GetClientRect(m_hLogWnd, &bounds);
 	const u32 now = GetTickCount();
 	if (g_pGameLevel && now - m_last_time >= 100)
 	{
@@ -334,63 +477,128 @@ void CTextConsole::DrawLog(HDC hDC, RECT* pRect)
 		m_server_info.ResetData();
 		g_pGameLevel->GetLevelInfo(&m_server_info);
 	}
-
 	const bool two_columns = width >= 680;
 	const int rows = two_columns ? (m_server_info.Size() + 1) / 2 : m_server_info.Size();
-	m_dashboard_bottom = 44 + rows * line_height;
-	if (m_dashboard_bottom > height / 2)
-		m_dashboard_bottom = height / 2;
+	m_dashboard_bottom = 50 + rows * line_height;
+	if (m_dashboard_bottom > bounds.bottom / 3)
+		m_dashboard_bottom = bounds.bottom / 3;
 	RECT dashboard = {0, 0, width, m_dashboard_bottom};
-	HBRUSH panel_brush = CreateSolidBrush(RGB(21, 26, 36));
-	FillRect(hDC, &dashboard, panel_brush);
-	DeleteObject(panel_brush);
-	RECT accent = {0, m_dashboard_bottom - 2, width, m_dashboard_bottom};
-	HBRUSH accent_brush = CreateSolidBrush(RGB(56, 203, 208));
-	FillRect(hDC, &accent, accent_brush);
-	DeleteObject(accent_brush);
-	SetTextColor(hDC, RGB(235, 241, 248));
-	TextOutA(hDC, 12, 10, "LOST ZONE  /  DEDICATED SERVER", 30);
-	SetTextColor(hDC, RGB(107, 172, 184));
-	TextOutA(hDC, width - 120, 10, "LIVE STATUS", 11);
-	const int rows_per_column = two_columns ? (m_server_info.Size() + 1) / 2 : m_server_info.Size();
+	fill(dc, dashboard, c_bg);
+
+	HGDIOBJ old_font = SelectObject(dc, m_hTitleFont);
+	text_w(dc, 14, 10, L"LOST ZONE", c_accent);
+	const int title_width = text_width(dc, L"LOST ZONE");
+	SelectObject(dc, m_hSmallFont);
+	text_w(dc, 26 + title_width, 17, L"\u0412\u042b\u0414\u0415\u041b\u0415\u041d\u041d\u042b\u0419 \u0421\u0415\u0420\u0412\u0415\u0420", c_muted);
+	const bool running = g_pGameLevel != nullptr;
+	const wchar_t* state = running ? L"\u0420\u0410\u0411\u041e\u0422\u0410\u0415\u0422" : L"\u0417\u0410\u0413\u0420\u0423\u0417\u041a\u0410";
+	const int state_width = text_width(dc, state);
+	RECT dot = {width - state_width - 34, 19, width - state_width - 26, 27};
+	fill(dc, dot, running ? c_green : c_amber);
+	text_w(dc, width - state_width - 16, 14, state, running ? c_green : c_amber);
+	SelectObject(dc, old_font);
+
+	const int rows_per_column = rows;
 	for (u32 i = 0; i < m_server_info.Size(); ++i)
 	{
-		const int column = two_columns && i >= rows_per_column ? 1 : 0;
-		const int row = two_columns ? i % rows_per_column : i;
-		RECT item = {12 + column * (width / 2), 36 + row * line_height,
-			(column + 1) * (width / 2) - 14, 36 + (row + 1) * line_height};
+		const int column = two_columns && int(i) >= rows_per_column ? 1 : 0;
+		const int row = two_columns ? int(i) % (rows_per_column ? rows_per_column : 1) : int(i);
+		RECT item = {14 + column * (width / 2), 44 + row * line_height,
+			(column + 1) * (width / 2) - 14, 44 + (row + 1) * line_height};
 		if (item.top + line_height > m_dashboard_bottom)
 			break;
-		SetTextColor(hDC, m_server_info[i].color);
-		ExtTextOutA(hDC, item.left, item.top, ETO_CLIPPED, &item,
-			m_server_info[i].name, xr_strlen(m_server_info[i].name), nullptr);
+		const COLORREF color = m_server_info[i].color == RGB(255, 255, 255) ? c_text : m_server_info[i].color;
+		text_a(dc, item.left, item.top, m_server_info[i].name, color, &item);
 	}
+	RECT line = {0, m_dashboard_bottom - 1, width, m_dashboard_bottom};
+	fill(dc, line, c_line);
+}
 
-	RECT toolbar = {0, m_dashboard_bottom, width, m_dashboard_bottom + 34};
-	HBRUSH toolbar_brush = CreateSolidBrush(RGB(16, 20, 29));
-	FillRect(hDC, &toolbar, toolbar_brush);
-	DeleteObject(toolbar_brush);
-	SetTextColor(hDC, RGB(143, 156, 176));
-	TextOutA(hDC, 12, m_dashboard_bottom + 10, "EVENT STREAM", 12);
-	static const char* filter_labels[] = {"ALL", "ERRORS", "WARNINGS", "INFO"};
-	static const int filter_widths[] = {48, 76, 88, 54};
-	int filter_x = 150;
-	for (int i = 0; i < 4; ++i)
+void CTextConsole::DrawLog(HDC hDC, RECT* pRect)
+{
+	RECT bounds;
+	GetClientRect(m_hLogWnd, &bounds);
+	const int width = bounds.right;
+	const int height = bounds.bottom;
+	if (width <= 0 || height <= 0)
+		return;
+	m_buttons.clear();
+	fill(hDC, bounds, c_bg);
+	SetBkMode(hDC, TRANSPARENT);
+	SelectObject(hDC, m_hLogWndFont);
+	TEXTMETRIC tm = {};
+	GetTextMetrics(hDC, &tm);
+	const int line_height = tm.tmHeight + 3;
+
+	DrawHeader(hDC, width, line_height);
+
+	// Tabs.
+	const int tabs_top = m_dashboard_bottom;
+	RECT tabs = {0, tabs_top, width, tabs_top + 40};
+	fill(hDC, tabs, c_surface);
+	int online = 0;
+	for (const SConsolePlayer& player : m_players)
+		online += player.online ? 1 : 0;
+	wchar_t players_label[64];
+	swprintf_s(players_label, L"\u0418\u0413\u0420\u041e\u041a\u0418  %d", online);
+	RECT separator = {0, tabs_top + 39, width, tabs_top + 40};
+	fill(hDC, separator, c_line);
+	int x = 10;
+	x += AddButton(hDC, x, tabs_top + 4, 36, L"\u0416\u0423\u0420\u041d\u0410\u041b", act_tab, 0, m_tab == 0 ? style_tab_active : style_tab) + 6;
+	AddButton(hDC, x, tabs_top + 4, 36, players_label, act_tab, 1, m_tab == 1 ? style_tab_active : style_tab);
+
+	const int content_top = tabs_top + 40;
+	const int content_bottom = height - 36;
+	SelectObject(hDC, m_hLogWndFont);
+	if (m_tab == 1)
+		DrawPlayersTab(hDC, content_top, width, content_bottom, line_height);
+	else
+		DrawLogTab(hDC, content_top, width, content_bottom, line_height);
+
+	// Footer: command line, notices, clock.
+	RECT footer = {0, height - 36, width, height};
+	fill(hDC, footer, c_surface);
+	RECT footer_line = {0, height - 36, width, height - 35};
+	fill(hDC, footer_line, c_line);
+	SelectObject(hDC, m_hLogWndFont);
+	text_w(hDC, 12, height - 27, L">", c_accent);
+	SYSTEMTIME wall_time;
+	GetLocalTime(&wall_time);
+	wchar_t clock_text[32];
+	swprintf_s(clock_text, L"%02u:%02u:%02u", wall_time.wHour, wall_time.wMinute, wall_time.wSecond);
+	text_w(hDC, width - 76, height - 27, clock_text, c_dim);
+	if (m_notice[0] && GetTickCount() < m_notice_until)
 	{
-		RECT chip = {filter_x, m_dashboard_bottom + 5, filter_x + filter_widths[i], m_dashboard_bottom + 29};
-		HBRUSH chip_brush = CreateSolidBrush(i == m_log_filter ? RGB(33, 107, 118) : RGB(32, 39, 52));
-		FillRect(hDC, &chip, chip_brush);
-		DeleteObject(chip_brush);
-		SetTextColor(hDC, i == m_log_filter ? RGB(244, 255, 255) : RGB(165, 177, 194));
-		SIZE label_size = {};
-		GetTextExtentPoint32A(hDC, filter_labels[i], xr_strlen(filter_labels[i]), &label_size);
-		TextOutA(hDC, chip.left + (filter_widths[i] - label_size.cx) / 2,
-			chip.top + (24 - label_size.cy) / 2, filter_labels[i], xr_strlen(filter_labels[i]));
-		filter_x += filter_widths[i] + 6;
+		// Shown over the end of the command field for a few seconds.
+		SelectObject(hDC, m_hSmallFont);
+		const int notice_width = text_width(hDC, m_notice);
+		RECT back = {width - 96 - notice_width - 16, height - 31, width - 88, height - 5};
+		fill(hDC, back, RGB(22, 44, 34));
+		text_w(hDC, back.left + 8, height - 26, m_notice, c_green);
+		SelectObject(hDC, m_hLogWndFont);
+	}
+}
+
+void CTextConsole::DrawLogTab(HDC hDC, int top, int width, int bottom, int line_height)
+{
+	// Toolbar: level filters on the left, copy / folder on the right.
+	static const wchar_t* filter_labels[] = {L"\u0412\u0421\u0415", L"\u041e\u0428\u0418\u0411\u041a\u0418", L"\u041f\u0420\u0415\u0414\u0423\u041f\u0420\u0415\u0416\u0414\u0415\u041d\u0418\u042f", L"\u0418\u041d\u0424\u041e"};
+	int x = 12;
+	for (int i = 0; i < 4; ++i)
+		x += AddButton(hDC, x, top + 8, 26, filter_labels[i], act_log_filter, i,
+			i == m_log_filter ? style_chip_active : style_chip) + 6;
+	HGDIOBJ old_font = SelectObject(hDC, m_hSmallFont);
+	const int copy_width = text_width(hDC, L"\u041a\u041e\u041f\u0418\u0420\u041e\u0412\u0410\u0422\u042c \u041b\u041e\u0413") + 24;
+	const int folder_width = text_width(hDC, L"\u041f\u0410\u041f\u041a\u0410 \u041b\u041e\u0413\u041e\u0412") + 24;
+	SelectObject(hDC, old_font);
+	if (width - copy_width - folder_width - 30 > x)
+	{
+		AddButton(hDC, width - copy_width - 14, top + 8, 26, L"\u041a\u041e\u041f\u0418\u0420\u041e\u0412\u0410\u0422\u042c \u041b\u041e\u0413", act_copy_log, 0, style_primary);
+		AddButton(hDC, width - copy_width - folder_width - 20, top + 8, 26, L"\u041f\u0410\u041f\u041a\u0410 \u041b\u041e\u0413\u041e\u0412", act_logs_folder, 0, style_chip);
 	}
 
-	m_log_top = m_dashboard_bottom + 36;
-	m_log_bottom = height - 36;
+	m_log_top = top + 42;
+	m_log_bottom = bottom - 4;
 	if (m_log_bottom < m_log_top)
 		m_log_bottom = m_log_top;
 	m_log_visible_rows = (m_log_bottom - m_log_top) / line_height;
@@ -432,19 +640,17 @@ void CTextConsole::DrawLog(HDC hDC, RECT* pRect)
 		if (skipped++ < m_log_scroll)
 			continue;
 		const Console_mark mark = static_cast<Console_mark>(line[0]);
-		SetTextColor(hDC, is_mark(mark) ? static_cast<COLORREF>(bgr2rgb(get_mark_color(mark))) : RGB(190, 199, 211));
+		const COLORREF color = is_mark(mark) ? static_cast<COLORREF>(bgr2rgb(get_mark_color(mark))) : RGB(198, 196, 190);
 		LPCSTR shown = is_mark(mark) && line[1] == ' ' ? line + 2 : line;
-		RECT text = {12, y, width - 24, y + line_height};
-		ExtTextOutA(hDC, text.left, text.top, ETO_CLIPPED, &text, shown, xr_strlen(shown), nullptr);
+		RECT text = {14, y, width - 24, y + line_height};
+		text_a(hDC, text.left, text.top, shown, color, &text);
 		y -= line_height;
 	}
 	RestoreDC(hDC, old_dc);
 	LogLock(false);
 
-	RECT track = {width - 14, m_log_top, width - 6, m_log_bottom};
-	HBRUSH track_brush = CreateSolidBrush(RGB(31, 39, 50));
-	FillRect(hDC, &track, track_brush);
-	DeleteObject(track_brush);
+	RECT track = {width - 13, m_log_top, width - 7, m_log_bottom};
+	fill(hDC, track, c_raised);
 	if (m_log_bottom > m_log_top)
 	{
 		const int track_height = m_log_bottom - m_log_top;
@@ -453,24 +659,174 @@ void CTextConsole::DrawLog(HDC hDC, RECT* pRect)
 		if (thumb_height > track_height) thumb_height = track_height;
 		const int thumb_top = m_log_top + (max_scroll ?
 			(max_scroll - m_log_scroll) * (track_height - thumb_height) / max_scroll : 0);
-		RECT thumb = {width - 14, thumb_top, width - 6, thumb_top + thumb_height};
-		HBRUSH thumb_brush = CreateSolidBrush(RGB(69, 161, 174));
-		FillRect(hDC, &thumb, thumb_brush);
-		DeleteObject(thumb_brush);
+		RECT thumb = {width - 13, thumb_top, width - 7, thumb_top + thumb_height};
+		fill(hDC, thumb, RGB(120, 92, 40));
+	}
+}
+
+bool CTextConsole::PlayerShown(const SConsolePlayer& player) const
+{
+	switch (m_player_filter)
+	{
+	case filter_players: return !player.banned && player.role == SConsolePlayer::role_player;
+	case filter_leaders: return !player.banned && player.leader;
+	case filter_admins: return !player.banned && player.admin;
+	case filter_banned: return player.banned;
+	default: return true;
+	}
+}
+
+const SConsolePlayer* CTextConsole::SelectedPlayer() const
+{
+	if (!m_selected_login[0])
+		return nullptr;
+	for (const SConsolePlayer& player : m_players)
+		if (player.banned == m_selected_banned && !xr_strcmp(player.login, m_selected_login))
+			return &player;
+	return nullptr;
+}
+
+void CTextConsole::DrawPlayersTab(HDC hDC, int top, int width, int bottom, int line_height)
+{
+	// Categories with counts.
+	int counts[filter_count] = {};
+	for (const SConsolePlayer& player : m_players)
+	{
+		counts[filter_all] += 1;
+		if (player.banned) { counts[filter_banned] += 1; continue; }
+		if (player.role == SConsolePlayer::role_player) counts[filter_players] += 1;
+		if (player.leader) counts[filter_leaders] += 1;
+		if (player.admin) counts[filter_admins] += 1;
+	}
+	static const wchar_t* filter_labels[filter_count] = {
+		L"\u0412\u0421\u0415", L"\u0418\u0413\u0420\u041e\u041a\u0418", L"\u041b\u0418\u0414\u0415\u0420\u042b", L"\u0410\u0414\u041c\u0418\u041d\u0418\u0421\u0422\u0420\u0410\u0422\u041e\u0420\u042b", L"\u0417\u0410\u0411\u0410\u041d\u0415\u041d\u042b"};
+	int x = 12;
+	for (int i = 0; i < filter_count; ++i)
+	{
+		wchar_t label[64];
+		swprintf_s(label, L"%ls  %d", filter_labels[i], counts[i]);
+		x += AddButton(hDC, x, top + 8, 26, label, act_player_filter, i,
+			i == m_player_filter ? style_chip_active : style_chip) + 6;
 	}
 
-	RECT footer = {0, height - 34, width, height};
-	HBRUSH footer_brush = CreateSolidBrush(RGB(18, 23, 33));
-	FillRect(hDC, &footer, footer_brush);
-	DeleteObject(footer_brush);
-	SetTextColor(hDC, RGB(78, 210, 211));
-	TextOutA(hDC, 10, height - 26, ">", 1);
-	SYSTEMTIME wall_time;
-	GetLocalTime(&wall_time);
-	string32 clock_text;
-	xr_sprintf(clock_text, "%02u:%02u:%02u", wall_time.wHour, wall_time.wMinute, wall_time.wSecond);
-	SetTextColor(hDC, RGB(126, 155, 172));
-	TextOutA(hDC, width - 76, height - 26, clock_text, xr_strlen(clock_text));
+	// Columns.
+	const int col_login = width * 30 / 100, col_faction = width * 50 / 100, col_role = width * 70 / 100;
+	const int col_ping = width - 90;
+	const int header_top = top + 44;
+	HGDIOBJ old_font = SelectObject(hDC, m_hSmallFont);
+	text_w(hDC, 18, header_top, L"\u041d\u0418\u041a", c_dim);
+	text_w(hDC, col_login, header_top, L"\u041b\u041e\u0413\u0418\u041d", c_dim);
+	text_w(hDC, col_faction, header_top, L"\u0413\u0420\u0423\u041f\u041f\u0418\u0420\u041e\u0412\u041a\u0410", c_dim);
+	text_w(hDC, col_role, header_top, L"\u0420\u041e\u041b\u042c", c_dim);
+	text_w(hDC, col_ping, header_top, L"\u041f\u0418\u041d\u0413", c_dim);
+	SelectObject(hDC, old_font);
+	RECT header_line = {12, header_top + line_height + 2, width - 12, header_top + line_height + 3};
+	fill(hDC, header_line, c_line);
+
+	const int action_top = bottom - 48;
+	const int rows_top = header_top + line_height + 6;
+	const int row_height = line_height + 10;
+	m_player_visible_rows = (action_top - rows_top) / row_height;
+	if (m_player_visible_rows < 1)
+		m_player_visible_rows = 1;
+	m_player_count = 0;
+	for (const SConsolePlayer& player : m_players)
+		m_player_count += PlayerShown(player) ? 1 : 0;
+	const int max_scroll = m_player_count > m_player_visible_rows ? m_player_count - m_player_visible_rows : 0;
+	if (m_player_scroll > max_scroll) m_player_scroll = max_scroll;
+	if (m_player_scroll < 0) m_player_scroll = 0;
+
+	const SConsolePlayer* selected = SelectedPlayer();
+	int shown = 0, y = rows_top;
+	for (u32 i = 0; i < m_players.size() && y + row_height <= action_top; ++i)
+	{
+		const SConsolePlayer& player = m_players[i];
+		if (!PlayerShown(player) || shown++ < m_player_scroll)
+			continue;
+		RECT row = {12, y, width - 12, y + row_height - 2};
+		const bool is_selected = &player == selected;
+		fill(hDC, row, is_selected ? c_hover : (shown % 2 ? c_bg : RGB(14, 14, 15)));
+		if (is_selected)
+		{
+			RECT bar = {12, y, 15, y + row_height - 2};
+			fill(hDC, bar, c_accent);
+		}
+		SButton button = {row, act_row, int(i)};
+		m_buttons.push_back(button);
+
+		const int text_y = y + (row_height - line_height) / 2;
+		const FactionStyle* style = faction_style(player.faction);
+		RECT name_clip = {22, y, col_login - 10, y + row_height};
+		text_a(hDC, 22, text_y, player.name, player.banned ? c_dim : style ? style->color : c_text, &name_clip);
+		RECT login_clip = {col_login, y, col_faction - 10, y + row_height};
+		text_a(hDC, col_login, text_y, player.login, c_muted, &login_clip);
+		RECT faction_clip = {col_faction, y, col_role - 10, y + row_height};
+		if (style)
+			text_w(hDC, col_faction, text_y, style->title, style->color, &faction_clip);
+		else
+			text_a(hDC, col_faction, text_y, player.faction[0] ? player.faction : "-", c_dim, &faction_clip);
+		const wchar_t* role = player.banned ? L"\u0417\u0430\u0431\u0430\u043d\u0435\u043d" : player.admin ? L"\u0410\u0434\u043c\u0438\u043d\u0438\u0441\u0442\u0440\u0430\u0442\u043e\u0440" :
+			player.leader ? L"\u041b\u0438\u0434\u0435\u0440" : player.deputy ? L"\u0417\u0430\u043c\u0435\u0441\u0442\u0438\u0442\u0435\u043b\u044c" : L"\u0418\u0433\u0440\u043e\u043a";
+		const COLORREF role_color = player.banned ? c_red : player.admin ? c_accent :
+			player.leader ? c_amber : player.deputy ? RGB(200, 172, 112) : c_muted;
+		RECT role_clip = {col_role, y, col_ping - 10, y + row_height};
+		text_w(hDC, col_role, text_y, role, role_color, &role_clip);
+		if (player.online)
+		{
+			wchar_t ping[16];
+			swprintf_s(ping, L"%u ms", player.ping);
+			text_w(hDC, col_ping, text_y, ping, player.ping < 80 ? c_green : player.ping < 160 ? c_amber : c_red);
+		}
+		else
+			text_w(hDC, col_ping, text_y, L"-", c_dim);
+		y += row_height;
+	}
+	if (!m_player_count)
+	{
+		const wchar_t* empty = m_player_filter == filter_banned ? L"\u0417\u0430\u0431\u0430\u043d\u0435\u043d\u043d\u044b\u0445 \u043d\u0435\u0442" :
+			m_players.empty() ? L"\u0421\u0435\u0439\u0447\u0430\u0441 \u043d\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0435 \u043d\u0435\u0442 \u0438\u0433\u0440\u043e\u043a\u043e\u0432" : L"\u0412 \u044d\u0442\u043e\u0439 \u043a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u0438 \u043d\u0438\u043a\u043e\u0433\u043e \u043d\u0435\u0442";
+		old_font = SelectObject(hDC, m_hSmallFont);
+		text_w(hDC, (width - text_width(hDC, empty)) / 2, rows_top + 30, empty, c_dim);
+		SelectObject(hDC, old_font);
+	}
+
+	// Actions for the selected player.
+	RECT actions = {0, action_top, width, bottom};
+	fill(hDC, actions, c_surface);
+	RECT actions_line = {0, action_top, width, action_top + 1};
+	fill(hDC, actions_line, c_line);
+	const int button_top = action_top + 10;
+	if (!selected)
+	{
+		old_font = SelectObject(hDC, m_hSmallFont);
+		text_w(hDC, 16, button_top + 5, L"\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0438\u0433\u0440\u043e\u043a\u0430 \u0432 \u0441\u043f\u0438\u0441\u043a\u0435, \u0447\u0442\u043e\u0431\u044b \u0443\u043f\u0440\u0430\u0432\u043b\u044f\u0442\u044c \u0438\u043c", c_dim);
+		SelectObject(hDC, old_font);
+		return;
+	}
+	RECT name_clip = {16, action_top, width * 28 / 100, bottom};
+	const FactionStyle* style = faction_style(selected->faction);
+	text_a(hDC, 16, button_top + 3, selected->name, selected->banned ? c_red : style ? style->color : c_text, &name_clip);
+	const u32 now = GetTickCount();
+	const bool confirming = m_confirm_action && now < m_confirm_until;
+	const wchar_t* confirm = L"\u041f\u041e\u0414\u0422\u0412\u0415\u0420\u0414\u0418\u0422\u042c?";
+	x = width * 28 / 100;
+	if (selected->banned)
+	{
+		AddButton(hDC, x, button_top, 28, L"\u0420\u0410\u0417\u0411\u0410\u041d\u0418\u0422\u042c", act_unban, 0, style_primary);
+		return;
+	}
+	x += AddButton(hDC, x, button_top, 28, confirming && m_confirm_action == act_ban ? confirm : L"\u0411\u0410\u041d \u041f\u041e \u0416\u0415\u041b\u0415\u0417\u0423",
+		act_ban, 0, confirming && m_confirm_action == act_ban ? style_confirm : style_danger) + 8;
+	if (selected->admin)
+		x += AddButton(hDC, x, button_top, 28, L"\u0417\u0410\u0411\u0420\u0410\u0422\u042c \u0410\u0414\u041c\u0418\u041d\u041a\u0423", act_unadmin, 0, style_chip) + 8;
+	else
+		x += AddButton(hDC, x, button_top, 28, confirming && m_confirm_action == act_admin ? confirm : L"\u0414\u0410\u0422\u042c \u0410\u0414\u041c\u0418\u041d\u041a\u0423",
+			act_admin, 0, confirming && m_confirm_action == act_admin ? style_confirm : style_chip) + 8;
+	if (selected->leader)
+		AddButton(hDC, x, button_top, 28, L"\u0417\u0410\u0411\u0420\u0410\u0422\u042c \u041b\u0418\u0414\u0415\u0420\u0410", act_unleader, 0, style_chip);
+	else
+		AddButton(hDC, x, button_top, 28, L"\u0414\u0410\u0422\u042c \u041b\u0418\u0414\u0415\u0420\u0410", act_leader, 0,
+			selected->faction[0] && faction_style(selected->faction) ? style_chip : style_disabled);
 }
 
 bool CTextConsole::MatchesLogFilter(LPCSTR line) const
@@ -497,6 +853,15 @@ void CTextConsole::SetLogFilter(int filter)
 
 void CTextConsole::ScrollLog(int rows)
 {
+	if (m_tab == 1)
+	{
+		m_player_scroll -= rows;
+		const int max_scroll = m_player_count > m_player_visible_rows ? m_player_count - m_player_visible_rows : 0;
+		if (m_player_scroll < 0) m_player_scroll = 0;
+		if (m_player_scroll > max_scroll) m_player_scroll = max_scroll;
+		RefreshDisplay();
+		return;
+	}
 	const int max_scroll = m_log_count > m_log_visible_rows ? m_log_count - m_log_visible_rows : 0;
 	m_log_scroll += rows;
 	if (m_log_scroll < 0) m_log_scroll = 0;
@@ -504,32 +869,158 @@ void CTextConsole::ScrollLog(int rows)
 	RefreshDisplay();
 }
 
+void CTextConsole::Notice(const wchar_t* text)
+{
+	wcsncpy_s(m_notice, text, _TRUNCATE);
+	m_notice_until = GetTickCount() + 3500;
+}
+
+void CTextConsole::CopyLog()
+{
+	// The lines of the current filter, as shown, for pasting into a message.
+	xr_string text;
+	LogLock(true);
+	for (u32 i = 0; i < LogFile.size(); ++i)
+	{
+		LPCSTR line = LogFile[i].c_str();
+		if (!MatchesLogFilter(line))
+			continue;
+		const Console_mark mark = static_cast<Console_mark>(line[0]);
+		text += is_mark(mark) && line[1] == ' ' ? line + 2 : line;
+		text += "\r\n";
+	}
+	LogLock(false);
+	const int length = MultiByteToWideChar(1251, 0, text.c_str(), int(text.size()), nullptr, 0);
+	HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, (size_t(length) + 1) * sizeof(wchar_t));
+	if (!memory)
+		return;
+	wchar_t* wide = static_cast<wchar_t*>(GlobalLock(memory));
+	MultiByteToWideChar(1251, 0, text.c_str(), int(text.size()), wide, length);
+	wide[length] = 0;
+	GlobalUnlock(memory);
+	if (OpenClipboard(m_hLogWnd))
+	{
+		EmptyClipboard();
+		if (SetClipboardData(CF_UNICODETEXT, memory))
+			memory = nullptr; // the clipboard owns it now
+		CloseClipboard();
+	}
+	if (memory)
+	{
+		GlobalFree(memory);
+		Notice(L"\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0441\u043a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u043b\u043e\u0433");
+		return;
+	}
+	wchar_t notice[96];
+	swprintf_s(notice, L"\u0421\u043a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u043d\u043e \u0441\u0442\u0440\u043e\u043a: %d", m_log_count);
+	Notice(notice);
+}
+
+void CTextConsole::RunPlayerAction(int action)
+{
+	const SConsolePlayer* player = SelectedPlayer();
+	if (!player)
+		return;
+	// Bans and new administrators take a second click within 4 s.
+	const u32 now = GetTickCount();
+	if ((action == act_ban || action == act_admin) && (m_confirm_action != action || now >= m_confirm_until))
+	{
+		m_confirm_action = action;
+		m_confirm_until = now + 4000;
+		return;
+	}
+	m_confirm_action = 0;
+	string256 command = "";
+	switch (action)
+	{
+	case act_ban: xr_sprintf(command, "sv_ban %s", player->login); break;
+	case act_unban: xr_sprintf(command, "sv_unban %s", player->login); break;
+	case act_admin: xr_sprintf(command, "sv_account_role %s admin", player->login); break;
+	case act_unadmin: xr_sprintf(command, "sv_account_role %s player", player->login); break;
+	case act_leader: xr_sprintf(command, "sv_leader %s %u %s", player->login, player->slot, player->faction); break;
+	case act_unleader: xr_sprintf(command, "sv_leader %s %u off", player->login, player->slot); break;
+	default: return;
+	}
+	ExecuteCommand(command, true);
+	// The result is the last line of the log; show it in the footer too.
+	LogLock(true);
+	LPCSTR result = LogFile.empty() ? "" : LogFile.back().c_str();
+	wchar_t wide[160];
+	widen(is_mark(static_cast<Console_mark>(result[0])) && result[0] && result[1] == ' ' ? result + 2 : result, wide, 160);
+	LogLock(false);
+	Notice(wide);
+	if (action == act_ban)
+		m_selected_banned = true; // the row moves to the banned list
+	else if (action == act_unban)
+		m_selected_login[0] = 0;
+	m_players_time = 0;
+}
+
+void CTextConsole::OnAction(int action, int arg)
+{
+	switch (action)
+	{
+	case act_tab:
+		m_tab = arg;
+		m_confirm_action = 0;
+		m_players_time = 0;
+		if (m_tab == 1 && g_pGameLevel)
+		{
+			m_players_time = GetTickCount();
+			g_pGameLevel->GetConsolePlayers(m_players);
+		}
+		break;
+	case act_log_filter:
+		SetLogFilter(arg);
+		return;
+	case act_copy_log:
+		CopyLog();
+		break;
+	case act_logs_folder:
+		if (FS.path_exist("$logs$"))
+			ShellExecuteA(*m_pMainWnd, "open", FS.get_path("$logs$")->m_Path, nullptr, nullptr, SW_SHOWNORMAL);
+		break;
+	case act_player_filter:
+		m_player_filter = arg;
+		m_player_scroll = 0;
+		m_confirm_action = 0;
+		break;
+	case act_row:
+		if (arg >= 0 && arg < int(m_players.size()))
+		{
+			xr_strcpy(m_selected_login, m_players[arg].login);
+			m_selected_banned = m_players[arg].banned;
+			m_confirm_action = 0;
+		}
+		break;
+	default:
+		RunPlayerAction(action);
+		break;
+	}
+	RefreshDisplay();
+}
+
 void CTextConsole::OnLogClick(int x, int y)
 {
-	if (y >= m_dashboard_bottom + 5 && y < m_dashboard_bottom + 29)
-	{
-		static const int widths[] = {48, 76, 88, 54};
-		int filter_x = 150;
-		for (int i = 0; i < 4; ++i)
+	const POINT point = {x, y};
+	for (int i = int(m_buttons.size()) - 1; i >= 0; --i)
+		if (PtInRect(&m_buttons[i].rect, point))
 		{
-			if (x >= filter_x && x < filter_x + widths[i])
-			{
-				SetLogFilter(i);
-				return;
-			}
-			filter_x += widths[i] + 6;
+			// Copy: the vector is rebuilt by the repaint OnAction triggers.
+			const SButton button = m_buttons[i];
+			OnAction(button.action, button.arg);
+			return;
 		}
-	}
 	RECT rect;
 	GetClientRect(m_hLogWnd, &rect);
-	if (x >= rect.right - 20 && y >= m_log_top && y < m_log_bottom)
+	if (m_tab == 0 && x >= rect.right - 20 && y >= m_log_top && y < m_log_bottom)
 	{
 		m_dragging_scrollbar = true;
 		SetCapture(m_hLogWnd);
 		OnLogDrag(y);
 		return;
 	}
-	if (y >= m_log_bottom)
+	if (y >= rect.bottom - 36)
 		FocusCommandInput();
 }
 
@@ -556,13 +1047,6 @@ void CTextConsole::EndLogDrag()
 	}
 }
 
-/*
-void CTextConsole::IR_OnKeyboardPress( int dik ) !!!!!!!!!!!!!!!!!!!!!
-{
-m_bNeedUpdate = true;
-inherited::IR_OnKeyboardPress( dik );
-}
-*/
 void CTextConsole::OnFrame()
 {
 	inherited::OnFrame();
@@ -577,6 +1061,15 @@ void CTextConsole::OnFrame()
 		string256 title;
 		xr_sprintf(title, "Lost Zone Server - %s%s%s", titled.c_str(), port[0] ? " : " : "", port);
 		SetWindowTextA(*m_pMainWnd, title);
+	}
+	// Players: every second while the tab is open, every 5 s for its counter.
+	const u32 now = GetTickCount();
+	if (!g_pGameLevel)
+		m_players.clear();
+	else if (!m_players_time || now - m_players_time >= (m_tab == 1 ? 1000u : 5000u))
+	{
+		m_players_time = now;
+		g_pGameLevel->GetConsolePlayers(m_players);
 	}
 	RefreshIfChanged();
 }
@@ -622,6 +1115,7 @@ void CTextConsole::RefreshDisplay()
 			SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
 		ShowWindow(m_hConsoleWnd, SW_SHOW);
 		ShowWindow(m_hLogWnd, SW_SHOW);
+		dark_title_bar(*m_pMainWnd);
 		m_host_window_ready = true;
 		Msg("[Lost Zone] Dedicated console host style: 0x%Ix", static_cast<size_t>(style | WS_CLIPCHILDREN));
 	}
@@ -645,6 +1139,6 @@ void CTextConsole::RefreshDisplay()
 		}
 	}
 	if (m_hCommandWnd && width > 130 && height > 32)
-		MoveWindow(m_hCommandWnd, 28, height - 29, width - 114, 24, FALSE);
+		MoveWindow(m_hCommandWnd, 28, height - 30, width - 118, 25, FALSE);
 	RedrawWindow(m_hLogWnd, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW);
 }

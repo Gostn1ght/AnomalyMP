@@ -45,9 +45,11 @@ LRESULT CALLBACK TextConsole_LogWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
 	switch (uMsg)
 	{
 	case WM_CTLCOLOREDIT:
-		// Match the native command field to the black dedicated log window.
-		SetTextColor(reinterpret_cast<HDC>(wParam), RGB(225, 225, 225));
-		SetBkColor(reinterpret_cast<HDC>(wParam), RGB(0, 0, 0));
+		// The command field on the console's dark footer (Lost Zone palette).
+		SetTextColor(reinterpret_cast<HDC>(wParam), RGB(232, 230, 225));
+		SetBkColor(reinterpret_cast<HDC>(wParam), RGB(24, 24, 27));
+		if (Console && static_cast<CTextConsole*>(Console)->CommandBrush())
+			return reinterpret_cast<LRESULT>(static_cast<CTextConsole*>(Console)->CommandBrush());
 		return reinterpret_cast<LRESULT>(GetStockObject(BLACK_BRUSH));
 	case WM_TIMER:
 		// Kept for a busy main loop (level loading), but throttled: a full

@@ -408,6 +408,13 @@ void CLevel::GetLevelInfo(CServerInfo* si)
     }
 }
 
+void CLevel::GetConsolePlayers(xr_vector<SConsolePlayer>& out)
+{
+    out.clear();
+    if (Server && game && netcoop::enabled())
+        netcoop::console_players(out);
+}
+
 void CLevel::PrefetchSound(LPCSTR name)
 {
     // preprocess sound name

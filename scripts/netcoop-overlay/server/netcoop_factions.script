@@ -278,6 +278,46 @@ function set_leader(faction, login, slot)
 	return true, char .. " leads " .. faction
 end
 
+-- Admin: the character stops leading its faction (stays a member).
+function revoke_leader(login, slot)
+	local char = string.lower(login) .. "_" .. tostring(tonumber(slot) or 1)
+	local faction = (deserialize(netcoop_store_read("char_faction", char)) or {}).faction
+	if not faction or not known(faction) then return false, char .. " is in no faction" end
+	local ok, message = update("factions", faction, function(data)
+		local member = data.members and data.members[char]
+		if not member or member.role ~= "leader" then return false, char .. " does not lead " .. faction end
+		member.role = "member"
+		return true
+	end)
+	if not ok then return false, message end
+	printf("[Lost Zone][factions] %s no longer leads %s", char, faction)
+	return true, char .. " no longer leads " .. faction
+end
+
+---------------------------------------------------------------- dedicated server console (Players tab)
+-- sv_leader <login> <slot> <faction|off>: one result line, "* ..." or "! ...".
+function console_leader(login, slot, faction)
+	local ok, message
+	if faction == "off" then ok, message = revoke_leader(login, slot)
+	else ok, message = set_leader(faction, login, slot) end
+	return (ok and "* " or "! ") .. tostring(message)
+end
+
+-- "actor id|faction|role in it" per online player; one store read per faction.
+function console_roster()
+	local out, records = {}, {}
+	for id in string.gmatch(netcoop_players and netcoop_players() or "", "%d+") do
+		local obj = level.object_by_id(tonumber(id))
+		if obj then
+			local faction = current_faction(obj)
+			if known(faction) then records[faction] = records[faction] or faction_record(faction) end
+			local member = records[faction] and records[faction].members[char_of(obj)]
+			out[#out + 1] = id .. "|" .. faction .. "|" .. (member and member.role or "")
+		end
+	end
+	return table.concat(out, "\n")
+end
+
 -- Furniture in a faction's safe zone (doc 47 §6): leader, deputies and
 -- members the leader allowed.
 function may_place_in_zone(obj, faction)
