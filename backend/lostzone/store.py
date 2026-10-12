@@ -315,11 +315,76 @@ class Store:
         tx.execute("UPDATE world SET event_highwater=?, revision=revision+1 WHERE singleton=1", (max(world[0], committed_ms),))
         return result.lastrowid
 
+    def journal_floor(self, db=None):
+        row = (db or self.db).execute("SELECT value FROM metadata WHERE key='journal_floor'").fetchone()
+        return int(row[0]) if row else 0
+
+    def compact(self, snapshot_id, consumers, *, keep_snapshots=2):
+        """Retention (doc 43 G11): drop journal rows a verified snapshot covers.
+
+        Only events at or below that snapshot's watermark go, and only when
+        every named outbox consumer acknowledged them. Quest evidence and the
+        newest event of each aggregate stay (aggregate sequences never restart).
+        Readers asking for compacted history are refused and must start from
+        a snapshot. Older snapshots beyond `keep_snapshots` are removed, never
+        the one the journal now starts from. Projections are untouched.
+        """
+        persistent_id(snapshot_id)
+        if type(consumers) not in (list, tuple) or not consumers:
+            raise Invalid("compaction needs the outbox consumers")
+        for consumer in consumers:
+            identifier(consumer)
+        if type(keep_snapshots) is not int or not 1 <= keep_snapshots <= 64:
+            raise Invalid("invalid snapshot retention")
+        with self.transaction() as tx:
+            self.require_epoch(tx)
+            snap = tx.execute("SELECT * FROM snapshot WHERE id=?", (snapshot_id,)).fetchone()
+            if not snap:
+                raise Invalid("unknown snapshot")
+            if hashlib.sha256(snap["payload"].encode("utf-8")).hexdigest() != snap["checksum"]:
+                raise Unavailable("snapshot checksum mismatch; refusing to compact")
+            watermark = snap["watermark"]
+            floor = self.journal_floor(tx)
+            if watermark <= floor:
+                return {"removed": 0, "floor": floor, "snapshots_removed": 0}
+            tx.execute("CREATE TEMP TABLE IF NOT EXISTS compact_consumer(name TEXT PRIMARY KEY)")
+            tx.execute("DELETE FROM compact_consumer")
+            tx.executemany("INSERT OR IGNORE INTO compact_consumer VALUES(?)", [(c,) for c in consumers])
+            # Covered, delivered to every consumer, not quest evidence, not the
+            # newest of its aggregate.
+            rows = tx.execute("""
+                SELECT e.sequence FROM world_event e
+                WHERE e.sequence<=?
+                  AND NOT EXISTS (SELECT 1 FROM quest_event q WHERE q.event_sequence=e.sequence)
+                  AND e.aggregate_sequence < (SELECT MAX(x.aggregate_sequence) FROM world_event x
+                                              WHERE x.aggregate_id=e.aggregate_id)
+                  AND NOT EXISTS (SELECT 1 FROM outbox o, compact_consumer c
+                                  WHERE o.event_sequence=e.sequence
+                                    AND NOT EXISTS (SELECT 1 FROM outbox_ack a
+                                                    WHERE a.consumer=c.name AND a.event_sequence=e.sequence))
+                ORDER BY e.sequence""", (watermark,)).fetchall()
+            sequences = [(row[0],) for row in rows]
+            tx.executemany("DELETE FROM outbox_ack WHERE event_sequence=?", sequences)
+            tx.executemany("DELETE FROM outbox WHERE event_sequence=?", sequences)
+            tx.executemany("DELETE FROM world_event WHERE sequence=?", sequences)
+            # History up to the watermark is no longer complete: readers below
+            # it start from this snapshot. What stays there is kept evidence.
+            new_floor = watermark if sequences else floor
+            tx.execute("INSERT OR REPLACE INTO metadata VALUES('journal_floor',?)", (str(new_floor),))
+            old = tx.execute("SELECT id FROM snapshot WHERE id<>? ORDER BY watermark DESC, rowid DESC",
+                             (snapshot_id,)).fetchall()
+            drop = [(row[0],) for row in old[keep_snapshots - 1:]]
+            tx.executemany("DELETE FROM snapshot WHERE id=?", drop)
+            tx.execute("DELETE FROM compact_consumer")
+            return {"removed": len(sequences), "floor": new_floor, "snapshots_removed": len(drop)}
+
     def events(self, after=0, limit=256):
         if type(after) is not int or after < 0 or type(limit) is not int or not 1 <= limit <= 512:
             raise Invalid("invalid event page")
         with self.lock:
             self.require_epoch(self.db)
+            if after < self.journal_floor():
+                raise Unavailable("journal history before the compaction floor is gone; start from a snapshot")
             rows = self.db.execute("SELECT * FROM world_event WHERE sequence>? ORDER BY sequence LIMIT ?",
                                    (after, limit)).fetchall()
             return [dict(row, payload=json.loads(row["payload"])) for row in rows]

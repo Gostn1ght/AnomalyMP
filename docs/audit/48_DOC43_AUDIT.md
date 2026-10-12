@@ -111,7 +111,7 @@ Distance/overload tiers для NPC/мутантов/игроков, описан
 | B09 Удостоверенный World Service endpoint и wire encoding | 🟡 | authenticated loopback engine-bootstrap/clock, bounded public timeline projection, strict native wire parser, worker calendar/weather/emission diagnostics (doc95); полноценная доставка/применение ScaleChanged location runtime и remote transport ещё открыты |
 | B10 Подключить LocationClock к действительным location packets; | 🟡 | кластерный календарь через файлы: отстающий догоняет ускорением (видно в live логах) |
 | B11 Event-time highwater и replay: восстановленное время не | 🔧 | backend: каждое событие поднимает event_highwater, рестарт сервиса начинает с MAX(world_ms, event_highwater) — время не уходит раньше подтверждённых событий; test_world.test_restart_preserves_identity_and_committed_event_clock_floor (док 97 — переучёт); движок мира к backend не подключён |
-| B12 Частично: backend event-time mutation/scale barrier реализован; | ⬜ |  |
+| B12 Частично: backend event-time mutation/scale barrier реализован; | 🟡 | backend: мутация держит одно мировое мгновение и сначала разрешает наступившие события (World.mutation/drain_due_in), смена масштаба — тем же барьером (test_mutation_barrier.py); общий барьер движка/восстановления нет (док 97) |
 | B13 ClockSync: asymmetric delay, loss/reorder, длительный разрыв | 🟡 | native observer fixture использует actual durable backend restore samples: synthetic asymmetric delay/duplicates/reorder/long outage, epoch fencing и phase catchup (doc95); real game Location Server restart/transport recovery ещё не проверены |
 
 ## C
@@ -199,13 +199,13 @@ Distance/overload tiers для NPC/мутантов/игроков, описан
 | G02 Проверка обоих файлов committed snapshot ` | ✅ | fixtures + live: слот, pointer, sidecar, загрузка сохранённого мира |
 | G03 Inactive slot выбирается относительно последнего commit; | ✅ | fixtures + live: слот, pointer, sidecar, загрузка сохранённого мира |
 | G04 Публикация manifest только после записи/flush обоих файлов; | ✅ | fixtures + live: слот, pointer, sidecar, загрузка сохранённого мира |
-| G05 Durable event journal важных изменений после snapshot | ⬜ |  |
-| G06 Idempotent replay и snapshot event watermark | ⬜ |  |
+| G05 Durable event journal важных изменений после snapshot | 🔧 | backend: world_event — durable журнал (SQLite WAL, synchronous=FULL) каждого изменения после снимка с outbox тем же транзакционным коммитом; снимок хранит watermark (док 97 — переучёт); сохранение мира движка — только снимки (G02–G04), журнала между ними нет |
+| G06 Idempotent replay и snapshot event watermark | 🔧 | backend: повтор команды отдаёт сохранённый результат (command_result по actor+id, другой payload — Conflict), повтор входящего сообщения — inbox; снимок несёт watermark журнала, чтение продолжается с него (док 97 — переучёт); движок не подключён |
 | G07 Coherent capture barrier для clock, ALife, Lua и ItemLedger | ⬜ |  |
 | G08 Согласование world snapshot и player inventory commit | 🔧 | персонаж с предметами из мира пишется только после коммита мира (save ordering) |
 | G09 Transactional inbox/outbox; crash между commit и ACK | 🟡 | backend inbox/outbox |
 | G10 Recovery по валидному snapshot+journal с явной проверкой | 🟡 | восстановление по валидному снимку a/b + указатель с контрольными суммами проверено краш-тестом; журнала событий после снимка нет |
-| G11 Retention/compaction и миграция схем без потери persistent IDs | ⬜ |  |
+| G11 Retention/compaction и миграция схем без потери persistent IDs | 🔧 | backend Store.compact: журнал ниже watermark проверенного снимка удаляется, только если все названные потребители outbox его подтвердили; квестовые улики и последнее событие каждого агрегата остаются (номера не начинаются заново); чтение ниже границы отказывается — начинать со снимка; старые снимки сверх keep_snapshots удаляются; миграции схемы v1→v4 сохраняют строки и ID; test_compaction.py (5) (док 97); движок к backend не подключён |
 | G12 Первичный durable checkpoint до допуска игроков и важных действий | ✅ | Doc76, actual validated GHAbe30 dedicated server/new private persistent world: exact native connection IDs for nbot202/203 are refused before first committed pointer, including after failed script-snapshot verification; neither negative bot gets an Actor. Restore ORIGINAL checker after7controlled failures; native bootstrap publishes LZW3, independently verify both ALife .scop and GAMMA .scoc sizes/FNV64 and seal copies. Only after commit nbot204 enters Actor42752+20s/final1playing/0failed. Six sealed journals/native chronology. Controlled verifier fault, not disk corruption; first observed refusal is pre-commit but after initial failed attempt. Owner state unchanged; local admission only, distributed/crash/post-admission transactions remain separate |
 | G13 Native engine crash/kill/power-loss испытания на каждом шаге | ✅ | краш (TerminateProcess) в 4 точках сохранения мира на реальном сервере: после рестарта грузится последний полный коммит, мир идёт (run-world-crash-test.ps1, 2026-10-06); обрыв питания не моделируется |
 
