@@ -326,6 +326,8 @@ void CChangeLevelWnd::OnOk()
 	p.w_vec3(m_angles);
 
 	Level().Send(p, net_flags(TRUE));
+	if (netcoop::pure_client())
+		Msg("[Lost Zone][passage] the player agreed: request sent for vertex %u", m_game_vertex_id);
 }
 
 void CChangeLevelWnd::OnCancel()

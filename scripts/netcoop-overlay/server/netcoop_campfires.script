@@ -1,0 +1,106 @@
+-- Lost Zone: when NPCs light camp fires (owner 2026-10-13).
+--
+-- Anomaly's axr_turn_on_campfire sends a camp NPC to every unlit fire of its
+-- smart 5 s after it takes a job, at any hour: right after a server start every
+-- camp fire burned, and a fire that went out was lit again at once, so fires
+-- burned for ever. Now NPCs light camp fires only in the evening and at night,
+-- and leave a fire that burned out alone for a while. The engine gives every
+-- lit fire its fuel (netcoop_campfire.inc): a fire an NPC lit burns 2-3 game
+-- hours, one a player lit with matches 3 game hours.
+
+local evening_hour = 19 -- NPCs light fires from 19:00 ...
+local morning_hour = 6  -- ... until 06:00
+local rest_sec = 60 * 60 -- game seconds a burned-out fire stays unlit by NPCs
+
+local last_burning = {} -- campfire id -> game time it was last seen burning
+
+local function night()
+	local hours = level.get_time_hours()
+	return hours >= evening_hour or hours < morning_hour
+end
+
+local function resting(id, campfire)
+	local now = game.get_game_time()
+	if campfire:is_on() then
+		last_burning[id] = now
+		return true
+	end
+	local seen = last_burning[id]
+	if seen == nil then return false end
+	if now:diffSec(seen) >= rest_sec then
+		last_burning[id] = nil
+		return false
+	end
+	return true
+end
+
+-- Anomaly's eva_turn_on_campfire:find_valid_target with the hour and the rest
+-- checks added; everything else as in Anomaly.
+local function find_valid_target(self)
+	local npc = self.object
+	local selected = axr_turn_on_campfire.already_selected
+
+	if self.st.selected_id then
+		if selected[self.st.selected_id] == npc:id() and night() then
+			local camp = level.object_by_id(self.st.selected_id)
+			local CFZone = camp and camp:get_campfire()
+			if CFZone and not CFZone:is_on() then
+				return true
+			end
+		end
+		selected[self.st.selected_id] = nil
+		self.st.selected_id = nil
+	end
+
+	local tg = time_global()
+	self.st.__dtimer = not self.st.__dtimer and tg + 5000 or self.st.__dtimer
+	if tg < self.st.__dtimer then
+		return false
+	end
+	if not night() then
+		return false
+	end
+
+	local smart = xr_gulag.get_npc_smart(npc)
+	if not smart then
+		return false
+	end
+	local npc_info = smart.npc_info[npc:id()]
+	if not (npc_info and npc_info.job) then
+		return false
+	end
+	if npc_info.job.exclusive and xr_logic.pick_section_from_condlist(db.actor, npc, self.st.allow) == "false" then
+		return false
+	end
+
+	local campfires = db.campfire_table_by_smart_names[smart:name()]
+	if campfires == nil or is_empty(campfires) then
+		return false
+	end
+
+	for id, binder in pairs(campfires) do
+		if binder.object and binder.campfire then
+			if selected[id] == nil and not resting(id, binder.campfire) then
+				if self.st.selected_id and selected[self.st.selected_id] then
+					selected[self.st.selected_id] = nil
+				end
+				self.st.selected_id = id
+				selected[id] = npc:id()
+				self.st.vid = binder.object:level_vertex_id()
+				self.st.pos = binder.object:position()
+				self.st.state = binder.object:position():distance_to_sqr(npc:position()) > 900 and "rush" or "patrol"
+				return true
+			end
+		end
+	end
+	return false
+end
+
+function on_game_start()
+	if not (axr_turn_on_campfire and axr_turn_on_campfire.eva_turn_on_campfire) then
+		printf("! [Lost Zone][campfire] axr_turn_on_campfire not found: NPC fire hours not applied")
+		return
+	end
+	axr_turn_on_campfire.eva_turn_on_campfire.find_valid_target = find_valid_target
+	printf("[Lost Zone][campfire] NPCs light camp fires from %s:00 to %s:00", evening_hour, morning_hour)
+end

@@ -688,6 +688,10 @@ void CPhysicsShellHolder::netcoop_physics_update()
 		}
 		for (u16 i = 0; i < PHGetSyncItemsNumber(); ++i) shell->get_ElementByStoreOrder(i)->Fix();
 		shell->EnableCollision();
+		// A fixed body weighs 1e8: an item on the floor stopped the player like
+		// a wall. Players walk into items and the server kicks them aside.
+		if (smart_cast<CInventoryItem*>(this))
+			shell->collide_class_bits().set(CLClassBits(1) << 5, TRUE); // CPHCollideValidator::cbNCClassCharacter
 		m_netcoop_replica_shell = shell;
 	}
 	shell->Enable(); // fixed replica bodies remain solid to the local player

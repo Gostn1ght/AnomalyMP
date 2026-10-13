@@ -4,16 +4,18 @@
 ; offsets from the front seats (the car faces +z). Models whose axes are
 ; turned keep only their own seat bones.
 ; netcoop_passenger_drop - passenger pose root below the seat (m).
+; UAZ rear bench: the seat_back bone is the top of the backrest (owner's
+; screenshot 2026-10-13: passengers sat on it).
 ; netcoop_trunk - false: no trunk.
 
 ![veh_niva]
 netcoop_seats = seat_left, seat_right, seat_left:0:0:-0.85, seat_right:0:0:-0.85
 
 ![veh_uaz_01]
-netcoop_seats = seat_left, seat_right, seat_back:-0.4:0:0, seat_back:0.4:0:0
+netcoop_seats = seat_left, seat_right, seat_back:-0.4:-0.35:0.25, seat_back:0.4:-0.35:0.25
 
 ![veh_uaz_02]
-netcoop_seats = seat_left, seat_right, seat_back:-0.4:0:0, seat_back:0.4:0:0
+netcoop_seats = seat_left, seat_right, seat_back:-0.4:-0.35:0.25, seat_back:0.4:-0.35:0.25
 
 ![veh_uaz_buhanka]
 netcoop_seats = seat_left, seat_left:0.95:0:0, seat_left:0.2:0:-1.4, seat_left:0.8:0:-1.4

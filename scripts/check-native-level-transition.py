@@ -62,6 +62,7 @@ struct LevelState{unsigned sends=0;void Send(NET_Packet& p,int){assert(p.writes=
 LevelState& Level(){return fixture_level;}
 struct{float fTimeGlobal=10;}Device;
 #define VERIFY(x) assert(x)
+void Msg(LPCSTR,...){}
 struct CLevelChanger{
  unsigned m_netcoop_actor_id=0xffff;bool m_netcoop_arrival_block=false,fixture_inside=false;
  bool m_bSilentMode=true,m_b_enabled=true;unsigned m_game_vertex_id=7,m_level_vertex_id=9;

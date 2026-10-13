@@ -163,10 +163,17 @@ void CLevelChanger::feel_touch_new(CObject* tpObject)
 		return;
 	// In a car nobody is asked: the driver takes the whole car through.
 	if (netcoop::enabled() && l_tpActor->netcoop_seated())
+	{
+		Msg("[Lost Zone][passage] changer %u: the player is in a car, the driver takes it through", m_game_vertex_id);
 		return;
+	}
 	// Arrival can overlap the reverse portal. First leave its real shape,
 	// then a deliberate re-entry may offer the return journey.
-	if (netcoop::pure_client() && m_netcoop_arrival_block) return;
+	if (netcoop::pure_client() && m_netcoop_arrival_block)
+	{
+		Msg("[Lost Zone][passage] changer %u: quiet until the player leaves its shape", m_game_vertex_id);
+		return;
+	}
 
 	// Multiplayer always asks the owner before disconnecting to another map.
 	// Keep the original silent-changer behavior for single-player.
@@ -185,7 +192,11 @@ void CLevelChanger::feel_touch_new(CObject* tpObject)
 	bool b = get_reject_pos(p, r);
 	CUIGameSP* pGameSP = smart_cast<CUIGameSP*>(CurrentGameUI());
 	if (netcoop::pure_client())
+	{
 		s_netcoop_inviter = this;
+		Msg("[Lost Zone][passage] changer %u: asking the player (%s, ui %s)", m_game_vertex_id,
+		    m_b_enabled ? "open" : "closed", pGameSP ? "ready" : "missing");
+	}
 	if (pGameSP)
 		pGameSP->ChangeLevel(m_game_vertex_id, m_level_vertex_id, m_position, m_angles, p, r, b, m_invite_str,
 		                     m_b_enabled);

@@ -71,6 +71,7 @@ struct GameLevel{
 }level;
 GameLevel* g_pGameLevel=&level;GameLevel& Level(){return level;}
 struct{u32 dwTimeGlobal=1;}Device;
+struct{int randI(int,int){return 30;}}Random; // NPC fuel: 2 h + 30 game minutes
 unsigned touches=0;void server_item_touch(u16){++touches;}
 namespace netcoop{
 '''
@@ -112,10 +113,13 @@ int main(){using namespace netcoop;
  pure_client_mode=false;fire.on=false;level.game_time=5;Device.dwTimeGlobal=1;matches.destroyed=false;matches.uses=2;
  request(1);assert(s_campfire_fuel_end.at(7)==5+campfire_fuel_ms);
  server.sent.clear();server_campfires_update(&server);assert(server.sent.size()==1);
- // GAMMA extinguishes and later relights its own fire without inheriting fuel.
+ // GAMMA extinguishes and later relights its own fire without inheriting the
+ // player's fuel; an NPC fire burns 2-3 game hours, then goes out (owner 2026-10-13).
  fire.turn_off_script();assert(s_campfire_fuel_end.empty());fire.turn_on_script();
- level.game_time+=campfire_fuel_ms;Device.dwTimeGlobal+=4000;server_campfires_update(&server);assert(fire.on);
- std::puts("PASS actual campfires: authority/reach/alive, usable matches once, game-time fuel, late join, malformed packets, pending spawn and session reset");
+ const u64 npc_deadline=level.game_time+campfire_npc_fuel_ms+30ull*60*1000;assert(s_campfire_fuel_end.at(7)==npc_deadline);
+ level.game_time=npc_deadline-1;Device.dwTimeGlobal+=4000;server_campfires_update(&server);assert(fire.on);
+ level.game_time=npc_deadline;Device.dwTimeGlobal+=4000;server_campfires_update(&server);assert(!fire.on&&s_campfire_fuel_end.empty());
+ std::puts("PASS actual campfires: authority/reach/alive, usable matches once, game-time fuel (players and NPCs), late join, malformed packets, pending spawn and session reset");
 }
 '''
 with TemporaryDirectory() as tmp:

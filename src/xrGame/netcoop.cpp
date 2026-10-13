@@ -4099,7 +4099,9 @@ void server_physics_update(xrServer* server)
 				if (gap.y < -0.2f || gap.y > 0.8f) continue;
 				gap.y = 0.f;
 				if (gap.square_magnitude() > 0.36f || gap.dotproduct(foot.direction) < -0.05f) continue;
-				const float target = creature ? 0.28f : 0.5f;
+				// Items are kicked aside as in single player (owner 2026-10-13: a
+				// weapon on the floor felt too heavy to move); bodies and props stay heavy.
+				const float target = creature ? 0.28f : item_or_corpse ? 1.5f : 0.5f;
 				const float gain = _max(0.f, target - body.linear_vel.dotproduct(foot.direction));
 				if (gain > 0.f)
 				{

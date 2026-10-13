@@ -573,9 +573,10 @@ void server_on_change_level(xrServer* server, xrClientData* CL, NET_Packet& P)
 	P.r(&game_vertex, sizeof(game_vertex));
 	P.r(&level_vertex, sizeof(level_vertex));
 	CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(CL->owner->ID));
-	if (!actor || !actor->g_Alive()) return;
+	Msg("[Lost Zone][passage] %s asks to go through vertex %u", CL->netcoop_login.c_str(), game_vertex);
+	if (!actor || !actor->g_Alive()) return cluster_refuse(server, CL, "the character is not alive here");
 	// In a car the whole car goes through (netcoop_vehicles.inc, doc 100).
-	if (actor->netcoop_seated()) return;
+	if (actor->netcoop_seated()) return cluster_refuse(server, CL, "in a car the driver takes everybody through");
 	// The client names the changer; position and destination come from the
 	// server's own copy of it.
 	CLevelChanger* changer = nullptr;

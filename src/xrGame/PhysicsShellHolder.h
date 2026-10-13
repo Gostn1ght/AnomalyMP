@@ -81,6 +81,9 @@ private:
     float m_netcoop_render_delay = 0.f;
     void netcoop_physics_update();
 public:
+    // Brings a replica to this frame's pose now: a player seated in a car
+    // follows it, whichever of the two updates first (doc 100).
+    void netcoop_physics_follow() { netcoop_physics_update(); }
     void netcoop_physics_import(NET_Packet& P);
     u32 netcoop_interpolation_time(u32 interval);
     bool netcoop_physics_buffered() const { return !m_netcoop_physics.empty(); }

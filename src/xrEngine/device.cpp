@@ -909,7 +909,8 @@ void CRenderDevice::OnWM_Activate(WPARAM wParam, LPARAM lParam)
 			if (bActive)
 			{
 				Device.seqAppActivate.Process(rp_AppActivate);
-				app_inactive_time += TimerMM.GetElapsed_ms() - app_inactive_time_start;
+				if (!strstr(Core.Params, "-netcoop")) // never paused online (see below)
+					app_inactive_time += TimerMM.GetElapsed_ms() - app_inactive_time_start;
 			}
 			else
 			{
@@ -960,7 +961,12 @@ void CRenderDevice::OnWM_Activate(WPARAM wParam, LPARAM lParam)
 		if (Device.b_is_Active)
 		{
 			Device.seqAppActivate.Process(rp_AppActivate);
-			app_inactive_time += TimerMM.GetElapsed_ms() - app_inactive_time_start;
+			// Multiplayer never pauses on focus loss, so the continual clock
+			// keeps the time spent in another window: a client's sun, shadows
+			// and weather run on it and jumped back after Alt+Tab until the
+			// server's next sync (owner 2026-10-12/13).
+			if (!strstr(Core.Params, "-netcoop"))
+				app_inactive_time += TimerMM.GetElapsed_ms() - app_inactive_time_start;
 
 #ifndef DEDICATED_SERVER
 # ifdef INGAME_EDITOR

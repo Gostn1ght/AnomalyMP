@@ -123,7 +123,7 @@ int main(){
  assert(barrel.shell.enabled&&fragment.shell.enabled&&dropped.shell.enabled&&corpse.shell.enabled);
  assert(barrel.shell.elements[0].mass==80&&barrel.shell.elements[0].last_impulse==15);
  assert(std::fabs(barrel.shell.elements[0].state.linear_vel.z-0.1875f)<1e-6f);
- assert(fragment.shell.elements[0].last_impulse==4&&dropped.shell.elements[0].last_impulse==4);
+ assert(fragment.shell.elements[0].last_impulse==4&&dropped.shell.elements[0].last_impulse==12); // items are kicked at 1.5 m/s
  assert(std::fabs(corpse.shell.elements[0].state.linear_vel.z-0.28f)<1e-6f&&corpse.shell.elements[1].impulses==0);
  assert(!untouched.shell.enabled&&netcoop::s_physics_sent.count(10)==0&&server.sends==4);
  for(unsigned i=0;i<64;++i)tick(server);

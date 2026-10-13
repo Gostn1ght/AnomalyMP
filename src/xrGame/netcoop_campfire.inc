@@ -15,9 +15,11 @@ static xr_map<u32, bool> s_campfire_synced; // server: ClientID -> got the full 
 static xr_map<u16, bool> s_campfire_pending; // client: state for a campfire not spawned yet
 // Fuel (doc 43 L28): a fire a player lit burns this long in game time, then
 // goes out by itself; only these fires are looked at (no distant fire tick).
-// NPC camp fires stay under GAMMA's camp logic, which lights and puts out its
-// own; at a server start every fire is out anyway.
+// A fire an NPC lit burns 2-3 game hours too (owner 2026-10-13: no fire burns
+// for ever); NPCs light camp fires only in the evening and at night, and not
+// again right after one burned out (netcoop_campfires.script on the server).
 static const u64 campfire_fuel_ms = 3ull * 60 * 60 * 1000; // 3 game hours
+static const u64 campfire_npc_fuel_ms = 2ull * 60 * 60 * 1000; // plus up to 1 game hour
 static xr_map<u16, u64> s_campfire_fuel_end; // server: id -> game time it goes out
 static u32 s_campfire_fuel_next = 0;
 
@@ -57,6 +59,9 @@ void server_campfire_changed(u16 id, bool on)
 	// GAMMA may extinguish a player-lit fire and light its own later.
 	// That new NPC fire must not inherit the former player's deadline.
 	if (!on) s_campfire_fuel_end.erase(id);
+	// Lit by an NPC (a player's request sets its own fuel right after this).
+	else if (s_campfire_fuel_end.find(id) == s_campfire_fuel_end.end())
+		s_campfire_fuel_end[id] = Level().GetGameTime() + campfire_npc_fuel_ms + u64(::Random.randI(0, 60)) * 60 * 1000;
 	auto known = s_campfires.find(id);
 	if (known != s_campfires.end() && known->second == on) return;
 	s_campfires[id] = on;

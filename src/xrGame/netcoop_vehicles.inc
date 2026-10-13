@@ -983,6 +983,10 @@ void CActor::netcoop_seat_place()
 	CCar* car = smart_cast<CCar*>(Level().Objects.net_Find(m_netcoop_seat_car));
 	if (!car)
 		return;
+	// The car's replica pose of this frame, not the last one: objects update
+	// in no fixed order, so the body and the view shook while driving.
+	if (netcoop::pure_client())
+		car->netcoop_physics_follow();
 	Fmatrix world;
 	world.mul_43(car->XFORM(), m_netcoop_seat_local);
 	XFORM().set(world);
