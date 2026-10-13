@@ -171,6 +171,8 @@ jobs:
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-car-lights.py
           if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-level-changer-reject.py
+          if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-rp-input.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-physics-replica.py

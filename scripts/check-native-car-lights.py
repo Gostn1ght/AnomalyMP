@@ -43,10 +43,10 @@ struct CInifile {
  }
  Fcolor r_fcolor(LPCSTR,LPCSTR){return {};}
  LPCSTR r_string(LPCSTR,LPCSTR key){return key;}
-} ini;
+} test_ini;
 struct IKinematics {
  bool visible=true;
- CInifile* LL_UserData(){return &ini;}
+ CInifile* LL_UserData(){return &test_ini;}
  u16 LL_BoneID(LPCSTR name){assert(std::string(name)=="bone");return 4;}
  void LL_SetBoneVisible(u16 id,bool value,bool recursive){assert(id==4 && recursive);visible=value;}
 } kinematics;
@@ -57,14 +57,14 @@ struct Light {
  void set_type(int){} void set_shadow(bool){} void set_range(float){}
  void set_color(Fcolor){} void set_cone(float value){cone=value;}
  void set_texture(LPCSTR){} void set_radius(float){} void set_active(bool value){active=value;}
-} light,glow;
+} test_light,test_glow;
 namespace IRender_Light {constexpr int SPOT=2;}
 struct Ref {
  Light* value=nullptr;
  Ref& operator=(Light* object){value=object;return *this;}
  Light* operator->(){assert(value);return value;}
 };
-struct Renderer{Light* light_create(){return &light;}Light* glow_create(){return &glow;}} renderer;
+struct Renderer{Light* light_create(){return &test_light;}Light* glow_create(){return &test_glow;}} renderer;
 static Renderer* Render=&renderer;
 class CCarLights;
 struct SCarLight {
@@ -87,14 +87,14 @@ public:
 int main(){
  CCarLights holder;SCarLight headlight;headlight.m_holder=&holder;
  // The owner's Moskvich f1 section contains spot_angle=70, no cone_angle.
- ini.angles={{"spot_angle",70.f}};headlight.ParseDefinitions("f1");
- assert(std::fabs(light.cone-deg2rad(70.f))<.00001f);
- assert(headlight.bone_id==4 && !light.active && !glow.active && !kinematics.visible);
- ini.angles={{"cone_angle",55.f}};headlight.ParseDefinitions("f1");
- assert(std::fabs(light.cone-deg2rad(55.f))<.00001f);
- ini.angles={{"cone_angle",60.f},{"spot_angle",70.f}};headlight.ParseDefinitions("f1");
- assert(std::fabs(light.cone-deg2rad(60.f))<.00001f);
- ini.angles.clear();bool rejected=false;
+ test_ini.angles={{"spot_angle",70.f}};headlight.ParseDefinitions("f1");
+ assert(std::fabs(test_light.cone-deg2rad(70.f))<.00001f);
+ assert(headlight.bone_id==4 && !test_light.active && !test_glow.active && !kinematics.visible);
+ test_ini.angles={{"cone_angle",55.f}};headlight.ParseDefinitions("f1");
+ assert(std::fabs(test_light.cone-deg2rad(55.f))<.00001f);
+ test_ini.angles={{"cone_angle",60.f},{"spot_angle",70.f}};headlight.ParseDefinitions("f1");
+ assert(std::fabs(test_light.cone-deg2rad(60.f))<.00001f);
+ test_ini.angles.clear();bool rejected=false;
  try{headlight.ParseDefinitions("f1");}catch(const std::out_of_range&){rejected=true;}
  assert(rejected); // malformed definitions still fail; no invented beam angle.
  SCarLight* found=&headlight;

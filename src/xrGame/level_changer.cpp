@@ -208,6 +208,9 @@ bool CLevelChanger::get_reject_pos(Fvector& p, Fvector& r)
 {
 	p.set(0, 0, 0);
 	r.set(0, 0, 0);
+	// Multiplayer "No" keeps the actor where the server placed it. The
+	// client has no ALife patrol registry, and does not need a reject path.
+	if (netcoop::pure_client()) return false;
 	//--		db.actor:set_actor_position(patrol("t_way"):point(0))
 	//--		local dir = patrol("t_look"):point(0):sub(patrol("t_way"):point(0))
 	//--		db.actor:set_actor_direction(-dir:getH())
@@ -215,8 +218,12 @@ bool CLevelChanger::get_reject_pos(Fvector& p, Fvector& r)
 	if (m_ini_file && m_ini_file->section_exist("pt_move_if_reject"))
 	{
 		LPCSTR p_name = m_ini_file->r_string("pt_move_if_reject", "path");
-		const CPatrolPath* patrol_path = ai().patrol_paths().path(p_name);
-		VERIFY(patrol_path);
+		const CPatrolPath* patrol_path = ai().patrol_paths().path(p_name, true);
+		if (!patrol_path || !patrol_path->vertex(0) || !patrol_path->vertex(1))
+		{
+			Msg("! [Lost Zone][passage] reject path '%s' is missing or has fewer than two points", p_name);
+			return false;
+		}
 
 		const CPatrolPoint* pt;
 		pt = &patrol_path->vertex(0)->data();
