@@ -28,6 +28,15 @@ with TemporaryDirectory() as temp:
     assert text == header + 'Stalker_1|admin|aa|bb|1500|dd|approved|uid1\n' + rows[1] + rows[2], text
     assert not (data / 'netcoop_locks/accounts.lock').exists()
     assert not list(data.glob('*.tmp'))
+    # Approving ordinary players must not grant the admin role or rewrite
+    # credentials, device binding, balance, Firebase UID or another account.
+    accounts.write_bytes((header + ''.join(rows)).encode('ascii'))
+    approved = run(runtime, '-Login', 'STALKER_1', '-Approve')
+    assert approved.returncode == 0 and 'registration approved' in approved.stdout, approved
+    expected = header + rows[0].replace('|pending|', '|approved|') + rows[1] + rows[2]
+    assert accounts.read_text(encoding='ascii') == expected
+    repeated = run(runtime, '-Login', 'Stalker_1', '-Approve')
+    assert repeated.returncode == 0 and accounts.read_text(encoding='ascii') == expected
     revoked = run(runtime, '-Login', 'Old-Acc', '-Role', 'player')
     assert revoked.returncode == 0
     assert accounts.read_text(encoding='ascii').endswith('Old-Acc|player|11|22\n')
@@ -36,6 +45,10 @@ with TemporaryDirectory() as temp:
     assert missing.returncode != 0 and accounts.read_bytes() == before
     bad = run(runtime, '-Login', 'x|y', '-Role', 'admin')
     assert bad.returncode != 0 and accounts.read_bytes() == before
+    missing = run(runtime, '-Login', 'nobody', '-Approve')
+    assert missing.returncode != 0 and accounts.read_bytes() == before
 cmd = (root / 'scripts/dist/Admin Rights.cmd').read_text(encoding='ascii')
 assert 'netcoop_account_role.ps1' in cmd and '-List' in cmd
-print('PASS admin rights: role set under the servers\' lock, only that login changes, unknown/invalid login rejected; nothing started')
+approve_cmd = (root / 'scripts/dist/Approve Registration.cmd').read_text(encoding='ascii')
+assert '-Approve' in approve_cmd and '-Role admin' not in approve_cmd
+print('PASS account moderation: admin bootstrap, role-preserving approval/retry, unknown/invalid login rejected, lock released; nothing started')

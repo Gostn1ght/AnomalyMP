@@ -8,10 +8,12 @@
 # the console command does. Nothing is started.
 #   netcoop_account_role.ps1 -Runtime <server folder> -List
 #   netcoop_account_role.ps1 -Runtime <server folder> -Login <name> -Role admin|player
+#   netcoop_account_role.ps1 -Runtime <server folder> -Login <name> -Approve
 param(
     [string]$Runtime = (Split-Path $PSScriptRoot -Parent),
     [string]$Login = "",
     [ValidateSet("", "admin", "player")][string]$Role = "",
+    [switch]$Approve,
     [switch]$List
 )
 $ErrorActionPreference = "Stop"
@@ -34,7 +36,7 @@ if ($List -or -not $Login) {
     if (-not $Login) { return }
 }
 if ($Login -notmatch '^[A-Za-z0-9_.-]{3,20}$') { throw "Login: 3-20 letters, digits, _ - ." }
-if (-not $Role) { throw "Role: admin or player" }
+if (-not $Role -and -not $Approve) { throw "Specify -Role admin|player or -Approve" }
 if (-not (Test-Path -LiteralPath $path)) { throw "No accounts yet: $path (the player has to register on the server first)" }
 
 # The servers' lock: an exclusive file deleted on close (ClusterFileLock).
@@ -57,8 +59,8 @@ try {
         $f = $_ -split "\|"
         if ($_ -and -not $_.StartsWith("#") -and $f.Count -ge 4 -and $f[0] -ieq $Login) {
             $found = $true
-            $f[1] = $Role
-            if ($Role -eq "admin" -and $f.Count -ge 7) { $f[6] = "approved" }
+            if ($Role) { $f[1] = $Role }
+            if (($Role -eq "admin" -or $Approve) -and $f.Count -ge 7) { $f[6] = "approved" }
             $f -join "|"
         } else { $_ }
     })
@@ -69,4 +71,5 @@ try {
 } finally {
     $lock.Dispose()
 }
-Write-Host "$Login is now $Role (takes effect on the next login)"
+if ($Role) { Write-Host "$Login is now $Role (takes effect on the next login)" }
+if ($Approve) { Write-Host "$Login registration approved (role unchanged unless -Role was specified); retry login" }

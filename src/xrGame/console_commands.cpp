@@ -2709,7 +2709,7 @@ public:
 		}
 		try
 		{
-			LPCSTR na_res = na_f("console", "CONSOLE", int(65535), args);
+			LPCSTR na_res = na_f("console", "CONSOLE", int(65535), args, "admin");
 			Msg("%s", na_res ? na_res : "");
 		}
 		catch (...)

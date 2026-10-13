@@ -5,6 +5,11 @@ root=Path(__file__).resolve().parents[1]
 lua=LuaRuntime()
 lua.execute('''
  function printf() end
+ approvals=0
+ function netcoop_registration_decide(login,accept)
+  approvals=approvals+1
+  return login=="guest" and accept
+ end
  modes={};roles={[7]=2,[8]=1};calls=0
  function netcoop_admin_god_enabled(id) return roles[id]==2 and modes[id]==true end
  function netcoop_admin_god_set(id,value)
@@ -49,5 +54,11 @@ assert lua.globals().teleports==0
 assert call('c','admin',7,'admin_teleport 1 -2.5 1e1','admin')=='* admin teleport accepted'
 assert lua.eval('last_teleport.id')==7 and lua.eval('last_teleport.z')==10
 assert call('c','admin',8,'admin_teleport 1 2 3','admin')=='! ADMIN teleport rejected'
+for role in ('player','leader','none',None):
+    assert call('console','CONSOLE',65535,'approve_registration guest',role)=='! administrator account required'
+assert lua.globals().approvals==0
+assert call('console','CONSOLE',65535,'approve_registration guest','admin')=='* registration guest approved'
+assert lua.globals().approvals==1
+print('PASS registration handler: local console admin approval; player/leader/missing role rejected before moderation')
 print('PASS actual admin handler: ordinary/leader denied before native call, on/off idempotent, toggle, malformed/missing/native-rejected owner')
 print('PASS actual teleport handler: sender actor only, role/finite/count/range parsing and native rejection')
