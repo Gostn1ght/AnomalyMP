@@ -364,8 +364,14 @@ bool world_store_save_now(LPCSTR reason)
 	// GAMMA ignores some Lua file-write errors. Verify the exact encoded data,
 	// not merely a nonempty/stale sidecar, before committing the pair.
 	::luabind::functor<bool> script_snapshot_ready;
-	if (!ai().script_engine().functor("zz_netcoop_world_rules.script_snapshot_matches", script_snapshot_ready) ||
-		!script_snapshot_ready(save))
+	bool snapshot_matches = false;
+	if (ai().script_engine().functor("zz_netcoop_world_rules.script_snapshot_matches", script_snapshot_ready))
+	{
+		// A Lua error here is a failed check, not a server crash.
+		try { snapshot_matches = script_snapshot_ready(save); }
+		catch (...) { snapshot_matches = false; }
+	}
+	if (!snapshot_matches)
 	{
 		Msg("! [NetAnomaly][world] incomplete script snapshot %s; keeping the previous commit", save);
 		return false;
