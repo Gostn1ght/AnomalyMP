@@ -3,6 +3,12 @@
 
 using namespace luabind;
 
+static void resize_edit_box_script(CUIEditBox* edit, Fvector2 size)
+{
+	// Resize the frame as well as the input/hit area, preserving its text.
+	edit->InitCustomEdit(edit->GetWndPos(), size);
+}
+
 #pragma optimize("s",on)
 void CUIEditBox::script_register(lua_State* L)
 {
@@ -16,6 +22,7 @@ void CUIEditBox::script_register(lua_State* L)
 
 		class_<CUIEditBox, CUICustomEdit>("CUIEditBox")
 		.def(constructor<>())
+		.def("SetWndSize", &resize_edit_box_script)
 		.def("InitTexture", &CUIEditBox::InitTexture)
 	];
 }

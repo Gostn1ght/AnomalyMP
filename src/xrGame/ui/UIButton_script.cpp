@@ -9,6 +9,13 @@
 
 using namespace luabind;
 
+static void resize_button_script(CUI3tButton* button, Fvector2 size)
+{
+	// SetWndSize on CUIWindow changes only the outer rectangle. XML-created
+	// buttons also own a background/frame, which must follow that rectangle.
+	button->InitButton(button->GetWndPos(), size);
+}
+
 #pragma optimize("s",on)
 void CUIButton::script_register(lua_State* L)
 {
@@ -20,6 +27,7 @@ void CUIButton::script_register(lua_State* L)
 
 		class_<CUI3tButton, CUIButton>("CUI3tButton")
 		.def(constructor<>())
+		.def("SetWndSize", &resize_button_script)
 		,
 
 

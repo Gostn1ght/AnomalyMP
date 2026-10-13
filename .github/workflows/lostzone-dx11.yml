@@ -176,6 +176,10 @@ jobs:
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-trunk-reach.py
           if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-ui-resize.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-open-registration.py
+          if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-rp-input.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-physics-replica.py

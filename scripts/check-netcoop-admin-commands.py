@@ -57,8 +57,9 @@ assert call('c','admin',8,'admin_teleport 1 2 3','admin')=='! ADMIN teleport rej
 for role in ('player','leader','none',None):
     assert call('console','CONSOLE',65535,'approve_registration guest',role)=='! administrator account required'
 assert lua.globals().approvals==0
-assert call('console','CONSOLE',65535,'approve_registration guest','admin')=='* registration guest approved'
-assert lua.globals().approvals==1
-print('PASS registration handler: local console admin approval; player/leader/missing role rejected before moderation')
+assert call('console','CONSOLE',65535,'approve_registration guest','admin')=='* registration is open; administrator approval is no longer required'
+assert call('console','CONSOLE',65535,'reject_registration guest','admin')=='* registration is open; administrator approval is no longer required'
+assert lua.globals().approvals==0
+print('PASS obsolete approval commands: no account moderation performed; player/leader/missing role still rejected')
 print('PASS actual admin handler: ordinary/leader denied before native call, on/off idempotent, toggle, malformed/missing/native-rejected owner')
 print('PASS actual teleport handler: sender actor only, role/finite/count/range parsing and native rejection')

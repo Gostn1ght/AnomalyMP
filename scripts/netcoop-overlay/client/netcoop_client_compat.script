@@ -493,19 +493,9 @@ local function set_attached(data)
 	end
 end
 
-local registration_pending, registration_seen = {}, {}
-local function show_registrations()
-    if netcoop_role() ~= 2 or not db.actor then return end
-    for login in pairs(registration_pending) do
-        local text = "%c[255,193,128,255]" .. string.format(game.translate_string("st_netcoop_registration_notice"), login)
-        db.actor:give_game_news(game.translate_string("st_netcoop_register_title"), text, "ui_inGame2_PD_Lider", 0, 15000)
-        registration_pending[login] = nil
-    end
-end
 function on_script_message(channel, data)
 	if channel == "registration" then
-		if not registration_seen[data] then registration_seen[data] = true; registration_pending[data] = true end
-		show_registrations()
+		-- Older servers may send this notice; there is no approval queue now.
 		return
 	elseif channel == "emission" then
 		netcoop_emission_view.receive(data)
@@ -1154,6 +1144,5 @@ function install()
 	_G.alife = alife_compat
 	install_db_actor()
 	install_admin_menu()
-	RegisterScriptCallback("actor_on_update", show_registrations)
 	printf("[Lost Zone] netcoop client compatibility layer installed")
 end

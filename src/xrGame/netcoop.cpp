@@ -1188,29 +1188,12 @@ bool server_reset_device(LPCSTR login)
 
 bool script_registration_decide(LPCSTR login, bool accept)
 {
-    if (!enabled() || !g_pGameLevel || !Level().Server || !login || !login_valid(login)) return false;
-    Account* account = account_find(login);
-    if (!account || account->approval != 0) return false;
-    account->approval = accept ? 1 : 2;
-    account->touched = true;
-    s_accounts_dirty = true; accounts_save();
-    Msg("[Lost Zone] registration '%s' %s", login, accept ? "approved" : "rejected");
-    return true;
+    // Compatibility export for older scripts. Registration is open; bans
+    // have their own authenticated server-console path.
+    (void)login;
+    (void)accept;
+    return false;
 }
-
-struct NotifyRegistration
-{
-    xrServer* server;
-    LPCSTR login;
-    void operator()(IClient* client) const
-    {
-        xrClientData* CL = static_cast<xrClientData*>(client);
-        if (!CL || CL->flags.bLocal || CL->netcoop_role != role_admin) return;
-        NET_Packet P; P.w_begin(M_NETCOOP_SCRIPT);
-        P.w_stringZ("registration"); P.w_stringZ(login);
-        server->SendTo(CL->ID, P, net_flags(TRUE, TRUE));
-    }
-};
 
 static bool server_hash(LPCSTR client_key, const xr_string& salt_hex, xr_string& out)
 {
@@ -1625,9 +1608,7 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
         created.firebase_uid = pending->firebase_uid;
 		created.login = pending->login;
 		created.role = role_player; // only the server console grants admin
-		created.approval = 0;
-		// Cluster soak test: its headless bots need no administrator.
-		if (strstr(Core.Params, "-netcoop_cluster_selftest") && !strncmp(pending->login.c_str(), "nbot_", 5)) created.approval = 1;
+		created.approval = 1; // all authenticated registrations can join immediately
 		created.device = pending->device;
 		created.salt = pending->salt;
 		created.hash = pending->firebase ? "firebase" : pending->hash;
@@ -1641,8 +1622,6 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
 		accounts_save();
 		a = &s_accounts[in_use.login];
 		Msg("[Lost Zone] account '%s' registered", pending->login.c_str());
-		NotifyRegistration notice = {server, pending->login.c_str()};
-		server->ForEachClientDo(notice);
 	}
 	else
 	{
@@ -1678,11 +1657,11 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
     }
     if (a->device.empty() && !pending->device.empty())
     { a->device = pending->device; a->touched = true; s_accounts_dirty = true; accounts_save(); }
-	if (a->approval != 1)
-	{
-		reject(server, CL, a->approval == 0 ? "Registration pending administrator approval" : "Registration rejected by administrator");
-		return;
-	}
+    // Retain the old column for save-format compatibility, but it is no
+    // longer an admission gate. Migrate only AFTER credentials, device and
+    // explicit bans have been checked; failed logins cannot edit accounts.
+    if (a->approval != 1)
+    { a->approval = 1; a->touched = true; s_accounts_dirty = true; accounts_save(); }
 	CL->netcoop_login = a->login.c_str();
     CL->netcoop_role = a->role;
     // Slot zero authenticates the front-end and fetches slots without creating
@@ -1749,13 +1728,6 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
 	xr_sprintf(message, "Logged in as %s (%s)", a->login.c_str(), role_name(a->role));
 	Msg("[Lost Zone] client 0x%08x %s", CL->ID.value(), message);
 	send_auth_result(server, CL, true, a->role, message);
-    if (a->role == role_admin)
-        for (const auto& entry : s_accounts)
-            if (entry.second.approval == 0)
-            {
-                NotifyRegistration notice = {server, entry.second.login.c_str()};
-                notice(CL);
-            }
 
 	if (pending->player_state)
 		server->game->AddDelayedEvent(*pending->player_state, GAME_EVENT_CREATE_PLAYER_STATE, 0, CL->ID);
