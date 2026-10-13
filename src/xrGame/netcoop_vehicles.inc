@@ -21,7 +21,7 @@ enum
 	vehicle_op_input, // client -> server: u16 car, u8 keys
 	vehicle_op_toggle, // client -> server: u16 car, u8 what (0 engine, 1 head lights)
 	vehicle_op_trunk, // client -> server: u16 car
-	vehicle_op_trunk_open, // server -> client: u16 box
+	vehicle_op_trunk_open, // server -> client: u16 box, u16 car (legacy: box only)
 };
 
 // ---------------------------------------------------------------------------
@@ -333,6 +333,7 @@ void server_on_vehicle(xrServer* server, xrClientData* CL, NET_Packet& P)
 			answer.w_begin(M_NETCOOP_VEHICLE);
 			answer.w_u8(vehicle_op_trunk_open);
 			answer.w_u16(u16(box));
+			answer.w_u16(car->ID());
 			server->SendTo(CL->ID, answer, net_flags(TRUE, TRUE));
 		}
 		break;
@@ -724,16 +725,44 @@ static void vehicle_send(u8 op, u16 car, int value)
 static u16 s_trunk_pending = 0xffff;
 static u32 s_trunk_pending_until = 0;
 
+void vehicles_reset()
+{
+	s_box_anchor.clear();
+	s_vehicle_seats.clear();
+	s_vehicles_sv.clear();
+	s_vehicles_cl.clear();
+	s_vehicle_arrivals.clear();
+	s_vehicle_conditions.clear();
+	s_vehicle_inbox_check = 0;
+	s_vehicle_keys = 0;
+	s_vehicle_keys_sent = 0;
+	s_trunk_pending = 0xffff;
+	s_trunk_pending_until = 0;
+}
+
+static void client_trunk_open(NET_Packet& P)
+{
+	// The box is deliberately below the map. Distance checks must use the
+	// car granted by the server, rather than immediately closing its menu.
+	if (P.r_elapsed() != 2 && P.r_elapsed() != 4) return;
+	const u16 box = P.r_u16();
+	const u16 anchor = P.r_elapsed() == 2 ? P.r_u16() : 0xffff;
+	if (box == 0xffff || box == anchor) return;
+	s_box_anchor.erase(box);
+	if (anchor != 0xffff) s_box_anchor[box] = anchor;
+	s_trunk_pending = box;
+	s_trunk_pending_until = Device.dwTimeGlobal + 3000;
+}
+
 void client_on_vehicle(NET_Packet& P)
 {
 	if (!pure_client() || P.r_elapsed() < 1)
 		return;
 	const u8 op = P.r_u8();
-	if (op == vehicle_op_trunk_open && P.r_elapsed() == 2)
+	if (op == vehicle_op_trunk_open)
 	{
 		// A new box arrives a moment later: opened by script_vehicle_prompt.
-		s_trunk_pending = P.r_u16();
-		s_trunk_pending_until = Device.dwTimeGlobal + 3000;
+		client_trunk_open(P);
 		return;
 	}
 	if (op != vehicle_op_state || P.r_elapsed() < 13)

@@ -292,7 +292,8 @@ void CUIActorMenu::CheckDistance()
 	else //pBoxGO
 	{
 		VERIFY(pBoxGO);
-		if (pActorGO->Position().distance_to(pBoxGO->Position()) > 3.0f)
+		if (pActorGO->Position().distance_to(pBoxGO->Position()) > 3.0f &&
+			!netcoop::box_anchor_within_reach(pBoxGO->ID(), pActorGO->Position()))
 		{
 			g_btnHint->Discard();
 			HideDialog();

@@ -242,6 +242,7 @@ Fvector script_vehicle_prompt_point(); // where the last prompt stands (Dot Mark
 // A box kept away from its anchor (a car's trunk): reachable next to the anchor.
 void script_box_anchor(u16 box, u16 anchor);
 bool box_anchor_within_reach(u16 box, const Fvector& from);
+void vehicles_reset(); // object IDs, anchors and pending opens belong to one level
 
 // Network smoothness (doc 38, stages 0 and 1).
 bool smooth();
