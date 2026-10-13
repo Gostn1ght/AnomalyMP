@@ -28,12 +28,16 @@ if not exist "appdata\server\logs" mkdir "appdata\server\logs"
 if not exist "appdata\server\netcoop_cluster.ltx" copy "hoster\netcoop_cluster.ltx.six" "appdata\server\netcoop_cluster.ltx" >nul
 
 rem Без мастера карты не пускают игроков: он ведёт календарь, погоду и выбросы.
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "hoster\netcoop_master_control.ps1" -MasterRoot "%~dp0." -StartMaster
+echo Запуск мастера. Лог: appdata\server\logs\start_locations.log
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "hoster\netcoop_master_control.ps1" -MasterRoot "%~dp0." -StartMaster >"appdata\server\logs\start_locations.log" 2>&1
 if errorlevel 1 (
+  type "appdata\server\logs\start_locations.log"
   echo Мастер мира не запустился - карты не будут пускать игроков.
+  echo Лог ошибки: appdata\server\logs\start_locations.log
   pause
   exit /b 1
 )
+type "appdata\server\logs\start_locations.log"
 
 set "WAIT=60"
 call :start_map Болота               k00_marsh            1267 hidden_base             zone                      srv

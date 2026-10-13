@@ -11,6 +11,10 @@
 **/*.vs linguist-language=HLSL
 **/*.cs linguist-language=HLSL
 
+# cmd.exe misparses UTF-8 batch files after chcp 65001 with LF-only lines.
+# Distributable launchers must keep Windows line endings on every checkout.
+scripts/dist/*.cmd text eol=crlf
+
 # GAMMA console-fix copies retain CRLF on every checkout, including Linux CI.
 scripts/netcoop-overlay/*/utils_catspaw_common.script text eol=crlf
 scripts/netcoop-overlay/*/gamma_dynamic_radiation_areas_from_arzsi.script text eol=crlf

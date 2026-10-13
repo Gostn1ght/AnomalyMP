@@ -48,6 +48,7 @@ jobs:
           python scripts/check-netcoop-world-events.py
           python scripts/check-netcoop-respawn-state.py
           python scripts/check-netcoop-full-map-plan.py
+          python scripts/check-dist-windows-batch.py
           python scripts/check-netcoop-legacy-dialog.py
           python scripts/check-netcoop-pickup-fallback.py
           python scripts/check-netcoop-admin-commands.py
