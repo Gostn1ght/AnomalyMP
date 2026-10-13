@@ -52,7 +52,9 @@ void SCarLight::ParseDefinitions(LPCSTR section)
 	//fBrightness				= torch->spot_brightness;
 	light_render->set_range(ini->r_float(section, "range"));
 	light_render->set_color(clr);
-	light_render->set_cone(deg2rad(ini->r_float(section, "cone_angle")));
+	// Anomaly/GAMMA vehicles use spot_angle; older car models use cone_angle.
+	const LPCSTR angle_key = ini->line_exist(section, "cone_angle") ? "cone_angle" : "spot_angle";
+	light_render->set_cone(deg2rad(ini->r_float(section, angle_key)));
 	light_render->set_texture(ini->r_string(section, "spot_texture"));
 
 	glow_render->set_texture(ini->r_string(section, "glow_texture"));
@@ -185,7 +187,7 @@ bool CCarLights::findLight(u16 bone_id, SCarLight* & light)
 	SCarLight find_light;
 	find_light.bone_id = bone_id;
 	i = std::find_if(m_lights.begin(), e, SFindLightPredicate(&find_light));
-	light = *i;
+	light = i != e ? *i : nullptr;
 	return i != e;
 }
 
