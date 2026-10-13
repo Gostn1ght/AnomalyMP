@@ -629,6 +629,7 @@ static bool player_internal_command(LPCSTR name, LPCSTR args)
         "g_wallmark_range_static", "print_bone_warnings", "print_dltx_warnings", "log_timestamps", "dump_cvar",
         "string_table_error_msg", "dltx_use_cache", "crash_save", "crash_save_count", "stat_memory", "r2em",
         "netcoop_interp_ms", "netcoop_player_predict", "netcoop_smooth", "netcoop_metrics",
+        "netcoop_hand_grip", // only how a device sits in a hand on this screen (doc 101)
         "lua_gcstep", "lua_parallel_gc", "lua_parallel_gc_call_amount", "lua_parallel_gcstep"};
     for (const char* item : safe) if (!xr_strcmp(name, item)) return true;
     if (!xr_strcmp(name, "start"))

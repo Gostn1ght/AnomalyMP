@@ -3,7 +3,10 @@
 ----------------------------------------------------------------------
 -- The engine says what F does at the car under the crosshair (the seat
 -- behind the door looked at, a taken seat, the trunk) or that the player
--- sits in a car; this shows it the way the barter prompt does.
+-- sits in a car. At a car the prompt stands by its door the way Dot Marks
+-- (Catspaw) marks objects: a dot, the key in its frame, the action
+-- (owner 2026-10-13: like S.T.A.L.K.E.R. 2); in a car the controls show
+-- at the bottom for the first seconds.
 
 local prompt
 local seated_since
@@ -37,6 +40,64 @@ function UIVehiclePrompt:Set(text, y)
 	end
 end
 
+-- Dot Marks style mark at a point of the world.
+class "UIVehicleMark" (CUIScriptWnd)
+function UIVehicleMark:__init() super()
+	self:SetWndRect(Frect():set(0, 0, 1024, 768))
+	local function static(texture, w, h, color)
+		local s = CUIStatic()
+		s:SetAutoDelete(true)
+		s:InitTexture(texture)
+		s:SetStretchTexture(true)
+		s:SetWndRect(Frect():set(0, 0, w, h))
+		if color then s:SetTextureColor(color) end
+		self:AttachChild(s)
+		return s
+	end
+	local function text(font, color, align)
+		local s = CUITextWnd()
+		s:SetAutoDelete(true)
+		s:SetFont(font)
+		s:SetTextColor(color)
+		s:SetTextAlignment(align)
+		s:SetWndRect(Frect():set(0, 0, 300, 20))
+		self:AttachChild(s)
+		return s
+	end
+	self.dot = static("ui_catsy_marker_intdot", 8, 8, GetARGB(255, 240, 240, 240))
+	self.keybg = static("ui_catsy_keybind_bg_single_v0", 20, 20, GetARGB(200, 20, 20, 20))
+	self.keyframe = static("ui_catsy_keybind_frame_v3_back", 20, 20, GetARGB(255, 230, 230, 230))
+	self.key = text(GetFontLetterica16Russian(), GetARGB(255, 255, 255, 255), 1)
+	self.shadow = text(GetFontLetterica16Russian(), GetARGB(255, 0, 0, 0), 0)
+	self.label = text(GetFontLetterica16Russian(), GetARGB(255, 230, 230, 230), 0)
+	self.shown = false
+end
+function UIVehicleMark:Set(key, label, x, y, taken)
+	if not label then
+		if self.shown then get_hud():RemoveDialogToRender(self); self.shown = false end
+		return
+	end
+	self.dot:SetWndPos(vector2():set(x - 4, y - 4))
+	local left = x + 12
+	self.keybg:Show(key ~= nil); self.keyframe:Show(key ~= nil); self.key:Show(key ~= nil)
+	if key then
+		local w = 12 + 8 * string.len(key)
+		self.keybg:SetWndRect(Frect():set(left, y - 10, left + w, y + 10))
+		self.keyframe:SetWndRect(Frect():set(left, y - 10, left + w, y + 10))
+		self.key:SetWndRect(Frect():set(left, y - 10, left + w, y + 10))
+		self.key:SetText(key)
+		left = left + w + 6
+	end
+	self.label:SetTextColor(taken and GetARGB(255, 230, 120, 100) or GetARGB(255, 230, 230, 230))
+	self.label:SetWndRect(Frect():set(left, y - 10, left + 300, y + 10))
+	self.shadow:SetWndRect(Frect():set(left + 1, y - 9, left + 301, y + 11))
+	self.label:SetText(label)
+	self.shadow:SetText(label)
+	if not self.shown then get_hud():AddDialogToRender(self); self.shown = true end
+end
+
+local mark
+
 local VERBS = {
 	driver = "st_netcoop_car_drive",
 	passenger = "st_netcoop_car_sit",
@@ -66,10 +127,29 @@ local function actor_on_update()
 	next_update = time_global() + 100
 	local ok, err = pcall(function()
 		local state = netcoop_vehicle_prompt and netcoop_vehicle_prompt() or ""
-		local text = prompt_text(state, time_global())
+		local seated = state == "seated_driver" or state == "seated"
+		-- At a car: the mark by its door.
+		local screen
+		if (VERBS[state] or state == "taken") and netcoop_vehicle_prompt_point then
+			local p = netcoop_vehicle_prompt_point()
+			local v = game.world2ui(vector():set(p.x, p.y, p.z), false)
+			if v and v.x ~= -9999 and v.y ~= 0 and v.x > 0 and v.x < 1024 and v.y > 0 and v.y < 768 then screen = v end
+		end
+		if screen or mark then
+			mark = mark or UIVehicleMark()
+			if screen then
+				local key_name = state ~= "taken" and key("kUSE", "F") or nil
+				local label = state == "taken" and tr("st_netcoop_seat_taken") or tr(VERBS[state])
+				mark:Set(key_name, label, screen.x, screen.y, state == "taken")
+			else
+				mark:Set(nil)
+			end
+		end
+		local text = (seated or not screen) and prompt_text(state, time_global()) or nil
+		if not seated then seated_since = nil end
 		if text or prompt then
 			prompt = prompt or UIVehiclePrompt()
-			prompt:Set(text, (state == "seated_driver" or state == "seated") and 700 or 420)
+			prompt:Set(text, seated and 700 or 420)
 		end
 	end)
 	if not ok then printf("! [Lost Zone] vehicle prompt: %s", tostring(err)); next_update = time_global() + 5000 end

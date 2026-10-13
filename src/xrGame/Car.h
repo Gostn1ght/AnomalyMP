@@ -612,6 +612,7 @@ public:
 	bool netcoop_engine_on() const { return b_engine_on; }
 	float netcoop_rpm() const { return m_current_rpm; }
 	float netcoop_steer() const { return m_steer_angle; }
+	u16 netcoop_steer_bone() const { return m_bone_steer; } // the steering wheel (BI_NONE: none)
 	bool netcoop_destroyed() { return b_exploded || CPHDestroyable::Destroyed(); }
 	const Fvector& netcoop_camera_position() const { return m_camera_position; }
 	float netcoop_fuel() const { return m_fuel; }

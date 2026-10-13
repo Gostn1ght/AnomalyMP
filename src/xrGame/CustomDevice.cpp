@@ -305,11 +305,55 @@ void CCustomDevice::OnAnimationEnd(u32 state)
 // left hand, placed by the item's attach bone and offset (the ones NPCs use;
 // detectors without their own take the tch_detector values). Single player
 // code put it between the hands, where it looked like a PDA held up.
+// Grips in the left hand by item section (owner 2026-10-13: the hand torch
+// took the headlamp's head-bone offset, glow sticks the detector's, and
+// lay flat in the palm): [netcoop_hand_grips] section = h, p, b (degrees),
+// x, y, z (m) from bip01_l_hand. netcoop_hand_grip tunes one in the game.
+static xr_map<shared_str, Fmatrix> s_hand_grips;
+static bool s_hand_grips_loaded = false;
+
+static Fmatrix hand_grip_matrix(const Fvector& hpb_degrees, const Fvector& position)
+{
+	Fmatrix m;
+	m.setHPB(deg2rad(hpb_degrees.x), deg2rad(hpb_degrees.y), deg2rad(hpb_degrees.z));
+	m.c = position;
+	return m;
+}
+
+static const Fmatrix* hand_grip(const shared_str& section)
+{
+	if (!s_hand_grips_loaded)
+	{
+		s_hand_grips_loaded = true;
+		if (pSettings->section_exist("netcoop_hand_grips"))
+		{
+			CInifile::Sect& grips = pSettings->r_section("netcoop_hand_grips");
+			for (const auto& line : grips.Data)
+			{
+				float v[6];
+				if (sscanf(line.second.c_str(), "%f,%f,%f,%f,%f,%f", v, v + 1, v + 2, v + 3, v + 4, v + 5) == 6)
+					s_hand_grips[line.first] = hand_grip_matrix(Fvector().set(v[0], v[1], v[2]), Fvector().set(v[3], v[4], v[5]));
+			}
+		}
+	}
+	auto found = s_hand_grips.find(section);
+	return found == s_hand_grips.end() ? nullptr : &found->second;
+}
+
+void netcoop_set_hand_grip(LPCSTR section, const Fvector& hpb_degrees, const Fvector& position)
+{
+	hand_grip(section); // load the table first
+	s_hand_grips[section] = hand_grip_matrix(hpb_degrees, position);
+	Msg("* [netcoop_hand_grips] %s = %.1f, %.1f, %.1f, %.3f, %.3f, %.3f", section, hpb_degrees.x, hpb_degrees.y,
+		hpb_degrees.z, position.x, position.y, position.z);
+}
+
 static bool netcoop_left_hand_xform(CCustomDevice* device)
 {
 	if (!netcoop::pure_client())
 		return false;
-	if (device->UpdateHandAttachmentXForm())
+	const Fmatrix* grip = hand_grip(device->cNameSect());
+	if (!grip && device->UpdateHandAttachmentXForm())
 		return true;
 	CObject* parent = device->H_Parent();
 	CActor* holder = smart_cast<CActor*>(parent);
@@ -338,7 +382,7 @@ static bool netcoop_left_hand_xform(CCustomDevice* device)
 		return false;
 	kinematics->CalculateBones();
 	Fmatrix& xform = device->XFORM();
-	xform.mul_43(kinematics->LL_GetBoneInstance(bone).mTransform, fallback_offset);
+	xform.mul_43(kinematics->LL_GetBoneInstance(bone).mTransform, grip ? *grip : fallback_offset);
 	xform.mulA_43(holder->XFORM());
 	return true;
 }

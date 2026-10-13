@@ -628,6 +628,10 @@ public:
 	bool m_netcoop_seat_yaw_valid = false;
 	bool m_netcoop_seat_character = false; // had a character capsule before sitting down
 	MotionID m_netcoop_seat_motion;
+	// The driver is moved (in the car's space) until the hands of the steering
+	// pose meet the model's steering wheel bone; measured once per sitting down.
+	Fvector m_netcoop_driver_fit;
+	u32 m_netcoop_driver_fit_at = 0; // 0: measured; else the time to measure
 	bool netcoop_seated() const { return m_netcoop_seat_car != 0xffff; }
 	void netcoop_seat_enter(u16 car, u8 seat, bool driver, const Fmatrix& local, const Fvector& eye);
 	void netcoop_seat_leave(const Fvector& exit);

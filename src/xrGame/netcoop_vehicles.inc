@@ -865,6 +865,13 @@ void vehicle_key(CActor* actor, int cmd, bool pressed)
 // Lua (netcoop_vehicle_client, 10 Hz): what F would do at the car under the
 // crosshair - "driver", "passenger", "taken", "trunk" - or "seated_driver" /
 // "seated" in a car; "" otherwise. Also opens a trunk the server granted.
+static Fvector s_vehicle_prompt_point = {0.f, 0.f, 0.f};
+
+Fvector script_vehicle_prompt_point()
+{
+	return s_vehicle_prompt_point;
+}
+
 LPCSTR script_vehicle_prompt()
 {
 	if (!pure_client() || !g_pGameLevel)
@@ -898,10 +905,21 @@ LPCSTR script_vehicle_prompt()
 	inverse.invert(car->XFORM());
 	inverse.transform_tiny(local, aim);
 	const int seat = vehicle_aim(*poses, local);
+	if (seat == -1 || seat < -2)
+		return "";
+	// The prompt stands on the car's side by the seat (its door), or at
+	// the back for the trunk, a little above the seat.
+	Fvector point;
+	if (seat == -2)
+		point.set(0.f, local.y, poses->rear_z);
+	else
+	{
+		const Fvector& at = poses->seats[seat].local.c;
+		point.set(at.x < 0.f ? -poses->half_width : poses->half_width, at.y + 0.6f, at.z);
+	}
+	car->XFORM().transform_tiny(s_vehicle_prompt_point, point);
 	if (seat == -2)
 		return "trunk";
-	if (seat < 0)
-		return "";
 	auto known = s_vehicles_cl.find(car->ID());
 	if (known != s_vehicles_cl.end() && u32(seat) < known->second.size() && known->second[seat] != vehicle_seat_free)
 		return "taken";
@@ -934,6 +952,8 @@ void CActor::netcoop_seat_enter(u16 car, u8 seat, bool driver, const Fmatrix& lo
 	m_netcoop_seat_eye.set(eye);
 	m_netcoop_seat_yaw_valid = false;
 	m_netcoop_seat_motion.invalidate();
+	m_netcoop_driver_fit.set(0.f, 0.f, 0.f);
+	m_netcoop_driver_fit_at = driver && netcoop::pure_client() ? Device.dwTimeGlobal + 400 : 0;
 	if (!was_seated)
 	{
 		CPHMovementControl* movement = character_physics_support() ? character_physics_support()->movement() : nullptr;
@@ -988,8 +1008,45 @@ void CActor::netcoop_seat_place()
 	if (netcoop::pure_client())
 		car->netcoop_physics_follow();
 	Fmatrix world;
-	world.mul_43(car->XFORM(), m_netcoop_seat_local);
+	Fmatrix local = m_netcoop_seat_local;
+	if (m_netcoop_seat_driver)
+		local.c.add(m_netcoop_driver_fit);
+	world.mul_43(car->XFORM(), local);
 	XFORM().set(world);
+	// Hands on the wheel (owner 2026-10-13): once the steering pose plays,
+	// the gap between the middle of the hands and the wheel bone moves the
+	// driver, within 35 cm each way, in the car's space.
+	if (m_netcoop_driver_fit_at && Device.dwTimeGlobal >= m_netcoop_driver_fit_at && m_netcoop_seat_motion.valid())
+	{
+		m_netcoop_driver_fit_at = 0;
+		IKinematics* body = smart_cast<IKinematics*>(Visual());
+		IKinematics* model = smart_cast<IKinematics*>(car->Visual());
+		const u16 wheel = car->netcoop_steer_bone();
+		const u16 left = body ? body->LL_BoneID("bip01_l_hand") : BI_NONE;
+		const u16 right = body ? body->LL_BoneID("bip01_r_hand") : BI_NONE;
+		if (model && wheel != BI_NONE && left != BI_NONE && right != BI_NONE)
+		{
+			body->CalculateBones_Invalidate();
+			body->CalculateBones(TRUE);
+			model->CalculateBones(TRUE);
+			Fvector hands, grip;
+			hands.add(body->LL_GetTransform(left).c, body->LL_GetTransform(right).c).mul(0.5f);
+			XFORM().transform_tiny(hands); // world
+			car->XFORM().transform_tiny(grip, model->LL_GetTransform(wheel).c);
+			Fmatrix to_car;
+			to_car.invert(car->XFORM());
+			to_car.transform_tiny(hands);
+			to_car.transform_tiny(grip);
+			Fvector fit;
+			fit.sub(grip, hands);
+			clamp(fit.x, -0.35f, 0.35f); clamp(fit.y, -0.35f, 0.35f); clamp(fit.z, -0.35f, 0.35f);
+			if (_valid(fit))
+			{
+				m_netcoop_driver_fit.set(fit);
+				Msg("[Lost Zone][vehicle] %s: driver moved %.2f %.2f %.2f to the wheel", car->cNameSect().c_str(), fit.x, fit.y, fit.z);
+			}
+		}
+	}
 	car->XFORM().transform_tiny(m_netcoop_seat_eye_world, m_netcoop_seat_eye);
 	if (netcoop::pure_client() && this == Level().CurrentControlEntity())
 	{

@@ -2517,6 +2517,28 @@ public:
 };
 
 //netanomaly: grant or revoke admin; only the local server console may do this
+void netcoop_set_hand_grip(LPCSTR section, const Fvector& hpb_degrees, const Fvector& position); // CustomDevice.cpp
+
+// Client: how an item sits in the left hand seen from the side (torch, glow
+// stick, detector); prints the line for [netcoop_hand_grips].
+class CCC_NetcoopHandGrip : public IConsole_Command
+{
+public:
+	CCC_NetcoopHandGrip(LPCSTR N) : IConsole_Command(N) { bEmptyArgsHandled = TRUE; };
+	virtual void Execute(LPCSTR args)
+	{
+		string64 section = "";
+		Fvector hpb, position;
+		if (!args || sscanf_s(args, "%63s %f %f %f %f %f %f", section, (unsigned)sizeof(section), &hpb.x, &hpb.y, &hpb.z,
+			&position.x, &position.y, &position.z) != 7 || !pSettings->section_exist(section))
+		{
+			Msg("~ usage: netcoop_hand_grip <item section> <h p b degrees> <x y z metres from bip01_l_hand>");
+			return;
+		}
+		netcoop_set_hand_grip(section, hpb, position);
+	}
+};
+
 class CCC_NetcoopAccountRole : public IConsole_Command
 {
 public:
@@ -2704,6 +2726,7 @@ void CCC_RegisterCommands()
 	CMD1(CCC_NetcoopAccounts, "sv_accounts");
 	CMD1(CCC_NetcoopBots, "netcoop_bots");
 	CMD1(CCC_NetcoopAccountRole, "sv_account_role");
+	CMD1(CCC_NetcoopHandGrip, "netcoop_hand_grip");
 	CMD1(CCC_NetcoopUnbind, "sv_account_unbind");
 	CMD2(CCC_NetcoopBan, "sv_ban", true);
 	CMD2(CCC_NetcoopBan, "sv_unban", false);
