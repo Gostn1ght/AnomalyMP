@@ -27,7 +27,10 @@ public:
 			int handle = _sopen(fName.c_str(),_O_WRONLY | _O_TRUNC | _O_CREAT | _O_BINARY,SH_DENYWR);
             if (handle==-1)
                 Msg("!Can't create file: '%s'. Error: '%s'.", fName.c_str(), _sys_errlist[errno]);
-			hf = _fdopen(handle, "wb");
+			// A file another process holds (two location servers saving the same
+			// axr_options.ltx at start) gave -1: _fdopen(-1) is a fatal invalid
+			// parameter. The writer stays invalid and writes nothing instead.
+			hf = handle == -1 ? nullptr : _fdopen(handle, "wb");
 		}
 		else
 		{

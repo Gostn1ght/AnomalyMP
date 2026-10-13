@@ -94,7 +94,7 @@ namespace luabind
 					{
 						assert(lua_gettop(L) == top - m_params + 1);
 #ifndef LUABIND_NO_EXCEPTIONS
-						throw luabind::error(L);
+						{ lua_pop(L, 1); return; } // Lost Zone: no throw from a noexcept destructor (std::terminate); the pcall callback logged it.
 #else
 						error_callback_fun e = get_error_callback();
 						if (e) e(L);
@@ -271,7 +271,7 @@ namespace luabind
 					{
 						assert(lua_gettop(L) == top - m_params + 1);
 #ifndef LUABIND_NO_EXCEPTIONS
-						throw luabind::error(L);
+						{ lua_pop(L, 1); return; } // Lost Zone: no throw from a noexcept destructor (std::terminate); the pcall callback logged it.
 #else
 						error_callback_fun e = get_error_callback();
 						if (e) e(L);

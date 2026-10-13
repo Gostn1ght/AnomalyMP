@@ -1258,6 +1258,47 @@ void CLocatorAPI::file_from_archive(IReader*& R, LPCSTR fname, const file& desc)
 void CLocatorAPI::file_from_archive(CStreamReader*& R, LPCSTR fname, const file& desc)
 {
 	archive& A = m_archives[desc.vfs];
+	// Lost Zone: the GAMMA level overlays (90_lostzone_lz_levels) hold level.geom
+	// and level.geomx compressed, and the renderer streams them: every map load
+	// ended in "cannot use stream reading for compressed data". Such an entry is
+	// unpacked once into $app_data_root$\stream_cache (named by its CRC and
+	// size, so a changed archive unpacks again) and streamed from there.
+	if (desc.size_compressed != desc.size_real)
+	{
+		string_path cache_dir, cache, flat;
+		update_path(cache_dir, "$app_data_root$", "stream_cache\\");
+		CreateDirectoryA(cache_dir, nullptr);
+		LPCSTR tail = strstr(fname, "gamedata\\") ? strstr(fname, "gamedata\\") + 9 : fname;
+		xr_strcpy(flat, tail);
+		for (char* c = flat; *c; ++c)
+			if (*c == '\\' || *c == '/' || *c == ':') *c = '_';
+		xr_sprintf(cache, "%s%s_%08x_%u.bin", cache_dir, flat, desc.crc, desc.size_real);
+		WIN32_FILE_ATTRIBUTE_DATA data;
+		bool ready = GetFileAttributesExA(cache, GetFileExInfoStandard, &data) && !data.nFileSizeHigh &&
+			data.nFileSizeLow == desc.size_real;
+		if (!ready)
+		{
+			IReader* full = nullptr;
+			file_from_archive(full, fname, desc);
+			string_path temp;
+			xr_sprintf(temp, "%s.%u.tmp", cache, GetCurrentProcessId());
+			FILE* f = full ? fopen(temp, "wb") : nullptr;
+			const bool written = f && fwrite(full->pointer(), 1, full->length(), f) == size_t(full->length()) && !fflush(f);
+			if (f) fclose(f);
+			xr_delete(full);
+			ready = written && MoveFileExA(temp, cache, MOVEFILE_REPLACE_EXISTING);
+			if (!ready)
+				DeleteFileA(temp);
+			Msg("%s [Lost Zone] %s unpacked for streaming (%u KB)", ready ? "*" : "!", tail, desc.size_real / 1024);
+		}
+		if (ready)
+		{
+			CFileStreamReader* reader = xr_new<CFileStreamReader>();
+			reader->construct(cache, BIG_FILE_READER_WINDOW_SIZE);
+			R = reader;
+			return;
+		}
+	}
 	R_ASSERT2(
 		desc.size_compressed == desc.size_real,
 		make_string(

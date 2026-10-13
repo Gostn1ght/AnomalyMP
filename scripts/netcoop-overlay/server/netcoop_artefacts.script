@@ -292,6 +292,10 @@ function update_world()
 	present = now
 	if not any then return end
 	if not (s.delay1 and s.delay2) then arrival() end
+	-- The spawner reads DRX's per-level anomaly table, which DRX builds from
+	-- the single-player actor_on_update; a server never had it (nil index on
+	-- every arrival, 2026-10-12).
+	if drx_da_main and drx_da_main.init_anomaly_table_on_level then pcall(drx_da_main.init_anomaly_table_on_level, level.name()) end
 	local ok, err = pcall(s.grok_artefact_spawner)
 	if not ok and not ticking then
 		ticking = true -- report once, keep the server running

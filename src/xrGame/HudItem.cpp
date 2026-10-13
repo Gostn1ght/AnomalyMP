@@ -22,6 +22,7 @@
 #include "clsid_game.h"
 #include "weaponpistol.h"
 #include "HUDManager.h"
+#include "../xrEngine/IGame_Persistent.h" // g_dedicated_server
 
 ENGINE_API extern float psHUD_FOV_def;
 int g_nearwall = NW_FOV;
@@ -632,7 +633,10 @@ void CHudItem::UpdateCL()
 		}
 	}
 
-	if (script_ui)
+	// A device's screen (dosimeter, detectors) is a HUD window of the player
+	// holding it; the dedicated server has no HUD and no db.actor (its Lua
+	// Update failed on every frame and took the server down, 2026-10-12).
+	if (script_ui && !g_dedicated_server)
 		script_ui->Update();
 }
 
@@ -696,6 +700,8 @@ void CHudItem::on_outfit_changed()
 
 void CHudItem::on_a_hud_attach()
 {
+	if (g_dedicated_server)
+		return; // no HUD, no device screens on the dedicated server
 	if (script_ui_funct && nullptr == script_ui)
 	{
 		::luabind::functor<CUIDialogWndEx*> funct;

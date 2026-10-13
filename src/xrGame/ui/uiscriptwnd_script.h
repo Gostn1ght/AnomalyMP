@@ -8,7 +8,10 @@ struct CWrapperBase : public T, public ::luabind::wrap_base
 
 	virtual bool OnKeyboardAction(int dik, EUIMessages keyboard_action)
 	{
-		return call_member<bool>(this, "OnKeyboard", dik, keyboard_action);
+		// Lost Zone: a Lua error in a window's handler is logged (pcall callback),
+		// the key counts as not handled; it used to end the process.
+		try { return call_member<bool>(this, "OnKeyboard", dik, keyboard_action); }
+		catch (...) { return false; }
 	}
 
 	static bool OnKeyboard_static(inherited* ptr, int dik, EUIMessages keyboard_action)
@@ -18,7 +21,8 @@ struct CWrapperBase : public T, public ::luabind::wrap_base
 
 	virtual bool OnMouseAction(float x, float y, EUIMessages mouse_action)
 	{
-		return call_member<bool>(this, "OnMouse", x, y, mouse_action);
+		try { return call_member<bool>(this, "OnMouse", x, y, mouse_action); }
+		catch (...) { return false; }
 	}
 
 	static bool OnMouse_static(inherited* ptr, float x, float y, EUIMessages mouse_action)
@@ -28,7 +32,8 @@ struct CWrapperBase : public T, public ::luabind::wrap_base
 
 	virtual void Update()
 	{
-		call_member<void>(this, "Update");
+		try { call_member<void>(this, "Update"); }
+		catch (...) {}
 	}
 
 	static void Update_static(inherited* ptr)
@@ -38,7 +43,8 @@ struct CWrapperBase : public T, public ::luabind::wrap_base
 
 	virtual bool Dispatch(int cmd, int param)
 	{
-		return call_member<bool>(this, "Dispatch", cmd, param);
+		try { return call_member<bool>(this, "Dispatch", cmd, param); }
+		catch (...) { return false; }
 	}
 
 	static bool Dispatch_static(inherited* ptr, int cmd, int param)
