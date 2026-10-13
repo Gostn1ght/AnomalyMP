@@ -53,6 +53,7 @@ jobs:
           python scripts/check-netcoop-pickup-fallback.py
           python scripts/check-netcoop-admin-commands.py
           python scripts/check-netcoop-actor-conditions.py
+          python scripts/check-netcoop-server-hud.py
           python scripts/check-netcoop-transit.py
           python scripts/check-netcoop-lua-scope.py
           python scripts/check-netcoop-factions.py

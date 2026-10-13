@@ -4,7 +4,9 @@
 ; Start: the grip of the anomaly scanner NPCs hold upright in the left hand
 ; (the hand torch had the headlamp's head-bone offset, glow sticks the detector's).
 [netcoop_hand_grips]
-device_flashlight = -90.0, -74.9, -83.5, 0.105, -0.004, 0.003
+; Turn the hand torch 180 degrees about its local Y axis: its model and beam
+; face forward together. Keep the grip point and the upright axis unchanged.
+device_flashlight = 90.0, 74.9, 83.5, 0.105, -0.004, 0.003
 device_glowstick = -90.0, -74.9, -83.5, 0.105, -0.004, 0.003
 device_glowstick_orange = -90.0, -74.9, -83.5, 0.105, -0.004, 0.003
 device_glowstick_red = -90.0, -74.9, -83.5, 0.105, -0.004, 0.003

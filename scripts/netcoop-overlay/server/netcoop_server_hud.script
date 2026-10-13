@@ -1,0 +1,39 @@
+-- The dedicated server has no CUIGameCustom. Some GAMMA world/quest scripts
+-- still use get_hud():AddCustomStatic even while a remote actor is bound.
+-- Never pass that call to a null native UI (server dump 2026-10-13 19:38).
+-- These captions have no gameplay state; the owning client draws its HUD.
+local captions = {}
+local function noop() end
+local function make_caption(id)
+	local text = setmetatable({}, {__index = function() return noop end})
+	text.TextControl = function() return text end
+	local caption = {m_name = id, m_endTime = -1}
+	caption.wnd = function() return text end
+	return caption
+end
+
+local hud = {
+	AddCustomStatic = function(_, id)
+		if not captions[id] then captions[id] = make_caption(id) end
+		return captions[id]
+	end,
+	GetCustomStatic = function(_, id) return captions[id] end,
+	RemoveCustomStatic = function(_, id) captions[id] = nil end,
+	AddDialogToRender = noop,
+	RemoveDialogToRender = noop,
+	HideActorMenu = noop,
+	UpdateActorMenu = noop,
+	CurrentItemAtCell = function() return nil end,
+	GetWindow = function() return nil end,
+	HidePdaMenu = noop,
+	show_messages = noop,
+	hide_messages = noop,
+	update_fake_indicators = noop,
+	enable_fake_indicators = noop,
+}
+
+function on_game_start()
+	if netcoop_pure_client and netcoop_pure_client() then return end
+	_G.get_hud = function() return hud end
+	printf("[Lost Zone] dedicated HUD captions isolated from native UI")
+end
