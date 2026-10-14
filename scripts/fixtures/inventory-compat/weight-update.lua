@@ -63,4 +63,3 @@ function UIInventory:UpdateWeight()
 		self.npc_weight_max:SetText( strformat("(max %s %s)", 30, weight_unit) )
 	end
 end
-
