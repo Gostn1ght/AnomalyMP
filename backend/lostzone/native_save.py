@@ -1,4 +1,4 @@
-"""Lossless NCH3..8 admission for staged player migration, never live authority.
+"""Lossless NCH3..9 admission for staged player migration, never live authority.
 
 Actor, progress and item-state packets stay opaque. Decoding native runtime
 positions, task objects and persistent item IDs belongs to the engine adapter.
@@ -106,17 +106,18 @@ class NativeSave:
     progress_bytes: int
     actor_bytes: int
     sections: tuple
+    inventory_cells: int
 
     def summary(self):
         return {"format": "NCH" + str(self.version), "sha256": self.sha256,
                 "bytes": len(self.raw), "items": self.item_count, "safe_items": self.safe_count,
-                "actor_bytes": self.actor_bytes, "progress_bytes": self.progress_bytes}
+                "actor_bytes": self.actor_bytes, "progress_bytes": self.progress_bytes, "inventory_cells": self.inventory_cells}
 
 
 def parse_native_save(data):
     if type(data) is not bytes or not 4 <= len(data) <= FILE_LIMIT:
         raise Invalid("native player save exceeds admission bounds")
-    if data[:3] != b"NCH" or data[3] not in b"345678":
+    if data[:3] != b"NCH" or data[3] not in b"3456789":
         raise Invalid("unsupported native player save format")
     version = data[3] - ord("0")
     reader = Reader(data, version)
@@ -141,10 +142,13 @@ def parse_native_save(data):
         reader.text(32)
         reader.text(80)
         safe_sections = reader.items()
+    inventory_cells = reader.number("<I") if version >= 9 else 0
+    if inventory_cells > 512:
+        raise Invalid("native inventory capacity exceeds format bounds")
     if reader.offset != len(data):
         raise Invalid("native player save has trailing data")
     return NativeSave(data, version, hashlib.sha256(data).hexdigest(), len(sections),
-                      len(safe_sections), len(progress), len(actor), tuple(sections + safe_sections))
+                      len(safe_sections), len(progress), len(actor), tuple(sections + safe_sections), inventory_cells)
 
 
 def identity(world_id, seed, account, slot):

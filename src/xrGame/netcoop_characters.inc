@@ -12,6 +12,7 @@ struct Character
 	struct Item { xr_string section; u16 parent, place = 0; NET_Packet spawn; xr_vector<u8> state; };
 	xr_vector<Item> items, safe;
 	u32 storage_revision = 1;
+	u32 inventory_cells = 0; // NCH9: last server-captured capacity; zero is a legacy/new-slot fallback.
 	xr_string storage_request, storage_signature;
 };
 static xr_map<xr_string, Character> s_characters;
@@ -270,7 +271,7 @@ static bool character_save(Character& character, bool background = false)
 	if (!character_temp_path(path, background, temp)) return false;
 	FILE* f = fopen(temp, "wb");
 	if (!f) return false;
-	const u32 magic = 0x3848434e; // NCH8: CPU-independent checksum; NCH3..7 remain readable
+	const u32 magic = 0x3948434e; // NCH9: captured inventory capacity; NCH3..8 remain readable
 	fwrite(&magic, 4, 1, f);
 	fwrite(character.name.c_str(), 1, character.name.size() + 1, f);
 	fwrite(character.faction.c_str(), 1, character.faction.size() + 1, f);
@@ -303,6 +304,7 @@ static bool character_save(Character& character, bool background = false)
         character_write_packet(f,item.spawn);
         character_write_state(f,item.state);
     }
+    fwrite(&character.inventory_cells,4,1,f);
     if (background)
     {
         const bool written = !ferror(f) && fflush(f)==0;
@@ -334,7 +336,7 @@ static Character* character_load(LPCSTR account, u8 slot)
 	Character character;
 	character.account = account; character.slot = slot;
 	u32 magic = 0, count = 0;
-	bool ok = fread(&magic, 4, 1, f) == 1 && (magic == 0x3348434e || magic == 0x3448434e || magic == 0x3548434e || magic == 0x3648434e || magic == 0x3748434e || magic == 0x3848434e) &&
+	bool ok = fread(&magic, 4, 1, f) == 1 && (magic == 0x3348434e || magic == 0x3448434e || magic == 0x3548434e || magic == 0x3648434e || magic == 0x3748434e || magic == 0x3848434e || magic == 0x3948434e) &&
 		character_read_string(f, character.name, 63) && character_read_string(f, character.faction, 32) &&
 		character_read_string(f, character.loadout, 4096);
 	if (ok && magic >= 0x3548434e) ok = character_read_string(f, character.description, 512) && character_read_string(f, character.history, 1536);
@@ -380,6 +382,7 @@ static Character* character_load(LPCSTR account, u8 slot)
             if (ok) character.safe.push_back(std::move(item));
         }
     }
+    if (ok && magic>=0x3948434e) ok=fread(&character.inventory_cells,4,1,f)==1 && character.inventory_cells<=512;
     ok=ok && fgetc(f)==EOF && !ferror(f);
 	fclose(f);
 	if (!ok || !character_name_valid(character.name.c_str()))
@@ -821,6 +824,7 @@ static bool character_save_actor(u16 actor_id, const CharacterDestination* desti
 		entity->o_Position = position; entity->o_Angle = angles; entity->o_torso = torso;
 		entity->m_tGraphID = graph; entity->m_tNodeID = node;
 	}
+	character.inventory_cells = storage_live_capacity(runtime);
 	character.initialized = true;
     if (character.storage_revision!=0xffffffffu) ++character.storage_revision;
 	if (character_save(character, background)) return true;

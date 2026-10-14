@@ -1,4 +1,5 @@
 [storage]
 ; Individual item instances consume their icon width * height, not stack count.
-backpack_cells = 60
+; Minimum base; live capacity is max(base, floor(MaxCarryWeight * 4)), capped at512.
+backpack_cells = 120
 safe_cells = 120

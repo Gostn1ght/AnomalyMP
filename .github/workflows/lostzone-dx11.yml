@@ -31,6 +31,7 @@ jobs:
           python scripts/check-netcoop-menu.py
           python scripts/check-netcoop-trade.py
           python scripts/check-netcoop-inventory-compat.py
+          python scripts/check-netcoop-inventory-capacity.py
           python scripts/check-netcoop-ai.py
           python scripts/check-netcoop-vision-cadence.py
           python scripts/check-netcoop-items.py
@@ -180,6 +181,8 @@ jobs:
           python scripts/check-native-ui-resize.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-map-privacy.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-inventory-capacity.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-open-registration.py
           if errorlevel 1 exit /b %errorlevel%

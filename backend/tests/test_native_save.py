@@ -44,6 +44,8 @@ def native_fixture(version=8, *, ieee=False, section=b"wpn_pm", parent=0, state=
         data += packet(progress)
     if version >= 6:
         data += struct.pack("<I", 19) + b"request\0signature\0" + struct.pack("<I", 1) + item
+    if version >= 9:
+        data += struct.pack("<I",240)
     return data
 
 
@@ -51,16 +53,17 @@ class NativeSaveTest(unittest.TestCase):
     def test_native_checksum_and_legacy_versions_preserve_exact_bytes(self):
         self.assertEqual(crc32c(b"123456789"), 0x1cf96d7c)
         self.assertEqual(crc32c(b""), 0xffffffff)
-        for version in range(3, 9):
+        for version in range(3, 10):
             for ieee in (False, True):
                 raw = native_fixture(version, ieee=ieee)
-                if version == 8 and ieee:
+                if version >= 8 and ieee:
                     with self.assertRaises(Invalid):
                         parse_native_save(raw)
                     continue
                 saved = parse_native_save(raw)
                 self.assertEqual(saved.raw, raw)
                 self.assertEqual(saved.version, version)
+                self.assertEqual(saved.inventory_cells, 240 if version >= 9 else 0)
                 self.assertEqual(saved.item_count, 1)
                 self.assertEqual(saved.safe_count, int(version >= 6))
                 self.assertEqual(saved.progress_bytes, len(b"tasks/info/lua/origins") if version >= 4 else 0)
@@ -72,7 +75,7 @@ class NativeSaveTest(unittest.TestCase):
         for cut in range(len(raw)):
             with self.subTest(cut=cut), self.assertRaises(Invalid):
                 parse_native_save(raw[:cut])
-        for value in (raw + b"\0", b"NCH9" + raw[4:], native_fixture(parent=1),
+        for value in (native_fixture(9)[:-4] + struct.pack("<I",513), raw + b"\0", b"NCHX" + raw[4:], native_fixture(parent=1),
                       native_fixture(state=b"x" * 513), native_fixture(actor=b"x" * 16385),
                       native_fixture(progress=b"x" * (1024 * 1024 + 1)), native_fixture(name=b"bad|name"),
                       native_fixture(name=b"x" * 64), native_fixture(section=b"")):

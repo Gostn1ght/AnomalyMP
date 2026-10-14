@@ -34,6 +34,7 @@ extern int g_netcoop_player_predict;
 
 namespace netcoop
 {
+xr_string script_inventory_slots();
 bool server_inventory_can_take(xrServer* server,u16 owner_id,u16 item_id);
 bool server_reset_device(LPCSTR login);
 void client_capture_pda();

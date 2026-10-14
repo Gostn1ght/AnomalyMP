@@ -4,7 +4,7 @@ static xr_string storage_number(u32 value) { string32 text; xr_sprintf(text,"%u"
 static u32 storage_capacity(bool safe)
 {
     string_path path;
-    u32 capacity=safe ? 120 : 60;
+    u32 capacity=120;
     if (FS.exist(path,"$game_config$","netcoop\\storage.ltx"))
     {
         CInifile ini(path,TRUE,TRUE,FALSE);
@@ -12,6 +12,19 @@ static u32 storage_capacity(bool safe)
         if (ini.line_exist("storage",key)) capacity=ini.r_u32("storage",key);
     }
     return _max(1u,_min(512u,capacity));
+}
+static u32 storage_live_capacity(CActor* actor)
+{
+    const u32 base=storage_capacity(false);
+    const float weight=actor ? actor->MaxCarryWeight() : 0.f;
+    if (!_valid(weight) || weight<=0.f) return base;
+    // Four icon cells per carry kilogram. Armor/backpack/upgrades/belt/boosters
+    // use the same authoritative MaxCarryWeight as movement and weight UI.
+    return _max(base,u32(_min(512.f,weight*4.f)));
+}
+static u32 storage_saved_capacity(const Character& character)
+{
+    return character.inventory_cells ? character.inventory_cells : storage_capacity(false);
 }
 static u32 storage_section_cost(LPCSTR section)
 {
@@ -23,10 +36,41 @@ static u32 storage_item_cost(const Character::Item& item) { return storage_secti
 static u32 storage_live_cells(xrServer* server, CSE_Abstract* owner)
 {
     u32 used=0;
+    if (auto actor=smart_cast<CActor*>(Level().Objects.net_Find(owner->ID)))
+    {
+        for (PIItem item:actor->inventory().m_ruck)
+            used+=storage_section_cost(item->object().cNameSect().c_str());
+        return used;
+    }
     for (u16 id:owner->children)
         if (auto item=server->game->get_entity_from_eid(id))
             if (smart_cast<CSE_ALifeInventoryItem*>(item)) used+=storage_section_cost(item->s_name.c_str());
     return used;
+}
+// Expanded cell capacity must still fit the lossless 512-item save format,
+// including nested attachments and equipped items. Never truncate a save.
+static bool storage_count_tree(xrServer* server,CSE_Abstract* root,u32 depth,xr_vector<u16>& seen)
+{
+    if (!root || depth>8 || seen.size()>=513 || std::find(seen.begin(),seen.end(),root->ID)!=seen.end()) return false;
+    seen.push_back(root->ID);
+    for (u16 id:root->children)
+    {
+        auto child=server->game->get_entity_from_eid(id);
+        if (!child || child->ID!=id || child->ID_Parent!=root->ID || !smart_cast<CSE_ALifeInventoryItem*>(child) ||
+            !storage_count_tree(server,child,depth+1,seen)) return false;
+    }
+    return true;
+}
+static bool storage_inventory_room(xrServer* server,CSE_Abstract* owner,const xr_vector<u16>& incoming)
+{
+    xr_vector<u16> seen;
+    if (!storage_count_tree(server,owner,0,seen)) return false;
+    for (u16 id:incoming)
+    {
+        auto item=server->game->get_entity_from_eid(id);
+        if (!item || item->ID!=id || !smart_cast<CSE_ALifeInventoryItem*>(item) || !storage_count_tree(server,item,1,seen)) return false;
+    }
+    return true;
 }
 bool server_inventory_can_take(xrServer* server,u16 owner_id,u16 item_id)
 {
@@ -35,12 +79,23 @@ bool server_inventory_can_take(xrServer* server,u16 owner_id,u16 item_id)
     auto item=server->game->get_entity_from_eid(item_id);
     if (!owner || !smart_cast<CSE_ALifeCreatureActor*>(owner) || !item || !smart_cast<CSE_ALifeInventoryItem*>(item)) return true;
     if (item->ID_Parent==owner_id) return true;
-    return storage_live_cells(server,owner)+storage_section_cost(item->s_name.c_str())<=storage_capacity(false);
+    if (!storage_inventory_room(server,owner,xr_vector<u16>{item_id})) return false;
+    return storage_live_cells(server,owner)+storage_section_cost(item->s_name.c_str())<=storage_live_capacity(smart_cast<CActor*>(Level().Objects.net_Find(owner_id)));
 }
 static bool storage_equipped(const Character::Item& item)
 {
     SInvItemPlace place; place.value=item.place;
     return place.type==eItemPlaceSlot || place.type==eItemPlaceBelt;
+}
+static u32 storage_ruck_cost(const Character::Item& item) { return storage_equipped(item) ? 0 : storage_item_cost(item); }
+xr_string script_inventory_slots()
+{
+    if (!enabled()) return "";
+    CActor* actor=Actor();
+    if (!actor) return "";
+    u32 used=0;
+    for (PIItem item:actor->inventory().m_ruck) used+=storage_section_cost(item->object().cNameSect().c_str());
+    return storage_number(used)+"|"+storage_number(storage_live_capacity(actor));
 }
 static xr_string storage_execute(xrServer* server,xrClientData* CL,const StorageRequest& request)
 {
@@ -72,7 +127,8 @@ static xr_string storage_execute(xrServer* server,xrClientData* CL,const Storage
                 Character candidate=*character;
                 auto& source=request.op==1 ? candidate.items : candidate.safe;
                 auto& target=request.op==1 ? candidate.safe : candidate.items;
-                const auto result=hideout_storage::transfer(source,target,request.index,storage_capacity(request.op==1),storage_item_cost,
+                const auto result=hideout_storage::transfer(source,target,request.index,request.op==1 ? storage_capacity(true) : storage_saved_capacity(candidate),
+                    request.op==1 ? storage_item_cost : storage_ruck_cost,
                     [&request](const Character::Item& item) { return request.op==1 && storage_equipped(item); });
                 if (result==hideout_storage::equipped) message="UNEQUIP_FIRST";
                 else if (result==hideout_storage::full) message="NO_FREE_SLOTS";
@@ -91,8 +147,8 @@ static xr_string storage_execute(xrServer* server,xrClientData* CL,const Storage
     xr_string out=message;
     out+='\n';
     if (!character || live) return out;
-    out+=storage_number(character->storage_revision)+"|"+storage_number(hideout_storage::cells(character->items,storage_item_cost))+"|"+
-        storage_number(storage_capacity(false))+"|"+storage_number(hideout_storage::cells(character->safe,storage_item_cost))+"|"+storage_number(storage_capacity(true))+"\n";
+    out+=storage_number(character->storage_revision)+"|"+storage_number(hideout_storage::cells(character->items,storage_ruck_cost))+"|"+
+        storage_number(storage_saved_capacity(*character))+"|"+storage_number(hideout_storage::cells(character->safe,storage_item_cost))+"|"+storage_number(storage_capacity(true))+"\n";
     for (u32 container=0;container<2;++container)
     {
         const auto& items=container ? character->safe : character->items;

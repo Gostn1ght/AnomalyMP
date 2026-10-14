@@ -1,6 +1,6 @@
 -- Actual GAMMA UIInventory method; retained game source, used for late-profile regression.
 function UIInventory:TMode_RefreshInventories()
-	
+
 	-- Actor
 	local cc_a = self.CC["actor_trade_bag"]
 	local cc_at = self.CC["actor_trade"]
@@ -25,7 +25,7 @@ function UIInventory:TMode_RefreshInventories()
 			end
 		end
 	end
-	
+
 	-- NPC
 	local npc = self:GetPartner()
 

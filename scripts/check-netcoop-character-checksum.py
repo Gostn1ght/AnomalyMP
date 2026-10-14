@@ -71,6 +71,8 @@ def legacy(version, algorithm):
     if version >= 6:
         number('I', 19); string(b'request-id'); string(b'signature')
         number('I', 1); item('safe', b'ammo_9x18_fmj', 0, 8195)
+    if version >= 9:
+        offsets['capacity']=len(data); number('I',240)
     return bytes(data), offsets
 
 source = r'''
@@ -143,6 +145,7 @@ void equal(const Character& a,const Character& b){
  assert(a.name==b.name&&a.faction==b.faction&&a.loadout==b.loadout&&a.description==b.description&&a.history==b.history);
  assert(a.economy==b.economy&&a.initialized==b.initialized&&a.respawn==b.respawn);
  assert(a.actor.B.count==b.actor.B.count&&std::memcmp(a.actor.B.data,b.actor.B.data,a.actor.B.count)==0);
+ assert(a.inventory_cells==b.inventory_cells);
  assert(a.progress==b.progress&&a.storage_revision==b.storage_revision&&a.storage_request==b.storage_request&&a.storage_signature==b.storage_signature);
  auto inventory=[](const auto& x,const auto& y){assert(x.size()==y.size());for(size_t i=0;i<x.size();++i){assert(x[i].section==y[i].section&&x[i].parent==y[i].parent&&x[i].place==y[i].place&&x[i].state==y[i].state);assert(x[i].spawn.B.count==y[i].spawn.B.count&&std::memcmp(x[i].spawn.B.data,y[i].spawn.B.data,x[i].spawn.B.count)==0);}};
  inventory(a.items,b.items);inventory(a.safe,b.safe);
@@ -159,21 +162,22 @@ int main(){
   CPU::ID.feature=0;
   for(unsigned offset=1;offset<8;++offset){assert(character_checksum_matches(sample.data()+offset,length,save_checksum::crc32c(sample.data()+offset,length),false));}
  }
- for(int version=3;version<=8;++version)for(const char* algorithm:{"sse","ieee"}){
+ for(int version=3;version<=9;++version)for(const char* algorithm:{"sse","ieee"}){
   const std::string file="v"+std::to_string(version)+"_"+algorithm+".bin";
   const auto original=bytes(file);
-  if(version==8&&std::string(algorithm)=="ieee"){assert(!load(file,false)&&!load(file,true));continue;}
+  if(version>=8&&std::string(algorithm)=="ieee"){assert(!load(file,false)&&!load(file,true));continue;}
   assert(load(file,false));Character reference=*load(file,false);assert(load(file,true));equal(reference,*load(file,true));
   assert(reference.items.size()==2&&reference.actor.B.count==32);
   assert(reference.items[1].parent==1&&reference.items[0].spawn.B.count==31);
   assert(reference.items[0].place==(version>=4?8195:0));
   assert(reference.progress.size()==(version>=4?41:0)&&reference.safe.size()==(version>=6?1:0));
   assert(reference.items[0].state.size()==(version>=7?15:0));
+  assert(reference.inventory_cells==(version>=9?240u:0u));
   if(version>=6)assert(reference.safe[0].spawn.B.count==31&&reference.storage_revision==19);
   assert(bytes(file)==original); // read/admission never rewrites an old snapshot
   select("portable-soft.bin",false);assert(character_save(reference));const auto soft=bytes(FS.path);
   select("portable-hard.bin",true);assert(character_save(reference));assert(soft==bytes(FS.path));
-  assert(soft[0]=='N'&&soft[1]=='C'&&soft[2]=='H'&&soft[3]=='8');
+  assert(soft[0]=='N'&&soft[1]=='C'&&soft[2]=='H'&&soft[3]=='9');
   assert(load("portable-soft.bin",true));equal(reference,*load("portable-soft.bin",true));
   assert(load("portable-hard.bin",false));equal(reference,*load("portable-hard.bin",false));
  }
@@ -185,7 +189,7 @@ int main(){
  auto extra=good;extra.push_back(0);write_bytes("extra.bin",extra);assert(!load("extra.bin",true));
  // Explicitly reproduce the old loader's opposite-hardware checksum failure.
  assert(save_checksum::crc32c(sample.data(),900)!=save_checksum::legacy_ieee(sample.data(),900));
- std::cout<<"PASS actual NCH3..8 reader/durable writer, both actual CPU CRC paths, legacy upgrade, opposite CPU, empty progress, inventory/safe/profile preservation, corruption/truncation/unknown-version rejection\n";
+ std::cout<<"PASS actual NCH3..9 reader/durable writer, both actual CPU CRC paths, legacy upgrade, opposite CPU, empty progress, inventory/safe/profile preservation, corruption/truncation/unknown-version rejection\n";
 }
 '''
 # The full actual loader caches admitted characters; declare its cache before it.
@@ -194,7 +198,7 @@ source = source.replace('static Character* character_load(', 'static xr_map<xr_s
 with TemporaryDirectory(prefix='lostzone-checksum-') as temp:
     folder = Path(temp)
     corrupt = []
-    for version in range(3,9):
+    for version in range(3,10):
         for name, algorithm in (('sse',crc32c),('ieee',zlib.crc32)):
             data, offsets = legacy(version,algorithm)
             (folder/f'v{version}_{name}.bin').write_bytes(data)
@@ -205,7 +209,7 @@ with TemporaryDirectory(prefix='lostzone-checksum-') as temp:
                 (folder/path).write_bytes(changed); corrupt.append(path)
     good, offsets = legacy(8,crc32c)
     for label, mutate in (
-        ('version',lambda d: d.__setitem__(3,ord('9'))),
+        ('version',lambda d: d.__setitem__(3,ord('A'))),
         ('count',lambda d: d.__setitem__(slice(offsets['count'],offsets['count']+4),struct.pack('<I',513))),
         ('packet',lambda d: d.__setitem__(slice(offsets['actor']-8,offsets['actor']-4),struct.pack('<I',16385))),
     ):

@@ -1261,6 +1261,7 @@ static bool world_store_takes_committed(u16 actor_id);
 static void world_store_request_save();
 bool world_store_save_now(LPCSTR reason);
 static void world_store_note_taken(u16 actor_id);
+static u32 storage_live_capacity(CActor* actor);
 #include "netcoop_characters.inc"
 #include "netcoop_storage.inc"
 #include "netcoop_pda.inc"
@@ -2495,8 +2496,9 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 	if (!partner_buys)
 	{
 		u32 cells=storage_live_cells(server,CL->owner);
-		for (auto item:items) cells+=storage_section_cost(item->object().cNameSect().c_str());
-		if (cells>storage_capacity(false))
+		xr_vector<u16> incoming;
+		for (auto item:items) { cells+=storage_section_cost(item->object().cNameSect().c_str()); incoming.push_back(item->object().ID()); }
+		if (cells>storage_live_capacity(actor) || !storage_inventory_room(server,CL->owner,incoming))
 		{
 			trade->StopTrade(); finish(false,"No free inventory slots"); return;
 		}
