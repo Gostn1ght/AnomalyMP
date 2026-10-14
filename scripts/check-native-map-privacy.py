@@ -38,7 +38,7 @@ struct CMapLocation {
 }
 int main(){
  CActor anchor("authority"),self("self"),buddy("friend"),stranger("other"),replacement("friend");Object npc;
- own=&self;objects={{0,&anchor},{7,&self},{8,&buddy},{9,&stranger},{10,&npc}};
+ own=&self;objects={{u16(0),&anchor},{u16(7),&self},{u16(8),&buddy},{u16(9),&stranger},{u16(10),&npc}};
  assert(netcoop::map_player_visible(7,false));
  assert(!netcoop::map_player_visible(0,false) && !netcoop::map_player_visible(8,false) && !netcoop::map_player_visible(9,false));
  assert(netcoop::map_player_visible(10,false) && netcoop::map_player_visible(99,false));
