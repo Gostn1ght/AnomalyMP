@@ -26,3 +26,35 @@ jobs:
           python-version: '3.13'
       - name: Check durable world, ledger, transfers and recovery
         run: python -m unittest discover -s backend/tests -v
+
+  master-exe:
+    needs: backend
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install pinned packager with prebuilt bootloader
+        run: python -m pip install --only-binary=:all: pyinstaller==6.16.0
+      - name: Build separate master console
+        run: python -m PyInstaller --onefile --console --noupx --name LostZoneMaster --paths backend --distpath master-artifact --workpath master-build --specpath master-build backend/master_entry.py
+      - name: Exercise the packaged EXE and SQLite with no external Python
+        env:
+          LOSTZONE_MASTER_TEST_EXE: ${{ github.workspace }}\master-artifact\LostZoneMaster.exe
+        run: python -m unittest discover -s backend/tests -p test_master_entry.py -v
+      - name: Record source revision and checksum
+        shell: python
+        run: |
+          import hashlib, json, os
+          from pathlib import Path
+          folder = Path('master-artifact')
+          (folder/'built-from.txt').write_text(os.environ['GITHUB_SHA']+'\n', encoding='ascii')
+          digest = hashlib.sha256((folder/'LostZoneMaster.exe').read_bytes()).hexdigest()
+          (folder/'master-release.json').write_text(json.dumps({'source_commit':os.environ['GITHUB_SHA'],'sha256':digest,'console':True,'private_runtime_included':False}, indent=2)+'\n', encoding='utf-8')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LostZone-Master-Windows
+          path: master-artifact/
+          if-no-files-found: error
