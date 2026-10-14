@@ -367,6 +367,11 @@ LPCSTR script_players();
 // Lua (server, location cluster): "map map ..." served by other servers of
 // the cluster; empty without netcoop_cluster.ltx.
 LPCSTR script_cluster_maps();
+// Client-only map presentation; contacts are supplied by the location server.
+bool script_map_friend(int actor_id, LPCSTR name);
+bool map_player_visible(u16 id, bool actor_spot = false);
+void map_players_reset();
+void map_player_forget(u16 id);
 // Lua (server): shared cluster records (netcoop_shared_store.inc, doc 47).
 LPCSTR script_store_read(LPCSTR bucket, LPCSTR key);
 bool script_store_swap(LPCSTR bucket, LPCSTR key, LPCSTR expected, LPCSTR value);

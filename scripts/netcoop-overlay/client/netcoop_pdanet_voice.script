@@ -2,7 +2,7 @@
 -- The engine records everything the player hears while recording runs: his
 -- own voice, players talking nearby, voices from the walkie-talkie and from
 -- receivers' speakers, and the world's sounds (netcoop_voice_record.inc).
--- Voice messages ("Запись" in a chat, up to 2 minutes) go to the server and
+-- Voice messages ("Р—Р°РїРёСЃСЊ" in a chat, up to 2 minutes) go to the server and
 -- to the chat; dictaphone records (up to 10 minutes, recording goes on with
 -- the PDA put away) stay in this PDA, and one can be sent to the open chat.
 
@@ -244,7 +244,7 @@ end
 function set_chat(cid) rec_chat = cid end
 
 ----------------------------------------------------------------------
--- The Диктофон tab
+-- The Р”РёРєС‚РѕС„РѕРЅ tab
 ----------------------------------------------------------------------
 local REC_ROWS, SEEK = 9, 24
 
@@ -254,39 +254,39 @@ function pdanet_dictaphone:__init() super()
 	self.u = u
 	u.base(self, "st_pdanet_tab_voice")
 	self.scroll, self.selected = 0, nil
-	u.static(self, "panel", 36, 134, 300, 476)
-	local about = u.static(self, "hint_left", 48, 144, 276, 200)
+	u.layout(self, "nw_voice:frame", "Frame")
+	local about = u.layout(self, "nw_voice:descr", nil, 36, 150)
 	u.text(about, tr("st_pdanet_dict_about"))
-	self.count = u.static(self, "msg_head", 48, 520, 276, 24)
-	self.rec_btn = u.button(self, "", 48, 556, 276, 40, function()
+	self.count = u.layout(self, "nw_voice:state", nil, 36, 150)
+	self.rec_btn = u.button(self, "", 56, 558, 224, 36, function()
 		if rec_kind == "dict" then dict_stop() elseif not rec_kind then dict_start() end
 		self:Fill()
 	end)
-	u.static(self, "panel", 344, 134, 440, 380)
+	u.static(self, "panel", 312, 150, 472, 380)
 	self.rows = {}
 	for r = 1, REC_ROWS do
-		self.rows[r] = u.button(self, "", 350, 138 + (r - 1) * 40, 392, 36, function() self.selected = self.scroll + r; self:Fill() end, "row")
+		self.rows[r] = u.button(self, "", 320, 158 + (r - 1) * 40, 420, 36, function() self.selected = self.scroll + r; self:Fill() end, "row")
 	end
-	u.button(self, "^", 748, 140, 30, 30, function() self.scroll = math.max(0, self.scroll - 3); self:Fill() end)
-	u.button(self, "v", 748, 476, 30, 30, function() self.scroll = self.scroll + 3; self:Fill() end)
+	u.button(self, "^", 748, 158, 30, 30, function() self.scroll = math.max(0, self.scroll - 3); self:Fill() end)
+	u.button(self, "v", 748, 486, 30, 30, function() self.scroll = self.scroll + 3; self:Fill() end)
 	-- player: play/pause, a seek strip (click a segment to jump), time
-	u.static(self, "panel", 344, 520, 440, 70)
-	self.play_btn = u.button(self, ">", 352, 528, 40, 30, function()
+	u.static(self, "panel", 312, 536, 472, 70)
+	self.play_btn = u.button(self, ">", 320, 544, 40, 30, function()
 		if self.selected then dict_play(self.selected) end
 		self:Fill()
 	end)
 	self.seek = {}
 	for s = 1, SEEK do
-		self.seek[s] = u.button(self, "", 398 + (s - 1) * 15, 532, 14, 22, function()
+		self.seek[s] = u.button(self, "", 366 + (s - 1) * 15, 548, 14, 22, function()
 			local rec = self.selected and records[self.selected]
 			if rec then dict_play(self.selected, (s - 1) / SEEK * rec.secs) end
 		end, "seek")
 	end
-	self.time = u.static(self, "msg_head", 398, 560, 200, 24)
-	self.send_btn = u.button(self, tr("st_pdanet_rec_send"), 344, 596, 216, 32, function()
+	self.time = u.static(self, "msg_head", 366, 576, 200, 24)
+	self.send_btn = u.button(self, tr("st_pdanet_rec_send"), 312, 614, 216, 30, function()
 		if self.selected then dict_send(self.selected) end
 	end)
-	self.del_btn = u.button(self, tr("st_pdanet_delete"), 568, 596, 216, 32, function()
+	self.del_btn = u.button(self, tr("st_pdanet_delete"), 568, 614, 216, 30, function()
 		if self.selected then dict_delete(self.selected); self.selected = nil; self:Fill() end
 	end)
 	self:Fill()

@@ -37,10 +37,12 @@ local function base(self, title)
 	self:SetAutoDelete(false)
 	self.xml = CScriptXmlInit()
 	self.xml:ParseFile(XML)
-	self.xml:InitStatic("frame", self)
+	self.xml:InitFrame("frame", self)
 	self.title = self.xml:InitStatic("title", self)
 	text(self.title, tr(title))
+	self.title:Show(false) -- the PDA's tab strip already owns the caption
 	self.clock = self.xml:InitStatic("clock", self)
+	self.clock:Show(false) -- the PDA's global header owns the clock
 	self.status = self.xml:InitStatic("status", self)
 	self.ids, self.tick_at = 0, 0
 end
@@ -64,7 +66,26 @@ local function button(self, caption, x, y, w, h, fn, template)
 	return b
 end
 local function static(self, name, x, y, w, h)
-	return at(self.xml:InitStatic(name, self), x, y, w, h)
+	local control = name == "panel" and self.xml:InitFrame(name, self) or self.xml:InitStatic(name, self)
+	return at(control, x, y, w, h)
+end
+-- Original New Way XML geometry and colours, with Lost Zone data/actions.
+local function layout(self, path, kind, x, y)
+	local w = self.xml["Init" .. (kind or "Static")](self.xml, path, self)
+	if x or y then
+		local p = w:GetWndPos()
+		w:SetWndPos(vector2():set(p.x + (x or 0), p.y + (y or 0)))
+	end
+	return w
+end
+local function layout_button(self, path, caption, fn, x, y)
+	local b = layout(self, path, "3tButton", x, y)
+	text(b, caption)
+	self.ids = self.ids + 1
+	local id = "b" .. self.ids
+	self:Register(b, id)
+	self:AddCallback(id, ui_events.BUTTON_CLICKED, fn, self)
+	return b
 end
 local function status_of(c)
 	return c.online == true and tr("st_pdanet_online") or c.online == false and tr("st_pdanet_offline") or tr("st_pdanet_status_hidden")
@@ -76,17 +97,17 @@ end
 ----------------------------------------------------------------------
 -- Общий канал
 ----------------------------------------------------------------------
-local GEN_ROWS = 9
+local GEN_ROWS = 8
 
 class "pdanet_general" (CUIScriptWnd)
 function pdanet_general:__init() super()
 	base(self, "st_pdanet_tab_general")
 	self.anon, self.scroll = false, 0
-	self.layout = static(self, "msg_head", 520, 104, 260, 24)
-	static(self, "panel", 36, 134, 748, 476)
+	self.layout = static(self, "msg_head", 512, 156, 260, 28)
+	static(self, "panel", 36, 194, 748, 422)
 	self.rows = {}
 	for r = 1, GEN_ROWS do
-		local y = 140 + (r - 1) * 52
+		local y = 202 + (r - 1) * 50
 		self.rows[r] = {
 			icon = static(self, "icon", 44, y + 4, 48, 36),
 			name = static(self, "msg_name", 100, y, 300, 20),
@@ -94,11 +115,15 @@ function pdanet_general:__init() super()
 			body = static(self, "msg_text", 100, y + 20, 640, 30),
 		}
 	end
-	button(self, "^", 746, 140, 32, 30, function() self.scroll = self.scroll + 3; self:Fill() end)
-	button(self, "v", 746, 574, 32, 30, function() self.scroll = math.max(0, self.scroll - 3); self:Fill() end)
-	self.input = at(self.xml:InitEditBox("edit", self), 44, 620, 580, 34)
-	button(self, tr("st_pdanet_send"), 632, 620, 152, 34, function() self:Send() end)
-	self.anon_btn = button(self, "", 44, 660, 240, 26, function() self.anon = not self.anon; self:Fill() end)
+	button(self, "^", 750, 202, 30, 30, function() self.scroll = self.scroll + 3; self:Fill() end)
+	button(self, "v", 750, 574, 30, 30, function() self.scroll = math.max(0, self.scroll - 3); self:Fill() end)
+	self.input = at(self.xml:InitEditBox("edit", self), 44, 628, 580, 36)
+	button(self, tr("st_pdanet_send"), 636, 628, 140, 36, function() self:Send() end)
+	self.anon_btn = self.xml:InitCheck("anonymous", self)
+	self:Register(self.anon_btn, "anonymous")
+	self:AddCallback("anonymous", ui_events.BUTTON_CLICKED, function() self.anon = not self.anon; self:Fill() end, self)
+	text(self.xml:InitStatic("anon_label", self), tr("st_pdanet_anonymous_mode"))
+	at(self.status, 300, 666, 480, 24) -- UID/footer and checkbox never overlap
 	net().on_change(function() if self:IsShown() then self:Fill() end end)
 	self:Fill()
 end
@@ -129,7 +154,7 @@ function pdanet_general:Fill()
 			icon_texture(row.icon, m.i)
 		end
 	end
-	text(self.anon_btn, (self.anon and "[x] " or "[ ] ") .. tr("st_pdanet_anonymous_mode"))
+	self.anon_btn:SetCheck(self.anon)
 	footer(self)
 end
 function pdanet_general:OnKeyboard(dik, action)
@@ -165,69 +190,69 @@ class "pdanet_chats" (CUIScriptWnd)
 function pdanet_chats:__init() super()
 	base(self, "st_pdanet_tab_chats")
 	self.list_scroll, self.msg_scroll, self.points, self.voices, self.photos = 0, 0, {}, {}, {}
-	static(self, "panel", 36, 134, 268, 456)
-	static(self, "panel", 312, 104, 472, 50)
-	static(self, "panel", 312, 158, 472, 392)
+	layout(self, "nw_chats:list_frame", "Frame")
+	layout(self, "nw_chats:head_frame", "Frame")
+	layout(self, "nw_chats:conv_frame", "Frame")
 	self.rows = {}
 	for r = 1, LIST_ROWS do
-		local y = 140 + (r - 1) * 56
+		local y = 158 + (r - 1) * 56
 		local row = {}
-		row.btn = button(self, "", 40, y, 226, 52, function() self:Pick(r) end, "row")
-		row.icon = static(self, "icon", 44, y + 8, 48, 36)
-		row.name = static(self, "msg_name", 96, y + 4, 130, 20)
-		row.time = static(self, "msg_head", 210, y + 4, 56, 20)
-		row.last = static(self, "msg_head", 96, y + 26, 140, 20)
-		row.unread = static(self, "msg_name", 236, y + 26, 30, 20)
+		row.btn = button(self, "", 44, y, 196, 52, function() self:Pick(r) end, "row")
+		row.icon = static(self, "icon", 48, y + 8, 42, 32)
+		row.name = static(self, "msg_name", 96, y + 4, 112, 20)
+		row.time = static(self, "msg_head", 208, y + 4, 32, 20)
+		row.last = static(self, "msg_head", 96, y + 26, 124, 20)
+		row.unread = static(self, "msg_name", 220, y + 26, 20, 20)
 		self.rows[r] = row
 	end
-	button(self, "^", 270, 140, 30, 30, function() self.list_scroll = math.max(0, self.list_scroll - 1); self:Fill() end)
-	button(self, "v", 270, 554, 30, 30, function() self.list_scroll = self.list_scroll + 1; self:Fill() end)
-	button(self, tr("st_pdanet_new_group"), 36, 596, 268, 32, function() self:Dialog("group") end)
+	button(self, "^", 244, 158, 28, 30, function() self.list_scroll = math.max(0, self.list_scroll - 1); self:Fill() end)
+	button(self, "v", 244, 586, 28, 30, function() self.list_scroll = self.list_scroll + 1; self:Fill() end)
+	button(self, tr("st_pdanet_new_group"), 36, 630, 240, 26, function() self:Dialog("group") end)
 	-- the conversation header: Перевод (private) or Состав (group), Удалить чат
-	self.peer_icon = static(self, "icon", 320, 110, 48, 36)
-	self.peer_name = static(self, "msg_name", 376, 108, 200, 20)
-	self.peer_info = static(self, "msg_head", 376, 128, 200, 20)
-	self.side_btn = button(self, "", 580, 112, 100, 30, function()
+	self.peer_icon = layout(self, "nw_chats:head_avatar", nil, 284, 150)
+	self.peer_name = layout(self, "nw_chats:head_name", nil, 284, 150)
+	self.peer_info = layout(self, "nw_chats:head_state", nil, 284, 150)
+	self.side_btn = button(self, "", 550, 165, 110, 26, function()
 		local s = net().opened and net().opened.summary or {}
 		if s.kind == "g" then net().ask_members(self.chat); self:Dialog("members") else self:Dialog("pay") end
 	end)
-	self.del_btn = button(self, tr("st_pdanet_delete_chat"), 684, 112, 96, 30, function()
+	self.del_btn = button(self, tr("st_pdanet_delete_chat"), 664, 165, 110, 26, function()
 		if self.chat then net().delete_chat(self.chat); self.chat = nil; net().opened = nil; self:Fill() end
 	end)
-	self.empty = static(self, "hint", 330, 300, 440, 120)
+	self.empty = static(self, "hint", 300, 380, 468, 48)
 	self.msgs = {}
 	for r = 1, MSG_ROWS do
-		local y = 162 + (r - 1) * 54
+		local y = 222 + (r - 1) * 50
 		local m = {}
-		m.icon = static(self, "icon", 318, y + 4, 40, 30)
-		m.head = static(self, "msg_head", 364, y, 260, 20)
-		m.body = static(self, "msg_text", 364, y + 20, 380, 30)
-		m.own = static(self, "msg_own", 400, y + 20, 340, 30)
+		m.icon = static(self, "icon", 292, y + 4, 40, 30)
+		m.head = static(self, "msg_head", 340, y, 260, 20)
+		m.body = static(self, "msg_text", 340, y + 20, 408, 30)
+		m.own = static(self, "msg_own", 398, y + 20, 350, 30)
 		m.mark = button(self, tr("st_pdanet_mark"), 620, y + 2, 156, 22, function() self:Mark(r) end)
 		m.play = button(self, ">", 620, y + 2, 40, 22, function() self:Play(r) end)
 		m.view = button(self, tr("st_pdanet_photo_open"), 620, y + 2, 156, 22, function() self:ViewPhoto(r) end)
 		self.msgs[r] = m
 	end
-	button(self, "^", 750, 162, 30, 26, function() self.msg_scroll = self.msg_scroll + 2; self:Fill() end)
-	button(self, "v", 750, 520, 30, 26, function() self.msg_scroll = math.max(0, self.msg_scroll - 2); self:Fill() end)
+	button(self, "^", 750, 222, 30, 26, function() self.msg_scroll = self.msg_scroll + 2; self:Fill() end)
+	button(self, "v", 750, 558, 30, 26, function() self.msg_scroll = math.max(0, self.msg_scroll - 2); self:Fill() end)
 	-- Снимок: a shot from the gallery; Точка: own position or a map pin
-	self.photo_btn = button(self, tr("st_pdanet_photo_btn"), 312, 556, 152, 30, function() if self.chat then self:Dialog("photo") end end)
-	self.point_btn = button(self, tr("st_pdanet_point_btn"), 472, 556, 152, 30, function() if self.chat then self:Dialog("point") end end)
-	self.voice_btn = button(self, tr("st_pdanet_voice_btn"), 632, 556, 152, 30, function() self:VoiceMessage() end)
+	self.photo_btn = button(self, tr("st_pdanet_photo_btn"), 284, 602, 161, 22, function() if self.chat then self:Dialog("photo") end end)
+	self.point_btn = button(self, tr("st_pdanet_point_btn"), 453, 602, 162, 22, function() if self.chat then self:Dialog("point") end end)
+	self.voice_btn = button(self, tr("st_pdanet_voice_btn"), 623, 602, 161, 22, function() self:VoiceMessage() end)
 	-- a photo from the chat, over the conversation
 	self.pview = {}
-	self.pview.back = static(self, "panel", 312, 158, 472, 392)
-	self.pview.img = static(self, "photo", 320, 166, 456, 256)
-	self.pview.info = static(self, "hint_left", 322, 428, 452, 60)
-	self.pview.keep = button(self, tr("st_pdanet_photo_keep"), 320, 512, 220, 30, function()
+	self.pview.back = layout(self, "nw_chats:conv_frame", "Frame")
+	self.pview.img = static(self, "photo", 292, 222, 484, 272)
+	self.pview.info = static(self, "hint_left", 292, 502, 484, 36)
+	self.pview.keep = button(self, tr("st_pdanet_photo_keep"), 292, 544, 232, 28, function()
 		local m = self.viewed
 		if m and netcoop_pdanet_photo then
 			netcoop_pdanet_photo.keep(string.match(m.d or "", "^(%x+)"), string.match(m.d or "", "^%x+ ([%w_]+)"))
 		end
 	end)
-	self.pview.close = button(self, tr("st_pdanet_close"), 556, 512, 220, 30, function() self.viewed = nil; self:Fill() end)
-	self.input = at(self.xml:InitEditBox("edit", self), 312, 594, 330, 32)
-	button(self, tr("st_pdanet_send"), 650, 594, 134, 32, function() self:Send() end)
+	self.pview.close = button(self, tr("st_pdanet_close"), 532, 544, 244, 28, function() self.viewed = nil; self:Fill() end)
+	self.input = at(self.xml:InitEditBox("edit", self), 284, 630, 392, 26)
+	button(self, tr("st_pdanet_send"), 684, 630, 100, 26, function() self:Send() end)
 	-- dialogs over the conversation: new group, members, transfer
 	self.dlg = {}
 	self.dlg.back = static(self, "panel", 330, 150, 440, 420)
@@ -531,45 +556,43 @@ class "pdanet_contacts" (CUIScriptWnd)
 function pdanet_contacts:__init() super()
 	base(self, "st_pdanet_tab_contacts")
 	self.scroll = 0
-	-- profile card: avatar, PDA name, UID, faction, money
-	static(self, "panel", 36, 134, 748, 58)
+	-- Original New Way contact header; extended actions stay below the list.
+	layout(self, "nw_contacts:head_frame", "Frame")
 	self.card_icon = static(self, "icon", 42, 138, 64, 50)
-	self.card_name = static(self, "msg_name", 114, 138, 360, 22)
-	self.card_info = static(self, "msg_head", 114, 162, 360, 22)
-	self.card_money = static(self, "money", 560, 146, 214, 30)
-	-- UID field and actions
-	static(self, "panel", 36, 196, 748, 38)
-	static(self, "msg_head", 44, 200, 40, 30):TextControl():SetText("UID")
-	self.uid = at(self.xml:InitEditBox("edit_uid", self), 84, 200, 120, 30)
-	button(self, tr("st_pdanet_add"), 210, 200, 104, 30, function()
+	self.card_icon:Show(false)
+	self.card_name = layout(self, "nw_contacts:my_nick", nil, 36, 150)
+	self.card_info = layout(self, "nw_contacts:my_uid", nil, 36, 150)
+	self.card_money = static(self, "money", 560, 114, 214, 30)
+	text(layout(self, "nw_contacts:add_caption", nil, 36, 150), "UID")
+	self.uid = layout(self, "nw_contacts:add_edit", "EditBox", 36, 150)
+	layout_button(self, "nw_contacts:btn_add", tr("st_pdanet_add"), function()
 		net().add_contact(edit_text(self.uid)); self.uid:SetText("")
-	end)
-	button(self, tr("st_pdanet_open"), 318, 200, 104, 30, function()
+	end, 36, 150)
+	layout_button(self, "nw_contacts:btn_open", tr("st_pdanet_open"), function()
 		local c = self.selected and net().contacts[self.selected]
 		if c then net().open_dm(c.uid) end
-	end)
-	button(self, tr("st_pdanet_send_point"), 426, 200, 128, 30, function()
+	end, 36, 150)
+	layout_button(self, "nw_contacts:btn_del", tr("st_pdanet_delete"), function()
+		local c = self.selected and net().contacts[self.selected]
+		if c then net().remove_contact(c.uid); self.selected = nil end
+	end, 36, 150)
+	button(self, tr("st_pdanet_send_point"), 36, 632, 364, 26, function()
 		local c = self.selected and net().contacts[self.selected]
 		if c then net().send_point_to(c.uid, ""); tip("st_pdanet_point_sent", c.name or c.uid) end
 	end)
-	button(self, tr("st_pdanet_send_task"), 558, 200, 128, 30, function()
-		local c = self.selected and net().contacts[self.selected]
-		if c then self:Tasks(true) end
+	button(self, tr("st_pdanet_send_task"), 420, 632, 364, 26, function()
+		if self.selected and net().contacts[self.selected] then self:Tasks(true) end
 	end)
-	button(self, tr("st_pdanet_delete"), 690, 200, 88, 30, function()
-		local c = self.selected and net().contacts[self.selected]
-		if c then net().remove_contact(c.uid); self.selected = nil end
-	end)
-	static(self, "panel", 36, 238, 748, 372)
+	layout(self, "nw_contacts:list_frame", "Frame")
 	self.rows = {}
 	for r = 1, CONTACT_ROWS do
-		local y = 242 + (r - 1) * 36
+		local y = 218 + (r - 1) * 36
 		self.rows[r] = { btn = button(self, "", 40, y, 700, 33, function() self.selected = self.scroll + r; self:Fill() end, "row"),
 			icon = static(self, "icon", 700, y + 2, 36, 28) }
 	end
-	button(self, "^", 748, 242, 30, 30, function() self.scroll = math.max(0, self.scroll - 3); self:Fill() end)
-	button(self, "v", 748, 574, 30, 30, function() self.scroll = self.scroll + 3; self:Fill() end)
-	self.empty = static(self, "hint", 60, 380, 700, 60)
+	button(self, "^", 748, 218, 30, 30, function() self.scroll = math.max(0, self.scroll - 3); self:Fill() end)
+	button(self, "v", 748, 586, 30, 30, function() self.scroll = self.scroll + 3; self:Fill() end)
+	self.empty = layout(self, "nw_contacts:empty")
 	-- "Отправить задание": one of the player's active tasks to the contact
 	self.tdlg = {}
 	self.tdlg.back = static(self, "panel", 160, 250, 500, 340)
@@ -650,26 +673,26 @@ class "pdanet_notes" (CUIScriptWnd)
 function pdanet_notes:__init() super()
 	base(self, "st_pdanet_tab_notes")
 	self.scroll = 0
-	static(self, "panel", 36, 134, 268, 456)
+	layout(self, "nw_notes:list_frame", "Frame")
+	text(layout(self, "nw_notes:t_list_caption"), tr("st_pdanet_notes_title"))
 	self.rows = {}
 	for r = 1, NOTE_ROWS do
-		self.rows[r] = button(self, "", 40, 138 + (r - 1) * 44, 226, 40, function() self:Pick(self.scroll + r) end, "row")
+		self.rows[r] = button(self, "", 44, 158 + (r - 1) * 44, 196, 40, function() self:Pick(self.scroll + r) end, "row")
 	end
-	button(self, "^", 270, 140, 30, 30, function() self.scroll = math.max(0, self.scroll - 3); self:Fill() end)
-	button(self, "v", 270, 554, 30, 30, function() self.scroll = self.scroll + 3; self:Fill() end)
-	button(self, tr("st_pdanet_notes_new"), 36, 596, 268, 32, function() self:Pick(nil) end)
-	static(self, "panel", 312, 134, 472, 456)
-	static(self, "msg_head", 320, 138, 456, 20):TextControl():SetText(tr("st_pdanet_notes_title"))
-	self.title_edit = at(self.xml:InitEditBox("edit", self), 320, 160, 456, 30)
-	static(self, "msg_head", 320, 194, 456, 20):TextControl():SetText(tr("st_pdanet_notes_text"))
-	self.body_edit = at(self.xml:InitEditBox("edit_note", self), 320, 216, 456, 30)
-	self.view = static(self, "note_view", 320, 254, 456, 290)
-	self.date = static(self, "msg_head", 320, 550, 456, 24)
-	button(self, tr("st_pdanet_notes_save"), 312, 596, 230, 32, function() self:Save() end)
-	self.del_btn = button(self, tr("st_pdanet_delete"), 554, 596, 230, 32, function()
+	button(self, "^", 244, 158, 28, 30, function() self.scroll = math.max(0, self.scroll - 3); self:Fill() end)
+	button(self, "v", 244, 586, 28, 30, function() self.scroll = self.scroll + 3; self:Fill() end)
+	layout_button(self, "nw_notes:btn_new", tr("st_pdanet_notes_new"), function() self:Pick(nil) end)
+	text(layout(self, "nw_notes:t_title_caption"), tr("st_pdanet_notes_title"))
+	self.title_edit = layout(self, "nw_notes:title_editbox", "EditBox")
+	layout(self, "nw_notes:text_frame", "Frame")
+	self.body_edit = at(self.xml:InitEditBox("edit_note", self), 296, 204, 476, 30)
+	self.view = static(self, "note_view", 296, 244, 476, 340)
+	self.date = layout(self, "nw_notes:t_hint")
+	layout_button(self, "nw_notes:btn_save", tr("st_pdanet_notes_save"), function() self:Save() end)
+	self.del_btn = layout_button(self, "nw_notes:btn_delete", tr("st_pdanet_delete"), function()
 		if self.note then net().delete_note(self.note); self:Pick(nil) end
 	end)
-	self.empty = static(self, "hint", 40, 300, 260, 120)
+	self.empty = static(self, "hint", 44, 300, 224, 120)
 	net().on_change(function(what) if self:IsShown() and what == "notes" then self:Fill() end end)
 	self:Pick(nil)
 end
@@ -788,4 +811,5 @@ function unread_captions()
 end
 
 -- shared with netcoop_pdanet_voice (the dictaphone tab uses the same frame)
-ui = { base = base, tick = tick, footer = footer, button = button, static = static, text = text, at = at, tr = tr }
+ui = { base = base, tick = tick, footer = footer, button = button, static = static, text = text, at = at, tr = tr,
+	layout = layout, layout_button = layout_button }

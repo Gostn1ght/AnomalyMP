@@ -152,6 +152,7 @@ namespace text_editor
 		m_rep_time = 0.0f;
 		m_last_frame_time = 0;
 		m_last_key_time = 0.0f;
+		m_repeat_key = -1;
 		m_last_changed_frame = 0;
 
 		m_hold_mode = false;
@@ -442,7 +443,7 @@ namespace text_editor
 
 	void line_edit_control::on_key_press(int dik)
 	{
-		if (DIK_COUNT <= dik)
+		if (dik < 0 || DIK_COUNT <= dik)
 		{
 			return;
 		}
@@ -451,6 +452,8 @@ namespace text_editor
 		{
 			m_last_key_time = 0.0f;
 			m_accel = 1.0f;
+			m_repeat_key = dik;
+			m_last_frame_time = Device.dwTimeContinual;
 		}
 		m_mark = true;
 
@@ -504,7 +507,9 @@ namespace text_editor
 			break;
 		}
 
-		if (m_repeat_mode && m_last_key_time > 5.0f * g_console_sensitive)
+		// A quick tap must never become text autorepeat, even with con_sensitive 0.01.
+		const float initial_delay = _max(0.4f, 5.0f * g_console_sensitive);
+		if (dik == m_repeat_key && m_repeat_mode && m_last_key_time > initial_delay)
 		{
 			float buf_time = m_rep_time;
 			m_hold_mode = true;
@@ -518,9 +523,14 @@ namespace text_editor
 
 	void line_edit_control::on_key_release(int dik)
 	{
-		m_accel = 1.0f;
-		m_rep_time = 0.0f;
-		m_last_key_time = 0.0f;
+		if (dik == m_repeat_key)
+		{
+			m_repeat_key = -1;
+			m_accel = 1.0f;
+			m_rep_time = 0.0f;
+			m_last_key_time = 0.0f;
+			m_repeat_mode = false;
+		}
 
 		update_key_states();
 		update_bufs();
@@ -543,14 +553,25 @@ namespace text_editor
 		if (m_cur_time > 0.3f) { m_cursor_view = false; }
 		if (m_cur_time > 0.4f) { m_cur_time = 0.0f; }
 
-		m_rep_time += dt * m_accel;
-		if (m_rep_time > g_console_sensitive) //0.2
+		if (m_repeat_key >= 0 && pInput->iGetAsyncKeyState(m_repeat_key))
 		{
-			m_rep_time = 0.0f;
-			m_repeat_mode = true;
-			m_accel += 0.2f;
+			m_last_key_time += dt;
+			m_rep_time += dt;
+			const float repeat_interval = _max(0.05f, g_console_sensitive / m_accel);
+			if (m_rep_time > repeat_interval)
+			{
+				m_rep_time = 0.0f;
+				m_repeat_mode = true;
+				m_accel = _min(3.0f, m_accel + 0.2f);
+			}
 		}
-		m_last_key_time += dt;
+		else
+		{
+			m_repeat_key = -1;
+			m_repeat_mode = false;
+			m_last_key_time = m_rep_time = 0.0f;
+			m_accel = 1.0f;
+		}
 
 		if (m_last_changed_frame + 1 < Device.dwFrame)
 		{

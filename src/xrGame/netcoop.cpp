@@ -1265,6 +1265,7 @@ static void world_store_note_taken(u16 actor_id);
 #include "netcoop_storage.inc"
 #include "netcoop_pda.inc"
 #include "netcoop_marks.inc"
+#include "netcoop_map.inc"
 #include "netcoop_items.inc"
 // Called synchronously on the authority's world-checkpoint path. Offline
 // props already have their server state; capture only live physical props.

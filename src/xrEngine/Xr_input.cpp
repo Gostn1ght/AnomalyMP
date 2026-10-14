@@ -226,7 +226,8 @@ void CInput::KeyUpdate()
 				continue; //skip one-frame pause key on-off switch
 			}
 		}
-		KBState[od[idx].dwOfs] = od[idx].dwData & 0x80;
+		if (od[idx].dwOfs < COUNT_KB_BUTTONS)
+			KBState[od[idx].dwOfs] = od[idx].dwData & 0x80;
 	}
 
 #ifndef _EDITOR
@@ -256,8 +257,15 @@ void CInput::KeyUpdate()
 				continue;
 
 			key = od[i].dwOfs;
-			KBState[key] = od[i].dwData & 0x80;
-			if (od[i].dwData & 0x80)
+			if (key >= COUNT_KB_BUTTONS)
+				continue;
+			const BOOL pressed = od[i].dwData & 0x80;
+			const bool changed = !!KBState[key] != !!pressed;
+			KBState[key] = pressed;
+			// Autorepeat is owned by the editor's Hold timer, not duplicate down events.
+			if (!changed)
+				continue;
+			if (pressed)
 				cbStack.back()->IR_OnKeyboardPress(key);
 			else
 			{

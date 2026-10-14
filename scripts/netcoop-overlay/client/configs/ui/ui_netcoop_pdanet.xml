@@ -1,95 +1,910 @@
-<?xml version="1.0" encoding="windows-1251"?>
-<!-- PDA network tabs (netcoop_pdanet_ui). Content area of a PDA tab: 28,94 764x614 (pda_taskboard_16). -->
+<?xml version='1.0' encoding='windows-1251'?>
 <w>
-    <frame x="28" y="94" width="764" height="614" stretch="1">
-        <texture a="235" r="18" g="20" b="20">ui_icons_PDA_tooltips</texture>
-    </frame>
-    <panel x="0" y="0" width="10" height="10" stretch="1">
-        <texture a="200" r="30" g="34" b="36">ui_icons_PDA_tooltips</texture>
-    </panel>
-    <title x="44" y="100" width="420" height="30">
-        <text r="218" g="229" b="235" font="letterica18" align="l" vert_align="c"/>
-    </title>
-    <clock x="664" y="100" width="116" height="30">
-        <text r="218" g="229" b="235" font="letterica18" align="r" vert_align="c"/>
-    </clock>
-    <money x="0" y="0" width="10" height="30">
-        <text r="235" g="235" b="235" font="graffiti32" align="r" vert_align="c"/>
-    </money>
-    <note_view x="0" y="0" width="10" height="10">
-        <text r="208" g="219" b="226" font="letterica16" align="l" vert_align="t" complex_mode="1"/>
-    </note_view>
-    <status x="44" y="672" width="720" height="26">
-        <text r="132" g="151" b="163" font="letterica16" align="l" vert_align="c"/>
-    </status>
-    <hint x="0" y="0" width="10" height="10">
-        <text r="160" g="170" b="160" font="letterica16" align="c" vert_align="c" complex_mode="1"/>
-    </hint>
-    <!-- a message: header (sender, time) and text -->
-    <hint_left x="0" y="0" width="10" height="10">
-        <text r="160" g="170" b="160" font="letterica16" align="l" vert_align="t" complex_mode="1"/>
-    </hint_left>
-    <seek x="0" y="0" width="10" height="20" stretch="1">
-        <text align="c" vert_align="c" font="letterica16" r="226" g="196" b="120"/>
-        <texture>ui_button_ordinary</texture>
-    </seek>
-    <msg_head x="0" y="0" width="10" height="20">
-        <text r="132" g="151" b="163" font="letterica16" align="l" vert_align="c"/>
-    </msg_head>
-    <msg_name x="0" y="0" width="10" height="20">
-        <text r="218" g="229" b="235" font="letterica16" align="l" vert_align="c"/>
-    </msg_name>
-    <msg_text x="0" y="0" width="10" height="30">
-        <text r="208" g="219" b="226" font="letterica16" align="l" vert_align="t" complex_mode="1"/>
-    </msg_text>
-    <msg_own x="0" y="0" width="10" height="30">
-        <text r="235" g="225" b="190" font="letterica16" align="r" vert_align="t" complex_mode="1"/>
-    </msg_own>
-    <icon x="0" y="0" width="48" height="36" stretch="1">
-        <texture>ui\ui_noise</texture>
-    </icon>
-    <button x="0" y="0" width="10" height="30" stretch="1">
-        <text align="c" vert_align="c" font="letterica16" r="208" g="219" b="226"/>
-        <texture>ui_button_ordinary</texture>
-    </button>
-    <row x="0" y="0" width="10" height="30" stretch="1">
-        <text align="l" vert_align="c" font="letterica16" r="208" g="219" b="226" x="10"/>
-        <texture>ui_button_ordinary</texture>
-    </row>
-    <edit x="0" y="0" width="10" height="32" max_symb_count="300">
-        <text x="8" font="letterica16" complex_mode="0" vert_align="c" r="208" g="219" b="226"/>
-        <texture>ui_inGame2_edit_box_2</texture>
+  <frame x="28" y="104" width="764" height="596" stretch="1">
+    <texture>lz_nw_pda_shell</texture>
+  </frame>
+  <panel x="0" y="0" width="20" height="20" stretch="1">
+    <texture>lz_nw_pda_panel</texture>
+  </panel>
+  <title x="44" y="100" width="420" height="30">
+    <text r="218" g="229" b="235" font="letterica18" align="l" vert_align="c" />
+  </title>
+  <clock x="664" y="100" width="116" height="30">
+    <text r="218" g="229" b="235" font="letterica18" align="r" vert_align="c" />
+  </clock>
+  <money x="0" y="0" width="10" height="30">
+    <text r="235" g="235" b="235" font="graffiti32" align="r" vert_align="c" />
+  </money>
+  <note_view x="0" y="0" width="10" height="10">
+    <text r="208" g="219" b="226" font="letterica16" align="l" vert_align="t" complex_mode="1" />
+  </note_view>
+  <status x="44" y="672" width="720" height="26">
+    <text r="132" g="151" b="163" font="letterica16" align="l" vert_align="c" />
+  </status>
+  <hint x="0" y="0" width="10" height="10">
+    <text r="160" g="170" b="160" font="letterica16" align="c" vert_align="c" complex_mode="1" />
+  </hint>
+  <hint_left x="0" y="0" width="10" height="10">
+    <text r="160" g="170" b="160" font="letterica16" align="l" vert_align="t" complex_mode="1" />
+  </hint_left>
+  <seek x="0" y="0" width="10" height="20" stretch="1">
+    <text align="c" vert_align="c" font="letterica16" r="226" g="196" b="120" />
+    <texture>lz_nw_pda_button</texture>
+    <text_color>
+      <e r="208" g="219" b="226" />
+      <h r="245" g="248" b="250" />
+      <t r="255" g="255" b="255" />
+      <d r="107" g="120" b="127" />
+    </text_color>
+  </seek>
+  <msg_head x="0" y="0" width="10" height="20">
+    <text r="132" g="151" b="163" font="letterica16" align="l" vert_align="c" />
+  </msg_head>
+  <msg_name x="0" y="0" width="10" height="20">
+    <text r="218" g="229" b="235" font="letterica16" align="l" vert_align="c" />
+  </msg_name>
+  <msg_text x="0" y="0" width="10" height="30">
+    <text r="208" g="219" b="226" font="letterica16" align="l" vert_align="t" complex_mode="1" />
+  </msg_text>
+  <msg_own x="0" y="0" width="10" height="30">
+    <text r="235" g="225" b="190" font="letterica16" align="r" vert_align="t" complex_mode="1" />
+  </msg_own>
+  <icon x="0" y="0" width="48" height="36" stretch="1">
+    <texture>ui\ui_noise</texture>
+  </icon>
+  <button x="0" y="0" width="10" height="30" stretch="1">
+    <text align="c" vert_align="c" font="letterica16" r="208" g="219" b="226" />
+    <texture>lz_nw_pda_button</texture>
+    <text_color>
+      <e r="208" g="219" b="226" />
+      <h r="245" g="248" b="250" />
+      <t r="255" g="255" b="255" />
+      <d r="107" g="120" b="127" />
+    </text_color>
+  </button>
+  <row x="0" y="0" width="10" height="30" stretch="1">
+    <text align="l" vert_align="c" font="letterica16" r="208" g="219" b="226" x="10" />
+    <texture>lz_nw_pda_button</texture>
+    <text_color>
+      <e r="208" g="219" b="226" />
+      <h r="245" g="248" b="250" />
+      <t r="255" g="255" b="255" />
+      <d r="107" g="120" b="127" />
+    </text_color>
+  </row>
+  <edit x="0" y="0" width="10" height="32" max_symb_count="300">
+    <text x="8" font="letterica16" complex_mode="0" vert_align="c" r="208" g="219" b="226" />
+    <texture>ui_inGame2_edit_box_2</texture>
+  </edit>
+  <edit_amount x="0" y="0" width="10" height="30" max_symb_count="7" numonly="1">
+    <text x="8" font="letterica16" complex_mode="0" vert_align="c" r="208" g="219" b="226" />
+    <texture>ui_inGame2_edit_box_2</texture>
+  </edit_amount>
+  <edit_note x="0" y="0" width="10" height="32" max_symb_count="1200">
+    <text x="8" font="letterica16" complex_mode="0" vert_align="c" r="208" g="219" b="226" />
+    <texture>ui_inGame2_edit_box_2</texture>
+  </edit_note>
+  <edit_uid x="0" y="0" width="10" height="30" max_symb_count="6" numonly="1">
+    <text x="8" font="letterica16" complex_mode="0" vert_align="c" r="208" g="219" b="226" />
+    <texture>ui_inGame2_edit_box_2</texture>
+  </edit_uid>
+  <photo x="0" y="0" width="10" height="10" stretch="1">
+    <texture>ui\ui_noise</texture>
+  </photo>
+  <cam_bar x="0" y="0" width="10" height="3" stretch="1">
+    <texture a="230" r="235" g="240" b="240">ui_icons_PDA_tooltips</texture>
+  </cam_bar>
+  <cam_title x="80" y="76" width="400" height="34">
+    <text r="235" g="240" b="240" font="graffiti32" align="l" vert_align="c" />
+  </cam_title>
+  <cam_info x="544" y="76" width="400" height="34">
+    <text r="235" g="240" b="240" font="letterica18" align="r" vert_align="c" />
+  </cam_info>
+  <cam_hint x="80" y="660" width="864" height="30">
+    <text r="215" g="222" b="226" font="letterica16" align="c" vert_align="c" />
+  </cam_hint>
+  <cam_saved x="262" y="420" width="500" height="40">
+    <text r="235" g="225" b="190" font="graffiti32" align="c" vert_align="c" />
+  </cam_saved>
+  <nw_chats>
+    <main x="0" y="0" width="1024" height="768">
+      <auto_static x="44" y="113" width="720" height="25" pda_redesign="1">
+        <text font="letterica18" r="218" g="229" b="235" align="l" vert_align="c">st_lz_nw_pda_tab_chats</text>
+      </auto_static>
+    </main>
+    <list_frame x="36" y="150" width="240" height="474">
+      <texture>lz_nw_pda_panel</texture>
+    </list_frame>
+    <list x="44" y="158" width="224" height="458" vert_interval="4" always_show_scroll="1" scroll_profile="default" />
+    <btn_group_new x="36" y="630" width="240" height="26">
+      <window_name>lz_nw_pda_btn_group_new</window_name>
+      <text font="letterica16" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_group_new</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_group_new>
+    <head_frame x="284" y="150" width="500" height="56">
+      <texture>lz_nw_pda_panel</texture>
+    </head_frame>
+    <head_avatar x="10" y="8" width="62" height="40" />
+    <head_dot x="60" y="36" width="10" height="10">
+      <texture>lz_nw_pda_dot_off</texture>
+    </head_dot>
+    <head_name x="82" y="9" width="176" height="20">
+      <text align="l" vert_align="c" font="letterica18" r="211" g="222" b="228" />
+    </head_name>
+    <head_state x="82" y="30" width="176" height="18">
+      <text align="l" vert_align="c" font="letterica16" r="146" g="148" b="150" />
+    </head_state>
+    <btn_money x="266" y="15" width="110" height="26">
+      <window_name>lz_nw_pda_btn_money</window_name>
+      <text font="letterica16" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_money</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_money>
+    <btn_group x="266" y="15" width="110" height="26">
+      <window_name>lz_nw_pda_btn_group</window_name>
+      <text font="letterica16" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_group_members_btn</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_group>
+    <btn_clear x="380" y="15" width="110" height="26">
+      <window_name>lz_nw_pda_btn_clear</window_name>
+      <text font="letterica16" r="205" g="150" b="140" align="c" vert_align="c">st_lz_nw_pda_clear_chat</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_clear>
+    <btn_history x="574" y="114" width="210" height="24">
+      <window_name>lz_nw_pda_btn_history</window_name>
+      <text font="letterica16" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_history_more</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_history>
+    <conv_frame x="284" y="214" width="500" height="380">
+      <texture>lz_nw_pda_panel</texture>
+    </conv_frame>
+    <conv x="292" y="222" width="484" height="364" vert_interval="10" always_show_scroll="1" scroll_profile="default" />
+    <empty_hint x="300" y="380" width="468" height="48">
+      <text align="c" vert_align="c" font="letterica16" r="140" g="140" b="140" complex_mode="1">st_lz_nw_pda_no_chat</text>
+    </empty_hint>
+    <btn_att_photo x="284" y="602" width="161" height="22">
+      <window_name>lz_nw_pda_btn_att_photo</window_name>
+      <text font="letterica16" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_attach_photo</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_att_photo>
+    <btn_att_mark x="453" y="602" width="162" height="22">
+      <window_name>lz_nw_pda_btn_att_mark</window_name>
+      <text font="letterica16" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_attach_mark</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_att_mark>
+    <btn_att_voice x="623" y="602" width="161" height="22">
+      <window_name>lz_nw_pda_btn_att_voice</window_name>
+      <text font="letterica16" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_attach_voice_btn</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_att_voice>
+    <edit x="284" y="630" width="392" height="26" max_symb_count="220">
+      <text x="8" width="376" font="letterica16" complex_mode="0" vert_align="c" r="210" g="208" b="200" />
+      <texture>ui_inGame2_edit_box_2</texture>
     </edit>
-    <edit_amount x="0" y="0" width="10" height="30" max_symb_count="7" numonly="1">
-        <text x="8" font="letterica16" complex_mode="0" vert_align="c" r="208" g="219" b="226"/>
-        <texture>ui_inGame2_edit_box_2</texture>
-    </edit_amount>
-    <edit_note x="0" y="0" width="10" height="32" max_symb_count="1200">
-        <text x="8" font="letterica16" complex_mode="0" vert_align="c" r="208" g="219" b="226"/>
-        <texture>ui_inGame2_edit_box_2</texture>
-    </edit_note>
-    <edit_uid x="0" y="0" width="10" height="30" max_symb_count="6" numonly="1">
-        <text x="8" font="letterica16" complex_mode="0" vert_align="c" r="208" g="219" b="226"/>
-        <texture>ui_inGame2_edit_box_2</texture>
-    </edit_uid>
-    <!-- a PDA photo (netcoop_pdanet_photo); the texture is set by name -->
-    <photo x="0" y="0" width="10" height="10" stretch="1">
-        <texture>ui\ui_noise</texture>
-    </photo>
-    <!-- photo mode (HUD, 1024x768): corner brackets, title, zoom/count, hint -->
-    <cam_bar x="0" y="0" width="10" height="3" stretch="1">
-        <texture a="230" r="235" g="240" b="240">ui_icons_PDA_tooltips</texture>
-    </cam_bar>
-    <cam_title x="80" y="76" width="400" height="34">
-        <text r="235" g="240" b="240" font="graffiti32" align="l" vert_align="c"/>
-    </cam_title>
-    <cam_info x="544" y="76" width="400" height="34">
-        <text r="235" g="240" b="240" font="letterica18" align="r" vert_align="c"/>
-    </cam_info>
-    <cam_hint x="80" y="660" width="864" height="30">
-        <text r="215" g="222" b="226" font="letterica16" align="c" vert_align="c"/>
-    </cam_hint>
-    <cam_saved x="262" y="420" width="500" height="40">
-        <text r="235" g="225" b="190" font="graffiti32" align="c" vert_align="c"/>
-    </cam_saved>
+    <btn_send x="684" y="630" width="100" height="26">
+      <window_name>lz_nw_pda_btn_send</window_name>
+      <text font="letterica16" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_send</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_send>
+    <bubble_action x="0" y="0" width="150" height="22">
+      <window_name>lz_nw_pda_bubble_action</window_name>
+      <text font="letterica16" r="211" g="222" b="228" align="c" vert_align="c" />
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </bubble_action>
+    <picker x="314" y="240" width="440" height="330">
+      <texture>lz_nw_pda_shell</texture>
+      <auto_static x="4" y="4" width="432" height="322" stretch="1">
+        <texture a="245">ui_nw_panel_dark</texture>
+      </auto_static>
+    </picker>
+    <picker_title x="18" y="12" width="404" height="24">
+      <text align="l" vert_align="c" font="letterica18" r="211" g="222" b="228" />
+    </picker_title>
+    <picker_list x="18" y="44" width="404" height="226" item_height="22" can_select="1" always_show_scroll="1" scroll_profile="default">
+      <font r="190" g="190" b="190" font="letterica16" />
+    </picker_list>
+    <picker_ok x="18" y="282" width="198" height="28">
+      <window_name>lz_nw_pda_picker_ok</window_name>
+      <text font="letterica16" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_send</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </picker_ok>
+    <picker_cancel x="224" y="282" width="198" height="28">
+      <window_name>lz_nw_pda_picker_cancel</window_name>
+      <text font="letterica16" r="200" g="200" b="200" align="c" vert_align="c">st_lz_nw_pda_cancel</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </picker_cancel>
+    <group x="314" y="222" width="440" height="356">
+      <texture>lz_nw_pda_shell</texture>
+      <auto_static x="4" y="4" width="432" height="338" stretch="1">
+        <texture a="245">ui_nw_panel_dark</texture>
+      </auto_static>
+    </group>
+    <group_title x="18" y="12" width="404" height="24">
+      <text align="l" vert_align="c" font="letterica18" r="211" g="222" b="228" />
+    </group_title>
+    <group_icon x="18" y="44" width="44" height="44" />
+    <group_icon_btn x="70" y="52" width="120" height="28">
+      <window_name>lz_nw_pda_group_icon</window_name>
+      <text font="letterica16" r="200" g="200" b="200" align="c" vert_align="c">st_lz_nw_pda_group_icon</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </group_icon_btn>
+    <group_name x="198" y="52" width="224" height="28" max_symb_count="32">
+      <text x="8" width="208" font="letterica16" complex_mode="0" vert_align="c" r="210" g="208" b="200" />
+      <texture>ui_inGame2_edit_box_2</texture>
+    </group_name>
+    <group_list x="18" y="98" width="404" height="196" item_height="22" can_select="1" always_show_scroll="1" scroll_profile="default">
+      <font r="190" g="190" b="190" font="letterica16" />
+    </group_list>
+    <group_icons x="18" y="98" width="404" height="196" vert_interval="3" always_show_scroll="1" scroll_profile="default" />
+    <group_ok x="18" y="310" width="130" height="28">
+      <window_name>lz_nw_pda_group_ok</window_name>
+      <text font="letterica16" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_group_create</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </group_ok>
+    <group_leave x="155" y="310" width="130" height="28">
+      <window_name>lz_nw_pda_group_leave</window_name>
+      <text font="letterica16" r="205" g="150" b="140" align="c" vert_align="c">st_lz_nw_pda_group_leave</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </group_leave>
+    <group_cancel x="292" y="310" width="130" height="28">
+      <window_name>lz_nw_pda_group_cancel</window_name>
+      <text font="letterica16" r="200" g="200" b="200" align="c" vert_align="c">st_lz_nw_pda_cancel</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </group_cancel>
+    <money x="314" y="252" width="440" height="304">
+      <texture>lz_nw_pda_shell</texture>
+      <auto_static x="4" y="4" width="432" height="286" stretch="1">
+        <texture a="245">ui_nw_panel_dark</texture>
+      </auto_static>
+    </money>
+    <money_title x="18" y="12" width="404" height="24">
+      <text align="l" vert_align="c" font="letterica18" r="211" g="222" b="228" />
+    </money_title>
+    <money_edit x="18" y="48" width="180" height="26" max_symb_count="9">
+      <text x="8" width="164" font="letterica16" complex_mode="0" vert_align="c" r="210" g="208" b="200" />
+      <texture>ui_inGame2_edit_box_2</texture>
+    </money_edit>
+    <money_fee x="212" y="52" width="18" height="18">
+      <texture>ui_inGame2_checkbox</texture>
+    </money_fee>
+    <money_fee_label x="238" y="50" width="184" height="22">
+      <text align="l" vert_align="c" font="letterica16" r="180" g="180" b="180">st_lz_nw_pda_money_feemine</text>
+    </money_fee_label>
+    <money_summary x="18" y="88" width="404" height="130">
+      <text align="l" vert_align="t" font="letterica16" r="180" g="180" b="180" complex_mode="1" />
+    </money_summary>
+    <money_ok x="18" y="256" width="198" height="28">
+      <window_name>lz_nw_pda_money_ok</window_name>
+      <text font="letterica16" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_money_send</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <d r="107" g="120" b="127" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+      </text_color>
+    </money_ok>
+    <money_cancel x="224" y="256" width="198" height="28">
+      <window_name>lz_nw_pda_money_cancel</window_name>
+      <text font="letterica16" r="200" g="200" b="200" align="c" vert_align="c">st_lz_nw_pda_cancel</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </money_cancel>
+  </nw_chats>
+  <nw_contacts>
+    <main x="0" y="0" width="1024" height="768">
+      <auto_static x="44" y="113" width="720" height="25" pda_redesign="1">
+        <text font="letterica18" r="218" g="229" b="235" align="l" vert_align="c">st_lz_nw_pda_tab_contacts</text>
+      </auto_static>
+    </main>
+    <head_frame x="36" y="150" width="748" height="56">
+      <texture>lz_nw_pda_panel</texture>
+    </head_frame>
+    <my_uid x="16" y="9" width="190" height="22">
+      <text align="l" vert_align="c" font="letterica18" r="211" g="222" b="228" />
+    </my_uid>
+    <my_nick x="16" y="31" width="190" height="18">
+      <text align="l" vert_align="c" font="letterica16" r="150" g="152" b="154" />
+    </my_nick>
+    <add_caption x="216" y="15" width="36" height="26">
+      <text align="r" vert_align="c" font="letterica16" r="180" g="180" b="180">st_lz_nw_pda_uid</text>
+    </add_caption>
+    <add_edit x="258" y="15" width="118" height="26" max_symb_count="10">
+      <text x="8" width="102" font="letterica16" complex_mode="0" vert_align="c" r="210" g="208" b="200" />
+      <texture>ui_inGame2_edit_box_2</texture>
+    </add_edit>
+    <btn_add x="384" y="15" width="118" height="26">
+      <window_name>lz_nw_pda_btn_add</window_name>
+      <text font="letterica16" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_contact_add</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_add>
+    <btn_open x="510" y="15" width="110" height="26">
+      <window_name>lz_nw_pda_btn_open</window_name>
+      <text font="letterica16" r="200" g="200" b="200" align="c" vert_align="c">st_lz_nw_pda_contact_open</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <d r="107" g="120" b="127" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+      </text_color>
+    </btn_open>
+    <btn_del x="628" y="15" width="110" height="26">
+      <window_name>lz_nw_pda_btn_del</window_name>
+      <text font="letterica16" r="205" g="150" b="140" align="c" vert_align="c">st_lz_nw_pda_contact_del</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <d r="107" g="120" b="127" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+      </text_color>
+    </btn_del>
+    <list_frame x="36" y="214" width="748" height="410">
+      <texture>lz_nw_pda_panel</texture>
+    </list_frame>
+    <list x="40" y="218" width="740" height="402" vert_interval="2" always_show_scroll="1" scroll_profile="default" />
+    <empty x="236" y="396" width="348" height="24">
+      <text align="c" vert_align="c" font="letterica16" r="140" g="140" b="140">st_lz_nw_pda_contacts_empty</text>
+    </empty>
+    <hint x="36" y="632" width="748" height="20">
+      <text align="l" vert_align="c" font="letterica16" r="150" g="150" b="150">st_lz_nw_pda_contacts_hint</text>
+    </hint>
+  </nw_contacts>
+  <nw_gallery>
+    <main x="0" y="0" width="1024" height="768">
+      <auto_static x="44" y="113" width="720" height="25" pda_redesign="1">
+        <text font="letterica18" r="218" g="229" b="235" align="l" vert_align="c">st_lz_nw_pda_tab_gallery</text>
+      </auto_static>
+    </main>
+    <grid_frame x="36" y="150" width="472" height="472">
+      <texture>lz_nw_pda_panel</texture>
+    </grid_frame>
+    <grid x="40" y="154" width="464" height="464" vert_interval="8" always_show_scroll="1" scroll_profile="default" />
+    <prev_frame x="520" y="150" width="264" height="406">
+      <texture>lz_nw_pda_panel</texture>
+    </prev_frame>
+    <prev_image x="8" y="8" width="248" height="140" />
+    <prev_info x="10" y="158" width="244" height="238">
+      <text align="l" vert_align="t" font="letterica16" r="180" g="180" b="180" complex_mode="1" />
+    </prev_info>
+    <btn_send x="520" y="564" width="128" height="26">
+      <window_name>lz_nw_pda_btn_send_photo</window_name>
+      <text font="letterica16" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_send</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <d r="107" g="120" b="127" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+      </text_color>
+    </btn_send>
+    <btn_del x="656" y="564" width="128" height="26">
+      <window_name>lz_nw_pda_btn_del_photo</window_name>
+      <text font="letterica16" r="205" g="150" b="140" align="c" vert_align="c">st_lz_nw_pda_photo_del</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <d r="107" g="120" b="127" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+      </text_color>
+    </btn_del>
+    <btn_cancel_attach x="520" y="596" width="264" height="26">
+      <window_name>lz_nw_pda_btn_cancel_attach</window_name>
+      <text font="letterica16" r="200" g="200" b="200" align="c" vert_align="c">st_lz_nw_pda_cancel</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_cancel_attach>
+    <btn_shoot x="36" y="630" width="160" height="26">
+      <window_name>lz_nw_pda_btn_shoot_g</window_name>
+      <text font="letterica16" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_shoot</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_shoot>
+    <count x="204" y="634" width="180" height="18">
+      <text align="l" vert_align="c" font="letterica16" r="180" g="180" b="180" />
+    </count>
+    <attach_banner x="392" y="634" width="392" height="18">
+      <text align="r" vert_align="c" font="letterica16" r="211" g="222" b="228" />
+    </attach_banner>
+    <view x="36" y="150" width="748" height="506">
+      <texture>lz_nw_pda_shell</texture>
+      <auto_static x="4" y="4" width="740" height="498" stretch="1">
+        <texture a="252">ui_nw_panel_dark</texture>
+      </auto_static>
+    </view>
+    <view_image x="14" y="14" width="720" height="405" />
+    <view_prev x="14" y="428" width="60" height="28">
+      <window_name>lz_nw_pda_view_prev</window_name>
+      <text font="letterica18" r="211" g="222" b="228" align="c" vert_align="c">&lt;</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </view_prev>
+    <view_next x="78" y="428" width="60" height="28">
+      <window_name>lz_nw_pda_view_next</window_name>
+      <text font="letterica18" r="211" g="222" b="228" align="c" vert_align="c">&gt;</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </view_next>
+    <view_info x="150" y="432" width="460" height="22">
+      <text align="l" vert_align="c" font="letterica16" r="180" g="180" b="180" />
+    </view_info>
+    <view_close x="618" y="428" width="116" height="28">
+      <window_name>lz_nw_pda_view_close</window_name>
+      <text font="letterica16" r="200" g="200" b="200" align="c" vert_align="c">st_lz_nw_pda_close</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </view_close>
+    <empty x="98" y="374" width="348" height="24">
+      <text align="c" vert_align="c" font="letterica16" r="140" g="140" b="140">st_lz_nw_pda_gallery_empty</text>
+    </empty>
+  </nw_gallery>
+  <nw_photo>
+    <main x="0" y="0" width="1024" height="768">
+      <auto_static x="44" y="113" width="720" height="25" pda_redesign="1">
+        <text font="letterica18" r="218" g="229" b="235" align="l" vert_align="c">st_lz_nw_pda_photo_title</text>
+      </auto_static>
+    </main>
+    <frame x="36" y="150" width="264" height="506">
+      <texture>lz_nw_pda_panel</texture>
+    </frame>
+    <title x="20" y="20" width="224" height="28">
+      <text align="l" vert_align="c" font="letterica18" r="211" g="222" b="228">st_lz_nw_pda_photo_title</text>
+    </title>
+    <descr x="20" y="64" width="224" height="248">
+      <text align="l" vert_align="t" font="letterica16" r="180" g="180" b="180" complex_mode="1" />
+    </descr>
+    <count x="20" y="352" width="224" height="24">
+      <text align="l" vert_align="c" font="letterica16" r="150" g="152" b="154" />
+    </count>
+    <btn_shoot x="20" y="408" width="224" height="36">
+      <window_name>lz_nw_pda_btn_shoot</window_name>
+      <text font="letterica18" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_shoot</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_shoot>
+    <last_frame x="312" y="150" width="472" height="506">
+      <texture>lz_nw_pda_panel</texture>
+    </last_frame>
+    <last_image x="12" y="12" width="448" height="252" />
+    <last_caption x="20" y="288" width="432" height="180">
+      <text align="l" vert_align="t" font="letterica16" r="160" g="162" b="164" complex_mode="1" />
+    </last_caption>
+  </nw_photo>
+  <nw_voice>
+    <main x="0" y="0" width="1024" height="768">
+      <auto_static x="44" y="113" width="720" height="25" pda_redesign="1">
+        <text font="letterica18" r="218" g="229" b="235" align="l" vert_align="c">st_lz_nw_pda_voice_title</text>
+      </auto_static>
+    </main>
+    <frame x="36" y="150" width="264" height="506">
+      <texture>lz_nw_pda_panel</texture>
+    </frame>
+    <title x="20" y="20" width="224" height="28">
+      <text align="l" vert_align="c" font="letterica18" r="211" g="222" b="228">st_lz_nw_pda_voice_title</text>
+    </title>
+    <descr x="20" y="64" width="224" height="242">
+      <text align="l" vert_align="t" font="letterica16" r="180" g="180" b="180" complex_mode="1" />
+    </descr>
+    <state x="20" y="352" width="224" height="24">
+      <text align="l" vert_align="c" font="letterica16" r="150" g="152" b="154" />
+    </state>
+    <btn_record x="56" y="558" width="224" height="36">
+      <window_name>lz_nw_pda_btn_record</window_name>
+      <text font="letterica18" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_voice_rec</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_record>
+    <list x="320" y="158" width="456" height="368" item_height="30" can_select="1" always_show_scroll="0" scroll_profile="default">
+      <font r="190" g="190" b="190" font="letterica16" />
+    </list>
+    <empty x="332" y="300" width="432" height="40">
+      <text align="c" vert_align="c" font="letterica16" r="140" g="140" b="140">st_lz_nw_pda_voice_empty</text>
+    </empty>
+    <btn_play x="520" y="524" width="128" height="24">
+      <window_name>lz_nw_pda_btn_voice_play</window_name>
+      <text font="letterica16" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_voice_play</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_play>
+    <btn_del x="656" y="614" width="128" height="30">
+      <window_name>lz_nw_pda_btn_voice_del</window_name>
+      <text font="letterica16" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_voice_del</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_del>
+    <btn_send x="312" y="614" width="160" height="30">
+      <window_name>lz_nw_pda_btn_voice_send</window_name>
+      <text font="letterica16" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_voice_send</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_send>
+    <btn_cancel x="480" y="614" width="168" height="30">
+      <window_name>lz_nw_pda_btn_voice_cancel</window_name>
+      <text font="letterica16" r="211" g="222" b="228" align="c" vert_align="c">st_lz_nw_pda_voice_cancel</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_cancel>
+  </nw_voice>
+  <nw_notes>
+    <main_wnd x="0" y="0" width="1024" height="768">
+      <auto_static x="28" y="41" width="6" height="6" stretch="1" pda_global_header="1">
+        <texture>lz_nw_pda_shell_lt</texture>
+      </auto_static>
+      <auto_static x="34" y="41" width="752" height="6" stretch="1" pda_global_header="1">
+        <texture>lz_nw_pda_shell_t</texture>
+      </auto_static>
+      <auto_static x="786" y="41" width="6" height="6" stretch="1" pda_global_header="1">
+        <texture>lz_nw_pda_shell_rt</texture>
+      </auto_static>
+      <auto_static x="28" y="47" width="6" height="48" stretch="1" pda_global_header="1">
+        <texture>lz_nw_pda_shell_l</texture>
+      </auto_static>
+      <auto_static x="34" y="47" width="752" height="48" stretch="1" pda_global_header="1">
+        <texture>lz_nw_pda_shell_back</texture>
+      </auto_static>
+      <auto_static x="786" y="47" width="6" height="48" stretch="1" pda_global_header="1">
+        <texture>lz_nw_pda_shell_r</texture>
+      </auto_static>
+      <auto_static x="28" y="95" width="6" height="6" stretch="1" pda_global_header="1">
+        <texture>lz_nw_pda_shell_lb</texture>
+      </auto_static>
+      <auto_static x="34" y="95" width="752" height="6" stretch="1" pda_global_header="1">
+        <texture>lz_nw_pda_shell_b</texture>
+      </auto_static>
+      <auto_static x="786" y="95" width="6" height="6" stretch="1" pda_global_header="1">
+        <texture>lz_nw_pda_shell_rb</texture>
+      </auto_static>
+    </main_wnd>
+    <background_frame x="28" y="104" width="764" height="596">
+      <texture>lz_nw_pda_shell</texture>
+    </background_frame>
+    <t_list_caption x="44" y="114" width="224" height="24">
+      <text align="l" font="letterica16" r="180" g="180" b="180">st_pda_notes_list_caption</text>
+    </t_list_caption>
+    <list_frame x="36" y="150" width="240" height="474">
+      <texture>lz_nw_pda_panel</texture>
+    </list_frame>
+    <notes_list x="44" y="158" width="224" height="458" item_height="30" can_select="1" always_show_scroll="1" scroll_profile="default">
+      <font r="190" g="190" b="190" font="letterica16" />
+    </notes_list>
+    <btn_new x="36" y="632" width="116" height="28">
+      <window_name>notes_btn_new</window_name>
+      <text font="letterica16" r="200" g="200" b="200" align="c" vert_align="c">st_pda_notes_new</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_new>
+    <btn_delete x="160" y="632" width="116" height="28">
+      <window_name>notes_btn_delete</window_name>
+      <text font="letterica16" r="200" g="200" b="200" align="c" vert_align="c">st_pda_notes_delete</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_delete>
+    <t_title_caption x="300" y="114" width="460" height="24">
+      <text align="l" font="letterica16" r="180" g="180" b="180">st_pda_notes_title_hint</text>
+    </t_title_caption>
+    <title_editbox x="284" y="150" width="372" height="30" max_symb_count="64">
+      <text x="8" width="356" font="letterica16" complex_mode="0" vert_align="c" r="200" g="200" b="200" />
+      <texture>ui_inGame2_edit_box_2</texture>
+    </title_editbox>
+    <btn_save x="664" y="150" width="120" height="30">
+      <window_name>notes_btn_save</window_name>
+      <text font="letterica16" r="200" g="200" b="200" align="c" vert_align="c">st_pda_notes_save</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </btn_save>
+    <text_frame x="284" y="192" width="500" height="432">
+      <texture>lz_nw_pda_panel</texture>
+    </text_frame>
+    <text_view x="296" y="204" width="476" height="408" always_show_scroll="1" scroll_profile="default" />
+    <t_hint x="292" y="638" width="484" height="20">
+      <text align="r" font="letterica16" r="150" g="150" b="150" />
+    </t_hint>
+  </nw_notes>
+  <nw_global>
+    <main_wnd x="0" y="0" width="1024" height="768" deley="3000" />
+    <background x="28" y="41" width="764" height="60" stretch="1">
+      <texture>lz_nw_pda_shell</texture>
+    </background>
+    <switch_mode_cap x="16" y="9" width="380" height="28">
+      <text align="l" font="letterica18" r="218" g="229" b="235" vert_align="c" />
+    </switch_mode_cap>
+    <chat_background x="28" y="104" width="764" height="596" stretch="1">
+      <texture>lz_nw_pda_shell</texture>
+    </chat_background>
+    <lang_caption x="500" y="156" width="140" height="28">
+      <text font="letterica16" r="132" g="151" b="163" align="r" vert_align="c">st_lang_select</text>
+    </lang_caption>
+    <lang_header_frame x="652" y="156" width="124" height="28" horizontal="1">
+      <texture>lz_nw_pda_language</texture>
+    </lang_header_frame>
+    <lang_list_frame x="652" y="186" width="124" height="92">
+      <texture>lz_nw_pda_panel</texture>
+    </lang_list_frame>
+    <lang_header x="652" y="156" width="124" height="28">
+      <text x="8" font="letterica16" r="208" g="219" b="226" align="l" vert_align="c">st_lang_russian</text>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </lang_header>
+    <lang_item_eng x="656" y="190" width="116" height="28">
+      <text x="5" font="letterica16" r="208" g="219" b="226" align="l" vert_align="c">st_lang_english</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </lang_item_eng>
+    <lang_item_rus x="656" y="218" width="116" height="28">
+      <text x="5" font="letterica16" r="208" g="219" b="226" align="l" vert_align="c">st_lang_russian</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </lang_item_rus>
+    <lang_item_ukr x="656" y="246" width="116" height="28">
+      <text x="5" font="letterica16" r="208" g="219" b="226" align="l" vert_align="c">st_lang_ukrainian</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </lang_item_ukr>
+    <msg_editbox x="16" y="524" width="580" height="36" max_symb_count="72">
+      <text x="10" width="556" font="letterica16" complex_mode="0" vert_align="c" r="208" g="219" b="226" />
+      <texture>lz_nw_pda_input</texture>
+    </msg_editbox>
+    <send_chat_msg x="608" y="524" width="140" height="36">
+      <text font="letterica16" r="208" g="219" b="226" align="c" vert_align="c">st_chat_send_msg</text>
+      <texture>lz_nw_pda_button</texture>
+      <text_color>
+        <e r="208" g="219" b="226" />
+        <h r="245" g="248" b="250" />
+        <t r="255" g="255" b="255" />
+        <d r="107" g="120" b="127" />
+      </text_color>
+    </send_chat_msg>
+    <anon_checkbox x="16" y="570" width="20" height="20">
+      <texture>lz_nw_pda_check</texture>
+    </anon_checkbox>
+    <anon_checkbox_label x="44" y="568" width="300" height="24">
+      <text align="l" vert_align="c" font="letterica16" r="132" g="151" b="163">st_anonimous_mode</text>
+    </anon_checkbox_label>
+    <chat_text_background x="8" y="90" width="748" height="422" stretch="1">
+      <texture>lz_nw_pda_panel</texture>
+    </chat_text_background>
+    <list_text x="8" y="8" width="732" height="406" complex_mode="1" vert_interval="12" always_show_scroll="1" scroll_profile="default" />
+    <news_item x="0" y="0" width="704" height="48">
+      <date_static x="56" y="4" width="160" height="16">
+        <text align="l" font="letterica16" r="132" g="151" b="163" />
+      </date_static>
+      <caption_static x="220" y="4" width="476" height="16">
+        <text align="l" font="letterica16" r="218" g="229" b="235" />
+      </caption_static>
+      <text_static x="56" y="24" width="640" height="18" complex_mode="1">
+        <text align="l" font="letterica16" r="208" g="219" b="226" />
+      </text_static>
+      <image x="8" y="5" width="36" height="36" stretch="1" />
+    </news_item>
+    <channel_0 x="4" y="6" width="248" height="30">
+      <texture>lz_nw_pda_button</texture>
+      <text font="letterica16" align="c" vert_align="c" r="180" g="202" b="214">Общий</text>
+    </channel_0>
+    <channel_1 x="256" y="6" width="248" height="30">
+      <texture>lz_nw_pda_button</texture>
+      <text font="letterica16" align="c" vert_align="c" r="180" g="202" b="214">Некролог</text>
+    </channel_1>
+    <channel_2 x="508" y="6" width="252" height="30">
+      <texture>lz_nw_pda_button</texture>
+      <text font="letterica16" align="c" vert_align="c" r="180" g="202" b="214">Вестник Зоны</text>
+    </channel_2>
+  </nw_global>
+  <anonymous x="44" y="668" width="20" height="20">
+    <texture>lz_nw_pda_check</texture>
+  </anonymous>
+  <anon_label x="72" y="666" width="220" height="24">
+    <text font="letterica16" align="l" vert_align="c" r="132" g="151" b="163" />
+  </anon_label>
+  <cam_lt x="64" y="64" width="72" height="72" stretch="1">
+    <texture>lz_nw_pda_vf_lt</texture>
+  </cam_lt>
+  <cam_rt x="888" y="64" width="72" height="72" stretch="1">
+    <texture>lz_nw_pda_vf_rt</texture>
+  </cam_rt>
+  <cam_lb x="64" y="632" width="72" height="72" stretch="1">
+    <texture>lz_nw_pda_vf_lb</texture>
+  </cam_lb>
+  <cam_rb x="888" y="632" width="72" height="72" stretch="1">
+    <texture>lz_nw_pda_vf_rb</texture>
+  </cam_rb>
+  <cam_ring x="464" y="336" width="96" height="96" stretch="1">
+    <texture>lz_nw_pda_vf_ring</texture>
+  </cam_ring>
 </w>

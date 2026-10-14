@@ -110,7 +110,7 @@ local function view(me, uid)
 	local v = { uid = uid }
 	if me.contacts[uid] and other then
 		v.name, v.icon = other.name, other.icon
-		if other.contacts and other.contacts[me.uid] then v.online = online(other) end
+		if other.contacts and other.contacts[me.uid] then v.online = online(other); v.friend = true end
 	end
 	return v
 end
@@ -206,7 +206,17 @@ end
 
 local function state(id, me)
 	local contacts, chats = {}, {}
-	for uid in pairs(me.contacts) do contacts[#contacts + 1] = view(me, uid) end
+	local here = local_players()
+	for uid in pairs(me.contacts) do
+		local contact = view(me, uid)
+		if contact.friend then
+			local _, char = profile_by_uid(uid)
+			local actor_id = char and here[char]
+			local actor = actor_id and level.object_by_id(actor_id)
+			if actor then contact.actor_id, contact.actor_name = actor_id, actor:character_name() end
+		end
+		contacts[#contacts + 1] = contact
+	end
 	for cid in pairs(me.chats) do
 		local s = summary(me, cid)
 		if s then chats[#chats + 1] = s end
@@ -596,6 +606,7 @@ end
 -- Polling (every 2 s): new messages for players here, from any server
 ----------------------------------------------------------------------
 local next_poll, general_seq, pushed = 0, nil, {}
+local next_state = {}
 
 -- Money sent to a player here: taken from the store (compare-and-swap, so
 -- only one server pays it) and given to his Actor.
@@ -650,9 +661,13 @@ function update_world()
 		end
 		pay_out(char, id)
 		-- heartbeat for the online status
-		profile(id)
+		local current = profile(id)
+		if current and time_global() >= (next_state[char] or 0) then
+			state(id, current)
+			next_state[char] = time_global() + HEARTBEAT * 1000
+		end
 	end
-	for char in pairs(pushed) do if not here[char] then pushed[char] = nil end end
+	for char in pairs(pushed) do if not here[char] then pushed[char], next_state[char] = nil, nil end end
 	for id, u in pairs(uploads) do
 		if time_global() - u.at > 60000 then uploads[id] = nil end -- abandoned upload
 	end

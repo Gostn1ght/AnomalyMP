@@ -460,8 +460,13 @@ local function use_trade_profile(data)
 			trade_manager.setup_buy_sell_conditions(npc, npc:id(), config)
 		end
 		local gui = ui_inventory and ui_inventory.GUI
-		if gui and gui.GetPartner and gui:GetPartner() == npc then
+		local partner = gui and gui.GetPartner and gui:GetPartner()
+		if gui and gui.mode == "trade" and partner and partner:id() == npc:id() then
 		    gui:TMode_InitProfile(npc)
+		    -- A late profile may have filtered every cell out during TMode_Init.
+		    -- Refresh the real inventories now, preserving items already selected
+		    -- for the deal; resetting whole bags would show those items twice.
+		    gui:TMode_RefreshInventories()
 		    gui.update_info = true
 		end
 	end)

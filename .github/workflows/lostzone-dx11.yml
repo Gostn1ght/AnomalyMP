@@ -71,6 +71,7 @@ jobs:
           python scripts/check-netcoop-pdanet.py
           python scripts/check-netcoop-pdanet-voice.py
           python scripts/check-netcoop-pdanet-photo.py
+          python scripts/check-newway-pda-assets.py
           python scripts/check-netcoop-workshop.py
           python scripts/check-netcoop-npc-loot.py
           python scripts/check-netcoop-npc-gather.py
@@ -177,6 +178,7 @@ jobs:
           python scripts/check-native-trunk-reach.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-ui-resize.py
+          python scripts/check-native-map-privacy.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-open-registration.py
           if errorlevel 1 exit /b %errorlevel%

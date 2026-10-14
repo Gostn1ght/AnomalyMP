@@ -99,6 +99,8 @@ function new_widget()
     function w:Enable(v) self.enabled = v end
     function w:SetWndPos() end
     function w:SetWndSize() end
+    function w:GetWndPos() return {x=0,y=0} end
+    function w:SetCheck(value) self.checked=value end
     function w:GetText() return self.text end
     function w:SetText(t) self.text = t end
     return w
@@ -107,6 +109,8 @@ function CScriptXmlInit()
     local x = {}
     function x:ParseFile() end
     function x:InitStatic() return new_widget() end
+    function x:InitFrame() return new_widget() end
+    function x:InitCheck() return new_widget() end
     function x:Init3tButton() return new_widget() end
     function x:InitEditBox() return new_widget() end
     return x

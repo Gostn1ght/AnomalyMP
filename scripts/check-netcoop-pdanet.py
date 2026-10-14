@@ -126,6 +126,11 @@ c = st.contacts[1]
 assert c.uid == ub and c.name == "Yura" and c.online is None
 st = last(cmd(1, 2, f"pdanet add {ua}"), "state")
 assert st.contacts[1].online is True
+assert st.contacts[1].friend is True and st.contacts[1].actor_id is None, 'mutual friend on another location has no local map object'
+g.players[2].server = 1
+local_friend = last(cmd(0, 1, 'pdanet hello'), 'state').contacts[1]
+assert local_friend.actor_id == 2 and local_friend.actor_name == 'Yura'
+g.players[2].server = 2
 st = last(cmd(0, 1, "pdanet hello"), "state")
 assert st.contacts[1].online is True
 g.clock += 200   # b silent for 200 s (no heartbeat): offline

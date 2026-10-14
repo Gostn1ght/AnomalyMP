@@ -1185,6 +1185,7 @@ namespace crash_saving {
 
 void CActor::net_Destroy()
 {
+	netcoop::map_player_forget(ID());
 	ResetPredictionState();
 	inherited::net_Destroy();
 

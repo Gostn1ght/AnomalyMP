@@ -65,6 +65,18 @@ last_error = nil
 local KEEP = 150
 local listeners = {}
 local parts = {}
+local map_retry_at = 0
+
+local function update_map_friends()
+	if not netcoop_map_friend or time_global() < map_retry_at then return false end
+	map_retry_at = time_global() + 1000
+	for _, contact in ipairs(contacts) do
+		if contact.friend == true and type(contact.actor_id) == "number" and type(contact.actor_name) == "string" then
+			netcoop_map_friend(contact.actor_id, contact.actor_name)
+		end
+	end
+	return false
+end
 
 function equipped()
 	local actor = db and db.actor
@@ -107,6 +119,9 @@ local function apply(verb, v)
 	if verb == "state" and type(v) == "table" then
 		me = { uid = v.uid or "", name = v.name or "", icon = v.icon or "" }
 		contacts = list(v.contacts)
+		if netcoop_map_friends_clear then netcoop_map_friends_clear() end
+		map_retry_at = 0
+		update_map_friends()
 		table.sort(contacts, function(a, b) return (a.name or a.uid) < (b.name or b.uid) end)
 		chats = list(v.chats)
 		sort_chats()
@@ -337,6 +352,7 @@ end
 local function on_first_update() hello(); ask_notes() end
 function on_game_start()
 	if not (netcoop_pure_client and netcoop_pure_client()) then return end
+	if AddUniqueCall then AddUniqueCall(update_map_friends) end
 	RegisterScriptCallback("actor_on_first_update", on_first_update)
 	-- keep the task list for "send a task" (netcoop_client_compat logs them)
 	local compat = netcoop_client_compat

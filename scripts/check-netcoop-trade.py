@@ -33,13 +33,35 @@ local count=0;for id in requests[1][3]:gmatch('%d+') do count=count+1;assert(id=
 assert(count==2,'every stacked item submitted exactly once, stale items omitted')
 bag.indx_id={};wnd:TMode_Buy();assert(#requests==2,'empty trade sends no packet')
 wnd.GetPartner=function() return nil end;wnd:TMode_Sell();assert(#requests==2)
-gui={GetPartner=function() return npc end,TMode_InitProfile=function(self,n) assert(n==npc);refreshed=true end}
+gui={mode='trade',GetPartner=function() return {id=function() return 27 end} end,
+ TMode_InitProfile=function(self,n) assert(n==npc);refreshed=true end,
+ TMode_RefreshInventories=function() inventory_refreshed=(inventory_refreshed or 0)+1 end}
 ui_inventory.GUI=gui
 ''')
 start = source.index('local function use_trade_profile(data)')
 end = source.index('\n-- A server NPC animation', start)
-lua.execute(source[start:end] + "\nuse_trade_profile('27 items/trade/trade_generic.ltx');use_trade_profile('bad message')")
-lua.execute("assert(refreshed and gui.update_info and applied==cfg,'profile rebuilds open trade UI')")
+lua.execute(source[start:end] + "\nuse_trade_profile('27 items/trade/trade_generic.ltx');use_trade_profile('bad message');test_trade_profile=use_trade_profile")
+lua.execute("assert(refreshed and inventory_refreshed==1 and gui.update_info and applied==cfg,'late profile rebuilds matching trade UI and inventories')")
+lua.execute("gui.mode='loot';test_trade_profile('27 items/trade/trade_generic.ltx');assert(inventory_refreshed==1,'loot window unchanged');gui.mode='trade'")
+lua.execute('UIInventory={}')
+lua.execute((root/'scripts/fixtures/trade/refresh_inventory.lua').read_text(encoding='utf-8'))
+lua.execute(r'''
+local function item(id) return {id=function() return id end,section=function() return 'item' end} end
+local function bag(ids)
+ return {indx_id=ids or {},AddItem=function(self,o) self.indx_id[o:id()]=true end,
+  RemoveItem_byID=function(self,id) self.indx_id[id]=nil end}
+end
+gui.CC={actor_trade_bag=bag({[99]=true}),actor_trade=bag({[12]=true}),npc_trade_bag=bag(),npc_trade=bag()}
+gui.Picker_Toggle=function() end
+gui.ParseInventory=function(self,owner) return owner==db.actor and {[11]=item(11),[12]=item(12)} or {[21]=item(21)} end
+gui.TMode_RefreshInventories=UIInventory.TMode_RefreshInventories
+test_trade_profile('27 items/trade/trade_generic.ltx')
+assert(gui.CC.actor_trade_bag.indx_id[11] and gui.CC.npc_trade_bag.indx_id[21],'late profile repopulates both actual bags')
+assert(not gui.CC.actor_trade_bag.indx_id[12] and gui.CC.actor_trade.indx_id[12],'selected stack remains in the deal without duplication')
+assert(not gui.CC.actor_trade_bag.indx_id[99],'stale item removed')
+test_trade_profile('27 items/trade/trade_generic.ltx')
+assert(not gui.CC.actor_trade_bag.indx_id[12],'duplicate profile remains idempotent')
+''')
 start = server.index('function prepare_trade(npc_id)')
 end = server.index('\nlocal game_loaded', start)
 lua.execute(server[start:end])

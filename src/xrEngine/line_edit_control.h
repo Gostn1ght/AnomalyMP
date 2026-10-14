@@ -156,6 +156,7 @@ namespace text_editor
 		float m_cur_time;
 		float m_rep_time;
 		float m_last_key_time;
+		int m_repeat_key;
 		u32 m_last_frame_time;
 		u32 m_last_changed_frame;
 

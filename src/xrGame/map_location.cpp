@@ -372,6 +372,8 @@ xr_vector<u32> map_point_path;
 
 void CMapLocation::UpdateSpot(CUICustomMap* map, CMapSpot* sp)
 {
+	const bool actor_spot = spot_type && (!xr_strcmp(spot_type, "actor_location") || !xr_strcmp(spot_type, "actor_location_p"));
+	if (!netcoop::map_player_visible(m_objectID, actor_spot)) return;
 	if (map->MapName() == GetLevelName())
 	{
 		bool b_alife = !!ai().get_alife();

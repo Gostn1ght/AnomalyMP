@@ -2834,6 +2834,8 @@ void CLevel::script_register(lua_State* L)
 		def("netcoop_vehicle_prompt_point", &netcoop::script_vehicle_prompt_point),
 		def("netcoop_box_anchor", &netcoop::script_box_anchor),
 		def("netcoop_cluster_maps", &netcoop::script_cluster_maps),
+		def("netcoop_map_friend", &netcoop::script_map_friend),
+		def("netcoop_map_friends_clear", &netcoop::map_players_reset),
 		def("netcoop_prop_shell_mass", &netcoop::script_prop_shell_mass),
 		def("netcoop_mass_props", &netcoop::script_mass_props),
 		def("netcoop_prop_set_mass", &netcoop::script_prop_set_mass),

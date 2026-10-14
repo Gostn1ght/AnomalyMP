@@ -78,3 +78,7 @@
   большую длительность физики. Это наблюдение, а не установленная причина
   зависаний. Следующий тест: `-netcoop_hitch_trace`, сравнение стеков до/после
   спавна машин. Оба QA-процесса завершены штатной командой quit.
+
+## Steering 2026-10-14
+
+Owner requests verification without launching the game. Added common text-input repetition across all fields to priority fixes. Source fixes and exact verification limits are recorded in doc 108; no graphical acceptance is inferred from fixtures.
