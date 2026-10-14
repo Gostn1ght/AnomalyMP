@@ -404,10 +404,11 @@ class WorldTest(unittest.TestCase):
             tx.execute("DROP TABLE group_member")
             tx.execute("DROP TABLE world_state")
             tx.execute("DROP TABLE route")
+            tx.execute("DROP TABLE native_player_import")
             tx.execute("UPDATE metadata SET value='1' WHERE key='schema'")
         self.store.close()
         self.open()
-        self.assertEqual(self.store.db.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()[0], "4")
+        self.assertEqual(self.store.db.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()[0], "5")
         self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM group_member WHERE group_id=?", (group,)).fetchone()[0], 2)
         self.assertEqual(self.store.db.execute("SELECT holder FROM item WHERE id=?", (item,)).fetchone()[0], npc)
 

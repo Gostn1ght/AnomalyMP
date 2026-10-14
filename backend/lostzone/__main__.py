@@ -243,9 +243,41 @@ def run(path, port_override=None, interactive=False):
             store.close()
 
 
+def player_migration(config_path, source, location, world_id, seed, *, commit=False):
+    from .native_save import scan_directory, stage_import
+    # Dry-run does not open or create a database, acquire an authority epoch,
+    # print character names, or touch credentials and source files.
+    path = Path(config_path).resolve()
+    config = json.loads(path.read_text(encoding="utf-8"))
+    if config.get("schema") != 1 or (config.get("world_id"), config.get("seed")) != (world_id, seed):
+        raise Invalid("migration must explicitly match the configured WorldID and seed")
+    database = Path(config["database"])
+    if database.is_absolute() or ".." in database.parts:
+        raise Invalid("database must stay inside the service configuration folder")
+    database = (path.parent / database).resolve()
+    if not database.is_relative_to(path.parent):
+        raise Invalid("database must stay inside the service configuration folder")
+    if location not in {entry.get("locations", [None])[0] for entry in config.get("credentials", {}).values()
+                        if entry.get("role") == "location" and len(entry.get("locations", [])) == 1}:
+        raise Invalid("migration location is not configured")
+    plan = scan_directory(source, world_id, seed, location)
+    result = {"validated": len(plan), "bytes": sum(len(record["save"].raw) for record in plan),
+              "committed": False, "live_authority_changed": False}
+    if commit:
+        if not database.is_file():
+            raise Invalid("initialize and stop the intended master before staging migration")
+        store = Store(database)
+        try:
+            result.update(stage_import(store, plan), committed=True)
+        finally:
+            store.close()
+    print(json.dumps(result, sort_keys=True))
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description="Lost Zone local World Service")
-    parser.add_argument("mode", choices=("init", "serve", "console", "bridge-config", "writer-config"))
+    parser.add_argument("mode", choices=("init", "serve", "console", "bridge-config", "writer-config", "player-migration"))
     parser.add_argument("--config", required=True)
     parser.add_argument("--location", action="append", default=[])
     parser.add_argument("--port", type=int)
@@ -258,13 +290,21 @@ def main():
     parser.add_argument("--local-seed", type=int, help="existing ALife checkpoint seed; bridge-config only")
     parser.add_argument("--authority", action="store_true", help="bridge-config: every map follows this master")
     parser.add_argument("--replace", action="store_true", help="bridge-config --authority or writer-config: rewrite an existing private file")
+    parser.add_argument("--source", help="player-migration: stopped location's native save directory")
+    parser.add_argument("--commit-import", action="store_true", help="player-migration: archive validated saves in the offline master DB")
     args = parser.parse_args()
-    if args.mode != "init" and any(value is not None for value in
+    if args.mode not in ("init", "player-migration") and any(value is not None for value in
                                    (args.world_id, args.seed, args.initial_ms, args.scale)):
         raise Invalid("world bootstrap options apply only to init")
+    if args.mode != "player-migration" and (args.source or args.commit_import):
+        raise Invalid("native import options apply only to player-migration")
     if args.mode != "bridge-config" and any(value is not None for value in (args.local_world_id, args.local_seed)):
         raise Invalid("local checkpoint binding options apply only to bridge-config")
-    if args.mode == "writer-config":
+    if args.mode == "player-migration":
+        if not args.source or len(args.location) != 1 or args.authority or args.replace or args.initial_ms is not None or args.scale is not None:
+            raise Invalid("player-migration requires source, explicit world identity and exactly one location")
+        player_migration(args.config, args.source, args.location[0], args.world_id, args.seed, commit=args.commit_import)
+    elif args.mode == "writer-config":
         if not args.destination or len(args.location) != 1 or args.authority:
             raise Invalid("writer-config requires one location and its destination")
         create_writer_config(args.config, args.destination, args.location[0], replace=args.replace)

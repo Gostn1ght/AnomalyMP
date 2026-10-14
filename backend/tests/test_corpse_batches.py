@@ -228,6 +228,7 @@ class CorpseBatchesTest(unittest.TestCase):
         with self.store.transaction() as tx:
             tx.execute("DROP INDEX item_holder")
             tx.execute("CREATE INDEX item_holder ON item(kind,holder)")
+            tx.execute("DROP TABLE native_player_import")
             tx.execute("UPDATE metadata SET value='3' WHERE key='schema'")
         self.store.close()
         child=subprocess.run([sys.executable,"-c",
@@ -251,9 +252,10 @@ class CorpseBatchesTest(unittest.TestCase):
         with self.store.transaction() as tx:
             tx.execute("DROP INDEX item_holder")
             tx.execute("CREATE INDEX item_holder ON item(kind,holder)")
+            tx.execute("DROP TABLE native_player_import")
             tx.execute("UPDATE metadata SET value='3' WHERE key='schema'")
         self.store.close();self.open()
-        self.assertEqual(self.store.db.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()[0],"4")
+        self.assertEqual(self.store.db.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()[0],"5")
         self.assertEqual([tuple(row) for row in self.store.db.execute("SELECT * FROM item ORDER BY id")],before)
         plan=[row[3] for row in self.store.db.execute("EXPLAIN QUERY PLAN SELECT * FROM item WHERE kind='CORPSE' AND holder=? ORDER BY id LIMIT 64",(self.corpse,))]
         self.assertTrue(any("item_holder" in row for row in plan))

@@ -65,7 +65,12 @@ def canonical(value, limit=1024 * 1024):
 
 SCHEMA = """
 CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-INSERT INTO metadata VALUES ('schema','4');
+INSERT INTO metadata VALUES ('schema','5');
+CREATE TABLE native_player_import (
+ id TEXT PRIMARY KEY, account TEXT NOT NULL, slot INTEGER NOT NULL CHECK(slot BETWEEN 1 AND 10),
+ location TEXT NOT NULL, world_id TEXT NOT NULL, seed TEXT NOT NULL,
+ sha256 TEXT NOT NULL, summary TEXT NOT NULL, payload_base64 TEXT NOT NULL,
+ UNIQUE(account,slot));
 CREATE TABLE world (
  singleton INTEGER PRIMARY KEY CHECK(singleton=1), world_id TEXT NOT NULL,
  seed TEXT NOT NULL, epoch INTEGER NOT NULL CHECK(epoch>0),
@@ -185,6 +190,15 @@ CREATE INDEX item_holder ON item(kind,holder,id);
 UPDATE metadata SET value='4' WHERE key='schema';
 """
 
+MIGRATE_V4 = """
+CREATE TABLE native_player_import (
+ id TEXT PRIMARY KEY, account TEXT NOT NULL, slot INTEGER NOT NULL CHECK(slot BETWEEN 1 AND 10),
+ location TEXT NOT NULL, world_id TEXT NOT NULL, seed TEXT NOT NULL,
+ sha256 TEXT NOT NULL, summary TEXT NOT NULL, payload_base64 TEXT NOT NULL,
+ UNIQUE(account,slot));
+UPDATE metadata SET value='5' WHERE key='schema';
+"""
+
 
 class Store:
     def __init__(self, path):
@@ -232,11 +246,14 @@ class Store:
             if row and row[0] == "3":
                 self.db.executescript("BEGIN IMMEDIATE;\n" + MIGRATE_V3 + "\nCOMMIT;")
                 row = self.db.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()
-            if not row or row[0] != "4":
+            if row and row[0] == "4":
+                self.db.executescript("BEGIN IMMEDIATE;\n" + MIGRATE_V4 + "\nCOMMIT;")
+                row = self.db.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()
+            if not row or row[0] != "5":
                 raise Unavailable("unsupported database schema")
             if self.db.execute("PRAGMA foreign_key_check").fetchone() is not None:
                 raise Unavailable("database ownership references are inconsistent")
-            # Additive schema-v4 indexes for bounded registry bootstrap scans;
+            # Additive indexes for bounded registry bootstrap scans;
             # existing data and saved semantic versions are unchanged.
             self.db.execute("CREATE INDEX IF NOT EXISTS entity_writer_cursor ON entity(location,writer,fence,id)")
             self.db.execute("CREATE INDEX IF NOT EXISTS item_inventory_cursor ON item(holder,id) WHERE kind NOT IN ('WORLD','DESTROYED')")
@@ -433,7 +450,7 @@ class Store:
         with self.transaction() as tx:
             self.require_epoch(tx)
             names = ("world", "world_state", "location_lease", "entity", "group_member", "container", "item", "character", "player_session",
-                     "transfer", "quest", "quest_requirement", "quest_event", "scheduled_event", "route")
+                     "transfer", "quest", "quest_requirement", "quest_event", "scheduled_event", "route", "native_player_import")
             watermark = tx.execute("SELECT COALESCE(MAX(sequence),0) FROM world_event").fetchone()[0]
             records = {name:[] for name in names}
             payload = {"schema":1,"epoch":self.epoch,"watermark":watermark,"records":records}
