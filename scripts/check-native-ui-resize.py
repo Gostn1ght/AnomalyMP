@@ -21,9 +21,9 @@ source=r'''
 #include <string>
 struct Fvector2 {float x=0,y=0;Fvector2& set(float a,float b){x=a;y=b;return *this;}};
 struct Window {
- Fvector2 pos,size;unsigned children=0;std::string text="kept text";
- void SetWndPos(Fvector2 p){pos=p;}void SetWndSize(Fvector2 s){size=s;}
- Fvector2 GetWndPos()const{return pos;}
+ Fvector2 test_pos,test_size;unsigned children=0;std::string text="kept text";
+ void SetWndPos(Fvector2 p){test_pos=p;}void SetWndSize(Fvector2 s){test_size=s;}
+ Fvector2 GetWndPos()const{return test_pos;}
  void SetAutoDelete(bool){}void SetCustomDraw(bool){}void AttachChild(Window*){++children;}
 };
 using CUI_IB_FrameLineWnd=Window;using CUI_IB_Static=Window;using CUIFrameLineWnd=Window;
@@ -46,21 +46,21 @@ int main(){
   control.InitButton(Fvector2().set(40,620),Fvector2().set(10,30));
   Window* background=frame?control.m_back_frameline:control.m_background;
   resize_button_script(&control,Fvector2().set(152,34));
-  assert(control.size.x==152 && control.size.y==34);
-  assert(background->size.x==152 && background->size.y==34);
-  assert(control.pos.x==40 && control.pos.y==620 && control.text=="kept text");
+  assert(control.test_size.x==152 && control.test_size.y==34);
+  assert(background->test_size.x==152 && background->test_size.y==34);
+  assert(control.test_pos.x==40 && control.test_pos.y==620 && control.text=="kept text");
   assert(control.children==1 && (frame?control.m_back_frameline:control.m_background)==background);
   resize_button_script(&control,Fvector2().set(264,28));
-  assert(background->size.x==264 && background->size.y==28 && control.children==1);
+  assert(background->test_size.x==264 && background->test_size.y==28 && control.children==1);
  }
  CUIEditBox input;input.m_frameLine=new Window;
  input.InitCustomEdit(Fvector2().set(44,620),Fvector2().set(10,32));
  resize_edit_box_script(&input,Fvector2().set(580,34));
- assert(input.size.x==580 && input.size.y==34);
- assert(input.m_frameLine->size.x==580 && input.m_frameLine->size.y==34);
- assert(input.pos.x==44 && input.pos.y==620 && input.text=="kept text");
+ assert(input.test_size.x==580 && input.test_size.y==34);
+ assert(input.m_frameLine->test_size.x==580 && input.m_frameLine->test_size.y==34);
+ assert(input.test_pos.x==44 && input.test_pos.y==620 && input.text=="kept text");
  CUIEditBox bare;resize_edit_box_script(&bare,Fvector2().set(120,30));
- assert(bare.size.x==120 && bare.size.y==30 && !bare.m_frameLine);
+ assert(bare.test_size.x==120 && bare.test_size.y==30 && !bare.m_frameLine);
 }
 '''
 if os.environ.get('GITHUB_ACTIONS')!='true':
