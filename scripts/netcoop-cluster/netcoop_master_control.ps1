@@ -3,20 +3,38 @@
 # calendar come from it, and maps admit no players without it.
 #   . netcoop_master_control.ps1                 (functions for the panel)
 #   powershell -File netcoop_master_control.ps1 -MasterRoot <server folder> -StartMaster
-# The master ships with its own Python in hoster\master; its private config
+# The master ships as LostZoneMaster.exe with a portable Python fallback; its private config
 # and world DB live in hoster\master\runtime and never leave this PC.
 param([string]$MasterRoot = '', [switch]$StartMaster, [switch]$StopMaster)
 
 $masterDir = Join-Path $PSScriptRoot 'master'
 $masterPython = Join-Path $masterDir 'python\python.exe'
+$masterExe = Join-Path $masterDir 'LostZoneMaster.exe'
 $masterConfig = Join-Path $masterDir 'runtime\config.json'
 $masterPort = 38477
 # GAMMA's new game: 26.10.2018 08:00 in engine game milliseconds.
 $masterDefaultCalendar = 63676137600000
 
 function Master-Processes {
-    @(Get-CimInstance Win32_Process -Filter "Name='python.exe'" -ErrorAction SilentlyContinue | Where-Object {
-        $_.CommandLine -like '*lostzone*' -and $_.ExecutablePath -and $_.ExecutablePath -like "$masterDir*" })
+    # Match exact executable paths, including both onefile bootloader processes.
+    # A neighbouring hoster's directory or unrelated Python must never match.
+    @(Get-CimInstance Win32_Process -Filter "Name='python.exe' OR Name='LostZoneMaster.exe'" -ErrorAction SilentlyContinue | Where-Object {
+        $_.ExecutablePath -and (($_.ExecutablePath -ieq $masterExe) -or
+            ($_.ExecutablePath -ieq $masterPython -and $_.CommandLine -like '*lostzone*')) })
+}
+function Master-Available {
+    return (Test-Path -LiteralPath $masterExe -PathType Leaf) -or (Test-Path -LiteralPath $masterPython -PathType Leaf)
+}
+function Master-Invocation([string[]]$Arguments) {
+    if (Test-Path -LiteralPath $masterExe -PathType Leaf) {
+        # Existing callers use the module entry point. The packaged entry point
+        # takes exactly the same CLI after removing Python's module prefix.
+        if ($Arguments.Count -ge 2 -and $Arguments[0] -ceq '-m' -and $Arguments[1] -ceq 'lostzone') {
+            $Arguments = @($Arguments | Select-Object -Skip 2)
+        }
+        return @{ File = $masterExe; Arguments = $Arguments }
+    }
+    return @{ File = $masterPython; Arguments = $Arguments }
 }
 function Master-Listening {
     $client = [Net.Sockets.TcpClient]::new()
@@ -30,8 +48,9 @@ function Master-Argument([string]$Argument) {
     return '"' + $escaped + '"'
 }
 function Master-Run([string[]]$Arguments) {
-    $encoded = (@($Arguments | ForEach-Object { Master-Argument $_ }) -join ' ')
-    $process = Start-Process -FilePath $masterPython -ArgumentList $encoded -WorkingDirectory $masterDir -WindowStyle Hidden -Wait -PassThru
+    $invocation = Master-Invocation $Arguments
+    $encoded = (@($invocation.Arguments | ForEach-Object { Master-Argument $_ }) -join ' ')
+    $process = Start-Process -FilePath $invocation.File -ArgumentList $encoded -WorkingDirectory $masterDir -WindowStyle Hidden -Wait -PassThru
     return $process.ExitCode
 }
 # The most advanced calendar the maps of this folder already reached (the
@@ -52,7 +71,7 @@ function Master-InitialCalendar([string]$RuntimeRoot) {
 # First start on this PC: a private configuration with an explicit world
 # identity, every location of the plan and the maps' calendar.
 function Initialize-Master([string]$RuntimeRoot, [string[]]$Locations) {
-    if (-not (Test-Path -LiteralPath $masterPython)) { throw 'Мастер не установлен: нет hoster\master\python. Скопируйте папку сервера целиком.' }
+    if (-not (Master-Available)) { throw 'Мастер не установлен: нет hoster\master\LostZoneMaster.exe или резервного Python. Скопируйте папку сервера целиком.' }
     if (-not (Test-Path -LiteralPath $masterConfig)) {
         $random = [Security.Cryptography.RandomNumberGenerator]::Create()
         $bytes = [byte[]]::new(16); $random.GetBytes($bytes)
@@ -81,8 +100,12 @@ function Initialize-Master([string]$RuntimeRoot, [string[]]$Locations) {
 function Start-Master([string]$RuntimeRoot, [string[]]$Locations) {
     if (@(Master-Processes).Count) { return 'Мастер уже работает.' }
     Initialize-Master $RuntimeRoot $Locations
-    $title = 'Lost Zone - мастер мира'
-    Start-Process -FilePath 'cmd.exe' -WorkingDirectory $masterDir -ArgumentList "/c title $title & color 07 & python\python.exe -m lostzone console --config runtime\config.json || pause"
+    if (Test-Path -LiteralPath $masterExe -PathType Leaf) {
+        Start-Process -FilePath $masterExe -WorkingDirectory $masterDir -ArgumentList 'console --config runtime\config.json' -WindowStyle Normal
+    } else {
+        $title = 'Lost Zone - мастер мира'
+        Start-Process -FilePath 'cmd.exe' -WorkingDirectory $masterDir -ArgumentList "/c title $title & color 07 & python\python.exe -m lostzone console --config runtime\config.json || pause" -WindowStyle Normal
+    }
     return 'Мастер запускается в своём окне.'
 }
 function Stop-Master {

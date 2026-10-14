@@ -1,4 +1,4 @@
-# Exercise the real Master-Run argv construction, never the master or game.
+﻿# Exercise the real Master-Run argv construction, never the master or game.
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'netcoop-cluster\netcoop_master_control.ps1')
 $temporaryRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
@@ -6,6 +6,7 @@ $testDirectory = Join-Path $temporaryRoot "lz master args $([Guid]::NewGuid().To
 try {
     [IO.Directory]::CreateDirectory($testDirectory) | Out-Null
     $masterDir = $testDirectory
+    $masterExe = Join-Path $testDirectory 'LostZoneMaster.exe'
     $masterPython = (Get-Command python -ErrorAction Stop).Source
     $scriptPath = Join-Path $testDirectory 'record argv.py'
     $outPath = Join-Path $testDirectory 'received argv.json'
@@ -13,8 +14,10 @@ try {
     $expected = @('space value', 'quote"value', 'trailing\', '', 'C:\Lost Zone\folder\', 'path\"quoted', 'кириллица')
     $code = Master-Run (@($scriptPath, $outPath) + $expected)
     if ($code -ne 0) { throw "Argument fixture exited with $code" }
-    $received = @([IO.File]::ReadAllText($outPath) | ConvertFrom-Json)
-    if ($received.Count -ne $expected.Count) { throw 'Argument count changed.' }
+    # PS 5.1 emits a top-level JSON array as one pipeline object. Wrapping
+    # that pipeline in @() nests it and falsely reports one argument.
+    $received = [IO.File]::ReadAllText($outPath) | ConvertFrom-Json
+    if ($received.Count -ne $expected.Count) { throw "Argument count changed: expected $($expected.Count), got $($received.Count): $($received | ConvertTo-Json -Compress)" }
     for ($index=0; $index -lt $expected.Count; $index++) {
         if ($received[$index] -cne $expected[$index]) { throw "Argument $index changed." }
     }

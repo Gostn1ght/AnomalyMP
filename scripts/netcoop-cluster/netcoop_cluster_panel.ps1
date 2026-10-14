@@ -385,7 +385,7 @@ function Checked-Maps { @($locations.Keys | Where-Object { $checked[$_] }) }
 $start = New-Button 'Запустить отмеченные' $true
 $start.Add_Click({
     # The world master comes up with the maps (they run without it as well).
-    if ((Test-Path -LiteralPath $masterPython) -and -not @(Master-Processes).Count) { try { [void](Start-Master $Runtime @($locations.Keys)) } catch { $status.ForeColor = $C.red; $status.Text = $_.Exception.Message } }
+    if ((Master-Available) -and -not @(Master-Processes).Count) { try { [void](Start-Master $Runtime @($locations.Keys)) } catch { $status.ForeColor = $C.red; $status.Text = $_.Exception.Message } }
     # Already running maps stay as they are; queued ones load one after another.
     Send-Maps 'start' @(Checked-Maps | Where-Object { $stateByMap[$_] -notin @('running','loading','queued') })
     if (-not @(Checked-Maps | Where-Object { $stateByMap[$_] -notin @('running','loading','queued') }).Count -and @(Checked-Maps).Count) {

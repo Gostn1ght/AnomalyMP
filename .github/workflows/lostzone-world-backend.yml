@@ -6,6 +6,8 @@ on:
     paths:
       - 'backend/**'
       - '.github/workflows/lostzone-world-backend.yml'
+      - 'scripts/netcoop-cluster/netcoop_master_control.ps1'
+      - 'scripts/check-netcoop-master-packaged.ps1'
   workflow_dispatch:
 
 permissions:
@@ -45,6 +47,9 @@ jobs:
         env:
           LOSTZONE_MASTER_TEST_EXE: ${{ github.workspace }}\master-artifact\LostZoneMaster.exe
         run: python -m unittest discover -s backend/tests -p test_master_entry.py -v
+      - name: Exercise hoster EXE selection, private configuration and process lifecycle
+        shell: powershell
+        run: ./scripts/check-netcoop-master-packaged.ps1 -MasterArtifact ./master-artifact/LostZoneMaster.exe
       - name: Record source revision and checksum
         shell: python
         run: |

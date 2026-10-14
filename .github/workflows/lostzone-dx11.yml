@@ -279,6 +279,7 @@ jobs:
           New-Item -ItemType Directory -Path lostzone-package/notices -Force | Out-Null
           Copy-Item -LiteralPath scripts/fixtures/ixray-scheduler/LICENSE.md -Destination lostzone-package/notices/IX-Ray-LICENSE.md
           Copy-Item -LiteralPath scripts/start-lostzone-world.cmd -Destination lostzone-package/1-Server.cmd
+          Copy-Item -LiteralPath 'scripts/dist/Start Master.cmd' -Destination 'lostzone-package/Start Master.cmd'
           Copy-Item -LiteralPath _build/_game/bin_dbg/LostZoneDX11.pdb -Destination lostzone-package/bin/LostZoneClientDX11.pdb
           Copy-Item -LiteralPath _build/_game/bin_dbg/LostZoneDX11.pdb -Destination lostzone-package/dedicated/LostZoneServerDX11.pdb
           Copy-Item -LiteralPath _build/lzpack-format.json -Destination lostzone-package/lzpack-format.json
