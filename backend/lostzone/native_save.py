@@ -109,9 +109,12 @@ class NativeSave:
     inventory_cells: int
 
     def summary(self):
-        return {"format": "NCH" + str(self.version), "sha256": self.sha256,
-                "bytes": len(self.raw), "items": self.item_count, "safe_items": self.safe_count,
-                "actor_bytes": self.actor_bytes, "progress_bytes": self.progress_bytes, "inventory_cells": self.inventory_cells}
+        result = {"format": "NCH" + str(self.version), "sha256": self.sha256,
+                  "bytes": len(self.raw), "items": self.item_count, "safe_items": self.safe_count,
+                  "actor_bytes": self.actor_bytes, "progress_bytes": self.progress_bytes}
+        if self.version >= 9:
+            result["inventory_cells"] = self.inventory_cells
+        return result
 
 
 def parse_native_save(data):

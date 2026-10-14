@@ -64,6 +64,7 @@ class NativeSaveTest(unittest.TestCase):
                 self.assertEqual(saved.raw, raw)
                 self.assertEqual(saved.version, version)
                 self.assertEqual(saved.inventory_cells, 240 if version >= 9 else 0)
+                self.assertEqual("inventory_cells" in saved.summary(), version >= 9)
                 self.assertEqual(saved.item_count, 1)
                 self.assertEqual(saved.safe_count, int(version >= 6))
                 self.assertEqual(saved.progress_bytes, len(b"tasks/info/lua/origins") if version >= 4 else 0)
