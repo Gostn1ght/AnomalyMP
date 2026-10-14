@@ -35,6 +35,9 @@ Windows. Smoke test запускает именно собранный EXE, бе
 `--onefile --console --noupx`, без данных runtime. Опции проверены по
 [официальной документации](https://pyinstaller.org/en/v6.16.0/usage.html).
 CI, установка и подключение панели хостера к EXE пока не завершены.
+Первый запуск `38573005529` не создал jobs: YAML plain scalar команды pip
+содержал `: ` в `--only-binary=:all:`. Переведено в literal block, YAML проверен
+локальным parser. Успешные backend тесты не означают готовый EXE до нового CI.
 
 ## M1: контракт и миграция сохранений
 
