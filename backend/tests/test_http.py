@@ -61,6 +61,47 @@ class HttpTest(unittest.TestCase):
         return self.call("POST", "/v1/command", {"command_id": command_id or uuid.uuid4().hex,
                                                "operation": operation, "arguments": args}, token)
 
+    def test_actual_http_native_save_upload_read_and_scope(self):
+        import base64
+        import hashlib
+        from lostzone.native_save import identity
+        from lostzone.player_saves import CHUNK
+        from test_native_save import native_fixture
+        raw = native_fixture(9,progress=b"native task/position/player state"*3000)
+        status,result = self.command("location_claim",{"location":"cordon"})
+        self.assertEqual(status,200)
+        fence = result["result"]["fence"]
+        character = identity(self.world.world_id,self.world.seed,"alice",1)
+        status,result = self.command("entity_create",{"entity_id":character,"kind":"CHARACTER",
+                  "location":"cordon","fence":fence,"state":{},"account":"alice"})
+        self.assertEqual(status,200)
+        args = {"character_id":character,"fence":fence,"session_fence":1,"entity_version":1,
+                "base_revision":0,"slot":1,"byte_count":len(raw),"sha256":hashlib.sha256(raw).hexdigest()}
+        self.assertEqual(self.command("native_save_begin",args,token="d"*48)[0],403)
+        self.assertEqual(self.command("native_save_begin",args,token="a"*48)[0],403)
+        self.assertEqual(self.command("native_save_begin",args,token="c"*48)[0],403)
+        status,result = self.command("native_save_begin",args)
+        self.assertEqual(status,200)
+        upload = result["result"]["upload_id"]
+        common = {"character_id":character,"fence":fence,"session_fence":1,"upload_id":upload}
+        for offset in range(0,len(raw),CHUNK):
+            status,_ = self.command("native_save_append",common|{"offset":offset,"data":base64.b64encode(raw[offset:offset+CHUNK]).decode()})
+            self.assertEqual(status,200)
+        command = uuid.uuid4().hex
+        status,result = self.command("native_save_finish",common,command_id=command)
+        self.assertEqual(status,200)
+        self.assertTrue(result["result"]["durable"])
+        self.assertEqual(self.command("native_save_finish",common,command_id=command),(status,result))
+        restored = b""
+        for offset in range(0,len(raw),CHUNK):
+            query = urlencode({"character_id":character,"fence":fence,"session_fence":1,"revision":1,"offset":offset})
+            status,page = self.call("GET","/v1/player-save?"+query)
+            self.assertEqual(status,200)
+            restored += base64.b64decode(page["result"]["data"])
+            self.assertEqual(self.call("GET","/v1/player-save?"+query,token="c"*48)[0],403)
+            self.assertEqual(self.call("GET","/v1/player-save?"+query,token="d"*48)[0],403)
+        self.assertEqual(restored,raw)
+
     def test_authentication_and_no_client_assigned_principal(self):
         self.assertEqual(self.call("GET", "/v1/clock", token=None)[0], 401)
         self.assertEqual(self.call("GET", "/v1/clock", token="x" * 48)[0], 401)

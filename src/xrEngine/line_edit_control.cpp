@@ -441,6 +441,15 @@ namespace text_editor
 
 	// ========================================================
 
+	void line_edit_control::reset_input()
+	{
+		m_repeat_key = -1;
+		m_hold_mode = m_repeat_mode = false;
+		m_last_key_time = m_rep_time = 0.f;
+		m_accel = 1.f;
+		m_last_frame_time = Device.dwTimeContinual;
+	}
+
 	void line_edit_control::on_key_press(int dik)
 	{
 		if (dik < 0 || DIK_COUNT <= dik)
@@ -780,12 +789,12 @@ namespace text_editor
 	{
 		int i = m_cur_pos - 1;
 		while (i >= 0 && m_edit_str[i] == ' ') { --i; }
-		if (!terminate_char(m_edit_str[i]))
+		if (i >= 0 && !terminate_char(m_edit_str[i]))
 		{
 			while (i >= 0 && !terminate_char(m_edit_str[i], true)) { --i; }
 			++i;
 		}
-		m_cur_pos = i;
+		m_cur_pos = _max(0, i);
 	}
 
 	void line_edit_control::move_pos_right_word()

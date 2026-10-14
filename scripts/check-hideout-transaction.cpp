@@ -11,7 +11,7 @@
 #include <iostream>
 using u32=unsigned;using u16=unsigned short;using xr_string=std::string;
 template<class T> using xr_vector=std::vector<T>;
-using string32=char[32];using string_path=char[260];using LPCSTR=const char*;
+using string32=char[32];using string64=char[64];using string_path=char[260];using LPCSTR=const char*;
 #define _min std::min
 #define _max std::max
 #define TRUE true
@@ -19,7 +19,7 @@ using string32=char[32];using string_path=char[260];using LPCSTR=const char*;
 #define xr_strcmp std::strcmp
 template<size_t N,class... Args> void xr_sprintf(char(&out)[N],const char* fmt,Args... args){std::snprintf(out,N,fmt,args...);}
 struct CInifile {CInifile(char*,bool,bool,bool){}bool line_exist(const char*,const char*){return false;}u32 r_u32(const char*,const char*){return 60;}};
-struct FileSystem {bool exist(char*,const char*,const char*){return false;}} FS;
+struct FileSystem {unsigned reads=0;bool exist(char*,const char*,const char*){++reads;return false;}} FS;
 struct Settings {bool line_exist(const char*,const char*){return true;}u32 r_u32(const char* s,const char* k){return std::strcmp(k,"inv_grid_height")==0 ? 1 : std::strcmp(s,"rifle")==0 ? 10 : std::strcmp(s,"huge")==0 ? 200 : 1;}} settings,*pSettings=&settings;
 enum {eItemPlaceSlot=1,eItemPlaceBelt=2};
 union SInvItemPlace {u16 value;struct {unsigned short type:2;};};
@@ -80,7 +80,7 @@ int main()
     CSE_ALifeInventoryItem root,incoming;root.ID=10;root.ID_Parent=9;incoming.ID=11;root.s_name="rifle";incoming.s_name="huge";game.objects[10]=&root;game.objects[11]=&incoming;actor.children={10};
     assert(!server_inventory_can_take(&server,9,11));incoming.s_name="medkit";assert(server_inventory_can_take(&server,9,11));
     CActor live;RuntimeItem held;live.bag.m_ruck={&held};runtime_level.Objects.objects[9]=&live;own=&live;
-    assert(storage_live_capacity(&live)==160 && script_inventory_slots()=="10|160");
+    assert(storage_live_capacity(&live)==160 && xr_string(script_inventory_slots())=="10|160");
     incoming.s_name="huge";assert(!server_inventory_can_take(&server,9,11));
     live.weight=80;assert(storage_live_capacity(&live)==320 && server_inventory_can_take(&server,9,11));
     live.weight=1000;assert(storage_live_capacity(&live)==512);live.weight=0;assert(storage_live_capacity(&live)==120);
@@ -99,5 +99,6 @@ int main()
     for(u16 i=0;i<512;++i){const u16 id=u16(100+i);maximum[i].ID=id;maximum[i].ID_Parent=9;game.objects[id]=&maximum[i];actor.children.push_back(id);}
     assert(!storage_inventory_room(&server,&actor,xr_vector<u16>{11}));actor.children.pop_back();
     assert(storage_inventory_room(&server,&actor,xr_vector<u16>{11}));
+    assert(FS.reads==1);
     std::cout<<"Actual server transaction: authenticated owner/slot, replay/restart, signature, stale revision, failed save rollback, online/dead exclusion and capacity PASS\n";
 }

@@ -193,10 +193,13 @@ class NativeSaveTest(unittest.TestCase):
                 World(store, world_id=42, seed=7)
                 before = tuple(store.db.execute("SELECT * FROM world").fetchone())
                 store.db.execute("DROP TABLE native_player_import")
+                store.db.execute("DROP TABLE native_player_part")
+                store.db.execute("DROP TABLE native_player_upload")
+                store.db.execute("DROP TABLE native_player_save")
                 store.db.execute("UPDATE metadata SET value='4' WHERE key='schema'")
             with contextlib.closing(Store(db)) as store:
                 self.assertEqual(tuple(store.db.execute("SELECT * FROM world").fetchone()), before)
-                self.assertEqual(store.db.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()[0], "5")
+                self.assertEqual(store.db.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()[0], "6")
                 with self.assertRaises((OSError, BlockingIOError)):
                     Store(db)
 

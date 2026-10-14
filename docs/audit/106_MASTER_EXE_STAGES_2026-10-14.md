@@ -89,3 +89,7 @@ M0 реализован, проверен на настоящем EXE и уст�
 ### M1: проверка и архивирование native player save
 
 Реализованы bounded NCH3..8 parser, identity WorldID/seed/account/slot, read-only dry-run и атомарный staged импорт в schema5 SQLite. Четыре существующих NCH8 проверены без изменения. Контракт и точные границы — doc 109. Импорт не создаёт live entity/session и не переключает native restore; M2 и M3 открыты. Новый EXE и CI ещё требуется подтвердить.
+
+### M2a: протокол полной native записи
+
+Подготовлены bounded chunks, SQLite durable commit, CAS/session/location fences, владелец считывания и immutable ссылка handoff. 317 backend тестов проходят, включая реальный HTTP. Док 111 фиксирует контракт. M2b — включение в штатный native capture/restore — открыт, основной источник сохранений не переключён. M3 GAMMA задания/награды открыт.

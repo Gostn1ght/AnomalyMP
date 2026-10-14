@@ -4,6 +4,7 @@ local installed = false
 function update(self)
     if not level or not level.netcoop_inventory_slots or not self.player_dialog then return end
     local raw = level.netcoop_inventory_slots()
+    if type(raw) ~= "string" then return end
     local used, capacity = string.match(raw or "", "^(%d+)|(%d+)$")
     used, capacity = tonumber(used), tonumber(capacity)
     if not used or not capacity or capacity < 1 or capacity > 512 then return end

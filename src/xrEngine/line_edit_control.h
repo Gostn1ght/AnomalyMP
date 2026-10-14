@@ -62,6 +62,7 @@ namespace text_editor
 		~line_edit_control();
 
 		void clear_states();
+		void reset_input();
 		void on_key_press(int dik);
 		void on_key_hold(int dik);
 		void on_key_release(int dik);

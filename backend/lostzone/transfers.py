@@ -97,6 +97,8 @@ class Transfers:
             if not target_lease or target_lease["expires_ms"] <= self.world.real_ms():
                 raise Conflict("target authority is unavailable")
             if root["kind"] == "CHARACTER":
+                if tx.execute("SELECT 1 FROM native_player_upload WHERE character_id=?", (entity_id,)).fetchone():
+                    raise Conflict("native player checkpoint must finish before handoff")
                 session = tx.execute("SELECT * FROM player_session WHERE character_id=?", (entity_id,)).fetchone()
                 if not session or session["state"] != "ACTIVE" or session["owner"] != actor:
                     raise Conflict("character has no active source session")

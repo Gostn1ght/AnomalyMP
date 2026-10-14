@@ -27,6 +27,7 @@ from .scavenging import Scavenging
 from .encounters import Encounters
 from .hazards import Hazards
 from .planner import Planner
+from .player_saves import PlayerSaves
 
 
 @dataclass(frozen=True)
@@ -112,6 +113,7 @@ class Dispatcher:
     def __init__(self, world, signing_key, quest_definitions=None, catalog=None, trade_profiles=None, scavenging_rules=None, planning_policy=None):
         self.world, self.store = world, world.store
         self.ownership, self.transfers = Ownership(world), Transfers(world, signing_key)
+        self.player_saves = PlayerSaves(world)
         self.timelines = Timelines(world)
         from .location_bootstrap import LocationBootstrap
         self.location_bootstrap = LocationBootstrap(world)
@@ -161,6 +163,8 @@ class Dispatcher:
             "quest_grant": self.quests.grant, "quest_progress": self.quests.progress,
             "dehydrate": self.offline.dehydrate, "hydrate": self.offline.hydrate,
             "trade": self.trade.transact,
+            "native_save_begin": self.player_saves.begin, "native_save_append": self.player_saves.append,
+            "native_save_finish": self.player_saves.finish, "native_save_cancel": self.player_saves.cancel,
         }
         if operation in administrative:
             if principal.role != "admin":
@@ -168,6 +172,14 @@ class Dispatcher:
             function = administrative[operation]
         elif operation in functions:
             function = functions[operation]
+            if operation.startswith("native_save_"):
+                if principal.role != "location":
+                    raise PermissionError("native checkpoints require a location authority")
+                with self.store.lock:
+                    row = self.store.db.execute("SELECT location FROM entity WHERE id=?", (args.get("character_id"),)).fetchone()
+                    if row is None:
+                        raise Invalid("unknown character")
+                    self.allowed(principal, row[0])
             if "location" in args:
                 self.allowed(principal, args["location"])
             if operation == "transfer_prepare":
@@ -302,6 +314,26 @@ class Handler(BaseHTTPRequestHandler):
                     location, fence = query.get("id", [""])[0], int(query.get("fence", ["0"])[0])
                     dispatcher.allowed(principal, location)
                     result = dispatcher.ownership.location_state(principal.actor, location, fence)
+                elif uri.path == "/v1/player-save":
+                    if principal.role != "location":
+                        raise PermissionError("native checkpoints require a location authority")
+                    query = parse_qs(uri.query, strict_parsing=True, keep_blank_values=True)
+                    required = {"character_id", "fence", "session_fence", "revision"}
+                    if not required <= set(query) or set(query) - (required | {"offset", "transfer_id"}) or any(len(value) != 1 for value in query.values()):
+                        raise Invalid("invalid native checkpoint query")
+                    character_id = query["character_id"][0]
+                    transfer_id = query.get("transfer_id", [None])[0]
+                    with dispatcher.store.lock:
+                        if transfer_id:
+                            row = dispatcher.store.db.execute("SELECT target FROM transfer WHERE id=?", (transfer_id,)).fetchone()
+                        else:
+                            row = dispatcher.store.db.execute("SELECT location FROM entity WHERE id=?", (character_id,)).fetchone()
+                        if row is None:
+                            raise Invalid("unknown native checkpoint owner")
+                        dispatcher.allowed(principal, row[0])
+                    result = dispatcher.player_saves.read(principal.actor, character_id, int(query["fence"][0]),
+                              int(query["session_fence"][0]), int(query["revision"][0]),
+                              offset=int(query.get("offset", ["0"])[0]), transfer_id=transfer_id)
                 elif uri.path == "/v1/location-bootstrap":
                     if principal.role != "location":
                         raise PermissionError("registry bootstrap requires a location authority")

@@ -5,6 +5,8 @@ from lupa.lua51 import LuaRuntime
 
 root = Path(__file__).resolve().parents[1]
 overlay = root/'scripts/netcoop-overlay'
+assert 'LPCSTR script_inventory_slots();' in (root/'src/xrGame/netcoop.h').read_text(encoding='utf-8')
+assert 'LPCSTR script_inventory_slots()' in (root/'src/xrGame/netcoop_storage.inc').read_text(encoding='utf-8')
 assert (overlay/'client/configs/netcoop/storage.ltx').read_bytes() == (overlay/'server/configs/netcoop/storage.ltx').read_bytes()
 layout = ET.parse(overlay/'client/configs/ui/ui_inventory_16.xml').getroot().find('player')
 slots, weight, button = [layout.find(name) for name in ('slots', 'weight', 'putall_button')]

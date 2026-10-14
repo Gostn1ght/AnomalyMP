@@ -19,6 +19,9 @@ def function(path, signature):
         end += 1
     return source[start:end] + '\n'
 
+for marker in ('void CUICustomEdit::SendMessage','bool CUICustomEdit::OnMouseAction','void CUICustomEdit::press_commit','void CUICustomEdit::press_tab','void CUICustomEdit::CaptureFocus'):
+    assert 'reset_input' in function('src/xrGame/ui/UICustomEdit.cpp',marker)
+
 fixture = r'''
 #include <cassert>
 #include <cstring>
@@ -90,15 +93,16 @@ public:
  void update_key_states() { ctrl=pInput->iGetAsyncKeyState(DIK_LCONTROL)||pInput->iGetAsyncKeyState(DIK_RCONTROL);shift=pInput->iGetAsyncKeyState(DIK_LSHIFT)||pInput->iGetAsyncKeyState(DIK_RSHIFT); }
  bool get_key_state(key_state k) { return k==ks_Ctrl?ctrl:k==ks_Shift?shift:true; }
  void update_bufs() {}
- void on_key_press(int);void on_key_hold(int);void on_key_release(int);void on_frame();void clear_inserted();bool empty_inserted();void compute_positions();void clamp_cur_pos();
- void add_inserted_text();void paste_from_clipboard();void select_all_buf();void set_edit(LPCSTR);
+ void reset_input();void on_key_press(int);void on_key_hold(int);void on_key_release(int);void on_frame();void clear_inserted();bool empty_inserted();void compute_positions();void clamp_cur_pos();
+ void move_pos_left_word();void add_inserted_text();void paste_from_clipboard();void select_all_buf();void set_edit(LPCSTR);
 };
 }
 '''
 fixture += function('src/xrCore/os_clipboard.cpp','void os_clipboard::paste_from_clipboard')
 fixture += function('src/xrEngine/Xr_input.cpp','void CInput::KeyUpdate()')
 fixture += 'namespace text_editor {\n'
-for method in ('on_key_press','on_key_hold','on_key_release','on_frame','clear_inserted','empty_inserted','compute_positions','clamp_cur_pos','add_inserted_text','paste_from_clipboard','select_all_buf','set_edit'):
+fixture += function('src/xrEngine/line_edit_control.cpp','static bool terminate_char(')
+for method in ('reset_input','move_pos_left_word','on_key_press','on_key_hold','on_key_release','on_frame','clear_inserted','empty_inserted','compute_positions','clamp_cur_pos','add_inserted_text','paste_from_clipboard','select_all_buf','set_edit'):
     ret = 'bool' if method == 'empty_inserted' else 'void'
     fixture += function('src/xrEngine/line_edit_control.cpp', f'{ret} line_edit_control::{method}')
 fixture += r'''
@@ -161,9 +165,18 @@ int main() {
  const auto held_size=strlen(receiver.edit.m_edit_str);assert(held_size>=10 && held_size<=24);
  keyboard.events={{DIK_A,0}};input.KeyUpdate();for(int i=0;i<100;++i)frame(10);
  assert(strlen(receiver.edit.m_edit_str)==held_size);
+ // Focus loss resets only transient repeat state, preserving existing text.
+ receiver.edit.set_edit("draft");keyboard.events={{DIK_A,128}};input.KeyUpdate();receiver.edit.reset_input();
+ const std::string draft=receiver.edit.m_edit_str;for(int i=0;i<100;++i)frame(10);
+ assert(std::string(receiver.edit.m_edit_str)==draft);keyboard.events={{DIK_A,0}};input.KeyUpdate();
  // A held key from another field cannot start typing after focus moves here.
  receiver.edit.set_edit("");input.KBState[DIK_A]=128;for(int i=0;i<100;++i)frame(10);
  assert(receiver.edit.m_edit_str[0]==0);input.KBState[DIK_A]=0;
+ for(const char* text:{""," ","   ","hello","hello world"}) {
+  receiver.edit.set_edit(text);receiver.edit.m_cur_pos=0;receiver.edit.move_pos_left_word();assert(receiver.edit.m_cur_pos==0);
+  receiver.edit.m_cur_pos=int(strlen(text));receiver.edit.move_pos_left_word();
+  assert(receiver.edit.m_cur_pos==(std::string(text)=="hello world"?6:0));
+ }
  receiver.edit.on_key_press(-1);receiver.edit.on_key_press(256);
  keyboard.events={{999,128},{999,0}};input.KeyUpdate();
  Device.dwPrecacheFrame=1;keyboard.events={{DIK_RCONTROL,128},{DIK_RCONTROL,0}};input.KeyUpdate();assert(!input.KBState[DIK_RCONTROL]);Device.dwPrecacheFrame=0;
@@ -175,6 +188,6 @@ int main() {
 with TemporaryDirectory(prefix='edit-input-') as tmp:
     cpp=Path(tmp)/'check.cpp';exe=Path(tmp)/'check'
     cpp.write_text(fixture)
-    subprocess.run(['g++','-std=c++17','-O2',str(cpp),'-o',str(exe)],check=True)
+    subprocess.run(['g++','-std=c++17','-O1','-g','-fsanitize=address,undefined','-fno-sanitize-recover=all',str(cpp),'-o',str(exe)],check=True)
     subprocess.run([str(exe)],check=True)
 print('Actual input/clipboard: quick left/right Ctrl+V, Ctrl+A replacement, CP1251 Unicode, empty/locked clipboard, bounds, long paste, precache, Alt+Tab/F4, duplicate events, quick taps, bounded hold and focus changes PASS')

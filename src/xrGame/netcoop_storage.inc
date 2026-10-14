@@ -3,15 +3,25 @@
 static xr_string storage_number(u32 value) { string32 text; xr_sprintf(text,"%u",value); return text; }
 static u32 storage_capacity(bool safe)
 {
-    string_path path;
-    u32 capacity=120;
-    if (FS.exist(path,"$game_config$","netcoop\\storage.ltx"))
+    // Immutable configuration for this process. Avoid filesystem/INI work in
+    // every pickup, trade check and client inventory UI frame.
+    static bool loaded=false;
+    static u32 capacities[2]={120,120};
+    if (!loaded)
     {
-        CInifile ini(path,TRUE,TRUE,FALSE);
-        LPCSTR key=safe ? "safe_cells" : "backpack_cells";
-        if (ini.line_exist("storage",key)) capacity=ini.r_u32("storage",key);
+        string_path path;
+        if (FS.exist(path,"$game_config$","netcoop\\storage.ltx"))
+        {
+            CInifile ini(path,TRUE,TRUE,FALSE);
+            for (u32 index=0;index<2;++index)
+            {
+                LPCSTR key=index ? "safe_cells" : "backpack_cells";
+                if (ini.line_exist("storage",key)) capacities[index]=_max(1u,_min(512u,ini.r_u32("storage",key)));
+            }
+        }
+        loaded=true;
     }
-    return _max(1u,_min(512u,capacity));
+    return capacities[safe ? 1 : 0];
 }
 static u32 storage_live_capacity(CActor* actor)
 {
@@ -88,14 +98,17 @@ static bool storage_equipped(const Character::Item& item)
     return place.type==eItemPlaceSlot || place.type==eItemPlaceBelt;
 }
 static u32 storage_ruck_cost(const Character::Item& item) { return storage_equipped(item) ? 0 : storage_item_cost(item); }
-xr_string script_inventory_slots()
+LPCSTR script_inventory_slots()
 {
     if (!enabled()) return "";
     CActor* actor=Actor();
     if (!actor) return "";
     u32 used=0;
     for (PIItem item:actor->inventory().m_ruck) used+=storage_section_cost(item->object().cNameSect().c_str());
-    return storage_number(used)+"|"+storage_number(storage_live_capacity(actor));
+    // Lua primitive string converter accepts LPCSTR, not xr_string's custom allocator.
+    static string64 status;
+    xr_sprintf(status,"%u|%u",used,storage_live_capacity(actor));
+    return status;
 }
 static xr_string storage_execute(xrServer* server,xrClientData* CL,const StorageRequest& request)
 {

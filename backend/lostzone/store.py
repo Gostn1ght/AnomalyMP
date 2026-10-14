@@ -65,12 +65,24 @@ def canonical(value, limit=1024 * 1024):
 
 SCHEMA = """
 CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL);
-INSERT INTO metadata VALUES ('schema','5');
+INSERT INTO metadata VALUES ('schema','6');
 CREATE TABLE native_player_import (
  id TEXT PRIMARY KEY, account TEXT NOT NULL, slot INTEGER NOT NULL CHECK(slot BETWEEN 1 AND 10),
  location TEXT NOT NULL, world_id TEXT NOT NULL, seed TEXT NOT NULL,
  sha256 TEXT NOT NULL, summary TEXT NOT NULL, payload_base64 TEXT NOT NULL,
  UNIQUE(account,slot));
+CREATE TABLE native_player_save (
+ character_id TEXT NOT NULL REFERENCES character(id), revision INTEGER NOT NULL CHECK(revision>0),
+ sha256 TEXT NOT NULL, byte_count INTEGER NOT NULL, summary TEXT NOT NULL, payload_base64 TEXT NOT NULL,
+ PRIMARY KEY(character_id,revision));
+CREATE TABLE native_player_upload (
+ id TEXT PRIMARY KEY, character_id TEXT NOT NULL UNIQUE REFERENCES character(id),
+ writer TEXT NOT NULL, fence INTEGER NOT NULL, session_fence INTEGER NOT NULL, epoch INTEGER NOT NULL,
+ entity_version INTEGER NOT NULL, base_revision INTEGER NOT NULL, slot INTEGER NOT NULL,
+ byte_count INTEGER NOT NULL, sha256 TEXT NOT NULL, received INTEGER NOT NULL, expires_ms INTEGER NOT NULL);
+CREATE TABLE native_player_part (
+ upload_id TEXT NOT NULL REFERENCES native_player_upload(id) ON DELETE CASCADE,
+ offset INTEGER NOT NULL, payload_base64 TEXT NOT NULL, PRIMARY KEY(upload_id,offset));
 CREATE TABLE world (
  singleton INTEGER PRIMARY KEY CHECK(singleton=1), world_id TEXT NOT NULL,
  seed TEXT NOT NULL, epoch INTEGER NOT NULL CHECK(epoch>0),
@@ -199,6 +211,22 @@ CREATE TABLE native_player_import (
 UPDATE metadata SET value='5' WHERE key='schema';
 """
 
+MIGRATE_V5 = """
+CREATE TABLE native_player_save (
+ character_id TEXT NOT NULL REFERENCES character(id), revision INTEGER NOT NULL CHECK(revision>0),
+ sha256 TEXT NOT NULL, byte_count INTEGER NOT NULL, summary TEXT NOT NULL, payload_base64 TEXT NOT NULL,
+ PRIMARY KEY(character_id,revision));
+CREATE TABLE native_player_upload (
+ id TEXT PRIMARY KEY, character_id TEXT NOT NULL UNIQUE REFERENCES character(id),
+ writer TEXT NOT NULL, fence INTEGER NOT NULL, session_fence INTEGER NOT NULL, epoch INTEGER NOT NULL,
+ entity_version INTEGER NOT NULL, base_revision INTEGER NOT NULL, slot INTEGER NOT NULL,
+ byte_count INTEGER NOT NULL, sha256 TEXT NOT NULL, received INTEGER NOT NULL, expires_ms INTEGER NOT NULL);
+CREATE TABLE native_player_part (
+ upload_id TEXT NOT NULL REFERENCES native_player_upload(id) ON DELETE CASCADE,
+ offset INTEGER NOT NULL, payload_base64 TEXT NOT NULL, PRIMARY KEY(upload_id,offset));
+UPDATE metadata SET value='6' WHERE key='schema';
+"""
+
 
 class Store:
     def __init__(self, path):
@@ -249,7 +277,10 @@ class Store:
             if row and row[0] == "4":
                 self.db.executescript("BEGIN IMMEDIATE;\n" + MIGRATE_V4 + "\nCOMMIT;")
                 row = self.db.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()
-            if not row or row[0] != "5":
+            if row and row[0] == "5":
+                self.db.executescript("BEGIN IMMEDIATE;\n" + MIGRATE_V5 + "\nCOMMIT;")
+                row = self.db.execute("SELECT value FROM metadata WHERE key='schema'").fetchone()
+            if not row or row[0] != "6":
                 raise Unavailable("unsupported database schema")
             if self.db.execute("PRAGMA foreign_key_check").fetchone() is not None:
                 raise Unavailable("database ownership references are inconsistent")
@@ -450,7 +481,7 @@ class Store:
         with self.transaction() as tx:
             self.require_epoch(tx)
             names = ("world", "world_state", "location_lease", "entity", "group_member", "container", "item", "character", "player_session",
-                     "transfer", "quest", "quest_requirement", "quest_event", "scheduled_event", "route", "native_player_import")
+                     "transfer", "quest", "quest_requirement", "quest_event", "scheduled_event", "route", "native_player_import", "native_player_save")
             watermark = tx.execute("SELECT COALESCE(MAX(sequence),0) FROM world_event").fetchone()[0]
             records = {name:[] for name in names}
             payload = {"schema":1,"epoch":self.epoch,"watermark":watermark,"records":records}

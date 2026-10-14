@@ -29,6 +29,8 @@ class Ownership:
         identifier(location)
         if kind not in ENTITY_KINDS or not isinstance(state, dict):
             raise Invalid("invalid entity kind/state")
+        if "native_save" in state:
+            raise Invalid("native checkpoint reference is reserved for durable commits")
         if kind == "CHARACTER":
             identifier(account)
         if kind in ("STASH", "CONTAINER"):
@@ -117,6 +119,18 @@ class Ownership:
             raise Conflict("entity writer/fence mismatch")
         self.world.require_location(tx,actor,row["location"],fence)
 
+    @staticmethod
+    def checkpoint_state(tx, entity_id, state):
+        row = tx.execute("SELECT revision,sha256,byte_count FROM native_player_save WHERE character_id=? ORDER BY revision DESC LIMIT 1", (entity_id,)).fetchone()
+        if row is None:
+            if "native_save" in state:
+                raise Invalid("native checkpoint reference has no durable save")
+            return canonical(state)
+        reference = {"revision":row["revision"], "sha256":row["sha256"], "bytes":row["byte_count"]}
+        if "native_save" in state and state["native_save"] != reference:
+            raise Conflict("native checkpoint reference cannot be replaced through entity state")
+        return canonical({**state, "native_save":reference})
+
     def update_entity(self, actor, command_id, entity_id, fence, version, state):
         if not isinstance(state, dict):
             raise Invalid("entity state must be an object")
@@ -127,6 +141,7 @@ class Ownership:
             row = self.require_entity(tx, actor, entity_id, fence, version, alive=True)
             if row["kind"] == "GROUP" and state.get("member_ids") != json.loads(row["state"]).get("member_ids"):
                 raise Conflict("group membership cannot be rewritten through a state update")
+            encoded = self.checkpoint_state(tx, entity_id, state)
             tx.execute("UPDATE entity SET state=?,version=version+1 WHERE id=?", (encoded, entity_id))
             if row["kind"] == "CHARACTER":
                 tx.execute("UPDATE character SET state=? WHERE id=?", (encoded, entity_id))
@@ -145,6 +160,9 @@ class Ownership:
             row = self.require_entity(tx, actor, character_id, fence, version, alive=True)
             if row["kind"] != "CHARACTER":
                 raise Conflict("entity has no player session")
+            if tx.execute("SELECT 1 FROM native_player_upload WHERE character_id=?", (character_id,)).fetchone():
+                raise Conflict("finish or explicitly cancel the native checkpoint before disconnect")
+            encoded = self.checkpoint_state(tx, character_id, state)
             tx.execute("UPDATE entity SET state=?,version=version+1 WHERE id=?", (encoded, character_id))
             tx.execute("UPDATE character SET state=?,session_fence=session_fence+1 WHERE id=?", (encoded, character_id))
             tx.execute("UPDATE player_session SET state='DISCONNECTED',fence=fence+1 WHERE character_id=?", (character_id,))
