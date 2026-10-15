@@ -87,7 +87,7 @@ function battle_after(event, lid)
 	return record(event)
 end
 
-local function community(obj)
+local function death_community(obj)
 	-- Lost Zone: all script objects expose character_community, but calling
 	-- it on a mutant/prop logs a native error even inside pcall.
 	if obj and obj.is_inventory_owner and obj:is_inventory_owner() then
@@ -101,14 +101,14 @@ local function who(obj)
 	local id = obj:id()
 	local login = netcoop_actor_login and netcoop_actor_login(id)
 	if login and login ~= "" then return "player " .. login end
-	return string.format("%s (%s)", obj:section(), community(obj) or "?")
+	return string.format("%s (%s)", obj:section(), death_community(obj) or "?")
 end
 
 function on_death(victim, killer)
 	if not victim then return end
 	local p = victim:position()
 	record({ kind = "death", id = victim:id(), sec = victim:section(),
-		c = community(victim),
+		c = death_community(victim),
 		killer = who(killer) or "unknown", level = level.name(),
 		x = round(p.x), y = round(p.y), z = round(p.z) })
 end
