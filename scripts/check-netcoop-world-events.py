@@ -5,6 +5,7 @@ outcome; rounds without losses are not; an NPC/mutant death is recorded with
 its killer (player login for a player); the journal keeps the newest 512 in
 the world state; a failing record never stops the battle."""
 from pathlib import Path
+import re
 from lupa.lua51 import LuaRuntime
 
 root = Path(__file__).resolve().parents[1]
@@ -69,7 +70,8 @@ assert recent(1)[1].result == "defender destroyed" and recent(1)[1].b.after == 0
 lua.execute(r'''
 function obj(id, sec, community, x)
     return {id = function() return id end, section = function() return sec end,
-            character_community = community and function() return community end or nil,
+            is_inventory_owner = function() return community ~= nil end,
+            character_community = function() assert(community, "native community called on a mutant"); return community end,
             position = function() return {x = x, y = 1.25, z = 2} end}
 end
 callbacks.npc_on_death_callback(obj(50, "sim_default_bandit_2", "bandit", 5.04), obj(7, "actor", "stalker", 0))
@@ -82,15 +84,64 @@ assert d[2].killer == "sim_default_duty_1 (dolg)" and d[2].c is None
 assert d[1].killer == "unknown"
 assert [x.seq for x in d.values()] == [5, 4, 3]
 
+# The native binding exists on a mutant killer too, but must never be called.
+log_count = len(g.logs)
+lua.execute('callbacks.monster_on_death_callback(obj(54,"dog_weak",nil,6),obj(55,"boar_normal",nil,0))')
+assert recent(1)[1].killer == "boar_normal (?)" and len(g.logs) == log_count
+
 # Bounded: the newest 512 survive, in order, in the saved world state.
 for i in range(600):
     lua.execute("netcoop_world_events.record({kind = 'test'})")
 r = recent(1000)
-assert len(r) == 512 and r[1].seq == 605 and r[512].seq == 94
-assert lua.eval("state.netcoop_events.seq") == 605
+assert len(r) == 512 and r[1].seq == 606 and r[512].seq == 95
+assert lua.eval("state.netcoop_events.seq") == 606
 
 # A failing record (or GAMMA itself) never loses the battle round.
 lua.execute("netcoop_world_events.battle_before = function() error('boom') end; losses[11] = 1; a.n = 4; objects[11] = b; b.n = 3")
 battle(10, 11, g.a, g.b, "stalker", "bandit", 3)
 assert "boom" in g.logs[len(g.logs)] and g.b.n == 2  # GAMMA's round still ran
 print("netcoop world events: OK")
+
+# Execute the shipped GAMMA callbacks which failed in the retained server log.
+# They must tolerate actor-less dedicated deaths and environmental kills,
+# while preserving the original NPC loot claim and local-player branches.
+for side in ("client", "server"):
+    callbacks_lua = LuaRuntime(unpack_returned_tuples=True)
+    callbacks_lua.execute('''
+        db={}; claimed={}; function printf(...) end
+        function character_community(obj) return obj.community end
+        function get_object_story_id(id) return nil end
+        function get_story_object(id) return nil end
+        function IsMonster(obj) return obj.monster end
+        function entity(id,community,alive)
+            return {id=function() return id end,community=community,
+                alive=function() return alive end,has_info=function() return false end,
+                is_talking=function() return false end}
+        end
+        victim=entity(10,"stalker",false); killer=entity(20,"bandit",true)
+    ''')
+    for filename, function in (("agdd_voiced_actor.script", "monster_on_death_callback"),
+                               ("grok_loot_claim.script", "npc_on_death_callback")):
+        raw = (root / "scripts/netcoop-overlay" / side / filename).read_bytes()
+        assert raw.count(b"\r\n") == raw.count(b"\n")
+        source = raw.decode("latin-1")
+        match = re.search(r"^function " + function + r"\([^\n]*\)[\s\S]*?(?=^(?:local )?function |\Z)",source,re.M)
+        assert match
+        callbacks_lua.execute(match[0])
+    callbacks_lua.execute('''
+        monster_on_death_callback(victim,killer)
+        monster_on_death_callback(victim,nil)
+        npc_on_death_callback(nil,killer)
+        npc_on_death_callback(victim,nil)
+        assert(next(claimed)==nil)
+        npc_on_death_callback(victim,killer)
+        assert(claimed[10]==20)
+        claimed={}; db.actor=killer
+        npc_on_death_callback(victim,killer)
+        assert(next(claimed)==nil)
+        mcm_enable_on_kill_shouts=false
+        monster_on_death_callback(victim,killer)
+        db.actor=entity(20,"stalker",false)
+        monster_on_death_callback(victim,killer)
+    ''')
+print("PASS shipped GAMMA death callbacks: no local actor, no killer, NPC claims and player kills")

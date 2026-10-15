@@ -9,6 +9,20 @@ G = ROOT.parent / "gamma-runtime" / "gamedata" / "scripts"
 O = ROOT / "scripts" / "netcoop-overlay"
 
 FIXES = {
+    "agdd_voiced_actor.script": [(
+        'function monster_on_death_callback(victim, killer)\r\n'
+        '    -- (EDITED FUNCTION - ADDED MORE CALLBACKS) adds combat_intensity when a mutant is killed\r\n\r\n'
+        '    if not db.actor:alive() then\r\n',
+        'function monster_on_death_callback(victim, killer)\r\n'
+        '    -- Lost Zone: dedicated deaths can occur before a local actor exists.\r\n'
+        '    if not db.actor or not db.actor:alive() then\r\n')],
+    "grok_loot_claim.script": [(
+        '\tlocal k_faction = killer and character_community(killer)\r\n',
+        '\t-- Lost Zone: environmental deaths have no killer; no claim is created.\r\n'
+        '\tif not v_id or not k_id then return end\r\n'), (
+        '\tif k_id == db.actor:id() then\r\n',
+        '\t-- Lost Zone: NPC fights also happen before a dedicated actor exists.\r\n'
+        '\tif db.actor and k_id == db.actor:id() then\r\n')],
     "utils_catspaw_common.script": [(
         'logdiv = "~ ------------------------------------------------------------------------\\n"',
         '-- Lost Zone: feature-report separators are informational, not warnings.\r\n'
@@ -82,6 +96,8 @@ FIXES = {
 
 def apply(name, pairs):
     text = (G / name).read_bytes().decode("latin-1")
+    if name in ("agdd_voiced_actor.script", "grok_loot_claim.script"):
+        text = text.replace("\r\n", "\n").replace("\n", "\r\n")
     for old, new in pairs:
         if text.count(old) != 1:
             raise SystemExit(f"{name}: pattern found {text.count(old)} times: {old[:60]!r}")
