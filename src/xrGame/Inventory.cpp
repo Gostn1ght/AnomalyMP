@@ -251,6 +251,16 @@ void CInventory::netcoop_remove_from_hands(PIItem item)
 	if (m_iPrevActiveSlot == slot) m_iPrevActiveSlot = NO_ACTIVE_SLOT;
 }
 
+bool CInventory::netcoop_holster_in_vehicle()
+{
+	if (!netcoop::enabled()) return false;
+	CActor* actor = smart_cast<CActor*>(m_pOwner);
+	if (!actor || !actor->netcoop_seated()) return false;
+	if (PIItem active = ActiveItem()) netcoop_remove_from_hands(active);
+	m_iActiveSlot = m_iNextActiveSlot = m_iPrevActiveSlot = NO_ACTIVE_SLOT;
+	return true;
+}
+
 bool CInventory::DropItem(CGameObject* pObj, bool just_before_destroy, bool dont_create_shell)
 {
 	CInventoryItem* pIItem = smart_cast<CInventoryItem*>(pObj);
@@ -612,6 +622,8 @@ static bool netcoop_own_inventory(CInventoryOwner* owner)
 
 void CInventory::Activate(u16 slot, bool bForce)
 {
+	// UI/Lua/forced activation also passes here, beyond the driving key filter.
+	if (netcoop_holster_in_vehicle()) return;
 	if (!OnServer() && !netcoop_own_inventory(m_pOwner))
 	{
 		return;
@@ -883,6 +895,11 @@ void CInventory::ActiveWeapon(u16 slot)
 
 void CInventory::Update()
 {
+	if (netcoop_holster_in_vehicle())
+	{
+		UpdateDropTasks();
+		return; // consumption via Eat() does not activate a held slot
+	}
 	if (OnServer() || netcoop_own_inventory(m_pOwner))
 	{
 		if (m_iActiveSlot != m_iNextActiveSlot)

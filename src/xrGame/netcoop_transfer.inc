@@ -108,7 +108,7 @@ void server_on_transfer(xrServer* server, xrClientData* CL, NET_Packet& P)
 	else if (source == transfer_end_none) failure = "source is out of reach";
 	else if (target == transfer_end_none) failure = "target is out of reach";
 	else if (source != transfer_end_self && target != transfer_end_self) failure = "player is not part of the transfer";
-	else if (target == transfer_end_self && !server_inventory_can_take(server, to, item_id)) failure = "no free inventory slots";
+	else if (target == transfer_end_self) failure = server_inventory_take_failure(server, to, item_id);
 
 	bool ok = false;
 	if (!failure)

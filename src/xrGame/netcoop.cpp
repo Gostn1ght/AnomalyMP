@@ -2191,6 +2191,9 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 {
 	if (!enabled() || !CL || CL->flags.bLocal)
 		return true;
+	if (CL->owner && (type == GE_WPN_STATE_CHANGE || type == GE_NETCOOP_WPN_AIM || type == GEG_PLAYER_ACTIVATE_SLOT))
+		if (CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(CL->owner->ID)))
+			if (actor->netcoop_seated()) return false;
 
 	switch (type)
 	{

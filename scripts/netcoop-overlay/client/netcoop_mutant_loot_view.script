@@ -4,6 +4,21 @@
 -- chosen parts. GAMMA's animation and sound play here as usual.
 local pending = {}
 
+local function request(obj)
+	if type(obj) == "number" then obj = level.object_by_id(obj) end
+	if not obj then return false end
+	pending[obj:id()] = true
+	netcoop_item_action(2, obj:id(), 65535, "mloot_open")
+	return true
+end
+
+-- Called by the native F interaction even without a local monster binder.
+function use(obj)
+	if not obj or not (obj:is_monster() or obj:clsid() == clsid.crow) or obj:alive() then return false end
+	if not install() then return false end
+	return request(obj)
+end
+
 local function parse(data)
 	local id, status, list = string.match(data or "", "^(%d+)|(%a+)|(.*)$")
 	if not id then return nil end
@@ -30,13 +45,10 @@ end
 
 function install()
 	local m = ui_mutant_loot
-	if not m or m.__netcoop then return end
+	if not m then return false end
+	if m.__netcoop then return true end
 	m.__netcoop = true
-	m.start = function(obj)
-		if type(obj) == "number" or not obj then return end
-		pending[obj:id()] = true
-		netcoop_item_action(2, obj:id(), 65535, "mloot_open")
-	end
+	m.start = request
 	local class = m.UIMutantLoot
 	class.FillList = function(self)
 		self.loot = self.netcoop_loot or {}
@@ -75,6 +87,7 @@ function install()
 	end
 	-- "Looted" belongs to the server.
 	class.SetMutantState = function() end
+	return true
 end
 
 function receive(data)

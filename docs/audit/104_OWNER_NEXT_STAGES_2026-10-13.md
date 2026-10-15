@@ -124,3 +124,6 @@ capture/restore персонажа (M2b остаётся открыт). Устр
 тестов и настоящий отдельный EXE проверены; существующий NCH8 прошёл точный
 HTTP/SQLite roundtrip без изменения оригинала. Документы114–117 фиксируют
 границы и установку. M2b/M3/H09/H11 и игровая приёмка всё ещё открыты.
+# Latest additions (2026-10-15)
+
+Owner now supplies DCP and SIBNIC DayZ helicopters, plus eight new gameplay/graphics reports. See docs118 (provided transport requirements),119 (complete added queue),120 (blast/vehicle/loot implementation batch). Earlier persistence, quest, transit and game acceptance stages remain open.

@@ -983,6 +983,7 @@ void CActor::netcoop_seat_enter(u16 car, u8 seat, bool driver, const Fmatrix& lo
 	m_netcoop_seat_motion.invalidate();
 	m_netcoop_driver_fit.set(0.f, 0.f, 0.f);
 	m_netcoop_driver_fit_at = driver && netcoop::pure_client() ? Device.dwTimeGlobal + 400 : 0;
+	inventory().netcoop_holster_in_vehicle(); // every replica/authority, including seat switches
 	if (!was_seated)
 	{
 		CPHMovementControl* movement = character_physics_support() ? character_physics_support()->movement() : nullptr;

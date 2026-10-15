@@ -565,6 +565,15 @@ void CActor::ActorUse()
 		character_physics_support()->movement()->PHReleaseObject();
 
 
+	// A replicated mutant may have no working local binder/use callback.
+	// Ask the server-backed loot adapter before the single-player callback
+	// marks the body looted locally or attempts to create parts on a client.
+	if (netcoop::pure_client() && m_pObjectWeLookingAt)
+	{
+		::luabind::functor<bool> use_mutant;
+		if (ai().script_engine().functor("netcoop_mutant_loot_view.use", use_mutant) &&
+			use_mutant(m_pObjectWeLookingAt->lua_game_object())) return;
+	}
 	if (m_pUsableObject && NULL == m_pObjectWeLookingAt->cast_inventory_item())
 	{
 		m_pUsableObject->use(this);

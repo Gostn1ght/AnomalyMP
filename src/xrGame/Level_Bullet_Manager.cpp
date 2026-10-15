@@ -592,7 +592,7 @@ static float trajectory_select_pick_parabolic(
 	float const start_high = high;
 	float low = start_low;
 	float check_time = high;
-	while (!fsimilar(low, high))
+	for (u32 iteration = 0; iteration < 64 && !fsimilar(low, high); ++iteration)
 	{
 		Fvector const intermediate = trajectory_position(bullet.start_position, bullet.start_velocity, gravity,
 		                                                 air_resistance, start_low + (check_time - start_low) * .5f);
@@ -604,7 +604,11 @@ static float trajectory_select_pick_parabolic(
 		else
 			high = check_time;
 
-		check_time = (low + high) * .5f;
+		const float next = low + (high - low) * .5f;
+		// At large flight times adjacent floats can be farther apart than
+		// fsimilar's absolute epsilon. Their midpoint rounds back to an end.
+		if (!(next > low && next < high)) break;
+		check_time = next;
 	}
 
 	VERIFY(low <= start_high);
@@ -667,7 +671,7 @@ static float trajectory_select_pick_time(
 	float low = start_low;
 	float check_time = high;
 	float const epsilon = .1f;
-	while (!fsimilar(low, high))
+	for (u32 iteration = 0; iteration < 64 && !fsimilar(low, high); ++iteration)
 	{
 		float distance = trajectory_pick_error(start_low, check_time, bullet.start_position, bullet.start_velocity,
 		                                       gravity, air_resistance);
@@ -677,7 +681,9 @@ static float trajectory_select_pick_time(
 		else
 			high = check_time;
 
-		check_time = (low + high) * .5f;
+		const float next = low + (high - low) * .5f;
+		if (!(next > low && next < high)) break;
+		check_time = next;
 	}
 
 	VERIFY2(low <= start_high, make_string("low[%f], high[%f]", low, start_high));
@@ -1001,10 +1007,15 @@ static bool try_update_bullet(SBullet& bullet, Fvector const& gravity, float con
 
 bool CBulletManager::process_bullet(collide::rq_results& storage, SBullet& bullet, u32 const delta_time)
 {
+	// Reject corrupt simulation state before entering trajectory search/rays.
+	if (!_valid(bullet.life_time) || bullet.life_time < 0.f || !_valid(bullet.speed) ||
+		!_valid(bullet.max_dist) || !_valid(bullet.fly_dist) || bullet.max_dist <= bullet.fly_dist ||
+		!_valid(bullet.start_position) || !_valid(bullet.start_velocity) || !_valid(bullet.bullet_pos)) return false;
 	float const time_delta = float(delta_time) / 1000.f;
 	Fvector const gravity = Fvector().set(0.f, -m_fGravityConst, 0.f);
 
 	float const air_resistance = (GameID() == eGameIDSingle) ? m_fAirResistanceK : bullet.air_resistance;
+	if (!_valid(air_resistance) || air_resistance < 0.f || !_valid(gravity)) return false;
 	bullet.tracer_start_position = bullet.bullet_pos;
 
 #if 0//def DEBUG

@@ -1207,6 +1207,8 @@ bool CWeapon::netcoop_player_copy()
 // 2000 rounds a minute.
 bool CWeapon::netcoop_shot_allowed()
 {
+	if (CActor* actor = smart_cast<CActor*>(H_Parent()))
+		if (actor->netcoop_seated()) return false;
 	float interval = fOneShotTime;
 	if (fModeShotTime > EPS && fModeShotTime < interval) interval = fModeShotTime;
 	const float min_ms = _max(30.f, interval * 1000.f / 1.5f);

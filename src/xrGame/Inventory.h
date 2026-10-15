@@ -55,6 +55,7 @@ public:
 	bool Belt(PIItem pIItem, bool strict_placement = false);
 	bool Ruck(PIItem pIItem, bool strict_placement = false);
 	void netcoop_remove_from_hands(PIItem item);
+	bool netcoop_holster_in_vehicle();
 
 	bool InSlot(const CInventoryItem* pIItem) const;
 	bool InBelt(const CInventoryItem* pIItem) const;

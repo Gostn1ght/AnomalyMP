@@ -797,6 +797,7 @@ void server_on_item_action(xrServer* server, xrClientData* CL, NET_Packet& P)
 	auto carried = [&](u16 id) { return smart_cast<CInventoryItem*>(Level().Objects.net_Find(id)) && item_root(server, id) == CL->owner->ID; };
 	xr_string failure;
 	if (!actor || !actor->g_Alive()) failure = "player is dead";
+	else if (actor->netcoop_seated()) failure = "only consumption is allowed in a vehicle";
 	else if (kind == 2)
 	{
 		// A placed object in the world (furniture): within reach of the player.

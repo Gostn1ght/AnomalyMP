@@ -59,38 +59,50 @@ static u32 storage_live_cells(xrServer* server, CSE_Abstract* owner)
 }
 // Expanded cell capacity must still fit the lossless 512-item save format,
 // including nested attachments and equipped items. Never truncate a save.
-static bool storage_count_tree(xrServer* server,CSE_Abstract* root,u32 depth,xr_vector<u16>& seen)
+static bool storage_count_tree(xrServer* server,CSE_Abstract* root,u32 depth,xr_vector<u16>& seen,bool* full=nullptr)
 {
-    if (!root || depth>8 || seen.size()>=513 || std::find(seen.begin(),seen.end(),root->ID)!=seen.end()) return false;
+    if (!root || depth>8 || std::find(seen.begin(),seen.end(),root->ID)!=seen.end()) return false;
+    if (seen.size()>=513) { if (full) *full=true; return false; }
     seen.push_back(root->ID);
     for (u16 id:root->children)
     {
         auto child=server->game->get_entity_from_eid(id);
         if (!child || child->ID!=id || child->ID_Parent!=root->ID || !smart_cast<CSE_ALifeInventoryItem*>(child) ||
-            !storage_count_tree(server,child,depth+1,seen)) return false;
+            !storage_count_tree(server,child,depth+1,seen,full)) return false;
     }
     return true;
 }
-static bool storage_inventory_room(xrServer* server,CSE_Abstract* owner,const xr_vector<u16>& incoming)
+static bool storage_inventory_room(xrServer* server,CSE_Abstract* owner,const xr_vector<u16>& incoming,bool* full=nullptr)
 {
     xr_vector<u16> seen;
-    if (!storage_count_tree(server,owner,0,seen)) return false;
+    if (!storage_count_tree(server,owner,0,seen,full)) return false;
     for (u16 id:incoming)
     {
         auto item=server->game->get_entity_from_eid(id);
-        if (!item || item->ID!=id || !smart_cast<CSE_ALifeInventoryItem*>(item) || !storage_count_tree(server,item,1,seen)) return false;
+        if (!item || item->ID!=id || !smart_cast<CSE_ALifeInventoryItem*>(item) || !storage_count_tree(server,item,1,seen,full)) return false;
     }
     return true;
 }
-bool server_inventory_can_take(xrServer* server,u16 owner_id,u16 item_id)
+LPCSTR server_inventory_take_failure(xrServer* server,u16 owner_id,u16 item_id)
 {
-    if (!enabled()) return true;
+    if (!enabled()) return nullptr;
     auto owner=server->game->get_entity_from_eid(owner_id);
     auto item=server->game->get_entity_from_eid(item_id);
-    if (!owner || !smart_cast<CSE_ALifeCreatureActor*>(owner) || !item || !smart_cast<CSE_ALifeInventoryItem*>(item)) return true;
-    if (item->ID_Parent==owner_id) return true;
-    if (!storage_inventory_room(server,owner,xr_vector<u16>{item_id})) return false;
-    return storage_live_cells(server,owner)+storage_section_cost(item->s_name.c_str())<=storage_live_capacity(smart_cast<CActor*>(Level().Objects.net_Find(owner_id)));
+    if (!owner || !smart_cast<CSE_ALifeCreatureActor*>(owner) || !item || !smart_cast<CSE_ALifeInventoryItem*>(item)) return nullptr;
+    if (item->ID_Parent==owner_id) return nullptr;
+    bool full=false;
+    if (!storage_inventory_room(server,owner,xr_vector<u16>{item_id},&full))
+        return full ? "inventory save limit reached (512 items)" : "inventory state is not ready";
+    const u32 used=storage_live_cells(server,owner),needed=storage_section_cost(item->s_name.c_str());
+    const u32 capacity=storage_live_capacity(smart_cast<CActor*>(Level().Objects.net_Find(owner_id)));
+    if (used+needed<=capacity) return nullptr;
+    static string128 reason;
+    xr_sprintf(reason,"inventory cells full (%u + %u / %u)",used,needed,capacity);
+    return reason;
+}
+bool server_inventory_can_take(xrServer* server,u16 owner_id,u16 item_id)
+{
+    return !server_inventory_take_failure(server,owner_id,item_id);
 }
 static bool storage_equipped(const Character::Item& item)
 {

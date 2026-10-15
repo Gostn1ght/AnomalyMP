@@ -748,6 +748,21 @@ void CExplosive::GetRayExplosionSourcePos(Fvector& pos)
 	pos.add(m_vExplodePos);
 }
 
+static Fvector explosive_hit_direction(const Fvector& center, const Fvector& target, float up_throw)
+{
+	Fvector direction;
+	direction.sub(target, center);
+	// The old formula assumed a unit direction, but used a displacement in
+	// metres. Targets below the blast could produce sqrt(negative) and NaN hits.
+	if (!_valid(direction) || !_valid(direction.square_magnitude()))
+		return direction.set(0.f, 1.f, 0.f);
+	direction.normalize_safe();
+	direction.y += _valid(up_throw) ? up_throw : 0.f;
+	if (!_valid(direction) || !_valid(direction.square_magnitude()) || direction.square_magnitude() < EPS_S)
+		return direction.set(0.f, 1.f, 0.f);
+	return direction.normalize_safe();
+}
+
 void CExplosive::ExplodeWaveProcessObject(collide::rq_results& storage, CPhysicsShellHolder* l_pGO)
 {
 	Fvector l_goPos;
@@ -768,13 +783,7 @@ void CExplosive::ExplodeWaveProcessObject(collide::rq_results& storage, CPhysics
 
 	if (l_impuls > .001f || l_hit > 0.001)
 	{
-		Fvector l_dir;
-		l_dir.sub(l_goPos, m_vExplodePos);
-
-		float rmag = _sqrt(m_fUpThrowFactor * m_fUpThrowFactor + 1.f + 2.f * m_fUpThrowFactor * l_dir.y);
-		l_dir.y += m_fUpThrowFactor;
-		//rmag -модуль l_dir после l_dir.y += m_fUpThrowFactor, модуль=_sqrt(l_dir^2+y^2+2.*(l_dir,y)),y=(0,m_fUpThrowFactor,0) (до этого модуль l_dir =1)
-		l_dir.mul(1.f / rmag); //перенормировка
+		const Fvector l_dir = explosive_hit_direction(m_vExplodePos, l_goPos, m_fUpThrowFactor);
 		NET_Packet P;
 		SHit HS;
 		HS.GenHeader(GE_HIT, l_pGO->ID()); //		cast_game_object()->u_EventGen		(P,GE_HIT,l_pGO->ID());

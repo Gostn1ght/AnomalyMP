@@ -42,7 +42,7 @@ struct CGameObject:CObject{};
 struct Item{virtual ~Item()=default;};using PIItem=Item*;
 struct CTorch:Item{bool active=false;bool torch_active()const{return active;}};
 struct Inventory{std::vector<PIItem> m_all;};
-struct CActor:CGameObject{Inventory bag;Inventory& inventory(){return bag;}};
+struct CActor:CGameObject{bool seated=false;bool netcoop_seated(){return seated;}Inventory bag;Inventory& inventory(){return bag;}};
 template<class T,class U>T smart_cast(U* o){return dynamic_cast<T>(o);}
 struct CEnvDescriptorMixer{Fvector sun_color,hemi_color,ambient;};
 struct EnvironmentState{CEnvDescriptorMixer* CurrentEnv=nullptr;};
@@ -104,6 +104,9 @@ int main(){
  owner.ros=nullptr;assert(script.GetLuminocity()==0.05f);
  netcoop::fixture_client=true;assert(script.GetLuminocity()==0);owner.ros=&ros;
  netcoop::fixture_client=false;
+ owner.seated=true;CWeapon seated_gun;seated_gun.parent=&owner;NET_Packet seated_packet;
+ seated_gun.receive(seated_packet);assert(seated_gun.bullets==0&&seated_gun.iAmmoElapsed==1);
+ owner.seated=false;
  NET_Packet packet;packet.direction={0,0,2};CWeapon gun;gun.parent=&owner;
  gun.receive(packet);assert(gun.sounds==1&&gun.callbacks==1&&gun.bullets==1&&gun.iAmmoElapsed==0&&!netcoop::fixture_scoped_actor);
  packet.reads=0;gun.receive(packet);assert(gun.sounds==1&&gun.bullets==1);

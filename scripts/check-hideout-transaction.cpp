@@ -11,7 +11,7 @@
 #include <iostream>
 using u32=unsigned;using u16=unsigned short;using xr_string=std::string;
 template<class T> using xr_vector=std::vector<T>;
-using string32=char[32];using string64=char[64];using string_path=char[260];using LPCSTR=const char*;
+using string128=char[128];using string32=char[32];using string64=char[64];using string_path=char[260];using LPCSTR=const char*;
 #define _min std::min
 #define _max std::max
 #define TRUE true
@@ -78,7 +78,7 @@ int main()
     memory.safe={{"huge",0,0,""}};req.op=2;req.index=0;
     assert(storage_execute(&server,&client,req).find("NO_FREE_SLOTS\n")==0 && memory.safe.size()==1);
     CSE_ALifeInventoryItem root,incoming;root.ID=10;root.ID_Parent=9;incoming.ID=11;root.s_name="rifle";incoming.s_name="huge";game.objects[10]=&root;game.objects[11]=&incoming;actor.children={10};
-    assert(!server_inventory_can_take(&server,9,11));incoming.s_name="medkit";assert(server_inventory_can_take(&server,9,11));
+    assert(!server_inventory_can_take(&server,9,11));assert(xr_string(server_inventory_take_failure(&server,9,11)).find("inventory cells full (10 + 200 / 120)")==0);incoming.s_name="medkit";assert(server_inventory_can_take(&server,9,11));
     CActor live;RuntimeItem held;live.bag.m_ruck={&held};runtime_level.Objects.objects[9]=&live;own=&live;
     assert(storage_live_capacity(&live)==160 && xr_string(script_inventory_slots())=="10|160");
     incoming.s_name="huge";assert(!server_inventory_can_take(&server,9,11));
@@ -93,11 +93,11 @@ int main()
     assert(storage_ruck_cost(Character::Item{"huge",0,0,""})==200);
     CSE_ALifeInventoryItem nested;nested.ID=12;nested.ID_Parent=11;game.objects[12]=&nested;incoming.children={12};
     assert(storage_inventory_room(&server,&actor,xr_vector<u16>{11}));
-    nested.children={11};assert(!storage_inventory_room(&server,&actor,xr_vector<u16>{11}));nested.children.clear();
+    nested.children={11};assert(!storage_inventory_room(&server,&actor,xr_vector<u16>{11}));assert(xr_string(server_inventory_take_failure(&server,9,11))=="inventory state is not ready");nested.children.clear();
     incoming.children.clear();actor.children.clear();
     std::vector<CSE_ALifeInventoryItem> maximum(512);
     for(u16 i=0;i<512;++i){const u16 id=u16(100+i);maximum[i].ID=id;maximum[i].ID_Parent=9;game.objects[id]=&maximum[i];actor.children.push_back(id);}
-    assert(!storage_inventory_room(&server,&actor,xr_vector<u16>{11}));actor.children.pop_back();
+    assert(!storage_inventory_room(&server,&actor,xr_vector<u16>{11}));assert(xr_string(server_inventory_take_failure(&server,9,11))=="inventory save limit reached (512 items)");actor.children.pop_back();
     assert(storage_inventory_room(&server,&actor,xr_vector<u16>{11}));
     assert(FS.reads==1);
     std::cout<<"Actual server transaction: authenticated owner/slot, replay/restart, signature, stale revision, failed save rollback, online/dead exclusion and capacity PASS\n";

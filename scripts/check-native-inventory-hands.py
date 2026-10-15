@@ -22,7 +22,7 @@ using u16=unsigned short;
 constexpr u16 NO_ACTIVE_SLOT=0xffff;
 namespace CHUDState{constexpr unsigned eHidden=0;}
 namespace netcoop{bool active=true;bool enabled(){return active;}}
-struct Owner{virtual ~Owner()=default;};struct CActor:Owner{};
+struct Owner{virtual ~Owner()=default;};struct CActor:Owner{bool seated=false;bool netcoop_seated(){return seated;}};
 template<class T>T smart_cast(Owner* p){return dynamic_cast<T>(p);}
 struct CHudItem{
  unsigned next=2,state=2,hidden=0;
@@ -41,7 +41,8 @@ using PIItem=Item*;
 struct CInventory{
  Owner* m_pOwner=nullptr;
  u16 m_iActiveSlot=3,m_iNextActiveSlot=3,m_iPrevActiveSlot=3;
- void netcoop_remove_from_hands(PIItem);
+ Item* held=nullptr;PIItem ActiveItem(){return held;}
+ void netcoop_remove_from_hands(PIItem);bool netcoop_holster_in_vehicle();
 };
 '''
 source += text[start:end]
@@ -60,7 +61,16 @@ int main(){
  inv.m_iActiveSlot=3;inv.m_iNextActiveSlot=3;inv.m_pOwner=&npc;
  auto count=item.hud.hidden;inv.netcoop_remove_from_hands(&item);assert(item.hud.hidden==count && inv.m_iActiveSlot==3);
  inv.m_pOwner=&actor;netcoop::active=false;inv.netcoop_remove_from_hands(&item);assert(item.hud.hidden==count && inv.m_iActiveSlot==3);
- std::puts("PASS actual hand removal: hidden state, zoom, active/pending/previous slots, devices, NPC/freeplay guards");
+ netcoop::active=true;inv.m_pOwner=&actor;actor.seated=true;inv.held=&item;
+ inv.m_iActiveSlot=3;inv.m_iNextActiveSlot=5;inv.m_iPrevActiveSlot=7;
+ auto before=item.hud.hidden;
+ assert(inv.netcoop_holster_in_vehicle() && item.hud.hidden==before+1);
+ assert(inv.m_iActiveSlot==NO_ACTIVE_SLOT && inv.m_iNextActiveSlot==NO_ACTIVE_SLOT && inv.m_iPrevActiveSlot==NO_ACTIVE_SLOT);
+ inv.held=nullptr;inv.m_iNextActiveSlot=5;assert(inv.netcoop_holster_in_vehicle() && inv.m_iNextActiveSlot==NO_ACTIVE_SLOT);
+ actor.seated=false;inv.m_iNextActiveSlot=3;assert(!inv.netcoop_holster_in_vehicle() && inv.m_iNextActiveSlot==3);
+ actor.seated=true;netcoop::active=false;assert(!inv.netcoop_holster_in_vehicle());
+ netcoop::active=true;inv.m_pOwner=&npc;assert(!inv.netcoop_holster_in_vehicle());
+ std::puts("PASS actual hand removal and seated activation fence: hidden state, zoom, active/pending/previous slots, devices, NPC/freeplay guards");
 }
 '''
 with TemporaryDirectory() as tmp:

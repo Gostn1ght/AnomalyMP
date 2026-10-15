@@ -117,4 +117,16 @@ assert(netcoop_mutant_loot_view.take_request({meat_dog = {count = 1}}, {}, false
 ui_mutant_loot.start(body(22, false, true)); netcoop_mutant_loot_view.receive("22|decayed|")
 assert(msgs[#msgs] == "st_body_decayed")
 ''')
-print("netcoop mutant loot: OK")
+lua.execute(r'''
+assert(netcoop_mutant_loot_view.use(nil)==false)
+assert(netcoop_mutant_loot_view.use(body(50,true,true))==false)
+assert(netcoop_mutant_loot_view.use(body(51,false,false))==false)
+local before=#requests
+assert(netcoop_mutant_loot_view.use(body(52,false,true))==true)
+assert(#requests==before+1 and requests[#requests][2]==52 and requests[#requests][4]=="mloot_open")
+ui_mutant_loot.start(53)
+assert(requests[#requests][2]==53, "numeric ID callers resolve the current object")
+''')
+actor_input=(root.parents[1]/"src/xrGame/ActorInput.cpp").read_text(encoding="utf-8")
+assert actor_input.index('functor("netcoop_mutant_loot_view.use"') < actor_input.index("m_pUsableObject->use(this)")
+print("netcoop mutant loot: direct F route, numeric callers and server-backed window OK")
