@@ -54,8 +54,8 @@ struct IKinematicsAnimated:VisualBase{
 template<class T,class U>T smart_cast(U* object){return dynamic_cast<T>(object);}
 struct CActor{
  bool alive=true,seated=false,m_bAnimTorsoPlayed=false;int m_rp_index=-1;u32 m_netcoop_consumption_until=0;
- MotionID m_current_torso;CBlend* m_current_torso_blend=nullptr;VisualBase* model=nullptr;
- bool g_Alive(){return alive;}bool netcoop_seated(){return seated;}VisualBase* Visual(){return model;}
+ MotionID m_current_torso;CBlend* m_current_torso_blend=nullptr;VisualBase* fixture_visual=nullptr;
+ bool g_Alive(){return alive;}bool netcoop_seated(){return seated;}VisualBase* Visual(){return fixture_visual;}
  static void netcoop_consumption_end(CBlend*);void netcoop_play_consumption(u8);void netcoop_expire_consumption();
 };
 namespace netcoop{bool client=true;bool pure_client(){return client;}}
@@ -75,7 +75,7 @@ int main(){
   assert(!parse(bad,actor,action,name));
  assert(!parse(nullptr,actor,action,name));
  std::string long_name="42|1|"+std::string(256,'a');assert(!parse(long_name.c_str(),actor,action,name));
- IKinematicsAnimated model;CActor remote,own;remote.model=&model;runtime.own=&own;
+ IKinematicsAnimated model;CActor remote,own;remote.fixture_visual=&model;runtime.own=&own;
  remote.netcoop_play_consumption(0);
  assert(model.plays==1&&model.last_partition==1&&model.last_noloop);
  assert(remote.m_bAnimTorsoPlayed&&remote.m_current_torso.valid());
