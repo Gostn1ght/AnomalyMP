@@ -31,7 +31,12 @@ end}
 knife = 0
 item_knife = {degradate = function() knife = knife + 1 end}
 made = {}
-function alife_create_item(sec, actor, props) made[#made + 1] = sec; assert(props.cond_ct == "part") end
+function alife_create_item(sec, actor, props)
+    assert(props.cond_ct == "part")
+    if fail_after and #made >= fail_after then return nil end
+    made[#made + 1] = sec
+    return {id = 100+#made}
+end
 sent = {}
 function netcoop_send_to_actor(id, ch, data) sent[#sent + 1] = {id, ch, data} end
 valuable = {}
@@ -77,6 +82,24 @@ assert act(g.player, g.npc_looted, "mloot_open") == "" and last() == "12|empty|"
 assert act(g.player, lua.eval("body(13, true, true)"), "mloot_open") == "this is not a mutant body"
 assert act(g.player, lua.eval("body(14, false, false)"), "mloot_open") == "this is not a mutant body"
 assert g.rolls == 1
+
+# Real creation failures preserve uncreated parts and wear only successful cuts.
+lua.execute('fresh = body(15, false, true)')
+assert act(g.player, g.fresh, "mloot_open") == ""
+before, knife_before = len(g.made), g.knife
+g.fail_after = before
+assert act(g.player, g.fresh, "mloot_take all") == "item creation failed; parts remain on the body"
+assert len(g.made) == before and g.knife == knife_before
+assert lua.eval('store[15].netcoop_mutant_loot.meat_dog.count') == 2
+g.fail_after = before+1
+assert act(g.player, g.fresh, "mloot_take all") == "item creation failed; remaining parts stay on the body"
+assert len(g.made) == before+1 and g.knife == knife_before+1
+assert lua.eval('store[15].netcoop_mutant_loot.meat_dog.count') == 1
+assert lua.eval('store[15].looted') is False
+g.fail_after = None
+assert act(g.player, g.fresh, "mloot_take all") == ""
+assert len(g.made) == before+3 and g.knife == knife_before+3
+assert lua.eval('store[15].looted') is True
 
 # Client window.
 lua.execute(r'''

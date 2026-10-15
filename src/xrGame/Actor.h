@@ -293,6 +293,8 @@ protected:
 
 protected:
 	BOOL m_bAnimTorsoPlayed;
+	u32 m_netcoop_consumption_until = 0;
+	static void netcoop_consumption_end(CBlend* blend);
 	static void AnimTorsoPlayCallBack(CBlend* B);
 
 	// Rotation
@@ -319,6 +321,8 @@ public:
 	MotionID m_current_legs;
 	MotionID m_current_torso;
 	MotionID m_current_head;
+	void netcoop_play_consumption(u8 kind);
+	void netcoop_expire_consumption();
 
 	// callback на анимации модели актера
 	void SetCallbacks();

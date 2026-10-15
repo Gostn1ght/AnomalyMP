@@ -18,6 +18,7 @@
 #include "ai_object_location.h"
 #include "game_cl_base.h"
 #include "../xrEngine/motion.h"
+#include "netcoop_consumption.h"
 #include "artefact.h"
 #include "IKLimbsController.h"
 #include "player_hud.h"
@@ -492,8 +493,53 @@ static MotionID netcoop_device_torso(CActor* actor, CCustomDevice* device, u32 m
 	return motion;
 }
 
+void CActor::netcoop_consumption_end(CBlend* blend)
+{
+	CActor* actor = static_cast<CActor*>(blend->CallbackParam);
+	if (actor && actor->m_netcoop_consumption_until && actor->m_current_torso_blend == blend)
+	{
+		actor->m_netcoop_consumption_until = 0;
+		actor->m_bAnimTorsoPlayed = FALSE;
+		actor->m_current_torso.invalidate();
+	}
+}
+
+void CActor::netcoop_play_consumption(u8 kind)
+{
+	if (!netcoop::pure_client() || this == Level().CurrentControlEntity() || !g_Alive() ||
+		netcoop_seated() || m_rp_index >= 0) return;
+	LPCSTR name = netcoop_consumption::motion(kind);
+	IKinematicsAnimated* model = smart_cast<IKinematicsAnimated*>(Visual());
+	if (!name || !model) return;
+	const MotionID motion = model->ID_Cycle_Safe(name);
+	const u16 torso = model->LL_PartID("torso");
+	if (!motion.valid() || torso == u16(-1)) return;
+	CMotionDef* def = model->LL_GetMotionDef(motion);
+	if (!def || !_valid(def->Speed()) || def->Speed() <= 0.f) return;
+	CBlend* blend = model->LL_PlayCycle(torso, motion, TRUE, def->Accrue(), def->Falloff(), def->Speed(),
+		TRUE, netcoop_consumption_end, this, 0);
+	if (!blend) return;
+	m_current_torso_blend = blend;
+	m_current_torso = motion;
+	m_bAnimTorsoPlayed = TRUE;
+	const float duration = _valid(blend->timeTotal) ? blend->timeTotal / def->Speed() * 1000.f : 1000.f;
+	m_netcoop_consumption_until = (Device.dwTimeGlobal + u32(_max(100.f, _min(10000.f, duration)))) | 1u;
+}
+
+void CActor::netcoop_expire_consumption()
+{
+	if (m_netcoop_consumption_until && (!g_Alive() || netcoop_seated() || m_rp_index >= 0 ||
+		s32(Device.dwTimeGlobal - m_netcoop_consumption_until) >= 0))
+	{
+		m_netcoop_consumption_until = 0;
+		m_bAnimTorsoPlayed = FALSE;
+		m_current_torso.invalidate();
+	}
+}
+
 void CActor::g_SetAnimation(u32 mstate_rl)
 {
+	netcoop_expire_consumption();
 	// A netcoop RP animation drives the whole body while it plays.
 	if (m_rp_index >= 0 && rp_update())
 		return;

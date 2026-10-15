@@ -22,10 +22,50 @@ spec.loader.exec_module(xray)
 def safe_path(name):
     name = name.replace('\\', '/')
     path = PurePosixPath(name)
-    if path.is_absolute() or any(p in ('..', '.') or p.rstrip(' .') != p or
+    reserved = {'CON','PRN','AUX','NUL',*(f'COM{i}' for i in range(1,10)),*(f'LPT{i}' for i in range(1,10))}
+    if not path.parts or path.is_absolute() or any(p in ('..', '.') or p.rstrip(' .') != p or p.split('.')[0].upper() in reserved or
             any(c in '<>:"|?*\ufffd' or ord(c) < 32 for c in p) for p in path.parts):
         raise ValueError('Unsafe archive path')
     return path
+
+
+def pbo_lzss(data, expected):
+    """Bounded decoder of the documented BI Cprs format, not decryption.
+
+    Format: https://community.bistudio.com/wiki/Compressed_LZSS_File_Format
+    Input flags describe literal bytes or 12-bit backwards references, followed
+    by a 32-bit additive checksum. The dictionary's implicit prefix is spaces.
+    """
+    if not 0 < expected <= 2*1024*1024 or len(data) < 4:
+        raise ValueError('PBO text budget or checksum absent')
+    output, cursor, end = bytearray(), 0, len(data)-4
+    while len(output) < expected:
+        if cursor >= end:
+            raise ValueError('Truncated PBO flags')
+        flags = data[cursor]
+        cursor += 1
+        for bit in range(8):
+            if len(output) == expected:
+                break
+            if flags & (1 << bit):
+                if cursor >= end:
+                    raise ValueError('Truncated PBO literal')
+                output.append(data[cursor])
+                cursor += 1
+            else:
+                if cursor+2 > end:
+                    raise ValueError('Truncated PBO reference')
+                distance = data[cursor] | ((data[cursor+1] & 240) << 4)
+                length = (data[cursor+1] & 15)+3
+                cursor += 2
+                if not distance:
+                    raise ValueError('Invalid PBO backwards reference')
+                for _ in range(min(length, expected-len(output))):
+                    output.append(output[-distance] if distance <= len(output) else 32)
+    checksum, = struct.unpack_from('<I', data, end)
+    if sum(output) & 0xffffffff != checksum:
+        raise ValueError('PBO text checksum mismatch')
+    return bytes(output)
 
 
 def xdb_entries(stream, length):
@@ -160,12 +200,27 @@ def main():
                     raw = package.read(member)
                     entries, properties = pbo_entries(raw)
                     record.update(entries=entries, properties=properties)
-                    # Packed DayZ script/model formats need their own decoder.
-                    # Keep only directly readable sources, without interpreting code.
-                    for entry in entries:
-                        if not entry['unsafe_path'] and wanted_text(entry['name']) and entry['method'] == 0 and entry['size'] <= 2*1024*1024:
+                    text_budget = 0
+                    for index, entry in enumerate(entries):
+                        suffix = PurePosixPath(entry['name'].replace('\\','/')).suffix.lower()
+                        if (not entry['unsafe_path'] and (wanted_text(entry['name']) or suffix in ('.c','.cpp')) and
+                                entry['method'] in (0,0x43707273) and 0 < entry['size'] <= 2*1024*1024):
+                            text_budget += entry['size']
+                            if text_budget > 32*1024*1024:
+                                raise ValueError('PBO text budget exceeded')
                             data = raw[entry['offset']:entry['offset']+entry['packed']]
-                            write_source(args.output, archive.name, base, entry['name'], data)
+                            try:
+                                if entry['method'] == 0x43707273:
+                                    data = pbo_lzss(data,entry['size'])
+                                if len(data) != entry['size']:
+                                    raise ValueError('PBO text length mismatch')
+                            except ValueError:
+                                entry['text_decode_failed'] = True
+                                continue
+                            entry['text_sha256'] = hashlib.sha256(data).hexdigest()
+                            # Obfuscated packages contain several entries with
+                            # the same name; preserve each rather than overwrite.
+                            write_source(args.output, archive.name, base, f'entry_{index}/'+entry['name'], data)
                 elif member.file_size <= 100000 and base.lower().endswith(('.md', '.txt', '.ini', '.cpp')):
                     write_source(args.output, archive.name, 'package', member.filename, package.read(member))
                 item['members'].append(record)

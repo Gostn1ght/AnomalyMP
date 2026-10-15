@@ -94,22 +94,28 @@ local function take(actor, obj, counts)
 		end
 		if i ~= #order then return "the list changed" end
 	end
-	local taken = 0
-	for sec, count in pairs(wanted) do
-		for _ = 1, count do
-			if item_knife and item_knife.degradate then pcall(item_knife.degradate) end
-			alife_create_item(sec, actor, ITEM_PROPS)
+	local taken, failed = 0, false
+	for _, sec in ipairs(order) do
+		for _ = 1, wanted[sec] or 0 do
+			-- ItemProcessor returns the real server entity, or nil on failure.
+			-- A failed creation must leave the part on the corpse for a retry.
+			local created = alife_create_item(sec, actor, ITEM_PROPS)
+			if not created then failed = true; break end
+			loot[sec].count = loot[sec].count - 1
+			if loot[sec].count <= 0 then loot[sec] = nil end
+			se_save_var(id, obj:name(), "netcoop_mutant_loot", loot)
 			taken = taken + 1
+			if item_knife and item_knife.degradate then pcall(item_knife.degradate) end
 		end
-		loot[sec].count = loot[sec].count - count
-		if loot[sec].count <= 0 then loot[sec] = nil end
+		if failed then break end
 	end
+	if taken == 0 and failed then return "item creation failed; parts remain on the body" end
 	if taken == 0 then return "nothing selected" end
 	local left = #sorted_sections(loot) > 0
 	se_save_var(id, obj:name(), "looted", not left)
 	if xr_corpse_detection and xr_corpse_detection.set_valuable_loot then xr_corpse_detection.set_valuable_loot(id, left) end
 	netcoop_send_to_actor(actor:id(), "mutant_loot", payload(id, left and "ok" or "empty", left and loot or nil))
-	return ""
+	return failed and "item creation failed; remaining parts stay on the body" or ""
 end
 
 -- netcoop_server_compat.item_action, kind 2 (db.actor is the player)

@@ -1,5 +1,6 @@
 #include "pch_script.h"
 #include "netcoop.h"
+#include "netcoop_consumption.h"
 #include "../xrSound/SoundVoice.h"
 #include "xr_level_controller.h"
 #include "ui_defs.h"
@@ -3611,6 +3612,16 @@ void client_on_script(NET_Packet& P)
 	if (!read_string(P, channel, sizeof(channel)) || !read_string(P, data, sizeof(data)))
 		return;
 	if (!xr_strcmp(channel, "netcoop_transfer")) return client_cluster_transfer(data);
+	if (!xr_strcmp(channel, "netcoop_consumption"))
+	{
+		unsigned id=0, kind=0;
+		LPCSTR name=nullptr;
+		if (!netcoop_consumption::parse(data,id,kind,name)) return;
+		CActor* actor=smart_cast<CActor*>(Level().Objects.net_Find(u16(id)));
+		// Delayed messages must not animate a different incarnation of this ID.
+		if (actor && !xr_strcmp(actor->cName().c_str(),name)) actor->netcoop_play_consumption(u8(kind));
+		return;
+	}
 	if (!xr_strcmp(channel, "netcoop_role"))
 	{
 		// The server console changed this account's role while it is online.

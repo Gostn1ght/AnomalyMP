@@ -779,6 +779,15 @@ bool script_item_action(int kind, u16 item, u16 target, LPCSTR action)
 void server_item_used(CActor* actor, u16 item, LPCSTR section)
 {
 	if (!enabled() || pure_client() || !actor || !section || !section[0]) return;
+	// Called after the authoritative UseBy succeeds, before an empty item is
+	// removed. Presentation cannot apply effects or consume the item again.
+	LPCSTR category=pSettings->line_exist(section,"kind") ? pSettings->r_string(section,"kind") : "";
+	const unsigned kind=netcoop_consumption::kind(section,category);
+	if (kind<6)
+	{
+		const xr_string message=make_string("%u|%u|%s",actor->ID(),kind,actor->cName().c_str());
+		script_broadcast("netcoop_consumption",message.c_str());
+	}
 	::luabind::functor<void> run;
 	if (!ai().script_engine().functor("netcoop_item_use.used", run)) return;
 	ServerVictimScope scope(actor);

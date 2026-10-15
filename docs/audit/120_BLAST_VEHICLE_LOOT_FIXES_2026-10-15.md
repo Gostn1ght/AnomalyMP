@@ -13,3 +13,7 @@ Implementation batch; native CI and actual game acceptance are not implied by th
 `ActorInput.cpp`, `netcoop_mutant_loot_view.script`: pure-client F first offers the object to a dead-mutant/crow adapter, which requests the server's parts list and avoids the SP use callback. Non-mutants/living objects continue normal handling. The adapter supports existing numeric-ID callers instead of silently dropping them. Actual Lua adapter tests pass for these paths and the existing server-backed window. Live binder/window/knife/creation behavior remains OPEN.
 
 No player/account/world file is modified by these checks. No game client/location server launched. DCP and helicopters are being audited independently; no foreign binaries or protected PBO payloads are installed.
+
+Follow-up: server mutant takes now decrement persisted body loot and wear the knife only after ItemProcessor returns a real created entity. Nil/partial creation keeps the remaining parts on the corpse; actual Lua failure/retry checks pass without rerolling or reissuing already created parts. This is not a crash-durable world/inventory transaction.
+
+First batch a09d9cc14: Linux checks and all Windows native fixtures passed in CI38783097051; full engine build is still pending at this recording. Follow-up observer animations and source-audit decoder checks await their own CI.
