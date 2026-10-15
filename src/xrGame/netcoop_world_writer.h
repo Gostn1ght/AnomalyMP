@@ -61,12 +61,12 @@ inline bool writer_request(const WriterConfig& config, const std::string& instan
         config.token.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")!=std::string::npos ||
         (method!="GET" && method!="POST") || path.size()>1024 ||
         path.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-/?:&=.%")!=std::string::npos ||
-        payload.size()>1024*1024)
+        payload.size()>64*1024)
         return false;
     if (method=="POST")
     {
         if (!epoch || path!="/v1/command") return false;
-        const auto command=bridge_json(payload,1024*1024);
+        const auto command=bridge_json(payload,64*1024);
         if (!command.is_object() || command.size()!=3 || !command.contains("arguments") ||
             !command["arguments"].is_object()) return false;
         bridge_identifier(command,"command_id",true);
@@ -75,11 +75,16 @@ inline bool writer_request(const WriterConfig& config, const std::string& instan
         if (operation!="location_claim" && operation!="location_renew" && operation!="location_recover" &&
             operation!="entity_create" && operation!="entity_update" && operation!="entity_death" &&
             operation!="item_create" && operation!="item_move" && operation!="transfer_prepare" &&
-            operation!="transfer_claim" && operation!="transfer_commit" && operation!="transfer_abort") return false;
+            operation!="transfer_claim" && operation!="transfer_commit" && operation!="transfer_abort" &&
+            operation!="session_disconnect" && operation!="session_resume" &&
+            operation!="native_save_begin" && operation!="native_save_append" &&
+            operation!="native_save_finish" && operation!="native_save_cancel") return false;
     }
     else if (!payload.empty() || (path!="/v1/engine-bootstrap" && path!="/v1/clock" &&
              path.rfind("/v1/location?",0)!=0 && path.rfind("/v1/location-bootstrap?",0)!=0 &&
-             path.rfind("/v1/transfer?",0)!=0)) return false;
+             path.rfind("/v1/transfer?",0)!=0 && path.rfind("/v1/player-save?",0)!=0)) return false;
+    // Checkpoint reads must bind world/seed/epoch in the same request too.
+    if (path.rfind("/v1/player-save?",0)==0 && !epoch) return false;
     const auto deadline=GetTickCount64()+2000;
     BridgeHttpHandle session(WinHttpOpen(L"LostZoneWorldWriter/1",WINHTTP_ACCESS_TYPE_NO_PROXY,
         WINHTTP_NO_PROXY_NAME,WINHTTP_NO_PROXY_BYPASS,0));
