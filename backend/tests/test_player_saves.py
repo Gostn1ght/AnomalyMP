@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import uuid
+import threading
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lostzone import Conflict, Invalid, Store, Unavailable, World
@@ -136,6 +137,67 @@ class PlayerSavesTest(unittest.TestCase):
         with self.assertRaises(Conflict):
             self.saves.finish("source",uid(),self.character,self.source,1,upload)
         self.assertEqual(self.store.db.execute("SELECT MAX(revision) FROM native_player_save").fetchone()[0],1)
+
+    def test_chunk_decode_releases_world_lock_and_rechecks_cas(self):
+        previous = native_fixture(progress=b"previous complete checkpoint")
+        self.complete(previous)
+        raw = native_fixture(progress=b"new progress"*4000)
+        upload = self.begin(raw,version=2,revision=1)
+        self.append(raw,upload)
+        entered,release = threading.Event(),threading.Event()
+        decode = base64.b64decode
+        errors = []
+        def paused_decode(*args,**kwargs):
+            entered.set()
+            if not release.wait(5):
+                raise RuntimeError("decode test barrier expired")
+            return decode(*args,**kwargs)
+        def finish():
+            try:
+                self.saves.finish("source",uid(),self.character,self.source,1,upload)
+            except Exception as error:
+                errors.append(error)
+        with patch("lostzone.player_saves.base64.b64decode",side_effect=paused_decode):
+            worker = threading.Thread(target=finish)
+            worker.start()
+            try:
+                self.assertTrue(entered.wait(5))
+                acquired = self.store.lock.acquire(timeout=0.5)
+                if acquired:
+                    self.store.lock.release()
+                self.assertTrue(acquired,"base64 decode holds the shared world lock")
+                self.ownership.update_entity("source",uid(),self.character,self.source,2,{"position":[4,5,6]})
+            finally:
+                release.set()
+                worker.join(10)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(len(errors),1)
+        self.assertIsInstance(errors[0],Conflict)
+        self.assertEqual(self.store.db.execute("SELECT MAX(revision) FROM native_player_save").fetchone()[0],1)
+        self.assertEqual(base64.b64decode(self.saves.read("source",self.character,self.source,1,1)["data"]),previous)
+
+    def test_corrupt_staged_parts_never_replace_complete_checkpoint(self):
+        previous = native_fixture(progress=b"previous complete checkpoint")
+        self.complete(previous)
+        raw = native_fixture(progress=b"new progress"*4000)
+        upload = self.begin(raw,version=2,revision=1)
+        self.append(raw,upload)
+        original = [tuple(row) for row in self.store.db.execute("SELECT upload_id,offset,payload_base64 FROM native_player_part ORDER BY offset")]
+        cases = (("UPDATE native_player_part SET offset=1 WHERE upload_id=? AND offset=0",(upload,)),
+                 ("UPDATE native_player_part SET payload_base64='!!!' WHERE upload_id=? AND offset=0",(upload,)),
+                 ("UPDATE native_player_part SET payload_base64=? WHERE upload_id=? AND offset=0",(base64.b64encode(b"short").decode(),upload)),
+                 ("UPDATE native_player_part SET payload_base64=? WHERE upload_id=? AND offset=0",("A"*(CHUNK*4//3+4),upload)),
+                 ("DELETE FROM native_player_part WHERE upload_id=? AND offset=?",(upload,original[-1][1])))
+        for sql,parameters in cases:
+            with self.subTest(sql=sql):
+                self.store.db.execute(sql,parameters)
+                with self.assertRaises(Invalid):
+                    self.saves.finish("source",uid(),self.character,self.source,1,upload)
+                self.assertEqual(self.store.db.execute("SELECT MAX(revision) FROM native_player_save").fetchone()[0],1)
+                self.assertEqual(base64.b64decode(self.saves.read("source",self.character,self.source,1,1)["data"]),previous)
+                self.store.db.execute("DELETE FROM native_player_part WHERE upload_id=?",(upload,))
+                self.store.db.executemany("INSERT INTO native_player_part VALUES(?,?,?)",original)
+        self.assertTrue(self.saves.finish("source",uid(),self.character,self.source,1,upload)["durable"])
 
     def test_generic_state_and_disconnect_preserve_the_durable_reference(self):
         raw = native_fixture()

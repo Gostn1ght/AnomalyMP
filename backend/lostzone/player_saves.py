@@ -126,9 +126,25 @@ class PlayerSaves:
             if row["received"] != row["byte_count"]:
                 raise Conflict("native upload is incomplete")
             parts = self.store.db.execute("SELECT offset,payload_base64 FROM native_player_part WHERE upload_id=? ORDER BY offset", (upload_id,)).fetchall()
-            raw = b"".join(base64.b64decode(part["payload_base64"], validate=True) for part in parts)
-            expected = row["sha256"]
+            expected,byte_count = row["sha256"],row["byte_count"]
         # Bounded format/checksum work happens outside the SQLite/world lock.
+        decoded,received = [],0
+        for part in parts:
+            if part["offset"] != received or not isinstance(part["payload_base64"],str) or not 1 <= len(part["payload_base64"]) <= CHUNK*4//3:
+                raise Invalid("native staging chunk is inconsistent")
+            try:
+                chunk = base64.b64decode(part["payload_base64"],validate=True)
+            except ValueError as error:
+                raise Invalid("native staging chunk is invalid") from error
+            if base64.b64encode(chunk).decode("ascii") != part["payload_base64"]:
+                raise Invalid("native staging chunk is noncanonical")
+            received += len(chunk)
+            if not chunk or received > byte_count or (received < byte_count and len(chunk) != CHUNK):
+                raise Invalid("native staging byte count changed")
+            decoded.append(chunk)
+        if received != byte_count:
+            raise Invalid("native staging is incomplete")
+        raw = b"".join(decoded)
         saved = parse_native_save(raw)
         if saved.sha256 != expected:
             raise Invalid("native upload complete checksum mismatch")
