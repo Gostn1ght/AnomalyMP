@@ -39,3 +39,5 @@ The bundled README and the author's [client repository](https://github.com/modda
 Archive format references: Bohemia's [PBO format](https://community.bistudio.com/wiki/PBO) and [Cprs/LZSS format](https://community.bistudio.com/wiki/Compressed_LZSS_File_Format). The bounded Python decoder follows the public format, not the flight implementation. It never executes decoded source.
 
 T1 technical findings are recorded. T2–T9 driving/flight/replication/persistence acceptance remains OPEN; no support count, physics fidelity, successful spawn or network load is claimed from file inspection.
+
+Follow-up implementation: doc123 adds an actual optional adapter for the two suspension spring/damping factors through the existing ODE wheel joint. The other unsupported handling fields and full DCP car/aircraft asset integration remain open.

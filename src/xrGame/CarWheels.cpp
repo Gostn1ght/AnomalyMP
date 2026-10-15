@@ -8,6 +8,7 @@
 #include "PHDestroyable.h"
 #include "car.h"
 #include "../Include/xrRender/Kinematics.h"
+#include "../xrEngine/bone.h"
 #include "../xrphysics/ExtendedGeom.h"
 
 CCar::SWheel::SWheelCollisionParams::SWheelCollisionParams()
@@ -51,6 +52,27 @@ bool CCar::WheelHit(float P, s16 element, ALife::EHitType hit_type)
 	else return false;
 }
 
+static bool car_apply_suspension_profile(CInifile* ini, CPhysicsJoint* joint, LPCSTR wheel)
+{
+	if (!ini || !joint || !joint->IsWheelJoint()) return false;
+	const char* keys[] = {"suspension_spring_factor", "suspension_damping_factor"};
+	float factors[] = {1.f, 1.f};
+	bool configured = false;
+	for (u32 i=0; i<2; ++i)
+	{
+		LPCSTR section = wheel && ini->line_exist(wheel,keys[i]) ? wheel : "wheels_params";
+		if (!ini->line_exist(section,keys[i])) continue;
+		configured = true;
+		factors[i] = ini->r_float(section,keys[i]);
+		// Reject the whole optional profile instead of feeding invalid/zero
+		// stiffness or damping into ODE. Legacy models have neither key.
+		if (!_valid(factors[i]) || factors[i]<=0.f || factors[i]>100.f) return false;
+	}
+	if (!configured) return false;
+	joint->SetJointSDfactors(factors[0],factors[1]);
+	return true;
+}
+
 void CCar::SWheel::Init()
 {
 	if (inited) return;
@@ -66,6 +88,8 @@ void CCar::SWheel::Init()
 
 	//R_ASSERT2(dJointGetType(joint->GetDJoint())==dJointTypeHinge2,"No wheel join was set for a wheel, only wheel-joint valid!!!");
 	R_ASSERT2(joint->IsWheelJoint(), "No wheel join was set for a wheel, only wheel-joint valid!!!");
+	IKinematics* model = PKinematics(car->Visual());
+	car_apply_suspension_profile(model->LL_UserData(), joint, model->LL_GetData(bone_id).name.c_str());
 
 	ApplyDriveAxisVelTorque(0.f, 0.f);
 	e->add_ObjectContactCallback(WheellCollisionCallback);
