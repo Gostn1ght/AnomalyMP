@@ -277,10 +277,9 @@ static void cluster_lease_release(LPCSTR login)
 {
 	const auto owned = s_cluster_ownership.find(cluster_login_key(login));
 	if (owned == s_cluster_ownership.end()) return; // Never remove another owner's lease.
-	// Drain every queued old snapshot before another process can load this
-	// account. In normal handoff/disconnect the preceding synchronous save has
-	// already drained; this also covers front-end storage and auth rejection.
-	character_commits_flush();
+	// Drain all ten slots of this account before releasing its OS lease.
+	// Other accounts' pending disk writes do not belong to this handoff.
+	character_commits_flush_account(login);
 	u32 port = 0, stamp = 0;
 	if (cluster_lease_holder(login, port, stamp) && port == cluster_port())
 	{
@@ -485,7 +484,7 @@ static bool cluster_on_login(xrClientData* CL, LPCSTR login, u8 slot, xr_string&
 		}
 	}
 	if (!cluster_claim_session(login, error)) return false;
-	character_commits_flush();
+	character_commits_flush_account(login);
 	xr_string prefix = login; to_lower(prefix); prefix += ":";
 	for (auto it = s_characters.begin(); it != s_characters.end();)
 		if (it->first.compare(0, prefix.size(), prefix) == 0) it = s_characters.erase(it); else ++it;

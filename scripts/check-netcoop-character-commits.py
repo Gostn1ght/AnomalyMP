@@ -16,7 +16,7 @@ commit_file=characters[a:b]
 worker=characters[b:characters.index('// A synchronous save',b)]
 assert 'character_commit_take(commit)' in worker and 'character_commit_finish()' in worker
 save=characters[characters.index('static bool character_save(Character&'):characters.index('static Character* character_load(')]
-assert save.index('character_commits_flush()') < save.index('character_temp_path(') < save.index('fopen(temp, "wb")')
+assert save.index('character_path(') < save.index('character_commits_flush(path)') < save.index('character_temp_path(') < save.index('fopen(temp, "wb")')
 assert save.index('_ftelli64(f)') < save.index('character_commit_enqueue(commit)') < save.index('character.last_save = real_time_ms()')
 assert save.index('character_sync_commit(f, temp, path)') < save.rindex('character.last_save = real_time_ms()')
 
@@ -37,13 +37,15 @@ source=r'''
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <algorithm>
+#include <chrono>
 #ifdef _WIN32
 #include <windows.h>
 #include <io.h>
 #else
 using LONG=int32_t;
 #endif
-using u32=unsigned int;using u64=uint64_t;using LPCSTR=const char*;
+using u8=unsigned char;using u32=unsigned int;using u64=uint64_t;using LPCSTR=const char*;
 using xr_string=std::string;using string_path=char[260];
 template<class T>using xr_deque=std::deque<T>;
 struct xrCriticalSection{std::mutex lock;void Enter(){lock.lock();}void Leave(){lock.unlock();}};
@@ -63,10 +65,15 @@ BOOL checked_move(LPCSTR from,LPCSTR to,DWORD flags){return fail_rename?FALSE:Mo
 #define MoveFileExA checked_move
 #else
 LONG InterlockedExchange(volatile LONG* target,LONG value){const auto old=*target;*target=value;return old;}
+void Sleep(unsigned ms){std::this_thread::sleep_for(std::chrono::milliseconds(ms));}
 #endif
 #define DeleteFileA record_delete
 #define GetCurrentProcessId process_id
-'''+queue+(commit_file if os.name=="nt" else "")+r'''
+std::vector<std::string> fixture_paths;
+void character_path(LPCSTR account,u8 slot,string_path& path){
+ std::snprintf(path,sizeof(path),"%s_%u.bin",account,unsigned(slot));fixture_paths.emplace_back(path);
+}
+'''+queue+(commit_file if os.name=="nt" else "")+characters[characters.index('static void character_commits_flush('):characters.index('static bool character_save(Character&')]+r'''
 CharacterCommit entry(const std::string& path,const std::string& temp,u64 bytes){CharacterCommit result;result.path=path;result.temp=temp;result.bytes=bytes;return result;}
 void reset(){assert(!s_commit_busy);s_commits.clear();s_commit_bytes=s_commit_active_bytes=0;deleted.clear();}
 void drain(){CharacterCommit work;while(character_commit_take(work))character_commit_finish();}
@@ -110,6 +117,23 @@ int main(){
  character_commit_finish();assert(s_commit_bytes==300);
  assert(character_commit_take(second));assert(second.temp=="a3");character_commit_finish();
  character_commit_finish();assert(s_commit_bytes==0 && s_commits.empty() && !s_commit_busy);
+ // A held unrelated disk write must not hold this player's sync checkpoint.
+ reset();assert(character_commit_enqueue(entry("b","b1",20)));
+ assert(character_commit_take(active));assert(s_commit_active_path=="b");
+ character_commits_flush("a");assert(s_commit_busy && s_commit_bytes==20);
+ character_commits_flush_account("alice");
+ assert(fixture_paths.size()==10 && fixture_paths.front()=="alice_1.bin" && fixture_paths.back()=="alice_10.bin");
+ assert(s_commit_busy && s_commit_bytes==20); // account flush also ignores B
+ assert(character_commit_enqueue(entry("b","b2",30)));
+ assert(character_commit_enqueue(entry("c","c1",40)));
+ assert(character_commit_enqueue(entry("a","a1",10)));
+ assert(character_commit_pending("a") && s_commits.front().path=="a");
+ assert(!character_commit_pending("missing") && character_commit_pending(nullptr));
+ character_commit_finish();assert(character_commit_take(active) && active.path=="a");
+ assert(character_commit_pending("a") && s_commit_active_path=="a");
+ character_commit_finish();character_commits_flush("a");
+ assert(!character_commit_pending("a") && s_commit_bytes==70 && character_commit_pending(nullptr));
+ drain();character_commits_flush();assert(s_commit_active_path.empty());
  reset();assert(character_commit_enqueue(entry("a","a1",character_commit_byte_limit)));
  assert(!character_commit_enqueue(entry("b","b1",1)));
  assert(character_commit_take(active));assert(!character_commit_enqueue(entry("b","b1",1)));

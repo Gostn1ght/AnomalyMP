@@ -154,6 +154,7 @@ static volatile LONG s_commit_busy = 0;
 static const u32 character_commit_count_limit = 256;
 static const u64 character_commit_byte_limit = 32ull * 1024 * 1024;
 static u64 s_commit_bytes = 0, s_commit_active_bytes = 0;
+static xr_string s_commit_active_path;
 
 // At most one pending complete snapshot per path. A newer snapshot contains
 // the full inventory/safe/progress, so it can supersede a queued older one.
@@ -190,6 +191,7 @@ static bool character_commit_take(CharacterCommit& commit)
 	{
 		commit = s_commits.front(); s_commits.pop_front();
 		s_commit_active_bytes = commit.bytes;
+		s_commit_active_path = commit.path;
 		InterlockedExchange(&s_commit_busy, 1);
 	}
 	s_commit_lock.Leave();
@@ -201,8 +203,30 @@ static void character_commit_finish()
 	s_commit_lock.Enter();
 	s_commit_bytes -= s_commit_active_bytes;
 	s_commit_active_bytes = 0;
+	s_commit_active_path.clear();
 	InterlockedExchange(&s_commit_busy, 0);
 	s_commit_lock.Leave();
+}
+
+// A synchronous checkpoint only orders writes for its own character. Pull
+// that path to the front; unrelated queued players must not stall a transfer.
+// The single simulation-thread producer cannot enqueue a newer same-path
+// write while it is waiting here. Shutdown keeps the global (null) barrier.
+static bool character_commit_pending(LPCSTR path)
+{
+	s_commit_lock.Enter();
+	bool pending = s_commit_busy && (!path || s_commit_active_path == path);
+	if (!path) pending = pending || !s_commits.empty();
+	else
+		for (auto it = s_commits.begin(); it != s_commits.end(); ++it)
+			if (it->path == path)
+			{
+				std::iter_swap(s_commits.begin(), it);
+				pending = true;
+				break;
+			}
+	s_commit_lock.Leave();
+	return pending;
 }
 
 static bool character_temp_path(LPCSTR path, bool background, string_path& temp)
@@ -251,23 +275,26 @@ static void character_commit_worker(void*)
 }
 
 // A synchronous save must not be overtaken by an older background one.
-static void character_commits_flush()
+static void character_commits_flush(LPCSTR path = nullptr)
 {
-	for (;;)
+	while (character_commit_pending(path)) Sleep(1);
+}
+
+static void character_commits_flush_account(LPCSTR account)
+{
+	for (u8 slot = 1; slot <= 10; ++slot)
 	{
-		s_commit_lock.Enter();
-		const bool idle = s_commits.empty() && !s_commit_busy;
-		s_commit_lock.Leave();
-		if (idle) return;
-		Sleep(1);
+		string_path path;
+		character_path(account, slot, path);
+		character_commits_flush(path);
 	}
 }
 
 static bool character_save(Character& character, bool background = false)
 {
-	if (!background) character_commits_flush();
 	string_path path, temp;
 	character_path(character.account.c_str(), character.slot, path);
+	if (!background) character_commits_flush(path);
 	if (!character_temp_path(path, background, temp)) return false;
 	FILE* f = fopen(temp, "wb");
 	if (!f) return false;

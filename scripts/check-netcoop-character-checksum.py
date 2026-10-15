@@ -131,7 +131,7 @@ bool s_commit_worker=false;
 constexpr u64 character_commit_byte_limit=32ull*1024*1024;
 void character_commit_worker(void*){}
 void thread_spawn(void(*)(void*),const char*,int,void*){assert(false);}
-void character_commits_flush(){}
+void character_commits_flush(LPCSTR=nullptr){}
 bool character_temp_path(const char* path,bool,char* temp){return std::snprintf(temp,260,"%s.tmp",path)>0;}
 bool character_commit_enqueue(const CharacterCommit&){return false;}
 ''' + actual + r'''

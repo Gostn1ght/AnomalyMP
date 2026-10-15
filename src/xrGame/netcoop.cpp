@@ -6,6 +6,7 @@
 #include "../xrEngine/netcoop_menu_camera.h"
 
 #include <bcrypt.h>
+#include <algorithm>
 #include <io.h>
 #include "netcoop_storage_policy.h"
 #include <wincrypt.h>

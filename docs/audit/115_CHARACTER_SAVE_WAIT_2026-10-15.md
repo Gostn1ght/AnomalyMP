@@ -1,0 +1,11 @@
+# Per-character synchronous save ordering
+
+Source evidence: character_save(background=false) unconditionally waited for the whole background commit queue, including every other player. A stalled write for B could therefore hold A's transfer/synchronous save even when A had no queued or in-flight write. This is an identifiable source of server stalls; it does not prove the cause of the owner's reported permanent client freezes.
+
+Track the active path under the existing commit lock. character_commits_flush(path) waits only for matching queued/in-flight snapshots and promotes that path's pending snapshot to the front of the queue. It does not replace an in-flight snapshot, drop pending snapshots or change byte/count accounting. A's old write must finish before A's synchronous write; unrelated B may finish concurrently. The existing single simulation-thread producer cannot enqueue a new A while blocked in A's synchronous save. No arbitrary timeout releases the durability barrier.
+
+Null/default flush remains global and unchanged at shutdown. Account claim/release drains exactly that account's ten native slot paths while retaining its OS ownership lock; unrelated accounts are not part of that barrier. A same-character stalled physical write still has to finish to prevent stale overwrite; this change does not claim a hard disk IO timeout or solve every freeze.
+
+Extended CI-only actual queue fixture: held B is not waited on by an A-only flush, A's pending snapshot is promoted before unrelated pending players, active A still blocks A, then A flush returns while B/C remain queued. Global flush still drains all paths. Existing real producer/consumer latest-snapshot stress, queue byte/count bounds, coalescing and Windows fsync/rename/write-error tests remain. The real NCH writer fixture stub accepts the path argument; no production save-format changes. Native checks/engine build await CI. No game or location process launched and no installed save changed.
+
+The actual account barrier is also executed against a held unrelated B, covering slots1..10. The existing real Windows cross-process ownership fixture still checks that the exclusive account lock is held through the account barrier, and stale/non-owners cannot release another process's lock.

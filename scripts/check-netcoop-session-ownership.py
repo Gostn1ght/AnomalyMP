@@ -45,7 +45,7 @@ u32 current_port=1267,fixture_now=100;bool fail_open=false,fail_flush=false,fail
 u32 cluster_port(){return current_port;}u32 cluster_now(){return fixture_now;}
 static const u32 cluster_lease_ttl_s=30;
 int flushes=0;
-void character_commits_flush(){
+void character_commits_flush_account(LPCSTR){
  ++flushes;
  HANDLE probe=CreateFileA("cluster\\ownership_user.txt",GENERIC_READ|GENERIC_WRITE,0,nullptr,OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);
  assert(probe==INVALID_HANDLE_VALUE); // Ownership is retained through the drain.
