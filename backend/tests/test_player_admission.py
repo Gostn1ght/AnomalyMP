@@ -235,6 +235,19 @@ class PlayerAdmissionTest(unittest.TestCase):
         self.store.db.execute("UPDATE native_player_import SET id=?,seed='99'", (self.character,))
         with self.assertRaises(Unavailable):
             self.inspect()
+        self.store.db.execute("UPDATE native_player_import SET seed='7',account='other-account'")
+        with self.assertRaises(Unavailable):
+            self.inspect()
+        self.store.db.execute("UPDATE native_player_import SET account='alice',slot=2")
+        with self.assertRaises(Unavailable):
+            self.inspect()
+        self.store.db.execute("UPDATE native_player_import SET slot=1,id=?", (uid(),))
+        other = parse_native_save(native_fixture())
+        self.store.db.execute("INSERT INTO native_player_import VALUES(?,?,?,?,?,?,?,?,?)",
+                             (self.character, "another-account", 1, "cordon", "42", "7", other.sha256,
+                              canonical(other.summary()), base64.b64encode(other.raw).decode()))
+        with self.assertRaises(Unavailable):
+            self.inspect()
         self.store.db.execute("DELETE FROM native_player_import")
         self.create()
         self.store.db.execute("UPDATE entity SET state=? WHERE id=?", ('{"native_save":null}', self.character))

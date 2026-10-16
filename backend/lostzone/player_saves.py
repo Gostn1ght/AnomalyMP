@@ -65,8 +65,11 @@ class PlayerSaves:
                       "entity_version": 0, "session_fence": 0, "checkpoint": None}
             entity = tx.execute("SELECT kind,location,writer,fence,version,alive,substr(state,1,1048577) AS state "
                                 "FROM entity WHERE id=?", (character_id,)).fetchone()
-            staged = tx.execute("SELECT id,account,slot,location,world_id,seed FROM native_player_import WHERE account=? AND slot=?",
-                                (account, slot)).fetchone()
+            staged_rows = tx.execute("SELECT id,account,slot,location,world_id,seed FROM native_player_import "
+                                     "WHERE id=? OR (account=? AND slot=?) LIMIT 2", (character_id, account, slot)).fetchall()
+            if len(staged_rows) > 1:
+                raise Unavailable("staged native slot identity is ambiguous")
+            staged = staged_rows[0] if staged_rows else None
             if staged is not None and (staged["id"], staged["account"], staged["slot"], staged["world_id"], staged["seed"]) != (
                     character_id, account, slot, result["world_id"], result["seed"]):
                 raise Unavailable("staged native slot identity is inconsistent")
