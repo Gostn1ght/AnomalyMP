@@ -13,6 +13,12 @@ if not exist "hoster\netcoop_master_control.ps1" (
   pause
   exit /b 1
 )
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "hoster\netcoop_unblock_launch.ps1" -RuntimeRoot "%~dp0."
+if errorlevel 1 (
+  echo Cannot prepare server launch files. See the error above.
+  pause
+  exit /b 1
+)
 if not exist "appdata\server" mkdir "appdata\server"
 if not exist "appdata\server\netcoop_cluster.ltx" copy "hoster\netcoop_cluster.ltx.six" "appdata\server\netcoop_cluster.ltx" >nul
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "hoster\netcoop_master_control.ps1" -MasterRoot "%~dp0." -StartMaster

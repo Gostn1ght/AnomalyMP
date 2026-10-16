@@ -3,6 +3,8 @@ if exist "%~dp0UPDATING.lock" (echo Lost Zone update is in progress. & pause & e
 rem Lost Zone server: writes fsgame_server.ltx for this folder and opens the
 rem location panel (list of maps, start / stop / restart, automatic mode).
 cd /d "%~dp0"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "hoster\netcoop_unblock_launch.ps1" -RuntimeRoot "%~dp0."
+if errorlevel 1 (echo Cannot prepare server launch files. & pause & exit /b 1)
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$r = (Get-Location).Path.TrimEnd('\') + '\'; (Get-Content -Raw -LiteralPath 'fsgame_server.template' -Encoding Default).Replace('{ROOT}', $r) | Set-Content -NoNewline -Encoding Default -LiteralPath 'fsgame_server.ltx'"
 if errorlevel 1 (echo Cannot write fsgame_server.ltx & pause & exit /b 1)
 if not exist "appdata\server" mkdir "appdata\server"

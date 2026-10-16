@@ -37,7 +37,7 @@ if os.name == "nt":
         (folder / "dedicated").mkdir()
         (folder / "dedicated/LostZoneServerDX11.exe").touch()
         (folder / "hoster").mkdir()
-        for name in ("netcoop_master_control.ps1", "netcoop_cluster.ltx.six"):
+        for name in ("netcoop_master_control.ps1", "netcoop_unblock_launch.ps1", "netcoop_cluster.ltx.six"):
             shutil.copyfile(ROOT / "scripts/netcoop-cluster" / name, folder / "hoster" / name)
         shutil.copyfile(ROOT / "scripts/dist/fsgame_server.template", folder / "fsgame_server.template")
         output = launch()

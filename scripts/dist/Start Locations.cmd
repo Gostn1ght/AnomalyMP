@@ -18,6 +18,12 @@ if not exist "dedicated\LostZoneServerDX11.exe" (
   pause
   exit /b 1
 )
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "hoster\netcoop_unblock_launch.ps1" -RuntimeRoot "%~dp0."
+if errorlevel 1 (
+  echo Cannot prepare server launch files. See the error above.
+  pause
+  exit /b 1
+)
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$r = (Get-Location).Path.TrimEnd('\') + '\'; (Get-Content -Raw -LiteralPath 'fsgame_server.template' -Encoding Default).Replace('{ROOT}', $r) | Set-Content -NoNewline -Encoding Default -LiteralPath 'fsgame_server.ltx'"
 if errorlevel 1 (
   echo Не удалось записать fsgame_server.ltx

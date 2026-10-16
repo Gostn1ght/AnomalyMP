@@ -66,7 +66,7 @@ def main():
             shutil.copy2(f, hoster / f.name)
     subprocess.run([sys.executable, str(HERE / "make_master_runtime.py"), "--python", a.python,
                     "--out", str(hoster / "master")], check=True)
-    for name in ("Start Server Panel.cmd", "Start Locations.cmd", "Admin Rights.cmd", "fsgame_server.template"):
+    for name in ("Start Server Panel.cmd", "Start Locations.cmd", "Start Master.cmd", "Admin Rights.cmd", "fsgame_server.template"):
         shutil.copy2(HERE / name, out / name)
     readme = (HERE / "README-server.txt").read_text(encoding="utf-8").replace("{VERSION}", a.version)
     (out / "README.txt").write_bytes(b"\xef\xbb\xbf" + readme.replace("\n", "\r\n").encode("utf-8"))

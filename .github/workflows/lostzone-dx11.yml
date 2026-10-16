@@ -117,6 +117,7 @@ jobs:
           ./scripts/check-netcoop-load-harness.ps1
           ./scripts/check-netcoop-host-controls.ps1
           ./scripts/check-netcoop-master-arguments.ps1
+          ./scripts/check-netcoop-launch-unblock.ps1
           python -m pip install lupa==2.8 cryptography==46.0.2
           python scripts/check-netcoop-server-pda.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
