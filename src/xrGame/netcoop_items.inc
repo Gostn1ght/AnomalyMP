@@ -785,7 +785,7 @@ void server_item_used(CActor* actor, u16 item, LPCSTR section)
 	const unsigned kind=netcoop_consumption::kind(section,category);
 	if (kind<6)
 	{
-		const xr_string message=make_string("%u|%u|%s",actor->ID(),kind,actor->cName().c_str());
+		const auto message=make_string("%u|%u|%s",actor->ID(),kind,actor->cName().c_str());
 		script_broadcast("netcoop_consumption",message.c_str());
 	}
 	::luabind::functor<void> run;

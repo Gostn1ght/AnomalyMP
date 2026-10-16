@@ -7,35 +7,49 @@ IC bool pred_area(light* _1, light* _2)
 	return a0 > a1; // reverse -> descending
 }
 
-IC void hud_light_apply(xr_map<light*, std::pair<Fvector, Fvector>>& saved_pos, xr_vector<light*>& source)
+IC void hud_light_apply(xr_map<light*, Fmatrix>& saved_pos, xr_vector<light*>& source)
 {
 	for (u32 it = 0; it < source.size(); it++)
 	{
 		light* L = source[it];
-		if (!L->get_hud_mode()) continue;
+		if (!L || !L->get_hud_mode() || saved_pos.find(L) != saved_pos.end()) continue;
 
-		saved_pos.emplace(L, mk_pair(L->position, L->direction));
+		Fmatrix original;
+		original.identity();
+		original.c = L->position;
+		original.k = L->direction;
+		original.i = L->right;
+		saved_pos.emplace(L, original);
 
 		Device.hud_to_world(L->position);
-		Device.hud_to_world_dir(L->direction);
+		// A point light's six shadow faces are fixed WORLD-space cube axes.
+		// Applying the HUD FOV projection to them shears that cube and opens
+		// shadow gaps. Only the emitter position needs the HUD conversion.
+		if (L->flags.type != IRender_Light::POINT && L->flags.type != IRender_Light::OMNIPART)
+		{
+			Device.hud_to_world_dir(L->direction);
+			Device.hud_to_world_dir(L->right);
+		}
+		L->m_xform_frame = u32(-1);
 	}
 }
 
-IC void hud_light_restore(xr_map<light*, std::pair<Fvector, Fvector>>& saved_pos, xr_vector<light*>& source)
+IC void hud_light_restore(xr_map<light*, Fmatrix>& saved_pos)
 {
 	for (const auto& saved : saved_pos)
 	{
 		light* L = saved.first;
-		if (!L->get_hud_mode()) continue;
-
-		L->position = saved.second.first;
-		L->direction = saved.second.second;
+		L->position = saved.second.c;
+		L->direction = saved.second.k;
+		L->right = saved.second.i;
+		// Both spaces may be rendered during the same device frame.
+		L->m_xform_frame = u32(-1);
 	}
 }
 
 void CRender::render_lights(light_Package& LP)
 {
-	xr_map<light*, std::pair<Fvector, Fvector>> saved_pos;
+	xr_map<light*, Fmatrix> saved_pos;
 	//////////////////////////////////////////////////////////////////////////
 	// 0. apply hud_mode projection if necessary
 	hud_light_apply(saved_pos, LP.v_shadowed);
@@ -260,9 +274,7 @@ void CRender::render_lights(light_Package& LP)
 	}
 
 	// restore world projection if necessary
-	hud_light_restore(saved_pos, LP.v_shadowed);
-	hud_light_restore(saved_pos, LP.v_point);
-	hud_light_restore(saved_pos, LP.v_spot);
+	hud_light_restore(saved_pos);
 }
 
 void CRender::render_indirect(light* L)
