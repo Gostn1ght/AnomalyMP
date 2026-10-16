@@ -63,23 +63,7 @@ void CSkeletonX::_Render(ref_geom& hGeom, u32 vCount, u32 iOffset, u32 pCount)
 #ifdef USE_DX11 //
 	if (RImplementation.o.ssfx_motionvectors)
 	{
-		if (Device.dwFrame > Parent->CurrentFrame)
-		{
-			// Save current frame
-			Parent->CurrentFrame = Device.dwFrame;
-
-			// Save prev m_W and save current m_W for the next frame
-			Parent->Matrix_Prev.set(Parent->Matrix_Temp);
-			Parent->Matrix_Temp.set(RCache.xforms.m_w);
-
-			// Save bone matrix to use in the next frame
-			for (u16 b = 0; b < Parent->LL_BoneCount(); b++)
-			{
-				CBoneInstance& Bone = Parent->LL_GetBoneInstance(b);
-				Bone.mRenderTransform_prev.set(Bone.mRenderTransform_temp);
-				Bone.mRenderTransform_temp.set(Bone.mRenderTransform);
-			}
-		}
+		Parent->UpdateMotionHistory(Device.dwFrame, RCache.xforms.m_w);
 
 		// Build previous WV & WVP
 		if (RenderMode == 1)

@@ -126,8 +126,11 @@ protected:
 	SkeletonWMVec wallmarks;
 	u32 wm_frame;
 	u32 CurrentFrame;
+	bool m_motion_history_valid;
 	Fmatrix	Matrix_Prev;
 	Fmatrix Matrix_Temp;
+	void ResetMotionHistory();
+	void UpdateMotionHistory(u32 frame, const Fmatrix& world);
 
 	// Globals
 	CInifile* pUserData;

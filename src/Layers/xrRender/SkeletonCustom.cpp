@@ -98,12 +98,40 @@ void CKinematics::DebugRender(Fmatrix& XFORM)
 
 CKinematics::CKinematics()
 {
+	ResetMotionHistory();
 #ifdef DEBUG
 	dbg_single_use_marker		= FALSE;
 #endif
 
 	m_is_original_lod = false;
 	UCalc_ThisFrame = false;
+}
+
+void CKinematics::ResetMotionHistory()
+{
+	m_motion_history_valid = false;
+	CurrentFrame = 0;
+	Matrix_Prev.identity();
+	Matrix_Temp.identity();
+}
+
+void CKinematics::UpdateMotionHistory(u32 frame, const Fmatrix& world)
+{
+	if (m_motion_history_valid && frame == CurrentFrame) return;
+	// First draw, model reuse and gaps in rendering have no previous-frame
+	// pose. Seed both histories from the actual current pose, not stale or
+	// uninitialized pool memory. Unsigned subtraction also handles frame wrap.
+	const bool continuous = m_motion_history_valid && u32(frame - CurrentFrame) == 1;
+	Matrix_Prev.set(continuous ? Matrix_Temp : world);
+	Matrix_Temp.set(world);
+	for (u16 b = 0; b < LL_BoneCount(); ++b)
+	{
+		CBoneInstance& bone = LL_GetBoneInstance(b);
+		bone.mRenderTransform_prev.set(continuous ? bone.mRenderTransform_temp : bone.mRenderTransform);
+		bone.mRenderTransform_temp.set(bone.mRenderTransform);
+	}
+	CurrentFrame = frame;
+	m_motion_history_valid = true;
 }
 
 CKinematics::~CKinematics()
@@ -423,6 +451,7 @@ void CKinematics::LL_Validate()
 void CKinematics::Copy(dxRender_Visual* P)
 {
 	inherited::Copy(P);
+	ResetMotionHistory();
 
 	CKinematics* pFrom = fast_dynamic_cast<CKinematics*>(P);
 	VERIFY(pFrom);
@@ -453,6 +482,7 @@ void CKinematics::CalculateBones_Invalidate()
 void CKinematics::Spawn()
 {
 	inherited::Spawn();
+	ResetMotionHistory();
 	// bones
 	for (u32 i = 0; i < bones->size(); i++)
 		bone_instances[i].construct();
