@@ -59,7 +59,8 @@ struct VehicleSeatPose
 struct VehicleSeats
 {
 	xr_vector<VehicleSeatPose> seats;
-	float half_width = 1.f;
+	float half_width = 1.f; // from the centre line to the side
+	float center_x = 0.f; // the centre line (a model off the axis, a helicopter)
 	float front_z = 0.f; // the front row of seats (aim: rear seats lie behind it)
 	float rear_z = 0.f; // the back of the car
 	bool trunk = true;
@@ -139,6 +140,11 @@ static VehicleSeats* vehicle_seats(CCar* car)
 	const Fbox& box = car->Visual()->getVisData().box;
 	v.half_width = _max(_abs(box.min.x), _abs(box.max.x));
 	v.rear_z = box.min.z;
+	// A helicopter's box holds the rotor disc and the tail boom: its section
+	// gives the fuselage instead.
+	v.center_x = READ_IF_EXISTS(pSettings, r_float, section, "netcoop_center_x", 0.f);
+	v.half_width = READ_IF_EXISTS(pSettings, r_float, section, "netcoop_half_width", v.half_width);
+	v.rear_z = READ_IF_EXISTS(pSettings, r_float, section, "netcoop_rear_z", v.rear_z);
 	v.front_z = v.seats[0].local.c.z;
 	v.trunk = !!READ_IF_EXISTS(pSettings, r_bool, section, "netcoop_trunk", TRUE);
 	return &v;
@@ -148,7 +154,7 @@ static VehicleSeats* vehicle_seats(CCar* car)
 static Fvector vehicle_exit_position(CCar* car, const VehicleSeats& v, const VehicleSeatPose& seat)
 {
 	Fvector local = seat.local.c;
-	local.x = (local.x < 0.f ? -1.f : 1.f) * (v.half_width + 0.7f);
+	local.x = v.center_x + (local.x < v.center_x ? -1.f : 1.f) * (v.half_width + 0.7f);
 	local.y = seat.local.c.y + 0.5f;
 	Fvector world;
 	car->XFORM().transform_tiny(world, local);
@@ -292,7 +298,8 @@ void server_on_vehicle(xrServer* server, xrClientData* CL, NET_Packet& P)
 		break;
 	case vehicle_op_input:
 		{
-			const u8 keys = P.r_u8() & 31;
+			// Helicopters also take collective down and the pedals (doc 137).
+			const u8 keys = P.r_u8() & (car->netcoop_is_heli() ? 255 : 31);
 			if (v.seats.empty() || v.seats[0] != actor->ID())
 				return;
 			v.keys_time = now;
@@ -857,6 +864,9 @@ void vehicle_key(CActor* actor, int cmd, bool pressed)
 	case kL_STRAFE: bit = CCar::netcoop_key_left; break;
 	case kR_STRAFE: bit = CCar::netcoop_key_right; break;
 	case kJUMP: bit = CCar::netcoop_key_handbrake; break;
+	case kCROUCH: bit = CCar::netcoop_key_down; break;
+	case kL_LOOKOUT: bit = CCar::netcoop_key_yaw_left; break;
+	case kR_LOOKOUT: bit = CCar::netcoop_key_yaw_right; break;
 	}
 	if (bit)
 	{
@@ -920,7 +930,12 @@ LPCSTR script_vehicle_prompt()
 			s_trunk_pending = 0xffff;
 	}
 	if (actor->netcoop_seated())
-		return actor->m_netcoop_seat_driver ? "seated_driver" : "seated";
+	{
+		if (!actor->m_netcoop_seat_driver)
+			return "seated";
+		CCar* seat_car = smart_cast<CCar*>(Level().Objects.net_Find(actor->m_netcoop_seat_car));
+		return seat_car && seat_car->netcoop_is_heli() ? "seated_pilot" : "seated_driver";
+	}
 	collide::rq_result& RQ = HUD().GetRQ();
 	CCar* car = smart_cast<CCar*>(RQ.O);
 	if (!car || RQ.range >= 3.5f || car->netcoop_destroyed())
@@ -940,11 +955,11 @@ LPCSTR script_vehicle_prompt()
 	// the back for the trunk, a little above the seat.
 	Fvector point;
 	if (seat == -2)
-		point.set(0.f, local.y, poses->rear_z);
+		point.set(poses->center_x, local.y, poses->rear_z);
 	else
 	{
 		const Fvector& at = poses->seats[seat].local.c;
-		point.set(at.x < 0.f ? -poses->half_width : poses->half_width, at.y + 0.6f, at.z);
+		point.set(poses->center_x + (at.x < poses->center_x ? -poses->half_width : poses->half_width), at.y + 0.6f, at.z);
 	}
 	car->XFORM().transform_tiny(s_vehicle_prompt_point, point);
 	if (seat == -2)

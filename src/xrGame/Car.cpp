@@ -366,6 +366,8 @@ void CCar::net_Destroy()
 	{
 		pKinematics->LL_GetBoneInstance(m_bone_steer).reset_callback();
 	}
+	m_netcoop_heli.on = false;
+	m_netcoop_heli.rotor_cycle = nullptr;
 	CScriptEntity::net_Destroy();
 	inherited::net_Destroy();
 	CExplosive::net_Destroy();
@@ -577,6 +579,7 @@ void CCar::UpdateCL()
 			                     m_car_weapon->ViewCameraNorm());
 	}
 	ASCUpdate();
+	netcoop_heli_rotors();
 	if (Owner()) return;
 	//	UpdateEx			(g_fov);
 	VisualUpdate(90);
@@ -1086,6 +1089,7 @@ void CCar::Init()
 	b_stalling = false;
 	b_transmission_switching = false;
 	m_root_transform.set(bone_map.find(pKinematics->LL_GetBoneRoot())->second.element->mXFORM);
+	netcoop_heli_load();
 	m_current_transmission_num = 0;
 	m_pPhysicsShell->set_DynamicScales(1.f, 1.f);
 	CDamagableItem::Init(GetfHealth(), 3);
@@ -1860,7 +1864,8 @@ float CCar::DriveWheelsMeanAngleRate()
 		drive_speed += i->ASpeed();
 		//if(wheel_speed<drive_speed)drive_speed=wheel_speed;
 	}
-	return drive_speed / m_driving_wheels.size();
+	// A helicopter (doc 137) has no driving wheels.
+	return m_driving_wheels.empty() ? 0.f : drive_speed / m_driving_wheels.size();
 }
 
 float CCar::EngineDriveSpeed()
@@ -1991,6 +1996,11 @@ void CCar::PhDataUpdate(float step)
 	{
 		m_current_rpm = m_netcoop_rpm;
 		m_steer_angle = m_netcoop_steer;
+		return;
+	}
+	if (m_netcoop_heli.on)
+	{
+		netcoop_heli_step(step);
 		return;
 	}
 #ifdef CAR_NEW
@@ -2458,6 +2468,16 @@ void CCar::netcoop_drive(u8 keys)
 	const u8 changed = keys ^ m_netcoop_keys;
 	if (!changed)
 		return;
+	if (m_netcoop_heli.on)
+	{
+		// The flight model reads the held keys every physics step; raising
+		// the collective starts the engine.
+		if ((keys & netcoop_key_handbrake) && !b_engine_on)
+			StartEngine();
+		m_netcoop_keys = keys;
+		PPhysicsShell()->Enable();
+		return;
+	}
 	// The engine starts by itself when the driver presses a pedal.
 	if ((keys & (netcoop_key_forward | netcoop_key_back)) && !b_engine_on)
 	{
@@ -2539,4 +2559,175 @@ void CCar::netcoop_replica_state(bool engine, bool lights, float rpm, float stee
 	m_netcoop_steer = steer;
 	m_current_rpm = rpm;
 	m_steer_angle = steer;
+}
+
+// ---------------------------------------------------------------------------
+// Lost Zone helicopters (doc 137)
+// ---------------------------------------------------------------------------
+void CCar::netcoop_heli_load()
+{
+	NetcoopHeli& h = m_netcoop_heli;
+	h = NetcoopHeli();
+	LPCSTR section = cNameSect().c_str();
+	if (!READ_IF_EXISTS(pSettings, r_bool, section, "netcoop_heli", false))
+		return;
+	IKinematics* K = smart_cast<IKinematics*>(Visual());
+	if (!K)
+		return;
+	h.on = true;
+	h.lift_ratio = READ_IF_EXISTS(pSettings, r_float, section, "heli_lift_ratio", h.lift_ratio);
+	h.max_pitch = deg2rad(READ_IF_EXISTS(pSettings, r_float, section, "heli_max_pitch", rad2deg(h.max_pitch)));
+	h.max_roll = deg2rad(READ_IF_EXISTS(pSettings, r_float, section, "heli_max_roll", rad2deg(h.max_roll)));
+	h.attitude_gain = READ_IF_EXISTS(pSettings, r_float, section, "heli_attitude_gain", h.attitude_gain);
+	h.bank_turn = READ_IF_EXISTS(pSettings, r_float, section, "heli_bank_turn", h.bank_turn);
+	h.pitch_rate = READ_IF_EXISTS(pSettings, r_float, section, "heli_pitch_rate", h.pitch_rate);
+	h.roll_rate = READ_IF_EXISTS(pSettings, r_float, section, "heli_roll_rate", h.roll_rate);
+	h.yaw_rate = READ_IF_EXISTS(pSettings, r_float, section, "heli_yaw_rate", h.yaw_rate);
+	h.rate_gain = READ_IF_EXISTS(pSettings, r_float, section, "heli_rate_gain", h.rate_gain);
+	h.drag = READ_IF_EXISTS(pSettings, r_float, section, "heli_drag", h.drag);
+	h.vertical_damping = READ_IF_EXISTS(pSettings, r_float, section, "heli_vertical_damping", h.vertical_damping);
+	h.ground_effect = READ_IF_EXISTS(pSettings, r_float, section, "heli_ground_effect", h.ground_effect);
+	h.rotor_diameter = READ_IF_EXISTS(pSettings, r_float, section, "heli_rotor_diameter", h.rotor_diameter);
+	h.spool_up = READ_IF_EXISTS(pSettings, r_float, section, "heli_spool_up", h.spool_up);
+	h.spool_down = READ_IF_EXISTS(pSettings, r_float, section, "heli_spool_down", h.spool_down);
+	h.collective_rate = READ_IF_EXISTS(pSettings, r_float, section, "heli_collective_rate", h.collective_rate);
+	h.climb_rate = READ_IF_EXISTS(pSettings, r_float, section, "heli_climb_rate", h.climb_rate);
+	h.sink_rate = READ_IF_EXISTS(pSettings, r_float, section, "heli_sink_rate", h.sink_rate);
+	h.climb_gain = READ_IF_EXISTS(pSettings, r_float, section, "heli_climb_gain", h.climb_gain);
+	h.rotor_anim_speed = READ_IF_EXISTS(pSettings, r_float, section, "heli_rotor_anim_speed", h.rotor_anim_speed);
+	// The model's own "idle" turns the rotors (the AI helicopter plays it at
+	// full speed); here it runs as fast as the rotor and stands still parked.
+	if (IKinematicsAnimated* animated = smart_cast<IKinematicsAnimated*>(Visual()))
+	{
+		const MotionID idle = animated->ID_Cycle_Safe("idle");
+		if (idle.valid())
+		{
+			h.rotor_cycle = animated->PlayCycle(idle, FALSE);
+			if (h.rotor_cycle)
+				h.rotor_cycle->speed = 0.f;
+		}
+	}
+}
+
+// Both sides, every frame: the rotor animation follows the rotor speed (on a
+// client from the replicated rpm).
+void CCar::netcoop_heli_rotors()
+{
+	NetcoopHeli& h = m_netcoop_heli;
+	if (!h.on || !h.rotor_cycle)
+		return;
+	float spool = h.rotor;
+	if (netcoop::pure_client())
+		spool = m_max_rpm > m_min_rpm && b_engine_on ? _max(0.f, _min(1.f, (m_netcoop_rpm - m_min_rpm) / (m_max_rpm - m_min_rpm))) : 0.f;
+	h.rotor_cycle->speed = spool * h.rotor_anim_speed;
+}
+
+void CCar::netcoop_heli_step(float dt)
+{
+	NetcoopHeli& h = m_netcoop_heli;
+	CPhysicsShell* shell = PPhysicsShell();
+	IKinematics* K = smart_cast<IKinematics*>(Visual());
+	if (!shell || !K || dt <= 0.f)
+		return;
+	auto root = bone_map.find(K->LL_GetBoneRoot());
+	if (root == bone_map.end() || !root->second.element)
+		return;
+	CPhysicsElement* body = root->second.element;
+	const u8 keys = m_netcoop_keys;
+	// Rotor spool and collective. An empty tank spools the rotor down.
+	const float spool_target = b_engine_on && m_fuel > 0.f ? 1.f : 0.f;
+	if (h.rotor < spool_target)
+		h.rotor = _min(spool_target, h.rotor + h.spool_up * dt);
+	else
+		h.rotor = _max(spool_target, h.rotor - h.spool_down * dt);
+	m_current_rpm = m_min_rpm + h.rotor * (m_max_rpm - m_min_rpm); // engine sound, replication
+	if (b_engine_on)
+		m_fuel = _max(0.f, m_fuel - dt * m_current_rpm * m_fuel_consumption);
+	if (h.rotor < 0.01f && !keys)
+		return; // parked: no forces, the body may sleep
+	shell->Enable();
+
+	Fmatrix xform;
+	body->GetGlobalTransformDynamic(&xform);
+	const float mass = shell->getMass();
+	const float g = physics_world()->Gravity();
+	// Ground effect: within one rotor diameter of the ground the lift grows by up to ground_effect.
+	if (Device.dwTimeGlobal >= h.ground_probe)
+	{
+		h.ground_probe = Device.dwTimeGlobal + 100;
+		collide::rq_result hit;
+		Fvector start = xform.c, down;
+		down.set(0.f, -1.f, 0.f);
+		start.y += 0.5f;
+		h.ground_height = Level().ObjectSpace.RayPick(start, down, h.rotor_diameter, collide::rqtStatic, hit, this)
+			? hit.range - 0.5f : 100.f;
+	}
+	const float near_ground = h.ground_height < h.rotor_diameter ? 1.f - _max(0.f, h.ground_height) / h.rotor_diameter : 0.f;
+	const float lift_factor = h.lift_ratio * h.rotor * h.rotor * (1.f + h.ground_effect * near_ground);
+	Fvector velocity;
+	shell->get_LinearVel(velocity);
+
+	// Collective with a vertical speed hold: Space climbs, Ctrl sinks (slower
+	// close to the ground), neither holds the height. Standing on the ground
+	// without Space it stays down.
+	const bool landed = h.ground_height < 0.4f && _abs(velocity.y) < 1.f;
+	float collective = 0.f;
+	if (!landed || (keys & netcoop_key_handbrake))
+	{
+		float want_climb = 0.f;
+		if (keys & netcoop_key_handbrake)
+			want_climb = h.climb_rate;
+		else if (keys & netcoop_key_down)
+			want_climb = -_max(1.5f, _min(h.sink_rate, h.ground_height * 0.8f));
+		const float hover = xform.j.y > 0.2f && lift_factor > EPS ? 1.f / (lift_factor * xform.j.y) : 1.f;
+		collective = hover + h.climb_gain * (want_climb - velocity.y) / g;
+	}
+	collective = _max(0.f, _min(1.f, collective));
+	if (h.collective < collective)
+		h.collective = _min(collective, h.collective + h.collective_rate * dt);
+	else
+		h.collective = _max(collective, h.collective - h.collective_rate * dt);
+	const float lift = mass * g * h.collective * lift_factor;
+	body->applyForce(xform.j.x * lift, xform.j.y * lift, xform.j.z * lift);
+
+	// Quadratic air drag on the whole body.
+	const float speed = velocity.magnitude();
+	if (speed > EPS_L)
+	{
+		const float drag = h.drag * 1e-3f * mass * speed;
+		body->applyForce(-velocity.x * drag, -velocity.y * drag, -velocity.z * drag);
+	}
+	// The rotor disc resists climbing and sinking: a steady climb rate for a
+	// held collective, no stone-like drop when it is lowered.
+	body->applyForce(0.f, -velocity.y * h.vertical_damping * mass * h.rotor, 0.f);
+
+	// Attitude command: W/S and A/D hold a pitch and a bank angle, released
+	// the body levels; Q/E set the turn rate. The body's angular velocity is
+	// steered to that (body axes: x right, y up, z forward; +x pitches the
+	// nose down, +y turns right, +z banks left).
+	Fvector angular, local;
+	shell->get_AngularVel(angular);
+	local.set(angular.dotproduct(xform.i), angular.dotproduct(xform.j), angular.dotproduct(xform.k));
+	const float nose_down = -asinf(_max(-1.f, _min(1.f, xform.k.y)));
+	const float bank_left = asinf(_max(-1.f, _min(1.f, xform.i.y)));
+	const float want_nose_down = (keys & netcoop_key_forward ? h.max_pitch : 0.f) - (keys & netcoop_key_back ? h.max_pitch : 0.f);
+	const float want_bank_left = (keys & netcoop_key_left ? h.max_roll : 0.f) - (keys & netcoop_key_right ? h.max_roll : 0.f);
+	const float forward_speed = velocity.dotproduct(xform.k);
+	Fvector target;
+	target.x = _max(-h.pitch_rate, _min(h.pitch_rate, h.attitude_gain * (want_nose_down - nose_down)));
+	target.z = _max(-h.roll_rate, _min(h.roll_rate, h.attitude_gain * (want_bank_left - bank_left)));
+	target.y = (keys & netcoop_key_yaw_right ? h.yaw_rate : 0.f) - (keys & netcoop_key_yaw_left ? h.yaw_rate : 0.f);
+	// A bank in forward flight turns the nose the same way.
+	target.y -= bank_left * h.bank_turn * _max(0.f, _min(1.f, forward_speed / 15.f));
+	target.y = _max(-h.yaw_rate, _min(h.yaw_rate, target.y));
+	Fvector error;
+	error.sub(target, local);
+	const float gain = h.rate_gain * mass * h.rotor;
+	Fvector torque;
+	torque.set(0.f, 0.f, 0.f);
+	torque.mad(xform.i, error.x * gain);
+	torque.mad(xform.j, error.y * gain);
+	torque.mad(xform.k, error.z * gain);
+	if (_valid(torque))
+		body->applyTorque(torque.x, torque.y, torque.z);
 }

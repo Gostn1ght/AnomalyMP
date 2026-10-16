@@ -108,10 +108,17 @@ local VERBS = {
 function prompt_text(state, now)
 	if state == "taken" then return tr("st_netcoop_seat_taken") end
 	if VERBS[state] then return string.format("[%s]  %s", key("kUSE", "F"), tr(VERBS[state])) end
-	if state == "seated_driver" or state == "seated" then
+	if state == "seated_driver" or state == "seated" or state == "seated_pilot" then
 		seated_since = seated_since or now
-		-- The controls for the first seconds in the seat.
-		if now - seated_since > 8000 then return nil end
+		-- The controls for the first seconds in the seat (a pilot's a little longer).
+		if now - seated_since > (state == "seated_pilot" and 15000 or 8000) then return nil end
+		if state == "seated_pilot" then
+			return string.format("[%s/%s] %s   [%s%s%s%s] %s   [%s/%s] %s   [%s] %s   [%s] %s",
+				key("kJUMP", "SPACE"), key("kCROUCH", "CTRL"), tr("st_netcoop_heli_collective"),
+				key("kFWD", "W"), key("kL_STRAFE", "A"), key("kBACK", "S"), key("kR_STRAFE", "D"), tr("st_netcoop_heli_cyclic"),
+				key("kL_LOOKOUT", "Q"), key("kR_LOOKOUT", "E"), tr("st_netcoop_heli_pedals"),
+				key("kDETECTOR", "O"), tr("st_netcoop_heli_engine"), key("kUSE", "F"), tr("st_netcoop_car_exit"))
+		end
 		if state == "seated" then return string.format("[%s]  %s", key("kUSE", "F"), tr("st_netcoop_car_exit")) end
 		return string.format("[%s] %s   [%s] %s   [%s] %s   [%s] %s", key("kUSE", "F"), tr("st_netcoop_car_exit"),
 			key("kJUMP", "SPACE"), tr("st_netcoop_car_handbrake"), key("kTORCH", "L"), tr("st_netcoop_car_lights"),
@@ -127,7 +134,7 @@ local function actor_on_update()
 	next_update = time_global() + 100
 	local ok, err = pcall(function()
 		local state = netcoop_vehicle_prompt and netcoop_vehicle_prompt() or ""
-		local seated = state == "seated_driver" or state == "seated"
+		local seated = state == "seated_driver" or state == "seated" or state == "seated_pilot"
 		-- At a car: the mark by its door.
 		local screen
 		if (VERBS[state] or state == "taken") and netcoop_vehicle_prompt_point then

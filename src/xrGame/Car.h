@@ -26,6 +26,7 @@ class CActor;
 class CInventory;
 class CSE_PHSkeleton;
 class CCarWeapon;
+class CBlend;
 struct dxGeomUserData;
 struct dSurfaceParameters;
 // defs
@@ -600,6 +601,11 @@ public:
 		netcoop_key_left = 4,
 		netcoop_key_right = 8,
 		netcoop_key_handbrake = 16,
+		// Helicopters (doc 137): Space (the handbrake bit) raises the collective,
+		// crouch lowers it, Q/E are the pedals; W/S/A/D the cyclic.
+		netcoop_key_down = 32,
+		netcoop_key_yaw_left = 64,
+		netcoop_key_yaw_right = 128,
 	};
 	u8 m_netcoop_keys = 0; // server: the driver's held keys
 	bool m_netcoop_lights = false;
@@ -617,6 +623,35 @@ public:
 	const Fvector& netcoop_camera_position() const { return m_camera_position; }
 	float netcoop_fuel() const { return m_fuel; }
 	void netcoop_set_fuel(float fuel) { m_fuel = fuel; }
+	// Helicopters (doc 137): a car section with netcoop_heli = true flies.
+	// The server applies rotor lift and rate-commanded cyclic/pedal torques to
+	// the physics body; seats, replication and passages are the car's.
+	struct NetcoopHeli
+	{
+		bool on = false;
+		float collective = 0.f, rotor = 0.f; // 0..1
+		float lift_ratio = 1.4f; // full collective at full rotor: lift / weight
+		// W/S and A/D hold a pitch / bank angle (released: level); Q/E turn.
+		float max_pitch = 0.35f, max_roll = 0.45f; // rad
+		float attitude_gain = 2.f; // rad/s of turn per rad of angle error
+		float pitch_rate = 0.8f, roll_rate = 1.1f, yaw_rate = 1.f; // rad/s, the most
+		float bank_turn = 0.8f; // banked forward flight turns the nose (rad/s per rad)
+		float rate_gain = 12.f; // torque per kg per rad/s of rate error
+		float drag = 2.f; // N per kg per (m/s)^2, times 1e-3
+		float vertical_damping = 0.6f; // N per kg per m/s of climb or sink
+		float ground_effect = 0.15f, rotor_diameter = 14.5f;
+		float spool_up = 0.25f, spool_down = 0.12f, collective_rate = 1.5f;
+		float climb_rate = 8.f, sink_rate = 5.f; // m/s with Space / Ctrl held
+		float climb_gain = 1.5f; // collective per (m/s / g) of climb error
+		CBlend* rotor_cycle = nullptr; // the model's "idle": the rotors turning
+		float rotor_anim_speed = 1.f; // "idle" speed at full rotor
+		u32 ground_probe = 0;
+		float ground_height = 100.f;
+	} m_netcoop_heli;
+	bool netcoop_is_heli() const { return m_netcoop_heli.on; }
+	void netcoop_heli_load();
+	void netcoop_heli_step(float dt); // server physics step
+	void netcoop_heli_rotors(); // all sides: the rotor animation runs with the rotor speed
 public:
 	virtual bool allowWeapon() const { return true; };
 	virtual bool HUDView() const;

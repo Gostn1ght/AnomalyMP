@@ -1290,6 +1290,18 @@
   <string id="st_netcoop_car_exit">
     <text>Get out</text>
   </string>
+  <string id="st_netcoop_heli_collective">
+    <text>Up / down</text>
+  </string>
+  <string id="st_netcoop_heli_cyclic">
+    <text>Tilt</text>
+  </string>
+  <string id="st_netcoop_heli_pedals">
+    <text>Turn</text>
+  </string>
+  <string id="st_netcoop_heli_engine">
+    <text>Engine</text>
+  </string>
   <string id="st_netcoop_car_handbrake">
     <text>Handbrake</text>
   </string>

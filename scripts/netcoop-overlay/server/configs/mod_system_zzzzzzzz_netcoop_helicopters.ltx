@@ -1,0 +1,51 @@
+; Lost Zone (doc 137): flyable helicopters. A car (CCar) whose section says
+; netcoop_heli = true flies on the server: Space climbs, Ctrl descends
+; (released: the height is held), W/S pitch, A/D roll, Q/E yaw, O the engine, F gets out. Seats,
+; trunk, replication and passages are the car's (doc 100). Admin spawn only:
+; spawn veh_mi2_heli.
+;
+; heli_lift_ratio      - full collective at full rotor: lift / weight
+; heli_max_pitch, heli_max_roll - degrees held with W/S, A/D (released: level)
+; heli_attitude_gain   - how fast it tilts to that angle
+; heli_pitch_rate, heli_roll_rate, heli_yaw_rate - rad/s, the most
+; heli_bank_turn       - a bank in forward flight turns the nose
+; heli_rate_gain       - how hard the rotor follows the stick
+; heli_drag            - air drag (top speed about 200 km/h)
+; heli_vertical_damping - the rotor resists climb and sink (climb about 13 m/s)
+; heli_ground_effect   - extra lift near the ground (within a rotor diameter)
+; heli_spool_up/down   - rotor speed change per second (0..1)
+; heli_collective_rate - collective change per second (0..1)
+; heli_climb_rate, heli_sink_rate - m/s with Space / Ctrl held; released the
+;                        height is held, near the ground the sink slows down
+; heli_climb_gain      - how firmly the vertical speed is held
+
+[veh_mi2_heli]:m_car
+$spawn                  = "vehicles\veh_mi2_heli"
+cform                   = skeleton
+visual                  = dynamics\vehicles\mi2\veh_mi2_pilot.ogf
+netcoop_heli            = true
+heli_lift_ratio         = 1.4
+heli_max_pitch          = 20
+heli_max_roll           = 25
+heli_attitude_gain      = 2
+heli_bank_turn          = 0.8
+heli_pitch_rate         = 0.8
+heli_roll_rate          = 1.1
+heli_yaw_rate           = 1.0
+heli_rate_gain          = 12
+heli_drag               = 2.0
+heli_vertical_damping   = 0.6
+heli_ground_effect      = 0.15
+heli_rotor_diameter     = 14.5
+heli_spool_up           = 0.25
+heli_spool_down         = 0.12
+heli_collective_rate    = 1.5
+heli_climb_rate         = 8
+heli_sink_rate          = 5
+heli_climb_gain         = 1.5
+heli_rotor_anim_speed   = 1.0
+; pilot (left), co-pilot, two rows of passengers; the cabin floor is at 0.7
+netcoop_seats           = korpus1:-0.2:-0.12:-0.58, korpus1:0.4:-0.12:-0.58, korpus1:-0.2:-0.12:-1.68, korpus1:0.4:-0.12:-1.68, korpus1:-0.2:-0.12:-2.78, korpus1:0.4:-0.12:-2.78
+netcoop_center_x        = 0.4
+netcoop_half_width      = 0.75
+netcoop_rear_z          = -2.0

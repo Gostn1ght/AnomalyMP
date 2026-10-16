@@ -29,6 +29,11 @@ assert(hint:find("%[SPACE%] <st_netcoop_car_handbrake>") and hint:find("%[L%] <s
 assert(prompt_text("seated_driver", 8999) ~= nil and prompt_text("seated_driver", 9001) == nil, "controls for 8 s")
 assert(prompt_text("", 9100) == nil)
 assert(prompt_text("seated", 10000) == "[F]  <st_netcoop_car_exit>", "a new seat shows the hint again")
+assert(prompt_text("", 19000) == nil)
+local pilot = prompt_text("seated_pilot", 20000)
+assert(pilot:find("%[SPACE/CTRL%] <st_netcoop_heli_collective>") and pilot:find("%[WASD%] <st_netcoop_heli_cyclic>")
+	and pilot:find("%[Q/E%] <st_netcoop_heli_pedals>") and pilot:find("%[F%] <st_netcoop_car_exit>"), pilot)
+assert(prompt_text("seated_pilot", 34999) ~= nil and prompt_text("seated_pilot", 35001) == nil, "pilot controls for 15 s")
 ''')
 
 srv = LuaRuntime(unpack_returned_tuples=True)
