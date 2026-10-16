@@ -2262,6 +2262,48 @@ static bool accessible_corpse(xrClientData* CL, CSE_Abstract* entity)
 		!inventory->deadbody_closed_status() && actor->Position().distance_to(body->Position()) <= 3.f;
 }
 
+// A player's own landing (CActor::g_Physics, owner 2026-10-17: no damage
+// jumping out of a helicopter). Movement is the owner's, so only the owner's
+// client sees the ground contact; it sends a strike hit on its own actor by
+// itself. Only that is accepted: the sender's actor, from and with itself,
+// a strike of bounded power, at most one per 250 ms. It can only hurt the
+// sender.
+static bool remote_fall_hit_allowed(xrClientData* CL, NET_Packet& P, u16 type, u16 destination)
+{
+	if (type != GE_HIT || !CL->owner || destination != CL->owner->ID)
+		return false;
+	// who, weapon, dir, power, bone, position, impulse, [aim], type
+	const u32 needed = 2 + 2 + 2 + 4 + 2 + 12 + 4 + (IsGameTypeSingle() ? 2 : 0) + 2;
+	if (P.r_elapsed() < needed)
+		return false;
+	const u32 pos = P.r_pos;
+	u16 who = 0, weapon = 0, bone = 0;
+	Fvector dir, in_bone;
+	float power = 0.f, impulse = 0.f;
+	P.r_u16(who);
+	P.r_u16(weapon);
+	P.r_dir(dir);
+	P.r_float(power);
+	P.r_u16(bone);
+	P.r_vec3(in_bone);
+	P.r_float(impulse);
+	if (IsGameTypeSingle())
+		P.r_u16();
+	const u16 hit_type = P.r_u16();
+	P.r_pos = pos;
+	if (who != destination || weapon != destination || hit_type != ALife::eHitTypeStrike)
+		return false;
+	if (!_valid(power) || power < 0.f || power > 2.f || !_valid(impulse) || _abs(impulse) > 1000.f)
+		return false;
+	static xr_map<u32, u32> last;
+	const u32 now = Device.dwTimeGlobal;
+	u32& previous = last[CL->ID.value()];
+	if (previous && now - previous < 250)
+		return false;
+	previous = now;
+	return true;
+}
+
 static bool remote_hud_state_allowed(xrServer* server, xrClientData* CL, NET_Packet& P, u16 destination)
 {
 	CSE_Abstract* item = server->game->get_entity_from_eid(destination);
@@ -2312,6 +2354,7 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 	// carried GAME_EVENT_ON_HIT past that, GE_DIE/GE_ASSIGN_KILLER named any
 	// killer (run-cheat-test.ps1).
 	case GE_HIT:
+		return remote_fall_hit_allowed(CL, P, type, destination);
 	case GE_HIT_STATISTIC:
 	case GE_GRENADE_EXPLODE:
 	case GE_LAUNCH_ROCKET:

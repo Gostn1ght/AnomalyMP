@@ -28,9 +28,11 @@ static u32 storage_live_capacity(CActor* actor)
     const u32 base=storage_capacity(false);
     const float weight=actor ? actor->MaxCarryWeight() : 0.f;
     if (!_valid(weight) || weight<=0.f) return base;
-    // Four icon cells per carry kilogram. Armor/backpack/upgrades/belt/boosters
-    // use the same authoritative MaxCarryWeight as movement and weight UI.
-    return _max(base,u32(_min(512.f,weight*4.f)));
+    // Eight icon cells per carry kilogram (owner 2026-10-17: corpse loot was
+    // refused for room while the weight was fine; four per kilogram filled up
+    // with a few GAMMA rifles). Armor/backpack/upgrades/belt/boosters use the
+    // same authoritative MaxCarryWeight as movement and weight UI.
+    return _max(base,u32(_min(512.f,weight*8.f)));
 }
 static u32 storage_saved_capacity(const Character& character)
 {

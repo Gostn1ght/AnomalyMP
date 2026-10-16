@@ -643,7 +643,11 @@ public:
 		float spool_up = 0.25f, spool_down = 0.12f, collective_rate = 1.5f;
 		float climb_rate = 8.f, sink_rate = 5.f; // m/s with Space / Ctrl held
 		float climb_gain = 1.5f; // collective per (m/s / g) of climb error
-		CBlend* rotor_cycle = nullptr; // the model's "idle": the rotors turning
+		bool rotor_anim = false; // the model's "idle" (the rotors) runs with the rotor
+		bool pilot = false; // someone sits in the pilot's seat
+		float crash_speed = 12.f; // m/s lost at once (an impact): the helicopter explodes
+		float recent_speed = 0.f; // the highest speed of the last moments
+		bool crashed = false;
 		float rotor_anim_speed = 1.f; // "idle" speed at full rotor
 		u32 ground_probe = 0;
 		float ground_height = 100.f;
@@ -652,6 +656,8 @@ public:
 	void netcoop_heli_load();
 	void netcoop_heli_step(float dt); // server physics step
 	void netcoop_heli_rotors(); // all sides: the rotor animation runs with the rotor speed
+	void netcoop_heli_rotor_speed(float speed); // every blend of the model
+	void netcoop_heli_crash(); // server: an impact destroys the helicopter
 public:
 	virtual bool allowWeapon() const { return true; };
 	virtual bool HUDView() const;

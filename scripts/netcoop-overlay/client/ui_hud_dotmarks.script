@@ -3144,6 +3144,9 @@ function InteractPrompt:UpdateMark(state)
 end
 
 function InteractPrompt:CheckCampfireStates()
+	-- Lost Zone: no Actor yet (or any more) on a client, e.g. between
+	-- locations: the campfire search reads db.actor and failed every frame.
+	if not db.actor then return end
 	if self.campfire_tut then
 		local _ = debug_dump and vl("Checking campfire state for %s", self.args.tutorial)
 		local obj = get_nearby_campfire(5, false)

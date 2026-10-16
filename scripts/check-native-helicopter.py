@@ -96,6 +96,7 @@ struct CCar {
   netcoop_key_handbrake=16,netcoop_key_down=32,netcoop_key_yaw_left=64,netcoop_key_yaw_right=128};
  CPhysicsShell* test_shell=nullptr;IKinematics visual;bool has_visual=true,b_engine_on=true;
  u8 m_netcoop_keys=0;float m_fuel=100,m_current_rpm=0,m_min_rpm=100,m_max_rpm=1000,m_fuel_consumption=0;
+ unsigned crashes=0;void netcoop_heli_crash(){++crashes;}
  CPhysicsShell* PPhysicsShell(){return test_shell;}
  IKinematics* Visual(){return has_visual?&visual:nullptr;}
  void netcoop_heli_step(float dt);
@@ -122,6 +123,7 @@ int main(){
  assert(car_play_cycle_safe(nullptr,"idle")==nullptr);
  CPhysicsShell one,two;CCar a,b;a.test_shell=&one;b.test_shell=&two;
  a.m_netcoop_heli.on=b.m_netcoop_heli.on=true;
+ a.m_netcoop_heli.pilot=b.m_netcoop_heli.pilot=true;
  assert(std::fabs(a.EffectiveGravity()-9.81f)<1e-6f&&a.AntiGravityAccel()==0);
  a.PhTune(.01f);assert(one.element.force_calls==0);
  CPhysicsShell road;CCar car;car.test_shell=&road;
@@ -150,7 +152,17 @@ int main(){
  step(a,1000);assert(one.element.form.c.y<.5f&&std::fabs(one.velocity.y)<1);
  a.m_netcoop_keys=0;a.b_engine_on=false;one.element.form.c.y=50;step(a,1200);
  assert(a.m_netcoop_heli.rotor<.01f&&one.element.form.c.y<.5f);
- std::puts("PASS actual helicopter step and PhTune gravity: independent bodies, legacy car gravity retained, no extra heli lift, invalid/empty guards, hover/climb/release/descent, engine-off spool, missing startup cycle fallback; ODE and clients still require live testing");
+ // The pilot jumps out at 40 m with the rotor turning: no collective, it
+ // falls and the impact destroys it once (owner 2026-10-17).
+ a.m_netcoop_heli.crashed=false;a.m_netcoop_heli.recent_speed=0;a.crashes=0;
+ a.b_engine_on=true;a.m_netcoop_heli.rotor=1;a.m_netcoop_heli.pilot=false;
+ one.element.form.c.y=40;one.velocity.y=0;step(a,800);
+ assert(one.element.form.c.y<.5f&&a.crashes==1&&a.m_netcoop_heli.collective<.01f);
+ // A gentle landing with the pilot aboard never counts as a crash.
+ a.m_netcoop_heli.crashed=false;a.m_netcoop_heli.recent_speed=0;a.crashes=0;a.m_netcoop_heli.pilot=true;
+ one.element.form.c.y=6;one.velocity.y=0;a.m_netcoop_keys=CCar::netcoop_key_down;step(a,1200);
+ assert(one.element.form.c.y<.5f&&a.crashes==0);a.m_netcoop_keys=0;
+ std::puts("PASS actual helicopter step and PhTune gravity: independent bodies, legacy car gravity retained, no extra heli lift, invalid/empty guards, hover/climb/release/descent, engine-off spool, pilotless fall and impact crash, gentle landing, missing startup cycle fallback; ODE and clients still require live testing");
 }
 '''
 if os.environ.get('GITHUB_ACTIONS') != 'true':

@@ -15,6 +15,8 @@
 ; heli_ground_effect   - extra lift near the ground (within a rotor diameter)
 ; heli_spool_up/down   - rotor speed change per second (0..1)
 ; heli_collective_rate - collective change per second (0..1)
+; heli_crash_speed     - m/s lost at once (an impact) that destroys it; without a
+;                        pilot the helicopter has no collective and falls
 ; heli_climb_rate, heli_sink_rate - m/s with Space / Ctrl held; released the
 ;                        height is held, near the ground the sink slows down
 ; heli_climb_gain      - how firmly the vertical speed is held
@@ -44,6 +46,7 @@ heli_climb_rate         = 8
 heli_sink_rate          = 5
 heli_climb_gain         = 1.5
 heli_rotor_anim_speed   = 1.0
+heli_crash_speed        = 12
 ; pilot (left), co-pilot, two rows of passengers; the cabin floor is at 0.7
 netcoop_seats           = korpus1:-0.2:-0.12:-0.58, korpus1:0.4:-0.12:-0.58, korpus1:-0.2:-0.12:-1.68, korpus1:0.4:-0.12:-1.68, korpus1:-0.2:-0.12:-2.78, korpus1:0.4:-0.12:-2.78
 netcoop_center_x        = 0.4

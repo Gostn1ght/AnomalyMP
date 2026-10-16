@@ -2,7 +2,7 @@
 
 Owner wants armor/backpack/carry weight and item dimensions to determine capacity, with cells beside weight, and less severe limits.
 
-Live capacity = max(configured base, floor(native MaxCarryWeight * 4)), cap512. Shipped base rises60→120. The real carry-weight function includes worn armor, equipped backpack, upgrades, belt artifact condition and timed weight boosters. Safe capacity remains120 and independent. Client/server config bytes match.
+Live capacity = max(configured base, floor(native MaxCarryWeight * 8)), cap512 (doubled 2026-10-17, owner: corpse loot refused for room). Shipped base rises60→120. The real carry-weight function includes worn armor, equipped backpack, upgrades, belt artifact condition and timed weight boosters. Safe capacity remains120 and independent. Client/server config bytes match.
 
 Used cells are the sum of icon width*height for rucksack root items, per instance, not per stack. Equipment/belt slots occupy no rucksack cells. Pickup and complete trader purchases use the same live capacity, and separately enforce the512-object lossless save limit including equipped/nested items, repeated IDs, depth and parent consistency. Existing items are never dropped/truncated when equipment or booster changes; overflow only blocks additions and is shown in the footer.
 

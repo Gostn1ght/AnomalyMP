@@ -383,7 +383,7 @@ void CCar::net_Destroy()
 		pKinematics->LL_GetBoneInstance(m_bone_steer).reset_callback();
 	}
 	m_netcoop_heli.on = false;
-	m_netcoop_heli.rotor_cycle = nullptr;
+	m_netcoop_heli.rotor_anim = false;
 	CScriptEntity::net_Destroy();
 	inherited::net_Destroy();
 	CExplosive::net_Destroy();
@@ -2528,6 +2528,7 @@ void CCar::netcoop_drive(u8 keys)
 
 void CCar::netcoop_engage(bool driver)
 {
+	m_netcoop_heli.pilot = driver;
 	if (driver)
 	{
 		// What attach_Actor does for the single-player driver.
@@ -2616,6 +2617,7 @@ void CCar::netcoop_heli_load()
 	h.climb_rate = READ_IF_EXISTS(pSettings, r_float, section, "heli_climb_rate", h.climb_rate);
 	h.sink_rate = READ_IF_EXISTS(pSettings, r_float, section, "heli_sink_rate", h.sink_rate);
 	h.climb_gain = READ_IF_EXISTS(pSettings, r_float, section, "heli_climb_gain", h.climb_gain);
+	h.crash_speed = READ_IF_EXISTS(pSettings, r_float, section, "heli_crash_speed", h.crash_speed);
 	h.rotor_anim_speed = READ_IF_EXISTS(pSettings, r_float, section, "heli_rotor_anim_speed", h.rotor_anim_speed);
 	// The model's own "idle" turns the rotors (the AI helicopter plays it at
 	// full speed); here it runs as fast as the rotor and stands still parked.
@@ -2624,11 +2626,26 @@ void CCar::netcoop_heli_load()
 		const MotionID idle = animated->ID_Cycle_Safe("idle");
 		if (idle.valid())
 		{
-			h.rotor_cycle = animated->PlayCycle(idle, FALSE);
-			if (h.rotor_cycle)
-				h.rotor_cycle->speed = 0.f;
+			// A whole-body cycle plays once per partition and PlayCycle then
+			// returns no blend (the owner saw the rotor turn with the engine
+			// off): the speed is set on every blend of the model instead.
+			animated->PlayCycle(idle, FALSE);
+			h.rotor_anim = true;
+			netcoop_heli_rotor_speed(0.f);
 		}
 	}
+}
+
+void CCar::netcoop_heli_rotor_speed(float speed)
+{
+	struct SetSpeed : IterateBlendsCallback
+	{
+		float speed;
+		void operator()(CBlend& B) override { B.speed = speed; }
+	} set;
+	set.speed = speed;
+	if (IKinematicsAnimated* animated = smart_cast<IKinematicsAnimated*>(Visual()))
+		animated->LL_IterateBlends(set);
 }
 
 // Both sides, every frame: the rotor animation follows the rotor speed (on a
@@ -2636,12 +2653,12 @@ void CCar::netcoop_heli_load()
 void CCar::netcoop_heli_rotors()
 {
 	NetcoopHeli& h = m_netcoop_heli;
-	if (!h.on || !h.rotor_cycle)
+	if (!h.on || !h.rotor_anim)
 		return;
 	float spool = h.rotor;
 	if (netcoop::pure_client())
 		spool = m_max_rpm > m_min_rpm && b_engine_on ? _max(0.f, _min(1.f, (m_netcoop_rpm - m_min_rpm) / (m_max_rpm - m_min_rpm))) : 0.f;
-	h.rotor_cycle->speed = spool * h.rotor_anim_speed;
+	netcoop_heli_rotor_speed(spool * h.rotor_anim_speed);
 }
 
 void CCar::netcoop_heli_step(float dt)
@@ -2666,6 +2683,19 @@ void CCar::netcoop_heli_step(float dt)
 	m_current_rpm = m_min_rpm + h.rotor * (m_max_rpm - m_min_rpm); // engine sound, replication
 	if (b_engine_on)
 		m_fuel = _max(0.f, m_fuel - dt * m_current_rpm * m_fuel_consumption);
+	// An impact (owner 2026-10-17: a falling helicopter must crash): the
+	// speed of the last moments, decaying 30 m/s per second, against now.
+	// Braking by drag or a landing never loses crash_speed that fast.
+	Fvector velocity;
+	shell->get_LinearVel(velocity);
+	const float speed = _valid(velocity) ? velocity.magnitude() : 0.f;
+	if (!h.crashed && h.recent_speed - speed > h.crash_speed)
+	{
+		h.crashed = true;
+		netcoop_heli_crash();
+		return;
+	}
+	h.recent_speed = _max(speed, h.recent_speed - 30.f * dt);
 	if (h.rotor < 0.01f && !keys)
 		return; // parked: no forces, the body may sleep
 	shell->Enable();
@@ -2687,15 +2717,14 @@ void CCar::netcoop_heli_step(float dt)
 	}
 	const float near_ground = h.ground_height < h.rotor_diameter ? 1.f - _max(0.f, h.ground_height) / h.rotor_diameter : 0.f;
 	const float lift_factor = h.lift_ratio * h.rotor * h.rotor * (1.f + h.ground_effect * near_ground);
-	Fvector velocity;
-	shell->get_LinearVel(velocity);
 
 	// Collective with a vertical speed hold: Space climbs, Ctrl sinks (slower
 	// close to the ground), neither holds the height. Standing on the ground
 	// without Space it stays down.
 	const bool landed = h.ground_height < 0.4f && _abs(velocity.y) < 1.f;
 	float collective = 0.f;
-	if (!landed || (keys & netcoop_key_handbrake))
+	// Nobody at the controls (the pilot jumped out): no collective, it falls.
+	if (h.pilot && (!landed || (keys & netcoop_key_handbrake)))
 	{
 		float want_climb = 0.f;
 		if (keys & netcoop_key_handbrake)
@@ -2714,7 +2743,6 @@ void CCar::netcoop_heli_step(float dt)
 	body->applyForce(xform.j.x * lift, xform.j.y * lift, xform.j.z * lift);
 
 	// Quadratic air drag on the whole body.
-	const float speed = velocity.magnitude();
 	if (speed > EPS_L)
 	{
 		const float drag = h.drag * 1e-3f * mass * speed;
@@ -2753,4 +2781,14 @@ void CCar::netcoop_heli_step(float dt)
 	torque.mad(xform.k, error.z * gain);
 	if (_valid(torque))
 		body->applyTorque(torque.x, torque.y, torque.z);
+}
+
+// Server: a helicopter that hit the ground or a wall hard enough dies like a
+// car shot to pieces - the death goes to every client and it explodes there.
+void CCar::netcoop_heli_crash()
+{
+	if (b_exploded || !g_Alive())
+		return;
+	Msg("[Lost Zone][heli] %s (%u) crashed", cName().c_str(), ID());
+	ChangeCondition(-1.f);
 }

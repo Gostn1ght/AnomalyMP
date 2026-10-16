@@ -49,19 +49,20 @@ u32 storage_capacity(bool safe){assert(!safe);return 120;}
     'src/xrGame/netcoop_storage.inc', 'static u32 storage_live_capacity(CActor* actor)') + r'''
 int main(){
  CActor actor;CCustomOutfit outfit;CBackpack backpack;CArtefact artifact;Item ordinary;
- assert(storage_live_capacity(nullptr)==120 && storage_live_capacity(&actor)==160);
- actor.worn_outfit=&outfit;assert(storage_live_capacity(&actor)==180);
- actor.bag.backpack=&backpack;assert(storage_live_capacity(&actor)==260);
- actor.stats.boost=10;assert(storage_live_capacity(&actor)==300);
- actor.bag.m_belt={&artifact,&ordinary};assert(storage_live_capacity(&actor)==320);
- outfit.m_additional_weight=20;assert(storage_live_capacity(&actor)==380);
- artifact.condition=0;assert(storage_live_capacity(&actor)==360);
+ actor.bag.weight=15;
+ assert(storage_live_capacity(nullptr)==120 && storage_live_capacity(&actor)==120);
+ actor.worn_outfit=&outfit;assert(storage_live_capacity(&actor)==160);
+ actor.bag.backpack=&backpack;assert(storage_live_capacity(&actor)==320);
+ actor.stats.boost=10;assert(storage_live_capacity(&actor)==400);
+ actor.bag.m_belt={&artifact,&ordinary};assert(storage_live_capacity(&actor)==440);
+ outfit.m_additional_weight=10;assert(storage_live_capacity(&actor)==480);
+ artifact.condition=0;assert(storage_live_capacity(&actor)==440);
  actor.bag.weight=1000;assert(storage_live_capacity(&actor)==512);
  actor.bag.weight=std::numeric_limits<float>::quiet_NaN();assert(storage_live_capacity(&actor)==120);
  actor.bag.weight=-1000;assert(storage_live_capacity(&actor)==120);
  actor.worn_outfit=nullptr;actor.bag.backpack=nullptr;actor.stats.boost=0;actor.bag.m_belt.clear();
- actor.bag.weight=40.24f;assert(storage_live_capacity(&actor)==160);
- actor.bag.weight=40.25f;assert(storage_live_capacity(&actor)==161);
+ actor.bag.weight=20.12f;assert(storage_live_capacity(&actor)==160);
+ actor.bag.weight=20.125f;assert(storage_live_capacity(&actor)==161);
 }
 '''
 if os.environ.get('GITHUB_ACTIONS') != 'true':
