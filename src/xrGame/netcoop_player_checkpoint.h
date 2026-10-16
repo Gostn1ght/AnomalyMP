@@ -132,6 +132,71 @@ inline bool checkpoint_format(const std::string& raw)
     return raw.size()>=4 && raw.size()<=checkpoint_limit && raw.compare(0,3,"NCH")==0 && raw[3]>='3' && raw[3]<='9';
 }
 
+enum class PlayerSlotStatus { Missing,Absent,Staged,Active,Disconnected };
+struct PlayerSlotObservation
+{
+    PlayerSlotStatus state=PlayerSlotStatus::Missing;
+    std::string character,sha256;
+    std::uint64_t entity_version=0,session_fence=0,revision=0,bytes=0;
+
+    static PlayerSlotObservation parse(const BridgeJson& body,const WriterConfig& config,std::uint64_t epoch,
+        const std::string& account,unsigned slot,std::uint64_t fence)
+    {
+        const auto character=checkpoint_player_id(config.world,config.seed,account,slot);
+        if (!body.is_object() || body.size()!=13 || bridge_unsigned(body,"schema")!=1 ||
+            body.at("world_id")!=std::to_string(config.world) || body.at("seed")!=std::to_string(config.seed) ||
+            bridge_unsigned(body,"epoch")!=epoch || bridge_unsigned(body,"fence")!=fence ||
+            body.at("location")!=config.location || body.at("account")!=account ||
+            body.at("character_id")!=character || bridge_unsigned(body,"slot")!=slot || !epoch || !fence)
+            throw std::invalid_argument("native slot scope mismatch");
+        constexpr auto maximum=std::uint64_t(0x7fffffffffffffffULL);
+        PlayerSlotObservation result;result.character=character;
+        result.entity_version=bridge_unsigned(body,"entity_version");
+        result.session_fence=bridge_unsigned(body,"session_fence");
+        const auto status=body.at("status").get<std::string>();
+        if (status=="ABSENT") result.state=PlayerSlotStatus::Absent;
+        else if (status=="STAGED") result.state=PlayerSlotStatus::Staged;
+        else if (status=="ACTIVE") result.state=PlayerSlotStatus::Active;
+        else if (status=="DISCONNECTED") result.state=PlayerSlotStatus::Disconnected;
+        else throw std::invalid_argument("unsupported native slot state");
+        const bool live=result.state==PlayerSlotStatus::Active || result.state==PlayerSlotStatus::Disconnected;
+        const auto& checkpoint=body.at("checkpoint");
+        if (live ? (!result.entity_version || result.entity_version>maximum || !result.session_fence || result.session_fence>maximum):
+            (result.entity_version || result.session_fence || !checkpoint.is_null()))
+            throw std::invalid_argument("native slot version mismatch");
+        if (!checkpoint.is_null())
+        {
+            if (!checkpoint.is_object() || checkpoint.size()!=3) throw std::invalid_argument("native slot checkpoint shape");
+            result.revision=bridge_unsigned(checkpoint,"revision");result.bytes=bridge_unsigned(checkpoint,"bytes");
+            result.sha256=checkpoint.at("sha256").get<std::string>();
+            if (!result.revision || result.revision>maximum || result.bytes<4 || result.bytes>checkpoint_limit ||
+                !checkpoint_hex(result.sha256,64)) throw std::invalid_argument("native slot checkpoint bounds");
+        }
+        return result;
+    }
+};
+
+// IO worker only: an observation is never permission to spawn/resume. Every
+// later command/read still validates live authority, session and CAS versions.
+inline CheckpointStep inspect_player_slot(const WriterConfig& config,const std::string& instance,std::uint64_t epoch,
+    std::string account,unsigned slot,std::uint64_t fence,PlayerSlotObservation& output,unsigned& status)
+{
+    output={};status=0;
+    try
+    {
+        checkpoint_player_id(config.world,config.seed,account,slot); // Validate before building a URL.
+        if (!epoch || epoch>0x7fffffffffffffffULL || !fence || fence>0x7fffffffffffffffULL) return CheckpointStep::Rejected;
+        for (char& c:account) if (c>='A' && c<='Z') c=char(c-'A'+'a');
+        const auto path="/v1/player-admission?account="+account+"&slot="+std::to_string(slot)+"&location="+config.location+
+            "&fence="+std::to_string(fence)+"&epoch="+std::to_string(epoch);
+        BridgeJson body;
+        if (!writer_request(config,instance,epoch,"GET",path,"",body,status)) return checkpoint_failure(status);
+        output=PlayerSlotObservation::parse(body,config,epoch,account,slot,fence);
+        return CheckpointStep::Complete;
+    }
+    catch (const std::exception&) {output={};return CheckpointStep::Rejected;}
+}
+
 // One request per step, so an IO worker can renew leases and serve other
 // players between chunks. Retried steps keep exactly the same command ID.
 class CheckpointUpload

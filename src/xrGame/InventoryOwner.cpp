@@ -29,6 +29,7 @@
 #include "Bolt.h"
 #include "CustomDevice.h"
 #include "string_table.h"
+#include "Weapon.h"
 
 CInventoryOwner::CInventoryOwner()
 {
@@ -332,6 +333,17 @@ void CInventoryOwner::renderable_Render()
 {
 	if (inventory().ActiveItem())
 		inventory().ActiveItem()->renderable_Render();
+	if (netcoop::enabled())
+	{
+		const u16 slots[] = {INV_SLOT_2, INV_SLOT_3};
+		for (u16 slot : slots)
+		{
+			PIItem item = inventory().ItemFromSlot(slot);
+			CWeapon* weapon = smart_cast<CWeapon*>(item);
+			if (weapon && item != inventory().ActiveItem() && weapon->netcoop_back_carried())
+				weapon->renderable_Render();
+		}
+	}
 
 	// A hand device is drawn alongside the active weapon, rather than being
 	// the active inventory slot. Its HUD belongs to its owner, but its world

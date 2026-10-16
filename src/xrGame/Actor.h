@@ -585,6 +585,8 @@ public:
 	// Netcoop server: take a player's position and presentation (facing,
 	// look, movement state) from the owning client's update.
 	void netcoop_follow_owner(NET_Packet& P);
+	void netcoop_export_weapon_slots(NET_Packet& P);
+	void netcoop_import_weapon_slots(NET_Packet& P);
 	// Owner's real-time clock of the last accepted update, and its offset to
 	// server time (lower envelope of receive time - owner time).
 	u32 m_netcoop_owner_time = 0;

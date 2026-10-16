@@ -199,6 +199,54 @@ void CActor::net_ImportInputAck(NET_Packet& P)
 	Position().set(corrected);
 }
 
+void CActor::netcoop_export_weapon_slots(NET_Packet& P)
+{
+	if (!netcoop::enabled() || !OnServer()) return;
+	// Optional tail, after the entire legacy actor/physics stream. Old clients
+	// skip it at the bounded object-chunk boundary; owners cannot author it.
+	P.w_u16(0x5342); P.w_u8(1); P.w_u8(2);
+	const u16 slots[] = {INV_SLOT_2, INV_SLOT_3};
+	for (u16 slot : slots)
+	{
+		PIItem item = inventory().ItemFromSlot(slot);
+		P.w_u16(item ? item->object_id() : u16(-1));
+	}
+}
+
+void CActor::netcoop_import_weapon_slots(NET_Packet& P)
+{
+	if (!netcoop::pure_client() || !OnClient() || Local() || !g_Alive() || P.r_elapsed() != 8) return;
+	if (P.r_u16() != 0x5342 || P.r_u8() != 1 || P.r_u8() != 2) return;
+	const u16 ids[] = {P.r_u16(), P.r_u16()};
+	if (ids[0] != u16(-1) && ids[0] == ids[1]) return;
+	const u16 slots[] = {INV_SLOT_2, INV_SLOT_3};
+	PIItem items[2] = {};
+	for (int n = 0; n < 2; ++n)
+	{
+		if (ids[n] == u16(-1)) continue;
+		items[n] = smart_cast<CInventoryItem*>(Level().Objects.net_Find(ids[n]));
+		// Spawn/ownership may lag a snapshot. Apply neither half until both
+		// objects belong to this replica; the next snapshot retries naturally.
+		if (!items[n] || items[n]->object().H_Parent() != this || items[n]->m_pInventory != &inventory()) return;
+	}
+	PIItem held = inventory().ActiveItem();
+	// Remove both previous placements first, so an authoritative slot swap
+	// does not collide with the other still-occupied weapon slot.
+	for (int n = 0; n < 2; ++n)
+	{
+		PIItem previous = inventory().ItemFromSlot(slots[n]);
+		if (previous && previous != items[n]) inventory().Ruck(previous, true);
+	}
+	for (int n = 0; n < 2; ++n)
+		if (items[n] && inventory().ItemFromSlot(slots[n]) != items[n]) inventory().Slot(slots[n], items[n], true, true);
+	if (held && (held == items[0] || held == items[1]) && held->CurrPlace() == eItemPlaceSlot)
+	{
+		inventory().SetActiveSlot(held->CurrSlot());
+		if (CHudItem* hud = held->cast_hud_item())
+			if (hud->IsHidden()) hud->OnStateSwitch(CHUDState::eIdle, hud->GetState());
+	}
+}
+
 void CActor::net_Export(NET_Packet& P) // export to server
 {
 	// [M1] Absolute position authority removed for owning client
@@ -291,7 +339,7 @@ void CActor::net_Export(NET_Packet& P) // export to server
 	if (!g_Alive()) NumItems = 0;
 
 	P.w_u16(NumItems);
-	if (!NumItems) return;
+	if (!NumItems) { netcoop_export_weapon_slots(P); return; }
 
 	if (g_Alive())
 	{
@@ -320,6 +368,7 @@ void CActor::net_Export(NET_Packet& P) // export to server
 	{
 		net_ExportDeadBody(P);
 	};
+	netcoop_export_weapon_slots(P);
 };
 
 static void w_vec_q8(NET_Packet& P, const Fvector& vec, const Fvector& min, const Fvector& max)
@@ -666,9 +715,10 @@ void CActor::net_Import(NET_Packet& P) // import from server
 	//-----------------------------------------------
 
 	m_u16NumBones = P.r_u16();
-	if (m_u16NumBones == 0) return;
+	if (m_u16NumBones == 0) { netcoop_import_weapon_slots(P); return; }
 	//-----------------------------------------------
 	net_Import_Physic(P);
+	netcoop_import_weapon_slots(P);
 	//-----------------------------------------------
 };
 

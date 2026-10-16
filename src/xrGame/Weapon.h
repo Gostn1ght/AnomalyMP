@@ -70,6 +70,10 @@ public:
 	// Netcoop: a copy of another player's weapon (on the server or another
 	// client) - it fires only shot by shot from the owner.
 	bool netcoop_player_copy();
+	bool netcoop_back_carried() const;
+	bool netcoop_back_transform(Fmatrix& transform) const;
+	bool m_netcoop_back_mode = false;
+	bool m_netcoop_back_valid = false;
 	bool netcoop_aim(Fvector& pos, Fvector& dir) const;
 	void netcoop_send_shot(const Fvector& pos, const Fvector& dir, u8 kind = 0);
 	virtual bool netcoop_fire_shot(u8 kind, const Fvector& pos, const Fvector& dir);

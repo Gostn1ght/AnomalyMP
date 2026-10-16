@@ -388,12 +388,23 @@ int main(int argc,char** argv){
  rejects([&]{checkpoint_player_id(71,0,"alice",11);});
  rejects([&]{checkpoint_player_id(71,0,"al ice",1);});
  const auto character=fixture["character_id"].get<std::string>();
+ PlayerSlotObservation observation;
+ assert(inspect_player_slot(src,a,epoch,"nobody",1,sf,observation,status)==CheckpointStep::Complete);
+ assert(observation.state==PlayerSlotStatus::Absent && observation.revision==0 && observation.session_fence==0);
  assert(command(src,a,"entity_create",{{"entity_id",character},{"kind","CHARACTER"},{"location","cordon"},
   {"fence",sf},{"account","alice"},{"state",{{"position",BridgeJson::array({1,2,3})}}}}));
+ assert(inspect_player_slot(src,a,epoch,"ALICE",1,sf,observation,status)==CheckpointStep::Complete);
+ assert(observation.state==PlayerSlotStatus::Active && observation.entity_version==1 && observation.revision==0);
+ assert(inspect_player_slot(src,b,epoch,"alice",1,sf,observation,status)==CheckpointStep::Rejected && status==409);
+ assert(observation.state==PlayerSlotStatus::Missing && observation.character.empty());
+ assert(inspect_player_slot(wrong,a,epoch,"alice",1,sf,observation,status)==CheckpointStep::Rejected && status==409);
+ assert(inspect_player_slot(src,a,0,"alice",1,sf,observation,status)==CheckpointStep::Rejected && status==0);
+ assert(inspect_player_slot(src,a,epoch,"../alice",1,sf,observation,status)==CheckpointStep::Rejected);
  auto begin=[&](){return command(src,a,"native_save_begin",{{"character_id",character},{"fence",sf},
   {"session_fence",1},{"entity_version",1},{"base_revision",0},{"slot",1},
   {"byte_count",fixture["bytes"]},{"sha256",fixture["sha256"]}});};
  assert(begin());auto upload=result["upload_id"].get<std::string>();
+ assert(inspect_player_slot(src,a,epoch,"alice",1,sf,observation,status)==CheckpointStep::Rejected && status==409);
  assert(command(src,a,"native_save_cancel",{{"character_id",character},{"fence",sf},{"session_fence",1},{"upload_id",upload}}));
  assert(begin());upload=result["upload_id"].get<std::string>();
  assert(!command(src,a,"native_save_finish",{{"character_id",character},{"fence",sf},{"session_fence",1},{"upload_id",upload}}) && status==409);
@@ -409,6 +420,25 @@ int main(int argc,char** argv){
  assert(command(src,a,"native_save_finish",finish_args,finish));
  const auto durable=result;assert(result["durable"]==true && result["revision"]==1 && result["sha256"]==fixture["sha256"]);
  assert(command(src,a,"native_save_finish",finish_args,finish) && result==durable);
+ assert(inspect_player_slot(src,a,epoch,"alice",1,sf,observation,status)==CheckpointStep::Complete);
+ assert(observation.state==PlayerSlotStatus::Active && observation.entity_version==2 && observation.revision==1 &&
+  observation.sha256==fixture["sha256"] && observation.bytes==fixture["bytes"]);
+ const auto slot_path="/v1/player-admission?account=alice&slot=1&location=cordon&fence="+std::to_string(sf)+"&epoch="+std::to_string(epoch);
+ assert(!writer_request(src,a,0,"GET",slot_path,"",result,status) && status==0);
+ assert(writer_request(src,a,epoch,"GET",slot_path,"",result,status));
+ const auto slot_body=result;
+ for(const auto* field:{"schema","slot","epoch","fence","entity_version","session_fence"}){
+  auto bad=slot_body;bad[field]=true;rejects([&]{PlayerSlotObservation::parse(bad,src,epoch,"alice",1,sf);});
+ }
+ for(unsigned fault=0;fault<6;++fault){auto bad=slot_body;
+  if(fault==0)bad["status"]="FROZEN";if(fault==1)bad["checkpoint"]["bytes"]=checkpoint_limit+1;
+  if(fault==2)bad["world_id"]="071";if(fault==3)bad["checkpoint"]["sha256"]="bad";
+  if(fault==4)bad["private"]="extra";if(fault==5)bad["character_id"]=std::string(32,'0');
+  rejects([&]{PlayerSlotObservation::parse(bad,src,epoch,"alice",1,sf);});
+ }
+ auto staged_body=slot_body;staged_body["status"]="STAGED";staged_body["checkpoint"]=nullptr;
+ staged_body["entity_version"]=0;staged_body["session_fence"]=0;
+ assert(PlayerSlotObservation::parse(staged_body,src,epoch,"alice",1,sf).state==PlayerSlotStatus::Staged);
  auto page_path=[&](std::uint64_t fence,std::uint64_t session,const BridgeJson& offset){
   return "/v1/player-save?character_id="+character+"&fence="+std::to_string(fence)+
    "&session_fence="+std::to_string(session)+"&revision=1&offset="+std::to_string(offset.get<std::uint64_t>());
@@ -421,11 +451,14 @@ int main(int argc,char** argv){
  }
  // Logout/reconnect increments the session fence without losing the save.
  assert(command(src,a,"session_disconnect",{{"character_id",character},{"fence",sf},{"version",2},{"state",{{"position",BridgeJson::array({4,5,6})}}}}));
+ assert(inspect_player_slot(src,a,epoch,"alice",1,sf,observation,status)==CheckpointStep::Complete);
+ assert(observation.state==PlayerSlotStatus::Disconnected && observation.session_fence==2 && observation.entity_version==3);
  assert(!writer_request(src,a,epoch,"GET",page_path(sf,1,0),"",result,status) && status==409);
  assert(command(src,a,"session_resume",{{"character_id",character},{"location","cordon"},{"fence",sf},{"version",3}}));
  assert(result["session_fence"]==3 && result["version"]==4);
  assert(command(src,a,"transfer_prepare",{{"entity_id",character},{"source","cordon"},{"source_fence",sf},{"target","garbage"},{"entity_version",4}}));
  const auto character_transfer=result["transfer_id"].get<std::string>(),character_token=result["token"].get<std::string>();
+ assert(inspect_player_slot(src,a,epoch,"alice",1,sf,observation,status)==CheckpointStep::Rejected && status==409);
  assert(!writer_request(src,a,epoch,"GET",page_path(sf,3,0),"",result,status) && status==409);
  assert(command(dst,c,"transfer_claim",{{"token",character_token},{"target_fence",tf}}));
  const auto frozen_session=bridge_unsigned(result,"session_fence");
@@ -435,6 +468,9 @@ int main(int argc,char** argv){
   assert(result["data"]==chunk["data"] && result["sha256"]==fixture["sha256"]);
  }
  assert(command(dst,c,"transfer_commit",{{"transfer_id",character_transfer},{"target_fence",tf}}));
+ assert(inspect_player_slot(dst,c,epoch,"alice",1,tf,observation,status)==CheckpointStep::Complete);
+ assert(observation.state==PlayerSlotStatus::Active && observation.entity_version==6 && observation.session_fence==frozen_session+1);
+ std::cout<<"PASS actual native admission lookup: same-request world/instance binding, canonical identity, compact typed head, incomplete/frozen/stale-owner refusal, disconnect and transfer lifecycle, malformed reply rejection\n";
  assert(!writer_request(src,a,epoch,"GET",page_path(sf,3,0),"",result,status) && status==403);
  assert(writer_request(dst,c,epoch,"GET",page_path(tf,frozen_session+1,0),"",result,status));
  assert(result["data"]==fixture["chunks"][0]["data"]);

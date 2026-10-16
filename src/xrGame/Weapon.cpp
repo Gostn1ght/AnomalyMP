@@ -39,6 +39,7 @@
 #include "netcoop.h"
 #include "script_game_object.h"
 #include "ai/stalker/ai_stalker.h"
+#include "../xrEngine/bone.h"
 
 #define WEAPON_REMOVE_TIME		60000
 #define ROTATION_TIME			0.25f
@@ -118,6 +119,7 @@ CWeapon::CWeapon()
 
 	m_Offset.identity();
 	m_StrapOffset.identity();
+	dwXF_Frame = dwFP_Frame = u32(-1);
 	isGrenadeLauncherActive = false;
 	
 	m_iAmmoCurrentTotal = 0;
@@ -184,12 +186,81 @@ void CWeapon::Hit(SHit* pHDS)
 	inherited::Hit(pHDS);
 }
 
+bool CWeapon::netcoop_back_carried() const
+{
+	if (!netcoop::enabled() || getDestroy() || GetAmmoMagSize() <= 0 || !H_Parent()) return false;
+	const CEntityAlive* entity = smart_cast<const CEntityAlive*>(H_Parent());
+	const CInventoryOwner* owner = smart_cast<const CInventoryOwner*>(H_Parent());
+	if (!entity || !entity->g_Alive() || !owner || m_pInventory != &owner->inventory() || owner->attached(this)) return false;
+	if (CurrPlace() != eItemPlaceSlot || (CurrSlot() != INV_SLOT_2 && CurrSlot() != INV_SLOT_3) ||
+		owner->inventory().ItemFromSlot(CurrSlot()) != this) return false;
+	if (owner->inventory().ActiveItem() != this) return true;
+	// AI keeps its strapped gun in the active slot. Actors take the selected
+	// weapon into their hands; never copy an old NPC strap flag onto a player.
+	return smart_cast<const CAI_Stalker*>(H_Parent()) && can_be_strapped() && strapped_mode();
+}
+
+bool CWeapon::netcoop_back_transform(Fmatrix& transform) const
+{
+	if (!netcoop_back_carried() || !Visual()) return false;
+	IKinematics* skeleton = smart_cast<IKinematics*>(H_Parent()->Visual());
+	if (!skeleton) return false;
+	const u16 bone = skeleton->LL_BoneID("bip01_spine2");
+	const u16 count = skeleton->LL_BoneCount();
+	if (bone == BI_NONE || bone >= count) return false;
+	skeleton->CalculateBones(TRUE);
+
+	// Cancel the bone's bind orientation, not its current animation. Different
+	// outfits use different bone axes; their animated torso delta stays intact.
+	Fmatrix bind = skeleton->LL_GetData(bone).get_bind_transform();
+	u16 parent = skeleton->LL_GetData(bone).GetParentID();
+	for (u16 depth = 0; parent != BI_NONE; ++depth)
+	{
+		if (parent >= count || depth >= count) return false;
+		Fmatrix next;
+		next.mul_43(skeleton->LL_GetData(parent).get_bind_transform(), bind);
+		bind = next;
+		parent = skeleton->LL_GetData(parent).GetParentID();
+	}
+	if (!_valid(bind) || fis_zero(DET(bind))) return false;
+	Fmatrix inverse, torso;
+	inverse.invert(bind);
+	const Fmatrix& animated = skeleton->LL_GetTransform(bone);
+	if (!_valid(animated) || fis_zero(DET(animated))) return false;
+	torso.mul_43(animated, inverse);
+	torso.c = animated.c;
+
+	Fvector center, half;
+	Visual()->getVisData().box.get_CD(center, half);
+	if (!_valid(center) || !_valid(half) || center.square_magnitude() > 100.f ||
+		half.x < 0.f || half.y < 0.f || half.z < .025f || half.x > 5.f || half.y > 5.f || half.z > 5.f) return false;
+	const float side = CurrSlot() == INV_SLOT_2 ? -1.f : 1.f;
+	const bool pistol = IsSingleHanded();
+	const float tilt = pistol ? 0.f : side * .25f;
+	const float vertical = pistol ? 1.f : .968245837f;
+	const CInventoryOwner* owner = smart_cast<const CInventoryOwner*>(H_Parent());
+	const bool backpack = owner->inventory().ItemFromSlot(BACKPACK_SLOT) != nullptr;
+	Fvector right, normal, barrel, mount, rotated;
+	right.set(vertical, -tilt, 0.f);
+	normal.set(0.f, 0.f, -1.f);
+	barrel.set(tilt, vertical, 0.f);
+	mount.set(side * (pistol ? .18f : .16f), pistol ? -.35f : -.18f,
+		(pistol ? -.19f : -.24f) - (backpack ? .10f : 0.f));
+	Fmatrix local, world;
+	local.set(right, normal, barrel, mount);
+	// Model origins differ by tens of centimetres across GAMMA weapons.
+	// Mount the actual model centre so those offsets cannot throw it away.
+	local.transform_dir(rotated, center);
+	local.c.sub(mount, rotated);
+	world.mul_43(H_Parent()->XFORM(), torso);
+	transform.mul_43(world, local);
+	return _valid(transform) && !fis_zero(DET(transform));
+}
+
 void CWeapon::UpdateXForm()
 {
-	if (Device.dwFrame == dwXF_Frame)
-		return;
-
-	dwXF_Frame = Device.dwFrame;
+	const bool was_back = m_netcoop_back_mode;
+	m_netcoop_back_mode = m_netcoop_back_valid = false;
 
 	if (!H_Parent())
 		return;
@@ -206,7 +277,7 @@ void CWeapon::UpdateXForm()
 	}
 
 	const CInventoryOwner* parent = smart_cast<const CInventoryOwner*>(E);
-	if (parent && parent->use_simplified_visual())
+	if (!parent || parent->use_simplified_visual())
 		return;
 
 	if (parent->attached(this))
@@ -220,8 +291,19 @@ void CWeapon::UpdateXForm()
 
 	// this ugly case is possible in case of a CustomMonster, not a Stalker, nor an Actor
 	E->g_WeaponBones(boneL, boneR, boneR2);
+	if (netcoop::enabled() && smart_cast<CActor*>(E)) m_strapped_mode = false;
+	if (netcoop_back_carried())
+	{
+		m_netcoop_back_mode = true;
+		m_netcoop_back_valid = netcoop_back_transform(XFORM());
+		dwXF_Frame = Device.dwFrame;
+		return;
+	}
+	if (Device.dwFrame == dwXF_Frame && !was_back) return;
+	dwXF_Frame = Device.dwFrame;
 
-	if (boneR == -1) return;
+	if (boneL < 0 || boneR < 0 || boneR2 < 0 || boneL >= V->LL_BoneCount() ||
+		boneR >= V->LL_BoneCount() || boneR2 >= V->LL_BoneCount()) return;
 
 	if ((HandDependence() == hd1Hand) || (GetState() == eReload) || (!E->g_Alive()))
 		boneL = boneR2;
@@ -1545,6 +1627,13 @@ bool CWeapon::need_renderable()
 void CWeapon::renderable_Render()
 {
 	UpdateXForm();
+	if (m_netcoop_back_mode)
+	{
+		// Draw only the world model. Hidden inventory state remains hidden:
+		// no HUD attachment, firing light, animation or network state changes.
+		if (m_netcoop_back_valid) on_renderable_Render();
+		return;
+	}
 
 	//íàðèñîâàòü ïîäñâåòêó
 	RenderLight();

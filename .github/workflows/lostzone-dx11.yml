@@ -235,6 +235,10 @@ jobs:
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-inventory-hands.py
           if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-back-weapons.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-weapon-slot-tail.py
+          if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-hud-state-authority.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-ammo-import.py

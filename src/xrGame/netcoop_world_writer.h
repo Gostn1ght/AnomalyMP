@@ -82,9 +82,10 @@ inline bool writer_request(const WriterConfig& config, const std::string& instan
     }
     else if (!payload.empty() || (path!="/v1/engine-bootstrap" && path!="/v1/clock" &&
              path.rfind("/v1/location?",0)!=0 && path.rfind("/v1/location-bootstrap?",0)!=0 &&
-             path.rfind("/v1/transfer?",0)!=0 && path.rfind("/v1/player-save?",0)!=0)) return false;
+             path.rfind("/v1/transfer?",0)!=0 && path.rfind("/v1/player-save?",0)!=0 &&
+             path.rfind("/v1/player-admission?",0)!=0)) return false;
     // Checkpoint reads must bind world/seed/epoch in the same request too.
-    if (path.rfind("/v1/player-save?",0)==0 && !epoch) return false;
+    if ((path.rfind("/v1/player-save?",0)==0 || path.rfind("/v1/player-admission?",0)==0) && !epoch) return false;
     const auto deadline=GetTickCount64()+2000;
     BridgeHttpHandle session(WinHttpOpen(L"LostZoneWorldWriter/1",WINHTTP_ACCESS_TYPE_NO_PROXY,
         WINHTTP_NO_PROXY_NAME,WINHTTP_NO_PROXY_BYPASS,0));
