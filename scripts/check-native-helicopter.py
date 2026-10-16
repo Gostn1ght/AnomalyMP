@@ -86,14 +86,14 @@ struct{u32 dwTimeGlobal=1;}Device;
 struct CCar {
  enum:u8{netcoop_key_forward=1,netcoop_key_back=2,netcoop_key_left=4,netcoop_key_right=8,
   netcoop_key_handbrake=16,netcoop_key_down=32,netcoop_key_yaw_left=64,netcoop_key_yaw_right=128};
- CPhysicsShell* shell=nullptr;IKinematics visual;bool has_visual=true,b_engine_on=true;
+ CPhysicsShell* test_shell=nullptr;IKinematics visual;bool has_visual=true,b_engine_on=true;
  u8 m_netcoop_keys=0;float m_fuel=100,m_current_rpm=0,m_min_rpm=100,m_max_rpm=1000,m_fuel_consumption=0;
- CPhysicsShell* PPhysicsShell(){return shell;}
+ CPhysicsShell* PPhysicsShell(){return test_shell;}
  IKinematics* Visual(){return has_visual?&visual:nullptr;}
  void netcoop_heli_step(float dt);
 ''' + heli + '\n};\n' + flight + '\n' + safe_cycle + r'''
 void step(CCar& car,unsigned ticks){
- auto& s=*car.shell;
+ auto& s=*car.test_shell;
  for(unsigned t=0;t<ticks;++t){
   Device.dwTimeGlobal+=10;s.element.force.set(0,0,0);s.element.torque.set(0,0,0);
   car.netcoop_heli_step(.01f);
@@ -110,7 +110,7 @@ int main(){
  animated.have_idle=false;
  assert(car_play_cycle_safe(&animated,"missing")==nullptr&&animated.played==2);
  assert(car_play_cycle_safe(nullptr,"idle")==nullptr);
- CPhysicsShell one,two;CCar a,b;a.shell=&one;b.shell=&two;
+ CPhysicsShell one,two;CCar a,b;a.test_shell=&one;b.test_shell=&two;
  a.m_netcoop_heli.rotor=b.m_netcoop_heli.rotor=1;
  a.m_netcoop_heli.collective=b.m_netcoop_heli.collective=.7f;
  // A second vehicle may have been constructed last. No shared bone map is
@@ -124,7 +124,7 @@ int main(){
  a.netcoop_heli_step(0);a.netcoop_heli_step(-1);a.netcoop_heli_step(std::numeric_limits<float>::quiet_NaN());
  assert(one.lookups==1);
  a.has_visual=false;a.netcoop_heli_step(.01f);assert(one.lookups==1);a.has_visual=true;
- a.shell=nullptr;a.netcoop_heli_step(.01f);a.shell=&one;
+ a.test_shell=nullptr;a.netcoop_heli_step(.01f);a.test_shell=&one;
  // Real regulator/force equations with an isolated vertical integrator.
  // This does not simulate engine ODE collision or multiplayer acceptance.
  step(a,2000);assert(std::fabs(one.velocity.y)<.2f&&one.element.form.c.y>3);
