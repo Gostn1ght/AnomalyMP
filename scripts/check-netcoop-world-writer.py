@@ -201,9 +201,14 @@ void outbox_checks(char** argv,const WriterConfig& config,const std::string& ins
  std::cout<<"PASS durable checkpoint outbox: hard process death after SQLite Finish, same-command replay, per-character FIFO/generation barrier, disk-publication failures, fresh proof after restart, fencing, exact latest bytes\n";
  std::cout<<"PASS actual outbox files: exclusive process lock, Unicode path, count/64MiB budget, corruption/missing index preserved, bounded orphan cleanup, unknown files and hardlinks refused\n";
 }
+unsigned worker_wait_stage=0;
 template<class F>void eventually(F condition){
+ const auto stage=++worker_wait_stage;
  const auto end=GetTickCount64()+10000;
- while(!condition()){assert(GetTickCount64()<end);Sleep(5);}
+ while(!condition()){
+  if(GetTickCount64()>=end){std::cerr<<"checkpoint worker wait stage "<<stage<<" timed out\n";assert(false);}
+  Sleep(5);
+ }
 }
 void worker_checks(char** argv,const std::string& instance,std::uint64_t epoch,const std::string& character,
  std::uint64_t fence,std::uint64_t session,const std::string& next_raw,const std::string& last_raw){
@@ -242,6 +247,10 @@ void worker_checks(char** argv,const std::string& instance,std::uint64_t epoch,c
  assert(result.latest_submitted && result.revision==7 && result.version==12 && std::string(result.sha256)==checkpoint_sha256(last_raw));
  assert(!worker.submit(ticket(1,10,5),next_raw.data(),next_raw.size()));
  assert(worker.stop());
+ // Only the disk-refusal/independent-renewal case deliberately uses3s.
+ // Later 32-file/64MiB shutdown-drain cases use the normal15s lease:
+ // filesystem staging has no promise to finish inside the short test TTL.
+ context.lease_ms=15000;
  // Reopen the real journal and obtain fresh Finish proof; no new save revision.
  assert(worker.start(argv[2],root.c_str(),context));eventually([&]{return worker.status().ready;});
  assert(worker.generation_floor(character.c_str(),floor) && floor==2);
