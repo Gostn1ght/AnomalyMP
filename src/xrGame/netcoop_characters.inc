@@ -213,6 +213,7 @@ static bool character_snapshot(const Character& character, xr_vector<u8>& snapsh
 // the temporary file must not block the simulation. An accepted queue entry
 // is pending, not durable acknowledgement. Sync saves retain their barrier.
 struct CharacterCommit { xr_string temp, path; xr_vector<u8> snapshot; u64 bytes = 0; };
+static void admission_capture(const Character& character, const xr_vector<u8>& snapshot); // netcoop_admission.inc
 static xrCriticalSection s_commit_lock;
 static xr_deque<CharacterCommit> s_commits;
 static bool s_commit_worker = false;
@@ -374,6 +375,7 @@ static bool character_save(Character& character, bool background = false)
     commit.path = path; commit.temp = temp;
     if (!character_snapshot(character, commit.snapshot)) return false;
     commit.bytes = u64(commit.snapshot.size());
+    admission_capture(character, commit.snapshot); // the same image goes to the world master (doc 135)
     if (background)
     {
         if (!character_commit_enqueue(std::move(commit))) return false;

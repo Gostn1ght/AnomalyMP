@@ -109,6 +109,7 @@ xrServer::xrServer() : IPureServer(Device.GetTimerGlobal(), g_dedicated_server)
 
 xrServer::~xrServer()
 {
+	netcoop::server_admission_stop();
 	netcoop::server_world_bridge_stop();
 	struct ClientDestroyer
 	{

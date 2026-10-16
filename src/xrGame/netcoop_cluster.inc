@@ -28,7 +28,11 @@ static u64 cluster_unix_ms();
 
 static const u32 cluster_lease_ttl_s = 30, cluster_ticket_ttl_s = 180, cluster_leave_ms = 3000;
 
-struct ClusterLeaving { u16 actor = 0; u32 since = 0; xr_string level; };
+// departure: the world master's handoff ticket (doc 135); the redirect waits for it.
+struct ClusterLeaving { u16 actor = 0; u32 since = 0; xr_string level; u64 departure = 0; xr_string host; u32 port = 0; };
+static bool admission_active(); // netcoop_admission.inc
+static bool admission_admitted(LPCSTR login, u8 slot);
+static u64 admission_depart(LPCSTR login, u8 slot, LPCSTR target);
 static xr_map<u32, ClusterLeaving> s_cluster_leaving; // ClientID value -> leaving player
 static xr_map<u32, u32> s_cluster_redirected; // ClientID value -> time of a login redirect
 static u32 s_cluster_heartbeat = 0, s_cluster_status = 0;
@@ -560,6 +564,20 @@ static void cluster_refuse(xrServer* server, xrClientData* CL, LPCSTR text)
 }
 
 static bool cluster_move(xrServer* server, xrClientData* CL, CLevelChanger* changer);
+static void cluster_refuse(xrServer* server, xrClientData* CL, LPCSTR text);
+
+// A passage the world master did not hand off: the player stays here, the
+// ticket goes and the character is saved at its current place again.
+static void cluster_departure_undo(xrServer* server, xrClientData* CL, u16 actor_id, LPCSTR reason)
+{
+	string_path ticket;
+	cluster_file("ticket", CL->netcoop_login.c_str(), CL->netcoop_character_slot, ticket);
+	DeleteFileA(ticket);
+	s_cluster_leaving.erase(CL->ID.value());
+	character_save_actor(actor_id, nullptr, true);
+	Msg("! [Lost Zone][cluster] %s stays: %s", CL->netcoop_login.c_str(), reason);
+	cluster_refuse(server, CL, reason);
+}
 
 
 // M_CHANGE_LEVEL from a remote player: the level changer dialog's "go".
@@ -647,6 +665,20 @@ static bool cluster_move(xrServer* server, xrClientData* CL, CLevelChanger* chan
 		s_cluster_leaving.erase(CL->ID.value());
 		return cluster_refuse(server, CL, "the character could not be saved"), false;
 	}
+	// M2b: the world master freezes the character for the target location
+	// once its last save is durable; the redirect waits for that ticket.
+	if (admission_active() && admission_admitted(CL->netcoop_login.c_str(), CL->netcoop_character_slot))
+	{
+		const u64 ticket = admission_depart(CL->netcoop_login.c_str(), CL->netcoop_character_slot, level);
+		if (!ticket)
+		{
+			cluster_departure_undo(server, CL, actor_id, "the world master is unavailable for this passage");
+			return false;
+		}
+		leaving.departure = ticket; leaving.host = host; leaving.port = port;
+		Msg("[Lost Zone][cluster] %s leaves for %s: waiting for the world master's handoff", CL->netcoop_login.c_str(), level);
+		return true;
+	}
 	// From here on this server never saves the character again.
 	s_actor_character.erase(actor_id);
 	cluster_lease_release(CL->netcoop_login.c_str());
@@ -697,7 +729,7 @@ struct ClusterDisconnectLeaving
 	{
 		xrClientData* CL = static_cast<xrClientData*>(client);
 		auto it = s_cluster_leaving.find(CL->ID.value());
-		if (it != s_cluster_leaving.end() && real_time_ms() - it->second.since >= cluster_leave_ms)
+		if (it != s_cluster_leaving.end() && !it->second.departure && real_time_ms() - it->second.since >= cluster_leave_ms)
 		{
 			it->second.since = real_time_ms(); // once more later if it is still here
 			out->push_back(CL);

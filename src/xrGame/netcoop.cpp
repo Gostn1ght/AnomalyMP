@@ -15,6 +15,7 @@
 #include <windns.h>
 #include "../3rd party/nlohmann/json.hpp"
 #include "netcoop_world_bridge_worker.h"
+#include "netcoop_admission.h"
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "crypt32.lib")
 #pragma comment(lib, "bcrypt.lib")
@@ -1405,6 +1406,7 @@ static void reject(xrServer* server, xrClientData* CL, LPCSTR message)
 #include "netcoop_cluster.inc"
 #include "netcoop_shared_store.inc"
 #include "netcoop_console.inc"
+#include "netcoop_admission.inc"
 
 // The server's PBKDF2 (60000 rounds) took ~100 ms of a frame for every
 // login; with many players joining the world stuttered for everyone. It runs
@@ -1429,6 +1431,9 @@ struct PendingAuth
 	NET_Packet* player_state; // M_CREATE_PLAYER_STATE that arrived meanwhile
 };
 static xr_vector<PendingAuth*> s_pending_auth;
+// Logins waiting for the world master's admission (doc 135); still unauthenticated.
+struct PendingAdmission { PendingAuth* pending = nullptr; u64 ticket = 0; bool token = false; };
+static xr_vector<PendingAdmission> s_pending_admission;
 
 static void auth_worker(void* data)
 {
@@ -1450,6 +1455,9 @@ static PendingAuth* pending_auth_of(ClientID id)
 	for (PendingAuth* pending : s_pending_auth)
 		if (pending->client == id)
 			return pending;
+	for (const PendingAdmission& waiting : s_pending_admission)
+		if (waiting.pending->client == id)
+			return waiting.pending;
 	return NULL;
 }
 
@@ -1579,11 +1587,26 @@ void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
 	thread_spawn(auth_worker, "netcoop-auth", 0, pending);
 }
 
-static void finish_auth(xrServer* server, PendingAuth* pending)
+static void finish_login(xrServer* server, xrClientData* CL, Account* a, PendingAuth* pending)
+{
+	CL->netcoop_role = a->role;
+	CL->name = a->login.c_str();
+
+	string256 message;
+	xr_sprintf(message, "Logged in as %s (%s)", a->login.c_str(), role_name(a->role));
+	Msg("[Lost Zone] client 0x%08x %s", CL->ID.value(), message);
+	send_auth_result(server, CL, true, a->role, message);
+
+	if (pending->player_state)
+		server->game->AddDelayedEvent(*pending->player_state, GAME_EVENT_CREATE_PLAYER_STATE, 0, CL->ID);
+}
+
+// true: the login waits for the world master (the pending entry is kept).
+static bool finish_auth(xrServer* server, PendingAuth* pending)
 {
 	xrClientData* CL = static_cast<xrClientData*>(server->ID_to_client(pending->client));
 	if (!CL)
-		return; // disconnected meanwhile
+		return false; // disconnected meanwhile
 
 	LoginInUse in_use;
 	in_use.login = pending->login;
@@ -1592,12 +1615,12 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
 	if (server->FindClient(in_use))
 	{
 		reject(server, CL, "This account is already online");
-		return;
+		return false;
 	}
 	if (!pending->hashed)
 	{
 		reject(server, CL, pending->firebase ? "Firebase identity or verified email could not be confirmed" : "Server error: cannot hash password");
-		return;
+		return false;
 	}
 
 	Account* a = account_find(pending->login.c_str());
@@ -1606,7 +1629,7 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
 		if (a)
 		{
 			reject(server, CL, "Account already exists, use Login");
-			return;
+			return false;
 		}
 		Account created;
         created.firebase_uid = pending->firebase_uid;
@@ -1632,7 +1655,7 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
 		if (!a || a->salt != pending->salt)
 		{
 			reject(server, CL, "Unknown account, use Register");
-			return;
+			return false;
 		}
 		if (pending->firebase ? a->firebase_uid.empty() || a->firebase_uid != pending->firebase_uid : !constant_time_equal(pending->hash, a->hash))
 		{
@@ -1642,7 +1665,7 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
 				a->locked_until = GetTickCount() + 60000;
 			}
 			reject(server, CL, "Wrong password");
-			return;
+			return false;
 		}
 		a->failures = 0;
 		a->locked_until = 0;
@@ -1651,13 +1674,13 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
     if (!a->device.empty() && !constant_time_equal(a->device, pending->device))
     {
         reject(server, CL, "Account is bound to another device; contact the server administrator");
-        return;
+        return false;
     }
     // Hardware ban (server console): this login or this computer.
     if (server_banned(a->login, pending->device))
     {
         reject(server, CL, "You are banned on this server");
-        return;
+        return false;
     }
     if (a->device.empty() && !pending->device.empty())
     { a->device = pending->device; a->touched = true; s_accounts_dirty = true; accounts_save(); }
@@ -1682,7 +1705,7 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
             {
                 CL->netcoop_login = NULL;
                 reject(server, CL, storage_error.c_str());
-                return;
+                return false;
             }
             const xr_string result=storage_execute(server,CL,pending->storage);
             cluster_lease_release(a->login.c_str());
@@ -1690,14 +1713,14 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
         }
         else send_auth_result(server, CL, true, a->role, "Account verified");
         server->DisconnectClient(CL, "@Account verified");
-        return;
+        return false;
     }
     xr_string cluster_error;
     if (!cluster_on_login(CL, a->login.c_str(), pending->slot, cluster_error))
     {
         CL->netcoop_login = NULL;
         reject(server, CL, cluster_error.c_str());
-        return;
+        return false;
     }
     xr_string redirect;
     bool location_starting = false;
@@ -1706,35 +1729,112 @@ static void finish_auth(xrServer* server, PendingAuth* pending)
         cluster_lease_release(a->login.c_str());
         cluster_send_redirect(server, CL, redirect.c_str());
         CL->netcoop_login = NULL;
-        return;
+        return false;
     }
     if (location_starting)
     {
         cluster_lease_release(a->login.c_str());
         CL->netcoop_login = NULL;
         reject(server, CL, "Your character's location is starting; log in again in 1-2 minutes");
-        return;
+        return false;
     }
     if (!character_select(CL, pending->slot, pending->character_name.c_str(), pending->faction.c_str(), pending->economy, pending->loadout.c_str()))
     {
         cluster_lease_release(a->login.c_str());
         CL->netcoop_login = NULL;
         reject(server, CL, "Character unavailable or starting items exceed the point budget");
-        return;
+        return false;
     }
     if (Character* character = character_load(CL->netcoop_login.c_str(), pending->slot))
         if (!character->initialized && pending->firebase)
         { character->description = pending->description; character->history = pending->history; character_save(*character); }
-	CL->netcoop_role = a->role;
-	CL->name = a->login.c_str();
+	// M2b: the world master admits the character (create / resume /
+	// transfer claim) and may hold a newer save than this machine's file.
+	if (admission_active())
+	{
+		string_path path;
+		character_path(CL->netcoop_login.c_str(), pending->slot, path);
+		character_commits_flush(path);
+		xr_vector<u8> local;
+		admission_read_file(path, local, 20u * 1024 * 1024);
+		const xr_string token = admission_token(CL->netcoop_login.c_str(), pending->slot);
+		const u64 ticket = s_admission.admit(CL->netcoop_login.c_str(), pending->slot, local.empty() ? nullptr : local.data(),
+			local.size(), token.empty() ? nullptr : token.c_str());
+		if (!ticket)
+		{
+			cluster_lease_release(a->login.c_str());
+			CL->netcoop_login = NULL;
+			reject(server, CL, "The location cannot reach the world master; try again in a minute");
+			return false;
+		}
+		CL->netcoop_role = role_none; // not admitted yet: player state messages wait
+		PendingAdmission waiting; waiting.pending = pending; waiting.ticket = ticket; waiting.token = !token.empty();
+		s_pending_admission.push_back(waiting);
+		return true;
+	}
+	finish_login(server, CL, a, pending);
+	return false;
+}
 
-	string256 message;
-	xr_sprintf(message, "Logged in as %s (%s)", a->login.c_str(), role_name(a->role));
-	Msg("[Lost Zone] client 0x%08x %s", CL->ID.value(), message);
-	send_auth_result(server, CL, true, a->role, message);
+static void free_pending(PendingAuth* pending)
+{
+	SecureZeroMemory(&pending->key[0], pending->key.size());
+	xr_delete(pending->player_state);
+	xr_delete(pending);
+}
 
-	if (pending->player_state)
-		server->game->AddDelayedEvent(*pending->player_state, GAME_EVENT_CREATE_PLAYER_STATE, 0, CL->ID);
+static void admission_logins_update(xrServer* server)
+{
+	for (u32 i = 0; i < s_pending_admission.size();)
+	{
+		const PendingAdmission waiting = s_pending_admission[i];
+		netcoop_world::AdmissionResult result;
+		std::vector<unsigned char> bytes;
+		if (!s_admission.poll_admission(waiting.ticket, result, bytes)) { ++i; continue; }
+		s_pending_admission.erase(s_pending_admission.begin() + i);
+		PendingAuth* pending = waiting.pending;
+		xrClientData* CL = static_cast<xrClientData*>(server->ID_to_client(pending->client));
+		Account* a = account_find(pending->login.c_str());
+		const xr_string login = a ? a->login : pending->login;
+		if (!CL || !a || !CL->netcoop_login.size())
+		{
+			// Gone while waiting: the master session closes again.
+			if (result.state == netcoop_world::AdmissionState::Admitted) s_admission.leave(login.c_str(), pending->slot);
+			cluster_lease_release(login.c_str());
+			free_pending(pending);
+			continue;
+		}
+		bool ok = result.state != netcoop_world::AdmissionState::Refused;
+		LPCSTR reason = result.reason[0] ? result.reason : "The world master refused this character";
+		if (ok && result.state == netcoop_world::AdmissionState::Admitted && result.master_bytes &&
+			!admission_apply_master_bytes(login.c_str(), pending->slot, bytes))
+		{
+			ok = false; reason = "The world master's save of this character could not be loaded here";
+			s_admission.leave(login.c_str(), pending->slot);
+		}
+		if (!ok)
+		{
+			Msg("! [Lost Zone][master] login of %s slot %u refused: %s", login.c_str(), pending->slot, reason);
+			cluster_lease_release(login.c_str());
+			CL->netcoop_login = NULL;
+			reject(server, CL, reason);
+			free_pending(pending);
+			continue;
+		}
+		if (result.state == netcoop_world::AdmissionState::Admitted)
+		{
+			if (waiting.token) { string_path path; admission_token_path(login.c_str(), pending->slot, path); DeleteFileA(path); }
+			// A character the master has no save of yet: its local file is the first.
+			if (!result.revision && !result.master_bytes)
+				if (Character* character = character_load(login.c_str(), pending->slot))
+					character_save(*character, true);
+			Msg("[Lost Zone][master] %s slot %u admitted by the world master%s", login.c_str(), pending->slot,
+				result.master_bytes ? " (its newer save is used)" : "");
+		}
+		else Msg("! [Lost Zone][master] %s slot %u: %s - local save only", login.c_str(), pending->slot, reason);
+		finish_login(server, CL, a, pending);
+		free_pending(pending);
+	}
 }
 
 void server_auth_update(xrServer* server)
@@ -1748,11 +1848,10 @@ void server_auth_update(xrServer* server)
 			continue;
 		}
 		s_pending_auth.erase(s_pending_auth.begin() + i);
-		finish_auth(server, pending);
-		SecureZeroMemory(&pending->key[0], pending->key.size());
-		xr_delete(pending->player_state);
-		xr_delete(pending);
+		if (finish_auth(server, pending)) continue; // waits for the world master
+		free_pending(pending);
 	}
+	admission_logins_update(server);
 }
 
 bool server_defer_player_state(xrClientData* CL, NET_Packet& P)
@@ -1890,6 +1989,7 @@ static void destroy_pending_actors(xrServer* server)
                     s_pending_lock.Leave();
                     continue;
                 }
+                admission_leave(key->second); // the master session closes after the last save is durable
                 cluster_lease_release(login.c_str());
             }
             s_actor_destroy_retry.erase(ids[i]);
@@ -1933,6 +2033,8 @@ void server_update(xrServer* server)
 	destroy_pending_actors(server);
 	world_store_update(server);
 	server_world_bridge_update();
+	admission_update();
+	admission_departures_update(server);
 	server_talk_prune(server);
 	characters_update(server);
 	if (!s_accounts_loaded)

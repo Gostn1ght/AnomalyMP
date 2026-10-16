@@ -183,6 +183,24 @@ class PlayerAdmissionTest(unittest.TestCase):
         with self.assertRaises(Conflict):
             self.inspect()
 
+    def test_recovery_discards_an_upload_left_by_the_crashed_previous_owner(self):
+        self.create()
+        raw = native_fixture()
+        self.complete(raw)
+        self.begin(raw, 2, 1)  # the previous server died during this upload
+        self.millis += 20000
+        fence = self.world.claim_location("source", uid(), "cordon")["fence"]
+        self.assertNotEqual(fence, self.source)
+        self.ownership.recover_location("source", uid(), "cordon", fence)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM native_player_upload").fetchone()[0], 0)
+        result = self.inspect(fence=fence)
+        self.assertEqual((result["status"], result["checkpoint"]["revision"]), ("ACTIVE", 1))
+        # A live upload of the current owner survives a repeated recovery.
+        upload = self.saves.begin("source", uid(), self.character, fence, result["session_fence"], result["entity_version"], 1, 1,
+                                  len(raw), hashlib.sha256(raw).hexdigest())["upload_id"]
+        self.ownership.recover_location("source", uid(), "cordon", fence)
+        self.assertEqual(self.store.db.execute("SELECT id FROM native_player_upload").fetchone()[0], upload)
+
     def test_dead_character_is_never_reported_as_an_absent_slot(self):
         self.create()
         self.ownership.kill("source", uid(), self.character, self.source, 1, "fixture")

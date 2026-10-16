@@ -128,6 +128,7 @@ bool cluster_actor_leaving(u16 actor){for(const auto& entry:s_cluster_leaving)if
 bool character_save_actor(u16,std::nullptr_t,bool){++saves;return save_ok;}
 bool character_account_money_commit(xrServer*,u16){++wallet_saves;return wallet_ok;}
 void cluster_lease_release(LPCSTR){++releases;}
+void admission_leave(const xr_string&){}
 void server_release_task_manager(u16){++tasks;}
 void Msg(const char*,...){}
 '''+give_body+r'''
@@ -294,7 +295,12 @@ std::string events, refusal;int saved_destination=0;
 bool cluster_location(const char*,std::string& host,u32& port){host="localhost";port=1277;return location_ok;}
 bool cluster_on_demand(const char*){return false;} void cluster_wake(const char*){} // servers on demand: none here
 void cluster_refuse(xrServer*,xrClientData*,const char* message){refusal=message;events+='R';}
-struct ClusterLeaving{u16 actor=0;u32 since=0;std::string level;};
+using u64=unsigned long long;
+struct ClusterLeaving{u16 actor=0;u32 since=0;std::string level;unsigned long long departure=0;std::string host;u32 port=0;};
+// Without a location writer the world master takes no part (doc 135).
+bool admission_active(){return false;}bool admission_admitted(const char*,u8){return false;}
+unsigned long long admission_depart(const char*,u8,const char*){return 0;}
+struct xrServer;struct xrClientData;void cluster_departure_undo(xrServer*,xrClientData*,u16,const char*){assert(false);}
 std::map<u32,ClusterLeaving>s_cluster_leaving;
 std::map<u16,int>s_character_restore,s_actor_character;
 bool cluster_ticket_write(const char*,u8,const char*){events+='T';return ticket_ok;}

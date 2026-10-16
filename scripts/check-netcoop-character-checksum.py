@@ -36,6 +36,8 @@ for marker in ('static xr_string character_key(', 'static void character_path(',
 actual += '\n'+characters[characters.index('static bool character_read_string('):characters.index('// Autosaves pass owned bytes')]
 actual += '\n'+block('static bool character_sync_commit(')
 actual += '\n'+block('static bool character_commit_file(')
+# The world master mirror (doc 135) receives each image; here it only counts them.
+actual += '\nunsigned fixture_mirrored=0;static void admission_capture(const Character&, const xr_vector<u8>& image){if(!image.empty())++fixture_mirrored;}\n'
 actual += '\n'+block('static bool character_save(Character&')
 actual += '\n'+block('static Character* character_load(')
 

@@ -202,6 +202,14 @@ class Ownership:
         payload = {"type": "location_recover", "location": location, "fence": fence}
         def apply(tx):
             self.world.require_location(tx, actor, location, fence)
+            # A native checkpoint upload begun under an older fence of this
+            # location can never be appended or finished (every step checks
+            # the current fence); left behind by a crashed server it would
+            # block the character's admission, disconnect and handoff forever.
+            # The newer local image is uploaded again by the new owner.
+            tx.execute("DELETE FROM native_player_upload WHERE fence<>? AND character_id IN "
+                       "(SELECT id FROM entity WHERE location=? AND writer NOT LIKE 'transfer:%' AND writer NOT LIKE 'offline:%')",
+                       (fence, location))
             tx.execute("UPDATE entity SET writer=?,fence=?,version=version+1 WHERE location=? AND writer NOT LIKE 'transfer:%' AND writer NOT LIKE 'offline:%'",
                        (actor, fence, location))
             rows = tx.execute("SELECT id,version,alive FROM entity WHERE location=? AND writer=? AND fence=?",

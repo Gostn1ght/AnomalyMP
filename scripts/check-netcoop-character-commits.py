@@ -11,6 +11,8 @@ characters = (root/"src/xrGame/netcoop_characters.inc").read_text(encoding="utf-
 a=characters.index('struct CharacterCommit {')
 b=characters.index('static bool character_sync_commit(',a)
 queue=characters[a:b]
+# The world master mirror (doc 135) is declared here; this fixture saves locally only.
+queue='\n'.join(line for line in queue.split('\n') if 'admission_capture' not in line)
 a=b;b=characters.index('static void character_commit_worker(',a)
 commit_file=characters[a:b]
 worker=characters[b:characters.index('// A synchronous save',b)]

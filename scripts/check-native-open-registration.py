@@ -6,9 +6,9 @@ from tempfile import TemporaryDirectory
 
 root=Path(__file__).resolve().parents[1]
 text=(root/'src/xrGame/netcoop.cpp').read_text(encoding='utf-8-sig')
-start=text.index('static void finish_auth(')
+start=text.index('static bool finish_auth(')
 end=text.index('    // Slot zero authenticates',start)
-admission=text[start:end]+'}\n'
+admission=text[start:end]+'    return false;\n}\n' # the world master phase follows the prefix (doc 135)
 source=r'''
 #include <algorithm>
 #include <cassert>
