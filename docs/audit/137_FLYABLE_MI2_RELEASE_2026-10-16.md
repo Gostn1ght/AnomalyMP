@@ -175,3 +175,7 @@ The obsolete top-level RAR was retained under
 `_work\before_server_zip_000021_20261016` to avoid sending it accidentally.
 Master and game/location process count at delivery: zero. The existing
 launcher distribution service remains running.
+
+Later same-day hoster-only fix: doc139 supersedes the ZIP hash/entry count
+above after preparing downloaded launch files before master/map startup.
+Native/master/resource/client release pins are unchanged.

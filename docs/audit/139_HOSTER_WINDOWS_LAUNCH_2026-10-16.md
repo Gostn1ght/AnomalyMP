@@ -29,3 +29,26 @@ Native eca858c03, master e3fcbf1f1, resource patch000021 and client launcher
 downloaded installation; the full server ZIP is refreshed too. Runtime
 verification on the friend's Windows remains theirs; no server is started
 on the owner's PC.
+
+## Delivered
+
+Hoster script source: `4d439aa1ce29f4dc7173d8254d8e5f19de6044a2`.
+The actual Windows CMD error-path fixture and Windows PowerShell 5.1 ADS
+fixture both passed. Existing CMD fixtures now copy the new preparation
+dependency into their incomplete test kit; no native process is executed.
+
+The updated public folder is `J:\LostZone_Work\Lost Zone Server` (6879
+listed files; manifest additionally records hoster_scripts_commit).
+Full replacement archive: `J:\LostZone_Work\Lost Zone Server.zip`,
+236,022,404 bytes, 6880 entries, SHA256
+`85126aaabdef2ec9404174ed819c044e1fd13f62211b0b04ca52ba98e559cc7a`.
+Every entry was decompressed and checked against the manifest.
+
+Small overlay for an existing download:
+`J:\LostZone_Work\Lost Zone Server - launch fix.zip`, 341,880 bytes,
+six entries (three CMDs, preparation PS1, readme and updated public manifest),
+SHA256 `8ac2cf4b8c46eadf0d9ebb1d3ca8a0a6c092ead0ec0c43c88e397d0ea4d5585a`.
+Its entries are byte-identical to the updated public folder. The friend
+should close the old startup/dialogs, extract this overlay over the game
+with replacement and start Start Locations.cmd again. No runtime files are
+included. Owner process count for client/location/master remained zero.
