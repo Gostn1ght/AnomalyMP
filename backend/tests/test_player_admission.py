@@ -201,6 +201,23 @@ class PlayerAdmissionTest(unittest.TestCase):
         self.ownership.recover_location("source", uid(), "cordon", fence)
         self.assertEqual(self.store.db.execute("SELECT id FROM native_player_upload").fetchone()[0], upload)
 
+    def test_source_renewal_returns_a_character_whose_handoff_was_never_claimed(self):
+        self.create()
+        self.complete(native_fixture())
+        prepared = self.transfers.prepare("source", uid(), self.character, "cordon", self.source, "marsh", 2, ttl_ms=1000)
+        with self.assertRaises(Conflict):
+            self.inspect()
+        self.world.renew_location("source", uid(), "cordon", self.source)  # not expired yet: still frozen
+        with self.assertRaises(Conflict):
+            self.inspect()
+        self.millis += 2000
+        self.world.renew_location("source", uid(), "cordon", self.source)
+        self.assertEqual(self.store.db.execute("SELECT state FROM transfer WHERE id=?", (prepared["transfer_id"],)).fetchone()[0], "ABORTED")
+        result = self.inspect()
+        self.assertEqual((result["status"], result["checkpoint"]["revision"]), ("ACTIVE", 1))
+        with self.assertRaises(Conflict):
+            self.transfers.claim("target", uid(), prepared["token"], self.target)
+
     def test_dead_character_is_never_reported_as_an_absent_slot(self):
         self.create()
         self.ownership.kill("source", uid(), self.character, self.source, 1, "fixture")

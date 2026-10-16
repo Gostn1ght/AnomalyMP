@@ -26,6 +26,7 @@ class Transfers:
         self.ownership = Ownership(world)
         self.key = signing_key
         self.checkpoint_limit = checkpoint_limit
+        world.lease_renew_hooks.setdefault("ExpireUnclaimedTransfers", self.expire_unclaimed)
 
     def checkpoint_in(self, tx, ids):
         """Admit the exact escaped checkpoint envelope while streaming rows.
@@ -227,32 +228,46 @@ class Transfers:
                 return self.public(row)
             if row["state"] != "PREPARED":
                 raise Conflict("claimed/committed transfer requires destination recovery, not source resume")
-            root = tx.execute("SELECT kind FROM entity WHERE id=?", (row["entity_id"],)).fetchone()
-            session_state = "ACTIVE"
-            if root[0] == "CHARACTER":
-                try:
-                    self.ownership.admission(tx, row["source"], excluding=row["entity_id"])
-                except Conflict:
-                    # Restoring ownership must not exceed source capacity.
-                    # The checkpoint survives; reconnect waits for admission.
-                    session_state = "DISCONNECTED"
-            for value in json.loads(row["checkpoint"])["ids"]:
-                updated = tx.execute("UPDATE entity SET writer=?,fence=?,version=version+1 WHERE id=? AND writer=?",
-                                     (actor, source_fence, value, "transfer:" + transfer_id))
-                if updated.rowcount != 1:
-                    raise Conflict("transfer entity ownership changed")
-            tx.execute("UPDATE player_session SET owner=?,state=?,fence=fence+1 WHERE character_id=? AND state='FROZEN'",
-                       (actor, session_state, row["entity_id"]))
-            tx.execute("UPDATE character SET session_fence=session_fence+1 WHERE id=?", (row["entity_id"],))
-            tx.execute("UPDATE transfer SET state='ABORTED' WHERE id=?", (transfer_id,))
-            self.store.event(tx, "transfer:" + transfer_id, "TransferAborted", payload, self.world.now())
-            return self.public(tx.execute("SELECT * FROM transfer WHERE id=?", (transfer_id,)).fetchone())
+            return self.abort_in(tx, row, actor, source_fence, payload)
         def authorize(tx):
             row=tx.execute("SELECT source FROM transfer WHERE id=?",(transfer_id,)).fetchone()
             if not row:
                 raise Conflict("unknown transfer")
             self.world.require_location(tx,actor,row[0],source_fence)
         return self.store.command(actor, command_id, payload, apply,authorize=authorize)
+
+    def expire_unclaimed(self, tx, actor, location, fence):
+        """A source location's renewal returns characters whose handoff token
+        was never claimed before it expired (a crash between prepare and the
+        redirect, a player who never reached the target): otherwise they stay
+        FROZEN for ever. Bounded per renewal."""
+        rows = tx.execute("SELECT * FROM transfer WHERE source=? AND state='PREPARED' AND expires_ms<=? ORDER BY expires_ms LIMIT 16",
+                          (location, self.world.real_ms())).fetchall()
+        for row in rows:
+            self.abort_in(tx, row, actor, fence, {"type": "transfer_expire", "id": row["id"], "source_fence": fence})
+
+    def abort_in(self, tx, row, actor, source_fence, payload):
+        transfer_id = row["id"]
+        root = tx.execute("SELECT kind FROM entity WHERE id=?", (row["entity_id"],)).fetchone()
+        session_state = "ACTIVE"
+        if root[0] == "CHARACTER":
+            try:
+                self.ownership.admission(tx, row["source"], excluding=row["entity_id"])
+            except Conflict:
+                # Restoring ownership must not exceed source capacity.
+                # The checkpoint survives; reconnect waits for admission.
+                session_state = "DISCONNECTED"
+        for value in json.loads(row["checkpoint"])["ids"]:
+            updated = tx.execute("UPDATE entity SET writer=?,fence=?,version=version+1 WHERE id=? AND writer=?",
+                                 (actor, source_fence, value, "transfer:" + transfer_id))
+            if updated.rowcount != 1:
+                raise Conflict("transfer entity ownership changed")
+        tx.execute("UPDATE player_session SET owner=?,state=?,fence=fence+1 WHERE character_id=? AND state='FROZEN'",
+                   (actor, session_state, row["entity_id"]))
+        tx.execute("UPDATE character SET session_fence=session_fence+1 WHERE id=?", (row["entity_id"],))
+        tx.execute("UPDATE transfer SET state='ABORTED' WHERE id=?", (transfer_id,))
+        self.store.event(tx, "transfer:" + transfer_id, "TransferAborted", payload, self.world.now())
+        return self.public(tx.execute("SELECT * FROM transfer WHERE id=?", (transfer_id,)).fetchone())
 
     def status(self, actor, transfer_id):
         persistent_id(transfer_id)

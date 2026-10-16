@@ -16,6 +16,9 @@ class World:
         self.quest_death_queue = None
         self.scheduler_handlers = {}
         self.scheduler_event_observers = {}
+        # Work a location's own lease renewal performs (doc 135), e.g. unfreezing
+        # characters whose handoff was never claimed.
+        self.lease_renew_hooks = {}
         self.mutation_drain = None
         self.mutation_observers = {}
         self._mutation_cut = None
@@ -206,6 +209,8 @@ class World:
             self.require_location(tx, actor, location, fence)
             expiry = self.real_ms() + ttl_ms
             tx.execute("UPDATE location_lease SET expires_ms=? WHERE location=?", (expiry, location))
+            for hook in self.lease_renew_hooks.values():
+                hook(tx, actor, location, fence)
             return {"location": location, "fence": fence, "expires_ms": expiry}
         return self.store.command(actor, command_id, {"type": "renew", "location": location,
                                                      "fence": fence, "ttl_ms": ttl_ms}, apply,
