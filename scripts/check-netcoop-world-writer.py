@@ -8,6 +8,10 @@ import threading
 import json
 import base64
 import hashlib
+import http.client
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import socket
+import time
 
 if os.environ.get("GITHUB_ACTIONS") != "true":
     raise SystemExit("Native checks must run in GitHub Actions")
@@ -56,11 +60,21 @@ int main(int argc,char** argv){
  rejects([&]{checkpoint_unbase64("Zm9v",2);});
  std::cout<<"PASS bounded canonical checkpoint codec: binary bytes, padding bits, malformed input and decode limits\n";
 #ifdef _WIN32
- assert(argc==4);
+ assert(argc==5);
  auto read=[](const char* filename){std::ifstream in(filename,std::ios::binary);return std::string(std::istreambuf_iterator<char>(in),{});};
  auto src=WriterConfig::parse(read(argv[1]),"cordon"),dst=WriterConfig::parse(read(argv[2]),"garbage");
+ auto proxy=WriterConfig::parse(read(argv[4]),"garbage");
  const std::string a(32,'a'),b(32,'b'),c(32,'c');
  BridgeJson result;unsigned status=0,seq=0;
+ // Actual socket faults after HTTP 200: short body, read timeout, complete
+ // malformed JSON, invalid envelope, oversized declaration, then recovery.
+ for(unsigned fault=0;fault<6;++fault){
+  bool ok=false;try{ok=writer_request(proxy,c,0,"GET","/v1/clock","",result,status);}
+  catch(const std::exception&){assert(false && "response fault escaped transport");}
+  assert(ok==(fault==5));assert(status==(fault<2 ? 0U:200U));
+  if(fault<5) assert(result.is_null());else assert(result["ok"]==true);
+ }
+ std::cout<<"PASS actual WinHTTP response faults: truncated body and timeout retry, malformed/bounded protocol refusal, recovery without escaping exceptions\n";
  assert(writer_request(src,a,0,"GET","/v1/clock","",result,status));
  assert(result["world_id"]==71 && result["seed"]==0);auto epoch=bridge_unsigned(result,"authority_epoch");
  auto command=[&](const WriterConfig& cfg,const std::string& instance,const std::string& operation,
@@ -166,7 +180,8 @@ int main(int argc,char** argv){
  assert(writer_request(dst,c,epoch,"GET",page_path(tf,frozen_session+1,0),"",result,status));
  assert(result["data"]==fixture["chunks"][0]["data"]);
  // The native client state machine owns encoding, command identity and ack
- // validation. Simulate lost successful replies from the real HTTP master.
+ // validation. The socket proxy truncates successful begin/append/finish
+ // replies AFTER the real master commits, without faking transport status.
  std::string raw;for(const auto& chunk:fixture["chunks"]) raw+=checkpoint_unbase64(chunk["data"].get<std::string>());
  const std::string transaction(32,'d');
  auto make_upload=[&]{return std::make_unique<CheckpointUpload>(raw,character,tf,frozen_session+1,6,1,1,transaction);};
@@ -176,9 +191,9 @@ int main(int argc,char** argv){
   return writer_request(dst,c,epoch,method,path,payload,out,code);
  };
  auto unreliable=[&](const std::string& method,const std::string& path,const std::string& payload,BridgeJson& out,unsigned& code){
-  const bool ok=actual(method,path,payload,out,code);
+  const bool ok=writer_request(proxy,c,epoch,method,path,payload,out,code);
   const auto op=bridge_json(payload,65536)["operation"].get<std::string>();
-  if(ok && dropped.insert(op).second){out=BridgeJson();code=0;return false;}
+  if(!ok && code==0){assert(out.is_null());dropped.insert(op);}
   return ok;
  };
  bool uploaded=false,resumed=false;
@@ -242,6 +257,80 @@ int main(int argc,char** argv){
  std::cout<<"PASS writer config: exact schema, loopback-only endpoint, map identity, bounded credential and persistent instance\n";
 }
 '''
+
+
+class FaultProxyHandler(BaseHTTPRequestHandler):
+    """Fixture-only loopback proxy; never log request headers or bodies."""
+    protocol_version = "HTTP/1.1"
+
+    def log_message(self, *args):
+        pass
+
+    def reply(self, body, declared=None, pause=False):
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body) if declared is None else declared))
+        self.send_header("Connection", "close")
+        self.end_headers()
+        if pause:
+            time.sleep(.8)  # WinHTTP's actual receive timeout is 500 ms.
+        try:
+            self.wfile.write(body)
+            self.wfile.flush()
+            self.connection.shutdown(socket.SHUT_WR)
+        except OSError:
+            pass
+        finally:
+            self.close_connection = True
+
+    def do_GET(self):
+        index = self.server.get_count
+        self.server.get_count += 1
+        body = b'{"result":{"ok":true}}'
+        if index == 0:
+            self.reply(body[:5], len(body))
+        elif index == 1:
+            self.reply(b"", 10, pause=True)
+        elif index == 2:
+            self.reply(b'{"result":')
+        elif index == 3:
+            self.reply(b'{"result":null}')
+        elif index == 4:
+            self.reply(b"", 2*1024*1024+1)
+        else:
+            self.reply(body)
+
+    def do_POST(self):
+        size = int(self.headers["Content-Length"])
+        assert 1 <= size <= 65536
+        payload = self.rfile.read(size)
+        operation = json.loads(payload)["operation"]
+        headers = {key: self.headers[key] for key in
+                   ("Authorization", "X-LostZone-Instance", "X-LostZone-World", "Content-Type")}
+        connection = http.client.HTTPConnection("127.0.0.1", self.server.upstream_port, timeout=5)
+        try:
+            connection.request("POST", "/v1/command", payload, headers)
+            response = connection.getresponse()
+            body = response.read()
+            assert response.status == 200, "upstream fixture command failed"
+        finally:
+            connection.close()
+        if operation not in self.server.dropped:
+            self.server.dropped.add(operation)
+            self.reply(body[:max(1, len(body)//2)], len(body))
+        else:
+            self.reply(body)
+
+
+class FaultProxy(ThreadingHTTPServer):
+    daemon_threads = False
+    block_on_close = True
+
+    def __init__(self, upstream_port):
+        self.upstream_port, self.get_count, self.dropped = upstream_port, 0, set()
+        super().__init__(("127.0.0.1", 0), FaultProxyHandler)
+
+
 with TemporaryDirectory(prefix="world-writer-") as tmp:
     folder = Path(tmp)
     cpp = folder / "writer.cpp"
@@ -263,6 +352,9 @@ with TemporaryDirectory(prefix="world-writer-") as tmp:
         server = Server(("127.0.0.1", 0), Dispatcher(world, b"k"*32), Credentials(credentials))
         thread = threading.Thread(target=server.serve_forever)
         thread.start()
+        proxy = FaultProxy(server.server_address[1])
+        proxy_thread = threading.Thread(target=proxy.serve_forever)
+        proxy_thread.start()
         try:
             config = folder / "private.json"
             create_config(config, ["cordon", "garbage"], world_id=71, seed=0)
@@ -285,7 +377,13 @@ with TemporaryDirectory(prefix="world-writer-") as tmp:
                 "sha256":hashlib.sha256(raw).hexdigest(),"chunks":[
                     {"offset":offset,"data":base64.b64encode(raw[offset:offset+30720]).decode("ascii")}
                     for offset in range(0,len(raw),30720)]}), encoding="utf-8")
-            subprocess.run([str(exe), *paths, str(native)], cwd=tmp, check=True)
+            proxy_config = folder / "proxy-writer.json"
+            proxy_body = json.loads(Path(paths[1]).read_bytes())
+            proxy_body["port"] = proxy.server_address[1]
+            proxy_config.write_text(json.dumps(proxy_body), encoding="utf-8")
+            subprocess.run([str(exe), *paths, str(native), str(proxy_config)], cwd=tmp, check=True)
+            assert proxy.get_count == 6
+            assert proxy.dropped == {"native_save_begin", "native_save_append", "native_save_finish"}
             assert store.db.execute("SELECT COUNT(*) FROM entity WHERE location='garbage'").fetchone()[0] == 4
             assert store.db.execute("SELECT COUNT(*) FROM item").fetchone()[0] == 1
             assert store.db.execute("SELECT COUNT(*) FROM world_event WHERE type='TransferCommitted'").fetchone()[0] == 2
@@ -294,6 +392,9 @@ with TemporaryDirectory(prefix="world-writer-") as tmp:
             assert store.db.execute("SELECT COUNT(*) FROM native_player_save").fetchone()[0] == 2
             assert store.db.execute("SELECT COUNT(*) FROM world_event WHERE type='NativePlayerSaveCommitted'").fetchone()[0] == 2
         finally:
+            proxy.shutdown()
+            proxy.server_close()
+            proxy_thread.join()
             server.shutdown()
             server.server_close()
             thread.join()

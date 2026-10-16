@@ -16,6 +16,7 @@ from .store import Conflict, Invalid, Unavailable, canonical, persistent_id, pos
 
 CHUNK = 30720  # divisible by three; bounded JSON/base64 GET response
 UPLOAD_BUDGET = 64 * 1024 * 1024
+UPLOAD_IDLE_MS = 120000
 
 
 class PlayerSaves:
@@ -79,7 +80,7 @@ class PlayerSaves:
             upload_id = uuid.uuid4().hex
             tx.execute("INSERT INTO native_player_upload VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                        (upload_id, character_id, actor, fence, session_fence, self.store.epoch,
-                        entity_version, base_revision, slot, byte_count, sha256, 0, now + 120000))
+                        entity_version, base_revision, slot, byte_count, sha256, 0, now + UPLOAD_IDLE_MS))
             return {"upload_id": upload_id, "offset": 0, "chunk_bytes": CHUNK}
         return self.store.command(actor, command_id, payload, apply,
                                   authorize=lambda tx: self.authorize(tx, actor, character_id, fence, session_fence),
@@ -102,7 +103,11 @@ class PlayerSaves:
                     offset + len(raw) < row["byte_count"] and len(raw) != CHUNK):
                 raise Conflict("native upload offset or chunk size changed")
             tx.execute("INSERT INTO native_player_part VALUES(?,?,?)", (upload_id, offset, data))
-            tx.execute("UPDATE native_player_upload SET received=? WHERE id=?", (offset + len(raw), upload_id))
+            # Expire abandoned uploads, not a large snapshot that is still
+            # making progress while the location worker renews its lease.
+            # Replayed commands return the cached result without extending it.
+            tx.execute("UPDATE native_player_upload SET received=?,expires_ms=? WHERE id=?",
+                       (offset + len(raw), self.world.real_ms() + UPLOAD_IDLE_MS, upload_id))
             return {"upload_id": upload_id, "offset": offset + len(raw)}
         return self.store.command(actor, command_id, payload, apply,
                                   authorize=lambda tx: self.upload(tx, actor, character_id, fence, session_fence, upload_id))

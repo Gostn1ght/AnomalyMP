@@ -15,7 +15,7 @@ from lostzone import Conflict, Invalid, Store, Unavailable, World
 from lostzone.http import Dispatcher, Principal
 from lostzone.native_save import identity
 from lostzone.ownership import Ownership
-from lostzone.player_saves import CHUNK, PlayerSaves
+from lostzone.player_saves import CHUNK, UPLOAD_IDLE_MS, PlayerSaves
 from lostzone.transfers import Transfers
 from test_native_save import native_fixture
 
@@ -63,6 +63,63 @@ class PlayerSavesTest(unittest.TestCase):
         command = uid()
         result = self.saves.finish("source", command, self.character, self.source, 1, upload)
         return result, command, upload
+
+    def advance_with_live_source(self, milliseconds):
+        while milliseconds:
+            step = min(10000, milliseconds)
+            self.millis += step
+            milliseconds -= step
+            self.world.renew_location("source", uid(), "cordon", self.source)
+
+    def upload_expiry(self, upload):
+        return self.store.db.execute("SELECT expires_ms FROM native_player_upload WHERE id=?", (upload,)).fetchone()[0]
+
+    def test_slow_progressing_upload_outlives_initial_deadline(self):
+        raw = native_fixture(9, progress=b"behavior/task/"*8000)
+        upload = self.begin(raw)
+        initial = self.upload_expiry(upload)
+        for offset in range(0, len(raw), CHUNK):
+            self.advance_with_live_source(UPLOAD_IDLE_MS//2)
+            self.saves.append("source", uid(), self.character, self.source, 1, upload, offset,
+                              base64.b64encode(raw[offset:offset+CHUNK]).decode())
+            self.assertEqual(self.upload_expiry(upload), self.millis + UPLOAD_IDLE_MS)
+        self.assertGreater(self.millis, initial)
+        result = self.saves.finish("source", uid(), self.character, self.source, 1, upload)
+        self.assertTrue(result["durable"])
+        restored = b"".join(base64.b64decode(self.saves.read("source", self.character, self.source, 1, 1, offset)["data"])
+                            for offset in range(0, len(raw), CHUNK))
+        self.assertEqual(restored, raw)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM native_player_save").fetchone()[0], 1)
+
+    def test_replays_and_refused_chunks_cannot_keep_abandoned_upload_alive(self):
+        previous = native_fixture(progress=b"last durable snapshot")
+        self.complete(previous)
+        raw = native_fixture(progress=b"x"*40000)
+        begin_args = ("source", uid(), self.character, self.source, 1, 2, 1, 1, len(raw), hashlib.sha256(raw).hexdigest())
+        begun = self.saves.begin(*begin_args)
+        upload = begun["upload_id"]
+        append_args = ("source", uid(), self.character, self.source, 1, upload, 0, base64.b64encode(raw[:CHUNK]).decode())
+        appended = self.saves.append(*append_args)
+        expiry = self.upload_expiry(upload)
+        self.advance_with_live_source(UPLOAD_IDLE_MS//2)
+        self.assertEqual(self.saves.begin(*begin_args), begun)
+        self.assertEqual(self.saves.append(*append_args), appended)
+        with self.assertRaises(Conflict):
+            self.saves.append("source", uid(), self.character, self.source, 1, upload, 0, append_args[-1])
+        with self.assertRaises(Conflict):
+            self.saves.append("target", uid(), self.character, self.target, 1, upload, CHUNK,
+                              base64.b64encode(raw[CHUNK:]).decode())
+        self.assertEqual(self.upload_expiry(upload), expiry)
+        self.advance_with_live_source(UPLOAD_IDLE_MS//2)
+        for action in (lambda: self.saves.begin(*begin_args), lambda: self.saves.append(*append_args),
+                       lambda: self.saves.finish("source", uid(), self.character, self.source, 1, upload)):
+            with self.assertRaises(Conflict):
+                action()
+        self.assertEqual(base64.b64decode(self.saves.read("source", self.character, self.source, 1, 1)["data"]), previous)
+        replacement = self.begin(raw, version=2, revision=1)
+        self.assertNotEqual(replacement, upload)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM native_player_upload").fetchone()[0], 1)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM native_player_part").fetchone()[0], 0)
 
     def test_chunked_complete_commit_and_lossless_read(self):
         raw = native_fixture(9, progress=b"task/info/behavior"*5000)

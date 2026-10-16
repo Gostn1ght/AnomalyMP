@@ -113,17 +113,29 @@ inline bool writer_request(const WriterConfig& config, const std::string& instan
         WINHTTP_HEADER_NAME_BY_INDEX,&code,&bytes,WINHTTP_NO_HEADER_INDEX)) return false;
     status=unsigned(code);
     if (status!=200) return false; // Never pass private/error response text upward.
+    // The master always sends a bounded Content-Length. A 200 header alone
+    // does not acknowledge a command: the connection may end mid-response.
+    DWORD expected=0;bytes=sizeof(expected);
+    if (!WinHttpQueryHeaders(request.get(),WINHTTP_QUERY_CONTENT_LENGTH|WINHTTP_QUERY_FLAG_NUMBER,
+        WINHTTP_HEADER_NAME_BY_INDEX,&expected,&bytes,WINHTTP_NO_HEADER_INDEX) ||
+        !expected || expected>2*1024*1024) return false;
     std::string response;
     char buffer[4096];DWORD got=0;
     do
     {
-        if (GetTickCount64()>deadline || !WinHttpReadData(request.get(),buffer,sizeof(buffer),&got)) return false;
+        if (GetTickCount64()>deadline || !WinHttpReadData(request.get(),buffer,sizeof(buffer),&got))
+        { status=0;return false; } // Retry the SAME command, including a lost Finish.
         response.append(buffer,got);
-        if (response.size()>2*1024*1024) return false;
+        if (response.size()>expected) return false;
     } while (got);
-    auto body=bridge_json(response,2*1024*1024);
-    if (!body.is_object() || body.size()!=1 || !body.contains("result") || !body["result"].is_object()) return false;
-    result=std::move(body["result"]);
+    if (response.size()!=expected) { status=0;return false; }
+    try
+    {
+        auto body=bridge_json(response,2*1024*1024);
+        if (!body.is_object() || body.size()!=1 || !body.contains("result") || !body["result"].is_object()) return false;
+        result=std::move(body["result"]);
+    }
+    catch (const std::exception&) { return false; } // Invalid protocol must not escape the IO worker.
     return true;
 }
 #endif
