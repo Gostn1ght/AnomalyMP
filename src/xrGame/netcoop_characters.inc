@@ -120,18 +120,43 @@ static bool character_read_packet(FILE* f, NET_Packet& packet, bool legacy_crc)
 	return (!size || fread(packet.B.data, 1, size, f) == size) && character_checksum_matches(packet.B.data, size, crc, legacy_crc);
 }
 
-static void character_write_packet(FILE* f, const NET_Packet& packet)
+// Count first, then allocate and fill one exact immutable NCH image. No FILE,
+// engine object pointer or Lua state is passed to the commit/HTTP worker.
+struct CharacterSnapshot
 {
-	const u32 size = packet.B.count, crc = character_checksum(packet.B.data, size);
-	fwrite(&size, 4, 1, f); fwrite(&crc, 4, 1, f);
-	if (size) fwrite(packet.B.data, 1, size, f);
+	xr_vector<u8> data;
+	size_t offset = 0;
+	bool counting = true, valid = true;
+	static const size_t limit = 20u * 1024 * 1024;
+	void write(const void* source, size_t size)
+	{
+		if (!valid || offset > limit || size > limit - offset ||
+			(!counting && (offset > data.size() || size > data.size() - offset)))
+		{ valid = false; return; }
+		if (!counting && size) memcpy(data.data() + offset, source, size);
+		offset += size;
+	}
+	void string(const xr_string& value, size_t maximum)
+	{
+		if (value.size() > maximum || xr_strlen(value.c_str()) != value.size()) { valid = false; return; }
+		write(value.c_str(), value.size() + 1);
+	}
+};
+
+static void character_write_packet(CharacterSnapshot& output, const NET_Packet& packet)
+{
+	const u32 size = packet.B.count;
+	if (size > sizeof(packet.B.data)) { output.valid = false; return; }
+	const u32 crc = output.counting ? 0 : character_checksum(packet.B.data, size);
+	output.write(&size, 4); output.write(&crc, 4);
+	output.write(packet.B.data, size);
 }
 
-static void character_write_state(FILE* f, const xr_vector<u8>& state)
+static void character_write_state(CharacterSnapshot& output, const xr_vector<u8>& state)
 {
-	const u16 size = u16(state.size() > 512 ? 512 : state.size());
-	fwrite(&size, 2, 1, f);
-	if (size) fwrite(state.data(), 1, size, f);
+	if (state.size() > 512) { output.valid = false; return; }
+	const u16 size = u16(state.size());
+	output.write(&size, 2); output.write(state.data(), size);
 }
 
 static bool character_read_state(FILE* f, xr_vector<u8>& state)
@@ -142,11 +167,52 @@ static bool character_read_state(FILE* f, xr_vector<u8>& state)
 	return !size || fread(state.data(), 1, size, f) == size;
 }
 
-// Durable writes (fsync) are slow; on the main thread they stalled the
-// whole server, AI included. Periodic saves and saves after item handovers
-// write a numbered temp file and leave the fsync and the atomic rename to
-// this worker, in order. The previous save stays intact until the rename.
-struct CharacterCommit { xr_string temp, path; u64 bytes = 0; };
+static bool character_snapshot(const Character& character, xr_vector<u8>& snapshot)
+{
+	snapshot.clear();
+	if (!character_name_valid(character.name.c_str()) || character.items.size() > 512 || character.safe.size() > 512 ||
+		character.progress.size() > 1048576 || !character.storage_revision || character.inventory_cells > 512) return false;
+	CharacterSnapshot output;
+	for (unsigned pass = 0; pass < 2; ++pass)
+	{
+		if (pass) { output.data.resize(output.offset); output.offset = 0; output.counting = false; }
+		const u32 magic = 0x3948434e; // Same NCH9 bytes as the local durable file.
+		output.write(&magic, 4);
+		output.string(character.name, 63); output.string(character.faction, 32); output.string(character.loadout, 4096);
+		output.string(character.description, 512); output.string(character.history, 1536);
+		const u8 flags[] = {character.economy, u8(character.initialized ? 1 : 0), u8(character.respawn ? 1 : 0)};
+		output.write(flags, sizeof(flags));
+		character_write_packet(output, character.actor);
+		auto inventory = [&output](const xr_vector<Character::Item>& items)
+		{
+			const u32 count = u32(items.size()); output.write(&count, 4);
+			for (u32 index = 0; index < count; ++index)
+			{
+				const Character::Item& item = items[index];
+				if (item.parent > index) { output.valid = false; return; }
+				output.string(item.section, 128); output.write(&item.parent, 2); output.write(&item.place, 2);
+				character_write_packet(output, item.spawn); character_write_state(output, item.state);
+			}
+		};
+		inventory(character.items);
+		const u32 size = u32(character.progress.size());
+		const u32 crc = output.counting ? 0 : character_checksum(character.progress.data(), size);
+		output.write(&size, 4); output.write(&crc, 4); output.write(character.progress.data(), size);
+		output.write(&character.storage_revision, 4);
+		output.string(character.storage_request, 32); output.string(character.storage_signature, 80);
+		inventory(character.safe);
+		output.write(&character.inventory_cells, 4);
+		if (!output.valid) return false;
+	}
+	if (output.offset != output.data.size()) return false;
+	snapshot.swap(output.data);
+	return true;
+}
+
+// Autosaves pass owned bytes to the IO worker; even opening/writing/flushing
+// the temporary file must not block the simulation. An accepted queue entry
+// is pending, not durable acknowledgement. Sync saves retain their barrier.
+struct CharacterCommit { xr_string temp, path; xr_vector<u8> snapshot; u64 bytes = 0; };
 static xrCriticalSection s_commit_lock;
 static xr_deque<CharacterCommit> s_commits;
 static bool s_commit_worker = false;
@@ -159,10 +225,10 @@ static xr_string s_commit_active_path;
 // At most one pending complete snapshot per path. A newer snapshot contains
 // the full inventory/safe/progress, so it can supersede a queued older one.
 // The in-flight snapshot remains counted and is never replaced underneath I/O.
-static bool character_commit_enqueue(const CharacterCommit& commit)
+static bool character_commit_enqueue(CharacterCommit&& commit)
 {
-	if (!commit.bytes || commit.bytes > character_commit_byte_limit) return false;
-	xr_string superseded;
+	if (!commit.bytes || commit.bytes > character_commit_byte_limit || commit.bytes != commit.snapshot.size()) return false;
+	const u64 bytes = commit.bytes;
 	s_commit_lock.Enter();
 	auto previous = s_commits.end();
 	for (auto it = s_commits.begin(); it != s_commits.end(); ++it)
@@ -175,11 +241,16 @@ static bool character_commit_enqueue(const CharacterCommit& commit)
 		s_commit_lock.Leave();
 		return false;
 	}
-	if (previous == s_commits.end()) s_commits.push_back(commit);
-	else { superseded = previous->temp; *previous = commit; }
-	s_commit_bytes = s_commit_bytes - old_bytes + commit.bytes;
+	if (previous == s_commits.end())
+	{
+		// xalloc::construct accepts const T&: push_back(rvalue) would still
+		// copy this large image. Default-construct, then transfer its buffers.
+		s_commits.emplace_back();
+		std::swap(s_commits.back(), commit);
+	}
+	else std::swap(*previous, commit); // Old bytes are freed by the producer, outside the queue lock.
+	s_commit_bytes = s_commit_bytes - old_bytes + bytes;
 	s_commit_lock.Leave();
-	if (!superseded.empty()) DeleteFileA(superseded.c_str());
 	return true;
 }
 
@@ -189,7 +260,7 @@ static bool character_commit_take(CharacterCommit& commit)
 	const bool have = !s_commits.empty() && !s_commit_busy;
 	if (have)
 	{
-		commit = s_commits.front(); s_commits.pop_front();
+		commit = std::move(s_commits.front()); s_commits.pop_front();
 		s_commit_active_bytes = commit.bytes;
 		s_commit_active_path = commit.path;
 		InterlockedExchange(&s_commit_busy, 1);
@@ -238,15 +309,6 @@ static bool character_temp_path(LPCSTR path, bool background, string_path& temp)
 	return length >= 0 && size_t(length) < sizeof(temp);
 }
 
-static bool character_commit_file(LPCSTR temp, LPCSTR path)
-{
-	FILE* f = fopen(temp, "r+b");
-	if (!f) return false;
-	const bool ok = _commit(_fileno(f)) == 0;
-	const bool closed = fclose(f) == 0;
-	return ok && closed && MoveFileExA(temp, path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
-}
-
 static bool character_sync_commit(FILE* f, LPCSTR temp, LPCSTR path)
 {
 	const bool ok = !ferror(f) && fflush(f) == 0 && _commit(_fileno(f)) == 0;
@@ -259,13 +321,25 @@ static bool character_sync_commit(FILE* f, LPCSTR temp, LPCSTR path)
 	return true;
 }
 
+static bool character_commit_file(const CharacterCommit& commit)
+{
+    if (!commit.bytes || commit.bytes != commit.snapshot.size() || commit.bytes > character_commit_byte_limit) return false;
+    FILE* f = fopen(commit.temp.c_str(), "wb");
+    if (!f) return false;
+    if (fwrite(commit.snapshot.data(), 1, commit.snapshot.size(), f) != commit.snapshot.size())
+    {
+        fclose(f); DeleteFileA(commit.temp.c_str()); return false;
+    }
+    return character_sync_commit(f, commit.temp.c_str(), commit.path.c_str());
+}
+
 static void character_commit_worker(void*)
 {
 	for (;;)
 	{
 		CharacterCommit commit;
 		if (!character_commit_take(commit)) { Sleep(5); continue; }
-		if (!character_commit_file(commit.temp.c_str(), commit.path.c_str()))
+		if (!character_commit_file(commit))
 		{
 			Msg("! [Lost Zone] character commit failed: %s", commit.path.c_str());
 			DeleteFileA(commit.temp.c_str());
@@ -292,63 +366,24 @@ static void character_commits_flush_account(LPCSTR account)
 
 static bool character_save(Character& character, bool background = false)
 {
-	string_path path, temp;
-	character_path(character.account.c_str(), character.slot, path);
-	if (!background) character_commits_flush(path);
-	if (!character_temp_path(path, background, temp)) return false;
-	FILE* f = fopen(temp, "wb");
-	if (!f) return false;
-	const u32 magic = 0x3948434e; // NCH9: captured inventory capacity; NCH3..8 remain readable
-	fwrite(&magic, 4, 1, f);
-	fwrite(character.name.c_str(), 1, character.name.size() + 1, f);
-	fwrite(character.faction.c_str(), 1, character.faction.size() + 1, f);
-	fwrite(character.loadout.c_str(), 1, character.loadout.size() + 1, f);
-	fwrite(character.description.c_str(), 1, character.description.size() + 1, f);
-	fwrite(character.history.c_str(), 1, character.history.size() + 1, f);
-	fputc(character.economy, f); fputc(character.initialized ? 1 : 0, f); fputc(character.respawn ? 1 : 0, f);
-	character_write_packet(f, character.actor);
-	const u32 count = u32(character.items.size());
-	fwrite(&count, 4, 1, f);
-	for (const Character::Item& item : character.items)
-	{
-		fwrite(item.section.c_str(), 1, item.section.size() + 1, f);
-		fwrite(&item.parent, 2, 1, f);
-		fwrite(&item.place, 2, 1, f);
-		character_write_packet(f, item.spawn);
-		character_write_state(f, item.state);
-	}
-	const u32 size = u32(character.progress.size()), crc = character_checksum(character.progress.data(), size);
-	fwrite(&size, 4, 1, f); fwrite(&crc, 4, 1, f);
-	if (size) fwrite(character.progress.data(), 1, size, f);
-	fwrite(&character.storage_revision,4,1,f);
-    fwrite(character.storage_request.c_str(),1,character.storage_request.size()+1,f);
-    fwrite(character.storage_signature.c_str(),1,character.storage_signature.size()+1,f);
-    const u32 safe_count=u32(character.safe.size()); fwrite(&safe_count,4,1,f);
-    for (const auto& item:character.safe)
-    {
-        fwrite(item.section.c_str(),1,item.section.size()+1,f);
-        fwrite(&item.parent,2,1,f); fwrite(&item.place,2,1,f);
-        character_write_packet(f,item.spawn);
-        character_write_state(f,item.state);
-    }
-    fwrite(&character.inventory_cells,4,1,f);
+    string_path path, temp;
+    character_path(character.account.c_str(), character.slot, path);
+    if (!background) character_commits_flush(path);
+    if (!character_temp_path(path, background, temp)) return false;
+    CharacterCommit commit;
+    commit.path = path; commit.temp = temp;
+    if (!character_snapshot(character, commit.snapshot)) return false;
+    commit.bytes = u64(commit.snapshot.size());
     if (background)
     {
-        const bool written = !ferror(f) && fflush(f)==0;
-        const __int64 file_bytes = _ftelli64(f);
-        if (fclose(f)!=0 || !written || file_bytes <= 0 || u64(file_bytes) > character_commit_byte_limit)
-        { DeleteFileA(temp); return false; }
-        CharacterCommit commit; commit.temp = temp; commit.path = path; commit.bytes = u64(file_bytes);
-        if (!character_commit_enqueue(commit)) { DeleteFileA(temp); return false; }
+        if (!character_commit_enqueue(std::move(commit))) return false;
         s_commit_lock.Enter();
         if (!s_commit_worker) { s_commit_worker = true; thread_spawn(character_commit_worker, "netcoop-save", 0, nullptr); }
         s_commit_lock.Leave();
-        character.last_save = real_time_ms();
-        return true;
     }
-	if (!character_sync_commit(f, temp, path)) return false;
-	character.last_save = real_time_ms();
-	return true;
+    else if (!character_commit_file(commit)) return false;
+    character.last_save = real_time_ms();
+    return true;
 }
 
 static Character* character_load(LPCSTR account, u8 slot)

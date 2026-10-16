@@ -33,8 +33,9 @@ def block(marker):
 actual = characters[characters.index('struct Character\n'):characters.index('static xr_map<xr_string, Character>')]
 for marker in ('static xr_string character_key(', 'static void character_path(', 'static bool character_name_valid('):
     actual += '\n'+block(marker)
-actual += '\n'+characters[characters.index('static bool character_read_string('):characters.index('// Durable writes')]
+actual += '\n'+characters[characters.index('static bool character_read_string('):characters.index('// Autosaves pass owned bytes')]
 actual += '\n'+block('static bool character_sync_commit(')
+actual += '\n'+block('static bool character_commit_file(')
 actual += '\n'+block('static bool character_save(Character&')
 actual += '\n'+block('static Character* character_load(')
 
@@ -45,7 +46,9 @@ def crc32c(data):
         for _ in range(8): value = (value >> 1) ^ (0x82f63b78 if value & 1 else 0)
     return value
 
-def legacy(version, algorithm):
+def legacy(version, algorithm, upgrade=False):
+    original_version = version
+    if upgrade: version = 9
     offsets = {}
     data = bytearray(b'NCH'+str(version).encode())
     def number(fmt, value): data.extend(struct.pack('<'+fmt, value))
@@ -55,24 +58,26 @@ def legacy(version, algorithm):
         offsets[label] = len(data); data.extend(value)
     def item(label, section, parent, place):
         string(section); number('H', parent)
-        if version >= 4: number('H', place)
+        if version >= 4: number('H', place if original_version >= 4 else 0)
         packet(label, bytes(range(1,32)))
         if version >= 7:
-            number('H', 15); data.extend(b'\x13\0'+struct.pack('<QHBBB',1234567,40632,1,1,2))
+            state=b'\x13\0'+struct.pack('<QHBBB',1234567,40632,1,1,2) if original_version >= 7 else b''
+            number('H', len(state)); data.extend(state)
     for text in (b'Fixture', b'stalker', b'bandage=1'): string(text)
     if version >= 5:
-        string(b'profile\xe8\xe3\xf0\xee\xea'); string(b'profile history')
+        string(b'profile\xe8\xe3\xf0\xee\xea' if original_version >= 5 else b''); string(b'profile history' if original_version >= 5 else b'')
     data.extend(b'\x01\x01\x00')
     packet('actor', bytes(range(32)))
     offsets['count'] = len(data); number('I', 2)
     item('item', b'bandage', 0, 8195)
     item('nested', b'wpn_pm', 1, 8194)
-    if version >= 4: packet('progress', bytes(range(41)))
+    if version >= 4: packet('progress', bytes(range(41)) if original_version >= 4 else b'')
     if version >= 6:
-        number('I', 19); string(b'request-id'); string(b'signature')
-        number('I', 1); item('safe', b'ammo_9x18_fmj', 0, 8195)
+        number('I', 19 if original_version >= 6 else 1); string(b'request-id' if original_version >= 6 else b''); string(b'signature' if original_version >= 6 else b'')
+        number('I', 1 if original_version >= 6 else 0)
+        if original_version >= 6: item('safe', b'ammo_9x18_fmj', 0, 8195)
     if version >= 9:
-        offsets['capacity']=len(data); number('I',240)
+        offsets['capacity']=len(data); number('I',240 if original_version >= 9 else 0)
     return bytes(data), offsets
 
 source = r'''
@@ -125,15 +130,19 @@ Settings* pSettings=&settings;
 void Msg(const char*,...){}
 u32 real_time_ms(){return 777;}
 namespace netcoop {
-struct CharacterCommit {std::string temp,path;u64 bytes=0;};
+struct CharacterCommit {std::string temp,path;xr_vector<u8> snapshot;u64 bytes=0;};
+CharacterCommit fixture_commit;bool fixture_admit=true;
 struct {void Enter(){}void Leave(){}}s_commit_lock;
-bool s_commit_worker=false;
+bool s_commit_worker=true;
 constexpr u64 character_commit_byte_limit=32ull*1024*1024;
 void character_commit_worker(void*){}
 void thread_spawn(void(*)(void*),const char*,int,void*){assert(false);}
 void character_commits_flush(LPCSTR=nullptr){}
 bool character_temp_path(const char* path,bool,char* temp){return std::snprintf(temp,260,"%s.tmp",path)>0;}
-bool character_commit_enqueue(const CharacterCommit&){return false;}
+bool character_commit_enqueue(CharacterCommit&& value){if(!fixture_admit)return false;fixture_commit=std::move(value);return true;}
+bool forbid_disk=false;
+FILE* checked_open(const char* path,const char* mode){assert(!forbid_disk);return ::fopen(path,mode);}
+#define fopen checked_open
 ''' + actual + r'''
 }
 using namespace netcoop;
@@ -178,6 +187,33 @@ int main(){
   select("portable-soft.bin",false);assert(character_save(reference));const auto soft=bytes(FS.path);
   select("portable-hard.bin",true);assert(character_save(reference));assert(soft==bytes(FS.path));
   assert(soft[0]=='N'&&soft[1]=='C'&&soft[2]=='H'&&soft[3]=='9');
+  assert(soft==bytes("upgraded-v"+std::to_string(version)+".bin"));
+  // Autosave must not open/create a file on the producer. It owns a complete
+  // immutable byte image even if the actor/inventory/progress changes next.
+  select("queued-v"+std::to_string(version)+".bin",false);std::remove(FS.path.c_str());
+  forbid_disk=true;assert(character_save(reference,true));forbid_disk=false;
+  assert(!std::ifstream(FS.path));assert(fixture_commit.snapshot==soft);
+  const Character saved=reference;reference.actor.B.data[0]^=1;reference.items[0].spawn.B.data[0]^=1;
+  reference.items[0].state.assign(4,99);reference.progress.assign(8,42);reference.name="changed";
+  assert(fixture_commit.snapshot==soft);reference=saved;
+  assert(character_commit_file(fixture_commit));assert(bytes(FS.path)==soft);
+  fixture_admit=false;reference.last_save=321;forbid_disk=true;
+  assert(!character_save(reference,true)&&reference.last_save==321);forbid_disk=false;fixture_admit=true;
+  assert(bytes(FS.path)==soft);
+  // Reject malformed snapshots before any disk/queue mutation, never truncate.
+  for(unsigned invalid=0;invalid<7;++invalid){
+   Character bad=reference;
+   if(invalid==0)bad.items[0].state.resize(513);
+   if(invalid==1)bad.actor.B.count=16385;
+   if(invalid==2)bad.items[0].parent=1;
+   if(invalid==3)bad.history.resize(1537,'x');
+   if(invalid==4)bad.progress.resize(1048577);
+   if(invalid==5)bad.name=std::string("bad\0name",8);
+   if(invalid==6)bad.inventory_cells=513;
+   std::vector<u8> output{1,2,3};assert(!character_snapshot(bad,output)&&output.empty());
+   forbid_disk=true;assert(!character_save(bad,true));forbid_disk=false;
+   assert(bytes(FS.path)==soft);
+  }
   assert(load("portable-soft.bin",true));equal(reference,*load("portable-soft.bin",true));
   assert(load("portable-hard.bin",false));equal(reference,*load("portable-hard.bin",false));
  }
@@ -189,7 +225,7 @@ int main(){
  auto extra=good;extra.push_back(0);write_bytes("extra.bin",extra);assert(!load("extra.bin",true));
  // Explicitly reproduce the old loader's opposite-hardware checksum failure.
  assert(save_checksum::crc32c(sample.data(),900)!=save_checksum::legacy_ieee(sample.data(),900));
- std::cout<<"PASS actual NCH3..9 reader/durable writer, both actual CPU CRC paths, legacy upgrade, opposite CPU, empty progress, inventory/safe/profile preservation, corruption/truncation/unknown-version rejection\n";
+ std::cout<<"PASS actual NCH3..9 reader/durable writer, both actual CPU CRC paths, independent golden byte images, no autosave producer IO, immutable queued snapshots, refused malformed/overflow payloads, legacy upgrade, opposite CPU, empty progress, inventory/safe/profile preservation, corruption/truncation/unknown-version rejection\n";
 }
 '''
 # The full actual loader caches admitted characters; declare its cache before it.
@@ -199,6 +235,7 @@ with TemporaryDirectory(prefix='lostzone-checksum-') as temp:
     folder = Path(temp)
     corrupt = []
     for version in range(3,10):
+        (folder/f'upgraded-v{version}.bin').write_bytes(legacy(version,crc32c,upgrade=True)[0])
         for name, algorithm in (('sse',crc32c),('ieee',zlib.crc32)):
             data, offsets = legacy(version,algorithm)
             (folder/f'v{version}_{name}.bin').write_bytes(data)
