@@ -212,13 +212,13 @@ bool CWeapon::netcoop_back_transform(Fmatrix& transform) const
 
 	// Cancel the bone's bind orientation, not its current animation. Different
 	// outfits use different bone axes; their animated torso delta stays intact.
-	Fmatrix bind = skeleton->LL_GetData(bone).get_bind_transform();
+	Fmatrix bind = skeleton->LL_GetData(bone).bind_transform;
 	u16 parent = skeleton->LL_GetData(bone).GetParentID();
 	for (u16 depth = 0; parent != BI_NONE; ++depth)
 	{
 		if (parent >= count || depth >= count) return false;
 		Fmatrix next;
-		next.mul_43(skeleton->LL_GetData(parent).get_bind_transform(), bind);
+		next.mul_43(skeleton->LL_GetData(parent).bind_transform, bind);
 		bind = next;
 		parent = skeleton->LL_GetData(parent).GetParentID();
 	}

@@ -23,7 +23,7 @@ owner = (ROOT/'src/xrGame/InventoryOwner.cpp').read_text(encoding='utf-8')
 matrix = (ROOT/'src/xrCore/_matrix.h').read_text(encoding='utf-8')
 assert 'dwXF_Frame = dwFP_Frame = u32(-1);' in weapon
 actual_math = '\n'.join(method(matrix, signature) for signature in (
-    'ICF SelfRef set(const Tvector& R,', 'ICF SelfRef identity(', 'ICF SelfRef mul_43(',
+    'ICF SelfRef set(const Tvector& R,', 'ICF SelfRef identity(', 'ICF SelfRef mul(const Self& A,', 'ICF SelfRef mul_43(',
     'IC SelfRef invert(const Self& a)', 'ICF void transform_dir(Tvector& dest, const Tvector& v) const',
     'ICF void transform_tiny(Tvector& dest, const Tvector& v) const'))
 source = r'''
@@ -72,21 +72,21 @@ Fmatrix rotate(float angle){Fmatrix m;float c=std::cos(angle),s=std::sin(angle);
 struct Fbox{Fvector center{.2f,.3f,.4f},half{.1f,.2f,.5f};void get_CD(Fvector& c,Fvector& h){c=center;h=half;}};
 struct VisData{Fbox box;};
 struct IRenderVisual{virtual ~IRenderVisual()=default;VisData vis;VisData& getVisData(){return vis;}};
-struct Bone{Fmatrix bind,pose;u16 parent=BI_NONE;const Fmatrix& get_bind_transform(){return bind;}u16 GetParentID(){return parent;}};
+struct Bone{Fmatrix bind_transform,pose;u16 parent=BI_NONE;u16 GetParentID(){return parent;}};
 struct IKinematics:IRenderVisual{
  std::vector<Bone> bones=std::vector<Bone>(2);u16 spine=1;unsigned calculations=0;
  u16 LL_BoneID(const char*){return spine;}u16 LL_BoneCount(){return u16(bones.size());}
  Bone& LL_GetData(u16 n){return bones.at(n);}Fmatrix& LL_GetTransform(u16 n){return bones.at(n).pose;}
  void CalculateBones(bool){++calculations;}void CalculateBones_Invalidate(){}
 };
-struct CObject{virtual ~CObject()=default;CObject* parent=nullptr;IRenderVisual* visual=nullptr;Fmatrix pose;bool destroyed=false;
+struct CObject{virtual ~CObject()=default;CObject* owner_ref=nullptr;IRenderVisual* visual=nullptr;Fmatrix pose;bool destroyed=false;
  struct RenderData{Fmatrix& xform;explicit RenderData(Fmatrix& value):xform(value){}}renderable{pose};
- CObject* H_Parent()const{return parent;}IRenderVisual* Visual()const{return visual;}Fmatrix& XFORM(){return pose;}
+ CObject* H_Parent()const{return owner_ref;}IRenderVisual* Visual()const{return visual;}Fmatrix& XFORM(){return pose;}
  const Fmatrix& XFORM()const{return pose;}bool getDestroy()const{return destroyed;}
 };
 template<class T,class U>T smart_cast(U* p){return dynamic_cast<T>(p);}
 struct CInventoryItem:CObject{struct CInventory* m_pInventory=nullptr;u16 slot=3,place=1;
- u16 CurrPlace()const{return place;}u16 CurrSlot()const{return slot;}};
+ u16 CurrPlace()const{return place;}u16 CurrSlot()const{return slot;}virtual void renderable_Render(){}};
 using PIItem=CInventoryItem*;using TIItemContainer=std::vector<PIItem>;
 struct CInventory{PIItem slots[14]={},active=nullptr;TIItemContainer m_all;
  PIItem ItemFromSlot(u16 n)const{return slots[n];}PIItem ActiveItem()const{return active;}};
@@ -119,12 +119,12 @@ struct{u32 dwFrame=1;}Device;
     'bool CWeapon::netcoop_back_carried()', 'bool CWeapon::netcoop_back_transform(',
     'void CWeapon::UpdateXForm()', 'void CWeapon::renderable_Render()', 'void CWeapon::UpdatePosition(')) + '\n' + method(owner, 'void CInventoryOwner::renderable_Render()') + r'''
 void equip(CEntityAlive& entity,CInventoryOwner& owner,CWeapon& w,IRenderVisual& model,u16 slot){
- w.parent=&entity;w.visual=&model;w.slot=slot;w.place=eItemPlaceSlot;w.m_pInventory=&owner.inv;owner.inv.slots[slot]=&w;}
+ w.owner_ref=&entity;w.visual=&model;w.slot=slot;w.place=eItemPlaceSlot;w.m_pInventory=&owner.inv;owner.inv.slots[slot]=&w;}
 void setup(IKinematics& skeleton,Fmatrix delta){
- skeleton.bones[0].bind=rotate(.3f);skeleton.bones[0].bind.c={0,.5f,0};
- skeleton.bones[1].bind=rotate(1.5707963f);skeleton.bones[1].bind.c={0,.8f,0};skeleton.bones[1].parent=0;
- Fmatrix global;global.mul_43(skeleton.bones[0].bind,skeleton.bones[1].bind);
- skeleton.bones[1].pose.mul_43(delta,global);skeleton.bones[0].pose=skeleton.bones[0].bind;
+ skeleton.bones[0].bind_transform=rotate(.3f);skeleton.bones[0].bind_transform.c={0,.5f,0};
+ skeleton.bones[1].bind_transform=rotate(1.5707963f);skeleton.bones[1].bind_transform.c={0,.8f,0};skeleton.bones[1].parent=0;
+ Fmatrix global;global.mul_43(skeleton.bones[0].bind_transform,skeleton.bones[1].bind_transform);
+ skeleton.bones[1].pose.mul_43(delta,global);skeleton.bones[0].pose=skeleton.bones[0].bind_transform;
 }
 int main(){
  CActor actor;CAI_Stalker npc;IKinematics skeleton;IRenderVisual models[2];CWeapon left,right;
@@ -160,7 +160,7 @@ int main(){
  // Refusals hide an invalid attachment instead of rendering its old transform.
  skeleton.spine=BI_NONE;auto before=left.draws;left.renderable_Render();assert(left.draws==before&&!left.m_netcoop_back_valid);
  skeleton.spine=1;skeleton.bones[1].parent=1;assert(!left.netcoop_back_transform(a));setup(skeleton,delta);
- skeleton.bones[0].bind.i={0,0,0};assert(!left.netcoop_back_transform(a));setup(skeleton,delta);
+ skeleton.bones[0].bind_transform.i={0,0,0};assert(!left.netcoop_back_transform(a));setup(skeleton,delta);
  models[0].vis.box.center.x=std::numeric_limits<float>::quiet_NaN();assert(!left.netcoop_back_transform(a));models[0].vis.box.center={};
  models[0].vis.box.half.z=20;assert(!left.netcoop_back_transform(a));models[0].vis.box.half.z=.5f;
  left.place=2;assert(!left.netcoop_back_carried());left.place=1;
