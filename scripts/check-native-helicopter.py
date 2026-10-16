@@ -36,7 +36,7 @@ source = r'''
 // The unchanged legacy PhTune signature does not consume its timestep.
 #pragma warning(disable:4100)
 #endif
-using u8=uint8_t;using u32=uint32_t;
+using u8=uint8_t;using u16=uint16_t;using u32=uint32_t;
 using LPCSTR=const char*;
 constexpr bool FALSE=false;
 constexpr float EPS=1e-6f,EPS_L=1e-5f;
@@ -71,9 +71,9 @@ struct CPhysicsElement {
  void applyTorque(float x,float y,float z){torque.mad(Fvector{x,y,z},1);}
 };
 struct CPhysicsShell {
- CPhysicsElement element;Fvector velocity,angular;float mass=2500;unsigned count=1,lookups=0;
- unsigned get_ElementsNumber(){return count;}
- CPhysicsElement* get_ElementByStoreOrder(unsigned n){assert(n<count);++lookups;return &element;}
+ CPhysicsElement element;Fvector velocity,angular;float mass=2500;u16 count=1;unsigned lookups=0;
+ u16 get_ElementsNumber(){return count;}
+ CPhysicsElement* get_ElementByStoreOrder(u16 n){assert(n<count);++lookups;return &element;}
  void Enable(){}
  float getMass(){return mass;}
  void get_LinearVel(Fvector& v){v=velocity;}
