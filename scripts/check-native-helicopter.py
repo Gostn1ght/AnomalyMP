@@ -20,6 +20,7 @@ def body(text, signature):
 car = (ROOT / 'src/xrGame/Car.cpp').read_text(encoding='utf-8')
 header = (ROOT / 'src/xrGame/Car.h').read_text(encoding='utf-8')
 flight = body(car, 'void CCar::netcoop_heli_step(')
+safe_cycle = body(car, 'static CBlend* car_play_cycle_safe(')
 heli = header[header.index('struct NetcoopHeli'):header.index('} m_netcoop_heli;') + len('} m_netcoop_heli;')]
 source = r'''
 #include <cassert>
@@ -28,7 +29,10 @@ source = r'''
 #include <cstdio>
 #include <limits>
 #include <algorithm>
+#include <string>
 using u8=uint8_t;using u32=uint32_t;
+using LPCSTR=const char*;
+constexpr bool FALSE=false;
 constexpr float EPS=1e-6f,EPS_L=1e-5f;
 template<class T>T _min(T a,T b){return std::min(a,b);}
 template<class T>T _max(T a,T b){return std::max(a,b);}
@@ -45,6 +49,12 @@ struct Fvector {
 bool _valid(const Fvector& v){return _valid(v.x)&&_valid(v.y)&&_valid(v.z);}
 struct Fmatrix{Fvector i{1,0,0},j{0,1,0},k{0,0,1},c{0,5,0};};
 struct CBlend{float speed=0;};
+struct MotionID{int id=-1;bool valid()const{return id>=0;}};
+struct IKinematicsAnimated{
+ bool have_idle=true;CBlend blend;unsigned played=0;MotionID last;
+ MotionID ID_Cycle_Safe(LPCSTR name){return MotionID{have_idle&&std::string(name)=="idle"?1:-1};}
+ CBlend* PlayCycle(MotionID motion,bool){assert(motion.valid());last=motion;++played;return &blend;}
+};
 struct IKinematics{};
 template<class T>T smart_cast(IKinematics* k){return static_cast<T>(k);}
 struct CPhysicsElement {
@@ -81,7 +91,7 @@ struct CCar {
  CPhysicsShell* PPhysicsShell(){return shell;}
  IKinematics* Visual(){return has_visual?&visual:nullptr;}
  void netcoop_heli_step(float dt);
-''' + heli + '\n};\n' + flight + r'''
+''' + heli + '\n};\n' + flight + '\n' + safe_cycle + r'''
 void step(CCar& car,unsigned ticks){
  auto& s=*car.shell;
  for(unsigned t=0;t<ticks;++t){
@@ -94,6 +104,12 @@ void step(CCar& car,unsigned ticks){
  }
 }
 int main(){
+ IKinematicsAnimated animated;
+ assert(car_play_cycle_safe(&animated,"$editor")==&animated.blend&&animated.played==1&&animated.last.id==1);
+ assert(car_play_cycle_safe(&animated,"idle")==&animated.blend&&animated.played==2);
+ animated.have_idle=false;
+ assert(car_play_cycle_safe(&animated,"missing")==nullptr&&animated.played==2);
+ assert(car_play_cycle_safe(nullptr,"idle")==nullptr);
  CPhysicsShell one,two;CCar a,b;a.shell=&one;b.shell=&two;
  a.m_netcoop_heli.rotor=b.m_netcoop_heli.rotor=1;
  a.m_netcoop_heli.collective=b.m_netcoop_heli.collective=.7f;
@@ -118,7 +134,7 @@ int main(){
  step(a,1000);assert(one.element.form.c.y<.5f&&std::fabs(one.velocity.y)<1);
  a.m_netcoop_keys=0;a.b_engine_on=false;one.element.form.c.y=50;step(a,1200);
  assert(a.m_netcoop_heli.rotor<.01f&&one.element.form.c.y<.5f);
- std::puts("PASS actual helicopter step: independent bodies, invalid/empty guards, hover/climb/release/descent, engine-off spool; ODE and clients still require live testing");
+ std::puts("PASS actual helicopter step: independent bodies, invalid/empty guards, hover/climb/release/descent, engine-off spool, missing startup cycle fallback; ODE and clients still require live testing");
 }
 '''
 if os.environ.get('GITHUB_ACTIONS') != 'true':

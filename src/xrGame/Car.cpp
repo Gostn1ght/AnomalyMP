@@ -34,6 +34,20 @@
 #include "../xrphysics/IPHWorld.h"
 BONE_P_MAP CCar::bone_map = BONE_P_MAP();
 
+// Some spawn records carry the editor placeholder "$editor", while the
+// vehicle only has "idle". Never assert on a missing optional startup cycle.
+static CBlend* car_play_cycle_safe(IKinematicsAnimated* animated, LPCSTR requested)
+{
+	if (!animated)
+		return nullptr;
+	MotionID motion;
+	if (requested && *requested)
+		motion = animated->ID_Cycle_Safe(requested);
+	if (!motion.valid())
+		motion = animated->ID_Cycle_Safe("idle");
+	return motion.valid() ? animated->PlayCycle(motion, FALSE) : nullptr;
+}
+
 //extern CPHWorld*	ph_world;
 
 #ifdef CAR_NEW
@@ -218,8 +232,10 @@ BOOL CCar::net_Spawn(CSE_Abstract* DC)
 	IKinematics* K = smart_cast<IKinematics*>(Visual());
 	IKinematicsAnimated	*A = smart_cast<IKinematicsAnimated*>(Visual());
 	if (A) {
-		if (car->startup_animation.size())
-			A->PlayCycle(*car->startup_animation);
+		// The helicopter already owns a paused rotor blend from Init(). A
+		// second PlayCycle here would replace it and invalidate that pointer.
+		if (!m_netcoop_heli.on && car->startup_animation.size())
+			car_play_cycle_safe(A, *car->startup_animation);
 		K->CalculateBones(TRUE);
 	}
 
@@ -1036,7 +1052,7 @@ void CCar::CreateSkeleton(CSE_Abstract* po)
 	IKinematicsAnimated* pKA = smart_cast<IKinematicsAnimated*>(pVis);
 	if (pKA)
 	{
-		pKA->PlayCycle("idle");
+		car_play_cycle_safe(pKA, "idle");
 		pK->CalculateBones(TRUE);
 	}
 	phys_shell_verify_object_model(*this);

@@ -55,6 +55,18 @@ Output: `J:\LostZone_Work\_work\patch_000021`.
 
 ## Verification and delivery status
 
+An isolated model compatibility probe at
+`J:\LostZone_Work\_work\heli_qa_20261016` (baseline c3acff438, no owner data)
+created the server entity but reproduced `CKinematicsAnimated::ID_Cycle`,
+`motion_ID.valid()`, missing `$editor`. This is the same unchanged car startup
+path in 94d48f8a2. Startup animation now resolves with `ID_Cycle_Safe`, falling
+back to `idle` when available; missing optional cycles do not assert. Skeleton
+creation uses the same safe helper. Helicopter startup leaves the rotor blend
+created by Init alone, avoiding a second PlayCycle replacing its stored blend.
+The native fixture executes the actual helper for missing `$editor`, valid
+idle, missing both, and null visual. The compatibility probe is not flight
+acceptance and its fatal error remains part of the evidence, not a passing run.
+
 Full CI, isolated native spawn test, installation and launcher publication
 are pending. Do not call flight/animation/two-client acceptance complete.
 Master `e3fcbf1f1` is retained; no account, character or world is wiped.
