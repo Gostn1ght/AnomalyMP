@@ -26,9 +26,10 @@ from test_native_save import native_fixture
 
 source = r'''
 #define NOMINMAX
-#include "netcoop_player_checkpoint.h"
+#include "netcoop_checkpoint_outbox.h"
 #include <cassert>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -36,8 +37,172 @@ source = r'''
 #include <set>
 using namespace netcoop_world;
 template<class F>void rejects(F f){bool failed=false;try{f();}catch(const std::exception&){failed=true;}assert(failed);}
+#ifdef _WIN32
+std::string text_file(const char* filename){std::ifstream in(filename,std::ios::binary);return std::string(std::istreambuf_iterator<char>(in),{});}
+std::wstring wide(const std::string& value){
+ const int count=MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,value.data(),int(value.size()),nullptr,0);assert(count>0);
+ std::wstring result(std::size_t(count),L'\0');assert(MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,value.data(),int(value.size()),&result[0],count)==count);return result;
+}
+std::wstring outbox_root(const char* fixture){return wide(fixture)+L".outbox \u043e\u0447\u0435\u0440\u0435\u0434\u044c";}
+std::string disk_read(const std::wstring& name){
+ HANDLE f=CreateFileW(name.c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,0,nullptr);assert(f!=INVALID_HANDLE_VALUE);
+ LARGE_INTEGER size{};assert(GetFileSizeEx(f,&size) && size.QuadPart>=0 && size.QuadPart<=21*1024*1024);
+ std::string bytes(std::size_t(size.QuadPart),'\0');DWORD got=0;
+ assert(bytes.empty() || (ReadFile(f,&bytes[0],DWORD(bytes.size()),&got,nullptr) && got==bytes.size()));CloseHandle(f);return bytes;
+}
+void disk_write(const std::wstring& name,const std::string& bytes){
+ HANDLE f=CreateFileW(name.c_str(),GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,0,nullptr);assert(f!=INVALID_HANDLE_VALUE);DWORD got=0;
+ assert(WriteFile(f,bytes.data(),DWORD(bytes.size()),&got,nullptr) && got==bytes.size() && FlushFileBuffers(f));CloseHandle(f);
+}
+std::wstring job_file(const std::wstring& root){
+ const auto index=bridge_json(disk_read(root+L"\\outbox.json"),outbox_index_limit);
+ const auto tx=index["jobs"][0]["transaction"].get<std::string>();return root+L"\\snapshot-"+wide(tx)+L".nch";
+}
+CheckpointCapture job(std::string character,std::uint64_t generation,std::uint64_t fence,std::uint64_t session,
+ std::uint64_t version,std::uint64_t revision){return {std::move(character),generation,fence,session,version,revision,1};}
+void outbox_crash(char** argv){
+ const auto cfg=WriterConfig::parse(text_file(argv[2]),"garbage");
+ const auto context=bridge_json(text_file(argv[6]),4096);
+ const auto instance=context["instance"].get<std::string>(),character=context["character"].get<std::string>();
+ const auto epoch=bridge_unsigned(context,"epoch");
+ CheckpointOutbox queue(outbox_root(argv[3]),cfg,instance,epoch);
+ auto request=[&](const std::string& method,const std::string& path,const std::string& payload,BridgeJson& result,unsigned& status){
+  const bool ok=writer_request(cfg,instance,epoch,method,path,payload,result,status);
+  if(ok && bridge_json(payload,65536)["operation"]=="native_save_finish"){
+   // Hard process death AFTER SQLite commit and BEFORE local cursor write.
+   TerminateProcess(GetCurrentProcess(),73);std::abort();
+  }
+  return ok;
+ };
+ for(unsigned i=0;i<100;++i) assert(queue.advance(character,request)==CheckpointStep::Progress);
+ assert(false && "crash fixture did not reach Finish");
+}
+void kill_after_master_commit(char** argv,const std::string& instance,std::uint64_t epoch,const std::string& character){
+ const std::string context_name=std::string(argv[3])+".crash-context.json";
+ {std::ofstream out(context_name,std::ios::binary);out<<BridgeJson{{"instance",instance},{"epoch",epoch},{"character",character}}.dump();assert(out.good());}
+ wchar_t executable[4096]{};assert(GetModuleFileNameW(nullptr,executable,4096));
+ std::wstring command=L"\""+std::wstring(executable)+L"\"";
+ for(unsigned i=1;i<5;++i) command+=L" \""+wide(argv[i])+L"\"";
+ command+=L" --outbox-crash \""+wide(context_name)+L"\"";
+ STARTUPINFOW start{};start.cb=sizeof(start);PROCESS_INFORMATION child{};
+ assert(CreateProcessW(nullptr,&command[0],nullptr,nullptr,FALSE,CREATE_NO_WINDOW,nullptr,nullptr,&start,&child));
+ const auto waited=WaitForSingleObject(child.hProcess,15000);
+ if(waited!=WAIT_OBJECT_0) TerminateProcess(child.hProcess,74);
+ DWORD code=0;assert(GetExitCodeProcess(child.hProcess,&code));CloseHandle(child.hThread);CloseHandle(child.hProcess);
+ assert(waited==WAIT_OBJECT_0 && code==73);
+}
+void outbox_checks(char** argv,const WriterConfig& config,const std::string& instance,std::uint64_t epoch,
+ const std::string& character,std::uint64_t fence,std::uint64_t session,const std::string& raw,
+ const std::string& next_raw,const std::string& last_raw){
+ const auto root=outbox_root(argv[3]),index=root+L"\\outbox.json";
+ auto actual=[&](const std::string& method,const std::string& path,const std::string& payload,BridgeJson& result,unsigned& status){
+  return writer_request(config,instance,epoch,method,path,payload,result,status);
+ };
+ auto newest=job(character,30,fence,session,9,4);
+ {
+  CheckpointOutbox queue(root,config,instance,epoch);
+  auto captured=raw;assert(queue.enqueue(job(character,10,fence,session,7,2),captured));
+  captured.assign("NCH9 producer changed after admission");assert(disk_read(job_file(root))==raw);
+  assert(queue.enqueue(job(character,20,fence,session,8,3),next_raw));
+  assert(queue.pending()==std::vector<std::string>{character});
+  rejects([&]{CheckpointOutbox duplicate(root,config,instance,epoch);});
+  rejects([&]{queue.completion(character);});rejects([&]{queue.retire(character,10);});
+  assert(!queue.enqueue(job(character,10,fence,session,7,2),raw));
+  rejects([&]{queue.enqueue(job(character,30,fence,session,10,4),last_raw);});
+  rejects([&]{queue.enqueue(job(character,30,fence,session+1,9,4),last_raw);});
+  const auto before=disk_read(index);
+  HANDLE held=CreateFileW(index.c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,0,nullptr);assert(held!=INVALID_HANDLE_VALUE);
+  assert(!queue.enqueue(newest,last_raw));assert(disk_read(index)==before && queue.accepted_generation(character)==20);CloseHandle(held);
+  assert(queue.enqueue(newest,last_raw)); // Same generation remains admissible after failed journal publication.
+ }
+ kill_after_master_commit(argv,instance,epoch,character);
+ {
+  CheckpointOutbox queue(root,config,instance,epoch);
+  rejects([&]{queue.completion(character);});
+  const auto before=disk_read(index);
+  HANDLE held=CreateFileW(index.c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,0,nullptr);assert(held!=INVALID_HANDLE_VALUE);
+  assert(queue.advance(character,actual)==CheckpointStep::Retry);rejects([&]{queue.completion(character);});
+  assert(disk_read(index)==before);CloseHandle(held);
+  assert(queue.advance(character,actual)==CheckpointStep::Complete);
+  auto completed=queue.completion(character);assert(completed["generation"]==10 && completed["latest_accepted"]==false);
+  assert(completed["result"]["revision"]==3 && completed["result"]["entity_version"]==8);
+  assert(!queue.retire(character,20));
+  held=CreateFileW(index.c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,0,nullptr);assert(held!=INVALID_HANDLE_VALUE);
+  assert(!queue.retire(character,10));CloseHandle(held);assert(queue.retire(character,10));
+  assert(!queue.enqueue(job(character,10,fence,session,7,2),raw));
+  for(unsigned generation:{20U,30U}){
+   rejects([&]{queue.completion(character);});
+   CheckpointStep step=CheckpointStep::Progress;
+   for(unsigned tries=0;tries<20 && step!=CheckpointStep::Complete;++tries){step=queue.advance(character,actual);assert(step!=CheckpointStep::Rejected);}
+   assert(step==CheckpointStep::Complete);
+   completed=queue.completion(character);
+   assert(completed["generation"]==generation && completed["latest_accepted"]==(generation==30));
+   assert(completed["result"]["revision"]==(generation==20 ? 4:5));
+   if(generation==20) assert(queue.retire(character,generation));
+  }
+ }
+ const auto committed_index=disk_read(index),committed_snapshot=disk_read(job_file(root));
+ rejects([&]{CheckpointOutbox stale(root,config,instance,epoch+1);});
+ rejects([&]{CheckpointOutbox stale(root,config,std::string(32,'9'),epoch);});
+ assert(disk_read(index)==committed_index && disk_read(job_file(root))==committed_snapshot);
+ {
+  CheckpointOutbox queue(root,config,instance,epoch);rejects([&]{queue.completion(character);});
+  auto refused=[](const std::string&,const std::string&,const std::string&,BridgeJson& out,unsigned& status){out=BridgeJson();status=409;return false;};
+  assert(queue.advance(character,refused)==CheckpointStep::Rejected);rejects([&]{queue.completion(character);});
+  assert(queue.advance(character,actual)==CheckpointStep::Complete && queue.completion(character)["latest_accepted"]==true);
+  assert(queue.retire(character,30) && queue.pending().empty());
+ }
+ {CheckpointOutbox queue(root,config,instance,epoch);assert(queue.pending().empty() && queue.accepted_generation(character)==30 && !queue.enqueue(newest,last_raw));}
+ CheckpointDownload restored(character,fence,session,5,checkpoint_sha256(last_raw),last_raw.size());
+ for(unsigned i=0;i<20 && restored.step(actual)!=CheckpointStep::Complete;++i){}
+ assert(restored.bytes()==last_raw);
+ // Recovery validates all references before deleting any unreferenced file.
+ const auto damaged=root+L".damaged";
+ {CheckpointOutbox queue(damaged,config,instance,epoch);assert(queue.enqueue(job(character,1,fence,session,10,5),raw));}
+ const auto snapshot=job_file(damaged),orphan=damaged+L"\\snapshot-00000000000000000000000000000000.nch";
+ const auto saved=disk_read(snapshot);
+ auto bad=saved;bad.back()=char(static_cast<unsigned char>(bad.back())^1U);disk_write(snapshot,bad);disk_write(orphan,"unaccepted crash residue");
+ rejects([&]{CheckpointOutbox queue(damaged,config,instance,epoch);});assert(disk_read(snapshot)==bad && disk_read(orphan)=="unaccepted crash residue");
+ disk_write(snapshot,saved);
+ disk_write(damaged+L"\\unrelated.txt","leave me intact");
+ rejects([&]{CheckpointOutbox queue(damaged,config,instance,epoch);});assert(disk_read(orphan)=="unaccepted crash residue");
+ assert(DeleteFileW((damaged+L"\\unrelated.txt").c_str()));disk_write(damaged+L"\\outbox.next","partial index");
+ {CheckpointOutbox queue(damaged,config,instance,epoch);assert(queue.pending().size()==1);}
+ assert(GetFileAttributesW(orphan.c_str())==INVALID_FILE_ATTRIBUTES && GetFileAttributesW((damaged+L"\\outbox.next").c_str())==INVALID_FILE_ATTRIBUTES);
+ const auto missing=damaged+L".saved-index";
+ assert(MoveFileExW((damaged+L"\\outbox.json").c_str(),missing.c_str(),MOVEFILE_WRITE_THROUGH));
+ rejects([&]{CheckpointOutbox queue(damaged,config,instance,epoch);});assert(disk_read(snapshot)==saved);
+ assert(MoveFileExW(missing.c_str(),(damaged+L"\\outbox.json").c_str(),MOVEFILE_WRITE_THROUGH));
+ const auto linked=damaged+L".link-target";disk_write(linked,"never truncate a hardlink peer");
+ assert(CreateHardLinkW((damaged+L"\\outbox.next").c_str(),linked.c_str(),nullptr));
+ rejects([&]{CheckpointOutbox queue(damaged,config,instance,epoch);});assert(disk_read(linked)=="never truncate a hardlink peer");
+ assert(DeleteFileW((damaged+L"\\outbox.next").c_str()));
+ {CheckpointOutbox queue(damaged,config,instance,epoch);assert(queue.pending().size()==1);}
+ // Count and byte budgets are actual filesystem admission, with no HTTP.
+ const auto bounded=root+L".bounded";
+ {
+  CheckpointOutbox queue(bounded,config,instance,epoch);
+  for(unsigned i=0;i<outbox_jobs;++i){char name[33];std::snprintf(name,sizeof(name),"%032x",i+1);assert(queue.enqueue(job(name,1,1,1,1,0),"NCH9"));}
+  assert(!queue.enqueue(job(std::string(32,'f'),1,1,1,1,0),"NCH9"));
+ }
+ {CheckpointOutbox queue(bounded,config,instance,epoch);assert(queue.pending().size()==outbox_jobs);}
+ {
+  CheckpointOutbox queue(root+L".bytes",config,instance,epoch);
+  std::string large(checkpoint_limit,'x');large.replace(0,4,"NCH9");
+  for(unsigned i=0;i<3;++i) assert(queue.enqueue(job(std::string(32,char('a'+i)),1,1,1,1,0),large));
+  assert(!queue.enqueue(job(std::string(32,'d'),1,1,1,1,0),large));
+  large.resize(4*1024*1024);assert(queue.enqueue(job(std::string(32,'d'),1,1,1,1,0),large));
+  assert(!queue.enqueue(job(std::string(32,'e'),1,1,1,1,0),"NCH9"));
+ }
+ std::cout<<"PASS durable checkpoint outbox: hard process death after SQLite Finish, same-command replay, per-character FIFO/generation barrier, disk-publication failures, fresh proof after restart, fencing, exact latest bytes\n";
+ std::cout<<"PASS actual outbox files: exclusive process lock, Unicode path, count/64MiB budget, corruption/missing index preserved, bounded orphan cleanup, unknown files and hardlinks refused\n";
+}
+#endif
 int main(int argc,char** argv){
  (void)argc;(void)argv;
+#ifdef _WIN32
+ if(argc==7 && std::string(argv[5])=="--outbox-crash"){outbox_crash(argv);return 1;}
+#endif
  BridgeJson body={{"schema",1},{"mode","writer"},{"host","127.0.0.1"},{"port",12345},
   {"token",std::string(48,'s')},{"actor","location:cordon"},{"location","cordon"},
   {"master_world_id",71},{"master_world_seed",0}};
@@ -250,6 +415,9 @@ int main(int argc,char** argv){
   return writer_request(src,a,epoch,method,path,payload,out,code);
  };
  assert(stale.step(old_source)==CheckpointStep::Rejected && stale.cursor()["phase"]==0);
+ assert(command(dst,c,"location_renew",{{"location","garbage"},{"fence",tf},{"ttl_ms",60000}}));
+ outbox_checks(argv,dst,c,epoch,character,tf,frozen_session+1,raw,
+  checkpoint_unbase64(fixture["next_raw"].get<std::string>()),checkpoint_unbase64(fixture["last_raw"].get<std::string>()));
  std::cout<<"PASS native checkpoint client: Python-compatible UUID5/SHA256, lost begin/append/finish replies, bound cursor recovery, commit replay, exact binary download, unexposed corrupt/partial reads\n";
  std::cout<<"PASS actual WinHTTP NCH9 chunks: cancel, stale writer, durable replay, exact read, disconnect/resume, fenced handoff read before activation\n";
  std::cout<<"PASS actual WinHTTP master: separate runtime leases, scope/world/epoch checks, frozen source, group NPC+mutant+inventory transferred with the same IDs, idempotent commit\n";
@@ -372,6 +540,8 @@ with TemporaryDirectory(prefix="world-writer-") as tmp:
             identities=[(71,0,"ALIce",1),(71,0,"alice",2),(72,0,"alice",1),(71,1,"alice",1),
                         (2**64-1,2**64-1,"Ab_.-09",10)]
             native.write_text(json.dumps({"character_id":identity(71,0,"alice",1),"bytes":len(raw),
+                "next_raw":base64.b64encode(native_fixture(9,progress=b"queued generation20")).decode("ascii"),
+                "last_raw":base64.b64encode(native_fixture(9,progress=b"queued generation30 newest complete progress")).decode("ascii"),
                 "identities":[dict(world=w,seed=s,account=a,slot=n,id=identity(w,s,a,n)) for w,s,a,n in identities],
                 "hashes":[dict(input=text,sha256=hashlib.sha256(text.encode()).hexdigest()) for text in ("","abc","binary\\0data")],
                 "sha256":hashlib.sha256(raw).hexdigest(),"chunks":[
@@ -387,10 +557,11 @@ with TemporaryDirectory(prefix="world-writer-") as tmp:
             assert store.db.execute("SELECT COUNT(*) FROM entity WHERE location='garbage'").fetchone()[0] == 4
             assert store.db.execute("SELECT COUNT(*) FROM item").fetchone()[0] == 1
             assert store.db.execute("SELECT COUNT(*) FROM world_event WHERE type='TransferCommitted'").fetchone()[0] == 2
-            payload = store.db.execute("SELECT payload_base64 FROM native_player_save").fetchone()[0]
-            assert base64.b64decode(payload) == raw
+            payload = store.db.execute("SELECT payload_base64 FROM native_player_save ORDER BY revision DESC LIMIT 1").fetchone()[0]
+            assert base64.b64decode(payload) == native_fixture(9,progress=b"queued generation30 newest complete progress")
             assert store.db.execute("SELECT COUNT(*) FROM native_player_save").fetchone()[0] == 2
-            assert store.db.execute("SELECT COUNT(*) FROM world_event WHERE type='NativePlayerSaveCommitted'").fetchone()[0] == 2
+            assert store.db.execute("SELECT MAX(revision) FROM native_player_save").fetchone()[0] == 5
+            assert store.db.execute("SELECT COUNT(*) FROM world_event WHERE type='NativePlayerSaveCommitted'").fetchone()[0] == 5
         finally:
             proxy.shutdown()
             proxy.server_close()
