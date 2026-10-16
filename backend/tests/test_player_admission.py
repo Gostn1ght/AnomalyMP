@@ -143,12 +143,18 @@ class PlayerAdmissionTest(unittest.TestCase):
 
     def test_wrong_authority_epoch_and_expired_lease_refuse_without_mutation(self):
         self.create()
-        for changes in ({"actor": "other"}, {"fence": self.source + 1}, {"epoch": self.store.epoch + 1},
-                        {"location": "marsh", "actor": "target", "fence": self.target}):
+        for changes in ({"actor": "other"}, {"fence": self.source + 1}, {"epoch": self.store.epoch + 1}):
             before = self.dump()
             with self.assertRaises(Conflict):
                 self.inspect(**changes)
             self.assertEqual(before, self.dump())
+        # Another location's own authority learns only where the character
+        # lives, without any change (it sends the player there).
+        before = self.dump()
+        result = self.inspect(location="marsh", actor="target", fence=self.target)
+        self.assertEqual((result["status"], result["home"], result["checkpoint"], result["entity_version"]),
+                         ("ELSEWHERE", "cordon", None, 0))
+        self.assertEqual(before, self.dump())
         self.millis += 20000
         with self.assertRaises(Conflict):
             self.inspect()
@@ -165,8 +171,8 @@ class PlayerAdmissionTest(unittest.TestCase):
         with self.assertRaises(Conflict):
             self.inspect(actor="target", location="marsh", fence=self.target)
         self.transfers.commit("target", uid(), prepared["transfer_id"], self.target)
-        with self.assertRaises(Conflict):
-            self.inspect()
+        # The source now only learns where the character went.
+        self.assertEqual((self.inspect()["status"], self.inspect()["home"]), ("ELSEWHERE", "marsh"))
         result = self.inspect(actor="target", location="marsh", fence=self.target)
         self.assertEqual((result["status"], result["session_fence"], result["checkpoint"]["revision"]), ("ACTIVE", 3, 1))
 

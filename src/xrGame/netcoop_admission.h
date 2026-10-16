@@ -11,7 +11,9 @@
 // engine objects or exceptions cross this boundary.
 namespace netcoop_world
 {
-enum class AdmissionState : unsigned { Pending, Admitted, Refused, Unavailable };
+// Elsewhere: the character lives on another location (home); the player is
+// sent there instead of being refused (owner 2026-10-17).
+enum class AdmissionState : unsigned { Pending, Admitted, Refused, Unavailable, Elsewhere };
 struct AdmissionResult
 {
     AdmissionState state=AdmissionState::Pending;
@@ -19,6 +21,7 @@ struct AdmissionResult
     std::uint64_t revision=0;
     bool master_bytes=false; // the bytes are the master's durable checkpoint, newer than the local file
     char reason[160]{};
+    char home[65]{};
 };
 enum class DepartureState : unsigned { Pending, Ready, Refused };
 struct DepartureResult

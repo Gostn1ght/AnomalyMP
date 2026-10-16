@@ -288,6 +288,14 @@ struct AdmissionCoordinator::State
             if(GetTickCount64()>=job.deadline || halted()) return refuse(job,"the world master did not answer",AdmissionState::Unavailable);
             pause(250);
         }
+        if(slot.state==PlayerSlotStatus::Elsewhere)
+        {
+            Outcome outcome;
+            outcome.admission.state=AdmissionState::Elsewhere;
+            put(outcome.admission.home,slot.home);
+            put(outcome.admission.reason,"the character is on "+slot.home);
+            return finish(job.ticket,std::move(outcome));
+        }
         Character character;
         character.id=id;character.account=account;character.slot=job.slot;
         if(slot.state==PlayerSlotStatus::Absent)

@@ -448,6 +448,16 @@ int main(int argc,char** argv){
  auto staged_body=slot_body;staged_body["status"]="STAGED";staged_body["checkpoint"]=nullptr;
  staged_body["entity_version"]=0;staged_body["session_fence"]=0;
  assert(PlayerSlotObservation::parse(staged_body,src,epoch,"alice",1,sf).state==PlayerSlotStatus::Staged);
+ // The character lives on another location: only its name comes back.
+ auto home_body=staged_body;home_body["status"]="ELSEWHERE";home_body["home"]="l02_garbage";
+ {const auto home=PlayerSlotObservation::parse(home_body,src,epoch,"alice",1,sf);
+  assert(home.state==PlayerSlotStatus::Elsewhere && home.home=="l02_garbage" && !home.revision);}
+ for(unsigned fault=0;fault<5;++fault){auto bad=home_body;
+  if(fault==0)bad.erase("home");if(fault==1)bad["home"]="";if(fault==2)bad["home"]="../x";
+  if(fault==3)bad["home"]=src.location;if(fault==4)bad["entity_version"]=1;
+  rejects([&]{PlayerSlotObservation::parse(bad,src,epoch,"alice",1,sf);});
+ }
+ {auto extra=staged_body;extra["home"]="l02_garbage";rejects([&]{PlayerSlotObservation::parse(extra,src,epoch,"alice",1,sf);});}
  auto page_path=[&](std::uint64_t fence,std::uint64_t session,const BridgeJson& offset){
   return "/v1/player-save?character_id="+character+"&fence="+std::to_string(fence)+
    "&session_fence="+std::to_string(session)+"&revision=1&offset="+std::to_string(offset.get<std::uint64_t>());

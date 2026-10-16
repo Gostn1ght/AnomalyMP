@@ -91,9 +91,10 @@ int main(int argc,char** argv)
     assert(cordon.leave("alice",1));settle(cordon);
     result=admit(cordon,second,nullptr,bytes);
     assert(result.state==AdmissionState::Admitted && !result.master_bytes && bytes.empty());
-    // 4. A second login of an admitted (ACTIVE) slot at another location is refused.
+    // 4. A login of an admitted (ACTIVE) slot at another location learns
+    // where the character lives (the server sends the player there).
     result=admit(garbage,second,nullptr,bytes);
-    assert(result.state==AdmissionState::Refused);
+    assert(result.state==AdmissionState::Elsewhere && std::string(result.home)=="cordon" && bytes.empty());
     // 5. Passage: the newest capture, the handoff token, the target claims it.
     assert(cordon.capture("alice",1,third.data(),third.size()));
     const auto ticket=cordon.depart("alice",1,"garbage");
@@ -105,12 +106,15 @@ int main(int argc,char** argv)
     result=admit(garbage,stale,departure.token,bytes);
     assert(result.state==AdmissionState::Admitted && result.master_bytes && result.revision==3);
     assert(std::string(bytes.begin(),bytes.end())==third);
-    // The source can no longer admit it.
+    // The source can no longer admit it: the character is on Garbage now.
     result=admit(cordon,third,nullptr,bytes);
-    assert(result.state==AdmissionState::Refused);
+    assert(result.state==AdmissionState::Elsewhere && std::string(result.home)=="garbage");
     assert(garbage.leave("alice",1));settle(garbage);
+    // Disconnected on Garbage, a login at Cordon is still sent to Garbage.
+    result=admit(cordon,third,nullptr,bytes);
+    assert(result.state==AdmissionState::Elsewhere && std::string(result.home)=="garbage");
     cordon.stop();garbage.stop();
-    std::puts("PASS native admission coordinator: create, durable captures, leave, resume with the master's newer image, ACTIVE refusal elsewhere, master handoff to another location");
+    std::puts("PASS native admission coordinator: create, durable captures, leave, resume with the master's newer image, the home location answered elsewhere (active and disconnected), master handoff to another location");
     return 0;
 }
 '''

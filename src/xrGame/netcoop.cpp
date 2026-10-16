@@ -1804,6 +1804,39 @@ static void admission_logins_update(xrServer* server)
 			free_pending(pending);
 			continue;
 		}
+		// The master keeps the character on another map (a crash mid-passage
+		// left this machine's file naming this one): play there.
+		string256 elsewhere;
+		if (result.state == netcoop_world::AdmissionState::Elsewhere)
+		{
+			xr_string host; u32 port = 0;
+			const LPCSTR home = result.home;
+			LPCSTR problem = "";
+			if (!cluster_location(home, host, port) || port == cluster_port())
+				problem = "no server of this cluster runs it";
+			else if (cluster_target_problem(port)[0])
+				problem = cluster_target_problem(port);
+			if (!problem[0])
+			{
+				string256 redirect;
+				xr_sprintf(redirect, "redirect|%s|%u|%s", host.c_str(), port, home);
+				Msg("[Lost Zone][master] %s slot %u lives on %s: sent there", login.c_str(), pending->slot, home);
+				cluster_lease_release(login.c_str());
+				cluster_send_redirect(server, CL, redirect);
+				CL->netcoop_login = NULL;
+				free_pending(pending);
+				continue;
+			}
+			if (strstr(problem, "offline") && cluster_on_demand(home))
+			{
+				cluster_wake(home);
+				xr_sprintf(elsewhere, "Your character is on %s; its server is starting, log in again in 1-2 minutes", home);
+			}
+			else
+				xr_sprintf(elsewhere, "Your character is on %s; that location is not available (%s)", home, problem);
+			result.state = netcoop_world::AdmissionState::Refused;
+			strncpy_s(result.reason, sizeof(result.reason), elsewhere, _TRUNCATE);
+		}
 		bool ok = result.state != netcoop_world::AdmissionState::Refused;
 		LPCSTR reason = result.reason[0] ? result.reason : "The world master refused this character";
 		if (ok && result.state == netcoop_world::AdmissionState::Admitted && result.master_bytes &&

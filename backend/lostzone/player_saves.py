@@ -80,6 +80,15 @@ class PlayerSaves:
                 # STAGED is deliberately distinct from ABSENT. It cannot be
                 # rerolled as a new player or treated as a live checkpoint.
                 return {**result, "status": "STAGED" if staged is not None else "ABSENT"}
+            if (entity["kind"] == "CHARACTER" and entity["alive"] == 1 and entity["location"] != location and
+                    not str(entity["writer"]).startswith(("transfer:", "offline:"))):
+                # The character lives on another map (owner 2026-10-17: after a
+                # crash mid-passage its local file named one map and the master
+                # another, and every login was refused). Only the map name is
+                # returned; that location admits it as usual.
+                home = tx.execute("SELECT account,state FROM player_session WHERE character_id=?", (character_id,)).fetchone()
+                if home is not None and home["account"].lower() == account and home["state"] in ("ACTIVE", "DISCONNECTED"):
+                    return {**result, "status": "ELSEWHERE", "home": entity["location"]}
             if (entity["kind"], entity["location"], entity["writer"], entity["fence"], entity["alive"]) != (
                     "CHARACTER", location, actor, fence, 1):
                 raise Conflict("native slot is dead, in transit or outside this authority")

@@ -132,18 +132,21 @@ inline bool checkpoint_format(const std::string& raw)
     return raw.size()>=4 && raw.size()<=checkpoint_limit && raw.compare(0,3,"NCH")==0 && raw[3]>='3' && raw[3]<='9';
 }
 
-enum class PlayerSlotStatus { Missing,Absent,Staged,Active,Disconnected };
+enum class PlayerSlotStatus { Missing,Absent,Staged,Active,Disconnected,Elsewhere };
 struct PlayerSlotObservation
 {
     PlayerSlotStatus state=PlayerSlotStatus::Missing;
     std::string character,sha256;
+    std::string home; // Elsewhere: the location the character lives on
     std::uint64_t entity_version=0,session_fence=0,revision=0,bytes=0;
 
     static PlayerSlotObservation parse(const BridgeJson& body,const WriterConfig& config,std::uint64_t epoch,
         const std::string& account,unsigned slot,std::uint64_t fence)
     {
         const auto character=checkpoint_player_id(config.world,config.seed,account,slot);
-        if (!body.is_object() || body.size()!=13 || bridge_unsigned(body,"schema")!=1 ||
+        // ELSEWHERE carries one more field, the character's home location.
+        const bool elsewhere=body.is_object() && body.contains("status") && body["status"]=="ELSEWHERE";
+        if (!body.is_object() || body.size()!=(elsewhere ? 14u : 13u) || bridge_unsigned(body,"schema")!=1 ||
             body.at("world_id")!=std::to_string(config.world) || body.at("seed")!=std::to_string(config.seed) ||
             bridge_unsigned(body,"epoch")!=epoch || bridge_unsigned(body,"fence")!=fence ||
             body.at("location")!=config.location || body.at("account")!=account ||
@@ -158,6 +161,14 @@ struct PlayerSlotObservation
         else if (status=="STAGED") result.state=PlayerSlotStatus::Staged;
         else if (status=="ACTIVE") result.state=PlayerSlotStatus::Active;
         else if (status=="DISCONNECTED") result.state=PlayerSlotStatus::Disconnected;
+        else if (status=="ELSEWHERE")
+        {
+            result.state=PlayerSlotStatus::Elsewhere;
+            result.home=body.at("home").get<std::string>();
+            bool valid=!result.home.empty() && result.home.size()<=64 && result.home!=config.location;
+            for (char c:result.home) valid=valid && ((c>='a' && c<='z') || (c>='0' && c<='9') || c=='_');
+            if (!valid) throw std::invalid_argument("native slot home location");
+        }
         else throw std::invalid_argument("unsupported native slot state");
         const bool live=result.state==PlayerSlotStatus::Active || result.state==PlayerSlotStatus::Disconnected;
         const auto& checkpoint=body.at("checkpoint");
