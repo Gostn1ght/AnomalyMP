@@ -51,3 +51,10 @@ All four passed locally.
 - A capture rejected by the master (version conflict) leaves later captures rejected until the next login. The local file stays correct and the next admission resumes from the master's durable head.
 - A crash with an upload in flight under the same fence still needs the old upload to expire; the master's `native_save_begin` cleans it.
 - Characters transferred across machines need the token file in a shared cluster folder. The current cluster runs on one machine.
+
+## Live stand, installation, release (2026-10-16 evening)
+
+- Stand `J:\LostZone_Work\_work\m2btest` (own master, own appdata; owner data untouched): DX11 `c3acff438` (CI 38938209969) Cordon + Garbage with `-netcoop_cluster_selftest`, 4 headless bots for 6 min. Both locations took their leases. 16 logins admitted by the master, 12 handoffs through master tokens in both directions, 0 refusals, no errors. Master DB: 4 characters, 12 COMMITTED transfers. The hard stop left one PREPARED transfer, which the new master aborts on the source's next renewal (`e3fcbf1f1`, test added).
+- Installed: native `c3acff438` into the friend kit and srvtest (backup `before_native_c3acff438_20261016_205933`) and the owner's client exe (same SHA). Master `e3fcbf1f1` (backend CI 38943768059, packaged checkpoint QA on an existing NCH8 passed) into the kit and srvtest (backup `before_master_e3fcbf1f1_20261016_210306`). Independent verification: 6872 manifest files, 66 native and 50 master copies, pins agree.
+- Published to the launcher: client `2026.10.16.1` (55.7 MB new data), owner-approved. Distribution server running.
+- Still open for M2b: a live game with real clients (owner/friend), server crash/restart during play.
