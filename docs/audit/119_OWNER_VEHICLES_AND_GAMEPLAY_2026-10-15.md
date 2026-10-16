@@ -28,3 +28,5 @@ Transport stages from doc118 remain distinct:
 Existing M2b primary player persistence/admission/hydration, M3 GAMMA quests/rewards, H09/H11 native NPC/item transfer, traders and earlier visual/crash reports remain open. No stage is closed merely by listing it here or passing isolated fixtures.
 
 Supplied archives: three `drive-download-20261015T173627Z-1-00{1,2,3}.zip` in Downloads; `Helicopter_pbo_client_mod.zip` and `Helicopter_pbo_server_mod.zip` in the owner's referenced conversation outputs. Audit tool `tools/audit-vehicle-sources.py` reads bounded catalogues and selected text into separate work folders; it never installs or executes supplied DLL/EXE files.
+
+2026-10-16 installed batch: doc126 records complete successful native CI38854891742, verified patch000020 and the friend overlay update. Items6/7/8 now have implementation plus automatic checks, item5 has a HUD light projection fix, and item4 has a skeleton history fix. Item1 has finite-blast/trajectory protections and item2 has accurate refusal diagnostics, in addition to patch19 capacity. Their live acceptance remains open; no game was launched and no stage is closed solely by this installation.

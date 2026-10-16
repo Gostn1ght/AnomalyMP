@@ -7,3 +7,5 @@ The adapter calls `CPhysicsJoint::SetJointSDfactors`, reaching the existing hing
 CI-only `check-native-car-suspension.py` executes the actual adapter and actual `CPHJoint::SetJointSDfactors` body, validating the resulting ERP/CFM, optional legacy policy, per-wheel overrides/global fallback, malformed values and non-wheel/null boundaries. Formula checks at0.01s/60Hz/120Hz do not claim driving stability or that the world's configured tick was changed.
 
 The DCP model/profile candidates are still isolated audit inputs. `suspension_distance`, `suspension_force_inc`, `suspension_inertia`, mass/inertia verification, asset provenance, one real drivable DCP vehicle and T2–T9 acceptance remain OPEN. No foreign engine binary or supplied aircraft asset is installed by this adapter.
+
+Verified2026-10-16: combined run38853207613 for3eb197b79 fully passed the actual adapter/ODE suspension fixtures and the complete DX11 engine build. File-level Moskvich IK/mass findings are recorded in doc121; they do not replace assembled-shell or driving acceptance.

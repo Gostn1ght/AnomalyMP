@@ -17,3 +17,5 @@ No player/account/world file is modified by these checks. No game client/locatio
 Follow-up: server mutant takes now decrement persisted body loot and wear the knife only after ItemProcessor returns a real created entity. Nil/partial creation keeps the remaining parts on the corpse; actual Lua failure/retry checks pass without rerolling or reissuing already created parts. This is not a crash-durable world/inventory transaction.
 
 First batch a09d9cc14: Linux checks and all Windows native fixtures passed in CI38783097051; full engine build is still pending at this recording. Follow-up observer animations and source-audit decoder checks await their own CI.
+
+2026-10-16 verification update: run38783097051 completed with a successful full engine build. Combined run38853207613 for3eb197b79 also fully passed, including the nil/partial mutant creation Lua paths, real observer consumption motions, DCP wheel suspension and HUD light helpers. Observer animations are implemented (doc122); their actual multiplayer game acceptance remains open. The subsequent skeleton history fix is tracked separately in doc125. No game was launched for these checks.
