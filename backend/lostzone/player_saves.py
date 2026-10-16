@@ -12,7 +12,7 @@ import uuid
 
 from .native_save import FILE_LIMIT, identity, parse_native_save
 from .ownership import Ownership
-from .store import Conflict, Invalid, Unavailable, canonical, persistent_id, positive
+from .store import Conflict, Invalid, Unavailable, canonical, identifier, persistent_id, positive
 
 CHUNK = 30720  # divisible by three; bounded JSON/base64 GET response
 UPLOAD_BUDGET = 64 * 1024 * 1024
@@ -36,6 +36,81 @@ class PlayerSaves:
     @staticmethod
     def revision(tx, character_id):
         return tx.execute("SELECT COALESCE(MAX(revision),0) FROM native_player_save WHERE character_id=?", (character_id,)).fetchone()[0]
+
+    def inspect(self, actor, account, slot, location, fence, epoch):
+        """Read one native slot under current authority, never admit/resume it.
+
+        No payload, credentials or arbitrary entity state leave this endpoint.
+        The result is a versioned observation, not a reservation: subsequent
+        resume/upload/read commands must still check their own fences/CAS.
+        """
+        character_id = identity(self.world.world_id, self.world.seed, account, slot)
+        account = account.lower()
+        identifier(actor); identifier(location); positive(fence, "location fence"); positive(epoch, "master epoch")
+        with self.store.lock:
+            tx = self.store.db
+            self.store.require_epoch(tx)
+            if epoch != self.store.epoch:
+                raise Conflict("native slot master epoch changed")
+            self.world.require_location(tx, actor, location, fence)
+            # Native identities are case insensitive even for older registry
+            # callers that stored a mixed-case account. Never offer a second
+            # slot while that account owns an active or frozen character.
+            if tx.execute("SELECT 1 FROM player_session WHERE lower(account)=? AND character_id<>? "
+                          "AND state IN ('ACTIVE','FROZEN') LIMIT 1", (account, character_id)).fetchone():
+                raise Conflict("account already owns another active character")
+            result = {"schema": 1, "world_id": str(self.world.world_id), "seed": str(self.world.seed),
+                      "epoch": epoch, "location": location, "fence": fence,
+                      "account": account, "slot": slot, "character_id": character_id,
+                      "entity_version": 0, "session_fence": 0, "checkpoint": None}
+            entity = tx.execute("SELECT kind,location,writer,fence,version,alive,substr(state,1,1048577) AS state "
+                                "FROM entity WHERE id=?", (character_id,)).fetchone()
+            staged = tx.execute("SELECT id,account,slot,location,world_id,seed FROM native_player_import WHERE account=? AND slot=?",
+                                (account, slot)).fetchone()
+            if staged is not None and (staged["id"], staged["account"], staged["slot"], staged["world_id"], staged["seed"]) != (
+                    character_id, account, slot, result["world_id"], result["seed"]):
+                raise Unavailable("staged native slot identity is inconsistent")
+            if entity is None:
+                if staged is not None:
+                    if staged["location"] != location:
+                        raise Conflict("staged native slot belongs to another location")
+                # STAGED is deliberately distinct from ABSENT. It cannot be
+                # rerolled as a new player or treated as a live checkpoint.
+                return {**result, "status": "STAGED" if staged is not None else "ABSENT"}
+            if (entity["kind"], entity["location"], entity["writer"], entity["fence"], entity["alive"]) != (
+                    "CHARACTER", location, actor, fence, 1):
+                raise Conflict("native slot is dead, in transit or outside this authority")
+            character = tx.execute("SELECT account FROM character WHERE id=?", (character_id,)).fetchone()
+            session = tx.execute("SELECT account,owner,fence,state FROM player_session WHERE character_id=?",
+                                 (character_id,)).fetchone()
+            if not character or not session or character["account"].lower() != account or session["account"].lower() != account:
+                raise Unavailable("native slot registry identity is inconsistent")
+            if session["state"] not in ("ACTIVE", "DISCONNECTED") or (
+                    session["state"] == "ACTIVE" and session["owner"] != actor):
+                raise Conflict("native slot session is frozen or owned elsewhere")
+            # Even an expired upload needs explicit reconciliation/cancellation;
+            # a read must not erase it or silently select an older checkpoint.
+            if tx.execute("SELECT 1 FROM native_player_upload WHERE character_id=?", (character_id,)).fetchone():
+                raise Conflict("native slot has an unresolved checkpoint upload")
+            head = tx.execute("SELECT revision,sha256,byte_count FROM native_player_save "
+                              "WHERE character_id=? ORDER BY revision DESC LIMIT 1", (character_id,)).fetchone()
+            if head is not None:
+                if (type(head["revision"]) is not int or not 0 < head["revision"] < 2**63 or
+                        type(head["byte_count"]) is not int or not 4 <= head["byte_count"] <= FILE_LIMIT or
+                        not isinstance(head["sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", head["sha256"])):
+                    raise Unavailable("native slot checkpoint metadata is inconsistent")
+                result["checkpoint"] = {"revision": head["revision"], "sha256": head["sha256"], "bytes": head["byte_count"]}
+            elif staged is not None:
+                raise Conflict("staged native slot has not been activated losslessly")
+            try:
+                state = json.loads(entity["state"])
+                if (not isinstance(state, dict) or len(entity["state"].encode("utf-8")) > 1024 * 1024 or
+                        canonical(state.get("native_save")) != canonical(result["checkpoint"]) or (head is None and "native_save" in state)):
+                    raise ValueError("checkpoint reference differs from durable head")
+            except (ValueError, TypeError, RecursionError, UnicodeError) as error:
+                raise Unavailable("native slot checkpoint reference is inconsistent") from error
+            result.update(status=session["state"], entity_version=entity["version"], session_fence=session["fence"])
+            return result
 
     def upload(self, tx, actor, character_id, fence, session_fence, upload_id):
         persistent_id(upload_id)

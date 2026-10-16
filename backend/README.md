@@ -5,6 +5,18 @@
 ещё не отправляет сюда свои authoritative изменения. Проверки модуля
 не означают готовность межсерверных переходов в игре.
 
+`GET /v1/player-admission` добавляет чтение одного native-слота перед будущим
+игровым допуском: только location principal с runtime instance, привязкой
+WorldID/seed/epoch и действующим lease/fence карты. Строгий запрос принимает
+`account`, `slot`, `location`, `fence`, `epoch`; компактный ответ содержит ID,
+entity/session versions и revision/SHA256/bytes последнего checkpoint.
+`ABSENT`, `STAGED`, `ACTIVE`, `DISCONNECTED` различаются явно. GET не создаёт
+персонажа, не возобновляет сессию и не выдаёт разрешение на спавн. Незавершённая
+загрузка, транзит, мёртвый персонаж, чужой владелец и несовпадение checkpoint
+блокируют чтение. NCH payload и произвольное состояние в ответ не входят.
+Ограничения и проверки — `docs/audit/132_NATIVE_PLAYER_ADMISSION_LOOKUP_2026-10-16.md`.
+Native допуск/загрузка и переключение основного хранения ещё не подключены.
+
 ## Реализованное ядро
 
 - Один service process на локальный DB-файл: OS lock, SQLite WAL,

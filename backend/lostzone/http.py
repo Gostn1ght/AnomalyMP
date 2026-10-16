@@ -314,6 +314,23 @@ class Handler(BaseHTTPRequestHandler):
                     location, fence = query.get("id", [""])[0], int(query.get("fence", ["0"])[0])
                     dispatcher.allowed(principal, location)
                     result = dispatcher.ownership.location_state(principal.actor, location, fence)
+                elif uri.path == "/v1/player-admission":
+                    if principal.role != "location":
+                        raise PermissionError("native slot inspection requires a location authority")
+                    if not instances or not bindings:
+                        raise Invalid("native slot inspection requires a bound runtime world")
+                    if len(uri.query) > 1024:
+                        raise Invalid("native slot query exceeds bounds")
+                    query = parse_qs(uri.query, strict_parsing=True, keep_blank_values=True, max_num_fields=5)
+                    if set(query) != {"account", "slot", "location", "fence", "epoch"} or any(len(v) != 1 for v in query.values()):
+                        raise Invalid("invalid native slot query")
+                    for name in ("slot", "fence", "epoch"):
+                        if not re.fullmatch(r"[1-9][0-9]{0,18}", query[name][0]):
+                            raise Invalid("invalid native slot numeric field")
+                    location = query["location"][0]
+                    dispatcher.allowed(principal, location)
+                    result = dispatcher.player_saves.inspect(principal.actor, query["account"][0], int(query["slot"][0]),
+                              location, int(query["fence"][0]), int(query["epoch"][0]))
                 elif uri.path == "/v1/player-save":
                     if principal.role != "location":
                         raise PermissionError("native checkpoints require a location authority")

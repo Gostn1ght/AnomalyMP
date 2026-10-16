@@ -120,6 +120,76 @@ class HttpTest(unittest.TestCase):
         self.assertEqual(self.command("trade", {"location": "garbage"})[0], 403)
         self.assertEqual(self.call("GET", "/v1/events")[0], 404)
 
+    def test_actual_http_player_admission_observes_upload_disconnect_and_resume(self):
+        import base64
+        import hashlib
+        from lostzone.native_save import identity
+        from test_native_save import native_fixture
+        headers = {"X-LostZone-Instance": "a" * 32,
+                   "X-LostZone-World": f"{self.world.world_id}:{self.world.seed}:{self.store.epoch}"}
+        request = {"command_id": uuid.uuid4().hex, "operation": "location_claim", "arguments": {"location": "cordon"}}
+        status, claimed = self.call("POST", "/v1/command", request, headers=headers)
+        self.assertEqual(status, 200)
+        fence, actor = claimed["result"]["fence"], claimed["result"]["owner"]
+        path = "/v1/player-admission?" + urlencode(dict(account="ALICE", slot=1, location="cordon", fence=fence, epoch=self.store.epoch))
+        before = tuple(self.store.db.iterdump())
+        status, result = self.call("GET", path, headers=headers)
+        self.assertEqual((status, result["result"]["status"]), (200, "ABSENT"))
+        self.assertEqual(before, tuple(self.store.db.iterdump()))
+        character = identity(self.world.world_id, self.world.seed, "alice", 1)
+        d = self.server.dispatcher
+        d.ownership.create_entity(actor, uuid.uuid4().hex, character, "CHARACTER", "cordon", fence, {}, account="alice")
+        raw = native_fixture()
+        upload = d.player_saves.begin(actor, uuid.uuid4().hex, character, fence, 1, 1, 0, 1,
+                                      len(raw), hashlib.sha256(raw).hexdigest())["upload_id"]
+        self.assertEqual(self.call("GET", path, headers=headers)[0], 409)
+        d.player_saves.append(actor, uuid.uuid4().hex, character, fence, 1, upload, 0, base64.b64encode(raw).decode())
+        d.player_saves.finish(actor, uuid.uuid4().hex, character, fence, 1, upload)
+        status, result = self.call("GET", path, headers=headers)
+        self.assertEqual((status, result["result"]["status"], result["result"]["entity_version"]), (200, "ACTIVE", 2))
+        self.assertEqual(result["result"]["checkpoint"], {"revision": 1, "sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw)})
+        self.assertLess(len(json.dumps(result).encode()), 1024)
+        d.ownership.disconnect(actor, uuid.uuid4().hex, character, fence, 2, {})
+        before = tuple(self.store.db.iterdump())
+        status, result = self.call("GET", path, headers=headers)
+        self.assertEqual((status, result["result"]["status"], result["result"]["session_fence"]), (200, "DISCONNECTED", 2))
+        self.assertEqual(before, tuple(self.store.db.iterdump()))
+        d.ownership.resume(actor, uuid.uuid4().hex, character, "cordon", fence, 3)
+        status, result = self.call("GET", path, headers=headers)
+        self.assertEqual((status, result["result"]["status"], result["result"]["session_fence"]), (200, "ACTIVE", 3))
+
+    def test_player_admission_requires_exact_bound_scope_and_bounded_query(self):
+        binding = f"{self.world.world_id}:{self.world.seed}:{self.store.epoch}"
+        headers = {"X-LostZone-Instance": "a" * 32, "X-LostZone-World": binding}
+        request = {"command_id": uuid.uuid4().hex, "operation": "location_claim", "arguments": {"location": "cordon"}}
+        status, result = self.call("POST", "/v1/command", request, headers=headers)
+        self.assertEqual(status, 200)
+        args = dict(account="alice", slot=1, location="cordon", fence=result["result"]["fence"], epoch=self.store.epoch)
+        def path(changes=None):
+            return "/v1/player-admission?" + urlencode(args | (changes or {}))
+        before = tuple(self.store.db.iterdump())
+        for token in ("a" * 48, "d" * 48):
+            self.assertEqual(self.call("GET", path(), token=token)[0], 403)
+        self.assertEqual(self.call("GET", path(), token=None)[0], 401)
+        self.assertEqual(self.call("GET", path())[0], 400)
+        self.assertEqual(self.call("GET", path(), headers={"X-LostZone-Instance": "a" * 32})[0], 400)
+        self.assertEqual(self.call("GET", path(), headers={"X-LostZone-World": binding})[0], 400)
+        self.assertEqual(self.call("GET", path(), headers=headers | {"X-LostZone-Instance": "b" * 32})[0], 409)
+        self.assertEqual(self.call("GET", path(), headers=headers | {"X-LostZone-World": f"{self.world.world_id+1}:{self.world.seed}:{self.store.epoch}"})[0], 409)
+        for changes in ({"location": "garbage"},):
+            self.assertEqual(self.call("GET", path(changes), headers=headers)[0], 403)
+        for changes in ({"epoch": self.store.epoch + 1}, {"fence": args["fence"] + 1}):
+            self.assertEqual(self.call("GET", path(changes), headers=headers)[0], 409)
+        for changes in ({"slot": "01"}, {"slot": 11}, {"slot": ""}, {"slot": "1 "}, {"slot": "-1"},
+                        {"epoch": "1.0"}, {"fence": "9" * 20}, {"account": "../bad"}, {"account": "a" * 1025}):
+            self.assertEqual(self.call("GET", path(changes), headers=headers)[0], 400)
+        for query in ("account=alice", urlencode(args) + "&slot=1", urlencode(args) + "&other=1", urlencode(args).replace("slot=1", "slot=")):
+            self.assertEqual(self.call("GET", "/v1/player-admission?" + query, headers=headers)[0], 400)
+        self.server.ready.clear()
+        self.assertEqual(self.call("GET", path(), headers=headers)[0], 503)
+        self.server.ready.set()
+        self.assertEqual(before, tuple(self.store.db.iterdump()))
+
     def test_runtime_instances_cannot_share_or_renew_another_process_lease(self):
         a, b = {"X-LostZone-Instance": "a" * 32}, {"X-LostZone-Instance": "b" * 32}
         def command(operation, arguments, headers, command_id=None):

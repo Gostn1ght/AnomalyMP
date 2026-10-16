@@ -13,6 +13,117 @@ from master_entry import AuditStream
 
 
 class MasterEntryTest(unittest.TestCase):
+    def test_packaged_player_admission_is_read_only_and_bound_to_runtime(self):
+        import base64
+        import hashlib
+        import http.client
+        import json
+        import re
+        import sqlite3
+        import time
+        import uuid
+        from urllib.parse import urlencode
+        from lostzone.native_save import identity
+        from test_native_save import native_fixture
+        executable = os.environ.get("LOSTZONE_MASTER_TEST_EXE")
+        command = [executable] if executable else [sys.executable, str(Path(__file__).resolve().parents[1] / "master_entry.py")]
+        with tempfile.TemporaryDirectory(prefix="master admission test ") as temporary:
+            root = Path(temporary)
+            config = root / "private config.json"
+            subprocess.run([*command, "init", "--config", str(config), "--location", "cordon", "--world-id", "42", "--seed", "7"],
+                           check=True, capture_output=True, timeout=60)
+            original = config.read_bytes()
+            credential = json.loads(original)["credentials"]["location:cordon"]["token"]
+            instance = uuid.uuid4().hex
+            with (root / "stdout.log").open("wb") as output, (root / "stderr.log").open("wb") as errors:
+                process = subprocess.Popen([*command, "console", "--config", str(config), "--port", "0"],
+                    stdin=subprocess.PIPE, stdout=output, stderr=errors, text=True, encoding="utf-8",
+                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+                try:
+                    deadline, port = time.monotonic() + 30, None
+                    while time.monotonic() < deadline:
+                        self.assertIsNone(process.poll(), "isolated admission master exited before readiness")
+                        match = re.search(rb"listening on 127\.0\.0\.1:(\d+)", (root / "stdout.log").read_bytes())
+                        if match:
+                            port = int(match[1])
+                            break
+                        time.sleep(.05)
+                    self.assertIsNotNone(port, "isolated admission master readiness timeout")
+                    epoch = None
+
+                    def call(method, path, body=None, extra=None):
+                        headers = {"Authorization": "Bearer " + credential, "Content-Type": "application/json",
+                                   "X-LostZone-Instance": instance}
+                        if epoch is not None:
+                            headers["X-LostZone-World"] = f"42:7:{epoch}"
+                        headers.update(extra or {})
+                        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+                        try:
+                            connection.request(method, path, None if body is None else json.dumps(body), headers)
+                            response = connection.getresponse()
+                            return response.status, json.loads(response.read())
+                        finally:
+                            connection.close()
+
+                    def mutate(operation, arguments, command_id=None):
+                        status, data = call("POST", "/v1/command", {"command_id": command_id or uuid.uuid4().hex,
+                                             "operation": operation, "arguments": arguments})
+                        self.assertEqual(status, 200, "isolated admission master command refused")
+                        return data["result"]
+
+                    status, clock = call("GET", "/v1/clock")
+                    self.assertEqual(status, 200)
+                    epoch = clock["result"]["authority_epoch"]
+                    fence = mutate("location_claim", {"location": "cordon"})["fence"]
+                    path = "/v1/player-admission?" + urlencode(dict(account="pilot", slot=1, location="cordon", fence=fence, epoch=epoch))
+                    status, observation = call("GET", path)
+                    self.assertEqual((status, observation["result"]["status"]), (200, "ABSENT"))
+                    character = identity(42, 7, "pilot", 1)
+                    mutate("entity_create", dict(entity_id=character, kind="CHARACTER", location="cordon", fence=fence, account="pilot", state={}))
+                    raw = native_fixture(9)
+                    digest = hashlib.sha256(raw).hexdigest()
+                    upload = mutate("native_save_begin", dict(character_id=character, fence=fence, session_fence=1,
+                        entity_version=1, base_revision=0, slot=1, byte_count=len(raw), sha256=digest))["upload_id"]
+                    scope = dict(character_id=character, fence=fence, session_fence=1, upload_id=upload)
+                    self.assertEqual(call("GET", path)[0], 409)
+                    mutate("native_save_append", scope | dict(offset=0, data=base64.b64encode(raw).decode()))
+                    command_id = uuid.uuid4().hex
+                    saved = mutate("native_save_finish", scope, command_id)
+                    self.assertEqual(mutate("native_save_finish", scope, command_id), saved)
+                    for _ in range(3):
+                        status, observation = call("GET", path)
+                        self.assertEqual((status, observation["result"]["status"], observation["result"]["entity_version"]), (200, "ACTIVE", 2))
+                        self.assertEqual(observation["result"]["checkpoint"], dict(revision=1, sha256=digest, bytes=len(raw)))
+                    status, page = call("GET", "/v1/player-save?" + urlencode(dict(character_id=character, fence=fence, session_fence=1, revision=1)))
+                    self.assertEqual(status, 200)
+                    self.assertEqual(base64.b64decode(page["result"]["data"]), raw)
+                    mutate("session_disconnect", dict(character_id=character, fence=fence, version=2, state={}))
+                    status, observation = call("GET", path)
+                    self.assertEqual((status, observation["result"]["status"], observation["result"]["session_fence"]), (200, "DISCONNECTED", 2))
+                    mutate("session_resume", dict(character_id=character, location="cordon", fence=fence, version=3))
+                    status, observation = call("GET", path)
+                    self.assertEqual((status, observation["result"]["status"], observation["result"]["entity_version"],
+                                      observation["result"]["session_fence"]), (200, "ACTIVE", 4, 3))
+                    self.assertEqual(call("GET", path, extra={"X-LostZone-Instance": uuid.uuid4().hex})[0], 409)
+                    self.assertEqual(call("GET", path, extra={"X-LostZone-World": f"43:7:{epoch}"})[0], 409)
+                finally:
+                    if process.poll() is None:
+                        try:
+                            process.communicate("quit\n", timeout=15)
+                        except (subprocess.TimeoutExpired, OSError):
+                            process.kill()
+                            process.communicate(timeout=10)
+                self.assertEqual(process.returncode, 0)
+            self.assertEqual(config.read_bytes(), original)
+            with contextlib.closing(sqlite3.connect(root / "world.sqlite")) as db:
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM entity").fetchone()[0], 1)
+                self.assertEqual(db.execute("SELECT version FROM entity WHERE id=?", (character,)).fetchone()[0], 4)
+                self.assertEqual(db.execute("SELECT state,fence FROM player_session").fetchone(), ("ACTIVE", 3))
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM native_player_save").fetchone()[0], 1)
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM native_player_upload").fetchone()[0], 0)
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM command_result").fetchone()[0], 7)
+                self.assertEqual(base64.b64decode(db.execute("SELECT payload_base64 FROM native_player_save").fetchone()[0]), raw)
+
     def test_packaged_native_import_dry_run_and_durable_stage(self):
         import base64
         import json
