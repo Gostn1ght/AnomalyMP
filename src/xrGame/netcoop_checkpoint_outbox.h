@@ -306,6 +306,25 @@ public:
         if(!checkpoint_hex(character,32)) throw std::invalid_argument("outbox character identity");
         return index_["history"].contains(character) ? bridge_unsigned(index_["history"],character.c_str()):0;
     }
+    std::map<std::string,std::uint64_t> generations() const
+    {
+        std::map<std::string,std::uint64_t> result;
+        for(auto it=index_["history"].begin();it!=index_["history"].end();++it)
+            result.emplace(it.key(),bridge_unsigned(index_["history"],it.key().c_str()));
+        return result;
+    }
+    std::vector<CheckpointCapture> captures() const
+    {
+        std::vector<CheckpointCapture> result;
+        for(const auto& job:index_["jobs"]) result.push_back(capture(job));
+        return result;
+    }
+    std::size_t capture_bytes(const std::string& character,std::uint64_t generation) const
+    {
+        for(const auto& job:index_["jobs"])
+            if(job["character_id"]==character && job["generation"]==generation) return std::size_t(bridge_unsigned(job,"bytes"));
+        throw std::out_of_range("outbox capture not found");
+    }
     CheckpointStep advance(const std::string& character,const CheckpointRequest& request)
     {
         const auto position=first(character);

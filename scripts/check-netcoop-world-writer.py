@@ -27,14 +27,18 @@ from test_native_save import native_fixture
 source = r'''
 #define NOMINMAX
 #include "netcoop_checkpoint_outbox.h"
+#include "netcoop_checkpoint_worker.h"
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <iterator>
 #include <memory>
 #include <set>
+#include <atomic>
+#include <thread>
 using namespace netcoop_world;
 template<class F>void rejects(F f){bool failed=false;try{f();}catch(const std::exception&){failed=true;}assert(failed);}
 #ifdef _WIN32
@@ -196,6 +200,96 @@ void outbox_checks(char** argv,const WriterConfig& config,const std::string& ins
  }
  std::cout<<"PASS durable checkpoint outbox: hard process death after SQLite Finish, same-command replay, per-character FIFO/generation barrier, disk-publication failures, fresh proof after restart, fencing, exact latest bytes\n";
  std::cout<<"PASS actual outbox files: exclusive process lock, Unicode path, count/64MiB budget, corruption/missing index preserved, bounded orphan cleanup, unknown files and hardlinks refused\n";
+}
+template<class F>void eventually(F condition){
+ const auto end=GetTickCount64()+10000;
+ while(!condition()){assert(GetTickCount64()<end);Sleep(5);}
+}
+void worker_checks(char** argv,const std::string& instance,std::uint64_t epoch,const std::string& character,
+ std::uint64_t fence,std::uint64_t session,const std::string& next_raw,const std::string& last_raw){
+ const auto root=outbox_root(argv[3])+L".worker";
+ CheckpointWorkerScope context;std::memcpy(context.location,"garbage",8);std::memcpy(context.instance,instance.c_str(),33);
+ context.world=71;context.epoch=epoch;context.fence=fence;context.lease_ms=3000;
+ auto ticket=[&](std::uint64_t generation,std::uint64_t version,std::uint64_t revision){
+  CheckpointWorkerCapture result;std::memcpy(result.character,character.c_str(),33);
+  result.generation=generation;result.session=session;result.version=version;result.revision=revision;result.slot=1;return result;
+ };
+ CheckpointWorkerResult result;result.revision=999;
+ CheckpointWorker worker;assert(!worker.poll(nullptr,1,result) && result.revision==0);
+ assert(!worker.submit(ticket(1,10,5),last_raw.data(),last_raw.size()));
+ assert(worker.start(argv[2],root.c_str(),context));
+ eventually([&]{return worker.status().ready;});
+ std::uint64_t floor=99;assert(worker.generation_floor(character.c_str(),floor) && floor==0);
+ assert(!worker.release(character.c_str(),1));
+ assert(worker.submit(ticket(1,10,5),next_raw.data(),next_raw.size()));
+ eventually([&]{return worker.poll(character.c_str(),1,result) && result.state==CheckpointCaptureState::Durable;});
+ assert(result.latest_submitted && result.revision==6 && result.version==11 && result.bytes==next_raw.size());
+ // Block publication of a NEW capture while keeping an older durable receipt.
+ // The renewal thread must continue despite the pump's storage failures.
+ HANDLE held=CreateFileW((root+L"\\outbox.next").c_str(),GENERIC_READ|GENERIC_WRITE,0,nullptr,CREATE_ALWAYS,0,nullptr);
+ assert(held!=INVALID_HANDLE_VALUE);
+ auto mutable_capture=last_raw;
+ assert(worker.submit(ticket(2,11,6),mutable_capture.data(),mutable_capture.size()));mutable_capture.assign("producer changed");
+ eventually([&]{return worker.status().storage_error;});
+ assert(worker.poll(character.c_str(),1,result) && result.state==CheckpointCaptureState::Durable && !result.latest_submitted);
+ assert(worker.poll(character.c_str(),2,result) && result.state==CheckpointCaptureState::Buffered);
+ const auto renewals=worker.status().lease_renewals;
+ Sleep(3500);assert(worker.status().lease_renewals>=renewals+2 && !worker.status().authority_lost);
+ assert(worker.release(character.c_str(),1));
+ CloseHandle(held);
+ eventually([&]{return !worker.poll(character.c_str(),1,result);});
+ eventually([&]{return worker.poll(character.c_str(),2,result) && result.state==CheckpointCaptureState::Durable;});
+ assert(result.latest_submitted && result.revision==7 && result.version==12 && std::string(result.sha256)==checkpoint_sha256(last_raw));
+ assert(!worker.submit(ticket(1,10,5),next_raw.data(),next_raw.size()));
+ assert(worker.stop());
+ // Reopen the real journal and obtain fresh Finish proof; no new save revision.
+ assert(worker.start(argv[2],root.c_str(),context));eventually([&]{return worker.status().ready;});
+ assert(worker.generation_floor(character.c_str(),floor) && floor==2);
+ eventually([&]{return worker.poll(character.c_str(),2,result) && result.state==CheckpointCaptureState::Durable;});
+ assert(result.revision==7 && result.latest_submitted);
+ assert(worker.release(character.c_str(),2));eventually([&]{return !worker.poll(character.c_str(),2,result);});
+ assert(worker.stop());
+ assert(worker.start(argv[2],root.c_str(),context));eventually([&]{return worker.status().ready;});
+ assert(worker.generation_floor(character.c_str(),floor) && floor==2);
+ // The shared count budget includes memory, spool and unconsumed receipts.
+ for(unsigned i=0;i<outbox_jobs;++i) assert(worker.submit(ticket(i+3,i+12,i+7),last_raw.data(),last_raw.size()));
+ assert(worker.status().captures==outbox_jobs);
+ assert(!worker.submit(ticket(35,44,39),last_raw.data(),last_raw.size()));
+ eventually([&]{return worker.poll(character.c_str(),3,result) && result.state==CheckpointCaptureState::Durable;});
+ assert(result.revision==8 && !result.latest_submitted);
+ assert(worker.stop()); // Stages all remaining accepted memory, not a network drain.
+ {
+  const auto config=WriterConfig::parse(text_file(argv[2]),"garbage");
+  CheckpointOutbox recovered(root,config,instance,epoch);assert(recovered.captures().size()==outbox_jobs);
+  assert(recovered.accepted_generation(character)==34);
+ }
+ // Concurrent producers use different identities; the master refuses their
+ // unknown entities, and the worker retains those staged refusals for recovery.
+ assert(worker.start(argv[2],(root+L".concurrent").c_str(),context));eventually([&]{return worker.status().ready;});
+ std::atomic<unsigned> accepted{0};std::vector<std::thread> producers;
+ for(unsigned thread=0;thread<4;++thread) producers.emplace_back([&,thread]{
+  for(unsigned i=0;i<8;++i){auto value=ticket(1,1,0);std::snprintf(value.character,sizeof(value.character),"%032x",100+thread*8+i);
+   if(worker.submit(value,"NCH9",4)) ++accepted;}
+ });
+ for(auto& producer:producers) producer.join();assert(accepted==32 && worker.status().captures==32);
+ assert(worker.stop());
+ assert(worker.start(argv[2],(root+L".bytes").c_str(),context));eventually([&]{return worker.status().ready;});
+ std::string large(checkpoint_limit,'x');large.replace(0,4,"NCH9");
+ for(unsigned i=0;i<3;++i){auto value=ticket(1,1,0);std::memset(value.character,char('a'+i),32);assert(worker.submit(value,large.data(),large.size()));}
+ auto value=ticket(1,1,0);std::memset(value.character,'d',32);assert(!worker.submit(value,large.data(),large.size()));
+ large.resize(4*1024*1024);assert(worker.submit(value,large.data(),large.size()));
+ std::memset(value.character,'e',32);assert(!worker.submit(value,"NCH9",4));assert(worker.status().bytes==outbox_bytes);
+ assert(worker.stop());
+ // An already-owned scope is REQUIRED. Wrong instance cannot claim/recover it.
+ auto wrong=context;std::memset(wrong.instance,'9',32);
+ assert(worker.start(argv[2],(root+L".fenced").c_str(),wrong));
+ eventually([&]{return worker.status().authority_lost;});assert(!worker.status().ready);
+ assert(!worker.submit(ticket(1,1,0),last_raw.data(),last_raw.size()));assert(worker.stop());
+ wrong=context;++wrong.world;
+ assert(worker.start(argv[2],(root+L".badconfig").c_str(),wrong));
+ eventually([&]{return worker.status().configuration_error;});assert(!worker.status().initialized && !worker.stop());
+ std::cout<<"PASS actual threaded checkpoint worker: owned producer bytes, independent lease renewal during disk refusal, latest submitted generation, fresh replay on restart, local shutdown drain and shared count/64MiB bounds\n";
+ std::cout<<"PASS worker authority/engine boundary: concurrent producers, retained refusals, no takeover, wrong world config, fixed credential-free diagnostics and noexcept lifecycle\n";
 }
 #endif
 int main(int argc,char** argv){
@@ -418,6 +512,8 @@ int main(int argc,char** argv){
  assert(command(dst,c,"location_renew",{{"location","garbage"},{"fence",tf},{"ttl_ms",60000}}));
  outbox_checks(argv,dst,c,epoch,character,tf,frozen_session+1,raw,
   checkpoint_unbase64(fixture["next_raw"].get<std::string>()),checkpoint_unbase64(fixture["last_raw"].get<std::string>()));
+ worker_checks(argv,c,epoch,character,tf,frozen_session+1,
+  checkpoint_unbase64(fixture["next_raw"].get<std::string>()),checkpoint_unbase64(fixture["last_raw"].get<std::string>()));
  std::cout<<"PASS native checkpoint client: Python-compatible UUID5/SHA256, lost begin/append/finish replies, bound cursor recovery, commit replay, exact binary download, unexposed corrupt/partial reads\n";
  std::cout<<"PASS actual WinHTTP NCH9 chunks: cancel, stale writer, durable replay, exact read, disconnect/resume, fenced handoff read before activation\n";
  std::cout<<"PASS actual WinHTTP master: separate runtime leases, scope/world/epoch checks, frozen source, group NPC+mutant+inventory transferred with the same IDs, idempotent commit\n";
@@ -506,7 +602,7 @@ with TemporaryDirectory(prefix="world-writer-") as tmp:
     cpp.write_text(source, encoding="utf-8")
     include = str(root / "src/xrGame")
     command = (["cl", "/nologo", "/std:c++17", "/EHsc", "/W4", "/WX", "/O2", "/I"+include,
-                str(cpp), "/Fe:"+str(exe), "/link", "winhttp.lib"] if os.name == "nt" else
+                str(cpp), str(root / "src/xrGame/netcoop_checkpoint_worker.cpp"), "/Fe:"+str(exe), "/link", "winhttp.lib"] if os.name == "nt" else
                ["g++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-O2", "-I", include, str(cpp), "-o", str(exe)])
     subprocess.run(command, cwd=tmp, check=True)
     if os.name != "nt":
@@ -560,8 +656,8 @@ with TemporaryDirectory(prefix="world-writer-") as tmp:
             payload = store.db.execute("SELECT payload_base64 FROM native_player_save ORDER BY revision DESC LIMIT 1").fetchone()[0]
             assert base64.b64decode(payload) == native_fixture(9,progress=b"queued generation30 newest complete progress")
             assert store.db.execute("SELECT COUNT(*) FROM native_player_save").fetchone()[0] == 2
-            assert store.db.execute("SELECT MAX(revision) FROM native_player_save").fetchone()[0] == 5
-            assert store.db.execute("SELECT COUNT(*) FROM world_event WHERE type='NativePlayerSaveCommitted'").fetchone()[0] == 5
+            assert store.db.execute("SELECT MAX(revision) FROM native_player_save").fetchone()[0] == 8
+            assert store.db.execute("SELECT COUNT(*) FROM world_event WHERE type='NativePlayerSaveCommitted'").fetchone()[0] == 8
         finally:
             proxy.shutdown()
             proxy.server_close()
