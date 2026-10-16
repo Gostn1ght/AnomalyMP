@@ -457,7 +457,7 @@ int main(int argc,char** argv){
   if(fault==3)bad["home"]=src.location;if(fault==4)bad["entity_version"]=1;
   rejects([&]{PlayerSlotObservation::parse(bad,src,epoch,"alice",1,sf);});
  }
- {auto extra=staged_body;extra["home"]="l02_garbage";rejects([&]{PlayerSlotObservation::parse(extra,src,epoch,"alice",1,sf);});}
+ {auto stray=staged_body;stray["home"]="l02_garbage";rejects([&]{PlayerSlotObservation::parse(stray,src,epoch,"alice",1,sf);});}
  auto page_path=[&](std::uint64_t fence,std::uint64_t session,const BridgeJson& offset){
   return "/v1/player-save?character_id="+character+"&fence="+std::to_string(fence)+
    "&session_fence="+std::to_string(session)+"&revision=1&offset="+std::to_string(offset.get<std::uint64_t>());
