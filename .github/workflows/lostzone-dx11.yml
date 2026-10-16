@@ -87,6 +87,7 @@ jobs:
           python scripts/check-netcoop-barter.py
           python scripts/check-netcoop-barter-client.py
           python scripts/check-netcoop-vehicles.py
+          python scripts/check-netcoop-helicopter.py
           python scripts/check-vehicle-source-audit.py
           python scripts/check-netcoop-ground.py
           python scripts/check-netcoop-voice.py
@@ -176,6 +177,8 @@ jobs:
           python scripts/check-native-car-lights.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-car-suspension.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-helicopter.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-hud-light-projection.py
           if errorlevel 1 exit /b %errorlevel%

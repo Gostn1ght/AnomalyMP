@@ -2627,12 +2627,13 @@ void CCar::netcoop_heli_step(float dt)
 	NetcoopHeli& h = m_netcoop_heli;
 	CPhysicsShell* shell = PPhysicsShell();
 	IKinematics* K = smart_cast<IKinematics*>(Visual());
-	if (!shell || !K || dt <= 0.f)
+	if (!shell || !K || !_valid(dt) || dt <= 0.f || !shell->get_ElementsNumber())
 		return;
-	auto root = bone_map.find(K->LL_GetBoneRoot());
-	if (root == bone_map.end() || !root->second.element)
+	// bone_map is static construction scratch, overwritten by the next car's
+	// spawn. Flight must only ever apply forces to this helicopter's shell.
+	CPhysicsElement* body = shell->get_ElementByStoreOrder(0);
+	if (!body)
 		return;
-	CPhysicsElement* body = root->second.element;
 	const u8 keys = m_netcoop_keys;
 	// Rotor spool and collective. An empty tank spools the rotor down.
 	const float spool_target = b_engine_on && m_fuel > 0.f ? 1.f : 0.f;
