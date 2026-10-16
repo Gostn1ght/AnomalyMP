@@ -21,6 +21,8 @@ car = (ROOT / 'src/xrGame/Car.cpp').read_text(encoding='utf-8')
 header = (ROOT / 'src/xrGame/Car.h').read_text(encoding='utf-8')
 flight = body(car, 'void CCar::netcoop_heli_step(')
 safe_cycle = body(car, 'static CBlend* car_play_cycle_safe(')
+gravity = '\n'.join(body(car, signature) for signature in (
+    'void CCar::PhTune(', 'float CCar::EffectiveGravity(', 'float CCar::AntiGravityAccel('))
 heli = header[header.index('struct NetcoopHeli'):header.index('} m_netcoop_heli;') + len('} m_netcoop_heli;')]
 source = r'''
 #include <cassert>
@@ -30,6 +32,10 @@ source = r'''
 #include <limits>
 #include <algorithm>
 #include <string>
+#ifdef _MSC_VER
+// The unchanged legacy PhTune signature does not consume its timestep.
+#pragma warning(disable:4100)
+#endif
 using u8=uint8_t;using u32=uint32_t;
 using LPCSTR=const char*;
 constexpr bool FALSE=false;
@@ -59,6 +65,7 @@ struct IKinematics{};
 template<class T>T smart_cast(IKinematics* k){return static_cast<T>(k);}
 struct CPhysicsElement {
  Fmatrix form;Fvector force,torque;unsigned force_calls=0;
+ bool isActive(){return true;}bool isEnabled(){return true;}float getMass(){return 2500;}
  void GetGlobalTransformDynamic(Fmatrix* f){*f=form;}
  void applyForce(float x,float y,float z){force.mad(Fvector{x,y,z},1);++force_calls;}
  void applyTorque(float x,float y,float z){torque.mad(Fvector{x,y,z},1);}
@@ -83,6 +90,7 @@ struct FakeSpace {
 struct FakeLevel{FakeSpace ObjectSpace;};
 FakeLevel& Level(){static FakeLevel level;return level;}
 struct{u32 dwTimeGlobal=1;}Device;
+struct CPHUpdateObject{static bool IsActive(){return true;}};
 struct CCar {
  enum:u8{netcoop_key_forward=1,netcoop_key_back=2,netcoop_key_left=4,netcoop_key_right=8,
   netcoop_key_handbrake=16,netcoop_key_down=32,netcoop_key_yaw_left=64,netcoop_key_yaw_right=128};
@@ -91,11 +99,13 @@ struct CCar {
  CPhysicsShell* PPhysicsShell(){return test_shell;}
  IKinematics* Visual(){return has_visual?&visual:nullptr;}
  void netcoop_heli_step(float dt);
-''' + heli + '\n};\n' + flight + '\n' + safe_cycle + r'''
+ void PhTune(float);float EffectiveGravity();float AntiGravityAccel();
+''' + heli + '\n};\n' + gravity + '\n' + flight + '\n' + safe_cycle + r'''
 void step(CCar& car,unsigned ticks){
  auto& s=*car.test_shell;
  for(unsigned t=0;t<ticks;++t){
   Device.dwTimeGlobal+=10;s.element.force.set(0,0,0);s.element.torque.set(0,0,0);
+  car.PhTune(.01f);
   car.netcoop_heli_step(.01f);
   s.velocity.y+=(s.element.force.y/s.mass-9.81f)*.01f;
   s.element.form.c.y+=s.velocity.y*.01f;
@@ -111,6 +121,12 @@ int main(){
  assert(car_play_cycle_safe(&animated,"missing")==nullptr&&animated.played==2);
  assert(car_play_cycle_safe(nullptr,"idle")==nullptr);
  CPhysicsShell one,two;CCar a,b;a.test_shell=&one;b.test_shell=&two;
+ a.m_netcoop_heli.on=b.m_netcoop_heli.on=true;
+ assert(std::fabs(a.EffectiveGravity()-9.81f)<1e-6f&&a.AntiGravityAccel()==0);
+ a.PhTune(.01f);assert(one.element.force_calls==0);
+ CPhysicsShell road;CCar car;car.test_shell=&road;
+ assert(std::fabs(car.EffectiveGravity()-4.905f)<1e-6f);
+ car.PhTune(.01f);assert(std::fabs(road.element.force.y-2500*4.905f)<.01f);
  a.m_netcoop_heli.rotor=b.m_netcoop_heli.rotor=1;
  a.m_netcoop_heli.collective=b.m_netcoop_heli.collective=.7f;
  // A second vehicle may have been constructed last. No shared bone map is
@@ -134,7 +150,7 @@ int main(){
  step(a,1000);assert(one.element.form.c.y<.5f&&std::fabs(one.velocity.y)<1);
  a.m_netcoop_keys=0;a.b_engine_on=false;one.element.form.c.y=50;step(a,1200);
  assert(a.m_netcoop_heli.rotor<.01f&&one.element.form.c.y<.5f);
- std::puts("PASS actual helicopter step: independent bodies, invalid/empty guards, hover/climb/release/descent, engine-off spool, missing startup cycle fallback; ODE and clients still require live testing");
+ std::puts("PASS actual helicopter step and PhTune gravity: independent bodies, legacy car gravity retained, no extra heli lift, invalid/empty guards, hover/climb/release/descent, engine-off spool, missing startup cycle fallback; ODE and clients still require live testing");
 }
 '''
 if os.environ.get('GITHUB_ACTIONS') != 'true':

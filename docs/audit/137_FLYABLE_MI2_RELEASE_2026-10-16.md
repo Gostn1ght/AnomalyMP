@@ -67,10 +67,45 @@ The native fixture executes the actual helper for missing `$editor`, valid
 idle, missing both, and null visual. The compatibility probe is not flight
 acceptance and its fatal error remains part of the evidence, not a passing run.
 
-Full CI, isolated native spawn test, installation and launcher publication
-are pending. Do not call flight/animation/two-client acceptance complete.
+The corrected full CI is now successful (details below). Isolated native
+spawn acceptance, installation and launcher publication are pending. Do not call flight/animation/two-client acceptance complete.
 Master `e3fcbf1f1` is retained; no account, character or world is wiped.
 
 Full DCP integration, the owner's FBX conversions, M3 and H09/H11 remain
 separate open work. Doc136's "helicopters not started" reflects its earlier
 snapshot; the implementation above supersedes it without claiming acceptance.
+
+## Corrected native build
+
+- Native source `89e6e525cb7b794e81c7bcb7baee13061cbf073d`; DX11 run
+  `38952431366` completed successfully (Linux checks, actual Windows native
+  fixtures including the helicopter/optional-animation helper, complete engine).
+- Deployable artifact verified into `J:\LostZone_Work\_work\ci_89e6e525c`:
+  45 entries, separate client/server EXE ZIP CRC checks, matching source stamp.
+- Native client/dedicated SHA256:
+  `f29d5f5bec4882a902f9c93915738c048b4bf6de6865c7a805293687fb7b6f41`.
+- Base dependencies independently located in the shipped protected archives:
+  `veh\veh_mi2.dds` and `veh\veh_mi24_vint.dds` in
+  `50_textures_textures.db3`; `weapons\heli_explosion.ogg` in
+  `40_sounds_sounds.db0`. They do not need duplicate patch assets.
+- Owner-authorized publication target: game `2026.10.16.2`; existing launcher
+  executable version `1.2.5` is retained. Publication/installation still pending
+  the corrected native model probe; do not infer game acceptance from CI.
+
+## Actual ODE follow-up: inherited car anti-gravity
+
+The 89e6e525c probe spawned two Mi-2s and a trunk, started both engines,
+reached rotor RPM and stopped both engines without a fatal error. However its
+vertical response exposed an additional production bug: after a test-only
+upward velocity impulse, the unpiloted helicopter continued climbing about
+3.6 m/s (Y at 15/20/25 s: 14.97/33.08/51.19). Its initial finite/spawn checks
+passed but **hover acceptance did not**; that build was not published.
+
+Cause: `CCar::PhTune` adds the road car's half-gravity compensation while the
+rotor controller already balances full world gravity. Helicopters now bypass
+that car-only compensation and report full `EffectiveGravity`; ordinary road
+cars retain their existing behavior. The native fixture now executes the
+actual PhTune/EffectiveGravity/AntiGravityAccel together with the flight step,
+including a road-car control case. The real native probe now requires low
+vertical speed and bounded altitude drift before reporting PASS. A successful
+new build and repeat ODE probe are required before installation/publication.
