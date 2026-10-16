@@ -2262,6 +2262,25 @@ static bool accessible_corpse(xrClientData* CL, CSE_Abstract* entity)
 		!inventory->deadbody_closed_status() && actor->Position().distance_to(body->Position()) <= 3.f;
 }
 
+bool server_inventory_pickup_allowed(xrServer* server,ClientID sender,u16 owner_id,u16 item_id)
+{
+	LPCSTR failure=server_inventory_take_failure(server,owner_id,item_id);
+	if (!failure) return true;
+	static xr_map<u32,u32> told;
+	const u32 now=Device.dwTimeGlobal;
+	u32& last=told[sender.value()];
+	if (!last || now-last>=2000)
+	{
+		last=now;
+		Msg("! [NetAnomaly][inv] pickup of %u by %u refused: %s",item_id,owner_id,failure);
+		NET_Packet reply;
+		reply.w_begin(M_NETANOMALY_MSG);
+		reply.w_stringZ(make_string("! Pickup refused: %s",failure).c_str());
+		server->SendTo(sender,reply,net_flags(TRUE,TRUE));
+	}
+	return false;
+}
+
 // A player's own landing (CActor::g_Physics, owner 2026-10-17: no damage
 // jumping out of a helicopter). Movement is the owner's, so only the owner's
 // client sees the ground contact; it sends a strike hit on its own actor by

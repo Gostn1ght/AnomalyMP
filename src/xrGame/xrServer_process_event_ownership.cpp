@@ -57,7 +57,7 @@ void xrServer::Process_event_ownership(NET_Packet& P, ClientID sender, u32 time,
 	}
 
 	if (0xffff != e_entity->ID_Parent) return;
-	if (!netcoop::server_inventory_can_take(this,id_parent,id_entity)) return;
+	if (!netcoop::server_inventory_pickup_allowed(this,sender,id_parent,id_entity)) return;
 
 	xrClientData* c_parent = e_parent->owner;
 	xrClientData* c_entity = e_entity->owner;
