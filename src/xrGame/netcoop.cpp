@@ -1724,7 +1724,10 @@ static bool finish_auth(xrServer* server, PendingAuth* pending)
     }
     xr_string redirect;
     bool location_starting = false;
-    if (cluster_route(server, a->login.c_str(), pending->slot, redirect, &location_starting))
+    // With the world master the master's location decides (the answer
+    // ELSEWHERE redirects): following the local file as well sent a player
+    // back and forth between two maps when they disagreed after a crash.
+    if (!admission_active() && cluster_route(server, a->login.c_str(), pending->slot, redirect, &location_starting))
     {
         cluster_lease_release(a->login.c_str());
         cluster_send_redirect(server, CL, redirect.c_str());
@@ -1864,7 +1867,20 @@ static void admission_logins_update(xrServer* server)
 			Msg("[Lost Zone][master] %s slot %u admitted by the world master%s", login.c_str(), pending->slot,
 				result.master_bytes ? " (its newer save is used)" : "");
 		}
-		else Msg("! [Lost Zone][master] %s slot %u: %s - local save only", login.c_str(), pending->slot, reason);
+		else
+		{
+			Msg("! [Lost Zone][master] %s slot %u: %s - local save only", login.c_str(), pending->slot, reason);
+			// No master answer: the local file's map decides, as without one.
+			xr_string redirect;
+			if (cluster_route(server, login.c_str(), pending->slot, redirect))
+			{
+				cluster_lease_release(login.c_str());
+				cluster_send_redirect(server, CL, redirect.c_str());
+				CL->netcoop_login = NULL;
+				free_pending(pending);
+				continue;
+			}
+		}
 		finish_login(server, CL, a, pending);
 		free_pending(pending);
 	}
