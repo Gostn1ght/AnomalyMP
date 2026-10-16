@@ -20,7 +20,7 @@ def function(path, marker):
 
 characters = (root/'src/xrGame/netcoop_characters.inc').read_text(encoding='utf-8')
 assert 'character.inventory_cells = storage_live_capacity(runtime);' in characters
-assert 'fwrite(&character.inventory_cells,4,1,f)' in characters
+assert 'output.write(&character.inventory_cells, 4);' in characters
 source = r'''
 #include <cassert>
 #include <cmath>
