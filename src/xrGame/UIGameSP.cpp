@@ -285,7 +285,7 @@ void CUIGameSP::ChangeLevel(GameGraph::_GRAPH_ID game_vert_id,
 		if (CDialogHolder* holder = UIChangeLevelWnd->GetHolder())
 			holder->StopDialog(UIChangeLevelWnd);
 		else
-			UIChangeLevelWnd->Show(false);
+			UIChangeLevelWnd->CUIDialogWnd::Show(false);
 	}
 	if (TopInputReceiver() != UIChangeLevelWnd)
 	{
