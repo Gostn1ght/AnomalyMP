@@ -93,7 +93,7 @@ function Initialize-Master([string]$RuntimeRoot, [string[]]$Locations) {
     }
     foreach ($location in $Locations) {
         $writer = Join-Path $RuntimeRoot "appdata\server\netcoop_world_writer_$location.json"
-        $code = Master-Run @('-m','lostzone','writer-config','--config','runtime\config.json','--location',$location,'--destination',$writer,'--replace')
+        $code = Master-Run @('-m','lostzone','writer-config','--config','runtime\config.json','--location',$location,'--destination',$writer,'--replace','--add-location')
         if ($code -ne 0) { throw "Мастер не смог выдать карте $location доступ к журналу (код $code)." }
     }
 }

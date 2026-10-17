@@ -1,5 +1,6 @@
 """Local backend configuration and service lifecycle."""
 import argparse
+import contextlib
 import json
 import os
 from pathlib import Path
@@ -107,6 +108,40 @@ def create_bridge_config(config_path, destination, *, local_world_id=None, local
     with os.fdopen(descriptor,"wb") as file:
         file.write(encoded);file.flush();os.fsync(file.fileno())
     return destination
+
+
+def add_location_credential(config_path, location):
+    """A map added to the plan after init gets its own credential (owner
+    2026-10-17: the panel adds every map, a master made for six refused the
+    rest). Only a missing one is created; the master reads it on its next start."""
+    if not isinstance(location, str) or not re.fullmatch(r"[A-Za-z0-9_]{1,64}", location):
+        raise Invalid("invalid engine location name")
+    config_path = Path(config_path).resolve()
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    if config.get("schema") != 1:
+        raise Invalid("unsupported service configuration")
+    credentials = config.get("credentials")
+    Credentials(credentials)
+    actor = "location:" + location
+    if actor in credentials:
+        return False
+    if any(location in entry.get("locations", []) for entry in credentials.values()):
+        raise Invalid("another credential already covers this location")
+    credentials[actor] = {"role": "location", "locations": [location], "token": secrets.token_urlsafe(48)}
+    Credentials(credentials)
+    temporary = config_path.with_name(config_path.name + "." + secrets.token_hex(16) + ".tmp")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "wb") as output:
+            output.write(json.dumps(config, ensure_ascii=False, indent=2).encode("utf-8"))
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, config_path)
+    except BaseException:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(temporary)
+        raise
+    return True
 
 
 def create_writer_config(config_path, destination, location, *, replace=False):
@@ -295,6 +330,7 @@ def main():
     parser.add_argument("--local-seed", type=int, help="existing ALife checkpoint seed; bridge-config only")
     parser.add_argument("--authority", action="store_true", help="bridge-config: every map follows this master")
     parser.add_argument("--replace", action="store_true", help="bridge-config --authority or writer-config: rewrite an existing private file")
+    parser.add_argument("--add-location", action="store_true", help="writer-config: create the credential of a map added to the plan after init")
     parser.add_argument("--source", help="player-migration: stopped location's native save directory")
     parser.add_argument("--commit-import", action="store_true", help="player-migration: archive validated saves in the offline master DB")
     parser.add_argument("--gateway-port", type=int, help="serve/console: public TCP entry for players (0 = off)")
@@ -305,6 +341,8 @@ def main():
         raise Invalid("world bootstrap options apply only to init")
     if args.mode != "player-migration" and (args.source or args.commit_import):
         raise Invalid("native import options apply only to player-migration")
+    if args.mode != "writer-config" and args.add_location:
+        raise Invalid("--add-location applies only to writer-config")
     if args.mode != "bridge-config" and any(value is not None for value in (args.local_world_id, args.local_seed)):
         raise Invalid("local checkpoint binding options apply only to bridge-config")
     if args.mode == "player-migration":
@@ -314,6 +352,8 @@ def main():
     elif args.mode == "writer-config":
         if not args.destination or len(args.location) != 1 or args.authority:
             raise Invalid("writer-config requires one location and its destination")
+        if args.add_location:
+            add_location_credential(args.config, args.location[0])
         create_writer_config(args.config, args.destination, args.location[0], replace=args.replace)
     elif args.mode == "init":
         create_config(args.config, args.location, world_id=args.world_id, seed=args.seed,

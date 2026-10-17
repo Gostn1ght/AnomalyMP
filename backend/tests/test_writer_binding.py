@@ -67,6 +67,30 @@ class WriterBindingTest(unittest.TestCase):
             self.assertEqual("cordon", json.loads(dest.read_bytes())["location"])
             self.assertFalse(list(Path(folder).glob("*.tmp")))
 
+    def test_a_map_added_after_init_gets_only_its_own_new_credential(self):
+        with tempfile.TemporaryDirectory() as folder:
+            config = Path(folder) / "config.json"
+            create_config(config, ["cordon"], world_id=71, seed=0)
+            before = json.loads(config.read_bytes())
+            dest = Path(folder) / "netcoop_world_writer_jupiter.json"
+            args = ["lostzone", "writer-config", "--config", str(config), "--destination", str(dest), "--location", "jupiter"]
+            with patch.object(sys, "argv", args), self.assertRaises(Invalid):
+                main()
+            self.assertEqual(before, json.loads(config.read_bytes()))
+            with patch.object(sys, "argv", args + ["--add-location"]), patch("lostzone.__main__.Store", side_effect=AssertionError("unexpected world open")):
+                main()
+            after = json.loads(config.read_bytes())
+            self.assertEqual(before["credentials"], {k: v for k, v in after["credentials"].items() if k != "location:jupiter"})
+            self.assertEqual({k: v for k, v in before.items() if k != "credentials"}, {k: v for k, v in after.items() if k != "credentials"})
+            principal = Credentials(after["credentials"]).authenticate("Bearer " + json.loads(dest.read_bytes())["token"])
+            self.assertEqual(("location", ("jupiter",)), (principal.role, principal.locations))
+            with patch.object(sys, "argv", args + ["--add-location"]):
+                main()
+            self.assertEqual(after, json.loads(config.read_bytes()))
+            self.assertFalse(list(Path(folder).glob("*.tmp")))
+            with patch.object(sys, "argv", ["lostzone", "init", "--config", str(Path(folder) / "x.json"), "--add-location"]), self.assertRaises(Invalid):
+                main()
+
     def test_cli_exports_without_starting_or_opening_a_world(self):
         with tempfile.TemporaryDirectory() as folder:
             config = Path(folder) / "config.json"
