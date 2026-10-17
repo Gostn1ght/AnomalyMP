@@ -275,8 +275,10 @@ struct AdmissionCoordinator::State
             const auto claim=command("transfer_claim",{{"token",job.token},{"target_fence",fence}},result,job.deadline);
             if(claim==CheckpointStep::Retry)
                 return refuse(job,"the world master did not answer for this passage",AdmissionState::Unavailable);
-            const auto transfer=result.value("id",std::string());
-            if(claim==CheckpointStep::Rejected || !checkpoint_hex(transfer,32) || result.value("entity_id",std::string())!=id)
+            // A refusal leaves no result object to read.
+            const bool reply=claim==CheckpointStep::Complete && result.is_object();
+            const auto transfer=reply ? result.value("id",std::string()):std::string();
+            if(!reply || !checkpoint_hex(transfer,32) || result.value("entity_id",std::string())!=id)
                 stale_token=true;
             else if(result.value("state",std::string())!="COMMITTED" &&
                 command("transfer_commit",{{"transfer_id",transfer},{"target_fence",fence}},result,job.deadline)!=CheckpointStep::Complete)
