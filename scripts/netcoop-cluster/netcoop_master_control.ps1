@@ -82,19 +82,26 @@ function Initialize-Master([string]$RuntimeRoot, [string[]]$Locations) {
         $code = Master-Run $arguments
         if ($code -ne 0) { throw "Мастер не смог создать конфигурацию (код $code)." }
     }
-    # The maps' key to the master: one file for every map of this folder.
+    [IO.Directory]::CreateDirectory((Join-Path $RuntimeRoot 'appdata\server')) | Out-Null
+    # Each map's own key. One run of the master per map takes seconds (33 maps
+    # made every start wait minutes): only a missing key or one older than
+    # the master's config is written again, then stamped as current.
+    foreach ($location in $Locations) {
+        $writer = Join-Path $RuntimeRoot "appdata\server\netcoop_world_writer_$location.json"
+        if ((Test-Path -LiteralPath $writer) -and (Get-Item -LiteralPath $writer).LastWriteTimeUtc -ge (Get-Item -LiteralPath $masterConfig).LastWriteTimeUtc) { continue }
+        $code = Master-Run @('-m','lostzone','writer-config','--config','runtime\config.json','--location',$location,'--destination',$writer,'--replace','--add-location')
+        if ($code -ne 0) { throw "Мастер не смог выдать карте $location доступ к журналу (код $code)." }
+        (Get-Item -LiteralPath $writer).LastWriteTimeUtc = [DateTime]::UtcNow
+    }
+    # The maps' key to the master: one file for every map of this folder
+    # (after the maps: a map added above changes the config).
     $bridge = Join-Path $RuntimeRoot 'appdata\server\netcoop_world_bridge.json'
-    [IO.Directory]::CreateDirectory((Split-Path $bridge)) | Out-Null
     $fresh = -not (Test-Path -LiteralPath $bridge) -or (Get-Item -LiteralPath $bridge).LastWriteTimeUtc -lt (Get-Item -LiteralPath $masterConfig).LastWriteTimeUtc -or
         -not (Select-String -LiteralPath $bridge -Pattern '"authority"' -Quiet)
     if ($fresh) {
         $code = Master-Run @('-m','lostzone','bridge-config','--config','runtime\config.json','--destination',$bridge,'--authority','--replace')
         if ($code -ne 0) { throw "Мастер не смог выдать картам ключ доступа (код $code)." }
-    }
-    foreach ($location in $Locations) {
-        $writer = Join-Path $RuntimeRoot "appdata\server\netcoop_world_writer_$location.json"
-        $code = Master-Run @('-m','lostzone','writer-config','--config','runtime\config.json','--location',$location,'--destination',$writer,'--replace','--add-location')
-        if ($code -ne 0) { throw "Мастер не смог выдать карте $location доступ к журналу (код $code)." }
+        (Get-Item -LiteralPath $bridge).LastWriteTimeUtc = [DateTime]::UtcNow
     }
 }
 # Players enter only this machine's address (owner 2026-10-17): the master's
