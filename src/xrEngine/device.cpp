@@ -538,9 +538,19 @@ void CRenderDevice::on_idle()
 		else
 			rr = refresh_rate;
 
+		// The menu and the pause (owner 2026-10-17: the menu loaded the PC too
+		// much): at most 60 frames, and the wait sleeps instead of spinning a
+		// whole CPU core at the monitor's refresh rate. In game the limiter
+		// keeps its exact busy wait.
+		const bool idle_screen = Device.Paused() || IsMainMenuActive();
+		if (idle_screen && rr < 1.f / 60.f)
+			rr = 1.f / 60.f;
 		time_span = std::chrono::duration_cast<std::chrono::duration<float>>(tcurrentf - tlastf);
 		while (time_span.count() < rr)
 		{
+			const float left = rr - time_span.count();
+			if (idle_screen && left > 0.003f)
+				Sleep(DWORD((left - 0.002f) * 1000.f));
 			tcurrentf = std::chrono::high_resolution_clock::now();
 			time_span = std::chrono::duration_cast<std::chrono::duration<float>>(tcurrentf - tlastf);
 		}
