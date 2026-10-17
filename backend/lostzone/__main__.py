@@ -154,7 +154,7 @@ def create_writer_config(config_path, destination, location, *, replace=False):
     return destination
 
 
-def run(path, port_override=None, interactive=False):
+def run(path, port_override=None, interactive=False, gateway_port=None, cluster=None):
     path = Path(path).resolve()
     config = json.loads(path.read_text(encoding="utf-8"))
     if config.get("schema") != 1:
@@ -213,6 +213,11 @@ def run(path, port_override=None, interactive=False):
                     code = getattr(signal, name)
                     previous_signals[code] = signal.signal(code, request_stop)
         print(f"Lost Zone World listening on 127.0.0.1:{server.server_address[1]}; epoch={store.epoch}", flush=True)
+        if gateway_port:
+            # Players enter only this machine's address (owner 2026-10-17).
+            from .gateway import Gateway, serve
+            serve(Gateway(store, world, cluster), gateway_port, stop)
+            print(f"Lost Zone entry for players on TCP port {gateway_port} (open it in the router as well)", flush=True)
         if interactive:
             from .console import run_console
             try:
@@ -292,6 +297,8 @@ def main():
     parser.add_argument("--replace", action="store_true", help="bridge-config --authority or writer-config: rewrite an existing private file")
     parser.add_argument("--source", help="player-migration: stopped location's native save directory")
     parser.add_argument("--commit-import", action="store_true", help="player-migration: archive validated saves in the offline master DB")
+    parser.add_argument("--gateway-port", type=int, help="serve/console: public TCP entry for players (0 = off)")
+    parser.add_argument("--cluster", help="serve/console: the location plan (netcoop_cluster.ltx) for the entry")
     args = parser.parse_args()
     if args.mode not in ("init", "player-migration") and any(value is not None for value in
                                    (args.world_id, args.seed, args.initial_ms, args.scale)):
@@ -322,7 +329,9 @@ def main():
                              authority=args.authority,replace=args.replace)
         print("Created private engine bridge configuration. Token is not printed.")
     else:
-        run(args.config, args.port, interactive=args.mode == "console")
+        if args.gateway_port is not None and not (0 <= args.gateway_port <= 65535 and (args.gateway_port == 0 or args.cluster)):
+            raise Invalid("the player entry needs a valid port and the location plan")
+        run(args.config, args.port, interactive=args.mode == "console", gateway_port=args.gateway_port or None, cluster=args.cluster)
 
 
 if __name__ == "__main__":

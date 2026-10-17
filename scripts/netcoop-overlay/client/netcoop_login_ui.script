@@ -140,6 +140,17 @@ local function parse_addr(addr)
 	return ip, port
 end
 
+-- Owner 2026-10-17: players enter only the world master's address. Its entry
+-- names a running location to connect to; the master then sends the character
+-- on to the map it lives on. Without a master there (a location address) the
+-- address is used as it is. The typed address stays the remembered one.
+local function route_addr(ip, port)
+	local to = netcoop_master_entry and netcoop_master_entry(ip .. ":" .. port) or ""
+	local rip, rport = string.match(to, "^([%w%.%-]+):(%d+)$")
+	if rip then return rip, rport end
+	return ip, port
+end
+
 class "netcoop_login_wnd" (CUIScriptWnd)
 
 function netcoop_login_wnd:__init(owner) super()
@@ -386,7 +397,8 @@ function netcoop_login_wnd:Connect(register)
 	write_last(login, ip .. ":" .. port)
 	netcoop_character(0, "", "stalker", 1, "")
 	auth_return = "pending"; auth_message = nil
-	if not netcoop_frontend_auth(string.format("%s/name=%s/port=%s", ip, login, port)) then
+	local cip, cport = route_addr(ip, port)
+	if not netcoop_frontend_auth(string.format("%s/name=%s/port=%s", cip, login, cport)) then
 		auth_return = nil
 		return self:SetMsg(tr("auth_failed"))
 	end
@@ -467,7 +479,8 @@ function netcoop_login_wnd:EnterWorld(slot, name, faction, economy, loadout)
 	netcoop_menu_radio.stop()
 	netcoop_preview_clear()
 	exec_console_cmd("main_menu off")
-	exec_console_cmd(string.format("start client(%s/name=%s/port=%s)", ip, login, port))
+	local cip, cport = route_addr(ip, port)
+	exec_console_cmd(string.format("start client(%s/name=%s/port=%s)", cip, login, cport))
 end
 
 
@@ -1290,7 +1303,8 @@ end
 function netcoop_login_wnd:StartServerProbe()
     netcoop_character(0, "", "stalker", 1, "")
     auth_return = "pending"
-    if not netcoop_frontend_auth(string.format("%s/name=%s/port=%s", self.pending_ip, self.pending_login, self.pending_port)) then
+    local cip, cport = route_addr(self.pending_ip, self.pending_port)
+    if not netcoop_frontend_auth(string.format("%s/name=%s/port=%s", cip, self.pending_login, cport)) then
         self.role_probe = nil; auth_return = nil; self:SetMsg(tr("auth_failed")); return
     end
     self:SetMsg(tr("connecting"))

@@ -1042,6 +1042,20 @@ static void client_cluster_transfer(LPCSTR data)
 	if (sscanf(data, "%127[^|]|%u|%63s", host, &port, level) != 3 || !port || port > 65535) return;
 	for (const char* c = host; *c; ++c)
 		if (!isalnum((unsigned char)*c) && *c != '.' && *c != '-' && *c != '_') return;
+	// The plan names the maps of one machine by 127.0.0.1 (owner 2026-10-17:
+	// players come in through the master's address): a player who reached
+	// this server from outside goes to the same machine's address.
+	if (!xr_strcmp(host, "127.0.0.1") || !xr_strcmp(host, "localhost") || !xr_strcmp(host, "0.0.0.0"))
+	{
+		char current[128] = {};
+		if (g_pGameLevel && Level().m_caClientOptions.size())
+			sscanf(Level().m_caClientOptions.c_str(), "%127[^/]", current);
+		bool usable = current[0] && xr_strcmp(current, "localhost") && xr_strcmp(current, "127.0.0.1");
+		for (const char* c = current; usable && *c; ++c)
+			usable = isalnum((unsigned char)*c) || *c == '.' || *c == '-';
+		if (usable)
+			xr_strcpy(host, current);
+	}
 	xr_string name = client_login();
 	if (name.empty() || !login_valid(name.c_str())) name = "player";
 	Msg("[Lost Zone][cluster] moving to %s at %s:%u", level, host, port);

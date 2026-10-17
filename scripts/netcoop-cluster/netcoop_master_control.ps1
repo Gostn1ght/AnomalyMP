@@ -97,14 +97,30 @@ function Initialize-Master([string]$RuntimeRoot, [string[]]$Locations) {
         if ($code -ne 0) { throw "Мастер не смог выдать карте $location доступ к журналу (код $code)." }
     }
 }
+# Players enter only this machine's address (owner 2026-10-17): the master's
+# public entry (TCP, [cluster] entry_port, default 1267 = the first map's UDP
+# port number; 0 = off) sends them to a running location.
+function Entry-Port([string]$RuntimeRoot) {
+    $plan = Join-Path $RuntimeRoot 'appdata\server\netcoop_cluster.ltx'
+    $section = ''
+    foreach ($line in @(Get-Content -LiteralPath $plan -Encoding Default -ErrorAction SilentlyContinue)) {
+        $text = ($line -split ';',2)[0].Trim()
+        if ($text -match '^\[(.+)\]$') { $section = $Matches[1]; continue }
+        if ($section -eq 'cluster' -and $text -match '^entry_port\s*=\s*(\d+)$') { return [int]$Matches[1] }
+    }
+    return 1267
+}
 function Start-Master([string]$RuntimeRoot, [string[]]$Locations) {
     if (@(Master-Processes).Count) { return 'Мастер уже работает.' }
     Initialize-Master $RuntimeRoot $Locations
+    $plan = Join-Path $RuntimeRoot 'appdata\server\netcoop_cluster.ltx'
+    $entry = Entry-Port $RuntimeRoot
+    $extra = if ($entry -gt 0 -and $entry -lt 65536) { " --gateway-port $entry --cluster `"$plan`"" } else { '' }
     if (Test-Path -LiteralPath $masterExe -PathType Leaf) {
-        Start-Process -FilePath $masterExe -WorkingDirectory $masterDir -ArgumentList 'console --config runtime\config.json' -WindowStyle Normal
+        Start-Process -FilePath $masterExe -WorkingDirectory $masterDir -ArgumentList ('console --config runtime\config.json' + $extra) -WindowStyle Normal
     } else {
         $title = 'Lost Zone - мастер мира'
-        Start-Process -FilePath 'cmd.exe' -WorkingDirectory $masterDir -ArgumentList "/c title $title & color 07 & python\python.exe -m lostzone console --config runtime\config.json || pause" -WindowStyle Normal
+        Start-Process -FilePath 'cmd.exe' -WorkingDirectory $masterDir -ArgumentList "/c title $title & color 07 & python\python.exe -m lostzone console --config runtime\config.json$extra || pause" -WindowStyle Normal
     }
     return 'Мастер запускается в своём окне.'
 }

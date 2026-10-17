@@ -636,6 +636,73 @@ bool script_login(LPCSTR login, LPCSTR password, bool register_account)
 bool client_admin_authorized() { return s_client_role_verified && s_client_role == role_admin; }
 int script_role() { return client_role(); }
 LPCSTR script_account() { return client_login(); }
+
+// Owner 2026-10-17: players enter only the world master's address. Its public
+// entry (backend/lostzone/gateway.py, TCP, by default the same number as the
+// first map's UDP port) names a running location; that location admits the
+// player and the master sends the character on to the map it lives on. ""
+// when no master answers there (a location address, an older host): the
+// address is then used as it is. At most ~1.5 s, on a button press only.
+LPCSTR script_master_entry(LPCSTR address)
+{
+	static string256 answer;
+	answer[0] = 0;
+	if (!address || xr_strlen(address) > 200) return answer;
+	xr_string text = address, host;
+	u32 port = 1267;
+	const size_t colon = text.rfind(':');
+	if (colon != xr_string::npos)
+	{
+		host = text.substr(0, colon);
+		port = u32(atoi(text.c_str() + colon + 1));
+	}
+	else host = text;
+	auto valid_host = [](const xr_string& value)
+	{
+		if (value.empty() || value.size() > 253) return false;
+		for (char c : value)
+			if (!isalnum(u8(c)) && c != '.' && c != '-') return false;
+		return true;
+	};
+	if (!valid_host(host) || port < 1 || port > 65535) return answer;
+	std::wstring wide(host.begin(), host.end());
+	HINTERNET session = WinHttpOpen(L"LostZone/1.0", WINHTTP_ACCESS_TYPE_NO_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+	if (!session) return answer;
+	WinHttpSetTimeouts(session, 1500, 1500, 1500, 1500);
+	HINTERNET connection = WinHttpConnect(session, wide.c_str(), INTERNET_PORT(port), 0);
+	HINTERNET request = connection ? WinHttpOpenRequest(connection, L"GET", L"/v1/entry", nullptr,
+		WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, 0) : nullptr;
+	std::string body;
+	DWORD status = 0, size = sizeof(status);
+	if (request && WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
+		WinHttpReceiveResponse(request, nullptr) &&
+		WinHttpQueryHeaders(request, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX,
+			&status, &size, WINHTTP_NO_HEADER_INDEX) && status == 200)
+	{
+		char buffer[1024];
+		DWORD read = 0;
+		while (body.size() < 4096 && WinHttpReadData(request, buffer, sizeof(buffer), &read) && read)
+			body.append(buffer, read);
+	}
+	if (request) WinHttpCloseHandle(request);
+	if (connection) WinHttpCloseHandle(connection);
+	WinHttpCloseHandle(session);
+	if (body.empty() || body.size() >= 4096) return answer;
+	try
+	{
+		const auto entry = nlohmann::json::parse(body);
+		if (!entry.is_object() || entry.value("schema", 0) != 1) return answer;
+		const xr_string target = entry.value("host", std::string()).c_str();
+		const int target_port = entry.value("port", 0);
+		const xr_string location = entry.value("location", std::string()).c_str();
+		if (target_port < 1 || target_port > 65535 || (!target.empty() && !valid_host(target))) return answer;
+		// No host of its own: the location runs on the master's machine.
+		xr_sprintf(answer, "%s:%d", target.empty() ? host.c_str() : target.c_str(), target_port);
+		Msg("[Lost Zone] the world master at %s sends players to %s (%s)", address, answer, location.c_str());
+	}
+	catch (...) { answer[0] = 0; }
+	return answer;
+}
 int script_account_state() { return !client_has_credentials() || !s_client_remembered ? 0 : s_client_approved ? 2 : 1; }
 static IRenderVisual* s_preview_visual = nullptr;
 static xr_string s_preview_name, s_preview_motion, s_preview_item_name;
