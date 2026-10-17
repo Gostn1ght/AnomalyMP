@@ -7,11 +7,7 @@ local DEF_ADDR  = "127.0.0.1:1267"
 local auth_return, auth_message
 local wnd
 local autojoin_done = false
--- Google (Firebase) sign-in is off for now (owner 2026-10-17: players should
--- register and log in without any trouble). Login and password go to the
--- game server; a Google account takes its password from its own computer.
-local CLOUD_SIGN_IN = rawget(_G, "netcoop_cloud_sign_in_test") == true -- off; the Lua checks turn it on
-local function cloud_enabled() return CLOUD_SIGN_IN and netcoop_firebase_request ~= nil end
+local function cloud_enabled() return netcoop_firebase_request ~= nil end
 local function account_state() return cloud_enabled() and netcoop_firebase_state() or netcoop_account_state() end
 local function tr(id) return game.translate_string("st_netcoop_" .. id) end
 local function email_valid(email)
