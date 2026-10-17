@@ -1,4 +1,8 @@
-﻿param([string]$Runtime = $PSScriptRoot)
+﻿# Lost Zone — мастер (owner 2026-10-17): one window for the world master, the
+# maps of this folder and the players on them. Tabs: maps, players (from the
+# rosters the maps write; administrator commands go back to them through the
+# shared cluster folder) and the master's console (its log + its command line).
+param([string]$Runtime = $PSScriptRoot, [switch]$StartMaster, [string]$Tab = 'locations', [string]$Snapshot = '')
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -115,14 +119,14 @@ try {
 } catch {}
 
 $form = [Windows.Forms.Form]::new()
-$form.Text = 'Lost Zone — локации сервера'
+$form.Text = 'Lost Zone — мастер'
 $form.Size = [Drawing.Size]::new(1160,860); $form.MinimumSize = [Drawing.Size]::new(900,620)
 $form.StartPosition = 'CenterScreen'; $form.BackColor = $C.bg; $form.ForeColor = $C.text; $form.Font = $fontUi
 $form.Add_HandleCreated({ try { $on = 1; [void][LostZone.Dwm]::DwmSetWindowAttribute($form.Handle, 20, [ref]$on, 4) } catch {} })
 
-$layout = [Windows.Forms.TableLayoutPanel]::new(); $layout.Dock = 'Fill'; $layout.ColumnCount = 1; $layout.RowCount = 6
+$layout = [Windows.Forms.TableLayoutPanel]::new(); $layout.Dock = 'Fill'; $layout.ColumnCount = 1; $layout.RowCount = 5
 $layout.Padding = [Windows.Forms.Padding]::new(24,18,24,10); $layout.BackColor = $C.bg
-foreach ($height in @(64, 74, -1, 54, 60, 26)) {
+foreach ($height in @(64, 74, 40, -1, 26)) {
     if ($height -lt 0) { [void]$layout.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Percent,100)) }
     else { [void]$layout.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,$height)) }
 }
@@ -136,7 +140,7 @@ function New-Label([string]$Text, $Font, $Color, [string]$Align = 'MiddleLeft') 
     $label.ForeColor = $Color; $label.TextAlign = $Align; $label.AutoEllipsis = $true; return $label
 }
 $title = New-Label 'LOST ZONE' $fontTitle $C.text 'BottomLeft'
-$subtitle = New-Label "Локации сервера · отметьте, какие запускать" $fontSmall $C.muted 'TopLeft'
+$subtitle = New-Label "Мастер мира · локации · игроки" $fontSmall $C.muted 'TopLeft'
 $summary = New-Label '' ([Drawing.Font]::new('Segoe UI Semibold',11)) $C.text 'BottomRight'
 $connection = New-Label '' $fontSmall $C.muted 'TopRight'
 $header.Controls.Add($title,0,0); $header.Controls.Add($summary,1,0); $header.Controls.Add($subtitle,0,1); $header.Controls.Add($connection,1,1)
@@ -189,28 +193,31 @@ function Update-Master {
     $listening = $running -and (Master-Listening)
     $script:masterState = if (-not (Test-Path -LiteralPath $masterPython)) { 'missing' } elseif ($listening) { 'running' } elseif ($running) { 'starting' } else { 'stopped' }
     $masterInfo.Text = switch ($script:masterState) {
-        'running'  { "Работает · 127.0.0.1:$masterPort · календарь, погода, выбросы и пси-шторма всех карт. Консоль — в отдельном окне." }
+        'running'  { "Работает · вход игроков: этот адрес, порт $(Entry-Port $Runtime) TCP · календарь, погода, выбросы и пси-шторма всех карт." }
         'starting' { 'Запускается…' }
         'missing'  { 'Не установлен: в hoster\master нет Python. Скопируйте папку сервера целиком.' }
         default    { 'Выключен. Без мастера карты не пускают игроков: он ведёт календарь, погоду, выбросы и пси-шторма.' }
     }
     $masterToggle.Text = if ($running) { 'Остановить мастер' } else { 'Запустить мастер' }
-    $masterShow.Enabled = $running
     $masterDot.Invalidate()
 }
 
-$grid = [Windows.Forms.DataGridView]::new(); $grid.Dock = 'Fill'; $grid.ReadOnly = $true
-$grid.AllowUserToAddRows = $false; $grid.AllowUserToDeleteRows = $false; $grid.AllowUserToResizeRows = $false
-$grid.MultiSelect = $false; $grid.SelectionMode = 'FullRowSelect'; $grid.RowHeadersVisible = $false
-$grid.AutoSizeColumnsMode = 'Fill'; $grid.BorderStyle = 'None'; $grid.BackgroundColor = $C.bg
-$grid.CellBorderStyle = 'None'; $grid.GridColor = $C.line
-$grid.EnableHeadersVisualStyles = $false; $grid.ColumnHeadersBorderStyle = 'None'
-$grid.ColumnHeadersHeightSizeMode = 'DisableResizing'; $grid.ColumnHeadersHeight = 34
-$grid.ColumnHeadersDefaultCellStyle.BackColor = $C.bg; $grid.ColumnHeadersDefaultCellStyle.ForeColor = $C.dim
-$grid.ColumnHeadersDefaultCellStyle.SelectionBackColor = $C.bg; $grid.ColumnHeadersDefaultCellStyle.Font = $fontHead
-$grid.DefaultCellStyle.BackColor = $C.surface; $grid.DefaultCellStyle.ForeColor = $C.text
-$grid.DefaultCellStyle.SelectionBackColor = $C.hover; $grid.DefaultCellStyle.SelectionForeColor = $C.text
-$grid.RowTemplate.Height = 40
+function New-Grid {
+    $g = [Windows.Forms.DataGridView]::new(); $g.Dock = 'Fill'; $g.ReadOnly = $true
+    $g.AllowUserToAddRows = $false; $g.AllowUserToDeleteRows = $false; $g.AllowUserToResizeRows = $false
+    $g.MultiSelect = $false; $g.SelectionMode = 'FullRowSelect'; $g.RowHeadersVisible = $false
+    $g.AutoSizeColumnsMode = 'Fill'; $g.BorderStyle = 'None'; $g.BackgroundColor = $C.bg
+    $g.CellBorderStyle = 'None'; $g.GridColor = $C.line
+    $g.EnableHeadersVisualStyles = $false; $g.ColumnHeadersBorderStyle = 'None'
+    $g.ColumnHeadersHeightSizeMode = 'DisableResizing'; $g.ColumnHeadersHeight = 34
+    $g.ColumnHeadersDefaultCellStyle.BackColor = $C.bg; $g.ColumnHeadersDefaultCellStyle.ForeColor = $C.dim
+    $g.ColumnHeadersDefaultCellStyle.SelectionBackColor = $C.bg; $g.ColumnHeadersDefaultCellStyle.Font = $fontHead
+    $g.DefaultCellStyle.BackColor = $C.surface; $g.DefaultCellStyle.ForeColor = $C.text
+    $g.DefaultCellStyle.SelectionBackColor = $C.hover; $g.DefaultCellStyle.SelectionForeColor = $C.text
+    $g.RowTemplate.Height = 40
+    return ,$g
+}
+$grid = New-Grid
 $COL_CHECK=0; $COL_DOT=1; $COL_NAME=2; $COL_STATE=3; $COL_LOAD=4; $COL_PLAYERS=5; $COL_MODE=6; $COL_ADDR=7
 foreach ($column in @('','','ЛОКАЦИЯ','СОСТОЯНИЕ','ЗАГРУЗКА','ИГРОКИ','РЕЖИМ','АДРЕС')) { [void]$grid.Columns.Add("c$($grid.Columns.Count)",$column) }
 $weights = @(16, 10, 130, 100, 130, 46, 96, 100)
@@ -409,7 +416,7 @@ $masterToggle.Add_Click({
     } catch { $status.ForeColor = $C.red; $status.Text = $_.Exception.Message }
 })
 $masterShow = New-Button 'Консоль мастера'; $masterShow.Margin = [Windows.Forms.Padding]::new(0,6,0,0)
-$masterShow.Add_Click({ if (-not (Show-MasterConsole)) { $status.ForeColor = $C.amber; $status.Text = 'Окно мастера не найдено: возможно, он ещё запускается.' } })
+$masterShow.Add_Click({ Select-Tab 'console' })
 [void]$masterButtons.Controls.Add($masterToggle); [void]$masterButtons.Controls.Add($masterShow)
 $logs = New-Button 'Логи'
 $logs.Add_Click({
@@ -433,7 +440,190 @@ $grid.Add_CellMouseDown({
 $grid.ContextMenuStrip = $menu
 
 $status = New-Label 'Отметьте локации галочками и нажмите «Запустить отмеченные». Правая кнопка мыши — действие для одной карты.' $fontSmall $C.muted
-$layout.Controls.Add($header,0,0); $layout.Controls.Add($masterCard,0,1); $layout.Controls.Add($grid,0,2); $layout.Controls.Add($progressPanel,0,3); $layout.Controls.Add($actions,0,4); $layout.Controls.Add($status,0,5)
+
+# ---- tabs ----------------------------------------------------------------
+$pages = [Windows.Forms.Panel]::new(); $pages.Dock = 'Fill'; $pages.BackColor = $C.bg
+$tabBar = [Windows.Forms.FlowLayoutPanel]::new(); $tabBar.Dock = 'Fill'; $tabBar.WrapContents = $false; $tabBar.BackColor = $C.bg
+$script:tabs = [ordered]@{}; $script:currentTab = ''
+function New-Tab([string]$Key, [string]$Text, $Page) {
+    $b = [Windows.Forms.Button]::new(); $b.Text = $Text; $b.AutoSize = $true; $b.FlatStyle = 'Flat'; $b.FlatAppearance.BorderSize = 0
+    $b.Font = [Drawing.Font]::new('Segoe UI Semibold', 11); $b.ForeColor = $C.muted; $b.BackColor = $C.bg
+    $b.Margin = [Windows.Forms.Padding]::new(0,2,22,0); $b.Padding = [Windows.Forms.Padding]::new(0,0,0,0); $b.Cursor = [Windows.Forms.Cursors]::Hand
+    $b.FlatAppearance.MouseOverBackColor = $C.bg; $b.FlatAppearance.MouseDownBackColor = $C.bg
+    $b.Tag = $Key; $b.Add_Click({ Select-Tab ([string]$this.Tag) })
+    $Page.Dock = 'Fill'; $Page.Visible = $false; $pages.Controls.Add($Page)
+    $script:tabs[$Key] = @{ button = $b; page = $Page }; [void]$tabBar.Controls.Add($b)
+}
+function Select-Tab([string]$Key) {
+    if (-not $script:tabs.Contains($Key)) { $Key = 'locations' }
+    foreach ($k in $script:tabs.Keys) {
+        $on = $k -eq $Key; $t = $script:tabs[$k]
+        $t.page.Visible = $on; $t.button.ForeColor = if ($on) { $C.accent } else { $C.muted }
+    }
+    $script:currentTab = $Key
+    if ($Key -eq 'console') { [void]$consoleInput.Focus() }
+}
+
+# ---- maps ------------------------------------------------------------------
+$locPage = [Windows.Forms.TableLayoutPanel]::new(); $locPage.ColumnCount = 1; $locPage.RowCount = 3; $locPage.BackColor = $C.bg
+[void]$locPage.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Percent,100))
+[void]$locPage.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,54))
+[void]$locPage.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,60))
+$locPage.Controls.Add($grid,0,0); $locPage.Controls.Add($progressPanel,0,1); $locPage.Controls.Add($actions,0,2)
+
+# ---- players ---------------------------------------------------------------
+# Every running map lists its players (players_<port>.txt, every 2 s); an
+# action goes to the map the player is on (command_<port>.txt), where the
+# server runs it as its own console's administrator command.
+$playersPage = [Windows.Forms.TableLayoutPanel]::new(); $playersPage.ColumnCount = 1; $playersPage.RowCount = 2; $playersPage.BackColor = $C.bg
+[void]$playersPage.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Percent,100))
+[void]$playersPage.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,60))
+$playersGrid = New-Grid
+foreach ($column in @('ИГРОК','ПЕРСОНАЖ','ЛОКАЦИЯ','ФРАКЦИЯ','РОЛЬ','ПИНГ')) { [void]$playersGrid.Columns.Add("p$($playersGrid.Columns.Count)",$column) }
+$pweights = @(110, 130, 110, 90, 70, 50)
+for ($i = 0; $i -lt $pweights.Count; $i++) { $playersGrid.Columns[$i].FillWeight = $pweights[$i] }
+$playersGrid.Columns[5].DefaultCellStyle.ForeColor = $C.muted
+$playersGrid.Add_RowPostPaint({
+    param($sender, $e)
+    $y = $e.RowBounds.Bottom - 1
+    $e.Graphics.DrawLine($separator, $e.RowBounds.Left, $y, $e.RowBounds.Right, $y)
+})
+$portToMap = @{}
+foreach ($map in $locations.Keys) { $p = 0; if ([int]::TryParse(($locations[$map] -split ':')[-1], [ref]$p)) { $portToMap[$p] = $map } }
+$roles = @{ admin = 'Админ'; leader = 'Лидер'; player = 'Игрок' }
+function Refresh-Players {
+    $selected = if ($playersGrid.SelectedRows.Count) { $playersGrid.SelectedRows[0].Tag.login } else { $null }
+    $rows = [Collections.Generic.List[object]]::new()
+    foreach ($file in @(Get-ChildItem -LiteralPath $wakeDir -Filter 'players_*.txt' -ErrorAction SilentlyContinue)) {
+        if (((Get-Date) - $file.LastWriteTime).TotalSeconds -gt 15) { continue } # that map stopped
+        $port = 0; if (-not [int]::TryParse(($file.BaseName -replace '^players_',''), [ref]$port)) { continue }
+        $map = $portToMap[$port]
+        $text = try { Read-Shared $file.FullName } catch { '' }
+        foreach ($line in ($text -split "`r?`n")) {
+            $f = $line -split '\|'
+            if ($f.Count -lt 6 -or -not $f[0]) { continue }
+            $rows.Add([pscustomobject]@{ login = $f[0]; name = $f[1]; slot = $f[2]; faction = $f[3]; role = $f[4]; ping = $f[5]; port = $port; map = $map })
+        }
+    }
+    $playersGrid.SuspendLayout(); $playersGrid.Rows.Clear()
+    foreach ($r in ($rows | Sort-Object map, login)) {
+        $mapName = if ($r.map -and $mapNames[$r.map]) { $mapNames[$r.map] } elseif ($r.map) { $r.map } else { "порт $($r.port)" }
+        $roleName = if ($roles[$r.role]) { $roles[$r.role] } else { $r.role }
+        $index = $playersGrid.Rows.Add($r.login, $r.name, $mapName, $r.faction, $roleName, "$($r.ping) мс")
+        $playersGrid.Rows[$index].Tag = $r
+        if ($r.role -eq 'admin') { $playersGrid.Rows[$index].Cells[4].Style.ForeColor = $C.accent }
+        if ($selected -and $r.login -eq $selected) { $playersGrid.Rows[$index].Selected = $true }
+    }
+    $playersGrid.ResumeLayout()
+    $script:tabs['players'].button.Text = "Игроки · $($rows.Count)"
+    $script:rosterCount = $rows.Count
+    try { Update-Summary } catch {}
+}
+function Send-PlayerCommand([string]$Command, [int]$Port) {
+    [IO.Directory]::CreateDirectory($wakeDir) | Out-Null
+    [IO.File]::AppendAllText((Join-Path $wakeDir "command_$Port.txt"), "$Command`r`n", [Text.Encoding]::ASCII)
+}
+function Player-Action([string]$Kind) {
+    if (-not $playersGrid.SelectedRows.Count) { $status.ForeColor = $C.amber; $status.Text = 'Выберите игрока в списке.'; return }
+    $r = $playersGrid.SelectedRows[0].Tag
+    $faction = if ($r.faction) { $r.faction } else { 'stalker' }
+    $command, $text = switch ($Kind) {
+        'ban'      { "sv_ban $($r.login)", "Бан $($r.login): отключён и не войдёт ни на одну карту (по аккаунту и компьютеру)." }
+        'admin'    { "sv_account_role $($r.login) admin", "$($r.login) — администратор." }
+        'unadmin'  { "sv_account_role $($r.login) player", "$($r.login) — обычный игрок." }
+        'leader'   { "sv_leader $($r.login) $($r.slot) $faction", "$($r.login) — лидер фракции $faction." }
+        'unleader' { "sv_leader $($r.login) $($r.slot) off", "$($r.login) больше не лидер." }
+    }
+    if ($Kind -eq 'ban' -and [Windows.Forms.MessageBox]::Show($form, "Забанить $($r.login)? Он будет отключён и не сможет войти с этого аккаунта и компьютера.", 'Lost Zone', 'YesNo', 'Warning') -ne 'Yes') { return }
+    Send-PlayerCommand $command $r.port
+    $status.ForeColor = $C.muted; $status.Text = $text
+}
+$playerActions = [Windows.Forms.FlowLayoutPanel]::new(); $playerActions.Dock = 'Fill'; $playerActions.WrapContents = $false
+foreach ($entry in @(@('admin','Сделать админом'),@('unadmin','Снять админа'),@('leader','Лидер фракции'),@('unleader','Снять лидера'),@('ban','Забанить'))) {
+    $b = New-Button $entry[1] ($entry[0] -eq 'ban'); $b.Tag = $entry[0]; $b.Add_Click({ Player-Action ([string]$this.Tag) }); [void]$playerActions.Controls.Add($b)
+}
+$unban = New-Button 'Разбанить по логину…'
+$unban.Add_Click({
+    Add-Type -AssemblyName Microsoft.VisualBasic
+    $login = [Microsoft.VisualBasic.Interaction]::InputBox('Логин игрока, с которого снять бан:', 'Lost Zone', '')
+    if (-not $login -or $login -notmatch '^[\w.\-]{3,20}$') { return }
+    $running = @($portToMap.Keys | Where-Object { $stateByMap[$portToMap[$_]] -eq 'running' })
+    if (-not $running.Count) { $status.ForeColor = $C.amber; $status.Text = 'Снять бан может только работающая карта: запустите хотя бы одну.'; return }
+    Send-PlayerCommand "sv_unban $login" $running[0]
+    $status.ForeColor = $C.muted; $status.Text = "Бан снят: $login (для всех карт)."
+})
+[void]$playerActions.Controls.Add($unban)
+$playersPage.Controls.Add($playersGrid,0,0); $playersPage.Controls.Add($playerActions,0,1)
+
+# ---- master console ----------------------------------------------------------
+$consolePage = [Windows.Forms.TableLayoutPanel]::new(); $consolePage.ColumnCount = 1; $consolePage.RowCount = 2; $consolePage.BackColor = $C.bg
+[void]$consolePage.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Percent,100))
+[void]$consolePage.RowStyles.Add([Windows.Forms.RowStyle]::new([Windows.Forms.SizeType]::Absolute,48))
+$fontMono = [Drawing.Font]::new('Consolas', 10)
+$consoleOut = [Windows.Forms.RichTextBox]::new(); $consoleOut.Dock = 'Fill'; $consoleOut.ReadOnly = $true; $consoleOut.BorderStyle = 'None'
+$consoleOut.BackColor = $C.surface; $consoleOut.ForeColor = $C.text; $consoleOut.Font = $fontMono; $consoleOut.DetectUrls = $false
+$consoleOut.Margin = [Windows.Forms.Padding]::new(0,0,0,6)
+$consoleRow = [Windows.Forms.TableLayoutPanel]::new(); $consoleRow.Dock = 'Fill'; $consoleRow.ColumnCount = 2; $consoleRow.RowCount = 1
+[void]$consoleRow.ColumnStyles.Add([Windows.Forms.ColumnStyle]::new([Windows.Forms.SizeType]::Percent,100))
+[void]$consoleRow.ColumnStyles.Add([Windows.Forms.ColumnStyle]::new([Windows.Forms.SizeType]::AutoSize))
+$consoleInput = [Windows.Forms.TextBox]::new(); $consoleInput.Dock = 'Fill'; $consoleInput.BorderStyle = 'FixedSingle'
+$consoleInput.BackColor = $C.raised; $consoleInput.ForeColor = $C.text; $consoleInput.Font = [Drawing.Font]::new('Consolas', 11)
+$consoleInput.Margin = [Windows.Forms.Padding]::new(0,10,8,0)
+$consoleSend = New-Button 'Выполнить' $true; $consoleSend.Margin = [Windows.Forms.Padding]::new(0,4,0,0)
+$consoleRow.Controls.Add($consoleInput,0,0); $consoleRow.Controls.Add($consoleSend,1,0)
+$consolePage.Controls.Add($consoleOut,0,0); $consolePage.Controls.Add($consoleRow,0,1)
+function Console-Append([string]$Text, $Color) {
+    if (-not $Text) { return }
+    $consoleOut.SelectionStart = $consoleOut.TextLength; $consoleOut.SelectionLength = 0
+    $consoleOut.SelectionColor = $Color; $consoleOut.AppendText($Text)
+    if ($consoleOut.TextLength -gt 400000) { $consoleOut.Select(0, 100000); $consoleOut.ReadOnly = $false; $consoleOut.SelectedText = ''; $consoleOut.ReadOnly = $true }
+    $consoleOut.SelectionStart = $consoleOut.TextLength; $consoleOut.ScrollToCaret()
+}
+$script:history = [Collections.Generic.List[string]]::new(); $script:historyAt = 0
+function Console-Run {
+    $line = $consoleInput.Text.Trim(); $consoleInput.Text = ''
+    if (-not $line) { return }
+    $script:history.Add($line); $script:historyAt = $script:history.Count
+    Console-Append "master › $line`r`n" $C.accent
+    if (-not (Master-Listening)) { Console-Append "Мастер не запущен.`r`n" $C.red; return }
+    $answer = try { Master-Console $line } catch { "Команда не выполнена: $($_.Exception.Message)" }
+    Console-Append (($answer -replace "`r?`n", "`r`n") + "`r`n") $C.text
+}
+$consoleSend.Add_Click({ Console-Run })
+$consoleInput.Add_KeyDown({
+    param($sender, $e)
+    if ($e.KeyCode -eq 'Enter') { Console-Run; $e.SuppressKeyPress = $true }
+    elseif ($e.KeyCode -eq 'Up' -and $script:historyAt -gt 0) { $script:historyAt--; $consoleInput.Text = $script:history[$script:historyAt]; $consoleInput.SelectionStart = $consoleInput.TextLength; $e.SuppressKeyPress = $true }
+    elseif ($e.KeyCode -eq 'Down' -and $script:historyAt -lt $script:history.Count) {
+        $script:historyAt++; $consoleInput.Text = if ($script:historyAt -lt $script:history.Count) { $script:history[$script:historyAt] } else { '' }
+        $consoleInput.SelectionStart = $consoleInput.TextLength; $e.SuppressKeyPress = $true
+    }
+})
+# The master's own output: the newest log, followed as it grows.
+$script:logPath = $null; $script:logOffset = 0
+function Console-Tail {
+    $path = Master-LogPath $Runtime
+    if (-not $path) { return }
+    if ($path -ne $script:logPath) {
+        $script:logPath = $path; $script:logOffset = 0
+        Console-Append "─── $([IO.Path]::GetFileName($path)) ───`r`n" $C.dim
+    }
+    $stream = try { [IO.File]::Open($path, 'Open', 'Read', [IO.FileShare]'ReadWrite, Delete') } catch { return }
+    try {
+        if ($stream.Length -lt $script:logOffset) { $script:logOffset = 0 }
+        if ($stream.Length -eq $script:logOffset) { return }
+        [void]$stream.Seek($script:logOffset, 'Begin')
+        $count = [int][math]::Min(262144, $stream.Length - $script:logOffset)
+        $bytes = [byte[]]::new($count); $read = $stream.Read($bytes, 0, $count); $script:logOffset += $read
+        $text = [Text.Encoding]::UTF8.GetString($bytes, 0, $read) -replace ([string][char]27 + '\[[0-9;]*m'), ''
+        Console-Append ($text -replace "(?<!`r)`n", "`r`n") $C.muted
+    } finally { $stream.Dispose() }
+}
+
+New-Tab 'locations' 'Локации' $locPage
+New-Tab 'players' 'Игроки' $playersPage
+New-Tab 'console' 'Консоль мастера' $consolePage
+$layout.Controls.Add($header,0,0); $layout.Controls.Add($masterCard,0,1); $layout.Controls.Add($tabBar,0,2); $layout.Controls.Add($pages,0,3); $layout.Controls.Add($status,0,4)
 $form.Controls.Add($layout)
 
 $states=@{running='Работает';loading='Загружается';queued='В очереди';stopped='Выключена';saving='Сохраняется';memory='Ждёт память';loading_timeout='Загрузка затянулась'}
@@ -441,6 +631,8 @@ $modes=@{on='Включена';off='Выключена';auto='Автоматич
 function Update-Summary {
     $running = @($locations.Keys | Where-Object { $stateByMap[$_] -eq 'running' }).Count
     $players = 0; foreach ($row in $rowByMap.Values) { $n = 0; if ([int]::TryParse([string]$row.Cells[$COL_PLAYERS].Value, [ref]$n)) { $players += $n } }
+    # The maps' own rosters are fresher than the location rows (older maps write none).
+    if ($null -ne $script:rosterCount -and $script:rosterCount -gt $players) { $players = $script:rosterCount }
     $summary.Text = "Работает $running из $($locations.Count)   ·   игроков $players   ·   отмечено $(@(Checked-Maps).Count)"
     # Overall bar: the maps being brought up now (queued, loading or just finished).
     $active = @($locations.Keys | Where-Object { $stateByMap[$_] -in @('loading','queued') })
@@ -530,6 +722,24 @@ $refresh = {
     } catch { $status.ForeColor = $C.red; $status.Text = $_.Exception.Message }
 }
 $timer=[Windows.Forms.Timer]::new(); $timer.Interval=1000; $timer.Add_Tick($refresh); $timer.Start()
-$masterTimer=[Windows.Forms.Timer]::new(); $masterTimer.Interval=2000; $masterTimer.Add_Tick({ try { Update-Master } catch {} }); $masterTimer.Start()
+$masterTimer=[Windows.Forms.Timer]::new(); $masterTimer.Interval=2000; $masterTimer.Add_Tick({ try { Update-Master } catch {}; try { Refresh-Players } catch {} }); $masterTimer.Start()
+$consoleTimer=[Windows.Forms.Timer]::new(); $consoleTimer.Interval=700; $consoleTimer.Add_Tick({ try { Console-Tail } catch {} }); $consoleTimer.Start()
 if ($script:addedMaps) { $status.ForeColor = $C.muted; $status.Text = "Добавлены все локации ($($script:addedMaps) новых, не отмечены; старый план сохранён рядом как .before_all_maps). Новые запускаются сами, когда игрок идёт туда." }
-try { & $refresh; try { Update-Master } catch {}; [void]$form.ShowDialog() } finally { $timer.Stop(); $timer.Dispose(); $masterTimer.Stop(); $masterTimer.Dispose(); $form.Dispose() }
+# Start Master.cmd: the master comes up with this window.
+if ($StartMaster -and (Master-Available) -and -not @(Master-Processes).Count) {
+    try { $status.ForeColor = $C.muted; $status.Text = Start-Master $Runtime @($locations.Keys) } catch { $status.ForeColor = $C.red; $status.Text = $_.Exception.Message }
+}
+Select-Tab $Tab
+# -Snapshot <png>: build the window without showing it, draw it, exit (checks).
+if ($Snapshot) {
+    $form.ShowInTaskbar = $false; $form.Opacity = 0; $form.Show(); [Windows.Forms.Application]::DoEvents()
+    & $refresh; try { Update-Master } catch {}; try { Refresh-Players } catch {}; try { Console-Tail } catch {}
+    [Windows.Forms.Application]::DoEvents()
+    $bmp = [Drawing.Bitmap]::new($form.Width, $form.Height)
+    $form.DrawToBitmap($bmp, [Drawing.Rectangle]::new(0, 0, $form.Width, $form.Height)); $bmp.Save($Snapshot); $bmp.Dispose()
+    # A RichTextBox does not draw itself into a bitmap: its text goes beside the picture.
+    [IO.File]::WriteAllText("$Snapshot.console.txt", $consoleOut.Text, [Text.Encoding]::UTF8)
+    foreach ($t in @($timer, $masterTimer, $consoleTimer)) { $t.Stop(); $t.Dispose() }; $form.Close(); $form.Dispose(); return
+}
+try { & $refresh; try { Update-Master } catch {}; try { Refresh-Players } catch {}; try { Console-Tail } catch {}; [void]$form.ShowDialog() }
+finally { foreach ($t in @($timer, $masterTimer, $consoleTimer)) { $t.Stop(); $t.Dispose() }; $form.Dispose() }

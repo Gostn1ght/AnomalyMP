@@ -116,13 +116,52 @@ function Start-Master([string]$RuntimeRoot, [string[]]$Locations) {
     $plan = Join-Path $RuntimeRoot 'appdata\server\netcoop_cluster.ltx'
     $entry = Entry-Port $RuntimeRoot
     $extra = if ($entry -gt 0 -and $entry -lt 65536) { " --gateway-port $entry --cluster `"$plan`"" } else { '' }
+    # The master runs without a window of its own (owner 2026-10-17: the
+    # master is the window "Lost Zone — мастер" with the maps and players);
+    # its output goes to a log the window shows, commands go to its console.
+    $logs = Join-Path $RuntimeRoot 'appdata\server\netcoop_cluster'
+    [IO.Directory]::CreateDirectory($logs) | Out-Null
+    $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+    $out = Join-Path $logs "master_$stamp.log"; $err = Join-Path $logs "master_$stamp.err.log"
+    Get-ChildItem -LiteralPath $logs -Filter 'master_*.log' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -Skip 10 |
+        ForEach-Object { try { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop } catch {} }
+    $env:PYTHONIOENCODING = 'utf-8'; $env:PYTHONUNBUFFERED = '1'
     if (Test-Path -LiteralPath $masterExe -PathType Leaf) {
-        Start-Process -FilePath $masterExe -WorkingDirectory $masterDir -ArgumentList ('console --config runtime\config.json' + $extra) -WindowStyle Normal
+        Start-Process -FilePath $masterExe -WorkingDirectory $masterDir -ArgumentList ('serve --config runtime\config.json' + $extra) -WindowStyle Hidden -RedirectStandardOutput $out -RedirectStandardError $err
     } else {
-        $title = 'Lost Zone - мастер мира'
-        Start-Process -FilePath 'cmd.exe' -WorkingDirectory $masterDir -ArgumentList "/c title $title & color 07 & python\python.exe -m lostzone console --config runtime\config.json$extra || pause" -WindowStyle Normal
+        Start-Process -FilePath $masterPython -WorkingDirectory $masterDir -ArgumentList ('-m lostzone serve --config runtime\config.json' + $extra) -WindowStyle Hidden -RedirectStandardOutput $out -RedirectStandardError $err
     }
-    return 'Мастер запускается в своём окне.'
+    return 'Мастер запускается: его консоль — в окне «Lost Zone — мастер».'
+}
+function Master-LogPath([string]$RuntimeRoot) {
+    $logs = Join-Path $RuntimeRoot 'appdata\server\netcoop_cluster'
+    $latest = Get-ChildItem -LiteralPath $logs -Filter 'master_*.log' -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -notlike '*.err.log' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($latest) { return $latest.FullName } else { return $null }
+}
+# One console line for the master window: the master's own administrator
+# credential from its private config (read here, never shown or logged).
+function Master-Console([string]$Line) {
+    $config = Get-Content -LiteralPath $masterConfig -Raw -Encoding UTF8 | ConvertFrom-Json
+    $token = $null
+    foreach ($entry in $config.credentials.PSObject.Properties) { if ($entry.Value.role -eq 'admin') { $token = [string]$entry.Value.token; break } }
+    if (-not $token) { return 'У мастера нет учётной записи администратора.' }
+    $body = [Text.Encoding]::UTF8.GetBytes((@{ line = $Line } | ConvertTo-Json -Compress))
+    $request = [Net.WebRequest]::Create("http://127.0.0.1:$masterPort/v1/console")
+    $request.Method = 'POST'; $request.ContentType = 'application/json'; $request.Timeout = 5000
+    $request.Headers['Authorization'] = "Bearer $token"
+    try {
+        $stream = $request.GetRequestStream(); $stream.Write($body, 0, $body.Length); $stream.Dispose()
+        $response = $request.GetResponse()
+        try { $reader = [IO.StreamReader]::new($response.GetResponseStream(), [Text.Encoding]::UTF8); $answer = $reader.ReadToEnd() | ConvertFrom-Json }
+        finally { $response.Dispose() }
+        return [string]$answer.result.text
+    } catch [Net.WebException] {
+        $code = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
+        if ($code -eq 400) { return 'Команда не принята. help — список команд; остановка мастера — кнопкой.' }
+        if ($code -eq 503) { return 'Мастер ещё восстанавливает мир, повторите через несколько секунд.' }
+        return 'Мастер не отвечает.'
+    }
 }
 function Stop-Master {
     $processes = @(Master-Processes)
