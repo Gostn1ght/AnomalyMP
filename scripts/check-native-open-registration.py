@@ -9,12 +9,16 @@ text=(root/'src/xrGame/netcoop.cpp').read_text(encoding='utf-8-sig')
 start=text.index('static bool finish_auth(')
 end=text.index('    // Slot zero authenticates',start)
 admission=text[start:end]+'    return false;\n}\n' # the world master phase follows the prefix (doc 135)
+start=text.index('static bool read_account_link(')
+link_reader=text[start:text.index('\nvoid server_on_auth(',start)]
 source=r'''
 #include <algorithm>
 #include <cassert>
 #include <cctype>
 #include <map>
 #include <string>
+#include <vector>
+#include <cstring>
 using u32=unsigned;using LPCSTR=const char*;using xr_string=std::string;
 enum Role {role_none,role_player,role_admin};
 struct Account {
@@ -23,8 +27,8 @@ struct Account {
 };
 struct xrClientData {unsigned ID=1;xr_string netcoop_login;Role netcoop_role=role_none;};
 struct PendingAuth {
- unsigned client=1;xr_string login="Player",salt="fixture-salt",hash="fixture-digest",device="fixture-device",firebase_uid;
- bool create=false,hashed=true,firebase=false,claim=false;
+ unsigned client=1;xr_string login="Player",salt="fixture-salt",hash="fixture-digest",device="fixture-device",firebase_uid,legacy_hash;
+ bool create=false,hashed=true,firebase=false;
 };
 struct LoginInUse {xr_string login;xrClientData* self=nullptr;};
 std::map<xr_string,Account> s_accounts;bool s_accounts_dirty=false;
@@ -42,7 +46,19 @@ bool constant_time_equal(const xr_string& a,const xr_string& b){return a==b;}
 bool server_banned(const xr_string&,const xr_string&){return banned;}
 u32 GetTickCount(){return 1000;}
 void Msg(LPCSTR,...){ }
-''' + admission + r'''
+struct NET_Packet {
+ std::vector<unsigned char> bytes;u32 pos=0;
+ u32 r_tell()const{return pos;}u32 r_elapsed()const{return u32(bytes.size())-pos;}
+ void r_seek(u32 p){assert(p<=bytes.size());pos=p;}
+ u32 r_u32(){assert(r_elapsed()>=4);u32 v=0;for(unsigned i=0;i<4;++i)v|=u32(bytes[pos++])<<(8*i);return v;}
+};
+bool read_string(NET_Packet& p,char* out,unsigned capacity){
+ unsigned n=0;while(p.r_elapsed()){char c=char(p.bytes[p.pos++]);if(!c){out[n]=0;return true;}
+ if(n+1>=capacity)return false;out[n++]=c;}return false;
+}
+bool key_valid(LPCSTR key){return std::strlen(key)==64 && std::strspn(key,"0123456789abcdef")==64;}
+void SecureZeroMemory(void* p,unsigned n){std::memset(p,0,n);}
+''' + admission + link_reader + r'''
 void reset(){s_accounts.clear();s_accounts_dirty=false;test_client={};saves=0;rejection.clear();banned=false;}
 Account legacy(unsigned approval,Role role=role_player){
  Account a;a.login="Player";a.salt="fixture-salt";a.hash="fixture-digest";a.device="fixture-device";
@@ -84,18 +100,38 @@ int main(){
  assert(s_accounts.at("player").firebase_uid==request.firebase_uid);
  reset();server.disconnected=true;finish_auth(&server,&request);assert(s_accounts.empty() && !saves && rejection.empty());
  server.disconnected=false;
- // Google sign-in off (owner 2026-10-17): a Google account takes a password
- // from the computer it is bound to, and signs in with it afterwards.
- PendingAuth claim;claim.claim=true;claim.salt="new-fixture-salt";claim.hash="new-fixture-digest";
- reset();s_accounts["player"]=legacy(1);s_accounts["player"].firebase_uid="fixture-uid";s_accounts["player"].hash="firebase";
- finish_auth(&server,&claim);
- assert(rejection.empty() && test_client.netcoop_role==role_player && saves==1);
- assert(s_accounts.at("player").firebase_uid.empty() && s_accounts.at("player").salt=="new-fixture-salt" && s_accounts.at("player").hash=="new-fixture-digest");
- PendingAuth again;again.salt="new-fixture-salt";again.hash="new-fixture-digest";
- test_client={};rejection.clear();finish_auth(&server,&again);assert(rejection.empty() && test_client.netcoop_role==role_player);
- reset();s_accounts["player"]=legacy(1);s_accounts["player"].firebase_uid="fixture-uid";s_accounts["player"].hash="firebase";
- claim.device="other-fixture-device";finish_auth(&server,&claim);
- assert(!rejection.empty() && test_client.netcoop_role==role_none && s_accounts.at("player").hash=="firebase" && !saves);
+ // The 17.5 password migration erased the Google UID. Device alone cannot
+ // restore it: a verified Google identity AND the remembered old password
+ // are required, with all normal device/ban checks before persistence.
+ for(const xr_string proof: {xr_string(),xr_string("wrong"),xr_string("fixture-digest")}){
+  reset();s_accounts["player"]=legacy(1,role_admin);request.legacy_hash=proof;finish_auth(&server,&request);
+  const auto& a=s_accounts.at("player");
+  if(proof=="fixture-digest"){
+   assert(rejection.empty() && saves==1 && a.firebase_uid==request.firebase_uid && test_client.netcoop_role==role_admin);
+   assert(a.hash=="fixture-digest" && a.salt=="fixture-salt" && a.money==5000);
+  }else assert(rejection=="Wrong password" && !saves && a.firebase_uid.empty());
+ }
+ for(bool ban: {false,true}){
+  reset();s_accounts["player"]=legacy(1);banned=ban;request.device=ban?"fixture-device":"other";
+  finish_auth(&server,&request);assert(!rejection.empty() && !saves && s_accounts.at("player").firebase_uid.empty());
+ }
+ request.device="fixture-device";
+ reset();s_accounts["player"]=legacy(1);s_accounts["player"].firebase_uid="another-google-user";
+ finish_auth(&server,&request);assert(rejection=="Wrong password" && !saves);
+ // Matching verified Google UID works independently of an obsolete cached password.
+ reset();s_accounts["player"]=legacy(1);s_accounts["player"].firebase_uid=request.firebase_uid;
+ request.legacy_hash="obsolete";finish_auth(&server,&request);assert(rejection.empty() && !saves);
+ // Optional proof must not eat the storage marker of old/new clients.
+ for(unsigned n: {0u,1u,3u,4u,16u}){
+  NET_Packet p;p.bytes.assign(n,0x54);xr_string key;assert(read_account_link(p,key) && p.pos==0 && key.empty());
+ }
+ for(bool terminate: {false,true}){
+  NET_Packet p;p.bytes={0x4c,0x5a,0x4c,0x4b};p.bytes.insert(p.bytes.end(),64,'a');
+  if(terminate){p.bytes.push_back(0);p.bytes.insert(p.bytes.end(),{0x4c,0x5a,0x53,0x54});}
+  xr_string key;assert(read_account_link(p,key)==terminate);
+  if(terminate)assert(key==xr_string(64,'a') && p.r_u32()==0x54535a4c);
+ }
+ NET_Packet invalid;invalid.bytes={0x4c,0x5a,0x4c,0x4b,'z',0};xr_string key;assert(!read_account_link(invalid,key));
 }
 '''
 if os.environ.get('GITHUB_ACTIONS')!='true':
@@ -106,4 +142,4 @@ with TemporaryDirectory(prefix='open-registration-') as temporary:
     args=(['cl','/nologo','/std:c++17','/EHsc','/W4','/WX',str(cpp),'/Fe:'+str(exe)] if os.name=='nt'
           else ['g++','-std=c++17','-Wall','-Wextra','-Werror',str(cpp),'-o',str(exe)])
     subprocess.run(args,cwd=target,check=True);subprocess.run([str(exe)],cwd=target,check=True)
-print('PASS actual auth admission: Google accounts take a password from their own computer, immediate player registration, legacy approval migration, roles/credentials retained; wrong password/device/identity, duplicate login and bans still denied')
+print('PASS actual auth admission/link parser: verified Google plus old password recovery, storage rewind, truncated proof rejection; roles/credentials retained, wrong password/device/identity, duplicate login and bans denied')

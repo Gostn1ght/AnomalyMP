@@ -518,6 +518,13 @@ void client_write_auth(NET_Packet& P)
     P.w_stringZ(s_client_character_name.empty() ? "device_pda_1" : s_client_character_loadout.c_str());
     P.w_stringZ(client_device_key().c_str());
     if (cloud) { P.w_stringZ(s_client_description.c_str()); P.w_stringZ(s_client_history.c_str()); }
+	// Proof of the old server password when linking a migrated account back
+	// to Firebase. A client-supplied device digest is not an authentication key.
+	if (cloud && !xr_stricmp(s_client_login.c_str(), s_firebase_session.username.c_str()) && key_valid(s_client_key.c_str()))
+	{
+		P.w_u32(0x4b4c5a4c); // LZLK, followed by the remembered password key
+		P.w_stringZ(s_client_key.c_str());
+	}
 	storage_write_auth(P);
 	s_client_register = false;
 	s_client_role = role_none;
@@ -1489,9 +1496,7 @@ struct PendingAuth
 	xr_string key;
 	xr_string salt;
 	bool create;
-	// A Google (Firebase) account takes a password from its own computer
-	// (owner 2026-10-17: Google sign-in off for now).
-	bool claim = false;
+	xr_string legacy_key, legacy_hash; // verified old password, never device-only recovery
     StorageRequest storage;
 	u8 slot = 1, economy = 1;
 	xr_string character_name, faction = "stalker", loadout;
@@ -1515,6 +1520,8 @@ static void auth_worker(void* data)
             identity.verified && identity.username == pending->login.c_str() && identity.uid.size() <= 128 &&
             identity.uid.find_first_of("|\r\n") == std::string::npos;
         if (pending->hashed) pending->firebase_uid = identity.uid.c_str();
+		if (pending->hashed && !pending->legacy_key.empty())
+			server_hash(pending->legacy_key.c_str(), pending->salt, pending->legacy_hash);
     }
     else pending->hashed = server_hash(pending->key.c_str(), pending->salt, pending->hash);
 	InterlockedExchange(&pending->done, 1);
@@ -1529,6 +1536,23 @@ static PendingAuth* pending_auth_of(ClientID id)
 		if (waiting.pending->client == id)
 			return waiting.pending;
 	return NULL;
+}
+
+// Optional proof from a remembered local password. Leave the following
+// storage request untouched for old clients and for packets without proof.
+static bool read_account_link(NET_Packet& P, xr_string& key)
+{
+	const u32 start = P.r_tell();
+	if (P.r_elapsed() < 4 || P.r_u32() != 0x4b4c5a4c)
+	{
+		P.r_seek(start);
+		return true;
+	}
+	char legacy[65];
+	if (!read_string(P, legacy, sizeof(legacy)) || !key_valid(legacy)) return false;
+	key = legacy;
+	SecureZeroMemory(legacy, sizeof(legacy));
+	return true;
 }
 
 void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
@@ -1594,6 +1618,8 @@ void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
                 if (!read_string(P, description, sizeof(description)) || !read_string(P, history, sizeof(history)))
                 { xr_delete(pending); reject(server, CL, "Invalid character profile"); return; }
                 pending->description = description; pending->history = history;
+				if (!read_account_link(P, pending->legacy_key))
+				{ xr_delete(pending); reject(server, CL, "Invalid account linking proof"); return; }
             }
             if (P.r_elapsed())
             {
@@ -1636,19 +1662,11 @@ void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
 	}
 	else
 	{
-		if (a && !pending->firebase && !a->firebase_uid.empty())
+		if (a && !pending->firebase && a->hash == "firebase")
 		{
-			// Google sign-in is off for now (owner 2026-10-17): a Google account
-			// takes this password, but only from the computer it is bound to.
-			if (a->device.empty() || pending->device.empty() || !constant_time_equal(a->device, pending->device))
-			{ xr_delete(pending); reject(server, CL, "This account was made with Google sign-in: log in from your own computer to set its password"); return; }
-			u8 salt[salt_bytes];
-			if (!random_bytes(salt, salt_bytes))
-			{ xr_delete(pending); reject(server, CL, "Server error: no random source"); return; }
-			pending->claim = true;
-			pending->salt = to_hex(salt, salt_bytes);
-			s_pending_auth.push_back(pending);
-			thread_spawn(auth_worker, "netcoop-auth", 0, pending);
+			// A computer identifier cannot authorize replacing a password.
+			xr_delete(pending);
+			reject(server, CL, "This account uses Google sign-in; reset its password on the Google sign-in screen");
 			return;
 		}
 		if (!a)
@@ -1707,6 +1725,7 @@ static bool finish_auth(xrServer* server, PendingAuth* pending)
 	}
 
 	Account* a = account_find(pending->login.c_str());
+	bool link_firebase = false;
 	if (pending->create)
 	{
 		if (a)
@@ -1733,25 +1752,6 @@ static bool finish_auth(xrServer* server, PendingAuth* pending)
 		a = &s_accounts[in_use.login];
 		Msg("[Lost Zone] account '%s' registered", pending->login.c_str());
 	}
-	else if (pending->claim)
-	{
-		// The Google account becomes a password account (device checked when
-		// the request came; checked again below with every login).
-		if (!a || a->firebase_uid.empty() || a->device.empty() || !constant_time_equal(a->device, pending->device))
-		{
-			reject(server, CL, "This account was made with Google sign-in: log in from your own computer to set its password");
-			return false;
-		}
-		a->salt = pending->salt;
-		a->hash = pending->hash;
-		a->firebase_uid.clear();
-		a->failures = 0;
-		a->locked_until = 0;
-		a->touched = true;
-		s_accounts_dirty = true;
-		accounts_save();
-		Msg("[Lost Zone] account '%s' now signs in with a password", a->login.c_str());
-	}
 	else
 	{
 		if (!a || a->salt != pending->salt)
@@ -1759,7 +1759,9 @@ static bool finish_auth(xrServer* server, PendingAuth* pending)
 			reject(server, CL, "Unknown account, use Register");
 			return false;
 		}
-		if (pending->firebase ? a->firebase_uid.empty() || a->firebase_uid != pending->firebase_uid : !constant_time_equal(pending->hash, a->hash))
+		link_firebase = pending->firebase && a->firebase_uid.empty() && !pending->firebase_uid.empty() &&
+			!pending->legacy_hash.empty() && constant_time_equal(a->hash, pending->legacy_hash);
+		if (pending->firebase ? (!link_firebase && (a->firebase_uid.empty() || a->firebase_uid != pending->firebase_uid)) : !constant_time_equal(pending->hash, a->hash))
 		{
 			if (++a->failures >= 5)
 			{
@@ -1784,6 +1786,14 @@ static bool finish_auth(xrServer* server, PendingAuth* pending)
         reject(server, CL, "You are banned on this server");
         return false;
     }
+	if (link_firebase)
+	{
+		a->firebase_uid = pending->firebase_uid;
+		a->touched = true;
+		s_accounts_dirty = true;
+		accounts_save();
+		Msg("[Lost Zone] account '%s' linked to Google after password proof", a->login.c_str());
+	}
     if (a->device.empty() && !pending->device.empty())
     { a->device = pending->device; a->touched = true; s_accounts_dirty = true; accounts_save(); }
     // Retain the old column for save-format compatibility, but it is no
@@ -1884,6 +1894,7 @@ static bool finish_auth(xrServer* server, PendingAuth* pending)
 static void free_pending(PendingAuth* pending)
 {
 	SecureZeroMemory(&pending->key[0], pending->key.size());
+	if (!pending->legacy_key.empty()) SecureZeroMemory(&pending->legacy_key[0], pending->legacy_key.size());
 	xr_delete(pending->player_state);
 	xr_delete(pending);
 }
@@ -2683,13 +2694,20 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 // ---------------------------------------------------------------------------
 // server: trade
 // ---------------------------------------------------------------------------
-static void prepare_trade(u16 partner_id)
+// Trade windows the server's own dialogue opened: player Actor -> partner,
+// and when (owner 2026-10-18: "Buy" did nothing at the Marsh technician -
+// GAMMA's meet condlist keeps native trade off for technicians, single
+// player opened the window from the dialogue anyway).
+struct DialogTrade { u16 partner; u32 since; };
+static xr_map<u16, DialogTrade> s_dialog_trade;
+
+static void prepare_trade(u16 partner_id, bool dialog_trade = false)
 {
 	if (!enabled() || !g_pGameLevel || !Level().Server) return;
 	::luabind::functor<void> prepare;
 	if (ai().script_engine().functor("netcoop_server_compat.prepare_trade", prepare))
 	{
-		try { prepare(partner_id); }
+		try { prepare(partner_id, dialog_trade); }
 		catch (...) { Msg("! [Lost Zone] trader %u profile preparation failed", partner_id); }
 	}
 }
@@ -2777,7 +2795,11 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 
 	// The partner's CTrade: bBuying == true means the partner buys (actor sells).
 	ServerVictimScope trade_actor_scope(actor);
-	prepare_trade(partner_id);
+	auto opened = s_dialog_trade.find(actor->ID());
+	const bool dialog_trade = opened != s_dialog_trade.end() && opened->second.partner == partner_id &&
+		Device.dwTimeGlobal - opened->second.since < 30 * 60 * 1000;
+	partner->DisableTrade(); // failed/missing Lua policy cannot reuse a stale grant
+	prepare_trade(partner_id, dialog_trade);
 	if (!partner->IsTradeEnabled())
 	{
 		finish(false, "This character does not trade");
@@ -3254,7 +3276,48 @@ static void talk_close(xrClientData* CL, CActor* actor, CInventoryOwner* npc)
 		npc->StopTalk();
 }
 
+// The NPC a player talks with, for GAMMA's get_speaker (used_npc_id): its
+// dialogues and task offers looked for the talk window's partner, a server
+// has none, and the fetch task offer took the server down (owner 2026-10-18,
+// tasks_fetch.script:567 "table index is nil").
+static void talk_speaker(u16 npc_id)
+{
+	::luabind::functor<void> f;
+	if (!ai().script_engine().functor("netcoop_server_compat.talk_speaker", f)) return;
+	try { f(int(npc_id)); }
+	catch (...) { Msg("! [Lost Zone] netcoop_server_compat.talk_speaker failed"); }
+}
+
+static void server_on_talk_dialogue(xrServer* server, xrClientData* CL, NET_Packet& P);
+
 void server_on_talk(xrServer* server, xrClientData* CL, NET_Packet& P)
+{
+	// A dialogue or task script error must not take the server down: the
+	// conversation ends and the error is logged.
+	try { server_on_talk_dialogue(server, CL, P); }
+	catch (...)
+	{
+		Msg("! [Lost Zone] dialogue script error for '%s': the conversation is closed", CL ? CL->netcoop_login.c_str() : "?");
+		s_talk_capture = NULL;
+		talk_speaker(0xffff);
+		bind_script_actor(NULL);
+		if (CL && CL->owner)
+			if (CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(CL->owner->ID)))
+			{
+				TalkSessions::iterator found = s_talk_sessions.find(CL->ID.value());
+				CInventoryOwner* npc = found != s_talk_sessions.end() ?
+					smart_cast<CInventoryOwner*>(Level().Objects.net_Find(found->second.npc)) : nullptr;
+				TalkState state;
+				state.npc = found != s_talk_sessions.end() ? found->second.npc : u16(0xffff);
+				talk_close(CL, actor, npc);
+				state.open = false;
+				state.trade = false;
+				send_talk_state(server, CL, state);
+			}
+	}
+}
+
+static void server_on_talk_dialogue(xrServer* server, xrClientData* CL, NET_Packet& P)
 {
 	if (!enabled() || !CL || !CL->owner || !g_pGameLevel || P.r_elapsed() < 1)
 		return;
@@ -3307,6 +3370,7 @@ void server_on_talk(xrServer* server, xrClientData* CL, NET_Packet& P)
 
 	s_talk_capture = &state;
 	bind_script_actor(actor);
+	talk_speaker(npc_id);
 
 	if (op == talk_start)
 	{
@@ -3378,6 +3442,7 @@ void server_on_talk(xrServer* server, xrClientData* CL, NET_Packet& P)
 		talk_build_choices(session, our, other, state);
 	}
 
+	talk_speaker(0xffff);
 	bind_script_actor(NULL);
 	s_talk_capture = NULL;
 
@@ -3392,6 +3457,13 @@ void server_on_talk(xrServer* server, xrClientData* CL, NET_Packet& P)
 // Drops sessions of connections that no longer exist (main thread).
 void server_talk_prune(xrServer* server)
 {
+	for (auto it = s_dialog_trade.begin(); it != s_dialog_trade.end();)
+	{
+		CObject* actor = Level().Objects.net_Find(it->first);
+		if (!actor || actor->getDestroy() || Device.dwTimeGlobal - it->second.since >= 30 * 60 * 1000)
+			it = s_dialog_trade.erase(it);
+		else ++it;
+	}
 	for (TalkSessions::iterator it = s_talk_sessions.begin(); it != s_talk_sessions.end();)
 	{
 		ClientID id;
@@ -3950,6 +4022,9 @@ void client_on_script(NET_Packet& P)
 		s_client_role = admin ? role_admin : role_player;
 		s_client_role_verified = true;
 		if (!admin) psActorFlags.set(AF_GODMODE, FALSE);
+		// The admin's debug/spawn menu keys were registered only at login
+		// (owner 2026-10-18: admin given from the master window needed a relog).
+		call_lua("netcoop_client_compat.on_role_changed", true, s_client_role, "");
 		return client_on_server_text(*CStringTable().translate(admin ? "st_netcoop_role_admin" : "st_netcoop_role_player"));
 	}
 	if (!xr_strcmp(channel, "netcoop_transfer_refused"))
@@ -4003,10 +4078,13 @@ bool script_send_to_actor(u16 actor_id, LPCSTR channel, LPCSTR data)
 
 bool server_open_ui(u16 actor_id, LPCSTR kind, u16 partner_id)
 {
-	prepare_trade(partner_id);
+	const bool dialog_trade = kind && !xr_strcmp(kind, "trade");
+	prepare_trade(partner_id, dialog_trade);
 	string128 data;
 	xr_sprintf(data, "%s %u", kind, partner_id);
 	const bool sent = script_send_to_actor(actor_id, "open_ui", data);
+	if (sent && dialog_trade)
+		s_dialog_trade[actor_id] = DialogTrade{partner_id, Device.dwTimeGlobal};
 	if (enabled() && g_pGameLevel && Level().Server)
 		Msg("[Lost Zone] open %s with %u for Actor %u: %s", kind, partner_id, actor_id, sent ? "sent" : "no remote owner");
 	return sent;

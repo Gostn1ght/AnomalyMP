@@ -379,9 +379,24 @@ local function init_event_managers()
 	end
 end
 
+-- The NPC a player talks with on the server (netcoop.cpp server_on_talk):
+-- GAMMA's get_speaker reads used_npc_id, which only the single-player use
+-- callback set; task offers then indexed a nil speaker id.
+local talk_speakers = {}
+function talk_speaker(npc_id)
+	if not (SetEvent and GetEvent) then return end
+	if npc_id ~= 65535 then
+		talk_speakers[#talk_speakers + 1] = { id = GetEvent("used_npc_id") }
+		SetEvent("used_npc_id", npc_id)
+	elseif #talk_speakers > 0 then
+		local previous = table.remove(talk_speakers)
+		SetEvent("used_npc_id", previous.id)
+	end
+end
+
 -- Remote dialogue bypasses motivator_binder:use_callback, which normally
 -- updates conditions and supplies before the player opens trade.
-function prepare_trade(npc_id)
+function prepare_trade(npc_id, dialog_trade)
 	local npc = level.object_by_id(npc_id)
 	if not (npc and db.actor and trade_manager) then return end
 	if zz_netcoop_sandbox then zz_netcoop_sandbox.configure_trader(npc) end
@@ -404,7 +419,7 @@ function prepare_trade(npc_id)
 	local storage = db.storage[npc_id]
 	local meet = storage and storage.meet
 	local allowed = cfg ~= nil and npc:alive()
-	if allowed and meet and meet.trade_enable and not (zz_netcoop_sandbox and zz_netcoop_sandbox.mini_profile(npc)) then
+	if allowed and not dialog_trade and meet and meet.trade_enable and not (zz_netcoop_sandbox and zz_netcoop_sandbox.mini_profile(npc)) then
 		allowed = xr_logic.pick_section_from_condlist(db.actor, npc, meet.trade_enable) == "true"
 	end
 	if allowed and xr_wounded and xr_wounded.is_wounded(npc) then allowed = false end

@@ -322,16 +322,26 @@ local function show_text(text)
 	end
 end
 
+local admin_callbacks_installed = false
+local function sync_admin_tools(ok, role)
+	_G.DEV_DEBUG = ok and role == 2 or false
+	if _G.DEV_DEBUG and not admin_callbacks_installed and ui_debug_launcher and ui_debug_launcher.on_game_start then
+		ui_debug_launcher.on_game_start()
+		admin_callbacks_installed = true
+	end
+end
+
 function on_auth_result(ok, role, message)
 	netcoop_login_ui.on_auth_result(ok, role, message)
 	printf("[Lost Zone] login %s: role=%s %s", ok and "ok" or "failed", tostring(role), tostring(message))
-	if ok and role == 2 then
-		-- The debug launcher registers its keys only in debug mode.
-		_G.DEV_DEBUG = true
-		-- on_game_start ran before login, while this player had no admin role.
-		-- Register the launcher's callbacks now so the spawn menu key works.
-		ui_debug_launcher.on_game_start()
-	end
+	sync_admin_tools(ok, role)
+end
+
+-- The server changed this account's role while it is online (sv_account_role,
+-- the master window): the admin tools work at once, as after a login.
+function on_role_changed(ok, role, message)
+	sync_admin_tools(ok, role)
+	printf("[Lost Zone] role changed: %s", tostring(role))
 end
 
 function on_trade_result(ok, role, message)
@@ -1064,6 +1074,7 @@ function loading_screen_done()
 end
 
 function on_game_start()
+	admin_callbacks_installed = false
 	install_actor_lifecycle()
 	netcoop_pdanet_client.install_notification_sound()
 	install_weather_follow()

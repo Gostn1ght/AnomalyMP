@@ -62,7 +62,7 @@ assert(not gui.CC.actor_trade_bag.indx_id[99],'stale item removed')
 test_trade_profile('27 items/trade/trade_generic.ltx')
 assert(not gui.CC.actor_trade_bag.indx_id[12],'duplicate profile remains idempotent')
 ''')
-start = server.index('function prepare_trade(npc_id)')
+start = server.index('function prepare_trade(npc_id, dialog_trade)')
 end = server.index('\nlocal game_loaded', start)
 lua.execute(server[start:end])
 lua.execute('''
@@ -72,6 +72,10 @@ xr_wounded=nil;npc.relation=function() return game_object.enemy end;prepare_trad
 npc.relation=function() return 0 end
 xr_logic={pick_section_from_condlist=function(actor,other,rule) assert(actor==db.actor);return rule end}
 db.storage[27]={meet={trade_enable='false'}};prepare_trade(27);assert(not allowed)
+prepare_trade(27,true);assert(allowed,'server dialogue may open a technician trade')
+xr_wounded={is_wounded=function() return true end};prepare_trade(27,true);assert(not allowed,'dialogue cannot bypass wounded policy')
+xr_wounded=nil;npc.relation=function() return game_object.enemy end;prepare_trade(27,true);assert(not allowed,'dialogue cannot bypass hostility')
+npc.relation=function() return 0 end
 db.storage[27].meet.trade_enable='true';prepare_trade(27);assert(allowed)
 -- A trader that came online with no player in scope has no profile yet
 -- (GAMMA's trade_init needs db.actor): made from its logic at the trade.
