@@ -1489,6 +1489,9 @@ struct PendingAuth
 	xr_string key;
 	xr_string salt;
 	bool create;
+	// A Google (Firebase) account takes a password from its own computer
+	// (owner 2026-10-17: Google sign-in off for now).
+	bool claim = false;
     StorageRequest storage;
 	u8 slot = 1, economy = 1;
 	xr_string character_name, faction = "stalker", loadout;
@@ -1634,7 +1637,20 @@ void server_on_auth(xrServer* server, xrClientData* CL, NET_Packet& P)
 	else
 	{
 		if (a && !pending->firebase && !a->firebase_uid.empty())
-        { xr_delete(pending); reject(server, CL, "Use Firebase sign-in for this account"); return; }
+		{
+			// Google sign-in is off for now (owner 2026-10-17): a Google account
+			// takes this password, but only from the computer it is bound to.
+			if (a->device.empty() || pending->device.empty() || !constant_time_equal(a->device, pending->device))
+			{ xr_delete(pending); reject(server, CL, "This account was made with Google sign-in: log in from your own computer to set its password"); return; }
+			u8 salt[salt_bytes];
+			if (!random_bytes(salt, salt_bytes))
+			{ xr_delete(pending); reject(server, CL, "Server error: no random source"); return; }
+			pending->claim = true;
+			pending->salt = to_hex(salt, salt_bytes);
+			s_pending_auth.push_back(pending);
+			thread_spawn(auth_worker, "netcoop-auth", 0, pending);
+			return;
+		}
 		if (!a)
 		{
 			xr_delete(pending);
@@ -1716,6 +1732,25 @@ static bool finish_auth(xrServer* server, PendingAuth* pending)
 		accounts_save();
 		a = &s_accounts[in_use.login];
 		Msg("[Lost Zone] account '%s' registered", pending->login.c_str());
+	}
+	else if (pending->claim)
+	{
+		// The Google account becomes a password account (device checked when
+		// the request came; checked again below with every login).
+		if (!a || a->firebase_uid.empty() || a->device.empty() || !constant_time_equal(a->device, pending->device))
+		{
+			reject(server, CL, "This account was made with Google sign-in: log in from your own computer to set its password");
+			return false;
+		}
+		a->salt = pending->salt;
+		a->hash = pending->hash;
+		a->firebase_uid.clear();
+		a->failures = 0;
+		a->locked_until = 0;
+		a->touched = true;
+		s_accounts_dirty = true;
+		accounts_save();
+		Msg("[Lost Zone] account '%s' now signs in with a password", a->login.c_str());
 	}
 	else
 	{

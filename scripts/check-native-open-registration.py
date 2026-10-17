@@ -24,7 +24,7 @@ struct Account {
 struct xrClientData {unsigned ID=1;xr_string netcoop_login;Role netcoop_role=role_none;};
 struct PendingAuth {
  unsigned client=1;xr_string login="Player",salt="fixture-salt",hash="fixture-digest",device="fixture-device",firebase_uid;
- bool create=false,hashed=true,firebase=false;
+ bool create=false,hashed=true,firebase=false,claim=false;
 };
 struct LoginInUse {xr_string login;xrClientData* self=nullptr;};
 std::map<xr_string,Account> s_accounts;bool s_accounts_dirty=false;
@@ -83,6 +83,19 @@ int main(){
  assert(rejection.empty() && saves==1 && test_client.netcoop_role==role_player);
  assert(s_accounts.at("player").firebase_uid==request.firebase_uid);
  reset();server.disconnected=true;finish_auth(&server,&request);assert(s_accounts.empty() && !saves && rejection.empty());
+ server.disconnected=false;
+ // Google sign-in off (owner 2026-10-17): a Google account takes a password
+ // from the computer it is bound to, and signs in with it afterwards.
+ PendingAuth claim;claim.claim=true;claim.salt="new-fixture-salt";claim.hash="new-fixture-digest";
+ reset();s_accounts["player"]=legacy(1);s_accounts["player"].firebase_uid="fixture-uid";s_accounts["player"].hash="firebase";
+ finish_auth(&server,&claim);
+ assert(rejection.empty() && test_client.netcoop_role==role_player && saves==1);
+ assert(s_accounts.at("player").firebase_uid.empty() && s_accounts.at("player").salt=="new-fixture-salt" && s_accounts.at("player").hash=="new-fixture-digest");
+ PendingAuth again;again.salt="new-fixture-salt";again.hash="new-fixture-digest";
+ test_client={};rejection.clear();finish_auth(&server,&again);assert(rejection.empty() && test_client.netcoop_role==role_player);
+ reset();s_accounts["player"]=legacy(1);s_accounts["player"].firebase_uid="fixture-uid";s_accounts["player"].hash="firebase";
+ claim.device="other-fixture-device";finish_auth(&server,&claim);
+ assert(!rejection.empty() && test_client.netcoop_role==role_none && s_accounts.at("player").hash=="firebase" && !saves);
 }
 '''
 if os.environ.get('GITHUB_ACTIONS')!='true':
@@ -93,4 +106,4 @@ with TemporaryDirectory(prefix='open-registration-') as temporary:
     args=(['cl','/nologo','/std:c++17','/EHsc','/W4','/WX',str(cpp),'/Fe:'+str(exe)] if os.name=='nt'
           else ['g++','-std=c++17','-Wall','-Wextra','-Werror',str(cpp),'-o',str(exe)])
     subprocess.run(args,cwd=target,check=True);subprocess.run([str(exe)],cwd=target,check=True)
-print('PASS actual auth admission: immediate player registration, legacy approval migration, roles/credentials retained; wrong password/device/identity, duplicate login and bans still denied')
+print('PASS actual auth admission: Google accounts take a password from their own computer, immediate player registration, legacy approval migration, roles/credentials retained; wrong password/device/identity, duplicate login and bans still denied')

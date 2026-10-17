@@ -117,6 +117,10 @@ lua.execute("netcoop_menu_stations={}; netcoop_menu_radio={}")
 lua.execute("local f=assert(loadstring(...)); setfenv(f,netcoop_menu_stations); f()", (radio_root/'netcoop_menu_stations.script').read_text())
 lua.execute("setmetatable(netcoop_menu_radio,{__index=_G}); local f=assert(loadstring(...)); setfenv(f,netcoop_menu_radio); f()", (radio_root/'netcoop_menu_radio.script').read_text())
 menu_source = Path(sys.argv[1]) if len(sys.argv) > 1 else root/'scripts/netcoop-overlay/client/netcoop_login_ui.script'
+# Google sign-in is off in the game (owner 2026-10-17); these screens stay
+# tested with the switch on.
+assert 'local CLOUD_SIGN_IN = rawget(_G, "netcoop_cloud_sign_in_test") == true' in menu_source.read_text(encoding='cp1251')
+lua.execute("netcoop_cloud_sign_in_test = true")
 lua.execute(menu_source.read_text(encoding='cp1251'))
 lua.execute("assert(rawget(netcoop_login_wnd, 'Show') == nil, 'native Show must stay inherited')")
 lua.execute(r'''
