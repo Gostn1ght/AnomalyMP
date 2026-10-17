@@ -639,6 +639,37 @@ static void vehicle_arrivals(xrServer* server)
 
 // Every server frame: seated players follow their seats, drivers that went
 // silent stop, and the state goes out (10 Hz while used, 0.5 Hz parked).
+// Owner 2026-10-17: every vehicle was far too fast. The authority caps the
+// horizontal speed: netcoop_max_speed_kmh of the car's section, 70 km/h for
+// cars and 120 km/h for helicopters by default. Falling is not limited.
+static void vehicle_speed_limit(CCar* car)
+{
+	static xr_map<shared_str, float> limits; // section -> m/s
+	auto found = limits.find(car->cNameSect());
+	if (found == limits.end())
+	{
+		const float kmh = READ_IF_EXISTS(pSettings, r_float, car->cNameSect(), "netcoop_max_speed_kmh",
+			car->netcoop_is_heli() ? 120.f : 70.f);
+		found = limits.insert(std::make_pair(car->cNameSect(), _max(5.f, kmh) / 3.6f)).first;
+	}
+	CPhysicsShell* shell = car->PPhysicsShell();
+	if (!shell || !shell->isActive()) return;
+	Fvector velocity;
+	shell->get_LinearVel(velocity);
+	const float horizontal = _sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+	if (!_valid(horizontal) || horizontal <= found->second) return;
+	const float k = found->second / horizontal;
+	for (u16 i = 0; i < shell->get_ElementsNumber(); ++i)
+	{
+		CPhysicsElement* element = shell->get_ElementByStoreOrder(i);
+		Fvector own;
+		element->get_LinearVel(own);
+		own.x *= k;
+		own.z *= k;
+		element->set_LinearVel(own);
+	}
+}
+
 void vehicle_server_update(xrServer* server)
 {
 	if (!g_pGameLevel || pure_client())
@@ -690,6 +721,7 @@ void vehicle_server_update(xrServer* server)
 						break;
 					}
 		}
+		vehicle_speed_limit(car);
 		// A driver whose client stopped sending lets go of the pedals.
 		if (v.keys && now - v.keys_time > 2000)
 		{
