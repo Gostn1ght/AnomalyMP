@@ -398,6 +398,21 @@ class Handler(BaseHTTPRequestHandler):
                     raise Invalid("incomplete request body")
                 if uri.path == "/v1/command":
                     result = dispatcher.execute(principal, strict_json(data))
+                elif uri.path == "/v1/console" and principal.role == "admin":
+                    # The master's window (owner 2026-10-17) types into the same
+                    # console as the old terminal; stopping is the window's button.
+                    args = strict_json(data)
+                    if not isinstance(args, dict) or set(args) != {"line"} or not isinstance(args["line"], str):
+                        raise Invalid("console request takes one line")
+                    line = args["line"].strip()
+                    if line.split()[:1] and line.split()[0].lower() in ("quit", "exit"):
+                        raise Invalid("the master stops from its window")
+                    from .console import Console
+                    try:
+                        text = Console(self.server, threading.Event()).execute(line)
+                    except (Invalid, Unavailable, Conflict, ValueError) as error:
+                        text = f"Команда не выполнена ({type(error).__name__}). help — список команд."
+                    result = {"text": text}
                 elif uri.path == "/v1/snapshot" and principal.role == "admin":
                     if strict_json(data) != {}:
                         raise Invalid("snapshot endpoint takes an empty object")

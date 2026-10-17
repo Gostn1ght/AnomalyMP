@@ -987,9 +987,12 @@ static void cluster_hibernate(xrServer* server, u32 now)
 	Sleep(100);
 }
 
+static void master_window_update(xrServer* server, u32 now); // netcoop_console.inc
+
 static void cluster_update(xrServer* server)
 {
 	const u32 now = real_time_ms();
+	if (cluster_config_present()) master_window_update(server, now);
 	cluster_host_stop(server, now);
 	if (s_cluster_quitting) return;
 	cluster_idle_exit(server, now);

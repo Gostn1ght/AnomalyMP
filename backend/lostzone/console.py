@@ -14,7 +14,7 @@ from .store import Invalid, Unavailable, finite, identifier
 from .timelines import Timelines
 
 
-HELP = ("Команды: status, clock, locations, characters, npcs, transfers, events, "
+HELP = ("Команды: status, clock, locations, players, characters, npcs, transfers, events, "
         "scale <число>, weather, emission, help, quit.\n"
         "weather <исходный цикл> <новый цикл> <секунды перехода>;\n"
         "emission <секунды предупреждения> <до пика> <после пика> <интенсивность>.\n"
@@ -125,6 +125,13 @@ class Console:
             if len(rows) > 64:
                 text.append("Показаны первые 64 локации.")
             return "\n".join(text) or "Локации ещё не подключились к мастеру."
+        if command == "players":
+            rows = self.rows("SELECT s.account AS account, s.state AS state, e.location AS location "
+                             "FROM player_session s JOIN entity e ON e.id=s.character_id "
+                             "WHERE s.state IN ('ACTIVE','FROZEN') ORDER BY e.location, s.account LIMIT 513")
+            text = [f"{row['location']}: {row['account']}" + (" (в переходе)" if row["state"] == "FROZEN" else "")
+                    for row in rows[:512]]
+            return "\n".join(text) or "Сейчас в мире никого нет."
         if command == "characters":
             characters = self.rows("SELECT id FROM character ORDER BY id LIMIT 1025")
             sessions = self.rows("SELECT state FROM player_session ORDER BY character_id LIMIT 1025")

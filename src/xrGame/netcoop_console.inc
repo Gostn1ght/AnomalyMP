@@ -278,3 +278,77 @@ void console_players(xr_vector<SConsolePlayer>& out)
 		out.push_back(row);
 	}
 }
+
+// The world master's window (owner 2026-10-17: "move the players into the
+// master to manage them from there"): every location lists its players in
+// the shared cluster folder and runs the administrator commands the window
+// leaves there for it. Only the console's own administrator commands are
+// taken; the folder is the hosting machine's.
+static u32 s_master_window_roster = 0, s_master_window_commands = 0;
+
+static void master_window_clean(char* text)
+{
+	for (char* c = text; *c; ++c)
+		if (*c == '|' || *c == '\n' || *c == '\r') *c = ' ';
+}
+
+static bool master_window_allowed(const xr_string& line)
+{
+	if (line.empty() || line.size() > 240 || line.find_first_of(";\r\n") != xr_string::npos) return false;
+	static const char* const allowed[] = {"sv_ban ", "sv_unban ", "sv_account_role ", "sv_leader ", "sv_cmd "};
+	for (const char* prefix : allowed)
+		if (!line.compare(0, xr_strlen(prefix), prefix)) return true;
+	return false;
+}
+
+static void master_window_update(xrServer* server, u32 now)
+{
+	if (!server || pure_client() || !g_pGameLevel) return;
+	string_path dir, file;
+	cluster_dir(dir);
+	if (now - s_master_window_roster >= 2000)
+	{
+		s_master_window_roster = now;
+		xr_vector<SConsolePlayer> players;
+		console_players(players);
+		xr_string text;
+		for (SConsolePlayer& p : players)
+		{
+			if (!p.online) continue;
+			master_window_clean(p.login); master_window_clean(p.name); master_window_clean(p.faction);
+			string512 line;
+			xr_sprintf(line, "%s|%s|%u|%s|%s|%u\n", p.login, p.name, p.slot, p.faction,
+				p.admin ? "admin" : p.leader ? "leader" : "player", p.ping);
+			text += line;
+		}
+		xr_sprintf(file, "%splayers_%u.txt", dir, cluster_port());
+		cluster_write_line(file, text.c_str(), false);
+	}
+	if (now - s_master_window_commands < 1000) return;
+	s_master_window_commands = now;
+	xr_sprintf(file, "%scommand_%u.txt", dir, cluster_port());
+	if (GetFileAttributesA(file) == INVALID_FILE_ATTRIBUTES) return;
+	// Taken at once: a command the window writes meanwhile waits for the next turn.
+	string_path work;
+	xr_sprintf(work, "%s.%u.work", file, GetCurrentProcessId());
+	if (!MoveFileExA(file, work, MOVEFILE_REPLACE_EXISTING)) return;
+	FILE* f = fopen(work, "rb");
+	if (f)
+	{
+		char line[512];
+		for (int n = 0; n < 32 && fgets(line, sizeof(line), f); ++n)
+		{
+			xr_string command = line;
+			while (!command.empty() && (command.back() == '\n' || command.back() == '\r' || command.back() == ' ')) command.pop_back();
+			if (!master_window_allowed(command))
+			{
+				if (!command.empty()) Msg("! [Lost Zone][master window] refused: %s", command.c_str());
+				continue;
+			}
+			Msg("[Lost Zone][master window] %s", command.c_str());
+			Console->Execute(command.c_str());
+		}
+		fclose(f);
+	}
+	DeleteFileA(work);
+}

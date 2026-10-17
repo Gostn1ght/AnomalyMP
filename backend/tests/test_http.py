@@ -57,6 +57,17 @@ class HttpTest(unittest.TestCase):
         finally:
             connection.close()
 
+    def test_master_window_console_is_for_the_administrator_only(self):
+        self.server.ready.set()
+        status, body = self.call("POST", "/v1/console", {"line": "clock"}, token="a" * 48)
+        self.assertEqual(status, 200)
+        self.assertIn("Календарь", body["result"]["text"])
+        self.assertEqual(self.call("POST", "/v1/console", {"line": "nonsense"}, token="a" * 48)[1]["result"]["text"][:21],
+                         "Команда не выполнена ")
+        self.assertEqual(self.call("POST", "/v1/console", {"line": "quit"}, token="a" * 48)[0], 400)
+        self.assertNotEqual(self.call("POST", "/v1/console", {"line": "clock"})[0], 200)
+        self.assertEqual(self.call("POST", "/v1/console", {"line": "clock", "x": 1}, token="a" * 48)[0], 400)
+
     def command(self, operation, args, token="b" * 48, command_id=None):
         return self.call("POST", "/v1/command", {"command_id": command_id or uuid.uuid4().hex,
                                                "operation": operation, "arguments": args}, token)

@@ -43,6 +43,13 @@ class ConsoleTest(unittest.TestCase):
         self.store.close()
         self.folder.cleanup()
 
+    def test_players_lists_who_is_where(self):
+        self.assertEqual(self.console.execute("players"), "Сейчас в мире никого нет.")
+        fence = self.world.claim_location("map-server", uuid.uuid4().hex, "cordon")["fence"]
+        self.server.dispatcher.ownership.create_entity("map-server", uuid.uuid4().hex, uuid.uuid4().hex,
+                                                     "CHARACTER", "cordon", fence, {}, account="alice")
+        self.assertEqual(self.console.execute("players"), "cordon: alice")
+
     def test_reads_real_registry_without_disclosing_state_or_changing_journal(self):
         before = self.store.db.execute("SELECT COUNT(*) FROM world_event").fetchone()[0]
         for command in ("status", "clock", "locations", "characters", "npcs", "transfers", "events"):
