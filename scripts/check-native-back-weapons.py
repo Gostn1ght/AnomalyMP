@@ -136,7 +136,7 @@ int main(){
   models[0].vis.box.center={float(i%7)*.3f-1,float(i%9)*.2f-.8f,float(i%5)*.4f-1};
   Fmatrix back;assert(left.netcoop_back_transform(back));Fvector actual,offset,expected;
   back.transform_tiny(actual,models[0].vis.box.center);
-  delta.transform_dir(offset,Fvector{-.16f,-.18f,-.24f});
+  delta.transform_dir(offset,Fvector{-.16f,.02f,-.20f});
   actor.XFORM().transform_tiny(expected,add(skeleton.bones[1].pose.c,offset));
   assert(near(actual,expected));assert(std::fabs(DET(back)-1.f)<.001f);
  }
@@ -153,9 +153,9 @@ int main(){
  actor.inv.active=nullptr;left.renderable_Render();assert(left.m_netcoop_back_mode&&left.lights==1);
  CInventoryItem backpack;actor.inv.slots[BACKPACK_SLOT]=&backpack;
  assert(right.netcoop_back_transform(b));b.transform_tiny(bc,models[1].vis.box.center);
- Fvector normal;actor.pose.transform_dir(normal,Fvector{0,0,-.1f});
+ // Owner 2026-10-17: the backpack no longer moves the guns.
  actor.inv.slots[BACKPACK_SLOT]=nullptr;assert(right.netcoop_back_transform(a));a.transform_tiny(ac,models[1].vis.box.center);
- assert(near(bc,add(ac,normal)));
+ assert(near(bc,ac));
  left.single=true;assert(left.netcoop_back_transform(a));
  // Refusals hide an invalid attachment instead of rendering its old transform.
  skeleton.spine=BI_NONE;auto before=left.draws;left.renderable_Render();assert(left.draws==before&&!left.m_netcoop_back_valid);
@@ -177,7 +177,7 @@ int main(){
  left.renderable_Render();assert(left.m_netcoop_back_mode&&left.m_netcoop_back_valid);
  npc.strap=false;left.renderable_Render();assert(!left.m_netcoop_back_mode);
  npc.strap=true;left.renderable_Render();assert(left.m_netcoop_back_mode);
- std::puts("PASS actual back weapon/owner bodies with xrCore matrix math: stable animated bind frame, model centering, distinct slots, same-frame movement, NPC strap/hand switch, player hand exclusion, backpack spacing and invalid-data refusal");
+ std::puts("PASS actual back weapon/owner bodies with xrCore matrix math: stable animated bind frame, model centering, distinct slots, same-frame movement, NPC strap/hand switch, player hand exclusion, shoulder mount independent of the backpack and invalid-data refusal");
 }
 '''
 if os.environ.get('GITHUB_ACTIONS') != 'true':

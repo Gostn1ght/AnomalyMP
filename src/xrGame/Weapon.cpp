@@ -238,14 +238,13 @@ bool CWeapon::netcoop_back_transform(Fmatrix& transform) const
 	const bool pistol = IsSingleHanded();
 	const float tilt = pistol ? 0.f : side * .25f;
 	const float vertical = pistol ? 1.f : .968245837f;
-	const CInventoryOwner* owner = smart_cast<const CInventoryOwner*>(H_Parent());
-	const bool backpack = owner->inventory().ItemFromSlot(BACKPACK_SLOT) != nullptr;
 	Fvector right, normal, barrel, mount, rotated;
 	right.set(vertical, -tilt, 0.f);
 	normal.set(0.f, 0.f, -1.f);
 	barrel.set(tilt, vertical, 0.f);
-	mount.set(side * (pistol ? .18f : .16f), pistol ? -.35f : -.18f,
-		(pistol ? -.19f : -.24f) - (backpack ? .10f : 0.f));
+	// Owner 2026-10-17: fixed to the back near the shoulders, whatever the
+	// backpack or outfit (no backpack spacing any more); pistols on the hip.
+	mount.set(side * (pistol ? .18f : .16f), pistol ? -.35f : .02f, pistol ? -.19f : -.20f);
 	Fmatrix local, world;
 	local.set(right, normal, barrel, mount);
 	// Model origins differ by tens of centimetres across GAMMA weapons.
