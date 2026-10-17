@@ -84,6 +84,9 @@ public:
 	                             const Fvector& angular_vel);
 
 	virtual void OnEvent(NET_Packet& P, u16 type);
+	// Netcoop: the server's launch travels with GE_LAUNCH_ROCKET.
+	const Fmatrix& netcoop_launch_xform() const { return m_LaunchXForm; }
+	const Fvector& netcoop_launch_velocity() const { return m_vLaunchVelocity; }
 	bool m_bLaunched;
 protected:
 	//указатель на владельца RocketLauncher - который стреляет ракету

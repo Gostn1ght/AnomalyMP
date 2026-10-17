@@ -27,6 +27,7 @@
 #include "ui/UIProgressShape.h"
 #include "ui/UIXmlInit.h"
 #include "physicsshellholder.h"
+#include "netcoop.h"
 
 CUIProgressShape* g_MissileForceShape = NULL;
 
@@ -547,12 +548,58 @@ void CMissile::OnMotionMark(u32 state, const motion_marks& M)
 }
 
 
+void CMissile::netcoop_send_throw()
+{
+	if (!H_Parent() || !H_Parent()->Local()) return;
+	setup_throw_params();
+	CInventoryOwner* inventory_owner = smart_cast<CInventoryOwner*>(H_Parent());
+	const float force = !inventory_owner || inventory_owner->use_default_throw_force()
+		? (m_constpower ? m_fConstForce : m_fThrowForce) : inventory_owner->missile_throw_force();
+	if (!_valid(m_throw_matrix.c) || !_valid(m_throw_direction) || !_valid(force)) return;
+	NET_Packet P;
+	u_EventGen(P, GE_NETCOOP_WPN_AIM, ID());
+	P.w_vec3(m_throw_matrix.c);
+	P.w_vec3(m_throw_direction);
+	P.w_u8(3); // a throw
+	P.w_float(force);
+	u_EventSend(P);
+}
+
+void CMissile::netcoop_server_throw()
+{
+	m_netcoop_throw_pending = false;
+	if (!m_fake_missile || !H_Parent() || getDestroy()) return;
+	m_throw_matrix.set(m_netcoop_throw_matrix);
+	m_throw_direction.set(m_netcoop_throw_matrix.k);
+	m_fake_missile->m_throw_direction = m_throw_direction;
+	m_fake_missile->m_throw_matrix = m_throw_matrix;
+	m_fake_missile->m_fThrowForce = m_netcoop_throw_force;
+	netcoop_arm(m_fake_missile);
+	m_netcoop_throw_sent = true;
+	NET_Packet P;
+	u_EventGen(P, GE_OWNERSHIP_REJECT, ID());
+	P.w_u16(u16(m_fake_missile->ID()));
+	// Clients fly their copy along the same throw.
+	P.w_u8(0);
+	P.w_vec3(m_throw_matrix.c);
+	P.w_vec3(m_throw_direction);
+	P.w_float(m_netcoop_throw_force);
+	u_EventSend(P);
+}
+
 void CMissile::Throw()
 {
 #ifndef MASTER_GOLD
 	Msg("throw [%d]", Device.dwFrame);
 #endif // #ifndef MASTER_GOLD
 	VERIFY(smart_cast<CEntity*>(H_Parent()));
+	if (netcoop::enabled() && smart_cast<CActor*>(H_Parent()))
+	{
+		// A player's throw: the owner tells the server, the server throws.
+		if (netcoop::pure_client()) netcoop_send_throw();
+		m_fThrowForce = m_fMinForce;
+		return;
+	}
 	setup_throw_params();
 
 	m_fake_missile->m_throw_direction = m_throw_direction;
@@ -591,6 +638,7 @@ void CMissile::OnEvent(NET_Packet& P, u16 type)
 			m_fake_missile = missile;
 			missile->H_SetParent(this);
 			missile->Position().set(Position());
+			if (OnServer() && m_netcoop_throw_pending) netcoop_server_throw();
 			break;
 		}
 	case GE_OWNERSHIP_REJECT:
@@ -608,9 +656,60 @@ void CMissile::OnEvent(NET_Packet& P, u16 type)
 			{
 				break;
 			}
-			missile->H_SetParent(0, !P.r_eof() && P.r_u8());
+			const bool just_before_destroy = !P.r_eof() && P.r_u8();
+			if (IsFakeMissile && OnClient() && P.r_elapsed() >= 2 * sizeof(Fvector) + sizeof(float))
+			{
+				Fvector position, direction;
+				P.r_vec3(position);
+				P.r_vec3(direction);
+				const float force = P.r_float();
+				if (_valid(position) && _valid(direction) && direction.square_magnitude() > EPS && _valid(force))
+				{
+					missile->m_throw_matrix.identity();
+					missile->m_throw_matrix.k.set(direction).normalize();
+					Fvector::generate_orthonormal_basis(missile->m_throw_matrix.k, missile->m_throw_matrix.j, missile->m_throw_matrix.i);
+					missile->m_throw_matrix.c.set(position);
+					missile->m_throw_direction.set(missile->m_throw_matrix.k);
+					missile->m_fThrowForce = force;
+				}
+			}
+			missile->H_SetParent(0, just_before_destroy);
 			if (IsFakeMissile && OnClient())
 				missile->set_destroy_time(m_dwDestroyTimeMax);
+			// The server's throw for a player has left the hands.
+			if (IsFakeMissile && OnServer() && m_netcoop_throw_sent)
+			{
+				m_netcoop_throw_sent = false;
+				netcoop_thrown();
+			}
+			break;
+		}
+	case GE_NETCOOP_WPN_AIM:
+		{
+			// A player's throw (netcoop_send_throw), on the server's copy only.
+			if (!OnServer() || !netcoop::server_player_copy(H_Parent()) || P.r_elapsed() != 2 * sizeof(Fvector) + 1 + sizeof(float))
+				break;
+			Fvector position, direction;
+			P.r_vec3(position);
+			P.r_vec3(direction);
+			const u8 kind = P.r_u8();
+			const float force = P.r_float();
+			const u32 now = Device.dwTimeGlobal;
+			if (kind != 3 || !_valid(position) || !_valid(direction) || direction.square_magnitude() < EPS ||
+				position.distance_to(H_Parent()->Position()) > 3.f || !_valid(force) || force < 0.f ||
+				force > _max(m_fMaxForce, m_fConstForce) * 1.01f + EPS || m_netcoop_throw_pending || m_netcoop_throw_sent ||
+				(m_netcoop_throw_time && now - m_netcoop_throw_time < 300) || getDestroy())
+				break;
+			m_netcoop_throw_time = now;
+			m_netcoop_throw_matrix.identity();
+			m_netcoop_throw_matrix.k.set(direction).normalize();
+			Fvector::generate_orthonormal_basis(m_netcoop_throw_matrix.k, m_netcoop_throw_matrix.j, m_netcoop_throw_matrix.i);
+			m_netcoop_throw_matrix.c.set(position);
+			m_netcoop_throw_force = force;
+			m_netcoop_throw_pending = true;
+			// The fake missile is spawned asynchronously: thrown on its arrival.
+			if (m_fake_missile) netcoop_server_throw();
+			else spawn_fake_missile();
 			break;
 		}
 	}

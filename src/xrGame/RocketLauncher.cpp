@@ -101,6 +101,33 @@ void CRocketLauncher::LaunchRocket(const Fmatrix& xform,
 	m_launched_rockets.push_back(getCurrentRocket());
 }
 
+void CRocketLauncher::netcoop_write_launch(NET_Packet& P, CCustomRocket* rocket)
+{
+	if (!rocket) return;
+	P.w_vec3(rocket->netcoop_launch_xform().c);
+	P.w_vec3(rocket->netcoop_launch_xform().k);
+	P.w_vec3(rocket->netcoop_launch_velocity());
+}
+
+void CRocketLauncher::netcoop_read_launch(NET_Packet& P, u16 rocket_id)
+{
+	// Older servers send the id only; the server launched its copy itself.
+	if (!OnClient() || P.r_elapsed() < 3 * sizeof(Fvector)) return;
+	Fvector position, direction, velocity;
+	P.r_vec3(position);
+	P.r_vec3(direction);
+	P.r_vec3(velocity);
+	CCustomRocket* rocket = smart_cast<CCustomRocket*>(Level().Objects.net_Find(rocket_id));
+	if (!rocket || std::find(m_rockets.begin(), m_rockets.end(), rocket) == m_rockets.end()) return;
+	if (!_valid(position) || !_valid(direction) || !_valid(velocity) || direction.square_magnitude() < EPS) return;
+	Fmatrix launch;
+	launch.identity();
+	launch.k.set(direction).normalize();
+	Fvector::generate_orthonormal_basis(launch.k, launch.j, launch.i);
+	launch.c.set(position);
+	rocket->SetLaunchParams(launch, velocity, Fvector().set(0.f, 0.f, 0.f));
+}
+
 CCustomRocket* CRocketLauncher::getCurrentRocket()
 {
 	if (m_rockets.size())

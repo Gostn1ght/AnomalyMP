@@ -380,6 +380,7 @@ void CWeaponMagazinedWGrenade::OnEvent(NET_Packet& P, u16 type)
 		{
 			bool bLaunch = (type == GE_LAUNCH_ROCKET);
 			P.r_u16(id);
+			if (bLaunch) netcoop_read_launch(P, id);
 			CRocketLauncher::DetachRocket(id, bLaunch);
 			if (bLaunch && !(netcoop::enabled() && ParentIsActor() &&
 				(netcoop::server_player_copy(H_Parent()) || netcoop::client_owns_hud_item(&CHudItem::object()))))
@@ -506,6 +507,7 @@ void CWeaponMagazinedWGrenade::LaunchGrenade()
 			NET_Packet P;
 			u_EventGen(P, GE_LAUNCH_ROCKET, ID());
 			P.w_u16(getCurrentRocket()->ID());
+			netcoop_write_launch(P, getCurrentRocket());
 			u_EventSend(P);
 		};
 	}

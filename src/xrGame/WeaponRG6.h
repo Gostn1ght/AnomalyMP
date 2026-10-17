@@ -20,8 +20,14 @@ public:
 	virtual void UnloadRocket();
 #endif
 
+	// Netcoop (owner 2026-10-17: the Bulldog and similar launchers did not
+	// work): the owner sends the shot, the server launches the grenade.
+	bool netcoop_fire_shot(u8 kind, const Fvector& pos, const Fvector& dir) override;
+	void netcoop_shot_effect(u8 kind) override;
+
 protected:
 	virtual void FireStart();
+	virtual void FireTrace(const Fvector& P, const Fvector& D);
 	virtual u8 AddCartridge(u8 cnt);
 
 DECLARE_SCRIPT_REGISTER_FUNCTION

@@ -93,6 +93,18 @@ protected:
 
 protected:
 	void setup_throw_params();
+	// Netcoop (owner 2026-10-17: grenades did not work): a player's throw is
+	// the server's. The owner sends position, direction and force; the
+	// server throws its copy's fake missile with them.
+	void netcoop_send_throw();
+	void netcoop_server_throw();
+	virtual void netcoop_arm(CMissile* /*thrown*/) {}
+	virtual void netcoop_thrown() {}
+	bool m_netcoop_throw_pending = false;
+	bool m_netcoop_throw_sent = false;
+	u32 m_netcoop_throw_time = 0;
+	float m_netcoop_throw_force = 0.f;
+	Fmatrix m_netcoop_throw_matrix;
 public:
 	Fvector const& throw_point_offset() const { return m_vThrowPoint; }
 	virtual void activate_physic_shell();

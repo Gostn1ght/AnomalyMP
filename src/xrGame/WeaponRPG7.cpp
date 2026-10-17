@@ -68,6 +68,7 @@ bool CWeaponRPG7::netcoop_launch_rocket(const Fvector& pos, const Fvector& direc
 	NET_Packet packet;
 	u_EventGen(packet, GE_LAUNCH_ROCKET, ID());
 	packet.w_u16(rocket->ID());
+	netcoop_write_launch(packet, rocket);
 	u_EventSend(packet);
 	return true;
 }
@@ -221,6 +222,7 @@ void CWeaponRPG7::switch2_Fire()
 			NET_Packet P;
 			u_EventGen(P, GE_LAUNCH_ROCKET, ID());
 			P.w_u16(u16(getCurrentRocket()->ID()));
+			netcoop_write_launch(P, getCurrentRocket());
 			u_EventSend(P);
 		}
 	}
@@ -262,6 +264,7 @@ void CWeaponRPG7::OnEvent(NET_Packet& P, u16 type)
 		{
 			bool bLaunch = (type == GE_LAUNCH_ROCKET);
 			P.r_u16(id);
+			if (bLaunch) netcoop_read_launch(P, id);
 			CRocketLauncher::DetachRocket(id, bLaunch);
 			if (bLaunch)
 				UpdateMissileVisibility();

@@ -7,6 +7,7 @@ extern BOOL g_launcher_dynamic_range_zoom;
 #include "level.h"
 #include "../xrphysics/MathUtils.h"
 #include "actor.h"
+#include "netcoop.h"
 
 #ifdef DEBUG
 #	include "phdebug.h"
@@ -57,6 +58,10 @@ void CWeaponRG6::FireStart()
 	if (GetState() == eIdle && getRocketCount() && iAmmoElapsed)
 	{
 		inheritedSG::FireStart();
+		// A player's grenade: the owner sends the shot (FireTrace), the server
+		// launches it (netcoop_fire_shot); here only the shot animation plays.
+		if (netcoop::enabled() && ParentIsActor() && (netcoop::pure_client() || netcoop::server_player_copy(H_Parent())))
+			return;
 #ifdef CROCKETLAUNCHER_CHANGE
 		LPCSTR ammo_name = m_ammoTypes[m_ammoType].c_str();
 		float launch_speed = READ_IF_EXISTS(pSettings, r_float, ammo_name, "ammo_grenade_vel", CRocketLauncher::m_fLaunchSpeed);
@@ -146,10 +151,62 @@ void CWeaponRG6::FireStart()
 			NET_Packet P;
 			u_EventGen(P, GE_LAUNCH_ROCKET, ID());
 			P.w_u16(u16(getCurrentRocket()->ID()));
+			netcoop_write_launch(P, getCurrentRocket());
 			u_EventSend(P);
 		}
 		dropCurrentRocket();
 	}
+}
+
+void CWeaponRG6::FireTrace(const Fvector& P, const Fvector& D)
+{
+	if (netcoop::enabled() && ParentIsActor())
+	{
+		// The server launches the grenade; no invisible hitscan shell as well.
+		if (netcoop::pure_client() && iAmmoElapsed && !m_magazine.empty())
+		{
+			netcoop_send_shot(P, D, 1);
+			netcoop_consume_projectile();
+		}
+		return;
+	}
+	inheritedSG::FireTrace(P, D);
+}
+
+bool CWeaponRG6::netcoop_fire_shot(u8 kind, const Fvector& pos, const Fvector& dir)
+{
+	if (kind != 1 || !OnServer() || !H_Parent() || !getRocketCount() || !iAmmoElapsed || m_magazine.empty()) return false;
+#ifdef CROCKETLAUNCHER_CHANGE
+	LPCSTR ammo_name = m_ammoTypes[m_ammoType].c_str();
+	const float launch_speed = READ_IF_EXISTS(pSettings, r_float, ammo_name, "ammo_grenade_vel", CRocketLauncher::m_fLaunchSpeed);
+#else
+	const float launch_speed = m_fLaunchSpeed;
+#endif
+	Fvector velocity;
+	velocity.set(dir).normalize_safe();
+	Fmatrix launch;
+	launch.identity();
+	launch.k.set(velocity);
+	Fvector::generate_orthonormal_basis(launch.k, launch.j, launch.i);
+	launch.c.set(pos);
+	velocity.mul(launch_speed);
+	CRocketLauncher::LaunchRocket(launch, velocity, zero_vel);
+	if (CExplosiveRocket* grenade = smart_cast<CExplosiveRocket*>(getCurrentRocket()))
+		grenade->SetInitiator(H_Parent()->ID());
+	NET_Packet P;
+	u_EventGen(P, GE_LAUNCH_ROCKET, ID());
+	P.w_u16(u16(getCurrentRocket()->ID()));
+	netcoop_write_launch(P, getCurrentRocket());
+	u_EventSend(P);
+	dropCurrentRocket();
+	OnShot();
+	netcoop_consume_projectile();
+	return true;
+}
+
+void CWeaponRG6::netcoop_shot_effect(u8 kind)
+{
+	if (kind == 1) OnShot();
 }
 
 u8 CWeaponRG6::AddCartridge(u8 cnt)
@@ -183,6 +240,7 @@ void CWeaponRG6::OnEvent(NET_Packet& P, u16 type)
 		{
 			bool bLaunch = (type == GE_LAUNCH_ROCKET);
 			P.r_u16(id);
+			if (bLaunch) netcoop_read_launch(P, id);
 			inheritedRL::DetachRocket(id, bLaunch);
 		}
 		break;

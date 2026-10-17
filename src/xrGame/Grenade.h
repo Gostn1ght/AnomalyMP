@@ -55,6 +55,10 @@ public:
 
 	virtual void Throw();
 	virtual void Destroy();
+	// Netcoop: the server's throw for a player arms the fake missile and
+	// then puts the next grenade into the hands.
+	void netcoop_arm(CMissile* thrown) override;
+	void netcoop_thrown() override;
 
 
 	virtual bool Action(u16 cmd, u32 flags);

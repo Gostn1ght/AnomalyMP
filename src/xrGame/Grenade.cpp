@@ -185,6 +185,13 @@ void CGrenade::Throw()
 {
 	if (m_thrown)
 		return;
+	// A player's throw goes to the server (CMissile::Throw), which throws its
+	// copy's fake missile: this client never has one of its own.
+	if (netcoop::enabled() && smart_cast<CActor*>(H_Parent()))
+	{
+		inherited::Throw();
+		return;
+	}
 
 	if (!m_fake_missile)
 		return;
@@ -203,6 +210,23 @@ void CGrenade::Throw()
 	m_thrown = true;
 }
 
+
+void CGrenade::netcoop_arm(CMissile* thrown)
+{
+	CGrenade* grenade = smart_cast<CGrenade*>(thrown);
+	if (!grenade || !H_Parent()) return;
+	grenade->set_destroy_time(m_dwDestroyTimeMax);
+	grenade->SetInitiator(H_Parent()->ID());
+	grenade->processing_activate();
+	m_thrown = true;
+}
+
+void CGrenade::netcoop_thrown()
+{
+	if (!m_thrown || getDestroy()) return;
+	PutNextToSlot();
+	if (Local()) DestroyObject();
+}
 
 void CGrenade::Destroy()
 {
