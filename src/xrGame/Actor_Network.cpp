@@ -578,6 +578,8 @@ void CActor::netcoop_follow_owner(NET_Packet& P)
 	{
 		Fvector velocity;
 		P.r_sdir(velocity);
+		if (_valid(velocity) && velocity.square_magnitude() <= 30.f * 30.f)
+			m_netcoop_owner_velocity.set(velocity);
 		P.r_float();
 		const u8 slot = P.r_u8();
 		if (slot == u8(NO_ACTIVE_SLOT) || slot <= inventory().LastSlot())

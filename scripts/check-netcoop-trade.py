@@ -73,6 +73,16 @@ npc.relation=function() return 0 end
 xr_logic={pick_section_from_condlist=function(actor,other,rule) assert(actor==db.actor);return rule end}
 db.storage[27]={meet={trade_enable='false'}};prepare_trade(27);assert(not allowed)
 db.storage[27].meet.trade_enable='true';prepare_trade(27);assert(allowed)
+-- A trader that came online with no player in scope has no profile yet
+-- (GAMMA's trade_init needs db.actor): made from its logic at the trade.
+local made
+local saved_profile,saved_init=trade_manager.get_trade_profile,trade_manager.trade_init
+trade_manager.get_trade_profile=function(id,key) return made end
+trade_manager.trade_init=function(n,c) assert(db.actor);made=c end
+db.storage[27]={ini={r_string_ex=function(_,s,k) assert(s=='logic@trader' and k=='trade');return 'items\\\\trade\\\\trade_barman.ltx' end},section_logic='logic@trader'}
+prepare_trade(27);assert(allowed and made=='items\\\\trade\\\\trade_barman.ltx')
+made=nil;db.storage[27]={};prepare_trade(27);assert(allowed and made=='items\\\\trade\\\\trade_generic.ltx')
+trade_manager.get_trade_profile,trade_manager.trade_init=saved_profile,saved_init;db.storage[27]=nil
 ''')
 # Execute the installed GAMMA policy, including ammo/multiuse exceptions and
 # the stricter stock shown on the NPC side. No duplicate price formula here.

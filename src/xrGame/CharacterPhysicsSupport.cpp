@@ -1176,6 +1176,12 @@ void CCharacterPhysicsSupport::CreateShell(CObject* who, Fvector& dp, Fvector& v
 		return;
 
 	m_PhysicMovementControl->GetCharacterVelocity(velocity);
+	// A player on the server follows its owner's positions and is never moved
+	// by its capsule (owner 2026-10-17: a dying player's body slid away and
+	// fell slowly): the ragdoll starts with the owner's reported velocity.
+	if (m_eType == etActor && netcoop::server_player_copy(&m_EntityAlife))
+		if (CActor* player = smart_cast<CActor*>(&m_EntityAlife))
+			velocity.set(player->netcoop_owner_velocity());
 
 
 	if (!m_PhysicMovementControl->CharacterExist())

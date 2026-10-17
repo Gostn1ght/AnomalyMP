@@ -600,6 +600,10 @@ public:
 	// its hands); 0xff until the first update.
 	u8 m_netcoop_owner_slot = 0xff;
 	u16 m_netcoop_owner_item = 0xffff;
+	// Server: the velocity the owner reports. The copy is placed at the
+	// owner's positions, so its capsule's own velocity is not the player's.
+	Fvector m_netcoop_owner_velocity{};
+	const Fvector& netcoop_owner_velocity() const { return m_netcoop_owner_velocity; }
 	float netcoop_model_yaw() const { return r_model_yaw; }
 
 	// Netcoop RP animation (emote): index into netcoop::rp_anims(), -1 none.

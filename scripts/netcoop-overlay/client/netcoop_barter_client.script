@@ -27,7 +27,10 @@ function looked_at_player()
 		local ok, target = pcall(level.get_target_obj)
 		obj = ok and target or nil
 	end
-	if not obj or obj:id() == db.actor:id() or not (IsActor and IsActor(obj) or obj:clsid() == clsid.actor) then return nil end
+	-- The engine's own test: no base-game script defines IsActor on a client,
+	-- and a player's class is script_actor, not clsid.actor (owner 2026-10-17:
+	-- the prompt never appeared).
+	if not obj or obj:id() == db.actor:id() or not (obj.is_actor and obj:is_actor()) then return nil end
 	if not (obj.alive and obj:alive()) then return nil end
 	if obj:position():distance_to(db.actor:position()) > REACH then return nil end
 	return obj

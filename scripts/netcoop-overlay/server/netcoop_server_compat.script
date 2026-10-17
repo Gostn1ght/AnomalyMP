@@ -386,6 +386,17 @@ function prepare_trade(npc_id)
 	if not (npc and db.actor and trade_manager) then return end
 	if zz_netcoop_sandbox then zz_netcoop_sandbox.configure_trader(npc) end
 	if netcoop_traders then netcoop_traders.configure(npc) end
+	-- GAMMA's trade_manager.trade_init returns without db.actor, and NPCs
+	-- come online on the server with no player in scope: their trade profile
+	-- was never made ("This character does not trade", owner 2026-10-17).
+	-- The player is in scope now: the same profile xr_logic would have made.
+	if not trade_manager.get_trade_profile(npc_id, "cfg_ltx") and trade_manager.trade_init and npc:alive() then
+		local st = db.storage[npc_id]
+		local ini, logic = st and st.ini, st and st.section_logic
+		local trade_ini = ini and logic and ini.r_string_ex and ini:r_string_ex(logic, "trade") or "items\\trade\\trade_generic.ltx"
+		local ok, err = pcall(trade_manager.trade_init, npc, trade_ini)
+		if not ok then printf("[Lost Zone] trade profile for %s failed: %s", npc:name(), tostring(err)) end
+	end
 	trade_manager.update(npc)
 	local cfg = trade_manager.get_trade_profile(npc_id, "cfg_ltx")
 	-- xr_meet in this pack disables native trade unconditionally. Re-evaluate

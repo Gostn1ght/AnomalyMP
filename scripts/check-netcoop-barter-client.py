@@ -32,7 +32,9 @@ objects = {}
 function make(id, cls, x, name)
   local o = {_id = id, _cls = cls, _pos = pos(x), _name = name, _alive = true}
   function o:id() return self._id end
-  function o:clsid() return self._cls end
+  -- A player's class on a client is script_actor; only the engine's test counts.
+  function o:is_actor() return self._cls == 1 end
+  function o:clsid() return self._cls == 1 and 99 or self._cls end
   function o:position() return self._pos end
   function o:alive() return self._alive end
   function o:character_name() return self._name end
