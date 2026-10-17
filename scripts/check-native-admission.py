@@ -120,7 +120,7 @@ int main(int argc,char** argv)
     assert(result.state==AdmissionState::Admitted);
     assert(garbage.leave("alice",1));settle(garbage);
     result=admit(garbage,third,"not-a-token",bytes);
-    std::printf("malformed token: state %u stale %d reason '%s'\n",unsigned(result.state),int(result.stale_token),result.reason);
+    std::fprintf(stderr,"malformed token: state %u stale %d reason '%s'\n",unsigned(result.state),int(result.stale_token),result.reason);std::fflush(stderr);
     assert(result.state==AdmissionState::Admitted && result.stale_token);
     assert(garbage.leave("alice",1));settle(garbage);
     cordon.stop();garbage.stop();
