@@ -15,7 +15,6 @@ import threading
 import time
 from pathlib import Path
 
-LOOPBACK = {"127.0.0.1", "localhost", "0.0.0.0", "::1", ""}
 LOCATION = re.compile(r"^[a-z0-9_]{1,64}$")
 HOST = re.compile(r"^[A-Za-z0-9.\-]{1,253}$")
 
@@ -73,9 +72,12 @@ class Gateway:
                 "SELECT location FROM location_lease WHERE expires_ms>?", (now,))}
         for name, host, port in locations:
             if name in alive:
-                # A loopback/unspecified host means "this machine": the client
-                # keeps the address it reached the master with.
-                return {"schema": 1, "location": name, "host": "" if host in LOOPBACK else host, "port": port}
+                # Every location with a live lease runs on this machine: the
+                # master's API listens on 127.0.0.1 only. So the client keeps
+                # the address it reached the master with, whatever the plan
+                # names (owner 2026-10-17: Radmin VPN players, no white IP;
+                # a public IP in the plan is not reachable for them).
+                return {"schema": 1, "location": name, "host": "", "port": port}
         return None
 
 

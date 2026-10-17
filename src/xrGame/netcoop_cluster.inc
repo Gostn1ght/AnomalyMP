@@ -377,6 +377,19 @@ static LPCSTR cluster_current_level()
 	return *ai().game_graph().header().level(ai().level_graph().level_id()).name();
 }
 
+// The host a client is sent to (owner 2026-10-17: Radmin VPN, no white IP).
+// A map the plan puts on this server's own host runs on this machine: the
+// client keeps the address it reached this server with ("127.0.0.1" means
+// "here" to client_cluster_transfer), never a public IP it may not reach.
+static LPCSTR cluster_client_host(const xr_string& host)
+{
+	xr_string own;
+	u32 own_port = 0;
+	const LPCSTR current = cluster_current_level();
+	if (current && current[0] && cluster_location(current, own, own_port) && own == host) return "127.0.0.1";
+	return host.c_str();
+}
+
 bool server_task_here(const char* origin)
 {
 	return !enabled() || !origin || !origin[0] || !xr_strcmp(origin, cluster_current_level());
@@ -529,7 +542,7 @@ static bool cluster_route(xrServer* server, LPCSTR login, u8 slot, xr_string& re
 		return false;
 	}
 	string256 text;
-	xr_sprintf(text, "redirect|%s|%u|%s", host.c_str(), port, level);
+	xr_sprintf(text, "redirect|%s|%u|%s", cluster_client_host(host), port, level);
 	redirect = text;
 	return true;
 }
@@ -683,7 +696,7 @@ static bool cluster_move(xrServer* server, xrClientData* CL, CLevelChanger* chan
 	s_actor_character.erase(actor_id);
 	cluster_lease_release(CL->netcoop_login.c_str());
 	string256 data;
-	xr_sprintf(data, "%s|%u|%s", host.c_str(), port, level);
+	xr_sprintf(data, "%s|%u|%s", cluster_client_host(host), port, level);
 	script_send_to_actor(actor_id, "netcoop_transfer", data);
 	Msg("[Lost Zone][cluster] %s leaves for %s (%s:%u)", CL->netcoop_login.c_str(), level, host.c_str(), port);
 	return true;

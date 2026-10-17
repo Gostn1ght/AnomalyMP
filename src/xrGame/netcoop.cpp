@@ -1889,7 +1889,7 @@ static void admission_logins_update(xrServer* server)
 			if (!problem[0])
 			{
 				string256 redirect;
-				xr_sprintf(redirect, "redirect|%s|%u|%s", host.c_str(), port, home);
+				xr_sprintf(redirect, "redirect|%s|%u|%s", cluster_client_host(host), port, home);
 				Msg("[Lost Zone][master] %s slot %u lives on %s: sent there", login.c_str(), pending->slot, home);
 				cluster_lease_release(login.c_str());
 				cluster_send_redirect(server, CL, redirect);

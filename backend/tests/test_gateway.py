@@ -62,7 +62,9 @@ class GatewayTest(unittest.TestCase):
     def test_entry_is_the_first_running_location(self):
         self.assertIsNone(self.gateway.entry())
         self.store.leases = {"l01_escape": 5000}
-        self.assertEqual(self.gateway.entry(), {"schema": 1, "location": "l01_escape", "host": "203.0.113.7", "port": 1277})
+        # A public host in the plan is not sent: the location is on this machine,
+        # and a VPN player reaches it at the master's address.
+        self.assertEqual(self.gateway.entry(), {"schema": 1, "location": "l01_escape", "host": "", "port": 1277})
         self.store.leases["k00_marsh"] = 5000
         # Loopback in the plan means this machine: the client keeps the master's address.
         self.assertEqual(self.gateway.entry(), {"schema": 1, "location": "k00_marsh", "host": "", "port": 1267})
