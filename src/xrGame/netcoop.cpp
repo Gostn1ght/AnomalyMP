@@ -520,7 +520,7 @@ void client_write_auth(NET_Packet& P)
     if (cloud) { P.w_stringZ(s_client_description.c_str()); P.w_stringZ(s_client_history.c_str()); }
 	// Proof of the old server password when linking a migrated account back
 	// to Firebase. A client-supplied device digest is not an authentication key.
-	if (cloud && !xr_stricmp(s_client_login.c_str(), s_firebase_session.username.c_str()) && key_valid(s_client_key.c_str()))
+	if (cloud && !stricmp(s_client_login.c_str(), s_firebase_session.username.c_str()) && key_valid(s_client_key.c_str()))
 	{
 		P.w_u32(0x4b4c5a4c); // LZLK, followed by the remembered password key
 		P.w_stringZ(s_client_key.c_str());
