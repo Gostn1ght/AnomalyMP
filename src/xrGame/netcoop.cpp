@@ -2786,12 +2786,12 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 	trade->StartTradeEx(actor);
 	if (!partner_buys)
 	{
-		u32 cells=storage_live_cells(server,CL->owner);
+		// Weight only (no cell limit); the save format holds 512 items.
 		xr_vector<u16> incoming;
-		for (auto item:items) { cells+=storage_section_cost(item->object().cNameSect().c_str()); incoming.push_back(item->object().ID()); }
-		if (cells>storage_live_capacity(actor) || !storage_inventory_room(server,CL->owner,incoming))
+		for (auto item:items) incoming.push_back(item->object().ID());
+		if (!storage_inventory_room(server,CL->owner,incoming))
 		{
-			trade->StopTrade(); finish(false,"No free inventory slots"); return;
+			trade->StopTrade(); finish(false,"Inventory save limit reached (512 items)"); return;
 		}
 	}
 

@@ -78,13 +78,12 @@ int main()
     memory.safe={{"huge",0,0,""}};req.op=2;req.index=0;
     assert(storage_execute(&server,&client,req).find("NO_FREE_SLOTS\n")==0 && memory.safe.size()==1);
     CSE_ALifeInventoryItem root,incoming;root.ID=10;root.ID_Parent=9;incoming.ID=11;root.s_name="rifle";incoming.s_name="huge";game.objects[10]=&root;game.objects[11]=&incoming;actor.children={10};
-    assert(!server_inventory_can_take(&server,9,11));assert(xr_string(server_inventory_take_failure(&server,9,11)).find("inventory cells full (10 + 200 / 120)")==0);incoming.s_name="medkit";assert(server_inventory_can_take(&server,9,11));
+    // Weight only (owner 2026-10-17): no cell limit for a live inventory.
+    assert(server_inventory_can_take(&server,9,11)&&server_inventory_take_failure(&server,9,11)==nullptr);incoming.s_name="medkit";assert(server_inventory_can_take(&server,9,11));
     CActor live;RuntimeItem held;live.bag.m_ruck={&held};runtime_level.Objects.objects[9]=&live;own=&live;
-    assert(storage_live_capacity(&live)==320 && xr_string(script_inventory_slots())=="10|320");
-    incoming.s_name="huge";live.weight=20;assert(storage_live_capacity(&live)==160 && !server_inventory_can_take(&server,9,11));
-    live.weight=40;assert(storage_live_capacity(&live)==320 && server_inventory_can_take(&server,9,11));
-    live.weight=1000;assert(storage_live_capacity(&live)==512);live.weight=0;assert(storage_live_capacity(&live)==120);
-    live.weight=std::numeric_limits<float>::quiet_NaN();assert(storage_live_capacity(&live)==120);
+    assert(storage_live_capacity(&live)==512 && xr_string(script_inventory_slots())=="");
+    incoming.s_name="huge";live.weight=20;assert(storage_live_capacity(&live)==512 && server_inventory_can_take(&server,9,11));
+    live.weight=std::numeric_limits<float>::quiet_NaN();assert(storage_live_capacity(&live)==512 && server_inventory_can_take(&server,9,11));
     // Saved capacity survives offline safe withdrawals; equipped armor occupies no rucksack cells.
     memory.inventory_cells=240;req.revision=memory.storage_revision;req.id=std::string(32,'d');
     assert(storage_execute(&server,&client,req).find("OK\n")==0 && memory.safe.empty());

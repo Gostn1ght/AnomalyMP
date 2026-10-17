@@ -1,4 +1,4 @@
-"""CI-only actual carry-weight methods feed the authoritative cells policy."""
+"""CI-only: weight only, no live cell limit; saved capacity is the 512-item maximum."""
 import os
 from pathlib import Path
 import subprocess
@@ -46,23 +46,14 @@ struct CActor {Inventory bag;Conditions stats;CCustomOutfit* worn_outfit=nullptr
 u32 storage_capacity(bool safe){assert(!safe);return 120;}
 ''' + function('src/xrGame/Actor_Movement.cpp', 'float CActor::MaxCarryWeight() const') + '\n' + function(
     'src/xrGame/Actor_Movement.cpp', 'float CActor::get_additional_weight() const') + '\n' + function(
-    'src/xrGame/netcoop_storage.inc', 'static u32 storage_live_capacity(CActor* actor)') + r'''
+    'src/xrGame/netcoop_storage.inc', 'static u32 storage_live_capacity(CActor* /*actor*/)') + r'''
 int main(){
- CActor actor;CCustomOutfit outfit;CBackpack backpack;CArtefact artifact;Item ordinary;
- actor.bag.weight=15;
- assert(storage_live_capacity(nullptr)==120 && storage_live_capacity(&actor)==120);
- actor.worn_outfit=&outfit;assert(storage_live_capacity(&actor)==160);
- actor.bag.backpack=&backpack;assert(storage_live_capacity(&actor)==320);
- actor.stats.boost=10;assert(storage_live_capacity(&actor)==400);
- actor.bag.m_belt={&artifact,&ordinary};assert(storage_live_capacity(&actor)==440);
- outfit.m_additional_weight=10;assert(storage_live_capacity(&actor)==480);
- artifact.condition=0;assert(storage_live_capacity(&actor)==440);
- actor.bag.weight=1000;assert(storage_live_capacity(&actor)==512);
- actor.bag.weight=std::numeric_limits<float>::quiet_NaN();assert(storage_live_capacity(&actor)==120);
- actor.bag.weight=-1000;assert(storage_live_capacity(&actor)==120);
- actor.worn_outfit=nullptr;actor.bag.backpack=nullptr;actor.stats.boost=0;actor.bag.m_belt.clear();
- actor.bag.weight=20.12f;assert(storage_live_capacity(&actor)==160);
- actor.bag.weight=20.125f;assert(storage_live_capacity(&actor)==161);
+ // Weight only (owner 2026-10-17): the live inventory has no cell limit;
+ // the saved capacity is the save format's maximum whatever the gear.
+ CActor actor;CCustomOutfit outfit;CBackpack backpack;
+ assert(storage_live_capacity(nullptr)==512 && storage_live_capacity(&actor)==512);
+ actor.worn_outfit=&outfit;actor.bag.backpack=&backpack;actor.bag.weight=1000;assert(storage_live_capacity(&actor)==512);
+ actor.bag.weight=std::numeric_limits<float>::quiet_NaN();assert(storage_live_capacity(&actor)==512);
 }
 '''
 if os.environ.get('GITHUB_ACTIONS') != 'true':
@@ -76,4 +67,4 @@ with TemporaryDirectory(prefix='carry-capacity-') as temporary:
                ['g++','-std=c++17','-Wall','-Wextra','-Werror',str(cpp),'-o',str(exe)])
     subprocess.run(command,cwd=folder,check=True)
     subprocess.run([str(exe)],cwd=folder,check=True)
-print('PASS actual native carry-weight/cells: armor, backpack, upgrades, booster, belt condition, floor, cap and invalid inputs')
+print('PASS native inventory: no cell limit, weight only; saved capacity 512 whatever the gear')

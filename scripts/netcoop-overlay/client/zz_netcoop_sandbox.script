@@ -1,6 +1,8 @@
 -- Owner 2026-10-09: retire former faction contacts; keep traders and the
 -- ecologist at the old Marsh church. Generic GAMMA population is untouched.
--- New Lost Zone contracts use a separate namespace; no legacy task is admitted.
+-- Owner 2026-10-17: GAMMA's ordinary tasks and dialogues are back ("no tasks,
+-- not even the dialogue to take one; the dialogues to talk or ask are gone").
+-- Only story tasks stay blocked: their NPCs are retired.
 local guarded, scan, pending = {}, 1, {}
 local cfg
 local function enabled() return netcoop_enabled and netcoop_enabled() end
@@ -107,24 +109,11 @@ local function block(owner,name)
 end
 function install()
     if not enabled() then return end
-    block(task_manager and task_manager.CRandomTask,"give_task")
+    -- Story tasks only (xr_effects is what story logic and dialogues call).
+    -- Generic tasks (task_manager, axr_task_manager, tasks_fate) and their
+    -- rewards run as in GAMMA, per player on the server.
     block(xr_effects,"give_task")
     block(xr_effects,"set_active_task")
-    block(task_manager,"task_callback") -- old completion must not grant rewards
-    for _,name in ipairs({"get_first_available_task","get_first_finished_task","drx_sl_generate_random_sl_task",
-                          "drx_sl_generate_change_factions_task","npc_give_first_available_ordered_task",
-                          "drx_sl_get_mechanic_task","set_finished_task_complete","drx_sl_set_finished_task_complete",
-                          "drx_sl_set_finished_cf_task_complete"}) do block(axr_task_manager,name) end
-    block(tasks_fate,"prepare_dead_squad")
-    local tm = task_manager and task_manager.get_task_manager and task_manager.get_task_manager()
-    if tm and tm.task_info then
-        for id in pairs(tm.task_info) do
-            if not tostring(id):match("^lz_contract_") then
-                tm.task_info[id] = nil
-                if db and db.actor and task then db.actor:set_task_state(task.fail,id) end
-            end
-        end
-    end
 end
 function update()
     if not enabled() then return end
@@ -147,21 +136,10 @@ function update()
     end
 end
 function registered(se) if se and se.id then pending[se.id] = true end end
-function character_init(id,data)
-    if enabled() then data.start_dialog = "dm_init_trader" end
-end
-function character_dialogs(id,list)
-    if not enabled() then return end
-    local keep = {dm_init_trader=true,dm_add_trade=true,dm_tech_repair=true,dm_tech_upgrade=true}
-    for _,dialog in ipairs(list:get_dialogs()) do if not keep[dialog] then list:remove(dialog) end end
-    list:add("dm_init_trader")
-end
 function on_game_start()
     if not enabled() then return end
     RegisterScriptCallback("on_game_load",function() scan=1; install() end)
     RegisterScriptCallback("server_entity_on_register",registered)
     RegisterScriptCallback("npc_on_net_spawn",configure_trader)
-    RegisterScriptCallback("on_specific_character_init",character_init)
-    RegisterScriptCallback("on_specific_character_dialog_list",character_dialogs)
     install()
 end

@@ -42,16 +42,20 @@ trade_manager={trade_init=function(obj,cfg) traded[obj.id]=cfg end,get_trade_pro
 local state={}
 alife_storage_manager={get_state=function() return state end}
 treasure_manager={caches={[10]="quest_document,conserva,quest_artefact",[11]=false}}
-task_manager={CRandomTask={give_task=function() error("old task issued") end},
- get_task_manager=function() return {task_info={old={}}} end,task_callback=function() error("old reward") end}
-xr_effects={give_task=function() error("story task") end}
-axr_task_manager={get_first_available_task=function() error("old offered") end}
+generic_tasks={}
+task_manager={CRandomTask={give_task=function() generic_tasks.given=true;return "given" end},
+ get_task_manager=function() return {task_info={generic={}}} end,task_callback=function() generic_tasks.reward=true;return "reward" end}
+xr_effects={give_task=function() error("story task") end,set_active_task=function() error("story task") end}
+axr_task_manager={get_first_available_task=function() return "offered" end}
 ''')
 lua.execute(source)
 lua.execute(r'''
 on_game_start()
-assert(task_manager.CRandomTask.give_task()==nil and xr_effects.give_task()==nil)
-assert(axr_task_manager.get_first_available_task()==nil and task_manager.task_callback()==nil)
+-- Owner 2026-10-17: GAMMA's ordinary tasks and rewards work; story tasks stay blocked.
+assert(xr_effects.give_task()==nil and xr_effects.set_active_task()==nil)
+assert(task_manager.CRandomTask.give_task()=="given" and task_manager.task_callback()=="reward")
+assert(axr_task_manager.get_first_available_task()=="offered")
+assert(callbacks.on_specific_character_init==nil and callbacks.on_specific_character_dialog_list==nil)
 spawn(1,"npc",1,"removed",nil,"story")
 local wolf=spawn(2,"npc",1,"wolf",nil,"wolf")
 traded[2]="obsolete_mini.ltx"
@@ -93,10 +97,7 @@ spawn(50000,"quest_document",30,"");registered(objects[50000]);update();assert(o
 -- A failed replacement retains the original quest loot for a safe retry.
 spawn(50001,"quest_document",30,"",10);fail_create=true;registered(objects[50001]);update()
 assert(objects[50001]);fail_create=false;registered(objects[50001]);update();assert(objects[50001]==nil)
-local data={start_dialog="old_story"};character_init("wolf",data);assert(data.start_dialog=="dm_init_trader")
-local dialogs={old_story=true,dm_init_trader=true,dm_tech_repair=true}
-character_dialogs("wolf",{get_dialogs=function() return {"old_story","dm_init_trader","dm_tech_repair"} end,
- remove=function(_,d) dialogs[d]=nil end,add=function(_,d) dialogs[d]=true end})
-assert(not dialogs.old_story and dialogs.dm_init_trader and dialogs.dm_tech_repair)
+-- Dialogues are GAMMA's own again: no start dialogue or list rewrite.
+assert(character_init==nil and character_dialogs==nil)
 ''')
-print("Sandbox Lua PASS: legacy offers/rewards blocked, story NPCs retired, traders/church scientist retained; stale mini trade cannot bypass retirement, quest items removed/replaced, no stash reroll, late registrations and failed conversion retry")
+print("Sandbox Lua PASS: story tasks blocked, ordinary GAMMA tasks/rewards/dialogues kept, story NPCs retired, traders/church scientist retained; stale mini trade cannot bypass retirement, quest items removed/replaced, no stash reroll, late registrations and failed conversion retry")
