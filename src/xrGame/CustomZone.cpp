@@ -18,6 +18,7 @@
 #include "breakableobject.h"
 #include "GamePersistent.h"
 #include "../../script_game_object.h"
+#include "netcoop.h"
 
 #define WIND_RADIUS (4*Radius())	//расстояние до актера, когда появляется ветер 
 #define FASTMODE_DISTANCE (100.f)	//distance to camera from sphere, when zone switches to fast update sequence
@@ -1206,7 +1207,19 @@ void CCustomZone::AffectObjects()
 
 void CCustomZone::UpdateBlowout()
 {
-	if (!m_zone_flags.test(eFastMode)) return;
+	// The netcoop server has no viewer of its own: its zones never switch to
+	// fast mode (that follows the distance to the local Actor), and the
+	// blowout below was the only place they hurt anyone - anomalies and
+	// radiation did not hurt players (owner 2026-10-17). The authority
+	// applies the blowout's hits in any mode; effects stay fast-mode only.
+	const bool effects = !!m_zone_flags.test(eFastMode);
+	if (!effects && !(netcoop::enabled() && !netcoop::pure_client())) return;
+	if (!effects)
+	{
+		if (m_dwBlowoutExplosionTime >= (u32)m_iPreviousStateTime && m_dwBlowoutExplosionTime < (u32)m_iStateTime)
+			AffectObjects();
+		return;
+	}
 	if (m_dwBlowoutParticlesTime >= (u32)m_iPreviousStateTime &&
 		m_dwBlowoutParticlesTime < (u32)m_iStateTime)
 		PlayBlowoutParticles();
