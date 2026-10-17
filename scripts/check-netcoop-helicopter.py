@@ -42,60 +42,70 @@ def ini(text):
     return sections
 
 
-model = chunks(OGF.read_bytes())
-userdata = model[17].rstrip(b"\0").decode("ascii")
-assert userdata == '#include "models\\vehicles\\veh_mi2_pilot.ltx"', userdata
-body = model[13]
-count, = struct.unpack_from("<I", body, 0)
-pos, bones = 4, set()
-for _ in range(count):
-    z = body.index(b"\0", pos); bones.add(body[pos:z].decode()); pos = z + 1
-    z = body.index(b"\0", pos); pos = z + 1 + 60
-assert b"idle" in model[15], "the rotor motion"
-
-for name in ("configs/models/vehicles/veh_mi2_pilot.ltx", "configs/mod_system_zzzzzzzz_netcoop_helicopters.ltx"):
-    client, server = (OVERLAY / "client" / name).read_bytes(), (OVERLAY / "server" / name).read_bytes()
-    assert client == server, f"{name}: client and server differ"
-    client.decode("ascii")
-
-profile = ini((OVERLAY / "client/configs/models/vehicles/veh_mi2_pilot.ltx").read_text(encoding="ascii"))
-items = ini((OVERLAY / "client/configs/mod_system_zzzzzzzz_netcoop_helicopters.ltx").read_text(encoding="ascii"))
-heli = items["veh_mi2_heli"]
-
 car = (ROOT / "src/xrGame/Car.cpp").read_text(encoding="utf-8", errors="replace")
 parse = car[car.index("void CCar::ParseDefinitions()"):car.index("void CCar::CreateSkeleton(")]
 parse = re.sub(r"#else.*?#endif", "", parse, flags=re.S)  # CAR_NEW is defined: optional wheels
 init = car[car.index("void CCar::Init()"):car.index("void CCar::Revert()")]
 required = set(re.findall(r'ini->r_\w+\("car_definition", "(\w+)"\)', parse + init))
 required -= set(re.findall(r'line_exist\("car_definition", "(\w+)"\)', parse + init))
-missing = required - set(profile["car_definition"])
-assert not missing, f"profile lacks {sorted(missing)}"
-assert {"R", "N1"} <= set(profile["transmission_gear_ratio"])
-for section in ("explosion", "damage_bones", "immunities", "car_sound", "damage_particles"):
-    assert section in profile, section
-assert profile["car_definition"]["damage"] in profile
-for key in ("driver_place",):
-    assert profile["car_definition"][key] in bones, key
-for key in ("particle_bones1", "particle_bones2"):
-    assert profile["damage_particles"][key] in bones, key
-for bone in profile["collision_damage"]:
-    assert bone in bones, bone
-for item in heli["netcoop_seats"].split(","):
-    bone, *offset = item.strip().split(":")
-    assert bone in bones and len(offset) == 3, item
-    [float(v) for v in offset]
-
 load = car[car.index("void CCar::netcoop_heli_load()"):car.index("void CCar::netcoop_heli_rotors()")]
 read = set(re.findall(r'"(heli_\w+)"', load))
-given = {key for key in heli if key.startswith("heli_")}
-assert given <= read, f"unknown keys {sorted(given - read)}"
-assert read <= given, f"keys left at the engine default {sorted(read - given)}"
-assert heli["netcoop_heli"] == "true" and heli["visual"] == "dynamics\\vehicles\\mi2\\veh_mi2_pilot.ogf"
 inc = (ROOT / "src/xrGame/netcoop_vehicles.inc").read_text(encoding="utf-8-sig")
-for key in ("netcoop_center_x", "netcoop_half_width", "netcoop_rear_z"):
-    assert f'"{key}"' in inc and key in heli, key
-# Lift must hold the weight with room to climb at the default collective rate.
-assert 1.1 < float(heli["heli_lift_ratio"]) < 3
+items = ini((OVERLAY / "client/configs/mod_system_zzzzzzzz_netcoop_helicopters.ltx").read_text(encoding="ascii"))
+name = "configs/mod_system_zzzzzzzz_netcoop_helicopters.ltx"
+assert (OVERLAY / "client" / name).read_bytes() == (OVERLAY / "server" / name).read_bytes(), name
 
-print(f"Helicopter: {len(bones)} bones, {len(heli['netcoop_seats'].split(','))} seats, "
-      f"{len(read)} flight keys, profile and section agree with Car.cpp, client = server PASS")
+# Mi-2 (doc 137) and the owner's Mi-24 (doc 141).
+HELICOPTERS = {"veh_mi2_heli": ("mi2", "veh_mi2_pilot"), "veh_mi24_heli": ("mi24_lz", "veh_mi24_pilot")}
+report = []
+for section, (folder, model_name) in HELICOPTERS.items():
+    ogf = OVERLAY / f"client/meshes/dynamics/vehicles/{folder}/{model_name}.ogf"
+    model = chunks(ogf.read_bytes())
+    userdata = model[17].rstrip(b"\0").decode("ascii")
+    assert userdata == '#include "models\\vehicles\\' + model_name + '.ltx"', userdata
+    body = model[13]
+    count, = struct.unpack_from("<I", body, 0)
+    pos, bones = 4, set()
+    for _ in range(count):
+        z = body.index(b"\0", pos); bones.add(body[pos:z].decode()); pos = z + 1
+        z = body.index(b"\0", pos); pos = z + 1 + 60
+    assert b"idle" in model[15], "the rotor motion"
+    profile_name = f"configs/models/vehicles/{model_name}.ltx"
+    client, server = (OVERLAY / "client" / profile_name).read_bytes(), (OVERLAY / "server" / profile_name).read_bytes()
+    assert client == server and b"\x0b" not in client, f"{profile_name}: client and server differ"
+    profile = ini(client.decode("ascii"))
+    heli = items[section]
+    missing = required - set(profile["car_definition"])
+    assert not missing, f"{model_name} lacks {sorted(missing)}"
+    assert {"R", "N1"} <= set(profile["transmission_gear_ratio"])
+    for part in ("explosion", "damage_bones", "immunities", "car_sound", "damage_particles"):
+        assert part in profile, part
+    assert profile["car_definition"]["damage"] in profile
+    assert profile["car_definition"]["driver_place"] in bones
+    for key in ("particle_bones1", "particle_bones2"):
+        assert profile["damage_particles"][key] in bones, key
+    for bone in profile["collision_damage"]:
+        assert bone in bones, bone
+    seats = heli["netcoop_seats"].split(",")
+    assert len(seats) <= 8
+    for item in seats:
+        bone, *offset = item.strip().split(":")
+        assert bone in bones and len(offset) == 3, item
+        [float(v) for v in offset]
+    given = {key for key in heli if key.startswith("heli_")}
+    assert given <= read, f"unknown keys {sorted(given - read)}"
+    assert read <= given, f"{section}: keys left at the engine default {sorted(read - given)}"
+    assert heli["netcoop_heli"] == "true" and heli["visual"] == "dynamics\\vehicles\\" + folder + "\\" + model_name + ".ogf"
+    for key in ("netcoop_center_x", "netcoop_half_width", "netcoop_rear_z"):
+        assert f'"{key}"' in inc and key in heli, key
+    # Lift must hold the weight with room to climb at the default collective rate.
+    assert 1.1 < float(heli["heli_lift_ratio"]) < 3
+    # Every texture the model names ships (overlay) or is a base-game Mi-2 one.
+    textures = set(re.findall(rb"(veh[\\][a-z0-9_]+)\x00", ogf.read_bytes()))
+    assert textures, "no textures found"
+    for texture in textures:
+        name_ = texture.decode()
+        assert (OVERLAY / "client/textures" / (name_.replace("\\", "/") + ".dds")).is_file() or name_ in ("veh\\veh_mi2", "veh\\veh_mi24_vint"), name_
+    report.append(f"{section}: {len(bones)} bones, {len(seats)} seats, {len(textures)} textures")
+
+print("Helicopters: " + "; ".join(report) + f"; {len(read)} flight keys, profiles and sections agree with Car.cpp, client = server PASS")

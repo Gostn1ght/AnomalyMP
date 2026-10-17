@@ -648,6 +648,7 @@ public:
 		float crash_speed = 12.f; // m/s lost at once (an impact): the helicopter explodes
 		float recent_speed = 0.f; // the highest speed of the last moments
 		bool crashed = false;
+		u32 crash_armed = 0; // Device time from which an impact counts (not the spawn settling)
 		float rotor_anim_speed = 1.f; // "idle" speed at full rotor
 		u32 ground_probe = 0;
 		float ground_height = 100.f;

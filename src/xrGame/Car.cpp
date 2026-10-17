@@ -2618,6 +2618,8 @@ void CCar::netcoop_heli_load()
 	h.sink_rate = READ_IF_EXISTS(pSettings, r_float, section, "heli_sink_rate", h.sink_rate);
 	h.climb_gain = READ_IF_EXISTS(pSettings, r_float, section, "heli_climb_gain", h.climb_gain);
 	h.crash_speed = READ_IF_EXISTS(pSettings, r_float, section, "heli_crash_speed", h.crash_speed);
+	// A new helicopter is pushed out of the ground and settles: no impact.
+	h.crash_armed = Device.dwTimeGlobal + 5000;
 	h.rotor_anim_speed = READ_IF_EXISTS(pSettings, r_float, section, "heli_rotor_anim_speed", h.rotor_anim_speed);
 	// The model's own "idle" turns the rotors (the AI helicopter plays it at
 	// full speed); here it runs as fast as the rotor and stands still parked.
@@ -2689,7 +2691,9 @@ void CCar::netcoop_heli_step(float dt)
 	Fvector velocity;
 	shell->get_LinearVel(velocity);
 	const float speed = _valid(velocity) ? velocity.magnitude() : 0.f;
-	if (!h.crashed && h.recent_speed - speed > h.crash_speed)
+	if (Device.dwTimeGlobal < h.crash_armed)
+		h.recent_speed = 0.f;
+	else if (!h.crashed && h.recent_speed - speed > h.crash_speed)
 	{
 		h.crashed = true;
 		netcoop_heli_crash();

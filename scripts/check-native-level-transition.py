@@ -53,7 +53,13 @@ namespace netcoop{bool active=true,client=true;bool enabled(){return active;}boo
 struct NET_Packet{unsigned writes=0;void w_begin(int){++writes;}void w(const void*,size_t){++writes;}void w_vec3(const Fvector&){++writes;}};
 constexpr int M_CHANGE_LEVEL=42;int net_flags(bool){return 0;}
 struct GameUI{virtual ~GameUI()=default;};
+struct CUIDialogWnd{};
+struct CChangeLevelWnd:CUIDialogWnd{};
+struct MenuState{bool active=false;bool IsActive()const{return active;}} menu;
+MenuState* MainMenu(){return &menu;}
 struct CUIGameSP:GameUI{
+ CChangeLevelWnd question;CChangeLevelWnd* UIChangeLevelWnd=&question;CUIDialogWnd* top=nullptr;
+ CUIDialogWnd* TopInputReceiver(){return top;}
  unsigned calls=0;bool last_enabled=false;
  void ChangeLevel(unsigned,unsigned,const Fvector&,const Fvector&,const Fvector&,const Fvector&,bool,LPCSTR,bool enabled){++calls;last_enabled=enabled;}
 } ui;
@@ -95,6 +101,8 @@ int main(){
   c.feel_touch_new(&remote);assert(ui.calls==calls&&fixture_level.sends==sends);
   owner.alive=false;c.feel_touch_new(&owner);assert(ui.calls==calls);owner.alive=true;
   owner.seated=true;c.feel_touch_new(&owner);assert(ui.calls==calls);owner.seated=false; // a car goes through whole (doc 100)
+  // Loading/login menu open: no question now (it would be dropped by the menu).
+  menu.active=true;c.feel_touch_new(&owner);assert(ui.calls==calls);menu.active=false;
   c.feel_touch_new(&owner);assert(ui.calls==calls+1&&fixture_level.sends==sends&&ui.last_enabled);
   c.update_actor_invitation();assert(ui.calls==calls+1);
   Device.fTimeGlobal+=6;c.update_actor_invitation();assert(ui.calls==calls+2&&fixture_level.sends==sends);

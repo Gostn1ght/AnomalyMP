@@ -274,6 +274,19 @@ void CUIGameSP::ChangeLevel(GameGraph::_GRAPH_ID game_vert_id,
                             const shared_str& message_str,
                             bool b_allow_change_level)
 {
+	// Owner 2026-10-17: entering the Cordon passage asked nothing. A question
+	// opened while another holder (the main menu during loading or login) was
+	// current stays "shown" after that holder dropped it, and ShowDialog then
+	// does nothing for good. Such a stale window is reset first.
+	if (UIChangeLevelWnd->IsShown() && TopInputReceiver() != UIChangeLevelWnd)
+	{
+		Msg("! [Lost Zone][passage] the question window was stuck open (holder %s): reset",
+		    UIChangeLevelWnd->GetHolder() ? (UIChangeLevelWnd->GetHolder() == this ? "game" : "other") : "none");
+		if (CDialogHolder* holder = UIChangeLevelWnd->GetHolder())
+			holder->StopDialog(UIChangeLevelWnd);
+		else
+			UIChangeLevelWnd->Show(false);
+	}
 	if (TopInputReceiver() != UIChangeLevelWnd)
 	{
 		UIChangeLevelWnd->m_game_vertex_id = game_vert_id;

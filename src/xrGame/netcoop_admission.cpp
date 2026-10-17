@@ -266,17 +266,23 @@ struct AdmissionCoordinator::State
         const auto id=checkpoint_player_id(config.world,config.seed,account,job.slot);
         BridgeJson result;
         // A level changer's handoff: claim and commit the frozen character.
+        // A token the master refuses for good (the passage was finished,
+        // aborted or expired; owner 2026-10-17: refused at every login after
+        // a reconnect) is stale: it is dropped and the login goes on as usual.
+        bool stale_token=false;
         if(!job.token.empty())
         {
-            if(command("transfer_claim",{{"token",job.token},{"target_fence",fence}},result,job.deadline)!=CheckpointStep::Complete)
-                return refuse(job,"the transfer could not be claimed from the world master");
+            const auto claim=command("transfer_claim",{{"token",job.token},{"target_fence",fence}},result,job.deadline);
+            if(claim==CheckpointStep::Retry)
+                return refuse(job,"the world master did not answer for this passage",AdmissionState::Unavailable);
             const auto transfer=result.value("id",std::string());
-            if(!checkpoint_hex(transfer,32) || result.value("entity_id",std::string())!=id)
-                return refuse(job,"the transfer belongs to another character");
-            if(result.value("state",std::string())!="COMMITTED" &&
+            if(claim==CheckpointStep::Rejected || !checkpoint_hex(transfer,32) || result.value("entity_id",std::string())!=id)
+                stale_token=true;
+            else if(result.value("state",std::string())!="COMMITTED" &&
                 command("transfer_commit",{{"transfer_id",transfer},{"target_fence",fence}},result,job.deadline)!=CheckpointStep::Complete)
                 return refuse(job,"the transfer could not be committed by the world master");
         }
+        const auto finish_admission=[&](Outcome&& outcome){outcome.admission.stale_token=stale_token;finish(job.ticket,std::move(outcome));};
         PlayerSlotObservation slot;unsigned status=0;
         for(;;)
         {
@@ -294,7 +300,7 @@ struct AdmissionCoordinator::State
             outcome.admission.state=AdmissionState::Elsewhere;
             put(outcome.admission.home,slot.home);
             put(outcome.admission.reason,"the character is on "+slot.home);
-            return finish(job.ticket,std::move(outcome));
+            return finish_admission(std::move(outcome));
         }
         Character character;
         character.id=id;character.account=account;character.slot=job.slot;
@@ -351,7 +357,7 @@ struct AdmissionCoordinator::State
             std::lock_guard<std::mutex> guard(lock);
             characters[key(account,job.slot)]=std::move(character);
         }
-        finish(job.ticket,std::move(outcome));
+        finish_admission(std::move(outcome));
     }
 
     bool take(const Job& job,Character& character)

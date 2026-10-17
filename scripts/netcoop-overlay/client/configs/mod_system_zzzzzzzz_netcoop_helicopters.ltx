@@ -2,7 +2,7 @@
 ; netcoop_heli = true flies on the server: Space climbs, Ctrl descends
 ; (released: the height is held), W/S pitch, A/D roll, Q/E yaw, O the engine, F gets out. Seats,
 ; trunk, replication and passages are the car's (doc 100). Admin spawn only:
-; spawn veh_mi2_heli.
+; spawn veh_mi2_heli, spawn veh_mi24_heli (also in the spawner's Vehicles).
 ;
 ; heli_lift_ratio      - full collective at full rotor: lift / weight
 ; heli_max_pitch, heli_max_roll - degrees held with W/S, A/D (released: level)
@@ -52,3 +52,37 @@ netcoop_seats           = korpus1:-0.2:-0.12:-0.58, korpus1:0.4:-0.12:-0.58, kor
 netcoop_center_x        = 0.4
 netcoop_half_width      = 0.75
 netcoop_rear_z          = -2.0
+
+; The owner's commissioned Mi-24 (doc 141): pilot (rear cockpit), gunner
+; (front cockpit), six seats in the troop cabin. Heavier and larger than the
+; Mi-2: the same flight model scales with the mass.
+[veh_mi24_heli]:m_car
+$spawn                  = "vehicles\veh_mi24_heli"
+cform                   = skeleton
+visual                  = dynamics\vehicles\mi24_lz\veh_mi24_pilot.ogf
+netcoop_heli            = true
+heli_lift_ratio         = 1.4
+heli_max_pitch          = 20
+heli_max_roll           = 25
+heli_attitude_gain      = 2
+heli_bank_turn          = 0.8
+heli_pitch_rate         = 0.7
+heli_roll_rate          = 0.9
+heli_yaw_rate           = 0.8
+heli_rate_gain          = 16
+heli_drag               = 1.8
+heli_vertical_damping   = 0.6
+heli_ground_effect      = 0.15
+heli_rotor_diameter     = 17.3
+heli_spool_up           = 0.2
+heli_spool_down         = 0.1
+heli_collective_rate    = 1.5
+heli_climb_rate         = 8
+heli_sink_rate          = 5
+heli_climb_gain         = 1.5
+heli_rotor_anim_speed   = 3.0
+heli_crash_speed        = 12
+netcoop_seats           = korpus1:0:0:0.2, korpus1:0:-0.15:2.2, korpus1:-0.55:-0.32:-4.6, korpus1:0.55:-0.32:-4.6, korpus1:-0.55:-0.32:-3.8, korpus1:0.55:-0.32:-3.8, korpus1:-0.55:-0.32:-3.0, korpus1:0.55:-0.32:-3.0
+netcoop_center_x        = 0
+netcoop_half_width      = 1.2
+netcoop_rear_z          = -3.0

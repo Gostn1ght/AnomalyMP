@@ -22,6 +22,7 @@ struct AdmissionResult
     bool master_bytes=false; // the bytes are the master's durable checkpoint, newer than the local file
     char reason[160]{};
     char home[65]{};
+    bool stale_token=false; // the passage token was finished/expired: delete it
 };
 enum class DepartureState : unsigned { Pending, Ready, Refused };
 struct DepartureResult

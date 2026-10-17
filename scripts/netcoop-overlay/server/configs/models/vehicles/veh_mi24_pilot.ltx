@@ -1,0 +1,103 @@
+;-------------------------------------------------------------------------------
+; Lost Zone (doc 141): the flyable Mi-24 - the owner's commissioned model
+; (meshes\dynamics\vehicles\mi24_lz\veh_mi24_pilot.ogf), a car profile for
+; CCar. Flight parameters are in the item section [veh_mi24_heli].
+;-------------------------------------------------------------------------------
+
+[car_definition]
+; the pilot's eye (left front seat), model space; netcoop seats are offsets
+; from this point's bone (driver_place)
+camera_pos              = 0.0, 2.25, 2.90
+driver_place            = korpus1
+damage                  = damage_bones
+
+fuel_tank               = 1500          ; L
+fuel_consumption        = 30            ; L per 100 000 rotor radians: about 2 h of flight
+engine_power            = 400           ; unused by the flight model
+max_power_rpm           = 5500
+max_torque_rpm          = 4500
+max_engine_rpm          = 6000          ; full rotor speed (sound, replication)
+idling_engine_rpm       = 900           ; rotor at rest with the engine on
+power_neutral_factor    = 0.75
+
+reference_radius        = 0.4
+axle_friction           = 0.00001
+steering_speed          = 1
+break_time              = 0.7
+main_gear_ratio         = 1
+auto_transmission       = on
+time_to_explosion       = 30
+
+[transmission_gear_ratio]
+R                       = 1.0,500,16000
+N1                      = 1.0,500,16000
+
+[car_sound]
+snd_volume              = 1.0
+snd_name                = vehicles\helicopter\helicopter
+engine_sound_start_dellay = 0.5
+engine_start            = car\veh_uaz\engine_start
+engine_stop             = car\veh_uaz\engine_stop
+explosion_sound         = weapons\heli_explosion
+relative_pos            = 0.0,2.5,0.0
+
+[damage_particles]
+explosion_particles     = explosions\expl_vehichels
+car_damage_particles1   = explosions\expl_car_smoke_small
+car_damage_particles2   = explosions\expl_car_smoke_big
+wheels_damage_particles1 = vehiclefx\exhaust_1
+wheels_damage_particles2 = vehiclefx\exhaust_1
+particle_bones1         = front_propeller
+particle_bones2         = back_propeller
+
+[particle_bones]
+front_propeller         = 0,0,0
+back_propeller          = 0,0,0
+
+[collision_damage]
+root                    = 0.00005
+korpus1                 = 0.00005
+front_propeller         = 0.0001
+back_propeller          = 0.0001
+
+[damage_bones]
+default                 = 1, -1, 0.1
+
+[immunities]
+burn_immunity           = 0.04
+strike_immunity         = 0.001
+shock_immunity          = 0.001
+wound_immunity          = 0.0
+radiation_immunity      = 0.0
+telepatic_immunity      = 0.0
+chemical_burn_immunity  = 0.0
+explosion_immunity      = 0.1
+fire_wound_immunity     = 0.05
+
+[explosion]
+blast                   = 20
+blast_r                 = 8
+blast_impulse           = 500
+frags                   = 15
+frags_r                 = 30
+frag_hit                = 0.5
+frag_hit_impulse        = 350
+hit_type_blast          = explosion
+hit_type_frag           = fire_wound
+up_throw_factor         = 0.25
+wm_size                 = 0.1
+explode_particles       = explosions\expl_mushroom_01
+light_color             = 0.6,0.5,0.3
+light_range             = 15.0
+light_time              = 0.5
+fragment_speed          = 76
+fragment_tracer_max_length = 3
+explode_duration        = 60
+snd_explode             = weapons\heli_explosion
+wallmark_section        = explosion_marks
+
+[explode_effector]
+effect_sect_name        = effector_explode_hit
+
+[autoremove_parts]
+time                    = 120

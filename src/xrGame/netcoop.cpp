@@ -1840,6 +1840,12 @@ static void admission_logins_update(xrServer* server)
 			result.state = netcoop_world::AdmissionState::Refused;
 			strncpy_s(result.reason, sizeof(result.reason), elsewhere, _TRUNCATE);
 		}
+		if (waiting.token && result.stale_token)
+		{
+			// A finished, aborted or expired passage: its token goes.
+			string_path path; admission_token_path(login.c_str(), pending->slot, path); DeleteFileA(path);
+			Msg("[Lost Zone][master] %s slot %u: an old passage token was dropped", login.c_str(), pending->slot);
+		}
 		bool ok = result.state != netcoop_world::AdmissionState::Refused;
 		LPCSTR reason = result.reason[0] ? result.reason : "The world master refused this character";
 		if (ok && result.state == netcoop_world::AdmissionState::Admitted && result.master_bytes &&

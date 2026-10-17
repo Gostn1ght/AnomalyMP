@@ -113,8 +113,17 @@ int main(int argc,char** argv)
     // Disconnected on Garbage, a login at Cordon is still sent to Garbage.
     result=admit(cordon,third,nullptr,bytes);
     assert(result.state==AdmissionState::Elsewhere && std::string(result.home)=="garbage");
+    // An old passage token at a later login (owner 2026-10-17, refused after
+    // every reconnect): the login goes on; a token the master refuses for good
+    // is reported stale so the server deletes it.
+    result=admit(garbage,third,departure.token,bytes);
+    assert(result.state==AdmissionState::Admitted);
+    assert(garbage.leave("alice",1));settle(garbage);
+    result=admit(garbage,third,"not-a-token",bytes);
+    assert(result.state==AdmissionState::Admitted && result.stale_token);
+    assert(garbage.leave("alice",1));settle(garbage);
     cordon.stop();garbage.stop();
-    std::puts("PASS native admission coordinator: create, durable captures, leave, resume with the master's newer image, the home location answered elsewhere (active and disconnected), master handoff to another location");
+    std::puts("PASS native admission coordinator: create, durable captures, leave, resume with the master's newer image, the home location answered elsewhere (active and disconnected), stale passage tokens dropped, master handoff to another location");
     return 0;
 }
 '''

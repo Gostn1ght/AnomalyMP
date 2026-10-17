@@ -18,6 +18,7 @@
 #include "game_level_cross_table.h"
 
 #include "UIGameSP.h"
+#include "MainMenu.h"
 #include "../xrengine/xr_collide_form.h"
 #include "netcoop.h"
 
@@ -193,9 +194,17 @@ void CLevelChanger::feel_touch_new(CObject* tpObject)
 	CUIGameSP* pGameSP = smart_cast<CUIGameSP*>(CurrentGameUI());
 	if (netcoop::pure_client())
 	{
+		// The main menu (loading, login) would take the question and drop it.
+		if (MainMenu() && MainMenu()->IsActive())
+		{
+			Msg("[Lost Zone][passage] changer %u: the menu is open, asked when the player enters again", m_game_vertex_id);
+			return;
+		}
 		s_netcoop_inviter = this;
-		Msg("[Lost Zone][passage] changer %u: asking the player (%s, ui %s)", m_game_vertex_id,
-		    m_b_enabled ? "open" : "closed", pGameSP ? "ready" : "missing");
+		CUIDialogWnd* top = pGameSP ? pGameSP->TopInputReceiver() : nullptr;
+		Msg("[Lost Zone][passage] changer %u: asking the player (%s, ui %s, top %s)", m_game_vertex_id,
+		    m_b_enabled ? "open" : "closed", pGameSP ? "ready" : "missing",
+		    !top ? "none" : top == pGameSP->UIChangeLevelWnd ? "question" : "other dialog");
 	}
 	if (pGameSP)
 		pGameSP->ChangeLevel(m_game_vertex_id, m_level_vertex_id, m_position, m_angles, p, r, b, m_invite_str,
