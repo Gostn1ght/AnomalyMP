@@ -91,9 +91,14 @@ void CGameTask::CreateMapLocation(bool on_load)
 		}
 		//.		m_linked_map_location =	Level().MapManager().GetMapLocation(m_map_location, m_map_object_id);
 	}
-	else
+	// A netcoop server keeps no saved map spots for a player's tasks: a task
+	// restored on load found none and the null spot crashed the server when a
+	// player with tasks joined (owner 2026-10-17, tasks back). It gets a new one.
+	if (!m_linked_map_location)
 	{
 		m_linked_map_location = Level().MapManager().AddMapLocation(m_map_location, m_map_object_id);
+		if (!m_linked_map_location)
+			return;
 		m_linked_map_location->m_owner_task_id = m_ID;
 
 		if (m_map_hint.size())
@@ -104,8 +109,6 @@ void CGameTask::CreateMapLocation(bool on_load)
 		m_linked_map_location->DisablePointer();
 		m_linked_map_location->SetSerializable(true);
 	}
-
-	VERIFY(m_linked_map_location);
 
 	if (m_linked_map_location->complex_spot())
 	{
