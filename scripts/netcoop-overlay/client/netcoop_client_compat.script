@@ -383,6 +383,11 @@ local engine_set_weather = nil
 -- base-game fixes that extend it) must never pick its own. Installed at game
 -- start, after every script has patched WeatherManager.
 local function install_weather_follow()
+	-- A pure client keeps its Lua state between sessions (no ALife, no
+	-- restart_all): the last session's weather made the first one of a new
+	-- session a slow transition from the level's default sky, so a player who
+	-- reconnected saw another weather than the others (owner 2026-10-17).
+	server_weather, applied_actual = nil, nil
 	local wm_class = level_weathers and level_weathers.WeatherManager
 	if wm_class then
 		wm_class.select_weather = function(self)

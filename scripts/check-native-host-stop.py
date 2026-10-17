@@ -46,14 +46,15 @@ struct ConsoleStub{void Execute(const char* command){assert(xr_string(command)==
 ConsoleStub* Console=&fixture_console;
 ''' + code + r'''
 struct CSE_Abstract{virtual ~CSE_Abstract()=default;std::vector<unsigned char>client_data{1,2,3};};
-struct CSE_ALifeCreatureActor:CSE_Abstract{float fixture_health=0;unsigned fixture_money=900;void set_health(float v){fixture_health=v;}};
+namespace ALife{using _OBJECT_ID=unsigned short;}
+struct CSE_ALifeCreatureActor:CSE_Abstract{float fixture_health=0;unsigned fixture_money=900;ALife::_OBJECT_ID fixture_killer=42;unsigned long long m_game_death_time=77;void set_health(float v){fixture_health=v;}void set_killer_id(ALife::_OBJECT_ID v){fixture_killer=v;}};
 template<class T>T smart_cast(CSE_Abstract* obj){return dynamic_cast<T>(obj);}
 ''' + body_reset + r'''
 int main(){
  CSE_ALifeCreatureActor body;character_clear_dead_body_state(&body,false);
- assert(body.fixture_health==0&&body.client_data.size()==3&&body.fixture_money==900);
+ assert(body.fixture_health==0&&body.client_data.size()==3&&body.fixture_money==900&&body.fixture_killer==42&&body.m_game_death_time==77);
  character_clear_dead_body_state(&body,true);
- assert(body.fixture_health==1&&body.client_data.empty()&&body.fixture_money==900);
+ assert(body.fixture_health==1&&body.client_data.empty()&&body.fixture_money==900&&body.fixture_killer==0xffff&&body.m_game_death_time==0);
  xrServer server;Entity entity{7};xrClientData player,local,joining;
  player.owner=&entity;local.flags.bLocal=true;local.ID.id=2;joining.ID.id=3;
  server.clients={&player,&local};

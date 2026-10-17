@@ -595,7 +595,13 @@ static void character_clear_dead_body_state(CSE_Abstract* actor, bool respawn)
 	// Progress is restored separately; a fresh body starts with fresh defaults.
 	actor->client_data.clear();
 	if (CSE_ALifeCreatureActor* creature = smart_cast<CSE_ALifeCreatureActor*>(actor))
+	{
 		creature->set_health(1.f);
+		// The old body's killer travelled into every new Actor ("server
+		// entity has a killer and is not dead" on each respawn).
+		creature->set_killer_id(ALife::_OBJECT_ID(-1));
+		creature->m_game_death_time = 0;
+	}
 }
 
 bool server_character_load_actor(xrClientData* CL, CSE_Abstract* actor)

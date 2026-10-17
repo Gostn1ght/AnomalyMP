@@ -1416,6 +1416,9 @@ void CActor::OnChangeVisual()
 		m_current_legs_blend = NULL;
 		m_current_torso_blend = NULL;
 		m_current_jump_blend = NULL;
+		// A new model has no blends: the seat pose (doc 100) must play again
+		// on it, or a seated player stood in the bind pose (T-pose) for others.
+		m_netcoop_seat_motion.invalidate();
 	}
 };
 
