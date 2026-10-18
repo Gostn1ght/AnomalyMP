@@ -144,6 +144,10 @@ bool server_actor_god(const CActor* actor);
 void server_actor_god_rebind(xrClientData* client, u16 previous_actor, u16 actor_id);
 bool script_admin_god_enabled(u16 actor_id);
 bool script_admin_god_set(u16 actor_id, bool enabled);
+// Admin unlimited ammo, per player on the server (the actor flag is global).
+bool server_actor_unlimited_ammo(const CActor* actor);
+bool script_admin_ammo_enabled(u16 actor_id);
+bool script_admin_ammo_set(u16 actor_id, bool enabled);
 bool script_admin_teleport(u16 actor_id, const Fvector& position);
 int script_role();
 LPCSTR script_account();

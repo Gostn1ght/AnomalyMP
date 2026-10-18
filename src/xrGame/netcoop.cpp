@@ -5281,6 +5281,43 @@ bool script_admin_god_set(u16 actor_id, bool value)
 	return true;
 }
 
+// Admin unlimited ammo (owner 2026-10-18: the F7 toggle did nothing online):
+// the player's server copy of a weapon keeps its magazine; the client keeps
+// its own with the actor flag. Only while the account is an admin.
+static xr_set<u16> s_admin_ammo_actors;
+
+bool server_actor_unlimited_ammo(const CActor* actor)
+{
+	if (!actor || !enabled() || pure_client() || !g_pGameLevel || !Level().Server)
+		return false;
+	if (s_admin_ammo_actors.find(actor->ID()) == s_admin_ammo_actors.end()) return false;
+	FindActorOwner find;
+	find.actor_id = actor->ID();
+	xrClientData* CL = static_cast<xrClientData*>(Level().Server->FindClient(find));
+	const bool active = CL && CL->netcoop_role == role_admin;
+	if (!active) s_admin_ammo_actors.erase(actor->ID());
+	return active;
+}
+
+bool script_admin_ammo_enabled(u16 actor_id)
+{
+	if (!enabled() || pure_client() || !g_pGameLevel || !Level().Server) return false;
+	return server_actor_unlimited_ammo(smart_cast<CActor*>(Level().Objects.net_Find(actor_id)));
+}
+
+bool script_admin_ammo_set(u16 actor_id, bool value)
+{
+	if (!enabled() || pure_client() || !g_pGameLevel || !Level().Server) return false;
+	FindActorOwner find;
+	find.actor_id = actor_id;
+	xrClientData* CL = static_cast<xrClientData*>(Level().Server->FindClient(find));
+	CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(actor_id));
+	if (!CL || CL->netcoop_role != role_admin || !actor || !actor->g_Alive()) return false;
+	if (value) s_admin_ammo_actors.insert(actor_id);
+	else s_admin_ammo_actors.erase(actor_id);
+	return true;
+}
+
 bool script_admin_teleport(u16 actor_id, const Fvector& position)
 {
 	if (!enabled() || pure_client() || !g_pGameLevel || !Level().Server || !_valid(position)) return false;

@@ -2660,6 +2660,30 @@ public:
 	}
 };
 
+// Admin unlimited ammo online: this client's own weapons keep their magazines
+// (the flag) and the server keeps them on the player's copies (owner
+// 2026-10-18: the F7 toggle did nothing - the command existed only with -dbg).
+class CCC_NetcoopAmmo : public CCC_Mask
+{
+public:
+	CCC_NetcoopAmmo(LPCSTR command_name, Flags32* actor_flags, u32 bit) : CCC_Mask(command_name, actor_flags, bit) {}
+	void Execute(LPCSTR args) override
+	{
+		if (netcoop::pure_client())
+		{
+			if (!netcoop::client_admin_authorized())
+			{
+				Msg("! [Lost Zone] administrator account required for unlimited ammo");
+				return;
+			}
+			CCC_Mask::Execute(args);
+			netcoop::client_send_command(psActorFlags.test(AF_UNLIMITEDAMMO) ? "unlimited on" : "unlimited off");
+			return;
+		}
+		CCC_Mask::Execute(args);
+	}
+};
+
 //netanomaly: send a text command to the server (accounts, admin, spawner)
 class CCC_NetAnomalySrv : public IConsole_Command
 {
@@ -2962,11 +2986,18 @@ void CCC_RegisterCommands()
 	/* AVO: changing restriction to -dbg key instead of DEBUG */
 	//#ifndef MASTER_GOLD
 #ifdef MASTER_GOLD
+	// Online the admin's god mode and unlimited ammo go through the server
+	// (netcoop admin role required); offline they stay -dbg only.
+	if (0 != strstr(Core.Params, "-netcoop") && 0 == strstr(Core.Params, "-dbg"))
+	{
+		CMD3(CCC_NetcoopGod, "g_god", &psActorFlags, AF_GODMODE);
+		CMD3(CCC_NetcoopAmmo, "g_unlimitedammo", &psActorFlags, AF_UNLIMITEDAMMO);
+	}
 	if (0 != strstr(Core.Params, "-dbg"))
 	{
 		CMD1(CCC_JumpToLevel, "jump_to_level");
 		CMD3(CCC_NetcoopGod, "g_god", &psActorFlags, AF_GODMODE);
-		CMD3(CCC_Mask, "g_unlimitedammo", &psActorFlags, AF_UNLIMITEDAMMO);
+		CMD3(CCC_NetcoopAmmo, "g_unlimitedammo", &psActorFlags, AF_UNLIMITEDAMMO);
 		CMD1(CCC_Script, "run_script");
 		CMD1(CCC_ScriptCommand, "run_string");
 		//CMD3(CCC_Mask, "g_no_clip", &psActorFlags, AF_NO_CLIP);

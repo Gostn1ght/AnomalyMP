@@ -40,11 +40,15 @@ void dxFontRender::OnRender(CGameFont& owner)
 		// calculate first-fit
 		int count = 1;
 
-		int length = owner.smart_strlen(owner.strings[i].string);
+		// One string is drawn up to MAX_MB_CHARS - 1 glyphs: a longer one (a
+		// script text window of ~51k characters, 2026-10-18) locked more than
+		// the whole dynamic vertex buffer and ended the game in
+		// _VertexStream::Lock. Its tail is not drawn.
+		int length = _min(owner.smart_strlen(owner.strings[i].string), MAX_MB_CHARS - 1);
 
 		while ((i + count) < owner.strings.size())
 		{
-			int L = owner.smart_strlen(owner.strings[i + count].string);
+			int L = _min(owner.smart_strlen(owner.strings[i + count].string), MAX_MB_CHARS - 1);
 
 			if ((L + length) < MAX_MB_CHARS)
 			{
@@ -67,6 +71,7 @@ void dxFontRender::OnRender(CGameFont& owner)
 			wide_char wsStr[ MAX_MB_CHARS ];
 
 			int len = owner.IsMultibyte() ? mbhMulti2Wide(wsStr, NULL, MAX_MB_CHARS, PS.string) : xr_strlen(PS.string);
+			len = _min(len, MAX_MB_CHARS - 1);
 
 			if (len)
 			{

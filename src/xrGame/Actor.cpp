@@ -3212,6 +3212,9 @@ void CActor::On_SetEntity()
 
 bool CActor::unlimited_ammo()
 {
+	// A netcoop server holds every player: the flag is per admin there.
+	if (netcoop::enabled() && !netcoop::pure_client())
+		return ID() != 0 && netcoop::server_actor_unlimited_ammo(this);
 	return !!psActorFlags.test(AF_UNLIMITEDAMMO);
 }
 
