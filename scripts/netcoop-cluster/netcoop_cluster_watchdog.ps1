@@ -10,8 +10,9 @@
 # -ClientReserveGB (while it runs, or always with -WithClient). When a player
 # heads to a map whose server is not running and memory is short, the server
 # that has stood empty the longest is stopped first (its world was saved when
-# its last player left). Servers run at below-normal priority so the game
-# client stays smooth; the video card is the client's alone (servers draw nothing).
+# its last player left). Servers use normal priority: starving authority ticks
+# makes movement and vehicles stutter even when the client's FPS is high.
+# The video card is the client's alone (servers draw nothing).
 #   powershell -ExecutionPolicy Bypass -File netcoop_cluster_watchdog.ps1 [-Maps k00_marsh,l01_escape] [-WithClient]
 param(
     [string]$Runtime = $PSScriptRoot,
@@ -126,7 +127,7 @@ function Start-Location($s) {
     $p = Start-Process -FilePath $exe -ArgumentList $arguments -WorkingDirectory $Runtime -WindowStyle Hidden -PassThru
     $running[$s.Name] = $p
     Publish-HostState
-    try { $p.PriorityClass = "BelowNormal" } catch {}
+    try { $p.PriorityClass = "Normal" } catch {}
     Write-Host ("{0:HH:mm:ss} started {1} (port {2}, pid {3})" -f (Get-Date), $s.Name, $s.Port, $p.Id)
     # Wait until it runs (its clock line) before loading the next one.
     $since = Get-Date

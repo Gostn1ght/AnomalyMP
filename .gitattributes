@@ -16,6 +16,8 @@
 scripts/dist/*.cmd text eol=crlf
 
 # GAMMA console-fix copies retain CRLF on every checkout, including Linux CI.
+scripts/netcoop-overlay/*/arti_jamming.script text eol=crlf
+scripts/netcoop-overlay/*/sound_ambient.script text eol=crlf
 scripts/netcoop-overlay/*/agdd_voiced_actor.script text eol=crlf
 scripts/netcoop-overlay/*/grok_loot_claim.script text eol=crlf
 scripts/netcoop-overlay/*/utils_catspaw_common.script text eol=crlf
