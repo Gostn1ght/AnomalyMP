@@ -128,6 +128,18 @@ assert(apply(lone, "stalker"))
 assert(not set_leader("stalker", "boss", 1), "loners have no leader")
 assert(not apply(lone, "renegade"), "nobody applies to the renegades")
 assert(leave(vasya)); update_online(); assert(vasya.community == "actor_stalker")
+-- Admin pardon (owner 2026-10-18): a Zone-made renegade becomes a loner,
+-- its bounty and recent kills are cleared; only an admin, only renegades.
+local bad = player(10, "bad_1", "Bad", "stalker", 0)
+assert(force_join("renegade", "bad_1", "Bad")); update_online(); assert(bad.community == "actor_renegade")
+store_update("bounties", "bad_1", function(d) d.name, d.reward, d["until"], d.kills = "Bad", 17516, clock + 100, 5 return true end)
+store_update("ratings", "bad_1", function(d) d.kills = {clock, clock} return true end)
+assert(command(vasya, "pardon bad_1", false):sub(1, 1) == "!", "a player cannot pardon")
+assert(command(vasya, "pardon lone_1", true):sub(1, 1) == "!", "only renegades are pardoned")
+assert(command(vasya, "pardon BAD_1", true):sub(1, 1) == "*", "an admin pardons")
+assert(bad.community == "actor_stalker" and saved[10] == "stalker", "the pardoned renegade is a loner online")
+assert(store_get("bounties", "bad_1").reward == nil and #store_get("ratings", "bad_1").kills == 0, "bounty and kills cleared")
+assert(command(vasya, "pardon bad_1", true):sub(1, 1) == "!", "nothing to pardon twice")
 ''')
 # Dedicated console Players tab (sv_leader and the roster), owner 2026-10-12.
 b.execute(r'''
@@ -139,4 +151,4 @@ assert(console_leader("boss", "1", "off"):sub(1, 1) == "!", "no leadership to ta
 assert(console_leader("boss", "1", "freedom"):sub(1, 1) == "*", "the console gives it back")
 assert(console_leader("boss", "1", "stalker"):sub(1, 1) == "!", "loners have no leader, also from the console")
 ''')
-print("Factions: apply only, contracts gate, leader/deputy/admin decide per faction policy, cross-server membership, expel, furniture grant, loners/renegades rules, console roster/leader PASS")
+print("Factions: apply only, contracts gate, leader/deputy/admin decide per faction policy, cross-server membership, expel, furniture grant, loners/renegades rules, console roster/leader, admin renegade pardon PASS")

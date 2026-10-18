@@ -344,8 +344,40 @@ function on_role_changed(ok, role, message)
 	printf("[Lost Zone] role changed: %s", tostring(role))
 end
 
+-- The server's reasons are English; the player reads them in their language.
+local TRADE_REASONS = {
+	["Trader is hostile to your character"] = "st_netcoop_trade_hostile",
+	["Trader is too far away"] = "st_netcoop_trade_far",
+	["This character does not trade"] = "st_netcoop_trade_none",
+	["Trader is wounded"] = "st_netcoop_trade_wounded",
+	["Trader is not alive"] = "st_netcoop_trade_none",
+	["Trader is not available"] = "st_netcoop_trade_none",
+	["Trader profile is unavailable"] = "st_netcoop_trade_none",
+	["Trading is disabled by this dialogue"] = "st_netcoop_trade_none",
+	["Not enough money"] = "not_enough_money_actor",
+	["Trader does not have enough money"] = "not_enough_money_partner",
+	["Item does not meet this trader's conditions"] = "st_netcoop_trade_item",
+	["Item is no longer available"] = "st_netcoop_trade_gone",
+	["Item is already being traded"] = "st_netcoop_trade_gone",
+}
+
 function on_trade_result(ok, role, message)
-	if not ok then show_text(message) end
+	if not ok then
+		local id = TRADE_REASONS[message or ""]
+		local text = id and game.translate_string(id) or message
+		-- News stay under an open trade window: the window's own message box.
+		local gui = ui_inventory and ui_inventory.GUI
+		local box = gui and gui.IsShown and gui:IsShown() and gui.message_box
+		if box then
+			pcall(function()
+				box:InitMessageBox("message_box_ok")
+				box:SetText(text)
+				box:ShowDialog(true)
+			end)
+		else
+			show_text(text)
+		end
+	end
 	-- Items and money arrive as replicated events; rebuild the open window.
 	local gui = ui_inventory and ui_inventory.GUI
 	if gui then gui.update_info = true end

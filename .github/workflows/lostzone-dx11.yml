@@ -246,6 +246,8 @@ jobs:
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-replica-relcase.py
           if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-task-clear.py
+          if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-preview-pool.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-back-weapons.py

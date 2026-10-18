@@ -21,6 +21,7 @@ local HELP_ADMIN = table.concat({
 	"~          emission start                    - start a shared emission",
 	"~          cmd <console command>             - run on the server",
 	"~          lua <code>                        - run Lua on the server (debug)",
+	"~          faction pardon <login>_<slot>     - a renegade becomes a loner, bounty cleared",
 }, "\n")
 
 local function server_actor(entity_id)

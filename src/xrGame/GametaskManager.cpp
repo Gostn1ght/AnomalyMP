@@ -300,7 +300,7 @@ CGameTask* CGameTaskManager::HasGameTask(const CMapLocation* ml, bool only_inpro
 	for (; it != it_e; ++it)
 	{
 		CGameTask* gt = (*it).game_task;
-		if (gt->LinkedMapLocation() == ml)
+		if (gt && gt->LinkedMapLocation() == ml)
 		{
 			if (only_inprocess && gt->GetTaskState() != eTaskStateInProgress)
 				continue;

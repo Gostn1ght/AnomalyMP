@@ -257,6 +257,22 @@ function force_join(faction, char, name)
 	return join(faction, char, name)
 end
 
+-- Admin: a renegade made by the Zone's judgement is a loner again; the
+-- bounty and the recent kills that made it are cleared (owner 2026-10-18).
+-- Attitudes the kills earned stay: they wear off as in play.
+function pardon(char)
+	if type(char) ~= "string" or not char:match("^[%w_]+_%d+$") then return false, "faction pardon <login>_<slot>" end
+	local faction = (deserialize(netcoop_store_read("char_faction", char)) or {}).faction
+	if faction ~= "renegade" then return false, char .. " is not a renegade" end
+	local bounty = deserialize(netcoop_store_read("bounties", char)) or {}
+	update("bounties", char, function(data) data.reward, data["until"], data.kills = nil, nil, nil return true end)
+	update("ratings", char, function(data) data.kills = {} return true end)
+	local ok, message = join("stalker", char, bounty.name or char)
+	if not ok then return false, message end
+	printf("[Lost Zone][factions] %s pardoned: a loner again", char)
+	return true, char .. " is a loner again"
+end
+
 -- Admin: the leader of a faction is a player's character the admin names.
 function set_leader(faction, login, slot)
 	if not known(faction) then return false, "unknown faction" end
@@ -375,8 +391,12 @@ function command(obj, args, admin)
 	elseif verb == "furniture" then
 		local char, flag = string.match(rest, "^(%S+)%s*(%S*)$")
 		return result(set_furniture(obj, mine, char, flag ~= "off", admin))
+	elseif verb == "pardon" then
+		if not admin then return "! only an admin pardons renegades" end
+		return result(pardon(string.lower(rest or "")))
 	end
-	return "! faction status|apply <faction>|leave|apps|members|accept <char>|reject <char>|expel <char>|deputy <char> [off]|furniture <char> [off]"
+	return "! faction status|apply <faction>|leave|apps|members|accept <char>|reject <char>|expel <char>|deputy <char> [off]|furniture <char> [off]" ..
+		(admin and "|pardon <login>_<slot>" or "")
 end
 
 ---------------------------------------------------------------- window data (client netcoop_faction_ui)

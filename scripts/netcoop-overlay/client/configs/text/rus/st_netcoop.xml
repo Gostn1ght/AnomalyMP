@@ -1312,4 +1312,22 @@
     <text>Двигатель</text>
   </string>
   <string id="lz_inventory_cells"><text>Ячейки:</text></string>
+  <string id="st_netcoop_trade_hostile">
+    <text>Торговец враждебен вашему персонажу (группировка или репутация) и не торгует с вами.</text>
+  </string>
+  <string id="st_netcoop_trade_far">
+    <text>Торговец слишком далеко.</text>
+  </string>
+  <string id="st_netcoop_trade_none">
+    <text>Этот персонаж сейчас не торгует.</text>
+  </string>
+  <string id="st_netcoop_trade_wounded">
+    <text>Торговец ранен и не может торговать.</text>
+  </string>
+  <string id="st_netcoop_trade_item">
+    <text>Торговец не принимает этот предмет.</text>
+  </string>
+  <string id="st_netcoop_trade_gone">
+    <text>Предмет уже недоступен - откройте торговлю заново.</text>
+  </string>
 </string_table>

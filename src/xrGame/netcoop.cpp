@@ -3078,7 +3078,11 @@ static CGameTaskManager* server_task_manager(u16 actor_id)
 
 static void clear_tasks(CGameTaskManager* manager)
 {
-	vGameTasks& tasks = manager->GetGameTasks();
+	// Removing a task's map spot searches the level's task list for the
+	// spot's task; with the list still in place it met the tasks destroyed
+	// before (client crash in release_task_location, owner 2026-10-18).
+	vGameTasks tasks;
+	tasks.swap(manager->GetGameTasks());
 	for (u32 i = 0; i < tasks.size(); ++i)
 	{
 		if (tasks[i].game_task)
@@ -3108,9 +3112,18 @@ bool server_task_taken_by_other(u16 actor_id, LPCSTR task_id)
 	if (!task_id || !task_id[0])
 		return false;
 	const shared_str id = task_id;
+	// Only another character's live Actor counts: a corpse left by a respawn
+	// still held its tasks and refused them to its own new body.
+	const auto own = s_actor_character.find(actor_id);
 	for (TaskManagers::iterator it = s_task_managers.begin(); it != s_task_managers.end(); ++it)
-		if (it->first != actor_id && it->second->HasGameTask(id, true))
-			return true;
+	{
+		if (it->first == actor_id || !it->second->HasGameTask(id, true))
+			continue;
+		const auto other = s_actor_character.find(it->first);
+		if (other == s_actor_character.end() || (own != s_actor_character.end() && own->second == other->second))
+			continue;
+		return true;
+	}
 	return false;
 }
 
@@ -4084,7 +4097,20 @@ bool script_send_to_actor(u16 actor_id, LPCSTR channel, LPCSTR data)
 bool server_open_ui(u16 actor_id, LPCSTR kind, u16 partner_id)
 {
 	const bool dialog_trade = kind && !xr_strcmp(kind, "trade");
-	prepare_trade(partner_id, dialog_trade);
+	const xr_string refusal = prepare_trade(partner_id, dialog_trade);
+	// A trade the server would refuse item by item does not open: the
+	// player hears why at once (owner 2026-10-18: "Buy does nothing").
+	if (dialog_trade && !refusal.empty() && enabled() && g_pGameLevel && Level().Server)
+	{
+		FindActorOwner find;
+		find.actor_id = actor_id;
+		if (xrClientData* CL = static_cast<xrClientData*>(Level().Server->FindClient(find)))
+		{
+			send_trade_result(Level().Server, CL, false, refusal.c_str());
+			Msg("[Lost Zone] open trade with %u for Actor %u refused: %s", partner_id, actor_id, refusal.c_str());
+			return true;
+		}
+	}
 	string128 data;
 	xr_sprintf(data, "%s %u", kind, partner_id);
 	const bool sent = script_send_to_actor(actor_id, "open_ui", data);
@@ -5294,6 +5320,8 @@ bool script_respawn(u16 actor_id)
 	// the server; the player gets a new Actor at the spawn point.
 	server_character_save_actor(actor_id);
 	s_actor_character.erase(actor_id);
+	// The tasks travel with the character; the corpse keeps none.
+	server_release_task_manager(actor_id);
 	give_to_server(server, CL->owner, 0);
 	CL->owner = NULL;
 	netcoop_respawn_spawn(CL->ID);

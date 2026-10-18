@@ -1312,4 +1312,22 @@
     <text>Engine</text>
   </string>
   <string id="lz_inventory_cells"><text>Cells:</text></string>
+  <string id="st_netcoop_trade_hostile">
+    <text>The trader is hostile to your character (faction or reputation) and will not trade with you.</text>
+  </string>
+  <string id="st_netcoop_trade_far">
+    <text>The trader is too far away.</text>
+  </string>
+  <string id="st_netcoop_trade_none">
+    <text>This character does not trade right now.</text>
+  </string>
+  <string id="st_netcoop_trade_wounded">
+    <text>The trader is wounded and cannot trade.</text>
+  </string>
+  <string id="st_netcoop_trade_item">
+    <text>The trader does not accept this item.</text>
+  </string>
+  <string id="st_netcoop_trade_gone">
+    <text>The item is no longer available - reopen the trade.</text>
+  </string>
 </string_table>
