@@ -243,6 +243,8 @@ void vehicle_server_update(xrServer* server);
 bool vehicle_use(CActor* actor, CObject* object, const Fvector& aim);
 void vehicle_key(CActor* actor, int cmd, bool pressed);
 void vehicle_input_tick(CActor* actor);
+// The gunner's gun view (a helicopter's gun seat): the camera point, or false.
+bool vehicle_gun_view_point(CActor* actor, Fvector& point);
 LPCSTR script_vehicle_prompt();
 Fvector script_vehicle_prompt_point(); // where the last prompt stands (Dot Marks style)
 // A box kept away from its anchor (a car's trunk): reachable next to the anchor.

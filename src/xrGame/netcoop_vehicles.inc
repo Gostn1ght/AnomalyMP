@@ -22,6 +22,8 @@ enum
 	vehicle_op_toggle, // client -> server: u16 car, u8 what (0 engine, 1 head lights)
 	vehicle_op_trunk, // client -> server: u16 car
 	vehicle_op_trunk_open, // server -> client: u16 box, u16 car (legacy: box only)
+	vehicle_op_fire, // client -> server: u16 car, vec3 aim direction (the gunner's seat, gun view)
+	vehicle_op_gun, // server -> client: u16 car, vec3 muzzle, vec3 direction (a shot to see and hear)
 };
 
 // ---------------------------------------------------------------------------
@@ -64,8 +66,17 @@ struct VehicleSeats
 	float front_z = 0.f; // the front row of seats (aim: rear seats lie behind it)
 	float rear_z = 0.f; // the back of the car
 	bool trunk = true;
+	// A gunner's machine gun (owner 2026-10-18, the Mi-24): its seat, the
+	// muzzle in the car's space, the shot from a weapon section, the cone it
+	// turns in (degrees from straight ahead).
+	int gun_seat = -1;
+	Fvector gun_pos = {0.f, 0.f, 0.f}, gun_eye = {0.f, 0.f, 0.f};
+	float gun_interval_ms = 100.f, gun_speed = 800.f, gun_power = 0.5f, gun_impulse = 100.f, gun_distance = 1000.f;
+	float gun_air = 1.f, gun_yaw = 70.f, gun_up = 15.f, gun_down = 60.f;
+	shared_str gun_ammo, gun_sound, gun_flame;
 };
 static xr_map<u16, VehicleSeats> s_vehicle_seats; // car id -> seats (server and client)
+static void client_gun_shot(u16 car_id, const Fvector& muzzle, const Fvector& dir);
 
 static VehicleSeats* vehicle_seats(CCar* car)
 {
@@ -147,6 +158,33 @@ static VehicleSeats* vehicle_seats(CCar* car)
 	v.rear_z = READ_IF_EXISTS(pSettings, r_float, section, "netcoop_rear_z", v.rear_z);
 	v.front_z = v.seats[0].local.c.z;
 	v.trunk = !!READ_IF_EXISTS(pSettings, r_bool, section, "netcoop_trunk", TRUE);
+	const int gun_seat = READ_IF_EXISTS(pSettings, r_s32, section, "netcoop_gun_seat", -1);
+	LPCSTR gun_weapon = READ_IF_EXISTS(pSettings, r_string, section, "netcoop_gun_weapon", "wpn_pkm");
+	if (gun_seat >= 0 && u32(gun_seat) < v.seats.size() && pSettings->line_exist(section, "netcoop_gun_pos") &&
+		pSettings->section_exist(gun_weapon))
+	{
+		string256 first;
+		v.gun_seat = gun_seat;
+		v.gun_pos = pSettings->r_fvector3(section, "netcoop_gun_pos");
+		v.gun_eye = READ_IF_EXISTS(pSettings, r_fvector3, section, "netcoop_gun_eye", v.gun_pos);
+		const float rpm = READ_IF_EXISTS(pSettings, r_float, section, "netcoop_gun_rpm",
+			READ_IF_EXISTS(pSettings, r_float, gun_weapon, "rpm", 600.f));
+		v.gun_interval_ms = 60000.f / _max(60.f, rpm);
+		v.gun_speed = READ_IF_EXISTS(pSettings, r_float, gun_weapon, "bullet_speed", 800.f);
+		LPCSTR power = READ_IF_EXISTS(pSettings, r_string, gun_weapon, "hit_power", "0.5");
+		v.gun_power = float(atof(_GetItem(power, 0, first))) * READ_IF_EXISTS(pSettings, r_float, section, "netcoop_gun_power_k", 1.f);
+		v.gun_impulse = READ_IF_EXISTS(pSettings, r_float, gun_weapon, "hit_impulse", 100.f);
+		v.gun_distance = READ_IF_EXISTS(pSettings, r_float, gun_weapon, "fire_distance", 1000.f);
+		v.gun_air = READ_IF_EXISTS(pSettings, r_float, gun_weapon, "air_resistance_factor", 1.f);
+		v.gun_yaw = READ_IF_EXISTS(pSettings, r_float, section, "netcoop_gun_yaw", 70.f);
+		v.gun_up = READ_IF_EXISTS(pSettings, r_float, section, "netcoop_gun_up", 15.f);
+		v.gun_down = READ_IF_EXISTS(pSettings, r_float, section, "netcoop_gun_down", 60.f);
+		v.gun_ammo = _GetItem(READ_IF_EXISTS(pSettings, r_string, gun_weapon, "ammo_class", "ammo_7.62x54_7h1"), 0, first);
+		v.gun_sound = _GetItem(READ_IF_EXISTS(pSettings, r_string, gun_weapon, "snd_shoot", ""), 0, first);
+		v.gun_flame = READ_IF_EXISTS(pSettings, r_string, gun_weapon, "flame_particles", "");
+		if (!pSettings->section_exist(v.gun_ammo))
+			v.gun_seat = -1;
+	}
 	return &v;
 }
 
@@ -203,8 +241,68 @@ struct VehicleRuntime
 	bool dirty = true;
 	u32 transit_check = 0; // driving into a passage (V6)
 	u32 transit_refused = 0;
+	u32 gun_last = 0;
+	float gun_budget = 3.f;
 };
 static xr_map<u16, VehicleRuntime> s_vehicles_sv;
+
+// The gun turns within its cone: a direction outside it is brought to its edge.
+static Fvector vehicle_gun_direction(CCar* car, const VehicleSeats& poses, Fvector dir)
+{
+	Fmatrix inverse;
+	inverse.invert(car->XFORM());
+	Fvector local;
+	inverse.transform_dir(local, dir);
+	local.normalize_safe();
+	float yaw = atan2f(local.x, local.z), pitch = asinf(_max(-1.f, _min(1.f, local.y)));
+	clamp(yaw, -deg2rad(poses.gun_yaw), deg2rad(poses.gun_yaw));
+	clamp(pitch, -deg2rad(poses.gun_down), deg2rad(poses.gun_up));
+	local.set(_sin(yaw) * _cos(pitch), _sin(pitch), _cos(yaw) * _cos(pitch));
+	car->XFORM().transform_dir(dir, local);
+	return dir.normalize_safe();
+}
+
+// The server fires the gunner's shot and lets the players near see it.
+static void vehicle_gun_fire(xrServer* server, CCar* car, VehicleSeats& poses, VehicleRuntime& v, CActor* gunner, Fvector dir)
+{
+	const u32 now = Device.dwTimeGlobal;
+	// as fast as the gun fires, a few shots of slack for the network
+	v.gun_budget = _min(3.f, v.gun_budget + float(now - v.gun_last) / poses.gun_interval_ms);
+	v.gun_last = now;
+	if (v.gun_budget < 1.f)
+		return;
+	v.gun_budget -= 1.f;
+	dir = vehicle_gun_direction(car, poses, dir);
+	Fvector muzzle;
+	car->XFORM().transform_tiny(muzzle, poses.gun_pos);
+	muzzle.mad(dir, 0.6f); // out of the gun's own body
+	CCartridge cartridge;
+	cartridge.Load(poses.gun_ammo.c_str(), 0);
+	Level().BulletManager().AddBullet(muzzle, dir, poses.gun_speed, poses.gun_power, poses.gun_impulse, gunner->ID(), car->ID(),
+		ALife::eHitTypeFireWound, poses.gun_distance, cartridge, poses.gun_air, true);
+	NET_Packet P;
+	P.w_begin(M_NETCOOP_VEHICLE);
+	P.w_u8(vehicle_op_gun);
+	P.w_u16(car->ID());
+	P.w_vec3(muzzle);
+	P.w_vec3(dir);
+	struct Send
+	{
+		xrServer* server;
+		NET_Packet* packet;
+		Fvector position;
+		void operator()(IClient* client)
+		{
+			xrClientData* CL = static_cast<xrClientData*>(client);
+			if (CL == server->GetServerClient() || !CL->flags.bConnected || !CL->gamma_snapshot_ready || !CL->owner)
+				return;
+			if (CL->owner->o_Position.distance_to(position) > 600.f)
+				return;
+			server->SendTo(CL->ID, *packet, net_flags(FALSE, TRUE));
+		}
+	} send = {server, &P, muzzle};
+	server->ForEachClientDo(send);
+}
 
 static void vehicle_seat_server(CCar* car, VehicleRuntime& v, const VehicleSeats& poses, u8 index, CActor* actor)
 {
@@ -309,6 +407,18 @@ void server_on_vehicle(xrServer* server, xrClientData* CL, NET_Packet& P)
 				v.keys = keys;
 				v.dirty = true;
 			}
+		}
+		break;
+	case vehicle_op_fire:
+		{
+			if (P.r_elapsed() < 12)
+				return;
+			Fvector dir;
+			P.r_vec3(dir);
+			if (poses->gun_seat < 0 || u32(poses->gun_seat) >= v.seats.size() || v.seats[poses->gun_seat] != actor->ID() ||
+				!_valid(dir) || dir.square_magnitude() < EPS)
+				return;
+			vehicle_gun_fire(server, car, *poses, v, actor, dir.normalize());
 		}
 		break;
 	case vehicle_op_toggle:
@@ -804,6 +914,17 @@ void client_on_vehicle(NET_Packet& P)
 		client_trunk_open(P);
 		return;
 	}
+	if (op == vehicle_op_gun)
+	{
+		if (P.r_elapsed() < 26)
+			return;
+		const u16 car_id = P.r_u16();
+		Fvector muzzle, dir;
+		P.r_vec3(muzzle);
+		P.r_vec3(dir);
+		client_gun_shot(car_id, muzzle, dir);
+		return;
+	}
 	if (op != vehicle_op_state || P.r_elapsed() < 13)
 		return;
 	const u16 car_id = P.r_u16();
@@ -882,12 +1003,93 @@ bool vehicle_use(CActor* actor, CObject* object, const Fvector& aim)
 	return true;
 }
 
+static bool s_gun_view = false, s_gun_fire = false;
+static u32 s_gun_next = 0;
+
+// This player sits at his car's gun: the car's seats, or null.
+static const VehicleSeats* vehicle_gun_seat(CActor* actor)
+{
+	if (!actor || !actor->netcoop_seated())
+		return nullptr;
+	CCar* car = smart_cast<CCar*>(Level().Objects.net_Find(actor->m_netcoop_seat_car));
+	const VehicleSeats* poses = car ? vehicle_seats(car) : nullptr;
+	return poses && poses->gun_seat >= 0 && actor->m_netcoop_seat == u8(poses->gun_seat) ? poses : nullptr;
+}
+
+// The camera of the gun view: the gun's sight (netcoop_gun_eye).
+bool vehicle_gun_view_point(CActor* actor, Fvector& point)
+{
+	if (!pure_client() || !s_gun_view || actor != Level().CurrentControlEntity())
+		return false;
+	const VehicleSeats* poses = vehicle_gun_seat(actor);
+	CCar* car = poses ? smart_cast<CCar*>(Level().Objects.net_Find(actor->m_netcoop_seat_car)) : nullptr;
+	if (!car)
+	{
+		s_gun_view = s_gun_fire = false;
+		return false;
+	}
+	car->XFORM().transform_tiny(point, poses->gun_eye);
+	return true;
+}
+
+// A shot of a car's gun (any client): the tracer, the flash and the sound.
+// The server's bullet does the damage; this one only shows it.
+static void client_gun_shot(u16 car_id, const Fvector& muzzle, const Fvector& dir)
+{
+	CCar* car = smart_cast<CCar*>(Level().Objects.net_Find(car_id));
+	const VehicleSeats* poses = car ? vehicle_seats(car) : nullptr;
+	if (!poses || poses->gun_seat < 0 || !_valid(muzzle) || !_valid(dir))
+		return;
+	CCartridge cartridge;
+	cartridge.Load(poses->gun_ammo.c_str(), 0);
+	cartridge.m_flags.set(CCartridge::cfTracer, TRUE);
+	Level().BulletManager().AddBullet(muzzle, dir, poses->gun_speed, 0.f, 0.f, u16(-1), car_id,
+		ALife::eHitTypeFireWound, poses->gun_distance, cartridge, poses->gun_air, false);
+	if (poses->gun_flame.size())
+	{
+		CParticlesObject* flame = CParticlesObject::Create(poses->gun_flame.c_str(), TRUE);
+		Fmatrix xf;
+		xf.identity();
+		xf.k.set(dir);
+		Fvector::generate_orthonormal_basis(xf.k, xf.j, xf.i);
+		xf.c.set(muzzle);
+		flame->UpdateParent(xf, zero_vel);
+		flame->Play(false);
+	}
+	if (poses->gun_sound.size())
+	{
+		static xr_map<u16, ref_sound> sounds;
+		ref_sound& snd = sounds[car_id];
+		if (!snd._handle())
+			snd.create(poses->gun_sound.c_str(), st_Effect, sg_SourceType);
+		Fvector at = muzzle;
+		if (snd._handle())
+			snd.play_no_feedback(car, 0, 0.f, &at);
+	}
+}
+
 // Keys of a seated player: the driver's pedals and wheel go to the server,
 // F gets out, the camera keys switch the view; everything else waits.
 void vehicle_key(CActor* actor, int cmd, bool pressed)
 {
 	if (!pure_client() || !actor->netcoop_seated())
 		return;
+	// The gunner's seat: RMB switches between the seat and the gun, LMB
+	// fires, from the gun view only.
+	if (vehicle_gun_seat(actor))
+	{
+		if (cmd == kWPN_ZOOM && pressed)
+		{
+			s_gun_view = !s_gun_view;
+			s_gun_fire = false;
+			return;
+		}
+		if (cmd == kWPN_FIRE)
+		{
+			s_gun_fire = pressed && s_gun_view;
+			return;
+		}
+	}
 	u8 bit = 0;
 	switch (cmd)
 	{
@@ -1005,6 +1207,22 @@ LPCSTR script_vehicle_prompt()
 // Held pedals are repeated: the server lets go after 2 s of silence.
 void vehicle_input_tick(CActor* actor)
 {
+	if (s_gun_fire && pure_client())
+	{
+		const VehicleSeats* poses = vehicle_gun_seat(actor);
+		if (!poses || !s_gun_view)
+			s_gun_fire = false;
+		else if (Device.dwTimeGlobal >= s_gun_next)
+		{
+			s_gun_next = Device.dwTimeGlobal + u32(poses->gun_interval_ms);
+			NET_Packet P;
+			P.w_begin(M_NETCOOP_VEHICLE);
+			P.w_u8(vehicle_op_fire);
+			P.w_u16(actor->m_netcoop_seat_car);
+			P.w_vec3(Device.vCameraDirection);
+			Level().Send(P, net_flags(FALSE, TRUE));
+		}
+	}
 	if (!actor->m_netcoop_seat_driver || !s_vehicle_keys)
 		return;
 	if (Device.dwTimeGlobal - s_vehicle_keys_sent >= 400)

@@ -85,6 +85,18 @@ heli_crash_speed        = 12
 ; Seat 1 (pilot): the front, lower cockpit; seat 2 (gunner): the rear,
 ; upper one (owner 2026-10-18; the gunner seat was in the nose).
 netcoop_seats           = korpus1:0:0:0.2, korpus1:0:0.45:-1.2, korpus1:-0.55:-0.32:-4.6, korpus1:0.55:-0.32:-4.6, korpus1:-0.55:-0.32:-3.8, korpus1:0.55:-0.32:-3.8, korpus1:-0.55:-0.32:-3.0, korpus1:0.55:-0.32:-3.0
+; The gunner (seat 2) aims the nose machine gun: RMB switches the seat and
+; the gun view, LMB fires from the gun view. The server fires (PKM shot,
+; stronger), within the cone below.
+netcoop_gun_seat        = 1
+netcoop_gun_pos         = 0, 0.75, 5.6
+netcoop_gun_eye         = 0, 0.55, 5.2
+netcoop_gun_weapon      = wpn_pkm
+netcoop_gun_power_k     = 1.5
+netcoop_gun_rpm         = 800
+netcoop_gun_yaw         = 60
+netcoop_gun_up          = 15
+netcoop_gun_down        = 60
 netcoop_center_x        = 0
 netcoop_half_width      = 1.2
 netcoop_rear_z          = -3.0
