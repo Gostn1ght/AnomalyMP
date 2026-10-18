@@ -368,6 +368,17 @@ bool CChangeLevelWnd::OnKeyboardAction(int dik, EUIMessages keyboard_action)
 
 bool g_block_pause = false;
 
+void CChangeLevelWnd::Show(bool status)
+{
+	// Only a real change: the pause it takes is given back exactly once.
+	const bool was = IsShown();
+	inherited::Show(status);
+	if (status && !was)
+		Show();
+	else if (!status && was)
+		Hide();
+}
+
 void CChangeLevelWnd::Show()
 {
 	m_messageBox->InitMessageBox(m_b_allow_change_level

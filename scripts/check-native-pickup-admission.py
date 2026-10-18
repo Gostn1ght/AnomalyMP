@@ -24,7 +24,7 @@ vector = vector[start:vector.index('\n\tu32 size()', start)] + '\n};\n'
 vector = vector.replace('xalloc<T>', 'std::allocator<T>')
 storage = (root/'src/xrGame/netcoop_storage.inc').read_text(encoding='utf-8')
 actual = '\n'.join(method(storage, signature) for signature in (
-    'static bool storage_count_tree(', 'static bool storage_inventory_room(',
+    'static bool storage_launcher_charge(', 'static bool storage_count_tree(', 'static bool storage_inventory_room(',
     'LPCSTR server_inventory_take_failure('))
 source = r'''
 #include <algorithm>
@@ -40,6 +40,7 @@ struct CSE_Abstract{virtual ~CSE_Abstract()=default;u16 ID=0,ID_Parent=u16(-1);x
 struct CSE_ALifeInventoryItem{virtual ~CSE_ALifeInventoryItem()=default;};
 struct Item:CSE_Abstract,CSE_ALifeInventoryItem{};
 struct CSE_ALifeCreatureActor:CSE_Abstract{};
+struct CSE_Temporary:CSE_Abstract{}; // a launcher's rocket/grenade
 struct Game{std::map<u16,CSE_Abstract*> objects;CSE_Abstract* get_entity_from_eid(u16 id){auto i=objects.find(id);return i==objects.end()?nullptr:i->second;}};
 struct xrServer{Game* game;};
 bool active=true;bool enabled(){return active;}
@@ -60,6 +61,10 @@ int main(){
  actor.children.push_back(999);assert(server_inventory_take_failure(&server,actor.ID,loot.ID));actor.children.pop_back();
  carried.ID_Parent=corpse.ID;assert(server_inventory_take_failure(&server,actor.ID,loot.ID));carried.ID_Parent=actor.ID;
  carried.children.push_back(carried.ID);assert(server_inventory_take_failure(&server,actor.ID,loot.ID));carried.children.clear();
+ // A loaded launcher's rocket is a temporary child: not an item, not a broken tree (owner 2026-10-18).
+ CSE_Temporary rocket;rocket.ID=302;rocket.ID_Parent=carried.ID;game.objects[rocket.ID]=&rocket;carried.children.push_back(rocket.ID);
+ assert(!server_inventory_take_failure(&server,actor.ID,loot.ID));
+ rocket.ID_Parent=corpse.ID;assert(server_inventory_take_failure(&server,actor.ID,loot.ID));carried.children.clear();
  std::vector<Item> full(512);actor.children.clear();
  for(unsigned i=0;i<full.size();++i){full[i].ID=u16(1000+i);full[i].ID_Parent=actor.ID;game.objects[full[i].ID]=&full[i];actor.children.push_back(full[i].ID);}
  assert(std::strstr(server_inventory_take_failure(&server,actor.ID,loot.ID),"512"));

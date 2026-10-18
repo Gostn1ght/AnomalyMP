@@ -69,6 +69,10 @@ public:
 	};
 	virtual void SendMessage(CUIWindow* pWnd, s16 msg, void* pData);
 	virtual bool WorkInPause() const { return true; }
+	// The holder shows a dialog with Show(bool); the question's own Show()/
+	// Hide() (message box text, pause) were never called and the passage
+	// question stayed an invisible window with a cursor (owner 2026-10-18).
+	virtual void Show(bool status);
 	virtual void Show();
 	virtual void Hide();
 	virtual bool OnKeyboardAction(int dik, EUIMessages keyboard_action);

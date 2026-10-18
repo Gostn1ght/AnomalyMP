@@ -31,6 +31,9 @@ item_ready_body = items[item_ready_start:items.index('static void item_state_for
 inventory_start = characters.index('static bool character_inventory_complete(')
 inventory_end = characters.index('\nstatic void character_capture_items(',inventory_start)
 inventory_body = characters[inventory_start:inventory_end]
+storage_src = (root/"src/xrGame/netcoop_storage.inc").read_text(encoding="utf-8")
+charge_start = storage_src.index('static bool storage_launcher_charge(')
+charge_body = storage_src[charge_start:storage_src.index(chr(10) + 'static bool storage_count_tree(', charge_start)]
 save_body = characters[characters.index('static bool character_save_actor('):characters.index('\nvoid server_character_save_actor(')]
 assert save_body.index('character_inventory_complete(server, actor, 0, visited)') < save_body.index('character.items.clear()')
 assert save_body.index('if (!character_capture_progress(character, runtime)) return false;') < save_body.index('entity->m_dwMoney = runtime->get_money()') < save_body.index('character.items.clear()')
@@ -214,10 +217,11 @@ std::map<u16,item_state::State> s_item_restore;
 template<class T>using xr_vector=std::vector<T>;
 struct CSE_Abstract {virtual ~CSE_Abstract()=default;u16 ID=1,ID_Parent=0xffff;std::vector<u16>children;};
 struct CSE_ALifeInventoryItem:CSE_Abstract {};
+struct CSE_Temporary:CSE_Abstract {};
 template<class T>T smart_cast(CSE_Abstract* item){return dynamic_cast<T>(item);}
 struct Game {std::map<u16,CSE_Abstract*>items;CSE_Abstract* get_entity_from_eid(u16 id){auto it=items.find(id);return it==items.end()?nullptr:it->second;}};
 struct xrServer {Game* game;};
-'''+item_ready_body+inventory_body+r'''
+'''+item_ready_body+charge_body+inventory_body+r'''
 struct Tree {
  Game game;xrServer server{&game};CSE_Abstract root;
  std::vector<std::unique_ptr<CSE_Abstract>>storage;
@@ -239,6 +243,8 @@ void run(){
  {Tree t;auto item=t.add(2,&t.root);item->ID_Parent=3;assert(!t.complete());}
  {Tree t;auto item=t.add(2,&t.root);item->ID=3;assert(!t.complete());}
  {Tree t;t.add(2,&t.root,false);assert(!t.complete());}
+ {Tree t;auto launcher=t.add(2,&t.root);auto rocket=new CSE_Temporary;rocket->ID=3;rocket->ID_Parent=2;launcher->children.push_back(3);
+  t.game.items[3]=rocket;t.storage.emplace_back(rocket);assert(t.complete());}
  {Tree t;t.add(0xffff,&t.root);assert(!t.complete());}
  {Tree t;t.add(2,&t.root);t.root.children.push_back(2);assert(!t.complete());}
  {Tree t;auto item=t.add(2,&t.root);item->children.push_back(t.root.ID);assert(!t.complete());}

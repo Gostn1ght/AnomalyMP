@@ -1333,6 +1333,7 @@ void server_list_accounts(xr_string& out)
 static u32 storage_capacity(bool safe);
 static u32 storage_section_cost(LPCSTR section);
 static bool item_state_ready_for_save(u16 id);
+static bool storage_launcher_charge(CSE_Abstract* child, u16 parent); // netcoop_storage.inc
 static void item_state_for_save(u16 id, xr_vector<u8>& out);
 static void item_state_restore(u16 id, const xr_vector<u8>& saved);
 // netcoop_world_store.inc: a character that took items from the world is

@@ -783,6 +783,7 @@ static bool character_inventory_complete(xrServer* server, CSE_Abstract* parent,
 	{
 		if (id == 0xffff || visited.size() >= 513 || std::find(visited.begin(), visited.end(), id) != visited.end()) return false;
 		CSE_Abstract* item = server->game->get_entity_from_eid(id);
+		if (item && item->ID == id && storage_launcher_charge(item, parent->ID)) continue;
 		if (!item || item->ID != id || item->ID_Parent != parent->ID || !smart_cast<CSE_ALifeInventoryItem*>(item)) return false;
 		// A runtime child can attach before the budgeted item scan applies its
 		// saved UID/portions. Keep the previous snapshot until that scan finishes.
@@ -799,7 +800,7 @@ static void character_capture_items(xrServer* server, Character& character, CSE_
 	for (u16 id : parent->children)
 	{
 		CSE_Abstract* item = server->game->get_entity_from_eid(id);
-		if (!item || character.items.size() >= 512) continue;
+		if (!item || character.items.size() >= 512 || !smart_cast<CSE_ALifeInventoryItem*>(item)) continue;
 		if (CInventoryItem* runtime = smart_cast<CInventoryItem*>(Level().Objects.net_Find(id)))
 		{
 			if (CSE_ALifeInventoryItem* saved = smart_cast<CSE_ALifeInventoryItem*>(item))

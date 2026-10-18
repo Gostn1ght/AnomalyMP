@@ -44,6 +44,14 @@ static u32 storage_section_cost(LPCSTR section)
 static u32 storage_item_cost(const Character::Item& item) { return storage_section_cost(item.section.c_str()); }
 // Expanded cell capacity must still fit the lossless 512-item save format,
 // including nested attachments and equipped items. Never truncate a save.
+// A loaded RPG-7, RG-6 or grenade launcher carries its rocket/grenade as a
+// temporary child entity, not an inventory item: it is neither counted nor
+// saved (the weapon makes it again), and it does not make the tree "not
+// ready" (owner 2026-10-18: "Pickup refused: inventory state is not ready").
+static bool storage_launcher_charge(CSE_Abstract* child,u16 parent)
+{
+    return child && child->ID_Parent==parent && smart_cast<CSE_Temporary*>(child);
+}
 static bool storage_count_tree(xrServer* server,CSE_Abstract* root,u32 depth,xr_vector<u16>& seen,bool* full=nullptr)
 {
     if (!root || depth>8 || std::find(seen.begin(),seen.end(),root->ID)!=seen.end()) return false;
@@ -52,6 +60,7 @@ static bool storage_count_tree(xrServer* server,CSE_Abstract* root,u32 depth,xr_
     for (u16 id:root->children)
     {
         auto child=server->game->get_entity_from_eid(id);
+        if (child && child->ID==id && storage_launcher_charge(child,root->ID)) continue;
         if (!child || child->ID!=id || child->ID_Parent!=root->ID || !smart_cast<CSE_ALifeInventoryItem*>(child) ||
             !storage_count_tree(server,child,depth+1,seen,full)) return false;
     }
