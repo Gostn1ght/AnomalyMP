@@ -384,6 +384,7 @@ end
 -- callback set; task offers then indexed a nil speaker id.
 local talk_speakers = {}
 function talk_speaker(npc_id)
+	if npc_id ~= 65535 then ensure_task_cache() end
 	if not (SetEvent and GetEvent) then return end
 	if npc_id ~= 65535 then
 		talk_speakers[#talk_speakers + 1] = { id = GetEvent("used_npc_id") }
@@ -398,7 +399,7 @@ end
 -- updates conditions and supplies before the player opens trade.
 function prepare_trade(npc_id, dialog_trade)
 	local npc = level.object_by_id(npc_id)
-	if not (npc and db.actor and trade_manager) then return end
+	if not (npc and db.actor and trade_manager) then return "Trade state is not ready" end
 	if zz_netcoop_sandbox then zz_netcoop_sandbox.configure_trader(npc) end
 	if netcoop_traders then netcoop_traders.configure(npc) end
 	-- GAMMA's trade_manager.trade_init returns without db.actor, and NPCs
@@ -418,16 +419,19 @@ function prepare_trade(npc_id, dialog_trade)
 	-- the actual meet policy for the requesting player before the native gate.
 	local storage = db.storage[npc_id]
 	local meet = storage and storage.meet
-	local allowed = cfg ~= nil and npc:alive()
-	if allowed and not dialog_trade and meet and meet.trade_enable and not (zz_netcoop_sandbox and zz_netcoop_sandbox.mini_profile(npc)) then
-		allowed = xr_logic.pick_section_from_condlist(db.actor, npc, meet.trade_enable) == "true"
+	local refusal = not cfg and "Trader profile is unavailable" or not npc:alive() and "Trader is not alive" or ""
+	if refusal == "" and not dialog_trade and meet and meet.trade_enable and not (zz_netcoop_sandbox and zz_netcoop_sandbox.mini_profile(npc)) then
+		if xr_logic.pick_section_from_condlist(db.actor, npc, meet.trade_enable) ~= "true" then
+			refusal = "Trading is disabled by this dialogue"
+		end
 	end
-	if allowed and xr_wounded and xr_wounded.is_wounded(npc) then allowed = false end
-	if allowed and npc:relation(db.actor) == game_object.enemy then allowed = false end
-	if allowed then npc:enable_trade() else npc:disable_trade() end
+	if refusal == "" and xr_wounded and xr_wounded.is_wounded(npc) then refusal = "Trader is wounded" end
+	if refusal == "" and npc:relation(db.actor) == game_object.enemy then refusal = "Trader is hostile to your character" end
+	if refusal == "" then npc:enable_trade() else npc:disable_trade() end
 	if cfg and netcoop_send_to_actor then
 		netcoop_send_to_actor(db.actor:id(), "trade_cfg", npc_id .. " " .. cfg)
 	end
+	return refusal
 end
 
 -- The price can be positive for an item hidden/rejected by GAMMA's UI.
@@ -447,11 +451,24 @@ function trade_item_allowed(npc_id, item, actor_sells)
 	}) == 4
 end
 
+-- GAMMA fills this static config cache from load_state. Dedicated worlds
+-- load their own state instead; without it every trader offers zero jobs.
+local task_cache_ready = false
+function ensure_task_cache()
+	if task_cache_ready then return end
+	local manager = axr_task_manager
+	if not (manager and manager.generate_cache and manager.CFG_CACHE) then return end
+	if next(manager.CFG_CACHE) == nil then manager.generate_cache() end
+	task_cache_ready = next(manager.CFG_CACHE) ~= nil
+	if task_cache_ready then printf("[Lost Zone] server task offer cache initialized") end
+end
+
 local game_loaded = false
 local function server_game_load()
 	if game_loaded then return end
 	game_loaded = true
 	init_event_managers()
+	ensure_task_cache()
 	-- Faction relations: in a single player new game the faction select
 	-- window sets them and marks new_game_relations; the server has no such
 	-- window, so game_relations.reset_all_relations ran and read the

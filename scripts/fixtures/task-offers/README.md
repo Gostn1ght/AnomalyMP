@@ -1,0 +1,1 @@
+Unmodified function bodies from GAMMA axr_task_manager.script: static configuration cache and ordinary task offers. Executed against the production server cache initializer; SP save loading is absent, as on a dedicated location.

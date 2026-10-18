@@ -242,9 +242,11 @@ bool CWeapon::netcoop_back_transform(Fmatrix& transform) const
 	right.set(vertical, -tilt, 0.f);
 	normal.set(0.f, 0.f, -1.f);
 	barrel.set(tilt, vertical, 0.f);
-	// Owner 2026-10-17: fixed to the back near the shoulders, whatever the
-	// backpack or outfit (no backpack spacing any more); pistols on the hip.
-	mount.set(side * (pistol ? .18f : .16f), pistol ? -.35f : .02f, pistol ? -.19f : -.20f);
+	// Spine2 is at the shoulders: putting the model centre there leaves half
+	// the rifle above the head. Keep its highest corner 12 cm above that bone
+	// and the body against the back. Pistols remain on the hip.
+	const float upper_extent = half.z * vertical + half.x * _abs(tilt);
+	mount.set(side * (pistol ? .18f : .14f), pistol ? -.35f : .12f - upper_extent, pistol ? -.19f : -.14f);
 	Fmatrix local, world;
 	local.set(right, normal, barrel, mount);
 	// Model origins differ by tens of centimetres across GAMMA weapons.

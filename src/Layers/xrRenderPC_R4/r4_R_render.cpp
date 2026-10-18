@@ -35,6 +35,11 @@ bool CRender::PrepareUIModel(IRenderVisual* visual)
     const xr_string textures = menu_material_textures(visual->getDebugTexture());
     preview.create("netcoop_preview", textures.c_str());
     shader_option_skinning(-1);
+    // Pool cleanup restores a changed material only when its current name
+    // differs from dbg_shader_def. Direct shader assignment left menu-only
+    // passes on models subsequently reused by live characters and weapons.
+    geometry->dbg_shader = "netcoop_preview";
+    geometry->dbg_texture = textures.c_str();
     geometry->shader = preview;
     return !!preview;
 }

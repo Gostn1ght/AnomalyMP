@@ -1556,16 +1556,20 @@ void CAI_Stalker::net_Relcase(CObject* O)
 {
 	inherited::net_Relcase(O);
 
+	if (Remote() && netcoop::pure_client())
+	{
+		// Ragdoll references still need cleanup, including dead copies.
+		// Sight, movement and the agent manager belong to server simulation.
+		m_pPhysics_support->in_NetRelcase(O);
+		return;
+	}
 	sight().remove_links(O);
 	movement().remove_links(O);
 
 	if (!g_Alive())
 		return;
 
-	// Netcoop client puppets have no local agent manager; their AI runs on the
-	// dedicated server. Keep the regular relcase path for all simulated NPCs.
-	if (!(Remote() && netcoop::pure_client()))
-		agent_manager().remove_links(O);
+	agent_manager().remove_links(O);
 	m_pPhysics_support->in_NetRelcase(O);
 }
 

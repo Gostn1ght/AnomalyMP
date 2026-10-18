@@ -66,9 +66,9 @@ start = server.index('function prepare_trade(npc_id, dialog_trade)')
 end = server.index('\nlocal game_loaded', start)
 lua.execute(server[start:end])
 lua.execute('''
-prepare_trade(27);assert(allowed and updated)
+assert(prepare_trade(27)=='' and allowed and updated)
 xr_wounded={is_wounded=function() return true end};prepare_trade(27);assert(not allowed)
-xr_wounded=nil;npc.relation=function() return game_object.enemy end;prepare_trade(27);assert(not allowed)
+xr_wounded=nil;npc.relation=function() return game_object.enemy end;assert(prepare_trade(27)=="Trader is hostile to your character" and not allowed)
 npc.relation=function() return 0 end
 xr_logic={pick_section_from_condlist=function(actor,other,rule) assert(actor==db.actor);return rule end}
 db.storage[27]={meet={trade_enable='false'}};prepare_trade(27);assert(not allowed)

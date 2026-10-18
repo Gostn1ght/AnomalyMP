@@ -76,7 +76,11 @@ LPCSTR server_inventory_take_failure(xrServer* server,u16 owner_id,u16 item_id)
     if (!owner || !smart_cast<CSE_ALifeCreatureActor*>(owner) || !item || !smart_cast<CSE_ALifeInventoryItem*>(item)) return nullptr;
     if (item->ID_Parent==owner_id) return nullptr;
     bool full=false;
-    if (!storage_inventory_room(server,owner,xr_vector<u16>{item_id},&full))
+    // xr_vector has a count constructor, but no initializer_list constructor:
+    // {item_id} creates item_id zeroes, not one item (ID 0 is the anchor Actor).
+    xr_vector<u16> incoming;
+    incoming.push_back(item_id);
+    if (!storage_inventory_room(server,owner,incoming,&full))
         return full ? "inventory save limit reached (512 items)" : "inventory state is not ready";
     return nullptr; // no cell limit: weight only
 }

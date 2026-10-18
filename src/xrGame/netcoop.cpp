@@ -2701,15 +2701,20 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 struct DialogTrade { u16 partner; u32 since; };
 static xr_map<u16, DialogTrade> s_dialog_trade;
 
-static void prepare_trade(u16 partner_id, bool dialog_trade = false)
+static xr_string prepare_trade(u16 partner_id, bool dialog_trade = false)
 {
-	if (!enabled() || !g_pGameLevel || !Level().Server) return;
-	::luabind::functor<void> prepare;
+	if (!enabled() || !g_pGameLevel || !Level().Server) return "Trade state is not ready";
+	::luabind::functor<LPCSTR> prepare;
 	if (ai().script_engine().functor("netcoop_server_compat.prepare_trade", prepare))
 	{
-		try { prepare(partner_id, dialog_trade); }
+		try
+		{
+			LPCSTR refusal = prepare(partner_id, dialog_trade);
+			return refusal ? refusal : "Trader policy did not return a result";
+		}
 		catch (...) { Msg("! [Lost Zone] trader %u profile preparation failed", partner_id); }
 	}
+	return "Trader policy is unavailable";
 }
 
 static bool server_trade_item_allowed(u16 partner_id, PIItem item, bool partner_buys)
@@ -2799,10 +2804,10 @@ void server_on_trade(xrServer* server, xrClientData* CL, NET_Packet& P)
 	const bool dialog_trade = opened != s_dialog_trade.end() && opened->second.partner == partner_id &&
 		Device.dwTimeGlobal - opened->second.since < 30 * 60 * 1000;
 	partner->DisableTrade(); // failed/missing Lua policy cannot reuse a stale grant
-	prepare_trade(partner_id, dialog_trade);
+	const xr_string trade_refusal = prepare_trade(partner_id, dialog_trade);
 	if (!partner->IsTradeEnabled())
 	{
-		finish(false, "This character does not trade");
+		finish(false, trade_refusal.empty() ? "This character does not trade" : trade_refusal.c_str());
 		return;
 	}
 	const bool partner_buys = direction == trade_actor_sells;

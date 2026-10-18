@@ -25,6 +25,7 @@ on_auth_result(true,1,'');assert(not DEV_DEBUG and registrations==1)
 begin = server.index('local talk_speakers = {}')
 lua.execute(server[begin:server.index('\n-- Remote dialogue', begin)])
 lua.execute('''
+function ensure_task_cache() end
 events={};function GetEvent(k) return events[k] end;function SetEvent(k,v) events[k]=v end
 talk_speaker(27);assert(GetEvent('used_npc_id')==27,'fetch task has an NPC speaker')
 talk_speaker(28);assert(GetEvent('used_npc_id')==28)

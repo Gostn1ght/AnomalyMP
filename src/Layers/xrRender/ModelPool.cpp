@@ -304,6 +304,15 @@ dxRender_Visual* CModelPool::CreateChild(LPCSTR name, IReader* data)
 
 extern BOOL ENGINE_API g_bRendering;
 
+static void reset_model_materials(IRenderVisual* visual)
+{
+	visual->ResetShaderTexture();
+	if (auto children = visual->get_children())
+		for (auto child : *children) reset_model_materials(child);
+	if (auto children = visual->get_children_invisible())
+		for (auto child : *children) reset_model_materials(child);
+}
+
 void CModelPool::DeleteInternal(dxRender_Visual* & V, BOOL bDiscard)
 {
 	VERIFY(!g_bRendering);
@@ -320,12 +329,7 @@ void CModelPool::DeleteInternal(dxRender_Visual* & V, BOOL bDiscard)
 		if (it != Registry.end())
 		{
 			// Registry entry found - move it to pool and reset changed shader/texture if necessary
-			xr_vector<IRenderVisual*>* children = V->get_children();
-			if (children)
-				for (auto* child : *children)
-					child->ResetShaderTexture();
-			else
-				V->ResetShaderTexture();
+			reset_model_materials(V);
 
 			Pool.insert(mk_pair(it->second, V));
 		}

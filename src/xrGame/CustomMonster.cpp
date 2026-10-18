@@ -1179,6 +1179,9 @@ DLL_Pure* CCustomMonster::_construct()
 void CCustomMonster::net_Relcase(CObject* object)
 {
 	inherited::net_Relcase(object);
+	// Remote copies never bind AI-agent memory containers. A nearby item
+	// disappearing must not dereference those containers (dump 2026-10-18).
+	if (Remote() && netcoop::pure_client()) return;
 	memory().remove_links(object);
 }
 

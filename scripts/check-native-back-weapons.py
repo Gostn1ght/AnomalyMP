@@ -134,15 +134,19 @@ int main(){
  assert(left.netcoop_back_carried()&&right.netcoop_back_carried());
  for(unsigned i=0;i<100;++i){
   models[0].vis.box.center={float(i%7)*.3f-1,float(i%9)*.2f-.8f,float(i%5)*.4f-1};
+  models[0].vis.box.half.z=.2f+float(i%8)*.1f;
   Fmatrix back;assert(left.netcoop_back_transform(back));Fvector actual,offset,expected;
   back.transform_tiny(actual,models[0].vis.box.center);
-  delta.transform_dir(offset,Fvector{-.16f,.02f,-.20f});
+  // Highest rotated corner stays at shoulder+12cm, whatever model length.
+  const auto half=models[0].vis.box.half;
+  const float y=.12f-half.z*.968245837f-half.x*.25f;
+  delta.transform_dir(offset,Fvector{-.14f,y,-.14f});
   actor.XFORM().transform_tiny(expected,add(skeleton.bones[1].pose.c,offset));
   assert(near(actual,expected));assert(std::fabs(DET(back)-1.f)<.001f);
  }
  Fmatrix a,b;assert(left.netcoop_back_transform(a)&&right.netcoop_back_transform(b));
  Fvector ac,bc;a.transform_tiny(ac,models[0].vis.box.center);b.transform_tiny(bc,models[1].vis.box.center);
- Fvector distance;distance.sub(ac,bc);assert(distance.magnitude()>.31f);
+ Fvector distance;distance.sub(ac,bc);assert(distance.magnitude()>.27f);
  actor.renderable_Render();assert(left.draws==1&&right.draws==1&&left.lights==0&&left.hud_calls==0);
  assert(actor.attached_draws==1&&left.state==0&&right.state==0);
  // A moved torso/world in the same frame must not reuse a hand/frame cache.
