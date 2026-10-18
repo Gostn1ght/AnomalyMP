@@ -55,6 +55,8 @@ end
 ----------------------------------------------------------------------
 me = { uid = "", name = "", icon = "" }
 contacts = {}       -- list of { uid, name, icon, online }
+locked = false      -- the PDA's password is not entered yet (server's word)
+has_lock = false    -- the PDA has a password
 requests = {}       -- friend requests: list of { uid, name, icon, t } (players who added me)
 chats = {}          -- list of chat summaries (server order is any; sorted here)
 general = {}        -- newest last, at most KEEP
@@ -137,6 +139,8 @@ end
 local function apply(verb, v)
 	if verb == "state" and type(v) == "table" then
 		me = { uid = v.uid or "", name = v.name or "", icon = v.icon or "" }
+		locked, has_lock = v.locked == true, v.has_lock == true
+		if locked then opened = nil end
 		contacts = list(v.contacts)
 		requests = list(v.requests)
 		for _, r in ipairs(requests) do
@@ -244,6 +248,8 @@ local function send(text) if netcoop_command then netcoop_command("pdanet " .. t
 function hello() send("hello") end
 function add_contact(uid) send("add " .. tostring(uid)) end
 function deny_request(uid) send("deny " .. tostring(uid)) end
+function unlock(password) send("unlock " .. string.gsub(password or "", "[%c|]", "")) end
+function set_password(old, new) send("lockset " .. string.gsub(old or "", "[%c|]", "") .. "|" .. string.gsub(new or "", "[%c|]", "")) end
 function remove_contact(uid) send("del " .. tostring(uid)) end
 function say(text, anonymous)
 	text = clean(text)

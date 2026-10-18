@@ -1450,4 +1450,28 @@
   <string id="st_tb_fail_error">
     <text>Не удалось получить задания.</text>
   </string>
+  <string id="st_pdanet_locked">
+    <text>КПК защищён паролем</text>
+  </string>
+  <string id="st_pdanet_unlock">
+    <text>Разблокировать</text>
+  </string>
+  <string id="st_pdanet_wrong_password">
+    <text>Неверный пароль</text>
+  </string>
+  <string id="st_pdanet_pda_held">
+    <text>Слишком много попыток - подождите 30 секунд</text>
+  </string>
+  <string id="st_pdanet_password">
+    <text>Пароль КПК</text>
+  </string>
+  <string id="st_pdanet_password_save">
+    <text>Сохранить пароль</text>
+  </string>
+  <string id="st_pdanet_password_old">
+    <text>Текущий пароль</text>
+  </string>
+  <string id="st_pdanet_password_new">
+    <text>Новый пароль (пусто - снять пароль)</text>
+  </string>
 </string_table>

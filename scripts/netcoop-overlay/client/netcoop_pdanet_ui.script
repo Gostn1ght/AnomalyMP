@@ -46,11 +46,47 @@ local function base(self, title)
 	self.status = self.xml:InitStatic("status", self)
 	self.ids, self.tick_at = 0, 0
 end
+-- The lock screen of a PDA with a password (owner 2026-10-18), made on
+-- first use so it is drawn over everything the tab made before.
+local function lock_layer(self)
+	if self.lock then return self.lock end
+	local l = {}
+	l.back = self.xml:InitFrame("panel", self)
+	l.back:SetWndPos(vector2():set(36, 110)); l.back:SetWndSize(vector2():set(748, 556))
+	l.title = self.xml:InitStatic("msg_name", self)
+	l.title:SetWndPos(vector2():set(260, 300)); l.title:SetWndSize(vector2():set(300, 24))
+	l.title:TextControl():SetText(tr("st_pdanet_locked"))
+	l.edit = self.xml:InitEditBox("edit", self)
+	l.edit:SetWndPos(vector2():set(260, 334)); l.edit:SetWndSize(vector2():set(300, 32))
+	l.btn = self.xml:Init3tButton("button", self)
+	l.btn:SetWndPos(vector2():set(260, 376)); l.btn:SetWndSize(vector2():set(300, 30))
+	l.btn:TextControl():SetText(tr("st_pdanet_unlock"))
+	self:Register(l.btn, "pda_unlock")
+	self:AddCallback("pda_unlock", ui_events.BUTTON_CLICKED, function()
+		net().unlock(l.edit:GetText()); l.edit:SetText("")
+	end, self)
+	l.err = self.xml:InitStatic("msg_head", self)
+	l.err:SetWndPos(vector2():set(260, 414)); l.err:SetWndSize(vector2():set(300, 22))
+	self.lock = l
+	return l
+end
+local function show_lock(self)
+	local on = net().locked == true
+	if not on and not self.lock then return end
+	local l = lock_layer(self)
+	for _, w in pairs(l) do w:Show(on) end
+	if on then
+		local e = net().last_error
+		l.err:TextControl():SetText((e == "wrong password" and tr("st_pdanet_wrong_password")) or (e == "pda held" and tr("st_pdanet_pda_held")) or "")
+	end
+end
+
 -- Clock and footer, once a second (CUIScriptWnd:Update of each tab).
 local function tick(self, extra)
 	if time_global() < self.tick_at then return end
 	self.tick_at = time_global() + 1000
 	text(self.clock, net().clock())
+	show_lock(self)
 	if extra then extra() end
 end
 local function footer(self, prefix)
@@ -563,6 +599,7 @@ function pdanet_contacts:__init() super()
 	self.card_name = layout(self, "nw_contacts:my_nick", nil, 36, 150)
 	self.card_info = layout(self, "nw_contacts:my_uid", nil, 36, 150)
 	self.card_money = static(self, "money", 560, 114, 214, 30)
+	self.pw_btn = button(self, tr("st_pdanet_password"), 330, 116, 220, 28, function() self:Password(not self.pw_open) end)
 	text(layout(self, "nw_contacts:add_caption", nil, 36, 150), "UID")
 	self.uid = layout(self, "nw_contacts:add_edit", "EditBox", 36, 150)
 	layout_button(self, "nw_contacts:btn_add", tr("st_pdanet_add"), function()
@@ -613,8 +650,30 @@ function pdanet_contacts:__init() super()
 	self.tdlg.ok = button(self, tr("st_pdanet_rec_send"), 176, 550, 228, 30, function() self:SendTask() end)
 	self.tdlg.cancel = button(self, tr("st_pdanet_cancel"), 416, 550, 228, 30, function() self:Tasks(false) end)
 	self:Tasks(false)
+	-- "Пароль КПК": set, change or remove (an empty new password)
+	self.pwdlg = {}
+	self.pwdlg.back = static(self, "panel", 160, 250, 500, 260)
+	self.pwdlg.title = static(self, "msg_name", 176, 258, 468, 24)
+	self.pwdlg.l_old = static(self, "msg_head", 176, 290, 468, 20)
+	self.pwdlg.old = at(self.xml:InitEditBox("edit", self), 176, 312, 468, 30)
+	self.pwdlg.l_new = static(self, "msg_head", 176, 350, 468, 20)
+	self.pwdlg.new = at(self.xml:InitEditBox("edit", self), 176, 372, 468, 30)
+	self.pwdlg.ok = button(self, tr("st_pdanet_password_save"), 176, 464, 228, 30, function()
+		net().set_password(edit_text(self.pwdlg.old), edit_text(self.pwdlg.new)); self:Password(false)
+	end)
+	self.pwdlg.cancel = button(self, tr("st_pdanet_cancel"), 416, 464, 228, 30, function() self:Password(false) end)
+	text(self.pwdlg.title, tr("st_pdanet_password"))
+	text(self.pwdlg.l_old, tr("st_pdanet_password_old"))
+	text(self.pwdlg.l_new, tr("st_pdanet_password_new"))
+	self:Password(false)
 	net().on_change(function() if self:IsShown() then self:Fill() end end)
 	self:Fill()
+end
+function pdanet_contacts:Password(on)
+	self.pw_open = on
+	for _, w in pairs(self.pwdlg) do w:Show(on) end
+	if on then self.pwdlg.old:SetText(""); self.pwdlg.new:SetText("") end
+	self.pwdlg.l_old:Show(on and net().has_lock); self.pwdlg.old:Show(on and net().has_lock)
 end
 function pdanet_contacts:Tasks(on)
 	if not on then self.task_pick = nil end

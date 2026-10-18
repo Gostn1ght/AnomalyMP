@@ -317,4 +317,28 @@ g.tg += 1500
 servers[0].command(1, "say 0 again")
 assert lua.eval("netcoop_transit.deserialize(netcoop_store_read('pda_chat', 'general'))").seq == seq1 + 1
 assert "too many messages" in (root / "server/netcoop_pdanet.script").read_text(encoding="utf-8")
+# PDA password (owner 2026-10-18): set, locked state hides the network,
+# wrong tries hold it, the right one opens it, the old one is needed to change.
+g.tg += 60000
+st = last(cmd(0, 1, "pdanet lockset |secret1"), "state")
+assert st.has_lock and not st.locked
+g.players[1].server = 0
+lua.execute("players[1].server = 1")
+srv = servers[0]
+lua.execute("""for k in pairs(package.loaded) do end""")
+# a new session (relog): the entity id is new, the PDA is locked again
+lua.execute('players[9] = {char = "a_1", name = "Bashka", server = 1}')
+st = last(cmd(0, 9, "pdanet hello"), "state")
+assert st.locked and len(st.contacts) == 0 and len(st.chats) == 0, "a locked PDA shows nothing"
+assert last(cmd(0, 9, "pdanet notes"), "err") == "locked"
+for _ in range(3):
+    assert last(cmd(0, 9, "pdanet unlock nope"), "err") == "wrong password"
+assert last(cmd(0, 9, "pdanet unlock secret1"), "err") == "pda held", "three wrong tries hold the PDA"
+g.tg += 31000
+st = last(cmd(0, 9, "pdanet unlock secret1"), "state")
+assert not st.locked and len(st.contacts) > 0
+assert last(cmd(0, 9, "pdanet lockset wrong|x123"), "err") == "wrong password"
+st = last(cmd(0, 9, "pdanet lockset secret1|"), "state")
+assert not st.has_lock, "removed with the old password"
+assert "secret1" not in (lua.eval("netcoop_store_read('pda_lock', 'a_1')") or ""), "never stored in clear"
 print("netcoop pdanet: OK")

@@ -231,7 +231,14 @@ local function state(id, me)
 			if other then requests[#requests + 1] = { uid = uid, name = other.name, icon = other.icon, t = at } end
 		end
 	end
-	send(id, "state", { uid = me.uid, name = me.name, icon = me.icon, contacts = contacts, chats = chats, requests = requests })
+	local lock = read("pda_lock", char_of(id))
+	-- a locked PDA shows nothing of its owner's network
+	if lock and is_locked(id, char_of(id)) then
+		send(id, "state", { uid = me.uid, name = me.name, icon = me.icon, contacts = {}, chats = {}, requests = {}, locked = true, has_lock = true })
+		return
+	end
+	send(id, "state", { uid = me.uid, name = me.name, icon = me.icon, contacts = contacts, chats = chats, requests = requests,
+		has_lock = lock ~= nil })
 end
 
 local function requests_key(p)
@@ -611,6 +618,79 @@ end
 function handlers.aget(id, me, char, args) return fetch(id, me, args, "pda_audio", "audio", "no such record") end
 function handlers.pget(id, me, char, args) return fetch(id, me, args, "pda_photo", "photo", "no such photo") end
 
+----------------------------------------------------------------------
+-- PDA password (owner 2026-10-18; a base for hacking later): the network
+-- tabs of a locked PDA open after "unlock <password>". Three wrong tries
+-- hold the PDA for 30 s. The level of protection is the PDA's model
+-- (device_pda_1..3), kept with the lock for the hacking to come.
+--   pda_lock/<char> { salt, hash, level }
+----------------------------------------------------------------------
+local unlocked, tries = {}, {} -- entity id -> true / { n, until_ms }
+local LOCK_TRIES, LOCK_HOLD_MS = 3, 30000
+
+-- Salted, iterated two-lane polynomial hash (plain arithmetic: no bit library).
+local function lock_hash(salt, password)
+	local h1, h2 = 5381, 52711
+	local text = salt .. "|" .. password
+	for round = 1, 2000 do
+		for k = 1, #text do
+			local b = string.byte(text, k)
+			h1 = (h1 * 131 + b) % 2147483647
+			h2 = (h2 * 137 + b + round) % 2147483629
+		end
+	end
+	return string.format("%08x%08x", h1, h2)
+end
+
+local function lock_of(char) return read("pda_lock", char) end
+
+local function pda_level(id)
+	local ok, n = pcall(function()
+		local pda = level.object_by_id(id):item_in_slot(8)
+		return tonumber(string.match(pda:section(), "^device_pda_(%d)"))
+	end)
+	return math.max(1, math.min(3, ok and n or 1))
+end
+
+function is_locked(id, char)
+	return lock_of(char) ~= nil and not unlocked[id]
+end
+
+-- unlock <password>
+function handlers.unlock(id, me, char, args)
+	local lock = lock_of(char)
+	if not lock then unlocked[id] = true; state(id, me) return end
+	local t = tries[id] or { n = 0, until_ms = 0 }
+	tries[id] = t
+	if time_global() < t.until_ms then return "pda held" end
+	if lock_hash(lock.salt, args or "") ~= lock.hash then
+		t.n = t.n + 1
+		if t.n >= LOCK_TRIES then t.n, t.until_ms = 0, time_global() + LOCK_HOLD_MS end
+		return "wrong password"
+	end
+	t.n = 0
+	unlocked[id] = true
+	state(id, me)
+end
+
+-- lockset <old>|<new>: set, change ("" new = remove); the old one must match
+function handlers.lockset(id, me, char, args)
+	local old, new = string.match(args or "", "^([^|]*)|([^|]*)$")
+	if not old then return "bad password" end
+	local lock = lock_of(char)
+	if lock and lock_hash(lock.salt, old) ~= lock.hash then return "wrong password" end
+	if new ~= "" and (#new < 3 or #new > 32) then return "password 3-32 characters" end
+	if new == "" then
+		netcoop_store_swap("pda_lock", char, netcoop_store_read("pda_lock", char) or "", "")
+	else
+		local salt = string.format("%08x", math.random(0, 2147483646))
+		local text = ser({ salt = salt, hash = lock_hash(salt, new), level = pda_level(id) })
+		if not netcoop_store_swap("pda_lock", char, netcoop_store_read("pda_lock", char) or "", text) then return "try again" end
+	end
+	unlocked[id] = true
+	state(id, read("pda_prof", char) or me)
+end
+
 -- Flood limit for what other players see (README «лимиты сообщений»): per
 -- player a budget of BURST posts refilled at one per RATE_MS; "aup" parts,
 -- reads and lists are not counted.
@@ -639,6 +719,11 @@ function command(entity_id, args)
 	end
 	local me, char = profile(entity_id)
 	if not me then return "" end
+	-- a locked PDA answers only its state and the password
+	if verb ~= "hello" and verb ~= "unlock" and verb ~= "lockset" and is_locked(entity_id, char) then
+		send(entity_id, "err", "locked")
+		return ""
+	end
 	local ok, err = pcall(handler, entity_id, me, char, rest or "")
 	if not ok then
 		printf("! [Lost Zone] pdanet %s failed: %s", verb, tostring(err))
@@ -699,7 +784,7 @@ function update_world()
 			if s > seen[cid] then
 				me = me or read("pda_prof", char)
 				local c = read("pda_chat", cid)
-				if me and c and me.chats[cid] then
+				if me and c and me.chats[cid] and not is_locked(id, char) then
 					send(id, "new", { id = cid, summary = summary(me, cid), msgs = shown(me, c.msgs, seen[cid]) })
 				end
 				seen[cid] = s
