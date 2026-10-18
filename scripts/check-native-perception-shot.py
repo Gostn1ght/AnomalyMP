@@ -69,6 +69,7 @@ struct CHudItem{CGameObject hud;CGameObject& object(){return hud;}};
 struct{u32 dwTimeGlobal=1000;}Device;
 constexpr int GE_NETCOOP_WPN_AIM=0;
 struct CWeapon:CHudItem{
+ virtual ~CWeapon()=default;
  CObject* parent=nullptr;Fvector m_netcoop_aim_pos,m_netcoop_aim_dir;u32 m_netcoop_aim_time=0,m_netcoop_last_shot=0;
  float fOneShotTime=0.1f,fModeShotTime=0.f,m_netcoop_shot_budget=3.f;u32 m_netcoop_budget_time=0;
  struct Name{const char* c_str()const{return "wpn";}};Name cNameSect()const{return Name{};}
@@ -79,10 +80,12 @@ struct CWeapon:CHudItem{
  void FireTrace(const Fvector&,const Fvector& dir){assert(sounds==1&&callbacks==1&&std::fabs(dir.square_magnitude()-1)<1e-6f);++bullets;--iAmmoElapsed;m_magazine.pop_back();}
  bool netcoop_fire_shot(u8 kind,const Fvector& pos,const Fvector& dir){if(kind)return false;OnShot();FireTrace(pos,dir);return true;}
  void netcoop_shot_effect(u8 kind){if(!kind)OnShot();}
- void receive(NET_Packet& P){switch(GE_NETCOOP_WPN_AIM){
+ void receive(NET_Packet& P);
+};
+struct CWeaponKnife:CWeapon{};
+void CWeapon::receive(NET_Packet& P){switch(GE_NETCOOP_WPN_AIM){
 '''+branch+r'''
  }}
-};
 '''+rate+r'''
 int main(){
  CActor owner;ROS ros;owner.ros=&ros;CScriptGameObject script;script.value=&owner;

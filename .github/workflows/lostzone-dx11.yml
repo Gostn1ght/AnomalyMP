@@ -131,6 +131,18 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/check-netcoop-server-item-save.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Check play32 combat, AI and PDA regressions
+        shell: cmd
+        run: |
+          call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          set LZ_PLAY32_CHECKS_FAILED=0
+          python scripts/check-native-play32-input-ai.py
+          if errorlevel 1 set LZ_PLAY32_CHECKS_FAILED=1
+          python scripts/check-native-melee-shot.py
+          if errorlevel 1 set LZ_PLAY32_CHECKS_FAILED=1
+          python scripts/check-native-perception-shot.py
+          if errorlevel 1 set LZ_PLAY32_CHECKS_FAILED=1
+          exit /b %LZ_PLAY32_CHECKS_FAILED%
       - name: Check Windows mail and clipboard API types
         shell: cmd
         run: |
@@ -225,8 +237,6 @@ jobs:
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-physics-push.py
           if errorlevel 1 exit /b %errorlevel%
-          python scripts/check-native-perception-shot.py
-          if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-fragment-lifetime.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-mark-material.py
@@ -268,10 +278,6 @@ jobs:
           python scripts/check-native-campfire.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-trade-policy.py
-          if errorlevel 1 exit /b %errorlevel%
-          python scripts/check-native-play32-input-ai.py
-          if errorlevel 1 exit /b %errorlevel%
-          python scripts/check-native-melee-shot.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-world-bridge.py
           if errorlevel 1 exit /b %errorlevel%
