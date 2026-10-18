@@ -30,6 +30,8 @@ jobs:
           python -m pip install lupa==2.8 cryptography==46.0.2
           python scripts/check-netcoop-menu.py
           python scripts/check-netcoop-opaque-sights.py
+          python scripts/check-netcoop-reload-input.py
+          python scripts/check-netcoop-ambient.py
           python scripts/check-netcoop-task-offers.py
           python scripts/check-netcoop-trade.py
           python scripts/check-netcoop-live-role-dialog.py

@@ -9,6 +9,39 @@ G = ROOT.parent / "gamma-runtime" / "gamedata" / "scripts"
 O = ROOT / "scripts" / "netcoop-overlay"
 
 FIXES = {
+    "arti_jamming.script": [(
+        '\tlocal timeout = get_config("profanity_timeout")\r\n'
+        '\tif timeout and not can_swear then return end\r\n',
+        '\tlocal profanity_timeout = get_config("profanity_timeout")\r\n'
+        '\tif profanity_timeout and not can_swear then return end\r\n'), (
+        '\t\tif timeout then\r\n', '\t\tif profanity_timeout then\r\n'), (
+        '\texec_console_cmd("bind wpn_reload kF10")\r\n',
+        '\t-- Lost Zone: carry the reload key to GAMMA\'s reload/unjam action.\r\n'
+        '\tlocal previous_reload_key = bind_to_dik(key_bindings.kWPN_RELOAD)\r\n'
+        '\texec_console_cmd("bind wpn_reload kF10")\r\n'
+        '\tif _G.netcoop_reload_input then netcoop_reload_input.restore(previous_reload_key) end\r\n')],
+    "sound_ambient.script": [(
+        'local tot_size\r\n', 'local tot_size = 0\r\n'), (
+        '\tempty_table(snd_chanels)\r\n',
+        '\tempty_table(snd_chanels)\r\n'
+        '\t-- Lost Zone: a missing ambient must not retain the old channel count.\r\n'
+        '\ttot_size = 0\r\n'), (
+        'local last_hour\r\n',
+        'local last_hour\r\nlocal last_weather\r\nlocal last_level\r\n'), (
+        '\tif (next_hour ~= last_hour) then\r\n\t\tlast_hour = next_hour\r\n',
+        '\tlocal weather_name, level_name = level.get_weather(), level.name()\r\n'
+        '\tif next_hour ~= last_hour or weather_name ~= last_weather or level_name ~= last_level then\r\n'
+        '\t\tlast_hour, last_weather, last_level = next_hour, weather_name, level_name\r\n'), (
+        '\t\t\tprint_dbg("ambient sounds timer went off")\r\n\t\t\treturn true\r\n',
+        '\t\t\t-- Lost Zone: keep the timer for the next weather/map, without indexing an empty channel.\r\n'
+        '\t\t\treturn false\r\n'), (
+        '\tnext_idx = next_idx + 1\r\n',
+        '\tif tot_size == 0 then return false end\r\n'
+        '\tnext_idx = next_idx + 1\r\n'), (
+        'local function actor_on_first_update()\r\n',
+        'local function actor_on_first_update()\r\n'
+        '\t-- Lost Zone: reconnecting can reuse this Lua state in the same hour.\r\n'
+        '\tlast_hour, last_weather, last_level = nil, nil, nil\r\n')],
     "agdd_voiced_actor.script": [(
         'function monster_on_death_callback(victim, killer)\r\n'
         '    -- (EDITED FUNCTION - ADDED MORE CALLBACKS) adds combat_intensity when a mutant is killed\r\n\r\n'

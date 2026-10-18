@@ -1,0 +1,18 @@
+-- GAMMA moves native reload to F10 and handles reload/unjam with custom22.
+-- Lost Zone's default controls did not bind custom22, leaving R disconnected.
+-- Called immediately after arti_jamming moves the native binding, so a user's
+-- original reload key can move with it. Existing custom22 bindings win.
+function restore(previous_key)
+	if not (netcoop_enabled and netcoop_enabled()) then return end
+	if bind_to_dik(key_bindings.kCUSTOM22) ~= 0 then return end
+	local key = previous_key
+	if not key or key == 0 or key == DIK_keys.DIK_F10 then
+		key = DIK_keys.DIK_R
+	end
+	-- Never steal an occupied key. DIK 0 is unbound in the engine.
+	if dik_to_bind(key) ~= dik_to_bind(0) then return end
+	local name = dik_to_keyname(key, false)
+	if not name then return end
+	exec_console_cmd("bind custom22 " .. name)
+	printf("[Lost Zone] reload/unjam key restored: %s", name)
+end
