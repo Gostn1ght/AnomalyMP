@@ -464,11 +464,29 @@ function ensure_task_cache()
 end
 
 local game_loaded = false
+-- Anomalies hurt players in their whole field (owner 2026-10-18: "anomalies
+-- do no damage"). GAMMA's NPC pathfinding fix (aaaa_script_fixes_mp)
+-- ignores everyone but the single-player Actor (id 0) outside the field's
+-- radius minus 1.1 m; every player here has another id, so a small field
+-- never touched him. Living players get the single-player Actor's rule.
+local zone_players_installed = false
+function install_zone_players()
+	if zone_players_installed or type(_G.CCustomZone_BeforeActivateCallback) ~= "function" then return end
+	zone_players_installed = true
+	local decide = _G.CCustomZone_BeforeActivateCallback
+	_G.CCustomZone_BeforeActivateCallback = function(zone, obj)
+		local result = decide(zone, obj)
+		if not result and obj and obj.clsid and obj:clsid() == clsid.actor and obj.alive and obj:alive() then return true end
+		return result
+	end
+end
+
 local function server_game_load()
 	if game_loaded then return end
 	game_loaded = true
 	init_event_managers()
 	ensure_task_cache()
+	install_zone_players()
 	-- Faction relations: in a single player new game the faction select
 	-- window sets them and marks new_game_relations; the server has no such
 	-- window, so game_relations.reset_all_relations ran and read the
