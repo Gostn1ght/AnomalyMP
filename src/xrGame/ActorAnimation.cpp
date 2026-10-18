@@ -661,12 +661,11 @@ void CActor::g_SetAnimation(u32 mstate_rl)
 		if (H)
 		{
 			VERIFY(H->animation_slot() <= _total_anim_slots_);
-			// GAMMA axes inherit CWeaponKnife and keep their own rifle slot (2):
-			// held in both hands at the side, as in the game itself (owner
-			// 2026-10-13). Other melee items with a firearm slot take the knife grip.
+			// Melee items with a firearm slot (GAMMA axes keep the rifle slot 2)
+			// take the knife grip and the knife's swings (owner 2026-10-18: the
+			// axe played the rifle's animations).
 			const u32 slot = netcoop::pure_client() && smart_cast<CWeaponKnife*>(_i) &&
-				H->animation_slot() != 5 && !strstr(_i->object().cNameSect().c_str(), "_axe")
-				? 5 : H->animation_slot();
+				H->animation_slot() != 5 ? 5 : H->animation_slot();
 			STorsoWpn* TW = &ST->m_torso[slot - 1];
 			if (!b_DropActivated && !fis_zero(f_DropPower))
 			{
