@@ -689,12 +689,15 @@ void CPhysicsShellHolder::netcoop_physics_update()
 		for (u16 i = 0; i < PHGetSyncItemsNumber(); ++i) shell->get_ElementByStoreOrder(i)->Fix();
 		shell->EnableCollision();
 		// A replica stands where the server puts it. Touching the ground or
-		// other bodies here only made contacts: a fixed body (mass 1e8) pushed
-		// the bodies around it every frame, and dust and impact sounds repeated
-		// forever (owner 2026-10-17). Only characters still bump into it.
-		// CPHCollideValidator: cbNCStatic, cbNCClassDynamic, cbNCClassSmall,
+		// small, ragdoll and animated bodies here only made contacts: a fixed
+		// body (mass 1e8) pushed them every frame, and dust and impact sounds
+		// repeated forever (owner 2026-10-17). Characters must still bump into
+		// it - and a character is also of the dynamic class (InitObject), so
+		// "not with dynamic" let players walk through every car and helicopter
+		// (owner 2026-10-18). CPHCollideValidator: cbNCStatic, cbNCClassSmall,
 		// cbNCClassRagDoll, cbNCClassAnimated.
-		shell->collide_class_bits().set(CLClassBits((1 << 1) | (1 << 3) | (1 << 7) | (1 << 9) | (1 << 11)), TRUE);
+		shell->collide_class_bits().set(CLClassBits(1 << 3), FALSE);
+		shell->collide_class_bits().set(CLClassBits((1 << 1) | (1 << 7) | (1 << 9) | (1 << 11)), TRUE);
 		// A fixed body weighs 1e8: an item on the floor stopped the player like
 		// a wall. Players walk into items and the server kicks them aside.
 		if (smart_cast<CInventoryItem*>(this))
