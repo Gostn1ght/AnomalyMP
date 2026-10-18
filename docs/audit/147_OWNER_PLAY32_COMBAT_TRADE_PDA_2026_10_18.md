@@ -74,3 +74,41 @@ Next patch number is 000033. Installed patch32 client and both location server
 processes were still running during development; no live binaries were replaced.
 The launcher distribution service remains stopped at the owner's request.
 Untracked user file tools/extract-vehicle-assets.py was not edited or staged.
+
+
+## Delivered patch 000033 / 2026.10.18.6
+
+- Successful complete DX11 CI 39147853204, native commit
+  `2fb19d4b53306d9f7bb37b364b2dffc40de57800`. Client/server SHA256
+  `7c2d0e78094cee81d7e58f86d490cb76b77905302d8045e48094752a0b069411`.
+  All new input/AI/melee native fixtures and the existing regression suite
+  passed. Initial fixture-only compiler failures were corrected before this
+  successful build; runtime code/resources match c20dabb41 exactly.
+- Resources pinned to `c20dabb41ce2cc4aad58fb5ca932e0af427168e1`:
+  3 client and 4 server scripts, two loose configs for each role. Encrypted
+  archives authenticated. Existing patch numbers were not replaced.
+- Signed launcher manifest `manifests/2026.10.18.6-33df459f.bin`, BLAKE3
+  `33df459f1833f06a2d4fc77f15b0b3a6f0c3c92b4cb3653b595abc7d7f55c6f8`,
+  6878 public files. Signature, chunk bounds and reconstructed update files
+  verified. Prepared offline while distribution was disabled; the owner's
+  later instruction explicitly authorized starting distribution. PID 3944
+  serves this exact release, authenticated panel and P2P relay verified.
+- Hoster folder `J:\LostZone_Work\Lost Zone Server` and
+  `J:\LostZone_Work\Lost Zone Server.zip` updated. ZIP: 6905 entries,
+  272988042 bytes, SHA256
+  `c500e921637aef54d54a0c63fb8b5cd49f116ae9d3d3b72d97d4d9cbc7d88d3f`.
+  Every member hash verified; accounts, saves, signing keys and private
+  runtime excluded. Master build e689f5ce7 unchanged.
+- Owner client and srvtest native/archives/configs installed with matching
+  hashes while the client was closed. Old maps saved before stopping; old
+  patch32 Marsh required termination only after its completed-save log and
+  hung device teardown were confirmed. New Marsh PID18328 acquired saved
+  world zone at epoch5. The owner then cancelled game-server startup and
+  requested only launcher distribution: the launcher helper was stopped,
+  Cordon was not restarted, new Marsh saved and exited, master stopped.
+  Final state: no game client/location/master processes; distribution only.
+- No in-game acceptance was performed. Combat, visual seat alignment and
+  PDA typing in the real game still require owner playtesting. DCP migration
+  and the previously open complete-sound-loss investigation remain open.
+- Receipts/helpers: `J:\LostZone_Work\_work\patch_000033` and
+  `J:\LostZone_Work\_work\owner_remote_bugs_20261013\*_000033*.py`.
