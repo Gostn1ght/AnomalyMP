@@ -1,0 +1,691 @@
+local CONFIG_PATH = [[items\settings\ads_shader_textures.ltx]]
+local SCOPE_TARGET_SECTION = "target_texture_scopes"
+local SIGHT_TARGET_SECTION = "target_texture_sights"
+local REAR_IRONS_SECTION = "rear_irons_textures"
+local ALT_TARGET_SECTION = "alt_target_textures"
+local SCOPE_EXCLUDED_SECTION = "scope_excluded_textures"
+local SCOPE_TARGET_SHADER_SECTION = "target_shader_scopes"
+local SIGHT_TARGET_SHADER_SECTION = "target_shader_sights"
+local REAR_IRONS_SHADER_SECTION = "rear_irons_shaders"
+local ALT_TARGET_SHADER_SECTION = "alt_target_shaders"
+local SCOPE_EXCLUDED_SHADER_SECTION = "scope_excluded_shaders"
+local REPLACEMENT_SHADER = [[models\transparent_hud]]
+local BASE_MARKER_SHADER = [[models\weapons]]
+local DEFAULT_ADS_DELAY = 0.1
+local EVENT_NAMESPACE = "3dss_shader_switcher"
+local OPACITY_SHADER_PARAM = "shader_param_5"
+local DEFAULT_OPACITY_STEP = 5
+local ZOOM_ALT = 1
+local CANTED_ATTACHMENT_SLOTS = {
+    "scripted_canted_irons_main",
+    "scripted_canted_irons_front",
+}
+
+local scope_target_textures = {}
+local sight_target_textures = {}
+local rear_irons_textures = {}
+local alt_target_textures = {}
+local scope_excluded_textures = {}
+local scope_target_shaders = {}
+local sight_target_shaders = {}
+local rear_irons_shaders = {}
+local alt_target_shaders = {}
+local scope_excluded_shaders = {}
+local changed_weapons = {}
+local changed_attachments = {}
+
+local function get_ads_delay(weapon)
+    if not weapon then return DEFAULT_ADS_DELAY end
+
+    local weapon_section = weapon:section()
+    local value = ini_sys:r_float_ex(weapon_section, "ads_shader_delay")
+    if value == nil then
+        local hud_section = ini_sys:r_string_ex(weapon_section, "hud")
+        value = hud_section and ini_sys:r_float_ex(hud_section, "ads_shader_delay")
+    end
+    return math.max(tonumber(value) or DEFAULT_ADS_DELAY, 0)
+end
+
+local function get_opacity_step()
+    local value = DEFAULT_OPACITY_STEP
+    if z_3d_scopes_mcm and z_3d_scopes_mcm.get_config then
+        local configured_value = z_3d_scopes_mcm.get_config("shader_switcher_opacity")
+        value = tonumber(configured_value) or DEFAULT_OPACITY_STEP
+    end
+
+    return math.max(1, math.min(10, math.floor(value + 0.5)))
+end
+
+local function update_shader_opacity()
+    local values = {0, 0, 0, 0}
+    local current = get_console_cmd(0, OPACITY_SHADER_PARAM)
+    local index = 1
+
+    for value in string.gmatch(tostring(current or ""), "[-+]?%d*%.?%d+") do
+        values[index] = tonumber(value) or 0
+        index = index + 1
+        if index > 4 then break end
+    end
+
+    values[4] = get_opacity_step() * 0.1
+    get_console():execute(string.format(
+        "%s %.6f, %.6f, %.6f, %.6f",
+        OPACITY_SHADER_PARAM,
+        values[1],
+        values[2],
+        values[3],
+        values[4]
+    ))
+end
+
+local function is_enabled()
+    -- Lost Zone: sights must stay opaque (owner 2026-10-18). This optional
+    -- ADS effect replaces their material with transparent_hud at 50% opacity.
+    -- Keep 3DSS optics, marker normalization and normal SP settings intact.
+    if netcoop_enabled and netcoop_enabled() then return false end
+    if z_3d_scopes_mcm and z_3d_scopes_mcm.get_config then
+        local enabled = z_3d_scopes_mcm.get_config("shader_switcher")
+        return enabled == nil or enabled == true or enabled == 1
+    end
+    return true
+end
+
+local function rear_irons_enabled()
+    if not is_enabled() then return false end
+
+    if z_3d_scopes_mcm and z_3d_scopes_mcm.get_config then
+        local enabled = z_3d_scopes_mcm.get_config("shader_switcher_rear_irons")
+        return enabled == nil or enabled == true or enabled == 1
+    end
+    return true
+end
+
+local function scope_targets_enabled()
+    if not is_enabled() then return false end
+
+    if z_3d_scopes_mcm and z_3d_scopes_mcm.get_config then
+        local enabled = z_3d_scopes_mcm.get_config("shader_switcher_scopes")
+        return enabled == nil or enabled == true or enabled == 1
+    end
+    return true
+end
+
+local function sight_targets_enabled()
+    if not is_enabled() then return false end
+
+    if z_3d_scopes_mcm and z_3d_scopes_mcm.get_config then
+        local enabled = z_3d_scopes_mcm.get_config("shader_switcher_sights")
+        return enabled == nil or enabled == true or enabled == 1
+    end
+    return true
+end
+
+local function normalize_texture(texture)
+    local value = string.lower(tostring(texture or ""))
+    value = string.gsub(value, "/", "\\")
+    value = string.gsub(value, "%.dds$", "")
+    return value
+end
+
+local function normalize_shader(shader)
+    local value = string.lower(tostring(shader or ""))
+    return string.gsub(value, "/", "\\")
+end
+
+local function collect_target_textures(ini, section)
+    local targets = {}
+    if not ini:section_exist(section) then return targets end
+
+    local entries = ini:collect_section(section) or {}
+    for texture, enabled in pairs(entries) do
+        local normalized = normalize_texture(texture)
+        local value = string.lower(tostring(enabled or ""))
+        if normalized ~= ""
+            and value ~= "false"
+            and value ~= "0"
+            and value ~= "off"
+            and value ~= "no"
+        then
+            targets[normalized] = true
+        end
+    end
+
+    return targets
+end
+
+local function collect_target_shaders(ini, section)
+    local targets = {}
+    if not ini:section_exist(section) then return targets end
+
+    local entries = ini:collect_section(section) or {}
+    for shader, enabled in pairs(entries) do
+        local normalized = normalize_shader(shader)
+        local value = string.lower(tostring(enabled or ""))
+        if normalized ~= ""
+            and value ~= "false"
+            and value ~= "0"
+            and value ~= "off"
+            and value ~= "no"
+        then
+            targets[normalized] = true
+        end
+    end
+
+    return targets
+end
+
+local function load_target_textures()
+    scope_target_textures = {}
+    sight_target_textures = {}
+    rear_irons_textures = {}
+    alt_target_textures = {}
+    scope_excluded_textures = {}
+    scope_target_shaders = {}
+    sight_target_shaders = {}
+    rear_irons_shaders = {}
+    alt_target_shaders = {}
+    scope_excluded_shaders = {}
+
+    local ini = ini_file_ex(CONFIG_PATH)
+    if not ini then
+        printf("[3DSS ADS SHADER] Could not load %s", CONFIG_PATH)
+        return
+    end
+
+    scope_target_textures = collect_target_textures(ini, SCOPE_TARGET_SECTION)
+    sight_target_textures = collect_target_textures(ini, SIGHT_TARGET_SECTION)
+    rear_irons_textures = collect_target_textures(ini, REAR_IRONS_SECTION)
+    alt_target_textures = collect_target_textures(ini, ALT_TARGET_SECTION)
+    scope_excluded_textures = collect_target_textures(ini, SCOPE_EXCLUDED_SECTION)
+    scope_target_shaders = collect_target_shaders(ini, SCOPE_TARGET_SHADER_SECTION)
+    sight_target_shaders = collect_target_shaders(ini, SIGHT_TARGET_SHADER_SECTION)
+    rear_irons_shaders = collect_target_shaders(ini, REAR_IRONS_SHADER_SECTION)
+    alt_target_shaders = collect_target_shaders(ini, ALT_TARGET_SHADER_SECTION)
+    scope_excluded_shaders = collect_target_shaders(ini, SCOPE_EXCLUDED_SHADER_SECTION)
+end
+
+local function is_marker_shader(shader)
+    local normalized = normalize_shader(shader)
+    return scope_target_shaders[normalized]
+        or sight_target_shaders[normalized]
+        or rear_irons_shaders[normalized]
+        or alt_target_shaders[normalized]
+end
+
+local function get_owner_materials(owner, include_children, defaults)
+    local getter = defaults and owner and owner.get_default_shaders
+        or owner and owner.get_shaders
+    if not getter then return nil end
+
+    local ok, materials
+    if include_children then
+        ok, materials = pcall(getter, owner, true)
+    else
+        ok, materials = pcall(getter, owner)
+    end
+    if not ok or type(materials) ~= "table" then return nil end
+    return materials
+end
+
+local function set_owner_shader(owner, visual_id, shader, texture, include_children)
+    if include_children then
+        return pcall(owner.set_shader, owner, visual_id, shader, texture, true)
+    end
+    return pcall(owner.set_shader, owner, visual_id, shader, texture)
+end
+
+local function normalize_owner_markers(owner, include_children)
+    if not (owner and owner.set_shader) then return end
+
+    local materials = get_owner_materials(owner, include_children, false)
+    local defaults = get_owner_materials(owner, include_children, true)
+    if not (materials and defaults) then return end
+
+    for visual_id, original in pairs(defaults) do
+        local current = materials[visual_id]
+        if type(visual_id) == "number"
+            and original
+            and current
+            and is_marker_shader(original.shader)
+            and normalize_shader(current.shader) == normalize_shader(original.shader)
+        then
+            set_owner_shader(
+                owner,
+                visual_id,
+                BASE_MARKER_SHADER,
+                nil,
+                include_children
+            )
+        end
+    end
+end
+
+function normalize_marker_shaders(weapon)
+    local c_weapon = weapon and weapon.cast_Weapon and weapon:cast_Weapon()
+    if not (c_weapon and weapon.get_shaders and weapon.set_shader) then
+        return
+    end
+
+    normalize_owner_markers(weapon, true)
+    if not weapon.get_attachment then return end
+
+    for _, slot in ipairs(CANTED_ATTACHMENT_SLOTS) do
+        local ok, attachment = pcall(weapon.get_attachment, weapon, slot)
+        if ok and attachment then
+            normalize_owner_markers(attachment, false)
+        end
+    end
+end
+
+local function get_normal_aim_targets()
+    local texture_targets = {}
+    local shader_targets = {}
+
+    if scope_targets_enabled() then
+        for texture in pairs(scope_target_textures) do
+            texture_targets[texture] = true
+        end
+        for shader in pairs(scope_target_shaders) do
+            shader_targets[shader] = true
+        end
+    end
+
+    if sight_targets_enabled() then
+        for texture in pairs(sight_target_textures) do
+            texture_targets[texture] = true
+        end
+        for shader in pairs(sight_target_shaders) do
+            shader_targets[shader] = true
+        end
+    end
+
+    return texture_targets, shader_targets
+end
+
+local function attached_scope_is_red_dot(weapon)
+    if not weapon then return false end
+
+    local scope_section = utils_item
+        and utils_item.get_attached_scope
+        and utils_item.get_attached_scope(weapon)
+    if not scope_section then return false end
+
+    return ini_sys:r_bool_ex(scope_section, "red_dot", false) == true
+end
+
+
+local function get_weapon_targets(base_texture_targets, base_shader_targets)
+    if not rear_irons_enabled() then
+        return base_texture_targets, base_shader_targets
+    end
+
+    local texture_targets = {}
+    local shader_targets = {}
+    for texture in pairs(base_texture_targets) do
+        texture_targets[texture] = true
+    end
+    for texture in pairs(rear_irons_textures) do
+        texture_targets[texture] = true
+    end
+    for shader in pairs(base_shader_targets) do
+        shader_targets[shader] = true
+    end
+    for shader in pairs(rear_irons_shaders) do
+        shader_targets[shader] = true
+    end
+    return texture_targets, shader_targets
+end
+
+local function restore_weapon(weapon)
+    if not weapon then return end
+
+    local weapon_id = weapon:id()
+    local changed = changed_weapons[weapon_id]
+    if changed then
+        for visual_id, material in pairs(changed) do
+            pcall(
+                weapon.set_shader,
+                weapon,
+                visual_id,
+                material.shader,
+                material.texture,
+                true
+            )
+        end
+    end
+    changed_weapons[weapon_id] = nil
+
+    local attachment_changes = changed_attachments[weapon_id]
+    if attachment_changes then
+        for slot, materials in pairs(attachment_changes) do
+            local attachment = weapon:get_attachment(slot)
+            if attachment then
+                for visual_id, material in pairs(materials) do
+                    pcall(
+                        attachment.set_shader,
+                        attachment,
+                        visual_id,
+                        material.shader,
+                        material.texture
+                    )
+                end
+            end
+        end
+    end
+    changed_attachments[weapon_id] = nil
+end
+
+local function apply_to_weapon(weapon, texture_targets, shader_targets, texture_exclusions, shader_exclusions)
+    if not weapon or changed_weapons[weapon:id()] then return end
+    if not weapon.get_shaders or not weapon.set_shader then return end
+
+    local materials = get_owner_materials(weapon, true, false)
+    if not materials then return end
+    local defaults = get_owner_materials(weapon, true, true)
+
+    local changed = {}
+    for visual_id, material in pairs(materials) do
+        local texture = material and material.texture
+        local shader = material and material.shader
+        local original = defaults and defaults[visual_id]
+        local original_shader = original and original.shader or shader
+        local normalized_texture = normalize_texture(texture)
+        local normalized_shader = normalize_shader(shader)
+        local normalized_original_shader = normalize_shader(original_shader)
+        local marker = is_marker_shader(original_shader)
+        local excluded = shader_exclusions[normalized_original_shader]
+            or shader_exclusions[normalized_shader]
+            or texture_exclusions[normalized_texture]
+        local targeted = shader_targets[normalized_original_shader]
+            or shader_targets[normalized_shader]
+        if not targeted then
+            targeted = texture_targets[normalized_texture]
+        end
+        if type(visual_id) == "number"
+            and material
+            and targeted
+            and not excluded
+        then
+            local applied = set_owner_shader(
+                weapon,
+                visual_id,
+                REPLACEMENT_SHADER,
+                nil,
+                true
+            )
+
+            if applied then
+                changed[visual_id] = {
+                    shader = marker and BASE_MARKER_SHADER or material.shader,
+                    texture = texture,
+                }
+            end
+        end
+    end
+
+    if next(changed) then
+        changed_weapons[weapon:id()] = changed
+    end
+end
+
+local function apply_to_canted_attachments(weapon, texture_targets, shader_targets, texture_exclusions, shader_exclusions)
+    if not weapon or changed_attachments[weapon:id()] then return end
+
+    local attachment_changes = {}
+    for _, slot in ipairs(CANTED_ATTACHMENT_SLOTS) do
+        local attachment = weapon:get_attachment(slot)
+        if attachment and attachment.get_shaders and attachment.set_shader then
+            local materials = get_owner_materials(attachment, false, false)
+            local defaults = get_owner_materials(attachment, false, true)
+            if materials then
+                local changed = {}
+                for visual_id, material in pairs(materials) do
+                    local texture = material and material.texture
+                    local shader = material and material.shader
+                    local original = defaults and defaults[visual_id]
+                    local original_shader = original and original.shader or shader
+                    local normalized_texture = normalize_texture(texture)
+                    local normalized_shader = normalize_shader(shader)
+                    local normalized_original_shader = normalize_shader(original_shader)
+                    local marker = is_marker_shader(original_shader)
+                    local excluded = shader_exclusions[normalized_original_shader]
+                        or shader_exclusions[normalized_shader]
+                        or texture_exclusions[normalized_texture]
+                    local targeted = shader_targets[normalized_original_shader]
+                        or shader_targets[normalized_shader]
+                    if not targeted then
+                        targeted = texture_targets[normalized_texture]
+                    end
+                    if type(visual_id) == "number"
+                        and material
+                        and targeted
+                        and not excluded
+                    then
+                        local applied = set_owner_shader(
+                            attachment,
+                            visual_id,
+                            REPLACEMENT_SHADER,
+                            nil,
+                            false
+                        )
+
+                        if applied then
+                            changed[visual_id] = {
+                                shader = marker and BASE_MARKER_SHADER or material.shader,
+                                texture = texture,
+                            }
+                        end
+                    end
+                end
+
+                if next(changed) then
+                    attachment_changes[slot] = changed
+                end
+            end
+        end
+    end
+
+    if next(attachment_changes) then
+        changed_attachments[weapon:id()] = attachment_changes
+    end
+end
+
+local function apply_after_delay(weapon_id)
+    local weapon = level.object_by_id(weapon_id)
+    if not weapon then return true end
+
+    local active = db.actor and db.actor:active_item()
+    if not active or active:id() ~= weapon_id then return true end
+    if not is_enabled() then
+        restore_weapon(weapon)
+        return true
+    end
+    if weapon:weapon_in_grenade_mode() then
+        restore_weapon(weapon)
+        return true
+    end
+
+    local c_weapon = weapon:cast_Weapon()
+    if not c_weapon or not c_weapon:IsZoomed() then return true end
+
+    local is_alt_aim = c_weapon:GetZoomType() == ZOOM_ALT
+    local texture_targets
+    local shader_targets
+    if is_alt_aim then
+        texture_targets = alt_target_textures
+        shader_targets = alt_target_shaders
+    else
+        texture_targets, shader_targets = get_normal_aim_targets()
+    end
+
+    local texture_exclusions = {}
+    local shader_exclusions = {}
+    if c_weapon:IsScopeAttached() or attached_scope_is_red_dot(weapon) then
+        for texture in pairs(scope_excluded_textures) do
+            texture_exclusions[texture] = true
+        end
+        for shader in pairs(scope_excluded_shaders) do
+            shader_exclusions[shader] = true
+        end
+    end
+    if is_alt_aim then
+        for texture in pairs(rear_irons_textures) do
+            texture_exclusions[texture] = true
+        end
+        for shader in pairs(rear_irons_shaders) do
+            shader_exclusions[shader] = true
+        end
+    end
+
+    local weapon_texture_targets = texture_targets
+    local weapon_shader_targets = shader_targets
+    if not is_alt_aim then
+        weapon_texture_targets, weapon_shader_targets = get_weapon_targets(
+            texture_targets,
+            shader_targets
+        )
+    end
+
+    apply_to_weapon(
+        weapon,
+        weapon_texture_targets,
+        weapon_shader_targets,
+        texture_exclusions,
+        shader_exclusions
+    )
+    apply_to_canted_attachments(
+        weapon,
+        texture_targets,
+        shader_targets,
+        texture_exclusions,
+        shader_exclusions
+    )
+    return true
+end
+
+local function schedule_apply(weapon)
+    if not weapon or not is_enabled() then return end
+
+    local event_key = tostring(weapon:id())
+    RemoveTimeEvent(EVENT_NAMESPACE, event_key)
+    CreateTimeEvent(
+        EVENT_NAMESPACE,
+        event_key,
+        get_ads_delay(weapon),
+        apply_after_delay,
+        weapon:id()
+    )
+end
+
+function actor_on_weapon_zoom_in(weapon)
+    if not weapon then return end
+    normalize_marker_shaders(weapon)
+    if not is_enabled() or weapon:weapon_in_grenade_mode() then return end
+    schedule_apply(weapon)
+end
+
+function actor_on_weapon_zoom_out(weapon)
+    if not weapon then return end
+
+    RemoveTimeEvent(EVENT_NAMESPACE, tostring(weapon:id()))
+    restore_weapon(weapon)
+    normalize_marker_shaders(weapon)
+end
+
+function actor_on_weapon_zoom_type_changed(weapon)
+    if not weapon then return end
+
+    local event_key = tostring(weapon:id())
+    RemoveTimeEvent(EVENT_NAMESPACE, event_key)
+    restore_weapon(weapon)
+    normalize_marker_shaders(weapon)
+    if weapon:weapon_in_grenade_mode() then return end
+
+    local c_weapon = weapon:cast_Weapon()
+    if c_weapon and c_weapon:IsZoomed() then
+        schedule_apply(weapon)
+    end
+end
+
+local function actor_on_hud_animation_play(_, weapon)
+    weapon = weapon and weapon.get_shaders and weapon
+        or db.actor and db.actor:active_item()
+    normalize_marker_shaders(weapon)
+end
+
+local function actor_on_changed_slot(new_slot, new_obj, prev_slot, prev_obj)
+    local previous_weapon = prev_obj and prev_obj.cast_Weapon and prev_obj:cast_Weapon()
+    if previous_weapon then
+        RemoveTimeEvent(EVENT_NAMESPACE, tostring(prev_obj:id()))
+        restore_weapon(prev_obj)
+    end
+    normalize_marker_shaders(new_obj)
+end
+
+local function server_entity_on_unregister(se_obj)
+    local id = se_obj and se_obj.id
+    if not id then return end
+    RemoveTimeEvent(EVENT_NAMESPACE, tostring(id))
+    changed_weapons[id] = nil
+    changed_attachments[id] = nil
+end
+
+local function on_option_change()
+    update_shader_opacity()
+
+    local active = db.actor and db.actor:active_item()
+    normalize_marker_shaders(active)
+
+    if not is_enabled() then
+        if active and active:cast_Weapon() then
+            RemoveTimeEvent(EVENT_NAMESPACE, tostring(active:id()))
+            restore_weapon(active)
+        end
+
+        local weapon_ids = {}
+        for weapon_id in pairs(changed_weapons) do
+            weapon_ids[weapon_id] = true
+        end
+        for weapon_id in pairs(changed_attachments) do
+            weapon_ids[weapon_id] = true
+        end
+
+        for weapon_id in pairs(weapon_ids) do
+            RemoveTimeEvent(EVENT_NAMESPACE, tostring(weapon_id))
+            local weapon = level.object_by_id(weapon_id)
+            if weapon then
+                restore_weapon(weapon)
+            else
+                changed_weapons[weapon_id] = nil
+                changed_attachments[weapon_id] = nil
+            end
+        end
+        return
+    end
+
+    if not active or active:weapon_in_grenade_mode() then return end
+    local c_weapon = active:cast_Weapon()
+    if c_weapon and c_weapon:IsZoomed() then
+        restore_weapon(active)
+        schedule_apply(active)
+    end
+end
+
+function on_game_start()
+    load_target_textures()
+    update_shader_opacity()
+    RegisterScriptCallback("actor_on_weapon_zoom_in", actor_on_weapon_zoom_in)
+    RegisterScriptCallback("actor_on_weapon_zoom_out", actor_on_weapon_zoom_out)
+    RegisterScriptCallback("actor_on_weapon_zoom_type_changed", actor_on_weapon_zoom_type_changed)
+    RegisterScriptCallback("actor_on_changed_slot", actor_on_changed_slot)
+    RegisterScriptCallback("server_entity_on_unregister", server_entity_on_unregister)
+    RegisterScriptCallback("actor_on_first_update", function()
+        normalize_marker_shaders(db.actor and db.actor:active_item())
+    end)
+    RegisterScriptCallback("on_option_change", on_option_change)
+    if animation_common then
+        animation_common.add_anim_mutator(actor_on_hud_animation_play, 1330)
+    else
+        RegisterScriptCallback("actor_on_hud_animation_play", actor_on_hud_animation_play)
+    end
+end
