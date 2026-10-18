@@ -17,7 +17,8 @@ from PIL import Image
 SRC = Path(r"J:\LostZone_Work\_work\mi24_src\MI24\Textures")
 OUT = Path(sys.argv[1] if len(sys.argv) > 1 else r"J:\LostZone_Work\_work\mi24_src\out\textures\veh")
 OUT.mkdir(parents=True, exist_ok=True)
-SIZE = 2048
+SIZE = 4096        # albedo (owner 2026-10-18: the 2K port looked blurred)
+BUMP = 2048        # X-Ray bump pairs from the source normal maps
 
 
 def load(name, size=SIZE):
@@ -80,12 +81,54 @@ def save(name, array_or_image, fmt="DXT1"):
     print(name, image.size, fmt, "mips", mips, (OUT / f"{name}.dds").stat().st_size)
 
 
+def write_thm(path, fmt, size, bump):
+    """X-Ray texture description (ETextureParams.cpp): image type, Blinn-Phong
+    material, bump mode "use" naming the bump texture. Anomaly reads only .thm
+    descriptors for bumps (DCP's .ltx ones are a Lost Alpha DC feature)."""
+    def chunk(cid, data):
+        return struct.pack("<II", cid, len(data)) + data
+    params = struct.pack("<IIIIIIII", fmt, 0x0100 | 0x0200, 0, 0, 0, 5, size, size)
+    data = (chunk(0x0813, struct.pack("<I", 1)) + chunk(0x0812, params) + chunk(0x0814, struct.pack("<I", 0)) +
+            chunk(0x0816, struct.pack("<If", 1, 0.5)) +
+            chunk(0x0817, struct.pack("<fI", 0.05, 2) + bump.encode("ascii") + b"\0"))
+    path.write_bytes(data)
+
+
+def save_bump(name, normal_src, gloss):
+    """X-Ray bump pair: <name>_bump (DXT5: R gloss, G normal z, B normal y,
+    A normal x - the shaders read .wzy) and a neutral <name>_bump# (the
+    error term, 0.5). DCP's textures use the same layout. A per-texture .ltx
+    (Modded Exes texture descriptor) names the bump for the diffuse."""
+    n = load(normal_src, BUMP)
+    g = np.clip(gloss if np.ndim(gloss) else np.full(n.shape[:2], gloss, np.float32), 0, 1)
+    bump = np.stack([g, n[..., 2], n[..., 1], n[..., 0]], axis=-1)
+    write_dds(OUT / f"{name}_bump.dds", Image.fromarray((bump * 255).astype(np.uint8), "RGBA"), "DXT5")
+    neutral = bytearray(128)
+    struct.pack_into("<4sIIIIIII", neutral, 0, b"DDS ", 124, 0x1 | 0x2 | 0x4 | 0x1000, 1, 1, 4, 0, 0)
+    struct.pack_into("<IIIIIIII", neutral, 76, 32, 0x41, 0, 32, 0xff0000, 0xff00, 0xff, 0xff000000)
+    struct.pack_into("<I", neutral, 108, 0x1000)
+    (OUT / f"{name}_bump#.dds").write_bytes(bytes(neutral) + bytes([128, 128, 128, 128]))
+    write_thm(OUT / f"{name}.thm", fmt=0, size=SIZE, bump="veh" + chr(92) + name + "_bump")
+    print(name, "bump", BUMP)
+
+
+def roughness_gloss(name, scale=0.6):
+    rma = load(name, BUMP)
+    return (1.0 - rma[..., 0]) * scale
+
+
 save("veh_mi24_lz_body1", bake_body(1))
 save("veh_mi24_lz_body2", bake_body(2))
 details = Image.open(SRC / "T_air_mi24_details_D_MIP0.png").convert("RGB").resize((SIZE, SIZE), Image.LANCZOS)
 save("veh_mi24_lz_details", details)
 rotor = Image.open(SRC / "T_air_mi24_rotor_D_MIP0.png").convert("RGBA").resize((SIZE, SIZE), Image.LANCZOS)
 save("veh_mi24_lz_rotor", rotor, "DXT5")
+# Painted body: low gloss, more on worn edges (MA.G).
+for index in (1, 2):
+    wear = load(f"air_mi24_base_{index}_MA", BUMP)[..., 1]
+    save_bump(f"veh_mi24_lz_body{index}", f"air_mi24_base_{index}_N", 0.18 + 0.35 * np.clip(wear * 1.3 - 0.35, 0, 1))
+save_bump("veh_mi24_lz_details", "air_mi24_details_N", roughness_gloss("air_mi24_details_RMA"))
+save_bump("veh_mi24_lz_rotor", "air_mi24_rotor_N", roughness_gloss("air_mi24_rotor_RMA"))
 # Glass: tinted, partly transparent (models\transparent uses the alpha).
 glass = Image.new("RGBA", (64, 64), (52, 62, 66, 110))
 save("veh_mi24_lz_glass", glass, "DXT5")

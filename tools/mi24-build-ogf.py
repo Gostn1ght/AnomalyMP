@@ -16,7 +16,8 @@ addon_utils.enable('io_scene_xray', default_set=True, persistent=False)
 OUT = Path(r'J:\LostZone_Work\_work\mi24_src\out')
 OUT.mkdir(parents=True, exist_ok=True)
 SCALE = 17.3 / 22.0
-DECIMATE = {'body': 0.2, 'main_rotor': 0.3, 'rear_rotor': 0.3, 'glass': 1.0}
+# Owner 2026-10-18: the 20% body looked coarse - 60% keeps the panels and rivets.
+DECIMATE = {'body': 0.6, 'main_rotor': 0.8, 'rear_rotor': 0.8, 'glass': 1.0}
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 addon_utils.enable('io_scene_xray', default_set=True, persistent=False)
