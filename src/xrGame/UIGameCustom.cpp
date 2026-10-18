@@ -111,6 +111,12 @@ void CUIGameCustom::Render()
 
 StaticDrawableWrapper* CUIGameCustom::AddCustomStatic(const char* id, bool singleInstance)
 {
+	// A dedicated server loads no HUD message layouts: a script message for a
+	// player (GAMMA's set_msg and the like) dereferenced the missing config
+	// and took the Cordon server down (owner's hoster 2026-10-18). It gets
+	// one plain, never drawn static per id instead.
+	if (!MsgConfig)
+		singleInstance = true;
 	if (singleInstance)
 	{
 		auto it = std::find_if(CustomStatics.begin(), CustomStatics.end(), predicate_find_stat(id));
@@ -122,6 +128,8 @@ StaticDrawableWrapper* CUIGameCustom::AddCustomStatic(const char* id, bool singl
 	StaticDrawableWrapper* sss = CustomStatics.back();
 	sss->m_static = xr_new<CUIStatic>();
 	sss->m_name = id;
+	if (!MsgConfig)
+		return sss;
 	xmlInit.InitStatic(*MsgConfig, id, 0, sss->m_static);
 	float ttl = MsgConfig->ReadAttribFlt(id, 0, "ttl", -1.0f);
 	if (ttl > 0.0f)

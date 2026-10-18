@@ -30,7 +30,26 @@ local function install()
 	launcher.prepare = function(...)
 		local r = prepare(...)
 		local content = launcher.content
-		if type(content) == "table" and type(content.action) == "table" then
+		if type(content) ~= "table" then return r end
+		-- GAMMA's own buttons ran console commands this client does not have
+		-- (g_god, surge start) or changed only this client (faction changer):
+		-- online they go to the server or are left out (owner 2026-10-18).
+		for _, list in pairs(content) do
+			if type(list) == "table" then
+				for i = #list, 1, -1 do
+					local e = list[i]
+					local f = type(e) == "table" and type(e.functor) == "table" and e.functor[1]
+					if e.console == "g_god" then
+						e.console, e.functor = nil, { send, "god" }
+					elseif e.cmd == "surge start" then
+						e.cmd, e.functor = nil, { send, "emission start" }
+					elseif f and f == launcher.start_faction_changer then
+						table.remove(list, i)
+					end
+				end
+			end
+		end
+		if type(content.action) == "table" then
 			for _, entry in ipairs(entries()) do table.insert(content.action, entry) end
 		end
 		return r
