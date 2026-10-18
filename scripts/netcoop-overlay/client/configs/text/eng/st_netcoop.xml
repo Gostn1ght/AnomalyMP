@@ -1474,4 +1474,16 @@
   <string id="st_pdanet_password_new">
     <text>New password (empty - remove)</text>
   </string>
+  <string id="st_lz_admin_god">
+    <text>Lost Zone: god mode (server)</text>
+  </string>
+  <string id="st_lz_admin_faction_status">
+    <text>Lost Zone: my faction</text>
+  </string>
+  <string id="st_lz_admin_pardon_me">
+    <text>Lost Zone: lift my renegade status</text>
+  </string>
+  <string id="st_lz_admin_faction">
+    <text>Lost Zone: join faction</text>
+  </string>
 </string_table>

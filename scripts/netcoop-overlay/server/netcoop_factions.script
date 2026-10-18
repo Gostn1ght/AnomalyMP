@@ -393,10 +393,23 @@ function command(obj, args, admin)
 		return result(set_furniture(obj, mine, char, flag ~= "off", admin))
 	elseif verb == "pardon" then
 		if not admin then return "! only an admin pardons renegades" end
-		return result(pardon(string.lower(rest or "")))
+		local who = string.lower(rest or "")
+		return result(pardon(who == "me" and char_of(obj) or who))
+	elseif verb == "set" then
+		-- Admin: his own character joins a faction at once (admin menu, owner 2026-10-18).
+		if not admin then return "! only an admin sets a faction" end
+		local faction, char = string.lower(rest or ""), char_of(obj)
+		if not known(faction) or char == "" then return "! faction set <faction>" end
+		if mine == "renegade" and faction ~= "renegade" then
+			local ok, message = pardon(char)
+			if not ok then return result(false, message) end
+			if faction == "stalker" then return result(true, char .. " is a loner again") end
+		end
+		local ok, message = join(faction, char, obj:character_name())
+		return result(ok, ok and (char .. " joined " .. faction) or message)
 	end
 	return "! faction status|apply <faction>|leave|apps|members|accept <char>|reject <char>|expel <char>|deputy <char> [off]|furniture <char> [off]" ..
-		(admin and "|pardon <login>_<slot>" or "")
+		(admin and "|pardon <login>_<slot>|me|set <faction>" or "")
 end
 
 ---------------------------------------------------------------- window data (client netcoop_faction_ui)

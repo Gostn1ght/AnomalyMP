@@ -1474,4 +1474,16 @@
   <string id="st_pdanet_password_new">
     <text>Ќовый пароль (пусто - сн€ть пароль)</text>
   </string>
+  <string id="st_lz_admin_god">
+    <text>Lost Zone: режим бога (сервер)</text>
+  </string>
+  <string id="st_lz_admin_faction_status">
+    <text>Lost Zone: мо€ группировка</text>
+  </string>
+  <string id="st_lz_admin_pardon_me">
+    <text>Lost Zone: сн€ть с себ€ статус ренегата</text>
+  </string>
+  <string id="st_lz_admin_faction">
+    <text>Lost Zone: вступить в группировку</text>
+  </string>
 </string_table>

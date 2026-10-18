@@ -1,0 +1,43 @@
+-- Lost Zone buttons in the admin menu (GAMMA ui_debug_launcher, F7), owner
+-- 2026-10-18: "add the faction command to the admin panel as a button".
+-- They send server commands: the faction, the renegade pardon and god mode
+-- are the server's (single-player buttons only changed this client).
+
+local FACTIONS = { "stalker", "dolg", "freedom", "csky", "ecolog", "army", "bandit", "killer", "monolith", "renegade", "greh", "isg" }
+
+local function send(text)
+	if netcoop_command then netcoop_command(text) end
+end
+
+local function entries()
+	local tr = game.translate_string
+	local out = {
+		{ name = tr("st_lz_admin_god"), functor = { send, "god" }, hide_ui = 0 },
+		{ name = tr("st_lz_admin_faction_status"), functor = { send, "faction status" }, hide_ui = 0 },
+		{ name = tr("st_lz_admin_pardon_me"), functor = { send, "faction pardon me" }, hide_ui = 0 },
+	}
+	for _, faction in ipairs(FACTIONS) do
+		out[#out + 1] = { name = tr("st_lz_admin_faction") .. ": " .. tr(faction), functor = { send, "faction set " .. faction }, hide_ui = 0 }
+	end
+	return out
+end
+
+local function install()
+	local launcher = ui_debug_launcher
+	if not launcher or launcher.__netcoop_admin then return end
+	launcher.__netcoop_admin = true
+	local prepare = launcher.prepare
+	launcher.prepare = function(...)
+		local r = prepare(...)
+		local content = launcher.content
+		if type(content) == "table" and type(content.action) == "table" then
+			for _, entry in ipairs(entries()) do table.insert(content.action, entry) end
+		end
+		return r
+	end
+end
+
+function on_game_start()
+	if not (netcoop_pure_client and netcoop_pure_client()) then return end
+	install()
+end
