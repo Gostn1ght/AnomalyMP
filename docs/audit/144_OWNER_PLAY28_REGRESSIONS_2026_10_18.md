@@ -74,3 +74,34 @@ client compatibility script from 28 and the new ADS overlay. Do not mark all sev
 reports runtime-closed from offline checks alone; sights, models, attachment
 appearance, successful live trades/task acceptance and repeated crash-free
 play remain owner/hoster acceptance checks.
+
+
+## Delivered release 2026.10.18.3 / patch 000030
+
+- Native commit `839333f2fd72d459b5326fff4c4c45ffe4af52df`, successful
+  [full DX11 CI 39122808094](https://github.com/Gostn1ght/AnomalyMP/actions/runs/39122808094).
+  Client/server executable SHA256:
+  `68e4d584816f0acdba0d5333ed290e8589822e82e6f330e28c24719fdf746aa6`.
+- Resources commit `6d08172f2b6f730ac8604536c404aeb5f391fdfd` changes no
+  native sources; its [Lua/resource checks 39124571577](https://github.com/Gostn1ght/AnomalyMP/actions/runs/39124571577)
+  passed, including the full ADS switcher test. The identical C++ tree uses
+  the independently verified completed build above.
+- Client `2026.10.18.3` published: 6875 public files; Ed25519 signature,
+  BLAKE3 manifest, pack bounds and reconstructed client update files verified.
+  Manifest hash `49cd14811a8052071ea5ffaedd9512e20aa471cd40d0695b8c8caae748f87ceb`.
+  Existing P2P distribution is online; HTTP mirror remains disabled.
+- Hoster folder `J:\LostZone_Work\Lost Zone Server` updated; ZIP
+  `J:\LostZone_Work\Lost Zone Server.zip`, 272381766 bytes, 6899 entries,
+  SHA256 `a66b3381a1e5a5714fd1b0d1317bf59ebb87de8a62b8fdeab1657ba4415e81b3`.
+  Every source and decompressed ZIP entry matches the public file manifest.
+  Master stays pinned to `e689f5ce71b3a1eafa9545fbde9a36be272dd5f4`.
+- Local Marsh/Cordon servers were asked to stop through PID-bound save IPC;
+  both committed their world/characters before exit. Marsh spent a long time
+  in disconnect cleanup but exited itself; no forced termination was used.
+  Owner client and srvtest received the verified matching binary and patch;
+  existing master reused. No client was launched for this acceptance pass.
+  Accounts, player settings and character/world data were retained.
+
+Delivery receipts are under `J:\LostZone_Work\_work\patch_000030`.
+In-game acceptance remains as stated above; do not infer a guarantee against
+all client crashes from one repaired and symbolized dump.
