@@ -35,18 +35,18 @@ struct CEntity{virtual ~CEntity()=default;bool local=true;Fvector pos;
  void g_fireParams(CWeapon*,Fvector& p,Fvector& d){p=pos;d={0,0,1};}};
 struct Item{CWeapon* weapon=nullptr;CWeapon* cast_weapon(){return weapon;}};using PIItem=Item*;
 struct CActor:CEntity{bool seated=false;Item* active=nullptr;
- bool netcoop_seated(){return seated;}CActor& inventory(){return *this;}PIItem ActiveItem(){return active;}} actor;
+ bool netcoop_seated(){return seated;}CActor& inventory(){return *this;}PIItem ActiveItem(){return active;}} fixture_actor;
 template<class T,class V>T smart_cast(V* p){return dynamic_cast<T>(p);}
 namespace netcoop{
  bool online=true,client=false,copy=true,owns=true;CActor* victim=nullptr;
  bool enabled(){return online;}bool pure_client(){return client;}
- bool server_player_copy(CEntity* p){return !client&&copy&&p==&actor;}
+ bool server_player_copy(CEntity* p){return !client&&copy&&p==&fixture_actor;}
  bool client_owns_hud_item(void*){return owns;}
  struct ServerVictimScope{CActor* old;explicit ServerVictimScope(CActor* p):old(victim){victim=p;}~ServerVictimScope(){victim=old;}};
 }
 struct {u32 dwTimeGlobal=1000;}Device;
 struct motion_marks{};
-struct CHudItem{void* object(){return this;}void OnMotionMark(u32,const motion_marks&){} };
+struct CHudItem{CHudItem& object(){return *this;}void OnMotionMark(u32,const motion_marks&){} };
 struct CCartridge{
  struct{u32 buckShot=0;float impair=0,kDisp=0,kHit=0,kImpulse=0,kAP=0,fWallmarkSize=0;}param_s;
  struct{void set(int,bool){}}m_flags;u16 bullet_material_idx=0;
@@ -57,7 +57,7 @@ struct Bullet{float power,impulse,distance,scale;bool damage;};
 std::vector<Bullet> bullets;
 struct BulletManager{
  void AddBullet(const Fvector&,const Fvector&,float,float power,float impulse,u16,u16,int,float distance,const CCartridge& c,float,bool damage){
-  if(damage)assert(netcoop::victim==&actor||!netcoop::enabled());
+  if(damage)assert(netcoop::victim==&fixture_actor||!netcoop::enabled());
   bullets.push_back({power,impulse,distance,c.param_s.kHit,damage});
  }
 };
@@ -67,7 +67,7 @@ struct NET_Packet{Fvector pos,dir;u8 kind=0;u32 remaining=25;
  u32 r_elapsed(){return remaining;}void r_vec3(Fvector& p){p=remaining==25?pos:dir;remaining-=12;}
  u8 r_u8(){--remaining;return kind;}};
 struct CWeapon:CHudItem{
- bool server=true;CEntity* parent=&actor;Magazine m_magazine;int iAmmoElapsed=0;
+ bool server=true;CEntity* parent=&fixture_actor;Magazine m_magazine;int iAmmoElapsed=0;
  Fvector m_netcoop_aim_pos,m_netcoop_aim_dir;u32 m_netcoop_aim_time=0,m_netcoop_last_shot=0,m_netcoop_budget_time=1000;
  float m_netcoop_shot_budget=3,fOneShotTime=.1f,fModeShotTime=0;
  virtual ~CWeapon()=default;
@@ -111,20 +111,20 @@ event = method('src/xrGame/Weapon.cpp', 'void CWeapon::OnEvent(')
 source += 'void CWeapon::OnEvent(NET_Packet& P,u16 type){switch(type){\n'+event[event.index('case GE_NETCOOP_WPN_AIM:'):event.index('case GE_ADDON_CHANGE:')]+'default:break;}}\n'
 source += r'''
 int main(){
- CWeaponKnife knife;Item held{&knife};actor.active=&held;
+ CWeaponKnife knife;Item held{&knife};fixture_actor.active=&held;
  NET_Packet primary;primary.dir={0,0,1};knife.OnEvent(primary,GE_NETCOOP_WPN_AIM);
  assert(knife.strikes==1&&bullets.size()==2&&bullets.back().damage&&bullets.back().power==.5f&&bullets.back().distance==1.3f);
  assert(knife.iAmmoElapsed==0&&knife.m_magazine.empty()&&knife.requests==0&&netcoop::victim==nullptr);
  NET_Packet secondary;secondary.dir={0,0,1};secondary.kind=1;knife.OnEvent(secondary,GE_NETCOOP_WPN_AIM);
  assert(knife.strikes==2&&bullets.back().power==.8f&&bullets.back().impulse==20&&bullets.back().distance==2.5f);
  motion_marks mark;knife.OnMotionMark(CWeaponKnife::eFire,mark);assert(knife.strikes==2);
- actor.active=nullptr;assert(!knife.netcoop_fire_shot(0,{},Fvector{0,0,1})&&knife.strikes==2);actor.active=&held;
+ fixture_actor.active=nullptr;assert(!knife.netcoop_fire_shot(0,{},Fvector{0,0,1})&&knife.strikes==2);fixture_actor.active=&held;
  assert(!knife.netcoop_fire_shot(2,{},Fvector{0,0,1}));
  const auto reject=[&](NET_Packet p){int before=knife.strikes;knife.OnEvent(p,GE_NETCOOP_WPN_AIM);assert(knife.strikes==before);};
  NET_Packet bad;bad.dir={0,0,1};bad.kind=2;reject(bad);
  bad.kind=0;bad.pos.x=4;reject(bad);bad.pos.x=0;bad.dir={};reject(bad);
  bad.dir={0,0,1};bad.remaining=23;reject(bad);bad.remaining=26;reject(bad);
- actor.seated=true;bad.remaining=25;reject(bad);actor.seated=false;
+ fixture_actor.seated=true;bad.remaining=25;reject(bad);fixture_actor.seated=false;
  knife.m_netcoop_shot_budget=0;reject(bad);Device.dwTimeGlobal+=250;knife.OnEvent(bad,GE_NETCOOP_WPN_AIM);assert(knife.strikes==3);
  // Empty guns still cannot fire; the exemption is confined to knife classes.
  CWeapon gun;NET_Packet g;g.dir={0,0,1};gun.OnEvent(g,GE_NETCOOP_WPN_AIM);assert(gun.gunshots==0);
