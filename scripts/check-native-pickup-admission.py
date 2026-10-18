@@ -48,7 +48,7 @@ int main(){
  Game game;xrServer server{&game};CSE_ALifeCreatureActor anchor,actor,corpse;
  anchor.ID=0;actor.ID=29194;corpse.ID=23837;
  Item loot,carried;loot.ID=65534;loot.ID_Parent=corpse.ID;carried.ID=301;carried.ID_Parent=actor.ID;
- game.objects={{0,&anchor},{actor.ID,&actor},{corpse.ID,&corpse},{loot.ID,&loot},{carried.ID,&carried}};
+ game.objects={{u16(0),&anchor},{actor.ID,&actor},{corpse.ID,&corpse},{loot.ID,&loot},{carried.ID,&carried}};
  actor.children.push_back(carried.ID);corpse.children.push_back(loot.ID);
  // This is the actual old failure, invisible when xr_vector is mocked as std::vector.
  xr_vector<u16> wrong{loot.ID};assert(wrong.size()==65534 && wrong[0]==0);
