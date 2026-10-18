@@ -124,7 +124,16 @@ assert last(cmd(0, 1, "pdanet add 000000"), "err") in ("invalid UID", "no such U
 st = last(cmd(0, 1, f"pdanet add {ub}"), "state")
 c = st.contacts[1]
 assert c.uid == ub and c.name == "Yura" and c.online is None
+# Friend request (owner 2026-10-18): b on the other server is told, by name.
+take(2); poll(1)
+req = last([tuple(x.values()) for x in take(2).values()], "state").requests
+assert req and req[1].uid == ua and req[1].name == "Bashka", 'b sees a friend request from a'
+# c's request is declined: gone, c keeps b as a one-sided contact.
+cmd(0, 3, f"pdanet add {ub}")
+st = last(cmd(1, 2, f"pdanet deny {uc}"), "state")
+assert len(st.requests) == 1 and st.requests[1].uid == ua, 'declined request removed'
 st = last(cmd(1, 2, f"pdanet add {ua}"), "state")
+assert len(st.requests) == 0, 'adding back accepts the request'
 assert st.contacts[1].online is True
 assert st.contacts[1].friend is True and st.contacts[1].actor_id is None, 'mutual friend on another location has no local map object'
 g.players[2].server = 1

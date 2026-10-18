@@ -235,6 +235,15 @@ void CUITabScrollArrows::ApplyHitClips(const Fvector2& origin)
 	}
 }
 
+// The arrow under the cursor: the strip scrolls while it is hovered.
+int CUITabScrollArrows::HoveredSide() const
+{
+	for (int s = 0; s < 2; ++s)
+		if (m_arrow[s] && m_arrow[s]->IsShown() && m_arrow[s]->CursorOverWindow())
+			return s;
+	return eNone;
+}
+
 int CUITabScrollArrows::SideOf(const CUIWindow* clicked) const
 {
 	if (clicked == m_arrow[eLeft])

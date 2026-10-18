@@ -10,7 +10,8 @@
 -- server, and a message to an offline player waits for him.
 --
 -- Records (netcoop_store, compare-and-swap):
---   pda_prof/<char>  { uid, name, icon, contacts = {uid=true}, chats = {cid=read_seq}, seen }
+--   pda_prof/<char>  { uid, name, icon, contacts = {uid=true}, chats = {cid=read_seq}, seen,
+--                      requests = {uid=os time} - who added me and is not my contact yet }
 --   pda_uid/<uid>    <char>
 --   pda_chat/<cid>   { seq, kind = "general"|"d"|"g", members = {uid=true}, name, icon, msgs = {...} }
 --   pda_note/<char>  { cid = seq } - the newest message of each chat for him (delivery across servers)
@@ -221,7 +222,23 @@ local function state(id, me)
 		local s = summary(me, cid)
 		if s then chats[#chats + 1] = s end
 	end
-	send(id, "state", { uid = me.uid, name = me.name, icon = me.icon, contacts = contacts, chats = chats })
+	-- Friend requests (owner 2026-10-18: "I never saw the request"): a
+	-- player who added my UID shows his name to me; accepting is adding back.
+	local requests = {}
+	for uid, at in pairs(me.requests or {}) do
+		if not me.contacts[uid] then
+			local other = profile_by_uid(uid)
+			if other then requests[#requests + 1] = { uid = uid, name = other.name, icon = other.icon, t = at } end
+		end
+	end
+	send(id, "state", { uid = me.uid, name = me.name, icon = me.icon, contacts = contacts, chats = chats, requests = requests })
+end
+
+local function requests_key(p)
+	local out = {}
+	for uid in pairs(p and p.requests or {}) do out[#out + 1] = uid end
+	table.sort(out)
+	return table.concat(out, ",")
 end
 
 -- Messages as "me" sees them: names only for contacts.
@@ -260,11 +277,40 @@ function handlers.add(id, me, char, args)
 	local uid = string.match(args, "^(%d%d%d%d%d%d)$")
 	if not uid or uid == me.uid then return "invalid UID" end
 	if not profile_by_uid(uid) then return "no such UID" end
+	local added = false
 	update("pda_prof", char, function(p)
 		local n = 0
 		for _ in pairs(p.contacts) do n = n + 1 end
 		if p.contacts[uid] or n >= MAX_CONTACTS then return nil end
 		p.contacts[uid] = true
+		if p.requests then p.requests[uid] = nil end -- an accepted request
+		added = true
+		return p
+	end)
+	-- the other side sees a request until he adds me back or declines
+	local _, other_char = profile_by_uid(uid)
+	if added and other_char then
+		update("pda_prof", other_char, function(p)
+			if not p or p.contacts[me.uid] or (p.requests and p.requests[me.uid]) then return nil end
+			p.requests = p.requests or {}
+			local n = 0
+			for _ in pairs(p.requests) do n = n + 1 end
+			if n >= MAX_CONTACTS then return nil end
+			p.requests[me.uid] = now()
+			return p
+		end)
+		local other_id = local_players()[other_char]
+		if other_id then state(other_id, read("pda_prof", other_char)) end
+	end
+	state(id, read("pda_prof", char))
+end
+
+-- deny <uid>: a friend request is declined (the sender is not told)
+function handlers.deny(id, me, char, args)
+	local uid = string.match(args, "^(%d+)$")
+	update("pda_prof", char, function(p)
+		if not (uid and p.requests and p.requests[uid]) then return nil end
+		p.requests[uid] = nil
 		return p
 	end)
 	state(id, read("pda_prof", char))
@@ -606,7 +652,7 @@ end
 -- Polling (every 2 s): new messages for players here, from any server
 ----------------------------------------------------------------------
 local next_poll, general_seq, pushed = 0, nil, {}
-local next_state = {}
+local next_state, shown_requests = {}, {}
 
 -- Money sent to a player here: taken from the store (compare-and-swap, so
 -- only one server pays it) and given to his Actor.
@@ -662,12 +708,14 @@ function update_world()
 		pay_out(char, id)
 		-- heartbeat for the online status
 		local current = profile(id)
-		if current and time_global() >= (next_state[char] or 0) then
+		local requests = current and requests_key(current)
+		if current and (time_global() >= (next_state[char] or 0) or (shown_requests[char] and requests ~= shown_requests[char])) then
 			state(id, current)
 			next_state[char] = time_global() + HEARTBEAT * 1000
 		end
+		shown_requests[char] = requests
 	end
-	for char in pairs(pushed) do if not here[char] then pushed[char], next_state[char] = nil, nil end end
+	for char in pairs(pushed) do if not here[char] then pushed[char], next_state[char], shown_requests[char] = nil, nil, nil end end
 	for id, u in pairs(uploads) do
 		if time_global() - u.at > 60000 then uploads[id] = nil end -- abandoned upload
 	end

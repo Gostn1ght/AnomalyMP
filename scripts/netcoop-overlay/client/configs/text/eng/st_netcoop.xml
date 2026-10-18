@@ -1330,4 +1330,124 @@
   <string id="st_netcoop_trade_gone">
     <text>The item is no longer available - reopen the trade.</text>
   </string>
+  <string id="st_pdanet_friend_request">
+    <text>Friend request</text>
+  </string>
+  <string id="st_pdanet_friend_request_text">
+    <text>%s (UID %s) added you. PDA - Contacts: Accept or Decline.</text>
+  </string>
+  <string id="st_pdanet_new_msg">
+    <text>New message</text>
+  </string>
+  <string id="st_pdanet_accept">
+    <text>Accept friend</text>
+  </string>
+  <string id="st_pdanet_decline">
+    <text>Decline</text>
+  </string>
+  <string id="st_pdanet_request_row">
+    <text>[Friend request]</text>
+  </string>
+  <string id="st_pda_caption_players">
+    <text>Players' jobs</text>
+  </string>
+  <string id="st_tb_post_card">
+    <text>+ Post your own job</text>
+  </string>
+  <string id="st_tb_post_hint">
+    <text>Describe the job and set a reward. The money is held at once; the taker gets it when you confirm the job is done. Cancelling returns it.</text>
+  </string>
+  <string id="st_tb_mine_open">
+    <text>yours, nobody took it yet</text>
+  </string>
+  <string id="st_tb_mine_taken">
+    <text>yours, taken by %s</text>
+  </string>
+  <string id="st_tb_by_me">
+    <text>you are doing it</text>
+  </string>
+  <string id="st_tb_taken">
+    <text>taken</text>
+  </string>
+  <string id="st_tb_open">
+    <text>open</text>
+  </string>
+  <string id="st_tb_by">
+    <text>Client</text>
+  </string>
+  <string id="st_tb_field_title">
+    <text>Title</text>
+  </string>
+  <string id="st_tb_field_text">
+    <text>Description</text>
+  </string>
+  <string id="st_tb_field_reward">
+    <text>Reward, RU</text>
+  </string>
+  <string id="st_tb_post">
+    <text>Post</text>
+  </string>
+  <string id="st_tb_take">
+    <text>Take the job</text>
+  </string>
+  <string id="st_tb_drop">
+    <text>Drop it</text>
+  </string>
+  <string id="st_tb_done">
+    <text>Confirm done</text>
+  </string>
+  <string id="st_tb_cancel_job">
+    <text>Withdraw the job</text>
+  </string>
+  <string id="st_tb_job_posted">
+    <text>Job posted, reward held.</text>
+  </string>
+  <string id="st_tb_job_take">
+    <text>You took a player's job.</text>
+  </string>
+  <string id="st_tb_job_drop">
+    <text>You dropped the job.</text>
+  </string>
+  <string id="st_tb_job_done">
+    <text>Confirmed: the taker gets the reward.</text>
+  </string>
+  <string id="st_tb_job_cancel">
+    <text>Job withdrawn, reward returned.</text>
+  </string>
+  <string id="st_tb_accepted">
+    <text>Task received.</text>
+  </string>
+  <string id="st_tb_fail_bad">
+    <text>Enter a title and a reward.</text>
+  </string>
+  <string id="st_tb_fail_money">
+    <text>Not enough money for the reward.</text>
+  </string>
+  <string id="st_tb_fail_limit">
+    <text>Job limit reached.</text>
+  </string>
+  <string id="st_tb_fail_own">
+    <text>Not available for this job.</text>
+  </string>
+  <string id="st_tb_fail_taken">
+    <text>The job is already taken.</text>
+  </string>
+  <string id="st_tb_fail_notaken">
+    <text>Nobody took the job yet.</text>
+  </string>
+  <string id="st_tb_fail_gone">
+    <text>The job is gone.</text>
+  </string>
+  <string id="st_tb_fail_busy">
+    <text>Server busy, try again.</text>
+  </string>
+  <string id="st_tb_fail_stale">
+    <text>The list is old - refresh.</text>
+  </string>
+  <string id="st_tb_fail_npc">
+    <text>The client is unavailable or too far.</text>
+  </string>
+  <string id="st_tb_fail_error">
+    <text>Could not get the tasks.</text>
+  </string>
 </string_table>

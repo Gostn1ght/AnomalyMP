@@ -1330,4 +1330,124 @@
   <string id="st_netcoop_trade_gone">
     <text>Предмет уже недоступен - откройте торговлю заново.</text>
   </string>
+  <string id="st_pdanet_friend_request">
+    <text>Запрос в друзья</text>
+  </string>
+  <string id="st_pdanet_friend_request_text">
+    <text>%s (UID %s) добавил вас в контакты. КПК - Контакты: Принять или Отклонить.</text>
+  </string>
+  <string id="st_pdanet_new_msg">
+    <text>Новое сообщение</text>
+  </string>
+  <string id="st_pdanet_accept">
+    <text>Принять в друзья</text>
+  </string>
+  <string id="st_pdanet_decline">
+    <text>Отклонить</text>
+  </string>
+  <string id="st_pdanet_request_row">
+    <text>[Запрос в друзья]</text>
+  </string>
+  <string id="st_pda_caption_players">
+    <text>Задания игроков</text>
+  </string>
+  <string id="st_tb_post_card">
+    <text>+ Выложить своё задание</text>
+  </string>
+  <string id="st_tb_post_hint">
+    <text>Опишите задание и назначьте награду. Деньги замораживаются сразу; исполнитель получит их, когда вы подтвердите выполнение. Отмена возвращает деньги.</text>
+  </string>
+  <string id="st_tb_mine_open">
+    <text>ваше, ещё никто не взял</text>
+  </string>
+  <string id="st_tb_mine_taken">
+    <text>ваше, взял: %s</text>
+  </string>
+  <string id="st_tb_by_me">
+    <text>вы выполняете</text>
+  </string>
+  <string id="st_tb_taken">
+    <text>уже взято</text>
+  </string>
+  <string id="st_tb_open">
+    <text>свободно</text>
+  </string>
+  <string id="st_tb_by">
+    <text>Заказчик</text>
+  </string>
+  <string id="st_tb_field_title">
+    <text>Название</text>
+  </string>
+  <string id="st_tb_field_text">
+    <text>Описание</text>
+  </string>
+  <string id="st_tb_field_reward">
+    <text>Награда, RU</text>
+  </string>
+  <string id="st_tb_post">
+    <text>Выложить</text>
+  </string>
+  <string id="st_tb_take">
+    <text>Взять задание</text>
+  </string>
+  <string id="st_tb_drop">
+    <text>Отказаться</text>
+  </string>
+  <string id="st_tb_done">
+    <text>Подтвердить выполнение</text>
+  </string>
+  <string id="st_tb_cancel_job">
+    <text>Снять задание</text>
+  </string>
+  <string id="st_tb_job_posted">
+    <text>Задание выложено, награда заморожена.</text>
+  </string>
+  <string id="st_tb_job_take">
+    <text>Вы взяли задание игрока.</text>
+  </string>
+  <string id="st_tb_job_drop">
+    <text>Вы отказались от задания.</text>
+  </string>
+  <string id="st_tb_job_done">
+    <text>Выполнение подтверждено: исполнитель получит награду.</text>
+  </string>
+  <string id="st_tb_job_cancel">
+    <text>Задание снято, награда возвращена.</text>
+  </string>
+  <string id="st_tb_accepted">
+    <text>Задание получено.</text>
+  </string>
+  <string id="st_tb_fail_bad">
+    <text>Укажите название и награду.</text>
+  </string>
+  <string id="st_tb_fail_money">
+    <text>Не хватает денег на награду.</text>
+  </string>
+  <string id="st_tb_fail_limit">
+    <text>Достигнут лимит заданий.</text>
+  </string>
+  <string id="st_tb_fail_own">
+    <text>Это действие недоступно для этого задания.</text>
+  </string>
+  <string id="st_tb_fail_taken">
+    <text>Задание уже взято.</text>
+  </string>
+  <string id="st_tb_fail_notaken">
+    <text>Задание ещё никто не взял.</text>
+  </string>
+  <string id="st_tb_fail_gone">
+    <text>Задания больше нет.</text>
+  </string>
+  <string id="st_tb_fail_busy">
+    <text>Сервер занят, попробуйте ещё раз.</text>
+  </string>
+  <string id="st_tb_fail_stale">
+    <text>Список устарел - обновите задания.</text>
+  </string>
+  <string id="st_tb_fail_npc">
+    <text>Заказчик недоступен или далеко.</text>
+  </string>
+  <string id="st_tb_fail_error">
+    <text>Не удалось получить задания.</text>
+  </string>
 </string_table>

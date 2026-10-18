@@ -1,0 +1,249 @@
+-- PDA task board (GAMMA pda_taskboard) on a pure client (owner 2026-10-18:
+-- "the tab exists in GAMMA: NPC tasks there, and players can post theirs").
+-- The board asks the server (netcoop_taskboard): offers of NPCs near the
+-- player, with their texts, and the players' jobs of the whole cluster. A
+-- click on an NPC offer takes it on the server; the category "Задания
+-- игроков" lists jobs, the first card posts a new one, a job card opens its
+-- actions (take / drop / confirm done / cancel).
+
+local function tr(id) return game.translate_string(id) end
+local function cmd(text) if netcoop_command then netcoop_command("taskboard " .. text) end end
+local function decode(text) return netcoop_pdanet_client and netcoop_pdanet_client.decode(text) end
+local function tip(text) if actor_menu and actor_menu.set_msg then actor_menu.set_msg(1, text, 4) end end
+
+local PLAYERS = "players"
+local data, jobs, parts = {}, {}, {}
+local waiting = false
+
+local function sorted(t)
+	local out = {}
+	for k in pairs(t or {}) do if k ~= PLAYERS then out[#out + 1] = k end end
+	table.sort(out)
+	return out
+end
+
+function get_rows() return data end
+function get_jobs() return jobs end
+
+local function gui() return ui_pda_taskboard_tab and ui_pda_taskboard_tab.gui end
+
+local function redraw()
+	local g = gui()
+	if not (g and g:IsShown()) then return end
+	local selected = g.category_list:GetSelectedItem()
+	local name = selected and selected.category_name
+	g:DrawCategoryList()
+	if name then g:RefreshTaskList(name) end
+end
+
+-- channel "taskboard": "n/total|<offers>", "jobs|<jobs>", "job|<what>",
+-- "jobfail|<why>", "accepted|<task>", "refused|<why>[|task]"
+function receive(text)
+	local n, total, rest = string.match(text or "", "^(%d+)/(%d+)|(.*)$")
+	if n then
+		n, total = tonumber(n), tonumber(total)
+		if n == 1 then parts = {} end
+		parts[n] = rest
+		if n < total then return end
+		local rows = decode(table.concat(parts)) or {}
+		parts, data, waiting = {}, {}, false
+		for i = 1, #rows do
+			local r = rows[i]
+			data[r.c] = data[r.c] or {}
+			local list = data[r.c]
+			list[#list + 1] = { npc_id = r.n, task_id = r.t, task_description = r.d, blocked = r.b,
+				details = { task_title = r.tt, task_details = r.td, task_icon = r.ti ~= "" and r.ti or nil } }
+		end
+		return redraw()
+	end
+	local verb, body = string.match(text or "", "^(%a+)|(.*)$")
+	if verb == "jobs" then
+		jobs = decode(body) or {}
+		return redraw()
+	elseif verb == "job" then
+		tip(tr("st_tb_job_" .. body))
+	elseif verb == "jobfail" or verb == "refused" then
+		tip(tr("st_tb_fail_" .. (string.match(body or "", "^(%a+)") or "error")))
+	elseif verb == "accepted" then
+		tip(tr("st_tb_accepted"))
+	end
+end
+
+----------------------------------------------------------------------
+-- Job cards and the action panel
+----------------------------------------------------------------------
+local xml_board, xml_net
+
+class "netcoop_job_item" (CUIListBoxItem)
+function netcoop_job_item:__init(job) super(job)
+	self.job = job
+	xml_board = xml_board or CScriptXmlInit()
+	if not xml_board.__parsed then xml_board:ParseFile("pda_taskboard.xml"); xml_board.__parsed = true end
+	self.frame = xml_board:InitFrame("task_card", self)
+	local bg = job and job.taken and not job.by_me and not job.mine and "task_card_bg_blocked" or "task_card_bg"
+	xml_board:InitFrame(bg, self.frame)
+	local head = xml_board:InitTextWnd("task_details", self.frame)
+	local body = xml_board:InitTextWnd("task_description", self.frame)
+	if not job then
+		head:SetText("\\n" .. tr("st_tb_post_card"))
+		body:SetText(tr("st_tb_post_hint"))
+		return
+	end
+	local state = job.mine and (job.taken and string.format(tr("st_tb_mine_taken"), job.taker_name or "?") or tr("st_tb_mine_open"))
+		or job.by_me and tr("st_tb_by_me") or job.taken and tr("st_tb_taken") or tr("st_tb_open")
+	head:SetText(string.format("\\n%s - %s RU\\n%s: %s   %s", job.title or "", tostring(job.reward or 0),
+		tr("st_tb_by"), job.by_name or "?", state))
+	body:SetText((job.text or "") .. "\\n" .. game.translate_string(job.level or ""))
+end
+
+local function panel_of(g)
+	if g.netcoop_panel then return g.netcoop_panel end
+	xml_net = xml_net or CScriptXmlInit()
+	if not xml_net.__parsed then xml_net:ParseFile("ui_netcoop_pdanet.xml"); xml_net.__parsed = true end
+	local p = {}
+	local function at(w, x, y, wd, h)
+		w:SetWndPos(vector2():set(28 + 256 + x, 94 + y))
+		w:SetWndSize(vector2():set(wd, h))
+		return w
+	end
+	local ids = 0
+	local function button(caption, x, y, wd, fn)
+		local b = at(xml_net:Init3tButton("button", g), x, y, wd, 30)
+		b:TextControl():SetText(caption)
+		ids = ids + 1
+		g:Register(b, "netcoop_tb_" .. ids)
+		g:AddCallback("netcoop_tb_" .. ids, ui_events.BUTTON_CLICKED, fn, g)
+		return b
+	end
+	p.back = at(xml_net:InitFrame("panel", g), 0, 0, 508, 614)
+	p.title = at(xml_net:InitStatic("msg_name", g), 16, 12, 476, 24)
+	p.info = at(xml_net:InitStatic("msg_text", g), 16, 44, 476, 200)
+	p.l_title = at(xml_net:InitStatic("msg_name", g), 16, 40, 476, 20)
+	p.e_title = at(xml_net:InitEditBox("edit", g), 16, 62, 476, 30)
+	p.l_text = at(xml_net:InitStatic("msg_name", g), 16, 100, 476, 20)
+	p.e_text = at(xml_net:InitEditBox("edit_note", g), 16, 122, 476, 30)
+	p.l_reward = at(xml_net:InitStatic("msg_name", g), 16, 160, 476, 20)
+	p.e_reward = at(xml_net:InitEditBox("edit_amount", g), 16, 182, 200, 30)
+	p.l_title:TextControl():SetText(tr("st_tb_field_title"))
+	p.l_text:TextControl():SetText(tr("st_tb_field_text"))
+	p.l_reward:TextControl():SetText(tr("st_tb_field_reward"))
+	p.post = button(tr("st_tb_post"), 16, 560, 230, function() netcoop_taskboard_client.panel_post() end)
+	p.take = button(tr("st_tb_take"), 16, 560, 230, function() netcoop_taskboard_client.panel_job("take") end)
+	p.drop = button(tr("st_tb_drop"), 16, 560, 230, function() netcoop_taskboard_client.panel_job("drop") end)
+	p.done = button(tr("st_tb_done"), 16, 560, 230, function() netcoop_taskboard_client.panel_job("done") end)
+	p.cancel_job = button(tr("st_tb_cancel_job"), 16, 520, 230, function() netcoop_taskboard_client.panel_job("cancel") end)
+	p.close = button(tr("st_pdanet_close"), 262, 560, 230, function() netcoop_taskboard_client.panel_show(nil) end)
+	g.netcoop_panel = p
+	return p
+end
+
+local panel_job_shown = nil
+-- what: nil (closed), "post", or a job
+function panel_show(what)
+	local g = gui()
+	if not g then return end
+	local p = panel_of(g)
+	panel_job_shown = type(what) == "table" and what or nil
+	local post, job = what == "post", panel_job_shown
+	for _, w in pairs(p) do w:Show(false) end
+	if not what then return end
+	for _, w in ipairs({ p.back, p.title, p.close }) do w:Show(true) end
+	if post then
+		p.title:TextControl():SetText(tr("st_tb_post_card"))
+		for _, w in ipairs({ p.l_title, p.e_title, p.l_text, p.e_text, p.l_reward, p.e_reward, p.post }) do w:Show(true) end
+		p.e_title:SetText(""); p.e_text:SetText(""); p.e_reward:SetText("")
+		return
+	end
+	p.title:TextControl():SetText(string.format("%s - %s RU", job.title or "", tostring(job.reward or 0)))
+	p.info:Show(true)
+	p.info:TextControl():SetText(string.format("%s: %s\\n%s\\n\\n%s", tr("st_tb_by"), job.by_name or "?",
+		game.translate_string(job.level or ""), job.text or ""))
+	if job.mine then
+		p.cancel_job:Show(true)
+		p.done:Show(job.taken == true)
+	elseif job.by_me then p.drop:Show(true)
+	elseif not job.taken then p.take:Show(true) end
+end
+
+function panel_post()
+	local g = gui()
+	local p = g and g.netcoop_panel
+	if not p then return end
+	local title, text = p.e_title:GetText() or "", p.e_text:GetText() or ""
+	local reward = tonumber(p.e_reward:GetText() or "") or 0
+	if title == "" then return tip(tr("st_tb_fail_bad")) end
+	if db.actor and reward > db.actor:money() then return tip(tr("st_tb_fail_money")) end
+	cmd(string.format("post %d|%s|%s", reward, string.gsub(title, "|", " "), string.gsub(text, "|", " ")))
+	panel_show(nil)
+end
+
+function panel_job(verb)
+	local job = panel_job_shown
+	if job then cmd(verb .. " " .. job.id) end
+	panel_show(nil)
+end
+
+----------------------------------------------------------------------
+-- The board's backend and tab, routed to the server
+----------------------------------------------------------------------
+local function install()
+	local board, tab = pda_taskboard, ui_pda_taskboard_tab and ui_pda_taskboard_tab.pda_taskboard_tab
+	if not (board and tab) or board.__netcoop then return end
+	board.__netcoop = true
+	board.refresh_tasks = function()
+		waiting = true
+		cmd("list")
+	end
+	board.get_data = function() return data end
+	board.get_sorted_keys = function(t)
+		local keys = sorted(t or data)
+		keys[#keys + 1] = PLAYERS
+		return keys
+	end
+	board.get_details = function(task) return task.details end
+	board.accept_task = function(task_id, npc_id) cmd(string.format("accept %s %d", task_id, npc_id)) end
+
+	-- The server's answer redraws; the tab's own 0.05 s redraw finds the
+	-- previous list meanwhile.
+	local draw = tab.DrawCategoryList
+	tab.DrawCategoryList = function(self)
+		draw(self)
+		-- the players' category has no GAMMA icon
+		local n = self.category_list:GetSize()
+		local item = n > 0 and self.category_list:GetItemByIndex(n - 1)
+		if item and item.category_name == PLAYERS and item.category_icon then item.category_icon:InitTexture("ui_inGame2_PD_Lider") end
+	end
+	local refresh = tab.RefreshTaskList
+	tab.RefreshTaskList = function(self, category_name)
+		panel_show(nil)
+		if category_name ~= PLAYERS then
+			-- the server decided whether the NPC's task limit is reached
+			local has = dialogs.has_tasks_by_npc
+			local blocked = {}
+			for _, task in ipairs(data[category_name] or {}) do blocked[task.npc_id] = blocked[task.npc_id] or task.blocked end
+			dialogs.has_tasks_by_npc = function(npc) return blocked[npc:id()] or false end
+			local ok, err = pcall(refresh, self, category_name)
+			dialogs.has_tasks_by_npc = has
+			if not ok then printf("! [Lost Zone] taskboard list: %s", tostring(err)) end
+			return
+		end
+		self.task_list:RemoveAll()
+		self.task_list:AddExistingItem(netcoop_job_item(nil))
+		for _, job in ipairs(jobs) do self.task_list:AddExistingItem(netcoop_job_item(job)) end
+	end
+	local clicked = tab.OnTaskClicked
+	tab.OnTaskClicked = function(self)
+		local category = self.category_list:GetSelectedItem()
+		if category and category.category_name == PLAYERS then
+			local item = self.task_list:GetSelectedItem()
+			if item then panel_show(item.job or "post") end
+			return
+		end
+		return clicked(self)
+	end
+end
+
+function on_game_start()
+	if not (netcoop_pure_client and netcoop_pure_client()) then return end
+	install()
+end

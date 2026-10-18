@@ -610,6 +610,10 @@ function on_script_message(channel, data)
 		-- The character's personal PDA (map pins) from the server.
 		if netcoop_pda then netcoop_pda.receive(data) end
 		return
+	elseif channel == "taskboard" then
+		-- PDA task board: NPC offers and players' jobs from the server.
+		if netcoop_taskboard_client then netcoop_taskboard_client.receive(data) end
+		return
 	elseif channel == "faction_ui" then
 		if netcoop_faction_ui then netcoop_faction_ui.receive(data) end
 		return

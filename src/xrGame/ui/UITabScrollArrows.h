@@ -45,6 +45,7 @@ public:
 	void  Draw();
 	void  ApplyHitClips(const Fvector2& origin);
 	int   SideOf(const CUIWindow* clicked) const;
+	int   HoveredSide() const;
 	float Width(int side) const { return (m_arrow[side] && m_pin[side].x == 0.0f) ? m_arrow[side]->GetWndSize().x : 0.0f; }
 
 private:

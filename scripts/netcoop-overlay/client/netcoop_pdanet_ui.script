@@ -569,25 +569,34 @@ function pdanet_contacts:__init() super()
 		net().add_contact(edit_text(self.uid)); self.uid:SetText("")
 	end, 36, 150)
 	layout_button(self, "nw_contacts:btn_open", tr("st_pdanet_open"), function()
-		local c = self.selected and net().contacts[self.selected]
+		local c = self:Contact()
 		if c then net().open_dm(c.uid) end
 	end, 36, 150)
 	layout_button(self, "nw_contacts:btn_del", tr("st_pdanet_delete"), function()
-		local c = self.selected and net().contacts[self.selected]
+		local c = self:Contact()
 		if c then net().remove_contact(c.uid); self.selected = nil end
 	end, 36, 150)
-	button(self, tr("st_pdanet_send_point"), 36, 632, 364, 26, function()
-		local c = self.selected and net().contacts[self.selected]
+	self.point_btn = button(self, tr("st_pdanet_send_point"), 36, 632, 364, 26, function()
+		local c = self:Contact()
 		if c then net().send_point_to(c.uid, ""); tip("st_pdanet_point_sent", c.name or c.uid) end
 	end)
-	button(self, tr("st_pdanet_send_task"), 420, 632, 364, 26, function()
-		if self.selected and net().contacts[self.selected] then self:Tasks(true) end
+	self.task_btn = button(self, tr("st_pdanet_send_task"), 420, 632, 364, 26, function()
+		if self:Contact() then self:Tasks(true) end
+	end)
+	-- a selected friend request: accept (add back) or decline
+	self.accept_btn = button(self, tr("st_pdanet_accept"), 36, 632, 364, 26, function()
+		local r = self:Request()
+		if r then net().add_contact(r.uid); self.selected = nil end
+	end)
+	self.decline_btn = button(self, tr("st_pdanet_decline"), 420, 632, 364, 26, function()
+		local r = self:Request()
+		if r then net().deny_request(r.uid); self.selected = nil end
 	end)
 	layout(self, "nw_contacts:list_frame", "Frame")
 	self.rows = {}
 	for r = 1, CONTACT_ROWS do
 		local y = 218 + (r - 1) * 36
-		self.rows[r] = { btn = button(self, "", 40, y, 700, 33, function() self.selected = self.scroll + r; self:Fill() end, "row"),
+		self.rows[r] = { btn = button(self, "", 40, y, 700, 33, function() if self:Entries()[self.scroll + r] then self.selected = self.scroll + r; self:Fill() end end, "row"),
 			icon = static(self, "icon", 700, y + 2, 36, 28) }
 	end
 	button(self, "^", 748, 218, 30, 30, function() self.scroll = math.max(0, self.scroll - 3); self:Fill() end)
@@ -613,7 +622,7 @@ function pdanet_contacts:Tasks(on)
 	local list = on and net().active_tasks() or {}
 	self.task_list = list
 	for _, w in pairs(self.tdlg) do if type(w) ~= "table" then w:Show(on) end end
-	local c = self.selected and net().contacts[self.selected]
+	local c = self:Contact()
 	text(self.tdlg.title, string.format(tr("st_pdanet_task_to"), c and (c.name or c.uid) or "?"))
 	for r = 1, 7 do
 		local t = list[r]
@@ -623,8 +632,23 @@ function pdanet_contacts:Tasks(on)
 	end
 	self.tdlg.ok:Show(on and #list > 0)
 end
+-- Friend requests first, then contacts (one list, one selection).
+function pdanet_contacts:Entries()
+	local out = {}
+	for _, r in ipairs(net().requests or {}) do out[#out + 1] = { request = true, c = r } end
+	for _, c in ipairs(net().contacts) do out[#out + 1] = { c = c } end
+	return out
+end
+function pdanet_contacts:Contact()
+	local e = self.selected and self:Entries()[self.selected]
+	return e and not e.request and e.c or nil
+end
+function pdanet_contacts:Request()
+	local e = self.selected and self:Entries()[self.selected]
+	return e and e.request and e.c or nil
+end
 function pdanet_contacts:SendTask()
-	local c = self.selected and net().contacts[self.selected]
+	local c = self:Contact()
 	local t = self.task_pick and self.task_list and self.task_list[self.task_pick]
 	if not (c and t) then return end
 	net().send_task_to(c.uid, t)
@@ -644,22 +668,30 @@ function pdanet_contacts:Card()
 	icon_texture(self.card_icon, me.icon ~= "" and me.icon or (a and a.character_icon and a:character_icon()))
 end
 function pdanet_contacts:Fill()
-	local list = net().contacts
+	local list = self:Entries()
+	if self.selected and not list[self.selected] then self.selected = nil end
 	self:Card()
 	self.empty:Show(#list == 0)
 	text(self.empty, tr("st_pdanet_contacts_empty"))
 	for r = 1, CONTACT_ROWS do
 		local i = self.scroll + r
-		local c = list[i]
+		local e = list[i]
+		local c = e and e.c
 		local row = self.rows[r]
 		row.btn:Show(c ~= nil and not self.tasks_open); row.icon:Show(c ~= nil and not self.tasks_open)
-		if c then
+		if e and e.request then
+			text(row.btn, string.format("%s%s %s   UID %s", self.selected == i and "> " or "", tr("st_pdanet_request_row"), c.name or "?", c.uid))
+			icon_texture(row.icon, c.icon)
+		elseif c then
 			local unread = net().contact_unread(c.uid)
 			text(row.btn, string.format("%s%s   UID %s  -  %s%s", self.selected == i and "> " or "", c.name or "?", c.uid, status_of(c),
 				unread > 0 and string.format("     (%d)", unread) or ""))
 			icon_texture(row.icon, c.icon)
 		end
 	end
+	local req = self:Request() ~= nil
+	self.accept_btn:Show(req and not self.tasks_open); self.decline_btn:Show(req and not self.tasks_open)
+	self.point_btn:Show(not req); self.task_btn:Show(not req)
 	footer(self, net().last_error and (tr("st_pdanet_error") .. " " .. tostring(net().last_error)) or "")
 end
 
@@ -801,6 +833,7 @@ function unread_captions()
 	if not (pda_dynamic_tabs and pda_dynamic_tabs.set_caption) then return end
 	local chats, contacts = net().unread_total(), 0
 	for _, c in ipairs(net().contacts) do contacts = contacts + net().contact_unread(c.uid) end
+	contacts = contacts + #(net().requests or {})
 	for key, n in pairs({ st_pdanet_tab_chats = chats, st_pdanet_tab_contacts = contacts }) do
 		local caption = tr(key) .. (n > 0 and string.format(" (%d)", n) or "")
 		if tab_ids[key] and shown_captions[key] ~= caption then

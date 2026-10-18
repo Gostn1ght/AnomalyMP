@@ -341,10 +341,24 @@ void CUITabControl::DrawTabsClipped()
 	m_arrows->Draw();
 }
 
+// Tabs per second while the cursor rests on a scroll arrow (owner
+// 2026-10-18: hovering scrolls, a click is not needed).
+static const float TAB_HOVER_TABS_PER_SECOND = 2.5f;
+
 void CUITabControl::Update()
 {
 	ApplyStripHitClips();
 	inherited::Update();
+	// Real time: the strip also scrolls while the game is paused.
+	static u32 last_ms = 0;
+	const u32 now_ms = Device.dwTimeContinual;
+	const float dt = last_ms && now_ms > last_ms ? _min(float(now_ms - last_ms) * 0.001f, 0.1f) : 0.0f;
+	last_ms = now_ms;
+	if (!CanScroll() || dt <= 0.0f)
+		return;
+	const int side = m_arrows->HoveredSide();
+	if (side != CUITabScrollArrows::eNone)
+		ScrollBy((side == CUITabScrollArrows::eLeft ? -1.0f : 1.0f) * ScrollStep() * TAB_HOVER_TABS_PER_SECOND * dt);
 }
 
 // Slide a tab's hit parallelogram (BL,BR,TR,TL) inside the viewport walls left/right, gauged on its bottom

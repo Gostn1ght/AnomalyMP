@@ -55,6 +55,7 @@ end
 ----------------------------------------------------------------------
 me = { uid = "", name = "", icon = "" }
 contacts = {}       -- list of { uid, name, icon, online }
+requests = {}       -- friend requests: list of { uid, name, icon, t } (players who added me)
 chats = {}          -- list of chat summaries (server order is any; sorted here)
 general = {}        -- newest last, at most KEEP
 opened = nil        -- { id, summary, msgs }
@@ -66,6 +67,24 @@ local KEEP = 150
 local listeners = {}
 local parts = {}
 local map_retry_at = 0
+local told_requests = {} -- uid -> true: the request was announced this session
+
+local function tr(id) return game and game.translate_string and game.translate_string(id) or id end
+local function pda_shown()
+	local ok, shown = pcall(function()
+		local pda = ActorMenu and ActorMenu.get_pda_menu and ActorMenu.get_pda_menu()
+		return pda and pda:IsShown()
+	end)
+	return ok and shown or false
+end
+
+-- A PDA notification on the HUD (owner 2026-10-18: nothing was shown).
+local function news(title, body, icon)
+	local a = db and db.actor
+	if not (a and equipped()) then return end
+	pcall(function() a:give_game_news(title, body, icon or "ui_inGame2_PD_Lider", 0, 6000) end)
+	if xr_sound and xr_sound.set_sound_play then pcall(xr_sound.set_sound_play, a:id(), "pda_tips") end
+end
 
 local function update_map_friends()
 	if not netcoop_map_friend or time_global() < map_retry_at then return false end
@@ -119,6 +138,14 @@ local function apply(verb, v)
 	if verb == "state" and type(v) == "table" then
 		me = { uid = v.uid or "", name = v.name or "", icon = v.icon or "" }
 		contacts = list(v.contacts)
+		requests = list(v.requests)
+		for _, r in ipairs(requests) do
+			if not told_requests[r.uid] then
+				told_requests[r.uid] = true
+				news(tr("st_pdanet_friend_request"),
+					string.format(tr("st_pdanet_friend_request_text"), r.name or "?", tostring(r.uid)), (r.icon or "") ~= "" and r.icon or nil)
+			end
+		end
 		if netcoop_map_friends_clear then netcoop_map_friends_clear() end
 		map_retry_at = 0
 		update_map_friends()
@@ -146,7 +173,18 @@ local function apply(verb, v)
 			end
 			read_chat(v.id)
 		end
-		if equipped() and xr_sound and xr_sound.set_sound_play then pcall(xr_sound.set_sound_play, db.actor:id(), "pda_tips") end
+		-- a message from someone else: on the HUD unless that chat is open now
+		local reading = opened and opened.id == v.id and pda_shown()
+		local newest
+		for _, m in ipairs(v.msgs or {}) do if not m.own then newest = m end end
+		if newest and not reading and equipped() then
+			local s = v.summary or {}
+			local who = newest.n or ((newest.f or "") ~= "" and ("UID " .. tostring(newest.f))) or tr("st_pdanet_anonymous")
+			local where = s.kind == "g" and s.name and (who .. " (" .. s.name .. ")") or who
+			news(where, string.sub(newest.k == "text" and (newest.x or "") or tr("st_pdanet_new_msg"), 1, 120), (newest.i or "") ~= "" and newest.i or nil)
+		elseif equipped() and xr_sound and xr_sound.set_sound_play then
+			pcall(xr_sound.set_sound_play, db.actor:id(), "pda_tips")
+		end
 	elseif verb == "typing" and type(v) == "table" then
 		typing[v.id] = { uid = v.uid, until_ms = time_global() + 4000 }
 	elseif verb == "members" and type(v) == "table" then
@@ -205,6 +243,7 @@ local function send(text) if netcoop_command then netcoop_command("pdanet " .. t
 
 function hello() send("hello") end
 function add_contact(uid) send("add " .. tostring(uid)) end
+function deny_request(uid) send("deny " .. tostring(uid)) end
 function remove_contact(uid) send("del " .. tostring(uid)) end
 function say(text, anonymous)
 	text = clean(text)

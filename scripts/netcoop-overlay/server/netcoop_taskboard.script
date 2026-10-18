@@ -1,0 +1,302 @@
+----------------------------------------------------------------------
+-- PDA task board (GAMMA pda_taskboard) on the dedicated server
+-- (owner 2026-10-18: "the PDA tab where tasks are taken does not work").
+----------------------------------------------------------------------
+-- A client cannot make or give tasks: NPCs, task setups and the task list
+-- are the server's. The client asks "taskboard list"; the server runs the
+-- board's own refresh for that player (the engine binds db.actor to him for
+-- this command) and sends the offers with their texts. "taskboard accept
+-- <task> <npc>" gives one of the offers shown to him, as the board would.
+-- Server -> client, channel "taskboard": "n/total|<serialized list>",
+-- "accepted|<task>" or "refused|<reason>".
+
+local CHUNK = 7000
+-- pda_taskboard.actually_is_sim (local there): sims by their roles.
+local ACTUALLY_SIM = {
+	bar_visitors_garik_stalker_guard = true, bar_visitors_zhorik_stalker_guard2 = true, bar_arena_guard = true,
+	bar_dolg_general_zoneguard_stalker = true, mil_smart_terrain_7_7_freedom_bodyguard_stalker = true,
+	mil_smart_terrain_7_7_freedom_bodyguard2_stalker = true,
+}
+
+local offers = {} -- player id -> { [task_id .. "|" .. npc_id] = true }
+
+local function send(id, text)
+	if netcoop_send_to_actor then netcoop_send_to_actor(id, "taskboard", text) end
+end
+
+-- What z_taskboard_overrides does with the PDA open, for the bound player:
+-- the processed NPC is the speaker; task news become the offer's details;
+-- delayed news are run at once (time events do not tick on a dedicated server).
+local function with_board(fn)
+	local board, a = pda_taskboard, db.actor
+	local saved = { get_speaker = _G.get_speaker, cte = _G.CreateTimeEvent, talk = a.give_talk_message2, is_talking = a.is_talking,
+		npc = mob_trade and mob_trade.GetTalkingNpc }
+	local function npc() local id = board.get_currently_processed_npc_id() return id and level.object_by_id(id) end
+	_G.get_speaker = function(...) return npc() or saved.get_speaker(...) end
+	if mob_trade then mob_trade.GetTalkingNpc = function(...) return npc() or saved.npc(...) end end
+	a.is_talking = function(...) if board.get_currently_processed_npc_id() then return true end return saved.is_talking(...) end
+	a.give_talk_message2 = function(_, title, text, icon)
+		if board.get_tasks_details_capture_next() then
+			board.add_tasks_details({ task_title = title, task_details = text, task_icon = icon })
+		end
+	end
+	_G.CreateTimeEvent = function(id1, id2, delay, f, ...)
+		if id1 == "z_list_programming_crimes" then return f(...) end
+		return saved.cte(id1, id2, delay, f, ...)
+	end
+	local ok, err = pcall(fn)
+	_G.get_speaker, _G.CreateTimeEvent = saved.get_speaker, saved.cte
+	if mob_trade then mob_trade.GetTalkingNpc = saved.npc end
+	a.give_talk_message2, a.is_talking = saved.talk, saved.is_talking
+	if not ok then printf("! [Lost Zone] taskboard failed: %s", tostring(err)) end
+	return ok
+end
+
+local installed = false
+local function list(id)
+	local board = pda_taskboard
+	if not installed then
+		installed = true
+		-- the board logs through an imgui helper a dedicated server may lack
+		if not pcall(function() return imgui_liz_log.Log end) then _G.imgui_liz_log = { Log = function() end } end
+		-- the task scripts' delayed news go through the board's capture
+		if z_taskboard_overrides and z_taskboard_overrides.InstallOverride then pcall(z_taskboard_overrides.InstallOverride) end
+	end
+	if netcoop_server_compat and netcoop_server_compat.ensure_task_cache then netcoop_server_compat.ensure_task_cache() end
+	if board.load_settings then pcall(board.load_settings) end
+	-- generate_available_tasks with the board's sim rule: the board's own
+	-- trigger uses a local list we cannot reach from here.
+	local trigger = board.trigger_generate_available_tasks
+	board.trigger_generate_available_tasks = function(npcs)
+		for _, npc in pairs(npcs) do
+			local sim = string.find(npc:section(), "sim_") ~= nil
+			if netcoop_server_compat.talk_speaker then netcoop_server_compat.talk_speaker(npc:id()) end
+			pcall(axr_task_manager.generate_available_tasks, npc, (ACTUALLY_SIM[npc:section()] and not sim) or (not ACTUALLY_SIM[npc:section()] and sim))
+		end
+		if netcoop_server_compat.talk_speaker then netcoop_server_compat.talk_speaker(65535) end
+	end
+	local ok = with_board(function() board.refresh_tasks() end)
+	board.trigger_generate_available_tasks = trigger
+	if not ok then return send(id, "refused|error") end
+	local out, shown = {}, {}
+	local data = board.get_data() or {}
+	for _, category in ipairs(board.get_sorted_keys(data)) do
+		for _, task in ipairs(data[category] or {}) do
+			local npc = level.object_by_id(task.npc_id)
+			if npc then
+				local details = board.get_details(task) or {}
+				local blocked = false
+				pcall(function() blocked = dialogs.has_tasks_by_npc(npc) end)
+				out[#out + 1] = { c = category, n = task.npc_id, t = task.task_id, d = task.task_description or "",
+					tt = details.task_title or "", td = details.task_details or "", ti = details.task_icon or "", b = blocked }
+				shown[task.task_id .. "|" .. task.npc_id] = true
+			end
+		end
+	end
+	offers[id] = shown
+	local text = netcoop_transit.serialize(out)
+	local total = math.max(1, math.ceil(#text / CHUNK))
+	for n = 1, total do send(id, n .. "/" .. total .. "|" .. string.sub(text, (n - 1) * CHUNK + 1, n * CHUNK)) end
+	printf("[Lost Zone][taskboard] %s offers for %s", #out, tostring(id))
+end
+
+local function accept(id, task_id, npc_id)
+	local board = pda_taskboard
+	if not (offers[id] and offers[id][task_id .. "|" .. npc_id]) then return send(id, "refused|stale") end
+	local npc = level.object_by_id(npc_id)
+	local range = board.config and tonumber(board.config.scanning_range) or 100
+	if not (npc and npc:alive() and npc:relation(db.actor) ~= game_object.enemy and
+		npc:position():distance_to(db.actor:position()) <= range + 10) then return send(id, "refused|npc") end
+	local blocked = false
+	pcall(function() blocked = dialogs.has_tasks_by_npc(npc) end)
+	if blocked then return send(id, "refused|limit") end
+	offers[id][task_id .. "|" .. npc_id] = nil
+	local tm = task_manager.get_task_manager()
+	local had = tm.task_info and tm.task_info[task_id]
+	if netcoop_server_compat.talk_speaker then netcoop_server_compat.talk_speaker(npc_id) end
+	with_board(function() board.accept_task(task_id, npc_id) end)
+	if netcoop_server_compat.talk_speaker then netcoop_server_compat.talk_speaker(65535) end
+	local given = not had and tm.task_info and tm.task_info[task_id]
+	send(id, (given and "accepted|" or "refused|taken|") .. task_id)
+	printf("[Lost Zone][taskboard] %s %s %s from %s", tostring(id), given and "took" or "could not take", task_id, npc:name())
+end
+
+----------------------------------------------------------------------
+-- Players' jobs (owner 2026-10-18: "players can post tasks there")
+----------------------------------------------------------------------
+-- A player posts a job: title, text, reward. The reward leaves his money at
+-- once (held by the board). Another player takes it; only the poster says
+-- it is done, and then the taker is paid (pda_pay: on whatever location he
+-- is). The poster may cancel: the reward comes back. A taker may drop it.
+-- Jobs live in the cluster store, so every location shows the same board:
+--   jobs/<id>  { id, by, by_name, title, text, reward, level, at, taker, taker_name }
+--   jobs/index { ids = { id = true } }
+local JOB_TITLE, JOB_TEXT, JOB_MAX_REWARD, JOBS_PER_PLAYER, JOBS_SHOWN = 60, 400, 1000000, 5, 60
+local JOB_DAYS = 7
+
+local function de(text)
+	if not text or text == "" then return nil end
+	local ok, v = pcall(netcoop_transit.deserialize, text)
+	return ok and v or nil
+end
+-- Read-modify-write; fn returns the new value, nil (no change).
+local function update(bucket, key, fn)
+	for _ = 1, 10 do
+		local old = netcoop_store_read(bucket, key) or ""
+		local value = fn(de(old))
+		if value == nil then return de(old), false end
+		if netcoop_store_swap(bucket, key, old, netcoop_transit.serialize(value)) then return value, true end
+	end
+	return nil, false
+end
+local function char_of(id) return netcoop_actor_character and netcoop_actor_character(id) or "" end
+local function clean(text, n) return string.sub(string.gsub(text or "", "[%c|]", " "), 1, n) end
+
+-- Money for a character, paid by the PDA network on his location.
+local function credit(char, amount)
+	if amount <= 0 then return true end
+	local _, ok = update("pda_pay", char, function(v) return { sum = ((v and tonumber(v.sum)) or 0) + amount } end)
+	return ok
+end
+
+local function index_ids()
+	local idx = de(netcoop_store_read("jobs", "index")) or {}
+	local out = {}
+	for id in pairs(idx.ids or {}) do out[#out + 1] = id end
+	table.sort(out)
+	return out
+end
+local function index_set(id, on)
+	update("jobs", "index", function(v)
+		v = v or {}
+		v.ids = v.ids or {}
+		if (v.ids[id] or false) == on then return nil end
+		v.ids[id] = on or nil
+		return v
+	end)
+end
+
+-- Take the record out of the store (compare-and-swap): only one server
+-- pays or refunds it.
+local function take_out(job_id)
+	local text = netcoop_store_read("jobs", job_id) or ""
+	local job = de(text)
+	if not job or not netcoop_store_swap("jobs", job_id, text, "") then return nil end
+	index_set(job_id, false)
+	return job
+end
+
+-- Jobs past their time return the reward to the poster.
+local function expired(job)
+	if os.time() - (tonumber(job.at) or 0) < JOB_DAYS * 86400 then return false end
+	local gone = take_out(job.id)
+	if gone then credit(gone.by, tonumber(gone.reward) or 0) end
+	return true
+end
+
+function jobs_view(char)
+	local out = {}
+	for _, id in ipairs(index_ids()) do
+		local j = de(netcoop_store_read("jobs", id))
+		if not j then index_set(id, false)
+		elseif not expired(j) and #out < JOBS_SHOWN then
+			out[#out + 1] = { id = j.id, title = j.title, text = j.text, reward = j.reward, by_name = j.by_name, level = j.level,
+				at = j.at, taker_name = j.taker_name, mine = j.by == char, taken = j.taker ~= nil, by_me = j.taker == char }
+		end
+	end
+	return out
+end
+
+local function job_reply(id, ok, what) send(id, (ok and "job|" or "jobfail|") .. what) end
+
+local function post_job(id, rest)
+	local a, char = db.actor, char_of(id)
+	local reward, title, text = string.match(rest or "", "^(%d+)|([^|]*)|(.*)$")
+	reward = tonumber(reward)
+	title, text = clean(title, JOB_TITLE), clean(text, JOB_TEXT)
+	if char == "" or not reward or reward < 0 or reward > JOB_MAX_REWARD or title == "" then return job_reply(id, false, "bad") end
+	local mine = 0
+	for _, j in ipairs(jobs_view(char)) do if j.mine then mine = mine + 1 end end
+	if mine >= JOBS_PER_PLAYER then return job_reply(id, false, "limit") end
+	if a:money() < reward then return job_reply(id, false, "money") end
+	local job_id
+	for _ = 1, 20 do
+		job_id = "j" .. math.random(10000000, 99999999)
+		local job = { id = job_id, by = char, by_name = a:character_name(), title = title, text = text, reward = reward,
+			level = level.name(), at = os.time() }
+		if netcoop_store_swap("jobs", job_id, "", netcoop_transit.serialize(job)) then break end
+		job_id = nil
+	end
+	if not job_id then return job_reply(id, false, "busy") end
+	a:give_money(-reward)
+	index_set(job_id, true)
+	printf("[Lost Zone][jobs] %s posted %s (%s RU): %s", char, job_id, reward, title)
+	job_reply(id, true, "posted")
+end
+
+-- take / drop: the taker changes, the job stays.
+local function take_or_drop(id, verb, job_id)
+	local char, a = char_of(id), db.actor
+	if char == "" or not job_id then return job_reply(id, false, "gone") end
+	local result
+	local _, ok = update("jobs", job_id, function(j)
+		if not j then result = "gone" return nil end
+		if verb == "take" then
+			if j.by == char then result = "own" return nil end
+			if j.taker then result = "taken" return nil end
+			j.taker, j.taker_name = char, a:character_name()
+		else
+			if j.taker ~= char then result = "gone" return nil end
+			j.taker, j.taker_name = nil, nil
+		end
+		return j
+	end)
+	if ok then printf("[Lost Zone][jobs] %s %s %s", char, verb == "take" and "took" or "dropped", job_id) end
+	job_reply(id, ok, ok and verb or (result or "busy"))
+end
+
+-- done: the taker is paid; cancel: the poster gets the reward back.
+local function finish_job(id, verb, job_id)
+	local char = char_of(id)
+	local j = de(netcoop_store_read("jobs", job_id or ""))
+	if not j then return job_reply(id, false, "gone") end
+	if j.by ~= char then return job_reply(id, false, "own") end
+	if verb == "done" and not j.taker then return job_reply(id, false, "notaken") end
+	j = take_out(job_id)
+	if not j then return job_reply(id, false, "busy") end
+	local reward = tonumber(j.reward) or 0
+	local to = verb == "done" and j.taker or j.by
+	if verb == "cancel" and db.actor then db.actor:give_money(reward)
+	elseif not credit(to, reward) then printf("! [Lost Zone][jobs] reward of %s for %s not credited", job_id, to) end
+	printf("[Lost Zone][jobs] %s %s %s; %s RU to %s", char, verb == "done" and "confirmed" or "cancelled", job_id, reward, to)
+	job_reply(id, true, verb)
+end
+
+local function send_jobs(id) send(id, "jobs|" .. netcoop_transit.serialize(jobs_view(char_of(id)))) end
+
+-- "taskboard list" / "taskboard accept <task_id> <npc_id>" /
+-- "taskboard post <reward>|<title>|<text>" / "taskboard take|drop|done|cancel <job>";
+-- db.actor is the player (the engine binds him for this command).
+function command(entity_id, args)
+	local a = db.actor
+	if not (a and a:id() == entity_id and netcoop_transit) then return "" end
+	local verb, rest = string.match(args or "", "^(%a+)%s*(.*)$")
+	local job_id = string.match(rest or "", "^(j%d+)$")
+	if verb == "list" then
+		if pda_taskboard and axr_task_manager then list(entity_id) else send(entity_id, "1/1|" .. netcoop_transit.serialize({})) end
+		send_jobs(entity_id)
+	elseif verb == "accept" then
+		local task_id, npc_id = string.match(rest or "", "^([%w_]+) (%d+)$")
+		if task_id and pda_taskboard then accept(entity_id, task_id, tonumber(npc_id)) end
+	elseif verb == "post" then
+		post_job(entity_id, rest)
+		send_jobs(entity_id)
+	elseif verb == "take" or verb == "drop" then
+		take_or_drop(entity_id, verb, job_id)
+		send_jobs(entity_id)
+	elseif verb == "done" or verb == "cancel" then
+		finish_job(entity_id, verb, job_id)
+		send_jobs(entity_id)
+	end
+	return ""
+end

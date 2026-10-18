@@ -62,6 +62,7 @@ jobs:
           python scripts/check-netcoop-lua-scope.py
           python scripts/check-netcoop-factions.py
           python scripts/check-netcoop-cluster-weather.py
+          python scripts/check-netcoop-taskboard.py
           python scripts/check-netcoop-contracts.py
           python scripts/check-netcoop-ranks.py
           python scripts/check-netcoop-squads.py
