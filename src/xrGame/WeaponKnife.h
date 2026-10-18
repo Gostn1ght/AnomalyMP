@@ -79,6 +79,8 @@ public:
 
 
 	virtual bool Action(u16 cmd, u32 flags);
+	virtual bool netcoop_fire_shot(u8 kind, const Fvector& pos, const Fvector& dir) override;
+	virtual void netcoop_shot_effect(u8 kind) override;
 
 	virtual bool GetBriefInfo(II_BriefInfo& info);
 
@@ -87,6 +89,7 @@ public:
 #endif
 
 private:
+	bool prepare_strike(u32 state);
 	typedef buffer_vector<Fvector> shot_targets_t;
 #ifdef DEBUG
 	struct dbg_draw_data

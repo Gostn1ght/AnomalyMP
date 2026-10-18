@@ -53,8 +53,8 @@ netcoop_center_x        = 0.4
 netcoop_half_width      = 0.75
 netcoop_rear_z          = -2.0
 
-; The owner's commissioned Mi-24 (doc 141): pilot (rear cockpit), gunner
-; (front cockpit), six seats in the troop cabin. Heavier and larger than the
+; The owner's commissioned Mi-24 (doc 141): pilot in the front, lower
+; cockpit, gunner in the rear, upper one; six troop seats. Larger than the
 ; Mi-2: the same flight model scales with the mass.
 [veh_mi24_heli]:m_car
 $spawn                  = "vehicles\veh_mi24_heli"
@@ -84,7 +84,10 @@ heli_rotor_anim_speed   = 3.0
 heli_crash_speed        = 12
 ; Seat 1 (pilot): the front, lower cockpit; seat 2 (gunner): the rear,
 ; upper one (owner 2026-10-18; the gunner seat was in the nose).
-netcoop_seats           = korpus1:0:0:0.2, korpus1:0:0.45:-1.2, korpus1:-0.55:-0.32:-4.6, korpus1:0.55:-0.32:-4.6, korpus1:-0.55:-0.32:-3.8, korpus1:0.55:-0.32:-3.8, korpus1:-0.55:-0.32:-3.0, korpus1:0.55:-0.32:-3.0
+netcoop_seats           = korpus1:0:-0.60:1.20, korpus1:0:-0.10:-0.40, korpus1:-0.55:-0.32:-4.6, korpus1:0.55:-0.32:-4.6, korpus1:-0.55:-0.32:-3.8, korpus1:0.55:-0.32:-3.8, korpus1:-0.55:-0.32:-3.0, korpus1:0.55:-0.32:-3.0
+; Calibrated in the shipped mesh: front cockpit Z 3.5..5.0, rear Z 2.0..3.4.
+; Eyes are model-space and independent of the sitting animation root.
+netcoop_seat_eyes       = 0:1.75:4.10, 0:2.35:2.45
 ; The gunner (seat 2) aims the nose machine gun: RMB switches the seat and
 ; the gun view, LMB fires from the gun view. The server fires (PKM shot,
 ; stronger), within the cone below.

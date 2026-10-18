@@ -14,6 +14,8 @@
 #include "../xrEngine/SkeletonMotions.h"
 #include "player_hud.h"
 #include "ActorEffector.h"
+#include "netcoop.h"
+#include "inventory.h"
 
 #define KNIFE_MATERIAL_NAME "objects\\knife"
 
@@ -176,8 +178,13 @@ void CWeaponKnife::MakeShot(Fvector const& pos, Fvector const& dir, float const 
 	cartridge.param_s.fWallmarkSize = fWallmarkSize;
 	cartridge.bullet_material_idx = knife_material_idx;
 
-	while (m_magazine.size() < 2) m_magazine.push_back(cartridge);
-	iAmmoElapsed = m_magazine.size();
+	// SP uses dummy cartridges, but a network knife has no ammo types.
+	// Reporting dummy rounds broke the strict inventory/state validation.
+	if (!netcoop::enabled())
+	{
+		while (m_magazine.size() < 2) m_magazine.push_back(cartridge);
+		iAmmoElapsed = m_magazine.size();
+	}
 	bool SendHit = SendHitAllowed(H_Parent());
 
 	PlaySound("sndShot", pos);
@@ -196,11 +203,13 @@ void CWeaponKnife::MakeShot(Fvector const& pos, Fvector const& dir, float const 
 	                                  SendHit);
 }
 
-void CWeaponKnife::OnMotionMark(u32 state, const motion_marks& M)
+bool CWeaponKnife::prepare_strike(u32 state)
 {
-	inherited::OnMotionMark(state, M);
 	if (state == eFire)
 	{
+		m_eHitType = m_eHitType_1;
+		fCurrentHit = GetHit1Power();
+		fHitImpulse_cur = GetHit1Impulse();
 		m_hit_dist = m_Hit1Distance;
 		m_splash_dir = m_Hit1SpashDir;
 		m_splash_radius = m_Hit1SplashRadius;
@@ -209,6 +218,9 @@ void CWeaponKnife::OnMotionMark(u32 state, const motion_marks& M)
 	}
 	else if (state == eFire2)
 	{
+		m_eHitType = m_eHitType_2;
+		fCurrentHit = GetHit2Power();
+		fHitImpulse_cur = GetHit2Impulse();
 		m_hit_dist = m_Hit2Distance;
 		m_splash_dir = m_Hit2SpashDir;
 		m_splash_radius = m_Hit2SplashRadius;
@@ -217,8 +229,34 @@ void CWeaponKnife::OnMotionMark(u32 state, const motion_marks& M)
 	}
 	else
 	{
-		return;
+		return false;
 	}
+	fireDistance = m_hit_dist + m_splash_radius;
+	return true;
+}
+
+bool CWeaponKnife::netcoop_fire_shot(u8 kind, const Fvector& pos, const Fvector& dir)
+{
+	if (kind > 1 || !OnServer() || !netcoop::server_player_copy(H_Parent())) return false;
+	CActor* actor = smart_cast<CActor*>(H_Parent());
+	PIItem active = actor ? actor->inventory().ActiveItem() : nullptr;
+	if (!active || active->cast_weapon() != this) return false;
+	if (!prepare_strike(kind == 1 ? eFire2 : eFire)) return false;
+	KnifeStrike(pos, dir);
+	return true;
+}
+
+void CWeaponKnife::netcoop_shot_effect(u8 kind)
+{
+	if (kind <= 1) PlaySound("sndShot", get_LastFP());
+}
+
+void CWeaponKnife::OnMotionMark(u32 state, const motion_marks& M)
+{
+	inherited::OnMotionMark(state, M);
+	// Copies do not strike from an animation as well: the owning client's
+	// actual impact mark supplies exactly one authoritative attack request.
+	if (netcoop_player_copy() || !prepare_strike(state)) return;
 
 	Fvector p1, d;
 	p1.set(get_LastFP());
@@ -228,6 +266,7 @@ void CWeaponKnife::OnMotionMark(u32 state, const motion_marks& M)
 	if (H_Parent())
 	{
 		smart_cast<CEntity*>(H_Parent())->g_fireParams(this, p1, d);
+		netcoop_send_shot(p1, d, state == eFire2 ? 1 : 0);
 		KnifeStrike(p1, d);
 	}
 }

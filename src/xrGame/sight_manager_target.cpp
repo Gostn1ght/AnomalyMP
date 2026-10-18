@@ -52,7 +52,10 @@ bool CSightManager::aim_target(Fvector& my_position, Fvector& aim_target, const 
 
 	extern CActor* g_actor;
 
-	if (g_actor == object)
+	// g_actor is the hidden server anchor, not any connected player. Give
+	// every living player the same aim point as the freeplay Actor.
+	const CActor* player = smart_cast<const CActor*>(object);
+	if (g_actor == object || (player && player->g_Alive()))
 	{
 		::aim_target("bip01_head", aim_target, object);
 		return (true);

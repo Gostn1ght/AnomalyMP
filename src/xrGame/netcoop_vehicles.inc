@@ -100,6 +100,11 @@ static VehicleSeats* vehicle_seats(CCar* car)
 		xr_strcpy(list, pSettings->r_string(section, "netcoop_seats"));
 	else
 		xr_sprintf(list, "%s,seat_right,seat_back", driver_bone);
+	// Optional model-space eyes for cabins with different seat heights.
+	// Body roots follow their sitting animations; an eye is not that root.
+	string1024 eyes = "";
+	if (pSettings->line_exist(section, "netcoop_seat_eyes"))
+		xr_strcpy(eyes, pSettings->r_string(section, "netcoop_seat_eyes"));
 	// The passenger pose (sitting on a chair) has its root on the floor, the
 	// driver's steering pose on the seat itself.
 	const float drop = READ_IF_EXISTS(pSettings, r_float, section, "netcoop_passenger_drop", 0.45f);
@@ -139,6 +144,20 @@ static VehicleSeats* vehicle_seats(CCar* car)
 		seat.local.c.add(offset);
 		seat.driver = v.seats.empty();
 		seat.eye.add(seat.local.c, eye_offset);
+		if (eyes[0] && i < _GetItemCount(eyes))
+		{
+			string128 eye;
+			_GetItem(eyes, i, eye);
+			if (_GetItemCount(eye, ':') == 3)
+			{
+				string32 value;
+				Fvector point;
+				point.x = float(atof(_GetItem(eye, 0, value, ':')));
+				point.y = float(atof(_GetItem(eye, 1, value, ':')));
+				point.z = float(atof(_GetItem(eye, 2, value, ':')));
+				if (_valid(point)) seat.eye.set(point);
+			}
+		}
 		if (!seat.driver)
 			seat.local.c.y -= drop;
 		v.seats.push_back(seat);

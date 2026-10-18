@@ -601,7 +601,9 @@ void CActor::cam_Update(float dt, float fFOV)
 		cameras[eacFirstEye]->Update(point, dangle);
 		cameras[eacFirstEye]->f_fov = fFOV;
 	}
-	if (Level().CurrentEntity() == this)
+	// The seated eye is inside its vehicle shell. The walking camera's
+	// collision solver only ignores the Actor and pushed it out of the cabin.
+	if (Level().CurrentEntity() == this && !netcoop_seated())
 	{
 		collide_camera(*cameras[eacFirstEye], _viewport_near, this);
 	}

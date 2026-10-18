@@ -34,6 +34,8 @@ jobs:
           python scripts/check-netcoop-ambient.py
           python scripts/check-netcoop-task-offers.py
           python scripts/check-netcoop-trade.py
+          python scripts/check-netcoop-trade-cache.py
+          python scripts/check-netcoop-death-camera.py
           python scripts/check-netcoop-live-role-dialog.py
           python scripts/check-netcoop-inventory-compat.py
           python scripts/check-netcoop-inventory-capacity.py
@@ -266,6 +268,10 @@ jobs:
           python scripts/check-native-campfire.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-native-trade-policy.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-play32-input-ai.py
+          if errorlevel 1 exit /b %errorlevel%
+          python scripts/check-native-melee-shot.py
           if errorlevel 1 exit /b %errorlevel%
           python scripts/check-netcoop-world-bridge.py
           if errorlevel 1 exit /b %errorlevel%

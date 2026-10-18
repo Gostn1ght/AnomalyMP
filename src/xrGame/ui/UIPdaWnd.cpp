@@ -510,6 +510,12 @@ void CUIPdaWnd::Enable(bool status)
 
 bool CUIPdaWnd::OnKeyboardAction(int dik, EUIMessages keyboard_action)
 {
+	// A focused edit (including an edit inside a script tab) owns raw keys.
+	// The 3D PDA used to translate them into item actions before the captured
+	// child received anything, so letters, paste and backspace never arrived.
+	if (!IsShown()) return false;
+	if (m_pKeyboardCapturer)
+		return inherited::OnKeyboardAction(dik, keyboard_action);
 	if (IsShown() && (keyboard_action == WINDOW_KEY_PRESSED || keyboard_action == WINDOW_KEY_RELEASED))
 	{
 		if (!psActorFlags.test(AF_3D_PDA) && keyboard_action == WINDOW_KEY_PRESSED)
@@ -532,4 +538,5 @@ bool CUIPdaWnd::OnKeyboardAction(int dik, EUIMessages keyboard_action)
 
 		return pda->Action(get_binded_action(dik), keyboard_action == WINDOW_KEY_PRESSED ? CMD_START : CMD_STOP);
 	}
+	return inherited::OnKeyboardAction(dik, keyboard_action);
 }

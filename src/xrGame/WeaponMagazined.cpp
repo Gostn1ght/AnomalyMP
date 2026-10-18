@@ -341,6 +341,22 @@ bool CWeaponMagazined::TryReload()
 			}
 	}
 
+	// Owner 2026-10-18: "reload does not work with any weapon" - what the
+	// client's inventory offered this weapon.
+	if (netcoop::pure_client() && ParentIsActor())
+	{
+		string512 found = "";
+		if (m_pInventory)
+			for (PIItem item : m_pInventory->m_all)
+				if (CWeaponAmmo* ammo = smart_cast<CWeaponAmmo*>(item))
+				{
+					string128 one;
+					xr_sprintf(one, " %.80s:%u%s", ammo->cNameSect().c_str(), u32(ammo->m_boxCurr), item->Useful() ? "" : "(not useful)");
+					if (xr_strlen(found) + xr_strlen(one) < sizeof(found) - 1) xr_strcat(found, one);
+				}
+		Msg("! [Lost Zone][reload] %s: no ammo for type %u (%s) in %s; inventory ammo:%s", cNameSect().c_str(), u32(m_ammoType),
+			m_ammoType < m_ammoTypes.size() ? m_ammoTypes[m_ammoType].c_str() : "?", m_pInventory ? "the inventory" : "no inventory", found);
+	}
 	if (GetState() != eIdle)
 		SwitchState(eIdle);
 
@@ -1182,7 +1198,12 @@ bool CWeaponMagazined::Action(u16 cmd, u32 flags)
 	if (inherited::Action(cmd, flags)) return true;
 
 	//если оружие чем-то занято, то ничего не делать
-	if (IsPending()) return false;
+	if (IsPending())
+	{
+		if (cmd == kWPN_RELOAD && (flags & CMD_START) && netcoop::pure_client())
+			Msg("[Lost Zone][reload] %s: busy (state %u)", cNameSect().c_str(), GetState());
+		return false;
+	}
 
 	switch (cmd)
 	{
@@ -1195,6 +1216,8 @@ bool CWeaponMagazined::Action(u16 cmd, u32 flags)
 
 				if (iAmmoElapsed < iMagazineSize || IsMisfire())
 					Reload();
+				else if (netcoop::pure_client())
+					Msg("[Lost Zone][reload] %s: the magazine is full (%d/%d)", cNameSect().c_str(), iAmmoElapsed, iMagazineSize);
 			}
 		}
 		return true;

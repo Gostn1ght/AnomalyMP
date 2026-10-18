@@ -249,7 +249,10 @@ void CRenderDevice::PreCache(u32 amount, bool b_draw_loadscreen, bool b_wait_use
 #ifdef DEDICATED_SERVER
     amount = 0;
 #else
-	if (m_pRender->GetForceGPU_REF())
+	// The location server is this same executable in headless runtime mode.
+	// It never calls End(), which consumes these rendering warm-up frames.
+	// Leaving 60 here made GAMMA reject every AI enemy as "still loading".
+	if (g_dedicated_server || m_pRender->GetForceGPU_REF())
 		amount = 0;
 #endif
 

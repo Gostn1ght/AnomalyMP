@@ -52,13 +52,36 @@ function body(id, alive, monster)
     function o:is_monster() return monster end
     return o
 end
-player = {id = function() return 7 end}
+held = {section=function() return 'wpn_knife3' end, condition=function() return 1 end,
+ set_condition=function() knife=knife+1 end}
+player = {id = function() return 7 end,active_item=function() return held end}
+db.actor=player
+game.translate_string=function(s) return s end
 ''')
+g.netcoop_butchering = lua.table()
+lua.execute("local env = ...; setfenv(assert(loadstring(select(2, ...))), setmetatable(env,{__index=_G}))()",
+            g.netcoop_butchering, (root / "server/netcoop_butchering.script").read_text(encoding="utf-8"))
+assert (root/'server/netcoop_butchering.script').read_bytes() == (root/'client/netcoop_butchering.script').read_bytes()
 g.netcoop_mutant_loot = lua.table()
 lua.execute("local env = ...; setfenv(assert(loadstring(select(2, ...))), setmetatable(env,{__index=_G}))()",
             g.netcoop_mutant_loot, (root / "server/netcoop_mutant_loot.script").read_text(encoding="utf-8"))
 act = g.netcoop_mutant_loot.action
 last = lambda: lua.eval("sent[#sent][3]")
+
+lua.execute('''
+local real_knife=held
+local corpse=body(60,false,true)
+local function denied(reason)
+ local before=rolls;assert(netcoop_mutant_loot.action(player,corpse,'mloot_open')==reason and rolls==before)
+end
+held=nil;denied('st_body_knife_needed')
+held={section=function() return 'wpn_axe' end};denied('st_body_knife_needed')
+held={section=function() return 'wpn_knife2' end,condition=function() return .14 end};denied('st_body_knife_bad')
+held.condition=function() return 1 end
+corpse.section=function() return 'chimera_strong' end;denied('st_body_knife_weak')
+corpse.section=function() return 'gigant_normal' end;denied('st_body_knife_weak')
+held=real_knife
+''')
 
 lua.execute("dog = body(10, false, true); db.storage[10] = {death_time = setmetatable({v = 900}, getmetatable(game.get_game_time()))}")
 assert act(g.player, g.dog, "mloot_open") == "" and last() == "10|ok|meat_dog*2;mutant_part_dog_tail*1"
@@ -86,6 +109,9 @@ assert g.rolls == 1
 # Real creation failures preserve uncreated parts and wear only successful cuts.
 lua.execute('fresh = body(15, false, true)')
 assert act(g.player, g.fresh, "mloot_open") == ""
+lua.execute("saved_knife=held;held=nil")
+assert act(g.player, g.fresh, "mloot_take all") == "st_body_knife_needed"
+lua.execute("held=saved_knife")
 before, knife_before = len(g.made), g.knife
 g.fail_after = before
 assert act(g.player, g.fresh, "mloot_take all") == "item creation failed; parts remain on the body"
@@ -100,6 +126,32 @@ g.fail_after = None
 assert act(g.player, g.fresh, "mloot_take all") == ""
 assert len(g.made) == before+3 and g.knife == knife_before+3
 assert lua.eval('store[15].looted') is True
+
+lua.execute('''
+-- Every GAMMA knife class, both heavy mutants, and the exact wear boundary.
+local original=held
+for i=1,9 do
+ local name=i==1 and 'wpn_knife' or 'wpn_knife'..i
+ held={section=function() return name end,condition=function() return .15 end}
+ assert(netcoop_butchering.check(player,'dog_weak')==nil)
+ for _,mutant in ipairs({'chimera_strong','gigant_normal'}) do
+  assert(netcoop_butchering.check(player,mutant)==(i<=2 and 'st_body_knife_weak' or nil))
+ end
+end
+local condition=.15
+held={section=function() return 'wpn_knife3' end,condition=function() return condition end,
+ set_condition=function(_,v) condition=v end}
+local fresh=body(70,false,true)
+assert(netcoop_mutant_loot.action(player,fresh,'mloot_open')=='')
+local before=#made
+assert(netcoop_mutant_loot.action(player,fresh,'mloot_take all')=='st_body_knife_bad')
+assert(#made==before+1 and math.abs(condition-.14)<.000001)
+assert(store[70].netcoop_mutant_loot.meat_dog.count==1)
+assert(store[70].netcoop_mutant_loot.mutant_part_dog_tail.count==1 and not store[70].looted)
+held=original
+assert(netcoop_mutant_loot.action(player,fresh,'mloot_take all')=='' and #made==before+3)
+assert(store[70].looted)
+''')
 
 # Client window.
 lua.execute(r'''
@@ -152,4 +204,5 @@ assert(requests[#requests][2]==53, "numeric ID callers resolve the current objec
 ''')
 actor_input=(root.parents[1]/"src/xrGame/ActorInput.cpp").read_text(encoding="utf-8")
 assert actor_input.index('functor("netcoop_mutant_loot_view.use"') < actor_input.index("m_pUsableObject->use(this)")
+
 print("netcoop mutant loot: direct F route, numeric callers and server-backed window OK")

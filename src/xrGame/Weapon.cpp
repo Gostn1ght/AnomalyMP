@@ -33,6 +33,7 @@
 #include "ActorNightVision.h"
 #include "HUDManager.h"
 #include "WeaponMagazinedWGrenade.h"
+#include "WeaponKnife.h"
 #include "../xrEngine/GameMtlLib.h"
 #include "../Layers/xrRender/xrRender_console.h"
 #include "pch_script.h"
@@ -1294,7 +1295,7 @@ bool CWeapon::netcoop_shot_allowed()
 		if (actor->netcoop_seated()) return false;
 	float interval = fOneShotTime;
 	if (fModeShotTime > EPS && fModeShotTime < interval) interval = fModeShotTime;
-	const float min_ms = _max(30.f, interval * 1000.f / 1.5f);
+	const float min_ms = _max(smart_cast<CWeaponKnife*>(this) ? 250.f : 30.f, interval * 1000.f / 1.5f);
 	const u32 now = Device.dwTimeGlobal;
 	m_netcoop_shot_budget = _min(3.f, m_netcoop_shot_budget + float(now - m_netcoop_budget_time) / min_ms);
 	m_netcoop_budget_time = now;
@@ -1330,7 +1331,9 @@ void CWeapon::OnEvent(NET_Packet& P, u16 type)
 				// Netcoop server: exactly one shot per shot of the owner, along
 				// the owner's aim (the copy's own firing loop is off: it did
 				// not know the owner's fire mode and never stopped in time).
-				if (netcoop::server_player_copy(H_Parent()) && iAmmoElapsed > 0 && !m_magazine.empty() &&
+				const bool melee = smart_cast<CWeaponKnife*>(this) != nullptr;
+				if (netcoop::server_player_copy(H_Parent()) &&
+					(melee ? kind <= 1 : (iAmmoElapsed > 0 && !m_magazine.empty())) &&
 					netcoop_shot_allowed())
 				{
 					m_netcoop_last_shot = Device.dwTimeGlobal;

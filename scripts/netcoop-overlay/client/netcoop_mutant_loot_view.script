@@ -7,6 +7,8 @@ local pending = {}
 local function request(obj)
 	if type(obj) == "number" then obj = level.object_by_id(obj) end
 	if not obj then return false end
+	local denied = netcoop_butchering.check(db.actor, obj:section())
+	if denied then actor_menu.set_msg(1, game.translate_string(denied), 4);return true end
 	pending[obj:id()] = true
 	netcoop_item_action(2, obj:id(), 65535, "mloot_open")
 	return true

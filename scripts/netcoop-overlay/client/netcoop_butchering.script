@@ -1,0 +1,22 @@
+-- GAMMA's knife classes and wear, applied to the knife actually in hand.
+-- The basic knife/Type 2 cannot cut a chimera or pseudogiant. Other GAMMA
+-- knives can; axes are melee weapons, not butchering knives.
+local wear = {wpn_knife=.04,wpn_knife2=.04,wpn_knife3=.04,wpn_knife4=.03,
+	wpn_knife5=.03,wpn_knife6=.02,wpn_knife7=.02,wpn_knife8=.02,wpn_knife9=.04}
+
+function check(actor, section)
+	local tool = actor and actor:active_item()
+	local name = tool and tool:section()
+	if not wear[name] then return "st_body_knife_needed" end
+	if tool:condition() < .15 then return "st_body_knife_bad" end
+	local strong = string.find(section or "", "chimera", 1, true) or string.find(section or "", "gigant", 1, true)
+	if strong and (name == "wpn_knife" or name == "wpn_knife2") then return "st_body_knife_weak" end
+	return nil, tool
+end
+
+function degradate(tool)
+	local loss = wear[tool:section()]
+	if not loss then return end
+	local condition = tool:condition()
+	tool:set_condition(condition > loss and condition - loss / 4 or .01)
+end

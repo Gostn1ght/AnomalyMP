@@ -9,6 +9,7 @@ section agree with each other and with what Car.cpp reads.
 - the model carries the "idle" motion the rotors turn with.
 """
 import re
+import math
 import struct
 from pathlib import Path
 
@@ -92,6 +93,21 @@ for section, (folder, model_name) in HELICOPTERS.items():
         bone, *offset = item.strip().split(":")
         assert bone in bones and len(offset) == 3, item
         [float(v) for v in offset]
+    if "netcoop_seat_eyes" in heli:
+        eyes = [tuple(map(float, item.split(':'))) for item in heli['netcoop_seat_eyes'].split(',')]
+        assert 0 < len(eyes) <= len(seats)
+        box = struct.unpack_from('<6f', model[1], 4)
+        for eye in eyes:
+            assert len(eye) == 3 and all(math.isfinite(v) for v in eye)
+            assert all(box[j] < eye[j] < box[j+3] for j in range(3)), (model_name, eye, box)
+        if section == 'veh_mi24_heli':
+            # Cabin envelopes measured from the shipped mesh, excluding the
+            # rotor/tail extents of its much larger overall bounding box.
+            front, rear = eyes
+            assert abs(front[0]) < .5 and 1.15 < front[1] < 2.1 and 3.5 < front[2] < 5
+            assert abs(rear[0]) < .5 and 1.5 < rear[1] < 2.75 and 2 < rear[2] < 3.4
+            camera = tuple(map(float, profile['car_definition']['camera_pos'].split(',')))
+            assert camera == front and rear[1] > front[1] and rear[2] < front[2]
     given = {key for key in heli if key.startswith("heli_")}
     assert given <= read, f"unknown keys {sorted(given - read)}"
     assert read <= given, f"{section}: keys left at the engine default {sorted(read - given)}"

@@ -9,6 +9,24 @@ G = ROOT.parent / "gamma-runtime" / "gamedata" / "scripts"
 O = ROOT / "scripts" / "netcoop-overlay"
 
 FIXES = {
+    "true_first_person_death.script": [(
+        'local fpCamEffectorTg\r\n',
+        'local fpCamEffectorTg\r\nlocal fpCamActorId\r\n'), (
+        'function startCam()\r\n',
+        'function startCam()\r\n'
+        '\tfpCamActorId = db.actor and db.actor:id()\r\n'), (
+        'function actor_on_first_update()\r\n\treset()\r\nend',
+        'function actor_on_first_update()\r\n'
+        '\tif netcoop_enabled and netcoop_enabled() then main_menu_on_quit() else reset() end\r\nend'), (
+        'function updateCam()\r\n',
+        'function updateCam()\r\n'
+        '\t-- Lost Zone: this timer belongs to the dead body, never its respawn.\r\n'
+        '\tif netcoop_enabled and netcoop_enabled() and (not db.actor or db.actor:alive() or db.actor:id() ~= fpCamActorId) then\r\n'
+        '\t\tmain_menu_on_quit()\r\n\t\treturn\r\n\tend\r\n'), (
+        'function on_game_start()\r\n',
+        'function on_game_start()\r\n'
+        '\t-- Lost Zone: a dedicated server has no death camera or audio fade.\r\n'
+        '\tif netcoop_enabled and netcoop_enabled() and not (netcoop_pure_client and netcoop_pure_client()) then return end\r\n')],
     "arti_jamming.script": [(
         '\tlocal timeout = get_config("profanity_timeout")\r\n'
         '\tif timeout and not can_swear then return end\r\n',
