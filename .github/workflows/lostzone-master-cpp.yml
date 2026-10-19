@@ -1,0 +1,73 @@
+name: Lost Zone Engine Master
+
+# The world master inside the engine (owner 2026-10-19): its sources compiled
+# alone as a console test program, then compared request by request with the
+# Python World Service it replaces, and its window opened and closed once.
+on:
+  push:
+    branches: [master-cpp, menu-3d-hideout]
+    paths:
+      - 'src/xrEngine/netcoop_master/**'
+      - 'scripts/check-master-cpp-parity.py'
+      - 'backend/**'
+      - '.github/workflows/lostzone-master-cpp.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lostzone-master-cpp-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  master:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Build the engine master as a test program (MultiByte, like the engine)
+        shell: cmd
+        run: |
+          mkdir master-test
+          cl /nologo /std:c++17 /EHsc /O2 /utf-8 /W3 /permissive- /DWIN32 /D_WINDOWS /D_CRT_SECURE_NO_WARNINGS ^
+             src\xrEngine\netcoop_master\*.cpp /Fomaster-test\ /Fe:master-test\LostZoneMasterTest.exe ^
+             /link user32.lib gdi32.lib shell32.lib comctl32.lib uxtheme.lib dwmapi.lib ws2_32.lib bcrypt.lib
+      - name: Ship the SQLite library next to it
+        shell: pwsh
+        run: |
+          $prefix = python -c "import sys; print(sys.base_prefix)"
+          Copy-Item (Join-Path $prefix 'DLLs\sqlite3.dll') master-test\
+          python -c "import sqlite3; print('sqlite', sqlite3.sqlite_version)"
+      - name: Same answers as the Python World Service
+        run: python scripts/check-master-cpp-parity.py master-test\LostZoneMasterTest.exe
+      - name: The master window opens, serves and closes
+        shell: pwsh
+        run: |
+          $work = Join-Path $env:RUNNER_TEMP 'window'
+          New-Item -ItemType Directory -Force (Join-Path $work 'appdata\server') | Out-Null
+          Set-Content -Encoding ascii (Join-Path $work 'appdata\server\netcoop_cluster.ltx') "[cluster]`r`nentry_port = 0`r`n[locations]`r`nk00_marsh = 127.0.0.1:1267`r`n"
+          $config = Join-Path $work 'master\runtime\config.json'
+          & master-test\LostZoneMasterTest.exe init --config $config --location k00_marsh --world-id 7 --seed 9 --initial-ms 63676137600000 --scale 10
+          if ($LASTEXITCODE) { throw "init failed $LASTEXITCODE" }
+          & master-test\LostZoneMasterTest.exe writer-config --config $config --location k00_marsh --destination (Join-Path $work 'appdata\server\netcoop_world_writer_k00_marsh.json') --replace --add-location
+          if ($LASTEXITCODE) { throw "writer-config failed $LASTEXITCODE" }
+          & master-test\LostZoneMasterTest.exe bridge-config --config $config --destination (Join-Path $work 'appdata\server\netcoop_world_bridge.json') --authority --replace
+          if ($LASTEXITCODE) { throw "bridge-config failed $LASTEXITCODE" }
+          $result = Join-Path $work 'selftest.json'
+          $p = Start-Process master-test\LostZoneMasterTest.exe -ArgumentList @('window','--config',"`"$config`"",'--root',"`"$work`"",'--gateway-port','0','--initialized','--selftest',"`"$result`"") -PassThru -Wait
+          Get-Content $result
+          $json = Get-Content $result -Raw | ConvertFrom-Json
+          if (-not $json.ok) { throw "window selftest failed" }
+          Get-Content (Join-Path $work 'appdata\server\netcoop_world_bridge.json') | Select-String -Pattern '"authority"' | Out-Null
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: LostZone-Engine-Master-Test
+          path: master-test/*.exe
