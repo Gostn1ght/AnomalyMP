@@ -497,7 +497,9 @@ end
 -- Trade profile of an NPC from the server: buy/sell conditions for the trade
 -- window. Supplies (restocking) stay on the server.
 local function use_trade_profile(data)
-	local id, cfg = string.match(data or "", "^(%d+)%s+(.+)$")
+	local id, rest = string.match(data or "", "^(%d+)%s+(.+)$")
+	local cfg, buy, sell, factor = string.match(rest or "", "^([^|]+)|([^|]*)|([^|]*)|([^|]*)$")
+	cfg = cfg or rest
 	local npc = id and level.object_by_id(tonumber(id))
 	if not (npc and cfg and trade_manager) then return end
 	local ok, err = pcall(function()
@@ -505,6 +507,18 @@ local function use_trade_profile(data)
 		local config = trade_manager.get_trade_cfg(cfg)
 		if config then
 			trade_manager.setup_buy_sell_conditions(npc, npc:id(), config)
+			-- The server's own pick wins (it decides every deal).
+			local profile = trade_manager.get_trade_profile(npc:id())
+			if profile and buy and buy ~= "" and config:section_exist(buy) then
+				npc:buy_condition(config, buy); profile.current_buy_condition = buy
+			end
+			if profile and sell and sell ~= "" and config:section_exist(sell) then
+				npc:sell_condition(config, sell); profile.current_sell_condition = sell
+			end
+			local f = tonumber(factor or "")
+			if profile and f and f >= 0 and f <= 1 then
+				npc:buy_item_condition_factor(f); profile.current_buy_item_condition_factor = f
+			end
 		end
 		local gui = ui_inventory and ui_inventory.GUI
 		local partner = gui and gui.GetPartner and gui:GetPartner()

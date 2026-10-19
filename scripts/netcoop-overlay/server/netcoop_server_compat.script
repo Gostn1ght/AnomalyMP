@@ -432,7 +432,13 @@ function prepare_trade(npc_id, dialog_trade)
 	if refusal == "" and npc:relation(db.actor) == game_object.enemy then refusal = "Trader is hostile to your character" end
 	if refusal == "" then npc:enable_trade() else npc:disable_trade() end
 	if cfg and netcoop_send_to_actor then
-		netcoop_send_to_actor(db.actor:id(), "trade_cfg", npc_id .. " " .. cfg)
+		-- The conditions this server picked (they follow the player's infos,
+		-- goodwill and time): the client's window must use the same ones, or it
+		-- offers items the server then refuses (owner 2026-10-19).
+		local profile = trade_manager.get_trade_profile(npc_id) or {}
+		netcoop_send_to_actor(db.actor:id(), "trade_cfg", string.format("%s %s|%s|%s|%s", npc_id, cfg,
+			tostring(profile.current_buy_condition or ""), tostring(profile.current_sell_condition or ""),
+			tostring(profile.current_buy_item_condition_factor or "")))
 	end
 	return refusal
 end

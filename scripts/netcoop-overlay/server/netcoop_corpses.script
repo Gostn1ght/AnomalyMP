@@ -53,13 +53,15 @@ local function protected(id)
 	return false
 end
 
--- Any dead creature but a player. GAMMA's IsMonster() knows the client
--- classes only; server objects of mutants have their own (*_s), so mutant
--- corpses were never recognised (2026-10-06).
-local function is_corpse(se)
+-- Any dead creature. GAMMA's IsMonster() knows the client classes only;
+-- server objects of mutants have their own (*_s), so mutant corpses were
+-- never recognised (2026-10-06). Player bodies count at a server start too
+-- (owner 2026-10-19: they stayed after every restart); while it runs, only
+-- tracked NPC/mutant deaths expire (a player goes back for his own body).
+local function is_corpse(se, with_players)
 	if not (se and se.alive) or se.id == 0 then return false end
 	local cls = se:clsid()
-	if cls == clsid.actor or cls == clsid.script_actor then return false end
+	if not with_players and (cls == clsid.actor or cls == clsid.script_actor) then return false end
 	local ok, alive = pcall(se.alive, se)
 	return ok and alive == false
 end
@@ -72,7 +74,7 @@ local function corpses_on_map(sim)
 	local gg = game_graph()
 	for i = 1, 65534 do
 		local se = sim:object(i)
-		if is_corpse(se) then
+		if is_corpse(se, true) then
 			local vertex = gg:vertex(se.m_game_vertex_id)
 			if vertex and sim:level_name(vertex:level_id()) == here then list[#list + 1] = i end
 		end
@@ -80,8 +82,10 @@ local function corpses_on_map(sim)
 	return list
 end
 
--- An online body is switched offline first (GAMMA's way); once offline its
--- items and then the body are released.
+-- Its items and then the body are released. An online body was switched
+-- offline first (GAMMA's way), but the server keeps everything within its
+-- switch distance online: those corpses waited forever (owner 2026-10-19,
+-- 17 of 19 corpses stayed). Releasing an online body works the same.
 local function process_removals(sim)
 	if not next(removing) then return end
 	local children = nil
@@ -89,11 +93,7 @@ local function process_removals(sim)
 		local se = sim:object(id)
 		if not se then
 			removing[id] = nil
-		elseif se.online then
-			sim:set_switch_online(id, false)
-			sim:set_switch_offline(id, true)
-			se:switch_offline()
-		elseif not (db.storage[id] and db.storage[id].object) then
+		else
 			if not children then
 				children = {}
 				for i = 1, 65534 do
