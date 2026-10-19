@@ -83,6 +83,17 @@ public:
 
     double scale() const { return state_.time_scale; }
 
+    // Forward only: a location that is behind the world master takes its
+    // time at once (owner 2026-10-19: maps showed different hours and
+    // weather until a slow catch-up ended).
+    void advance(double world_ms, std::uint64_t mono_ms)
+    {
+        if (!std::isfinite(world_ms) || world_ms <= 0) throw std::invalid_argument("invalid clock advance");
+        rebase(mono_ms);
+        if (state_.world_ms + world_ms > max_world_ms) throw std::overflow_error("world clock exhausted");
+        state_.world_ms += world_ms;
+    }
+
 private:
     void rebase(std::uint64_t mono_ms)
     {
@@ -254,6 +265,12 @@ public:
     {
         if (revision_ == UINT64_MAX) throw std::overflow_error("world revision exhausted");
         clock_.set_scale(scale, mono_ms);
+        ++revision_;
+    }
+    void advance(double world_ms, std::uint64_t mono_ms)
+    {
+        if (revision_ == UINT64_MAX) throw std::overflow_error("world revision exhausted");
+        clock_.advance(world_ms, mono_ms);
         ++revision_;
     }
 private:

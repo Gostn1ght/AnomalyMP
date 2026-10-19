@@ -802,7 +802,16 @@ static void cluster_clock_update(bool observed)
 	if (master_clock(master_ms, master_scale))
 	{
 		const float normal = float(master_scale);
-		const double behind = master_ms - double(time.game_time());
+		double behind = master_ms - double(time.game_time());
+		// More than a game minute behind: take the master's time at once
+		// (owner 2026-10-19: hours and weather differed between maps and after
+		// a reconnect while the clock caught up slowly). Never backwards.
+		if (behind > 60000.0 && behind < 30.0 * 86400000.0 && time.netcoop_catch_up(u64(behind)))
+		{
+			if (g_pGamePersistent && g_pGamePersistent->pEnvironment) g_pGamePersistent->Environment().ChangeGameTime(float(behind / 1000.0));
+			Msg("[Lost Zone][master] calendar caught up %.0f s with the master", behind / 1000.0);
+			behind = master_ms - double(time.game_time());
+		}
 		float factor = normal;
 		if (behind > 2000.0)
 		{

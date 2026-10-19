@@ -40,6 +40,11 @@ public:
         std::lock_guard<std::mutex> guard(mutex_);
         service_.set_scale(scale, mono_ms());
     }
+    void advance(std::uint64_t world_ms)
+    {
+        std::lock_guard<std::mutex> guard(mutex_);
+        service_.advance(double(world_ms), mono_ms());
+    }
     WorldStateSnapshot checkpoint()
     {
         std::lock_guard<std::mutex> guard(mutex_);

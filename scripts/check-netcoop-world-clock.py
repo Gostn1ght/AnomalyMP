@@ -28,6 +28,9 @@ std::uint64_t local_time(int location, std::uint64_t real_ms) {
 }
 int main() {
  WorldClock a(71, 8, 100000, 10, 900);
+ // Catch-up with the world master: forward only, continuous before the jump.
+ { WorldClock j(71, 8, 1000, 1, 0); j.advance(5000, 10); close(j.now(10), 6010); close(j.now(20), 6020);
+   rejects([&]{ j.advance(-1, 30); }); rejects([&]{ j.advance(0, 30); }); }
  close(a.now(1900), 110000);
  a.set_scale(2,1900); close(a.now(1900),110000); close(a.now(2900),112000);
  a.set_scale(0,2900);close(a.now(100000),112000);

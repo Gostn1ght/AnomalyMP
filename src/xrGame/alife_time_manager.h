@@ -37,6 +37,8 @@ public:
 	float time_factor() const;
 	IC float normal_time_factor() const;
 	void change_game_time(u32 value);
+	// Netcoop: catch up with the world master at once (forward only).
+	bool netcoop_catch_up(u64 value);
 	bool has_world_clock() const { return bool(m_world_clock); }
 	bool export_world_state(netcoop_world::WorldStateSnapshot& snapshot);
 };

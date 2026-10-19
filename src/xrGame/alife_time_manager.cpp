@@ -147,6 +147,22 @@ void CALifeTimeManager::change_game_time(u32 value)
 	m_game_time += value;
 }
 
+bool CALifeTimeManager::netcoop_catch_up(u64 value)
+{
+	if (!value) return false;
+	try
+	{
+		if (m_world_clock) m_world_clock->advance(value);
+		else m_game_time += value;
+	}
+	catch (const std::exception& e)
+	{
+		Msg("! [Lost Zone][world] calendar catch-up refused: %s", e.what());
+		return false;
+	}
+	return true;
+}
+
 bool CALifeTimeManager::export_world_state(netcoop_world::WorldStateSnapshot& snapshot)
 {
 	if (!m_world_clock) return false;
