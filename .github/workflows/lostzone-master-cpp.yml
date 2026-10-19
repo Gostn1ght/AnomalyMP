@@ -36,9 +36,9 @@ jobs:
         shell: cmd
         run: |
           mkdir master-test
-          cl /nologo /std:c++17 /EHsc /O2 /utf-8 /W3 /permissive- /DWIN32 /D_WINDOWS /D_CRT_SECURE_NO_WARNINGS ^
-             src\xrEngine\netcoop_master\*.cpp /Fomaster-test\ /Fe:master-test\LostZoneMasterTest.exe ^
-             /link user32.lib gdi32.lib shell32.lib comctl32.lib uxtheme.lib dwmapi.lib ws2_32.lib bcrypt.lib
+          cl /nologo /std:c++17 /EHsc /O2 /Zi /utf-8 /W3 /permissive- /DWIN32 /D_WINDOWS /D_CRT_SECURE_NO_WARNINGS ^
+             src\xrEngine\netcoop_master\*.cpp /Fomaster-test\ /Fdmaster-test\ /Fe:master-test\LostZoneMasterTest.exe ^
+             /link /DEBUG user32.lib gdi32.lib shell32.lib comctl32.lib uxtheme.lib dwmapi.lib ws2_32.lib bcrypt.lib
       - name: Ship the SQLite library next to it
         shell: pwsh
         run: |
