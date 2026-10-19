@@ -1,4 +1,4 @@
-// Lost Zone world master in the engine (owner 2026-10-19: "the master must be
+﻿// Lost Zone world master in the engine (owner 2026-10-19: "the master must be
 // part of the game engine, in C++"). A port of backend/lostzone (the Python
 // World Service) that keeps its database, its HTTP contract and its
 // configuration files, so the location servers and an existing world move to

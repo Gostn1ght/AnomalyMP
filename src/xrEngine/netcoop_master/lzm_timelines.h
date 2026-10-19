@@ -1,4 +1,4 @@
-// scheduler.py, timelines.py and director.py: durable world events, the
+﻿// scheduler.py, timelines.py and director.py: durable world events, the
 // weather / emission / psi storm schedules the maps play, and the director
 // that plans them on the game calendar like GAMMA's single-player managers.
 #pragma once

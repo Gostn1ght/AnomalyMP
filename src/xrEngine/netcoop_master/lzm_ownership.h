@@ -1,4 +1,4 @@
-// ownership.py, transfers.py, player_saves.py (+ native_save.py): the entity
+﻿// ownership.py, transfers.py, player_saves.py (+ native_save.py): the entity
 // registry with its item ledger, cross-location handoffs and the players'
 // native checkpoints.
 #pragma once

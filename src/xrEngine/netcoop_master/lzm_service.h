@@ -1,4 +1,4 @@
-// http.py, console.py, gateway.py and __main__.run(): the running master.
+﻿// http.py, console.py, gateway.py and __main__.run(): the running master.
 #pragma once
 #include "lzm_http.h"
 #include "lzm_ownership.h"

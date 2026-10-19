@@ -1,4 +1,4 @@
-// store.py: the single-host durable authority, its journal and idempotent
+﻿// store.py: the single-host durable authority, its journal and idempotent
 // commands. Schema 6, the same tables and migrations as the Python service.
 #pragma once
 #include "lzm_sqlite.h"

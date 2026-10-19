@@ -1,4 +1,4 @@
-// console.py: the operator's commands, typed in the master window.
+﻿// console.py: the operator's commands, typed in the master window.
 #include "lzm_service.h"
 
 #include <map>

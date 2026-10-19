@@ -1,4 +1,4 @@
-#include "lzm_sqlite.h"
+﻿#include "lzm_sqlite.h"
 
 #include <windows.h>
 

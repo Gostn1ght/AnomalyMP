@@ -1188,6 +1188,11 @@ extern BOOL DllMainXrPhysics(HANDLE hModule, DWORD ul_reason_for_call, LPVOID lp
 //extern BOOL DllMainXrRenderR3(HANDLE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved);
 //extern BOOL DllMainXrRenderR4(HANDLE hModule, DWORD  ul_reason_for_call, LPVOID lpReserved);
 
+// Lost Zone world master (owner 2026-10-19: part of the engine, in C++):
+// "-netcoop_master" turns this executable into the master with its window
+// (src/xrEngine/netcoop_master); no engine subsystem is started for it.
+int netcoop_master_entry();
+
 int APIENTRY WinMain(HINSTANCE hInstance,
                      HINSTANCE hPrevInstance,
                      char* lpCmdLine,
@@ -1226,6 +1231,9 @@ int APIENTRY WinMain(HINSTANCE hInstance,
 		}
 	}
   
+	if (strstr(GetCommandLineA(), "-netcoop_master"))
+		return netcoop_master_entry();
+
 	//DllMainOpenAL32(NULL, DLL_PROCESS_ATTACH, NULL);
 	DllMainXrCore(NULL, DLL_PROCESS_ATTACH, NULL);
 	DllMainXrPhysics(NULL, DLL_PROCESS_ATTACH, NULL);

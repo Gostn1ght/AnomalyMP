@@ -1,4 +1,4 @@
-// CI only: the engine master as a console test program (the same sources the
+﻿// CI only: the engine master as a console test program (the same sources the
 // engine links; .github/workflows/lostzone-master-cpp.yml). Not in the engine.
 #include "lzm_config.h"
 

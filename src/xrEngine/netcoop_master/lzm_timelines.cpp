@@ -1,4 +1,4 @@
-#include "lzm_timelines.h"
+﻿#include "lzm_timelines.h"
 
 #include <algorithm>
 #include <cmath>

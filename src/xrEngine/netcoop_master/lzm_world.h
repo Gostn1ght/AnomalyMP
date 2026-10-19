@@ -1,4 +1,4 @@
-// world.py: the world calendar (frozen while the service is down), location
+﻿// world.py: the world calendar (frozen while the service is down), location
 // leases and their fences, world state rows, the clock bootstrap.
 #pragma once
 #include "lzm_store.h"

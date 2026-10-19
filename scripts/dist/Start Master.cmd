@@ -21,8 +21,14 @@ if errorlevel 1 (
 )
 if not exist "appdata\server" mkdir "appdata\server"
 if not exist "appdata\server\netcoop_cluster.ltx" copy "hoster\netcoop_cluster.ltx.six" "appdata\server\netcoop_cluster.ltx" >nul
-rem The master window (owner 2026-10-17): the master starts with it; maps,
-rem players and the master console are its tabs.
+rem The master in the engine (owner 2026-10-19): the server executable with
+rem -netcoop_master opens its own window; the panel stays for the maps.
+if exist "dedicated\sqlite3.dll" (
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "hoster\netcoop_master_control.ps1" -MasterRoot "%~dp0." -StartMaster
+  if errorlevel 1 ( pause & exit /b 1 )
+  exit /b 0
+)
+rem Older folders: the master window of the location panel (owner 2026-10-17).
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "hoster\netcoop_cluster_panel.ps1" -Runtime "%~dp0." -StartMaster -Tab console
 if errorlevel 1 (
   echo Мастер не запустился. Проверьте сообщение выше.

@@ -1,4 +1,4 @@
-// The master's own window (owner 2026-10-19: "a full application with its
+﻿// The master's own window (owner 2026-10-19: "a full application with its
 // own look"): Win32, dark like the location panel. Calendar, weather,
 // emission and psi storm cards, the maps of the plan with their leases, the
 // players (master sessions + the rosters the maps write), the journal and the

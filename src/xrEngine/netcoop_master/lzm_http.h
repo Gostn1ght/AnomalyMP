@@ -1,4 +1,4 @@
-// A small HTTP/1.1 server over WinSock for the master's private API (loopback,
+﻿// A small HTTP/1.1 server over WinSock for the master's private API (loopback,
 // http.py) and the players' public entry (gateway.py). One request per
 // connection, "Connection: close", bounded headers and bodies.
 #pragma once

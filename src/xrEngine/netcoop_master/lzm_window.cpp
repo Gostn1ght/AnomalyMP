@@ -1,4 +1,4 @@
-#include "lzm_window.h"
+﻿#include "lzm_window.h"
 
 #include <windows.h>
 #include <windowsx.h>

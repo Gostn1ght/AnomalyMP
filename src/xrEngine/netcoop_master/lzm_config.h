@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "lzm_common.h"
 
 namespace lzm

@@ -1,4 +1,4 @@
-// SQLite for the master: the same world.sqlite the Python service wrote. The
+﻿// SQLite for the master: the same world.sqlite the Python service wrote. The
 // library is sqlite3.dll beside the executable (loaded at start), rows come
 // back as JSON objects with Python sqlite3's types: INTEGER int, REAL float,
 // TEXT str, NULL None.

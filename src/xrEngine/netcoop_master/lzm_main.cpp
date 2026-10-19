@@ -1,4 +1,4 @@
-// The master's command line inside the engine executable:
+﻿// The master's command line inside the engine executable:
 //   LostZoneServerDX11.exe -netcoop_master                    the master window (defaults of a server folder)
 //   LostZoneServerDX11.exe -netcoop_master window --config <runtime\config.json> --cluster <plan> [--gateway-port N]
 //   LostZoneServerDX11.exe -netcoop_master serve  --config ...      without a window (journal on stdout)

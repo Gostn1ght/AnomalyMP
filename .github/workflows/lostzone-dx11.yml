@@ -336,6 +336,9 @@ jobs:
           Copy-Item -LiteralPath _build/_game/bin_dbg/LostZoneDX11.pdb -Destination lostzone-package/bin/LostZoneClientDX11.pdb
           Copy-Item -LiteralPath _build/_game/bin_dbg/LostZoneDX11.pdb -Destination lostzone-package/dedicated/LostZoneServerDX11.pdb
           Copy-Item -LiteralPath _build/lzpack-format.json -Destination lostzone-package/lzpack-format.json
+          # The world master in the engine (owner 2026-10-19) keeps its world in SQLite.
+          $prefix = python -c "import sys; print(sys.base_prefix)"
+          Copy-Item -LiteralPath (Join-Path $prefix 'DLLs\sqlite3.dll') -Destination lostzone-package/dedicated/sqlite3.dll
           python scripts/check-portable-binaries.py lostzone-package
           if ($LASTEXITCODE -ne 0) { throw 'Portable PE dependency check failed' }
           Set-Content -LiteralPath lostzone-package/built-from.txt -Value $env:GITHUB_SHA

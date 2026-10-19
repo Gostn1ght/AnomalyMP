@@ -1,4 +1,4 @@
-#include "lzm_common.h"
+﻿#include "lzm_common.h"
 
 #include <windows.h>
 #include <bcrypt.h>

@@ -1,4 +1,4 @@
-// __main__.py: the master's private configuration and the key files it hands
+﻿// __main__.py: the master's private configuration and the key files it hands
 // to the maps (bridge for every map, one writer per map).
 #include "lzm_config.h"
 #include "lzm_service.h"
