@@ -147,9 +147,6 @@ void CRenderDevice::End(void)
 
 	g_bRendering = FALSE;
 	// end scene
-	// Present goes here, so call OA Frame end.
-	if (g_SASH.IsBenchmarkRunning())
-		g_SASH.DisplayFrame(Device.fTimeGlobal);
 	m_pRender->End();
 
 #endif
@@ -448,12 +445,6 @@ void CRenderDevice::on_idle()
 			startup_mark(phase);
 		}
 		return;
-	}
-
-	if (!Device.dwPrecacheFrame && !g_SASH.IsBenchmarkRunning() && g_bLoaded)
-	{
-		PROF_EVENT("Start xrSASH Benchmark");
-		g_SASH.StartBenchmark();
 	}
 
 	FrameMove();

@@ -156,8 +156,6 @@ struct _SoundProcessor : public pureFrame
 // global variables
 ENGINE_API CApplication* pApp = NULL;
 
-int doLauncher();
-void doBenchmark(LPCSTR name);
 ENGINE_API bool g_bBenchmark = false;
 string512 g_sBenchmarkName;
 
@@ -596,12 +594,12 @@ void Startup()
 	//. destroySound();
 	destroyInput();
 
-	if (!g_bBenchmark && !g_SASH.IsRunning())
+	if (!g_bBenchmark)
 		destroySettings();
 
 	LALib.OnDestroy();
 
-	if (!g_bBenchmark && !g_SASH.IsRunning())
+	if (!g_bBenchmark)
 		destroyConsole();
 	else
 		Console->Destroy();
@@ -1030,38 +1028,10 @@ int APIENTRY WinMain_impl(HINSTANCE hInstance,
 		Engine.External.CreateRendererList();
 		startup_mark("renderer list");
 
-		LPCSTR benchName = "-batch_benchmark ";
-		if (strstr(lpCmdLine, benchName))
-		{
-			int sz = xr_strlen(benchName);
-			string64 b_name;
-			sscanf(strstr(Core.Params, benchName) + sz, "%[^ ] ", b_name);
-			doBenchmark(b_name);
-			return 0;
-		}
-
 		extern bool ignore_verify;
 		ignore_verify = !strstr(Core.Params, "-dbgdev");
 
 		Msg("command line %s", Core.Params);
-		LPCSTR sashName = "-openautomate ";
-		if (strstr(lpCmdLine, sashName))
-		{
-			int sz = xr_strlen(sashName);
-			string512 sash_arg;
-			sscanf(strstr(Core.Params, sashName) + sz, "%[^ ] ", sash_arg);
-			//doBenchmark (sash_arg);
-			g_SASH.Init(sash_arg);
-			g_SASH.MainLoop();
-			return 0;
-		}
-
-		if (strstr(lpCmdLine, "-launcher"))
-		{
-			int l_res = doLauncher();
-			if (l_res != 0)
-				return 0;
-		};
 
 #ifndef DEDICATED_SERVER
 		if (strstr(Core.Params, "-r2a"))
@@ -1285,8 +1255,6 @@ void CApplication::OnEvent(EVENT E, u64 P1, u64 P2)
 {
 	if (E == eQuit)
 	{
-		g_SASH.EndBenchmark();
-
 		PostQuitMessage(0);
 
 		for (u32 i = 0; i < Levels.size(); i++)
@@ -1739,78 +1707,6 @@ void FreeLauncher()
 	};
 }
 
-int doLauncher()
-{
-	/*
-	execUserScript();
-	InitLauncher();
-	int res = pLauncher(0);
-	FreeLauncher();
-	if(res == 1) // do benchmark
-	g_bBenchmark = true;
-
-	if(g_bBenchmark){ //perform benchmark cycle
-	doBenchmark();
-
-	// InitLauncher ();
-	// pLauncher (2); //show results
-	// FreeLauncher ();
-
-	Core._destroy ();
-	return (1);
-
-	};
-	if(res==8){//Quit
-	Core._destroy ();
-	return (1);
-	}
-	*/
-	return 0;
-}
-
-void doBenchmark(LPCSTR name)
-{
-	g_bBenchmark = true;
-	string_path in_file;
-	FS.update_path(in_file, "$app_data_root$", name);
-	CInifile ini(in_file);
-	int test_count = ini.line_count("benchmark");
-	LPCSTR test_name, t;
-	shared_str test_command;
-	for (int i = 0; i < test_count; ++i)
-	{
-		ini.r_line("benchmark", i, &test_name, &t);
-		xr_strcpy(g_sBenchmarkName, test_name);
-
-		test_command = ini.r_string_wb("benchmark", test_name);
-		u32 cmdSize = test_command.size() + 1;
-		Core.Params = (char*)xr_realloc(Core.Params, cmdSize);
-		xr_strcpy(Core.Params, cmdSize, test_command.c_str());
-		xr_strlwr(Core.Params);
-
-		InitInput();
-		if (i)
-		{
-			//ZeroMemory(&HW,sizeof(CHW));
-			// TODO: KILL HW here!
-			// pApp->m_pRender->KillHW();
-			InitEngine();
-		}
-
-
-		Engine.External.Initialize();
-
-		xr_strcpy(Console->ConfigFile, "user.ltx");
-		if (strstr(Core.Params, "-ltx "))
-		{
-			string64 c_name;
-			sscanf(strstr(Core.Params, "-ltx ") + 5, "%[^ ] ", c_name);
-			xr_strcpy(Console->ConfigFile, c_name);
-		}
-
-		Startup();
-	}
-}
 #pragma optimize("g", off)
 void CApplication::load_draw_internal()
 {
