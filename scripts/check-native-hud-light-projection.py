@@ -1,4 +1,4 @@
-"""CI-only actual DX9/10/11 light projection; cube faces remain world axes."""
+"""CI-only actual DX11 (R4) light projection; cube faces remain world axes (R2/R3 removed, doc 151)."""
 import os
 from pathlib import Path
 import subprocess
@@ -6,11 +6,10 @@ from tempfile import TemporaryDirectory
 
 ROOT=Path(__file__).resolve().parents[1]
 helpers=[]
-for renderer in ('xrRenderPC_R2','xrRenderPC_R3','xrRenderPC_R4'):
+for renderer in ('xrRenderPC_R4',):
     text=(ROOT/f'src/Layers/{renderer}/r2_R_lights.cpp').read_text(encoding='utf-8-sig')
     helpers.append(text[text.index('IC void hud_light_apply('):text.index('void CRender::render_lights(')])
     assert text.count('hud_light_restore(saved_pos);')==1
-assert helpers[0]==helpers[1]==helpers[2]
 source=r'''
 #include <cassert>
 #include <cmath>

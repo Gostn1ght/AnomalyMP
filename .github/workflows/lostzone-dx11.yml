@@ -354,3 +354,27 @@ jobs:
             lostzone-build.log
             lostzone-build.binlog
           if-no-files-found: ignore
+      # The second renderer the owner keeps (2026-10-20, doc 151): "DX8" = R1,
+      # static lighting. Built after the DX11 package so a failure here never
+      # holds the DX11 release; shared libraries are reused from the DX11 build.
+      - name: Build DX8 (R1) client
+        id: dx8
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          msbuild src/engine-vs2022.sln /m:2 /p:Configuration=DX8 /p:Platform=x64 /p:MultiProcessorCompilation=false /fl /flp:logfile=lostzone-dx8.log /v:minimal
+          if ($LASTEXITCODE -ne 0) { throw "DX8 MSBuild failed: $LASTEXITCODE" }
+          New-Item -ItemType Directory -Force dx8-package/bin | Out-Null
+          Copy-Item _build/_game/bin_dbg/LostZoneDX8.exe dx8-package/bin/LostZoneClientDX8.exe
+          Get-FileHash dx8-package/bin/LostZoneClientDX8.exe | Format-List | Out-File dx8-package/sha256.txt
+      - uses: actions/upload-artifact@v4
+        if: steps.dx8.outcome == 'success'
+        with:
+          name: LostZone-DX8-client
+          path: dx8-package
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: LostZone-DX8-build-log
+          path: lostzone-dx8.log
+          if-no-files-found: ignore

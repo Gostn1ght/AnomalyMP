@@ -424,7 +424,7 @@ assert "bool CRender::NetcoopPhotoRequest" in shot and shot.count("void NetcoopP
 assert "DXGI_FORMAT_BC1_UNORM" in shot and "0xff000000u" in shot and re.search(r"\bsmall\b", shot.split("NetcoopPhotoFlush")[1]) is None
 i_flush = dev.index("NetcoopPhotoFlush(); //")
 assert 0 < dev.index("HW.m_pSwapChain->Present", i_flush) - i_flush < 200  # right before the window's Present
-for h in ("Layers/xrRenderPC_R4/r4.h", "Layers/xrRenderPC_R3/r3.h"):
+for h in ("Layers/xrRenderPC_R4/r4.h",):
     assert "NetcoopPhotoRequest" in (src_dir / h).read_text(encoding="utf-8", errors="replace")
 assert "virtual bool NetcoopPhotoRequest" in (src_dir / "xrEngine/Render.h").read_text(encoding="utf-8", errors="replace")
 script = (src_dir / "xrGame/level_script.cpp").read_text(encoding="utf-8", errors="replace")
