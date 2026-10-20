@@ -5,7 +5,7 @@ import subprocess
 from tempfile import TemporaryDirectory
 
 root = Path(__file__).resolve().parents[1]
-vehicles = (root / 'src/xrGame/netcoop_vehicles.inc').read_text(encoding='utf-8-sig')
+vehicles = ''.join((root / f'src/xrGame/{n}').read_text(encoding='utf-8-sig') for n in ('netcoop_vehicles.inc', 'netcoop_vehicle_server.inc', 'netcoop_vehicle_client.inc', 'netcoop_vehicle_seat.inc'))
 menu = (root / 'src/xrGame/ui/UIActorMenu.cpp').read_text(encoding='utf-8-sig')
 reach = vehicles[vehicles.index('bool box_anchor_within_reach('):vehicles.index('static const u16 vehicle_seat_free')]
 packet = vehicles[vehicles.index('static void client_trunk_open('):vehicles.index('void client_on_vehicle(')]

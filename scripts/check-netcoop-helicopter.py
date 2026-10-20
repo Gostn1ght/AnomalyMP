@@ -43,7 +43,7 @@ def ini(text):
     return sections
 
 
-car = (ROOT / "src/xrGame/Car.cpp").read_text(encoding="utf-8", errors="replace")
+car = (ROOT / "src/xrGame/Car.cpp").read_text(encoding="utf-8", errors="replace") + (ROOT / "src/xrGame/CarHelicopter.cpp").read_text(encoding="utf-8", errors="replace")
 parse = car[car.index("void CCar::ParseDefinitions()"):car.index("void CCar::CreateSkeleton(")]
 parse = re.sub(r"#else.*?#endif", "", parse, flags=re.S)  # CAR_NEW is defined: optional wheels
 init = car[car.index("void CCar::Init()"):car.index("void CCar::Revert()")]
@@ -51,7 +51,7 @@ required = set(re.findall(r'ini->r_\w+\("car_definition", "(\w+)"\)', parse + in
 required -= set(re.findall(r'line_exist\("car_definition", "(\w+)"\)', parse + init))
 load = car[car.index("void CCar::netcoop_heli_load()"):car.index("void CCar::netcoop_heli_rotors()")]
 read = set(re.findall(r'"(heli_\w+)"', load))
-inc = (ROOT / "src/xrGame/netcoop_vehicles.inc").read_text(encoding="utf-8-sig")
+inc = ''.join((ROOT / f'src/xrGame/{n}').read_text(encoding='utf-8-sig') for n in ('netcoop_vehicles.inc', 'netcoop_vehicle_server.inc', 'netcoop_vehicle_client.inc', 'netcoop_vehicle_seat.inc'))
 items = ini((OVERLAY / "client/configs/mod_system_zzzzzzzz_netcoop_helicopters.ltx").read_text(encoding="ascii"))
 name = "configs/mod_system_zzzzzzzz_netcoop_helicopters.ltx"
 assert (OVERLAY / "client" / name).read_bytes() == (OVERLAY / "server" / name).read_bytes(), name

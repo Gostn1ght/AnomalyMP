@@ -17,7 +17,7 @@ def body(text, signature):
     return text[start:end]
 
 
-car = (ROOT / 'src/xrGame/Car.cpp').read_text(encoding='utf-8')
+car = (ROOT / 'src/xrGame/Car.cpp').read_text(encoding='utf-8') + (ROOT / 'src/xrGame/CarHelicopter.cpp').read_text(encoding='utf-8')
 header = (ROOT / 'src/xrGame/Car.h').read_text(encoding='utf-8')
 flight = body(car, 'void CCar::netcoop_heli_step(')
 safe_cycle = body(car, 'static CBlend* car_play_cycle_safe(')

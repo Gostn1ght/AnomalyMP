@@ -9692,6 +9692,9 @@
     <ClCompile Include="Car.cpp">
       <Filter>Core\Client\Objects\vehicles\Car</Filter>
     </ClCompile>
+    <ClCompile Include="CarHelicopter.cpp">
+      <Filter>Core\Client\Objects\vehicles\Car</Filter>
+    </ClCompile>
     <ClCompile Include="CarCameras.cpp">
       <Filter>Core\Client\Objects\vehicles\Car</Filter>
     </ClCompile>

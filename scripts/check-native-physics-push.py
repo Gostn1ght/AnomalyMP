@@ -10,7 +10,8 @@ root=Path(__file__).resolve().parents[1]
 text=(root/'src/xrGame/netcoop.cpp').read_text(encoding='utf-8')
 loop=text[text.index('struct PhysicsSent {'):text.index('} // namespace netcoop',text.index('struct PhysicsSent {'))]
 # Vehicles (doc 100) live in their own include; this loop only selects and replicates cars.
-loop=loop.replace('#include "netcoop_vehicles.inc"','')
+for part in ('netcoop_vehicles.inc','netcoop_vehicle_server.inc','netcoop_vehicle_client.inc','netcoop_vehicle_seat.inc'):
+    loop=loop.replace(f'#include "{part}"','')
 source=r'''
 #include <cassert>
 #include <cmath>

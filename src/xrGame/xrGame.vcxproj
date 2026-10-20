@@ -2660,6 +2660,7 @@
     <ClCompile Include="CameraFirstEye.cpp" />
     <ClCompile Include="cameralook.cpp" />
     <ClCompile Include="Car.cpp" />
+    <ClCompile Include="CarHelicopter.cpp" />
     <ClCompile Include="CarCameras.cpp" />
     <ClCompile Include="CarDamageParticles.cpp" />
     <ClCompile Include="CarDoors.cpp" />

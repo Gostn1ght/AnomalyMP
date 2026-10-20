@@ -4612,6 +4612,9 @@ void server_physics_update(xrServer* server)
 	}
 }
 #include "netcoop_vehicles.inc"
+#include "netcoop_vehicle_server.inc"
+#include "netcoop_vehicle_client.inc"
+#include "netcoop_vehicle_seat.inc"
 } // namespace netcoop
 
 namespace netcoop
