@@ -2,6 +2,7 @@
 #include "gamepersistent.h"
 #include "../xrEngine/fmesh.h"
 #include "../xrEngine/xr_ioconsole.h"
+#include "../xrEngine/x_ray.h"
 #include "../xrEngine/gamemtllib.h"
 #include "../Include/xrRender/Kinematics.h"
 #include "profiler.h"
@@ -155,10 +156,14 @@ void CGamePersistent::OnAppStart()
 {
 	// load game materials
 	GMLib.Load();
+	startup_mark("game materials");
 	init_game_globals();
 	__super::OnAppStart();
+	startup_mark("weather");
 	m_pUI_core = xr_new<ui_core>();
+	startup_mark("ui core");
 	m_pMainMenu = xr_new<CMainMenu>();
+	startup_mark("main menu object");
 	m_pWallmarksManager = xr_new<ScriptWallmarksManager>();
 }
 

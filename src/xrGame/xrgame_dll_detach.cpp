@@ -3,6 +3,7 @@
 #include "object_factory.h"
 #include "ai/monsters/ai_monster_squad_manager.h"
 #include "string_table.h"
+#include "../xrEngine/x_ray.h"
 
 #include "entity_alive.h"
 #include "ui/UIInventoryUtilities.h"
@@ -50,6 +51,7 @@ void init_game_globals()
 	InitHudSoundSettings();
 	// Server-owned NPC conversations also resolve phrase XML on dedicated hosts.
 	CPhraseDialog::InitInternal();
+	startup_mark("dialogs");
 	if (!g_dedicated_server)
 	{
 		//		CInfoPortion::InitInternal					();
@@ -57,11 +59,14 @@ void init_game_globals()
 		InventoryUtilities::CreateShaders();
 	};
 	CCharacterInfo::InitInternal();
+	startup_mark("character infos");
 	CSpecificCharacter::InitInternal();
+	startup_mark("specific characters");
 	CHARACTER_COMMUNITY::InitInternal();
 	CHARACTER_RANK::InitInternal();
 	CHARACTER_REPUTATION::InitInternal();
 	MONSTER_COMMUNITY::InitInternal();
+	startup_mark("communities and ranks");
 }
 
 extern CUIXml* g_uiSpotXml;
