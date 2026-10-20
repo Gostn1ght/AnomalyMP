@@ -470,6 +470,21 @@ void clearDiscordPresence()
 		discord_core->ActivityManager().ClearActivity([](discord::Result result) {});
 }
 
+// Lost Zone (owner 2026-10-20: minutes of black screen before the menu): the
+// time since the process started at every phase of the start, flushed at
+// once so a stuck phase is visible in the log while it runs (doc 151).
+ENGINE_API void startup_mark(LPCSTR phase)
+{
+	FILETIME created, exited, kernel, user, now;
+	if (!GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernel, &user)) return;
+	GetSystemTimeAsFileTime(&now);
+	ULARGE_INTEGER from, to;
+	from.LowPart = created.dwLowDateTime; from.HighPart = created.dwHighDateTime;
+	to.LowPart = now.dwLowDateTime; to.HighPart = now.dwHighDateTime;
+	Msg("[startup] %7.1f s: %s", double(to.QuadPart - from.QuadPart) / 1e7, phase);
+	FlushLogAppend();
+}
+
 void Startup()
 {
 #ifndef DEDICATED_SERVER
@@ -477,8 +492,11 @@ void Startup()
 #endif
 
 	InitSound1();
+	startup_mark("sound devices");
 	execUserScript();
+	startup_mark("user.ltx");
 	InitSound2();
+	startup_mark("sound");
 
 #ifndef DEDICATED_SERVER
 	{
@@ -530,10 +548,13 @@ void Startup()
 
 	// Initialize APP
 	Device.Create();
+	startup_mark("render device");
 
 	LALib.OnCreate();
 	pApp = xr_new<CApplication>();
+	startup_mark("application");
 	g_pGamePersistent = (IGame_Persistent*)NEW_INSTANCE(CLSID_GAME_PERSISTANT);
+	startup_mark("game persistent");
 	g_SpatialSpace = xr_new<ISpatial_DB>();
 	g_SpatialSpacePhysic = xr_new<ISpatial_DB>();
 
@@ -553,6 +574,7 @@ void Startup()
 
 	// Main cycle
 	Msg("* [x-ray]: Starting Main Loop");
+	startup_mark("main loop");
 	Memory.mem_usage();
 
 	Device.Run();
@@ -1033,33 +1055,14 @@ int APIENTRY WinMain_impl(HINSTANCE hInstance,
         xr_strcat(Core.Params, size, " -netcoop");
     }
 
+	startup_mark("file system");
 	InitSettings();
 	Msg(XRAY_MONOLITH_VERSION);
+	startup_mark("settings");
 
-	{
-		FS_FileSet fset;
-		FS.file_list(fset, "$game_data$", FS_ListFiles, "*");
-
-		// list all files in gamedata folder
-		u32 count = 0;
-		for (FS_FileSet::iterator it = fset.begin(); it != fset.end(); it++)
-		{
-			// skip virtual files from .db? archives, only interested in loose files
-			if ((*it).attrib != 0) continue;
-			Msg("gamedata: '%s'", (*it).name.c_str());
-
-			const u32 cutoff = 100;
-			if (++count >= cutoff)
-			{
-				u32 total = fset.size();
-				if (total > cutoff)
-				{
-					Msg("gamedata: ... %d more ...", total - cutoff);
-				}
-				break;
-			}
-		}
-	}
+	// Lost Zone (doc 151): the list of loose gamedata files built a sorted set
+	// of every file of every archive (108 k) on each start just to print 100
+	// names; the resources are packed, nothing loose is expected.
 
 	// Adjust player & computer name for Asian
 	if (pSettings->line_exist("string_table", "no_native_input"))
@@ -1076,12 +1079,15 @@ int APIENTRY WinMain_impl(HINSTANCE hInstance,
 
 		FPU::m24r();
 		InitEngine();
+		startup_mark("engine");
 
 		InitInput();
 
 		InitConsole();
+		startup_mark("input and console");
 
 		Engine.External.CreateRendererList();
+		startup_mark("renderer list");
 
 		LPCSTR benchName = "-batch_benchmark ";
 		if (strstr(lpCmdLine, benchName))
@@ -1132,6 +1138,7 @@ int APIENTRY WinMain_impl(HINSTANCE hInstance,
 #endif
 		//. InitInput ( );
 		Engine.External.Initialize();
+		startup_mark("renderer and game modules");
 		Console->Execute("stat_memory");
 
 		Startup();

@@ -2083,6 +2083,10 @@ HRESULT CRender::shader_compile(
 
 	if (FAILED(_result))
 	{
+		// Lost Zone (doc 151): how much of the start is shader compilation.
+		static u32 compiled = 0;
+		static u64 compile_ticks = 0;
+		const u64 compile_start = CPU::QPC();
 		includer Includer;
 		LPD3DBLOB pShaderBuf = NULL;
 		LPD3DBLOB pErrorBuf = NULL;
@@ -2097,6 +2101,9 @@ HRESULT CRender::shader_compile(
 				&pShaderBuf,
 				&pErrorBuf
 			);
+		compile_ticks += CPU::QPC() - compile_start;
+		if (++compiled % 25 == 0)
+			Msg("[startup] shaders compiled: %u in %.1f s", compiled, double(compile_ticks) / double(CPU::qpc_freq));
 
 		if (SUCCEEDED(_result))
 		{

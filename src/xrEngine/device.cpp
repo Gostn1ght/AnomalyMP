@@ -654,6 +654,22 @@ void CRenderDevice::on_idle()
 #endif
 	if (!b_is_Active)
 		Sleep(1);
+
+	// Lost Zone (doc 151): every frame over a second in the first ten minutes
+	// is a start phase to find (the menu stood black for ~40 s without a log).
+	if (!g_dedicated_server)
+	{
+		static u64 previous = 0;
+		static const u64 started = CPU::QPC();
+		const u64 now = CPU::QPC();
+		if (previous && (now - started) < 600 * CPU::qpc_freq && (now - previous) > CPU::qpc_freq)
+		{
+			string128 phase;
+			xr_sprintf(phase, "frame %u took %.1f s", dwFrame, double(now - previous) / double(CPU::qpc_freq));
+			startup_mark(phase);
+		}
+		previous = now;
+	}
 }
 
 #ifdef INGAME_EDITOR
@@ -1141,6 +1157,7 @@ static void load_config()
     for(int i=0;i<cameras;++i) { eyes[i]=values[i*2]; targets[i]=values[i*2+1]; }
     lamp=values[cameras*2]; if(version>=2) seat=values[13]; seat_yaw=heading; camera=eyes[0]; target=targets[0];
     Msg("[Lost Zone] room editor cameras and lamp loaded");
+    startup_mark("3D menu");
 }
 static void update()
 {

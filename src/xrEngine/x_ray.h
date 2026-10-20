@@ -74,6 +74,8 @@ public:
 };
 
 extern ENGINE_API CApplication* pApp;
+// Lost Zone (doc 151): "[startup] N s: phase" in the log, time since the process started.
+extern ENGINE_API void startup_mark(LPCSTR phase);
 
 //Discord
 struct rpc_info
