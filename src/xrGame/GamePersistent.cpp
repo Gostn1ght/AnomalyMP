@@ -531,7 +531,7 @@ bool allow_intro()
 
 bool allow_logo() // AVO: skip NVIDIA and other logos at load time
 {
-	if (0 != strstr(Core.Params, "-skiplogo"))
+	if (strstr(Core.Params, "-skiplogo") || strstr(Core.Params, "-netcoop")) // online: no logo video (doc 151)
 	{
 		return false;
 	}
