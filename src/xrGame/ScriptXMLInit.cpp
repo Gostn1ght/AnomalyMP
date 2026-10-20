@@ -104,8 +104,7 @@ void hash_file(XmlHash& h, LPCSTR alias, LPCSTR name)
 	const char* end = data + file->length();
 	while (data < end)
 	{
-		const char* eol = (const char*)memchr(data, '
-', size_t(end - data));
+		const char* eol = (const char*)memchr(data, '\n', size_t(end - data));
 		const char* next = eol ? eol + 1 : end;
 		const xr_string line(data, next);
 		if (line.find("session_id") == xr_string::npos && line.find("session_start") == xr_string::npos)
