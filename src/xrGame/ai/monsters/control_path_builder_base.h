@@ -4,7 +4,6 @@
 #include "control_combase.h"
 #include "../../movement_manager_space.h"
 
-class CMotionStats;
 class CCoverEvaluatorCloseToEnemy;
 
 class CControlPathBuilderBase : public CControl_ComBase

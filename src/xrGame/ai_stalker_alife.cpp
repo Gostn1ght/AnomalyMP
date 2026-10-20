@@ -24,7 +24,28 @@
 #include "trade_parameters.h"
 #include "clsid_game.h"
 
-extern u32 get_rank(const shared_str& section);
+// Rank of a weapon from the [rank_N] available_items lists. Stalkers prefer
+// higher-rank weapons (doc 151: moved here from the removed MP buy menu).
+static u32 get_rank(const shared_str& section)
+{
+	static const int rank_count = 5;
+	static shared_str ranks[rank_count];
+	if (ranks[0].size() == 0)
+	{
+		string32 buff;
+		for (int i = 0; i < rank_count; i++)
+		{
+			xr_sprintf(buff, "rank_%d", i);
+			ranks[i] = pSettings->r_string(buff, "available_items");
+		}
+	}
+	for (int i = 0; i < rank_count; i++)
+	{
+		if (strstr(ranks[i].c_str(), section.c_str()))
+			return u32(i);
+	}
+	return 0;
+}
 
 static const int MAX_AMMO_ATTACH_COUNT = 1;
 static const int enough_ammo_box_count = 1;

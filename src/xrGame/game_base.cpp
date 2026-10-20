@@ -13,6 +13,8 @@ u64 g_qwEStartGameTime = 12 * 60 * 60 * 1000;
 extern ENGINE_API bool g_dedicated_server;
 EGameIDs ParseStringToGameType(LPCSTR str);
 
+int g_dwEventDelay = 0; // NET_Queue debug delay, was in console_commands_mp.cpp
+
 game_PlayerState::game_PlayerState(NET_Packet* account_info)
 {
 	skin = 0;

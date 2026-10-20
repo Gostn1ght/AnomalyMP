@@ -1,12 +1,9 @@
 #include "stdafx.h"
 #include "Level.h"
-#include "UIGameDM.h"
 #include "xrServer.h"
-#include "game_sv_mp.h"
 #include "spectator.h"
 #include "actor.h"
 #include "game_cl_base.h"
-#include "game_cl_mp.h"
 #include "../xrCore/stream_reader.h"
 #include "Message_Filter.h"
 #include "DemoPlay_Control.h"
@@ -152,8 +149,7 @@ void CLevel::SaveDemoHeader(shared_str const& server_options)
 
 void CLevel::SaveDemoInfo()
 {
-	game_cl_mp* tmp_game = smart_cast<game_cl_mp*>(&Game());
-	if (!tmp_game)
+	if (!Level().game)
 		return;
 
 	R_ASSERT(m_writer);
@@ -239,8 +235,8 @@ void CLevel::SpawnDemoSpectator()
 {
 	R_ASSERT(Server && Server->game);
 	m_current_spectator = NULL;
-	game_sv_mp* tmp_sv_game = smart_cast<game_sv_mp*>(Server->game);
-	game_cl_mp* mp_cl_game = smart_cast<game_cl_mp*>(Level().game);
+	game_sv_GameState* tmp_sv_game = Server->game;
+	game_cl_GameState* mp_cl_game = Level().game;
 
 	CSE_Spectator* specentity = smart_cast<CSE_Spectator*>(
 		tmp_sv_game->spawn_begin("spectator"));

@@ -301,7 +301,6 @@ xr_token dead_body_collision_tokens[] =
 	{ 0, 0 }
 };
 
-void register_mp_console_commands();
 //-----------------------------------------------------------
 
 BOOL g_bCheckTime = FALSE;
@@ -3539,7 +3538,6 @@ void CCC_RegisterCommands()
 	if (strstr(Core.Params, "-dbgdev"))
 		CMD4(CCC_Float, "g_streff", &streff, -10.f, 10.f);
 	//No need for server commands in a singleplayer-only mod
-	//register_mp_console_commands();
     
     zoomFlags.set(NEW_ZOOM, FALSE);
     zoomFlags.set(SDS_ZOOM, TRUE);

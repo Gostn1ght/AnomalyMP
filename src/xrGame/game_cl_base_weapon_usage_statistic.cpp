@@ -9,7 +9,6 @@
 #include "xrServer.h"
 #include "game_cl_base_weapon_usage_statistic.h"
 #include "../Include/xrRender/Kinematics.h"
-#include "game_cl_mp.h"
 
 
 class statistic_sync_quard : private xray::noncopyable
@@ -913,8 +912,7 @@ void WeaponUsageStatistic::OnBleedKill(game_PlayerState* killer_ps, game_PlayerS
 
 u8 WeaponUsageStatistic::ConvertToTeamIndex(s16 team)
 {
-	game_cl_mp* cl_game = static_cast<game_cl_mp*>(&Game());
-	s16 team_index = cl_game->ModifyTeam(team);
+	s16 team_index = team;
 	if (Game().Type() == eGameIDTeamDeathmatch)
 	{
 		if (team_index == -1)
