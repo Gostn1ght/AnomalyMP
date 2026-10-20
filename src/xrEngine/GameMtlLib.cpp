@@ -140,11 +140,10 @@ void CGameMtlLibrary::Load()
 				M->m_Name = sec.Name;
 				materials.push_back(M);
 
-				Msg("[materials.ltx] Adding new material %s, id %d", M->m_Name.c_str(), M->ID);
+				// Lost Zone (doc 151): one line per material was ~1400 log lines per start.
 			} else {
 				M = *material;
 
-				Msg("[materials.ltx] Changing existing material %s, id %d", M->m_Name.c_str(), M->ID);
 			}
 
 			if (materialsLtx->line_exist(M->m_Name, "desc"))					M->m_Desc = materialsLtx->r_string(M->m_Name, "desc");
@@ -281,11 +280,10 @@ void CGameMtlLibrary::Load()
 				M->SetPair(m1, m2);
 				material_pairs.push_back(M);
 
-				Msg("[material_pairs.ltx] Adding new material pair %s | %s, id %d", GetMaterialByID(M->GetMtl0())->m_Name.c_str(), GetMaterialByID(M->GetMtl1())->m_Name.c_str(), M->ID);
+				// Lost Zone (doc 151): one line per material was ~1400 log lines per start.
 			} else {
 				M = *material;
 
-				Msg("[material_pairs.ltx] Changing existing material pair %s | %s, id %d", GetMaterialByID(M->GetMtl0())->m_Name.c_str(), GetMaterialByID(M->GetMtl1())->m_Name.c_str(), M->ID);
 			}
 
 			if (materialsLtx->line_exist(sec.Name, "breaking_sounds")) {

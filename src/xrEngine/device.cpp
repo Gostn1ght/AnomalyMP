@@ -447,9 +447,20 @@ void CRenderDevice::on_idle()
 	if (g_loading_events.size())
 	{
 		PROF_EVENT("Pop loading event");
+		// Lost Zone (doc 151): each loading step over 0.3 s is a start phase.
+		static u32 loading_step = 0;
+		const u64 step_begin = CPU::QPC();
 		if (g_loading_events.front()())
 			g_loading_events.pop_front();
 		pApp->LoadDraw();
+		const double step_s = double(CPU::QPC() - step_begin) / double(CPU::qpc_freq);
+		++loading_step;
+		if (step_s > 0.3)
+		{
+			string128 phase;
+			xr_sprintf(phase, "loading step %u took %.1f s (%s)", loading_step, step_s, pApp ? pApp->load_stage_title() : "");
+			startup_mark(phase);
+		}
 		return;
 	}
 

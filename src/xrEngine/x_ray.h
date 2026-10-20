@@ -59,6 +59,7 @@ public:
 	void LoadEnd();
 	void LoadTitleInt(LPCSTR str1, LPCSTR str2, LPCSTR str3);
 	void LoadStage();
+	LPCSTR load_stage_title() const { return ls_header; } // doc 151 start marks
 	void LoadSwitch();
 	void LoadDraw();
 
