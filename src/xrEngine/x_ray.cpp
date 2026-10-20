@@ -343,37 +343,6 @@ void execUserScript()
 	Console->Execute("dump_cvar");
 }
 
-void slowdownthread(void*)
-{
-	PROF_EVENT();
-
-	// Sleep (30*1000);
-	for (;;)
-	{
-		if (Device.Statistic->fFPS < 30) Sleep(1);
-		if (Device.mt_bMustExit) return;
-		if (0 == pSettings) return;
-		if (0 == Console) return;
-		if (0 == pInput) return;
-		if (0 == pApp) return;
-	}
-}
-
-void CheckPrivilegySlowdown()
-{
-#ifdef DEBUG
-    if (strstr(Core.Params, "-slowdown"))
-    {
-        thread_spawn(slowdownthread, "slowdown", 0, 0);
-    }
-    if (strstr(Core.Params, "-slowdown2x"))
-    {
-        thread_spawn(slowdownthread, "slowdown", 0, 0);
-        thread_spawn(slowdownthread, "slowdown", 0, 0);
-    }
-#endif // DEBUG
-}
-
 LPCSTR xr_ToUTF8(LPCSTR input, int max_length)
 {
 	UErrorCode errorCode = U_ZERO_ERROR;
