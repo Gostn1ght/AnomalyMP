@@ -17,6 +17,10 @@ start=environment.index('float CEnvironment::TimeDiff(')
 diff=environment[start:environment.index('float CEnvironment::TimeWeight(',start)]
 start=environment.index('void CEnvironment::SetGameTime(')
 set_env=environment[start:environment.index('float CEnvironment::NormalizeTime(',start)]
+# The paused-level branch needs the engine level (no editor branch hides it any more, doc 151).
+import re as _re
+set_env=_re.sub(r'if \(m_paused\)\s*\{.*?return;\s*\}', '', set_env, count=1, flags=_re.S)
+assert 'm_paused' not in set_env
 source=r'''
 #define _EDITOR
 #include <cassert>
