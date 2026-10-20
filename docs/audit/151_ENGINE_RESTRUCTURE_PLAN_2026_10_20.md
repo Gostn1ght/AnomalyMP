@@ -100,6 +100,24 @@ Branch `engine-restructure` (dispatch builds):
   `get_rank` (stalker weapon choice) moved into `ai_stalker_alife.cpp`.
   Bug fixed on the way: `M_SV_DIGEST` from any client crashed the server
   (null `game_sv_mp`).
+- Second MP cut, nothing left as a placeholder: MP demo record/playback
+  (all `IsDemoPlay`/`IsDemoSave` branches), the MP actor pair, the MP items
+  (`art_cta`, `mp_players_bag`, `team_base_zone`: only MP configs name
+  them, single levels never spawn them, no GAMMA script uses the clsids)
+  and the anticheat parameter dumps. 77 files, -3.7 k lines.
+- No logo video online: the menu waited ~3 000 frames for `intro_logo`;
+  now it opens on frame 2.
+- The cluster folder is resolved and created once (the server frame profile
+  showed `CreateDirectoryA` every frame).
+
+Server frame profile (dedicated, 24 stalkers + 14 mutants online, 1 player):
+the main thread sleeps in the frame limiter ~70 % of the time; stalker
+`UpdateCL` ~11 %, Lua ~7 %. AI multithreading is not the bottleneck at this
+load, so stalker vision stays synchronous (its result is read by memory in
+the same update: an asynchronous vision would make NPCs react later).
+
+Known, not from these cuts: `! update of actor [0] left 8 trailing byte(s)
+unread` on the dedicated server (the ALife anchor actor), also in older builds.
 
 Measured (main loop -> menu 23 s):
 
