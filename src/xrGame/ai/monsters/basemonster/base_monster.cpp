@@ -616,7 +616,9 @@ void CBaseMonster::set_state_sound(u32 type, bool once)
 			case MonsterSound::eMonsterSoundIdle:
 				// check distance to actor
 
-				if (Actor()->Position().distance_to(Position()) > db().m_fDistantIdleSndRange)
+				// Lost Zone: a dedicated server may have no Actor (2026-10-19 Marsh crash
+				// in a dog's rest state): no listener means the distant idle sound.
+				if (!Actor() || Actor()->Position().distance_to(Position()) > db().m_fDistantIdleSndRange)
 				{
 					delay = u32(float(db().m_dwDistantIdleSndDelay) * _sqrt(float(objects_count)));
 					type = MonsterSound::eMonsterSoundIdleDistant;
