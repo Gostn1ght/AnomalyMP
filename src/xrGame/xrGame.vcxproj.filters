@@ -571,9 +571,6 @@
     <Filter Include="AI\AMonsters\common\components\Squad\Squad Manager">
       <UniqueIdentifier>{63b44d30-9282-4225-9ed2-3310eaec9e8c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="AI\AMonsters\common\components\Motion Stats">
-      <UniqueIdentifier>{db4513a6-869d-4ffe-b75d-aedb05eeaa4c}</UniqueIdentifier>
-    </Filter>
     <Filter Include="AI\AMonsters\common\components\Cover">
       <UniqueIdentifier>{8ab16d67-e24f-406f-a24a-0f11695876de}</UniqueIdentifier>
     </Filter>
@@ -583,17 +580,11 @@
     <Filter Include="AI\AMonsters\common\components\Abilities\Telekinesis">
       <UniqueIdentifier>{ea23f660-b771-4499-9a1e-df87ccf875e1}</UniqueIdentifier>
     </Filter>
-    <Filter Include="AI\AMonsters\common\components\Abilities\Invisibility">
-      <UniqueIdentifier>{576ffa66-79e9-4909-98c8-21b130f98a7e}</UniqueIdentifier>
-    </Filter>
     <Filter Include="AI\AMonsters\common\components\Abilities\Scan">
       <UniqueIdentifier>{8c679b1b-a041-4795-82c5-e9e531a5de29}</UniqueIdentifier>
     </Filter>
     <Filter Include="AI\AMonsters\common\components\Abilities\Controlled">
       <UniqueIdentifier>{f52e3274-9d39-4fb0-8d29-9708992cdbb8}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="AI\AMonsters\common\components\Abilities\Psy Aura">
-      <UniqueIdentifier>{fbae7c90-76e6-4807-9368-9ab5f6e6f4a8}</UniqueIdentifier>
     </Filter>
     <Filter Include="AI\AMonsters\common\components\Abilities\Energy Holder">
       <UniqueIdentifier>{2eb07d7c-d98d-4848-ac94-0e252d74ffa4}</UniqueIdentifier>
@@ -603,9 +594,6 @@
     </Filter>
     <Filter Include="AI\AMonsters\common\components\Event Handler\Custom Events">
       <UniqueIdentifier>{ff20543b-72dd-4ba5-be12-73b0112cf835}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="AI\AMonsters\common\components\Debug">
-      <UniqueIdentifier>{f0478da3-6b72-47d4-8b85-076091e89840}</UniqueIdentifier>
     </Filter>
     <Filter Include="AI\AMonsters\common\components\Melee Checker">
       <UniqueIdentifier>{002128a0-5d5d-4b7d-85ac-fe2f77c65b4c}</UniqueIdentifier>
@@ -798,9 +786,6 @@
     </Filter>
     <Filter Include="AI\AMonsters\monsters\Snork">
       <UniqueIdentifier>{2e095859-ac71-4e4c-9bf3-145fd573f5be}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="AI\AMonsters\monsters\Snork\Special Jump">
-      <UniqueIdentifier>{d2509b5f-b039-4403-92a7-7a4eeec145e1}</UniqueIdentifier>
     </Filter>
     <Filter Include="AI\AMonsters\monsters\Snork\Script">
       <UniqueIdentifier>{ea415953-eef0-45d5-9e96-bae5dfacd211}</UniqueIdentifier>
@@ -1393,9 +1378,6 @@
     <Filter Include="Core\Client\Effects">
       <UniqueIdentifier>{7c23e466-f166-402d-a64b-3692a45cf869}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Core\Client\Effects\Core">
-      <UniqueIdentifier>{dbbddae8-6e91-4800-a025-d87939e1dedf}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Core\Client\Game Persistent">
       <UniqueIdentifier>{d4f18cdc-4d9b-4b5a-a9bd-541ec477a446}</UniqueIdentifier>
     </Filter>
@@ -1438,9 +1420,6 @@
     <Filter Include="Core\Client\Level\ClientDigestComputer">
       <UniqueIdentifier>{b78be59d-2199-4b10-abbb-7396a2762429}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Core\Client\Level\LevelNetworkDemo">
-      <UniqueIdentifier>{d79d3201-de20-4eb4-88ed-e76454a00fde}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Core\Client\Level Controller">
       <UniqueIdentifier>{488043bb-30c6-4821-b111-b31aabf92136}</UniqueIdentifier>
     </Filter>
@@ -1452,18 +1431,6 @@
     </Filter>
     <Filter Include="Core\Client\Objects\actor">
       <UniqueIdentifier>{d6d7054c-3df6-4b91-9402-243a507583b2}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Client\Objects\actor\mp">
-      <UniqueIdentifier>{808bb23a-aafc-400a-873d-9985e971e970}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Client\Objects\actor\mp\client">
-      <UniqueIdentifier>{953db74f-ba3d-4c0b-8f30-42f25e1079f2}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Client\Objects\actor\mp\server">
-      <UniqueIdentifier>{dc4e94a9-0d60-45bc-adf3-4ba9505d2018}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Client\Objects\actor\mp\state">
-      <UniqueIdentifier>{61b863ae-4a38-4747-a4e4-a3eb277943bb}</UniqueIdentifier>
     </Filter>
     <Filter Include="Core\Client\Objects\actor\base">
       <UniqueIdentifier>{1bac2bd2-55b0-4f90-825a-e0d5035a5c6e}</UniqueIdentifier>
@@ -1774,9 +1741,6 @@
     <Filter Include="Core\Client\Objects\items &amp; weapons\Artifacts\GalantineArtifact">
       <UniqueIdentifier>{1fdfd13c-486a-44c9-b3da-d29e77fd4554}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Core\Client\Objects\items &amp; weapons\Artifacts\CtaGameArtefact">
-      <UniqueIdentifier>{5af1279d-308d-4b6f-b1ee-20d767d083eb}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Core\Client\Objects\items &amp; weapons\Devices">
       <UniqueIdentifier>{6f76f9ff-1c07-4de1-bd05-19e7760a9c14}</UniqueIdentifier>
     </Filter>
@@ -1816,12 +1780,6 @@
     <Filter Include="Core\Client\Objects\items &amp; weapons\Explosives">
       <UniqueIdentifier>{b7688ab2-2055-4da9-bb6c-d249ae0911bd}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Core\Client\Objects\items &amp; weapons\MPPlayersBag">
-      <UniqueIdentifier>{f67b84c1-a3e6-44b2-b1b1-b8659b40006d}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Client\Objects\items &amp; weapons\MPAnticheat">
-      <UniqueIdentifier>{1fdfed8b-07ff-4a81-971c-69867c8087b9}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Core\Client\Objects\searchlight">
       <UniqueIdentifier>{232c37a1-c0f1-4197-8170-2f8571d519ac}</UniqueIdentifier>
     </Filter>
@@ -1833,9 +1791,6 @@
     </Filter>
     <Filter Include="Core\Client\Objects\zones\CustomZone">
       <UniqueIdentifier>{064445fe-a816-415d-ae46-fe14c1b6b78e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Client\Objects\zones\FryUpZone">
-      <UniqueIdentifier>{a0725229-dc3b-4039-8f30-0dc4ee41bc37}</UniqueIdentifier>
     </Filter>
     <Filter Include="Core\Client\Objects\zones\GraviZone">
       <UniqueIdentifier>{5aafac69-f1b1-4411-a8e3-706d1627c5f9}</UniqueIdentifier>
@@ -1854,9 +1809,6 @@
     </Filter>
     <Filter Include="Core\Client\Objects\zones\ScriptZone">
       <UniqueIdentifier>{7a237c3f-7ca2-4dc7-844f-0928be1848ff}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Client\Objects\zones\TeamBaseZone">
-      <UniqueIdentifier>{2c1927e0-4d35-480c-a656-19a7114163cd}</UniqueIdentifier>
     </Filter>
     <Filter Include="Core\Client\Objects\zones\TorridZone">
       <UniqueIdentifier>{482cfc75-8689-4af7-ac85-7fb1215aaa8b}</UniqueIdentifier>
@@ -2002,65 +1954,17 @@
     <Filter Include="Core\Server\Games\client">
       <UniqueIdentifier>{68f65e04-5fcd-4447-9bb0-9a68244f680c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Core\Server\Games\client\artefact_hunt">
-      <UniqueIdentifier>{a70b8b2e-33c2-49fa-876f-3f24b0bb040c}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Server\Games\client\deathmatch">
-      <UniqueIdentifier>{f82a3e07-7dfb-4327-a993-e439a2618e6e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Server\Games\client\team_deathmatch">
-      <UniqueIdentifier>{d726208b-8e6d-4e65-bd66-c0bc9a0965c3}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Core\Server\Games\client\single">
       <UniqueIdentifier>{72dcfedd-f536-42be-9da5-14f9632f686b}</UniqueIdentifier>
     </Filter>
     <Filter Include="Core\Server\Games\client\base">
       <UniqueIdentifier>{e1be434a-9ca1-4a16-bf7f-afb6f09fe7d2}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Core\Server\Games\client\mp">
-      <UniqueIdentifier>{0d87a81d-98e6-455c-99bd-e046d405955e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Server\Games\client\mp\screenshots">
-      <UniqueIdentifier>{083893c7-5148-4c4f-8b0d-e28d55dc5ef7}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Server\Games\client\mp\anticheat">
-      <UniqueIdentifier>{05fd45d5-e228-4cf4-b0ba-95c70c241d32}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Server\Games\client\mp\award_system">
-      <UniqueIdentifier>{a6c8ba3f-676b-481e-9a66-384adbd86cfb}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Server\Games\client\mp\award_system\event_handlers">
-      <UniqueIdentifier>{bed9b7e6-790d-4e2b-86ca-09c60a4790cd}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Server\Games\client\mp\award_system\player_state">
-      <UniqueIdentifier>{c99f1659-c3d6-40e4-9a31-f183fff6edcf}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Server\Games\client\mp\award_system\player_state\state_parameters">
-      <UniqueIdentifier>{d311624a-97c9-478e-b79e-c683de716d95}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Server\Games\client\capture_the_artefact">
-      <UniqueIdentifier>{90021637-62c4-48f9-a213-150237749e59}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Core\Server\Games\server">
       <UniqueIdentifier>{9ef2d02d-fb00-4fda-935d-21c7431515b6}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Core\Server\Games\server\artefact_hunt">
-      <UniqueIdentifier>{40bea630-22e6-4f29-a99e-d68278aa4da6}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Server\Games\server\deathmatch">
-      <UniqueIdentifier>{4aaab107-b5c5-42c4-9b72-4fdbccfcd2fc}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Core\Server\Games\server\single">
       <UniqueIdentifier>{0c373093-b388-418b-83f8-b9e9f47ecade}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Server\Games\server\team_deathmatch">
-      <UniqueIdentifier>{ae16ab0d-3036-4ccc-bc98-5a3f23088f12}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Server\Games\server\mp">
-      <UniqueIdentifier>{ad276709-218f-48cb-a946-1e3d9a41c87b}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Server\Games\server\capture_the_artefact">
-      <UniqueIdentifier>{2ab2b093-241a-4916-8ca6-e41e2cf762ac}</UniqueIdentifier>
     </Filter>
     <Filter Include="Core\Server\Games\PlayerAccounts">
       <UniqueIdentifier>{eb1a0837-c735-4283-8391-d700cfeeefa3}</UniqueIdentifier>
@@ -2218,9 +2122,6 @@
     <Filter Include="UI\UIWindows\TrackBar">
       <UniqueIdentifier>{52c08b50-a211-4278-a85a-d4e794004347}</UniqueIdentifier>
     </Filter>
-    <Filter Include="UI\UIWindows\Frames">
-      <UniqueIdentifier>{39a86d7b-6f39-4fd8-8646-5989eac29b47}</UniqueIdentifier>
-    </Filter>
     <Filter Include="UI\UIWindows\ScrollView">
       <UniqueIdentifier>{6ac65b85-b69c-4f46-9f6e-97c5cfd37e18}</UniqueIdentifier>
     </Filter>
@@ -2254,20 +2155,8 @@
     <Filter Include="UI\GameTypes\GameCustom">
       <UniqueIdentifier>{51c46adf-0656-4a15-8982-0ce839d8950c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="UI\GameTypes\Deathmatch">
-      <UniqueIdentifier>{352ce93a-3b3c-4558-a479-971661a0571f}</UniqueIdentifier>
-    </Filter>
     <Filter Include="UI\GameTypes\Single">
       <UniqueIdentifier>{68773a09-4b98-460d-a335-eafcadd744df}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="UI\GameTypes\TeamDeathmatch">
-      <UniqueIdentifier>{ab283e20-c172-4a03-83e9-887ad10f89f1}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="UI\GameTypes\ArtefactHunt">
-      <UniqueIdentifier>{958e11b5-8dc1-4eb7-9371-1d3157e7ccdd}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="UI\GameTypes\CaptureTheArtefact">
-      <UniqueIdentifier>{80a7592d-b5c1-4cac-9900-d610d5f1fc1a}</UniqueIdentifier>
     </Filter>
     <Filter Include="UI\Multiplayer">
       <UniqueIdentifier>{952e33e3-c075-4a47-b44f-306bea2f9c7d}</UniqueIdentifier>
@@ -2290,32 +2179,17 @@
     <Filter Include="UI\Multiplayer\HUD">
       <UniqueIdentifier>{d944beeb-68a3-47df-8589-361672cc57e1}</UniqueIdentifier>
     </Filter>
-    <Filter Include="UI\Multiplayer\HUD\Stats">
-      <UniqueIdentifier>{151aa28a-6ebf-4f42-a2ac-dbb831ef8ce0}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="UI\Multiplayer\HUD\Stats\icons">
-      <UniqueIdentifier>{8f7635a2-00df-4e1e-bacc-84ce227d272a}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="UI\Multiplayer\HUD\Stats\TeamStates">
-      <UniqueIdentifier>{8564129d-c379-461b-8180-7de8c8bd0228}</UniqueIdentifier>
-    </Filter>
     <Filter Include="UI\Multiplayer\HUD\Chat">
       <UniqueIdentifier>{d4810c39-7a5b-4406-acd7-6133786dc06e}</UniqueIdentifier>
     </Filter>
     <Filter Include="UI\Multiplayer\HUD\GameLog">
       <UniqueIdentifier>{4365c764-bc0d-4dce-bf9e-29fd54e7b427}</UniqueIdentifier>
     </Filter>
-    <Filter Include="UI\Multiplayer\HUD\SpeechMenu">
-      <UniqueIdentifier>{a2a254cc-f5b5-4bbb-8171-cec30822dd41}</UniqueIdentifier>
-    </Filter>
     <Filter Include="UI\Multiplayer\HUD\common">
       <UniqueIdentifier>{744660d7-b290-4647-ad9f-88247961293c}</UniqueIdentifier>
     </Filter>
     <Filter Include="UI\Multiplayer\BuyWeaponWnd">
       <UniqueIdentifier>{d253f23f-f973-412c-bd05-bde6e956d64e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="UI\Multiplayer\BuyWeaponWnd\rank_restrictions">
-      <UniqueIdentifier>{c5487db8-4093-4be6-b6b2-75af9738b589}</UniqueIdentifier>
     </Filter>
     <Filter Include="UI\Multiplayer\BuyWeaponWnd\TAB">
       <UniqueIdentifier>{86ba9603-e70d-4f1f-b5dd-9bb88def18e5}</UniqueIdentifier>
@@ -2328,27 +2202,6 @@
     </Filter>
     <Filter Include="UI\Multiplayer\team_skin_info\MapDesc\MapInfo">
       <UniqueIdentifier>{bfa2904a-5c5d-498d-be7d-e3238731f03c}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="UI\Multiplayer\team_skin_info\Spawn">
-      <UniqueIdentifier>{775f1493-564c-49e5-b7b9-d6de5e670b05}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="UI\Multiplayer\team_skin_info\SkinSelector">
-      <UniqueIdentifier>{3c8aa419-c63a-433e-a4fb-0eb7aae96bcc}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="UI\Multiplayer\team_skin_info\ServerInfo">
-      <UniqueIdentifier>{5b96c35c-b5b3-409b-987d-161d10d9ad2c}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="UI\Multiplayer\Voting">
-      <UniqueIdentifier>{e2241740-7d81-4634-a522-bd9ff597994f}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="UI\Multiplayer\DemoPlayControl">
-      <UniqueIdentifier>{4d53f414-59e3-42bb-8f3c-038994de1bf9}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="UI\Multiplayer\Achivements">
-      <UniqueIdentifier>{bd82763e-8bc7-4a97-84e7-7db1211a0560}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="UI\Multiplayer\AdminMenu">
-      <UniqueIdentifier>{3dea9773-a080-4168-a028-9d6de40c3840}</UniqueIdentifier>
     </Filter>
     <Filter Include="UI\Cursor">
       <UniqueIdentifier>{216d787e-49b7-4dbf-8a61-8a7485172d83}</UniqueIdentifier>
@@ -2428,9 +2281,6 @@
     <Filter Include="AI\AMonsters\common\script\monster states\Steal\Squad\Rest">
       <UniqueIdentifier>{4946196d-1f2b-4e07-9207-f0789b2528fc}</UniqueIdentifier>
     </Filter>
-    <Filter Include="AI\AMonsters\common\script\monster states\Hunt">
-      <UniqueIdentifier>{098ea533-6ac0-45d2-87d0-f7b07721ed96}</UniqueIdentifier>
-    </Filter>
     <Filter Include="AI\AMonsters\common\script\monster states\Home Point">
       <UniqueIdentifier>{db21b3a4-109b-4ee8-a49c-f514367ae3a9}</UniqueIdentifier>
     </Filter>
@@ -2481,9 +2331,6 @@
     </Filter>
     <Filter Include="Core\Client\Objects\zones\Ameba">
       <UniqueIdentifier>{7111b5cd-588d-46ec-81c2-ccc6c70fa4de}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="UI\Common\PDA\Encylopedia">
-      <UniqueIdentifier>{73dc453e-a9d1-4200-83b7-3564dbf9fc80}</UniqueIdentifier>
     </Filter>
     <Filter Include="Core\Client\Effectors\monsters">
       <UniqueIdentifier>{b1a00ac3-9c32-43d4-a698-33d5f830e0d2}</UniqueIdentifier>
@@ -5367,38 +5214,11 @@
     <ClInclude Include="Level_network_map_sync.h">
       <Filter>Core\Client\Level\LevelMapSync</Filter>
     </ClInclude>
-    <ClInclude Include="DemoInfo.h">
-      <Filter>Core\Client\Level\LevelNetworkDemo</Filter>
-    </ClInclude>
-    <ClInclude Include="DemoInfo_Loader.h">
-      <Filter>Core\Client\Level\LevelNetworkDemo</Filter>
-    </ClInclude>
-    <ClInclude Include="DemoPlay_Control.h">
-      <Filter>Core\Client\Level\LevelNetworkDemo</Filter>
-    </ClInclude>
-    <ClInclude Include="Level_network_Demo.h">
-      <Filter>Core\Client\Level\LevelNetworkDemo</Filter>
-    </ClInclude>
-    <ClInclude Include="Message_Filter.h">
-      <Filter>Core\Client\Level\LevelNetworkDemo</Filter>
-    </ClInclude>
     <ClInclude Include="xr_level_controller.h">
       <Filter>Core\Client\Level Controller</Filter>
     </ClInclude>
     <ClInclude Include="level_debug.h">
       <Filter>Core\Client\Level Debug</Filter>
-    </ClInclude>
-    <ClInclude Include="actor_mp_client.h">
-      <Filter>Core\Client\Objects\actor\mp\client</Filter>
-    </ClInclude>
-    <ClInclude Include="actor_mp_server.h">
-      <Filter>Core\Client\Objects\actor\mp\server</Filter>
-    </ClInclude>
-    <ClInclude Include="actor_mp_state.h">
-      <Filter>Core\Client\Objects\actor\mp\state</Filter>
-    </ClInclude>
-    <ClInclude Include="actor_mp_state_inline.h">
-      <Filter>Core\Client\Objects\actor\mp\state</Filter>
     </ClInclude>
     <ClInclude Include="Actor.h">
       <Filter>Core\Client\Objects\actor\base</Filter>
@@ -5880,9 +5700,6 @@
     <ClInclude Include="GalantineArtifact.h">
       <Filter>Core\Client\Objects\items &amp; weapons\Artifacts\GalantineArtifact</Filter>
     </ClInclude>
-    <ClInclude Include="cta_game_artefact.h">
-      <Filter>Core\Client\Objects\items &amp; weapons\Artifacts\CtaGameArtefact</Filter>
-    </ClInclude>
     <ClInclude Include="ui\ArtefactDetectorUI.h">
       <Filter>Core\Client\Objects\items &amp; weapons\Devices\Detectors</Filter>
     </ClInclude>
@@ -5967,12 +5784,6 @@
     <ClInclude Include="wallmark_manager.h">
       <Filter>Core\Client\Objects\items &amp; weapons\Explosives</Filter>
     </ClInclude>
-    <ClInclude Include="MPPlayersBag.h">
-      <Filter>Core\Client\Objects\items &amp; weapons\MPPlayersBag</Filter>
-    </ClInclude>
-    <ClInclude Include="anticheat_dumpable_object.h">
-      <Filter>Core\Client\Objects\items &amp; weapons\MPAnticheat</Filter>
-    </ClInclude>
     <ClInclude Include="searchlight.h">
       <Filter>Core\Client\Objects\searchlight</Filter>
     </ClInclude>
@@ -5999,9 +5810,6 @@
     </ClInclude>
     <ClInclude Include="script_zone.h">
       <Filter>Core\Client\Objects\zones\ScriptZone</Filter>
-    </ClInclude>
-    <ClInclude Include="team_base_zone.h">
-      <Filter>Core\Client\Objects\zones\TeamBaseZone</Filter>
     </ClInclude>
     <ClInclude Include="TorridZone.h">
       <Filter>Core\Client\Objects\zones\TorridZone</Filter>
@@ -8582,47 +8390,11 @@
     <ClCompile Include="Level_network_digest_computer.cpp">
       <Filter>Core\Client\Level\ClientDigestComputer</Filter>
     </ClCompile>
-    <ClCompile Include="DemoInfo.cpp">
-      <Filter>Core\Client\Level\LevelNetworkDemo</Filter>
-    </ClCompile>
-    <ClCompile Include="DemoInfo_Loader.cpp">
-      <Filter>Core\Client\Level\LevelNetworkDemo</Filter>
-    </ClCompile>
-    <ClCompile Include="DemoPLay_Control.cpp">
-      <Filter>Core\Client\Level\LevelNetworkDemo</Filter>
-    </ClCompile>
-    <ClCompile Include="Level_network_Demo.cpp">
-      <Filter>Core\Client\Level\LevelNetworkDemo</Filter>
-    </ClCompile>
-    <ClCompile Include="Message_Filter.cpp">
-      <Filter>Core\Client\Level\LevelNetworkDemo</Filter>
-    </ClCompile>
     <ClCompile Include="xr_level_controller.cpp">
       <Filter>Core\Client\Level Controller</Filter>
     </ClCompile>
     <ClCompile Include="level_debug.cpp">
       <Filter>Core\Client\Level Debug</Filter>
-    </ClCompile>
-    <ClCompile Include="actor_mp_client.cpp">
-      <Filter>Core\Client\Objects\actor\mp\client</Filter>
-    </ClCompile>
-    <ClCompile Include="actor_mp_client_export.cpp">
-      <Filter>Core\Client\Objects\actor\mp\client</Filter>
-    </ClCompile>
-    <ClCompile Include="actor_mp_client_import.cpp">
-      <Filter>Core\Client\Objects\actor\mp\client</Filter>
-    </ClCompile>
-    <ClCompile Include="actor_mp_server.cpp">
-      <Filter>Core\Client\Objects\actor\mp\server</Filter>
-    </ClCompile>
-    <ClCompile Include="actor_mp_server_export.cpp">
-      <Filter>Core\Client\Objects\actor\mp\server</Filter>
-    </ClCompile>
-    <ClCompile Include="actor_mp_server_import.cpp">
-      <Filter>Core\Client\Objects\actor\mp\server</Filter>
-    </ClCompile>
-    <ClCompile Include="actor_mp_state.cpp">
-      <Filter>Core\Client\Objects\actor\mp\state</Filter>
     </ClCompile>
     <ClCompile Include="Actor.cpp">
       <Filter>Core\Client\Objects\actor\base</Filter>
@@ -9083,9 +8855,6 @@
     <ClCompile Include="GalantineArtifact.cpp">
       <Filter>Core\Client\Objects\items &amp; weapons\Artifacts\GalantineArtifact</Filter>
     </ClCompile>
-    <ClCompile Include="cta_game_artefact.cpp">
-      <Filter>Core\Client\Objects\items &amp; weapons\Artifacts\CtaGameArtefact</Filter>
-    </ClCompile>
     <ClCompile Include="ui\ArtefactDetectorUI.cpp">
       <Filter>Core\Client\Objects\items &amp; weapons\Devices\Detectors</Filter>
     </ClCompile>
@@ -9176,21 +8945,6 @@
     <ClCompile Include="wallmark_manager.cpp">
       <Filter>Core\Client\Objects\items &amp; weapons\Explosives</Filter>
     </ClCompile>
-    <ClCompile Include="MPPlayersBag.cpp">
-      <Filter>Core\Client\Objects\items &amp; weapons\MPPlayersBag</Filter>
-    </ClCompile>
-    <ClCompile Include="mpactor_dump_impl.cpp">
-      <Filter>Core\Client\Objects\items &amp; weapons\MPAnticheat</Filter>
-    </ClCompile>
-    <ClCompile Include="shootingObject_dump_impl.cpp">
-      <Filter>Core\Client\Objects\items &amp; weapons\MPAnticheat</Filter>
-    </ClCompile>
-    <ClCompile Include="weapon_ammo_dump_impl.cpp">
-      <Filter>Core\Client\Objects\items &amp; weapons\MPAnticheat</Filter>
-    </ClCompile>
-    <ClCompile Include="weapon_dump_impl.cpp">
-      <Filter>Core\Client\Objects\items &amp; weapons\MPAnticheat</Filter>
-    </ClCompile>
     <ClCompile Include="searchlight.cpp">
       <Filter>Core\Client\Objects\searchlight</Filter>
     </ClCompile>
@@ -9235,9 +8989,6 @@
     </ClCompile>
     <ClCompile Include="script_zone_script.cpp">
       <Filter>Core\Client\Objects\zones\ScriptZone</Filter>
-    </ClCompile>
-    <ClCompile Include="team_base_zone.cpp">
-      <Filter>Core\Client\Objects\zones\TeamBaseZone</Filter>
     </ClCompile>
     <ClCompile Include="TorridZone.cpp">
       <Filter>Core\Client\Objects\zones\TorridZone</Filter>

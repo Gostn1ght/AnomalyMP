@@ -733,14 +733,6 @@ void CGamePersistent::OnFrame()
 
 	if (Device.Paused())
 	{
-		if (Level().IsDemoPlay())
-		{
-			CSpectator* tmp_spectr = smart_cast<CSpectator*>(Level().CurrentControlEntity());
-			if (tmp_spectr)
-			{
-				tmp_spectr->UpdateCL(); //updating spectator in pause (pause ability of demo play)
-			}
-		}
 #ifndef MASTER_GOLD
         if (Level().CurrentViewEntity() && IsGameTypeSingle())
         {
@@ -1033,7 +1025,7 @@ bool CGamePersistent::CanBePaused()
 	// must not stop (its view of server time would fall behind).
 	if (strstr(Core.Params, "-netcoop"))
 		return false;
-	return IsGameTypeSingle() || (g_pGameLevel && Level().IsDemoPlay());
+	return IsGameTypeSingle();
 }
 
 void CGamePersistent::SetPickableEffectorDOF(bool bSet)

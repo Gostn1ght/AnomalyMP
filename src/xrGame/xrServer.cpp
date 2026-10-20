@@ -259,9 +259,6 @@ void netcoop_join_pump(xrServer* server); // xrServer_CL_connect.cpp
 
 void xrServer::Update()
 {
-	if (Level().IsDemoPlayStarted() || Level().IsDemoPlayFinished())
-		return; //diabling server when demo is playing
-
 	NET_Packet Packet;
 #ifdef DEBUG
 	VERIFY(verify_entities());
@@ -437,10 +434,6 @@ void xrServer::SendUpdatePacketsToAll()
                 }
             } send = {this, &to_send};
             ForEachClientDo(send);
-			if (Level().IsDemoSave())
-			{
-				Level().SavePacket(to_send);
-			}
 		}
 	}
 }

@@ -122,7 +122,7 @@ void CLevel::IR_OnMouseMove(int dx, int dy)
 #endif // INPUT_CALLBACKS
 
 	if (CurrentGameUI()->IR_UIOnMouseMove(dx, dy)) return;
-	if (Device.Paused() && !IsDemoPlay()
+	if (Device.Paused()
 #ifdef DEBUG
         && !psActorFlags.test(AF_NO_CLIP)
 #endif //DEBUG
@@ -236,7 +236,7 @@ void CLevel::IR_OnKeyboardPress(int key)
 	{
 
 		// No pause in a netcoop session: the server's world does not stop.
-		if (!g_block_pause && (IsGameTypeSingle() || IsDemoPlay()) && !strstr(Core.Params, "-netcoop"))
+		if (!g_block_pause && IsGameTypeSingle() && !strstr(Core.Params, "-netcoop"))
 		{
 #ifdef DEBUG
             if(psActorFlags.test(AF_NO_CLIP))
@@ -316,7 +316,7 @@ void CLevel::IR_OnKeyboardPress(int key)
 		return;
 	}
 
-	if (Device.Paused() && !IsDemoPlay()
+	if (Device.Paused()
 #ifdef DEBUG
         && !psActorFlags.test(AF_NO_CLIP)
 #endif //DEBUG
@@ -689,7 +689,7 @@ void CLevel::IR_OnKeyboardHold(int key)
 #endif // DEBUG
 
 	if (CurrentGameUI() && CurrentGameUI()->IR_UIOnKeyboardHold(key)) return;
-	if (Device.Paused() && !Level().IsDemoPlay()
+	if (Device.Paused()
 #ifdef DEBUG
         && !psActorFlags.test(AF_NO_CLIP)
 #endif //DEBUG

@@ -2012,7 +2012,7 @@ void CActor::shedule_Update(u32 DT)
 
 	//----------- for E3 -----------------------------
 	//	if (Local() && (OnClient() || Level().CurrentEntity()==this))
-	if (!authoritative_remote && Level().CurrentControlEntity() == this && !Level().IsDemoPlay())
+	if (!authoritative_remote && Level().CurrentControlEntity() == this)
 		//------------------------------------------------
 	{
 		// Moving or jumping leaves an RP pose (as the wheel's stop does): the
@@ -2083,36 +2083,33 @@ void CActor::shedule_Update(u32 DT)
 		{
 			f_DropPower = 0.f;
 		}
-		if (!Level().IsDemoPlay())
+		mstate_wishful &= ~mcLStrafe;
+		mstate_wishful &= ~mcRStrafe;
+		mstate_wishful &= ~mcFwd;
+		mstate_wishful &= ~mcBack;
+		if (!psActorFlags.test(AF_CROUCH_TOGGLE))
+			mstate_wishful &= ~mcCrouch;
+		if (!psActorFlags.test(AF_WALK_TOGGLE))
+			mstate_wishful &= ~mcAccel;
+		if (!psActorFlags.test(AF_SPRINT_TOGGLE))
+			mstate_wishful &= ~mcSprint;
+		if (!psActorFlags.test(AF_LOOKOUT_TOGGLE) || cam_freelook != eflDisabled)
 		{
-			mstate_wishful &= ~mcLStrafe;
-			mstate_wishful &= ~mcRStrafe;
-			mstate_wishful &= ~mcFwd;
-			mstate_wishful &= ~mcBack;
-			if (!psActorFlags.test(AF_CROUCH_TOGGLE))
-				mstate_wishful &= ~mcCrouch;
-			if (!psActorFlags.test(AF_WALK_TOGGLE))
-				mstate_wishful &= ~mcAccel;
-			if (!psActorFlags.test(AF_SPRINT_TOGGLE))
-				mstate_wishful &= ~mcSprint;
-			if (!psActorFlags.test(AF_LOOKOUT_TOGGLE) || cam_freelook != eflDisabled)
-			{
-				mstate_wishful &= ~mcLLookout;
-				mstate_wishful &= ~mcRLookout;
-			}
+			mstate_wishful &= ~mcLLookout;
+			mstate_wishful &= ~mcRLookout;
+		}
 
-			if (cam_freelook == eflEnabled)
+		if (cam_freelook == eflEnabled)
+		{
+			if (psActorFlags.test(AF_FREELOOK_TOGGLE))
 			{
-				if (psActorFlags.test(AF_FREELOOK_TOGGLE))
-				{
-					if (!CanUseFreelook())
-						cam_UnsetFreelook();
-				}
-				else
-				{
-					if (!CanUseFreelook() || !pInput->iGetAsyncKeyState(get_action_dik(kFREELOOK)))
-						cam_UnsetFreelook();
-				}
+				if (!CanUseFreelook())
+					cam_UnsetFreelook();
+			}
+			else
+			{
+				if (!CanUseFreelook() || !pInput->iGetAsyncKeyState(get_action_dik(kFREELOOK)))
+					cam_UnsetFreelook();
 			}
 		}
 	}

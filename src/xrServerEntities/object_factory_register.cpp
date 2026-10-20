@@ -73,7 +73,6 @@
 #	include "RustyHairArtifact.h"
 #	include "GalantineArtifact.h"
 #	include "GraviArtifact.h"
-#	include "cta_game_artefact.h"
 
 #	include "weaponFN2000.h"
 #	include "weaponAK74.h"
@@ -123,7 +122,6 @@
 
 #	include "explosiverocket.h"
 
-#	include "MPPlayersBag.h"
 
 #	include "customzone.h"
 #	include "mosquitobald.h"
@@ -132,7 +130,6 @@
 #	include "radioactivezone.h"
 #	include "level_changer.h"
 #	include "script_zone.h"
-#	include "team_base_zone.h"
 #	include "torridZone.h"
 #	include "ZoneVisual.h"
 #	include "hairszone.h"
@@ -166,8 +163,6 @@
 #	include "smart_zone.h"
 #	include "InventoryBox.h"
 
-#	include "actor_mp_server.h"
-#	include "actor_mp_client.h"
 #	include "smart_cover_object.h"
 
 #include "..\xrGame\HolderEntityObject.h"
@@ -180,7 +175,6 @@
 #ifndef NO_XR_GAME
 extern ENGINE_API bool g_dedicated_server;
 #	define ADD(a,b,c,d)			add<a,b>(c,d)
-#	define ADD_MP(a,b,c,d,e,f)	add(xr_new<CObjectItemClientServerSingleMp<a,b,c,d> >(e,f))
 #else
 #	define ADD(a,b,c,d)			add<b>(c,d)
 #endif
@@ -205,14 +199,8 @@ void CObjectFactory::register_classes()
 
 	add<CUIGameSP>(CLSID_GAME_UI_SINGLE, "game_ui_single");
 
-#	ifndef NO_SINGLE
-	ADD_MP(CActor, CActorMP, CSE_ALifeCreatureActor, CSE_ActorMP, CLSID_OBJECT_ACTOR, "actor");
-#	else // #ifndef NO_SINGLE
-		ADD(CActorMP,CSE_ActorMP	,CLSID_OBJECT_ACTOR				,"actor");
-#	endif // #ifndef NO_SINGLE
-#else // NO_XR_GAME
-	ADD(CActor					,CSE_ALifeCreatureActor			,CLSID_OBJECT_ACTOR				,"actor");
 #endif // NO_XR_GAME
+	ADD(CActor, CSE_ALifeCreatureActor, CLSID_OBJECT_ACTOR, "actor");
 
 	// server entities
 #ifndef NO_SINGLE
@@ -272,7 +260,6 @@ void CObjectFactory::register_classes()
 	ADD(CGalantineArtefact, CSE_ALifeItemArtefact, CLSID_AF_GALANTINE, "art_galantine");
 	ADD(CGraviArtefact, CSE_ALifeItemArtefact, CLSID_AF_GRAVI, "art_gravi");
 	ADD(CGraviArtefact, CSE_ALifeItemArtefact, CLSID_ARTEFACT, "artefact");
-	ADD(CtaGameArtefact, CSE_ALifeItemArtefact, CLSID_AF_CTA, "art_cta");
 
 	//  [8/15/2006]
 	ADD(CWeaponMagazined, CSE_ALifeItemWeaponMagazined, CLSID_OBJECT_W_MAGAZINED, "wpn_wmagaz");
@@ -343,7 +330,6 @@ void CObjectFactory::register_classes()
 	ADD(CExplosiveRocket, CSE_Temporary, CLSID_OBJECT_G_FAKE, "wpn_grenade_fake");
 
 	//-----------------------------------------------------------------------------------------------------------------
-	ADD(CMPPlayersBag, CSE_ALifeItem, CLSID_OBJECT_PLAYERS_BAG, "mp_players_bag");
 	//-----------------------------------------------------------------------------------------------------------------
 
 	// Zones
@@ -361,7 +347,6 @@ void CObjectFactory::register_classes()
 #endif	//	BENCHMARK_BUILD
 	ADD(CScriptZone, CSE_ALifeSpaceRestrictor, CLSID_SCRIPT_ZONE, "script_zone");
 	ADD(CSmartZone, CSE_ALifeSmartZone, CLSID_SMART_ZONE, "smart_zone");
-	ADD(CTeamBaseZone, CSE_ALifeTeamBaseZone, CLSID_Z_TEAM_BASE, "team_base_zone");
 	ADD(CTorridZone, CSE_ALifeTorridZone, CLSID_Z_TORRID, "torrid_zone");
 	ADD(CSpaceRestrictor, CSE_ALifeSpaceRestrictor, CLSID_SPACE_RESTRICTOR, "space_restrictor");
 	ADD(CAmebaZone, CSE_ALifeZoneVisual, CLSID_Z_AMEBA, "ameba_zone");
@@ -413,7 +398,6 @@ void CObjectFactory::register_classes()
 		return;
 
 	ADD(CElectricBall, CSE_ALifeItemArtefact, TEXT2CLSID("SCRPTART"), "artefact_s");
-	//	ADD(CtaGameArtefact			,CSE_ALifeItemArtefact			,TEXT2CLSID("AF_CTA")			,"ctaartefact_s");
 	ADD(CTorch, CSE_ALifeItemTorch, TEXT2CLSID("TORCH_S"), "device_torch_s");
 	ADD(CStalkerOutfit, CSE_ALifeItemCustomOutfit, TEXT2CLSID("E_STLK"), "equ_stalker_s");
 	ADD(CScope, CSE_ALifeItem, TEXT2CLSID("WP_SCOPE"), "wpn_scope_s");

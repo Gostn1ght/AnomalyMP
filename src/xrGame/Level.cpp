@@ -18,7 +18,6 @@
 #include "script_process.h"
 #include "script_engine.h"
 #include "script_engine_space.h"
-#include "team_base_zone.h"
 #include "infoportion.h"
 #include "patrol_path_storage.h"
 #include "date_time.h"
@@ -43,9 +42,6 @@
 #include "player_hud.h"
 #include "UI/UIGameTutorial.h"
 #include "file_transfer.h"
-#include "message_filter.h"
-#include "demoplay_control.h"
-#include "demoinfo.h"
 #include "CustomDetector.h"
 #include "xrPhysics/IPHWorld.h"
 #include "xrPhysics/console_vars.h"
@@ -233,9 +229,6 @@ extern BOOL psLua_ParallelGC;
 
 CLevel::CLevel() :
     IPureClient(Device.GetTimerGlobal())
-#ifdef PROFILE_CRITICAL_SECTIONS
-    , DemoCS(MUTEX_PROFILE_ID(DemoCS))
-#endif
 {
 	g_bDebugEvents = strstr(Core.Params, "-debug_ge") != nullptr;
 	game_events = xr_new<NET_Queue_Event>();
@@ -376,22 +369,6 @@ CLevel::~CLevel()
         g_tutorial->m_pStoredInputReceiver = nullptr;
     if (g_tutorial2 && g_tutorial2->m_pStoredInputReceiver == this)
         g_tutorial2->m_pStoredInputReceiver = nullptr;
-    if (IsDemoPlay())
-    {
-        StopPlayDemo();
-        if (m_reader)
-        {
-            FS.r_close(m_reader);
-            m_reader = nullptr;
-        }
-    }
-    xr_delete(m_msg_filter);
-    xr_delete(m_demoplay_control);
-    xr_delete(m_demo_info);
-    if (IsDemoSave())
-    {
-        StopSaveDemo();
-    }
     deinit_compression();
 }
 
@@ -1402,9 +1379,6 @@ void CLevel::OnRender()
             CClimableObject* climable = smart_cast<CClimableObject*>(_O);
             if (climable)
                 climable->OnRender();
-            CTeamBaseZone* team_base_zone = smart_cast<CTeamBaseZone*>(_O);
-            if (team_base_zone)
-                team_base_zone->OnRender();
             if (GameID() != eGameIDSingle)
             {
                 CInventoryItem* pIItem = smart_cast<CInventoryItem*>(_O);
@@ -1819,15 +1793,11 @@ void CLevel::SetEnvironmentGameTimeFactor(u64 const& GameTime, float const& fTim
 
 bool CLevel::IsServer()
 {
-	if (!Server || IsDemoPlayStarted())
-		return false;
-	return true;
+	return Server != nullptr;
 }
 
 bool CLevel::IsClient()
 {
-	if (IsDemoPlayStarted())
-		return true;
 	if (Server)
 		return false;
 	return true;

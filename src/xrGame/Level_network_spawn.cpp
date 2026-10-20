@@ -164,38 +164,26 @@ void CLevel::g_sv_Spawn(CSE_Abstract* E)
 		if ((E->s_flags.is(M_SPAWN_OBJECT_LOCAL)) &&
 			(E->s_flags.is(M_SPAWN_OBJECT_ASPLAYER)))
 		{
-			if (IsDemoPlayStarted())
+			if (CurrentEntity() != NULL)
 			{
-				if (E->s_flags.is(M_SPAWN_OBJECT_PHANTOM))
-				{
-					SetControlEntity(O);
-					SetEntity(O); //do not switch !!!
-					SetDemoSpectator(O);
-				}
+				CGameObject* pGO = smart_cast<CGameObject*>(CurrentEntity());
+				if (pGO) pGO->On_B_NotCurrentEntity();
 			}
-			else
+			SetControlEntity(O);
+			SetEntity(O); //do not switch !!!
+			if (strstr(Core.Params, "-netcoop") && !g_dedicated_server && !ai().get_alife())
 			{
-				if (CurrentEntity() != NULL)
-				{
-					CGameObject* pGO = smart_cast<CGameObject*>(CurrentEntity());
-					if (pGO) pGO->On_B_NotCurrentEntity();
-				}
-				SetControlEntity(O);
-				SetEntity(O); //do not switch !!!
-				if (strstr(Core.Params, "-netcoop") && !g_dedicated_server && !ai().get_alife())
-				{
-					// The full GAMMA Actor binder needs local ALife. Expose only the
-					// locally controlled Actor to client UI after ownership is known.
-					CGameObject* actor_object = smart_cast<CGameObject*>(O);
-					::luabind::functor<void> bind_ui_actor;
-					if (actor_object && ai().script_engine().functor("_G.NetCoopClientActorSpawned", bind_ui_actor))
-						bind_ui_actor(actor_object->lua_game_object());
-					// A namespaced functor loads its script on demand; the _G hook above
-					// is missing when callbacks_gameobject has not been loaded yet.
-					::luabind::functor<void> compat_actor;
-					if (actor_object && ai().script_engine().functor("netcoop_client_compat.on_actor_spawned", compat_actor))
-						compat_actor(actor_object->lua_game_object());
-				}
+				// The full GAMMA Actor binder needs local ALife. Expose only the
+				// locally controlled Actor to client UI after ownership is known.
+				CGameObject* actor_object = smart_cast<CGameObject*>(O);
+				::luabind::functor<void> bind_ui_actor;
+				if (actor_object && ai().script_engine().functor("_G.NetCoopClientActorSpawned", bind_ui_actor))
+					bind_ui_actor(actor_object->lua_game_object());
+				// A namespaced functor loads its script on demand; the _G hook above
+				// is missing when callbacks_gameobject has not been loaded yet.
+				::luabind::functor<void> compat_actor;
+				if (actor_object && ai().script_engine().functor("netcoop_client_compat.on_actor_spawned", compat_actor))
+					compat_actor(actor_object->lua_game_object());
 			}
 		}
 

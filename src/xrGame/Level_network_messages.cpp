@@ -15,7 +15,6 @@
 #include "saved_game_wrapper.h"
 #include "level_graph.h"
 #include "file_transfer.h"
-#include "message_filter.h"
 #include "../xrphysics/iphworld.h"
 
 extern LPCSTR map_ver_string;
@@ -65,10 +64,6 @@ void CLevel::ClientReceive()
 	m_dwRPC = 0;
 	m_dwRPS = 0;
 
-	if (IsDemoPlayStarted())
-	{
-		SimulateServerUpdate();
-	}
 #ifdef DEBUG
 	if (SimmulateNetworkLag())
 		return;
@@ -86,10 +81,6 @@ void CLevel::ClientReceive()
 	};
 	for (NET_Packet* P = net_msg_Retreive(); P; P = net_msg_Retreive())
 	{
-		if (IsDemoSaveStarted())
-		{
-			SavePacket(*P);
-		}
 		//-----------------------------------------------------
 		m_dwRPC++;
 		m_dwRPS += P->B.count;
@@ -273,10 +264,6 @@ void CLevel::ClientReceive()
 #ifdef DEBUG
 				Msg("- Game configuring : Finished ");
 #endif // #ifdef DEBUG
-				if (IsDemoPlayStarted() && !m_current_spectator)
-				{
-					SpawnDemoSpectator();
-				}
 			}
 			break;
 		case M_MIGRATE_DEACTIVATE: // TO:   Changing server, just deactivate

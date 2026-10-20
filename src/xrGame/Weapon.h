@@ -1184,12 +1184,6 @@ public:
 	virtual float GetInertionAimFactor() { return 1.f - m_zoom_params.m_fZoomRotationFactor; };
 	//--> [От 1.0 - Инерция от бедра, до 0.0 - Инерция при зумме] Какую инерцию использовать
 
-	virtual void DumpActiveParams(shared_str const& section_name, CInifile& dst_ini) const;
-
-	virtual shared_str const GetAnticheatSectionName() const
-	{
-		return cNameSect();
-	};
     
     float SDS_Radius(bool alt = false);
 };

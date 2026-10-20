@@ -762,15 +762,6 @@ void CActor::net_Import_Base(NET_Packet& P)
 	//------------------------------------------------
 	{
 		//		if (OnServer() || Remote())
-		if (Level().IsDemoPlay())
-		{
-			unaffected_r_torso.yaw = N.o_torso.yaw;
-			unaffected_r_torso.pitch = N.o_torso.pitch;
-			unaffected_r_torso.roll = N.o_torso.roll;
-
-			cam_Active()->yaw = -N.o_torso.yaw;
-			cam_Active()->pitch = N.o_torso.pitch;
-		};
 	};
 
 	//CSE_ALifeCreatureTrader
@@ -1209,10 +1200,6 @@ BOOL CActor::net_Spawn(CSE_Abstract* DC)
 	psHUD_Flags.set(HUD_WEAPON_RT,TRUE);
 	psHUD_Flags.set(HUD_WEAPON_RT2,TRUE);
 
-	if (Level().IsDemoPlay() && OnClient())
-	{
-		setLocal(FALSE);
-	};
 
 	//Alun: In theory it will call SwitchNightVision 'true' when outfit or helmet spawn and moved to slot if m_bNightVisionOn is true
 	m_bNightVisionOn = !!m_trader_flags.test(CSE_ALifeTraderAbstract::eTraderFlagNightVisionActive);

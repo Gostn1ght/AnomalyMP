@@ -17,8 +17,6 @@
 #include "string_table.h"
 #include "../xrCore/os_clipboard.h"
 
-#include "DemoInfo.h"
-#include "DemoInfo_Loader.h"
 
 #include "ui/UICDkey.h"
 
@@ -94,7 +92,6 @@ CMainMenu::CMainMenu()
 
 	GetPlayerName();
 	GetCDKeyFromRegistry();
-	m_demo_info_loader = NULL;
 
 	if (!g_dedicated_server)
 	{
@@ -151,7 +148,6 @@ CMainMenu::~CMainMenu()
 	//
 	//xr_delete						(m_pGameSpyFull);
 
-	xr_delete(m_demo_info_loader);
 	delete_data(m_pMB_ErrDlgs);
 }
 
@@ -932,15 +928,6 @@ void CMainMenu::OnDownloadMPMap(CUIWindow* w, void* d)
 	LPCSTR params = NULL;
 	STRCONCAT(params, "/C start ", url);
 	//ShellExecute(0, "open", "cmd.exe", params, NULL, SW_SHOW);
-}
-
-demo_info const* CMainMenu::GetDemoInfo(LPCSTR file_name)
-{
-	if (!m_demo_info_loader)
-	{
-		m_demo_info_loader = xr_new<demo_info_loader>();
-	}
-	return m_demo_info_loader->get_demofile_info(file_name);
 }
 
 void open_originals_link()

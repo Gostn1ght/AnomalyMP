@@ -161,11 +161,6 @@ void xrServer::OnCL_Connected(IClient* _CL)
 		Msg("[Lost Zone] OnCL_Connected 0x%08x pid %u ps=%s", CL->ID.value(), CL->process_id, CL->ps ? "yes" : "no");
 		FlushLog();
 	}
-	/*if (Level().IsDemoPlay())
-	{
-		Level().StartPlayDemo();
-		return;
-	};*/
 	///	Server_Client_Check(CL);
 	//csPlayers.Enter					();	//sychronized by a parent call
 	Export_game_type(CL);
@@ -219,12 +214,6 @@ void xrServer::SendConnectResult(IClient* CL, u8 res, u8 res1, char* ResultStr)
 		DisconnectClient(CL, ResultStr);
 	}
 
-	if (Level().IsDemoPlay())
-	{
-		Level().StartPlayDemo();
-
-		return;
-	}
 };
 
 void xrServer::SendProfileCreationError(IClient* CL, char const* reason)

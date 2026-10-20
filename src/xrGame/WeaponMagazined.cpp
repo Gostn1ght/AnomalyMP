@@ -16,7 +16,6 @@
 #include "UIGameCustom.h"
 #include "object_broker.h"
 #include "string_table.h"
-#include "MPPlayersBag.h"
 #include "ui/UIXmlInit.h"
 #include "ui/UIStatic.h"
 #include "game_object_space.h"
@@ -759,11 +758,6 @@ void CWeaponMagazined::state_Fire(float dt)
 		d.set(get_LastFD());
 
 		if (!H_Parent()) return;
-		if (smart_cast<CMPPlayersBag*>(H_Parent()) != NULL)
-		{
-			Msg("! WARNING: state_Fire of object [%d][%s] while parent is CMPPlayerBag...", ID(), cNameSect().c_str());
-			return;
-		}
 
 		CInventoryOwner* io = smart_cast<CInventoryOwner*>(H_Parent());
 		if (NULL == io->inventory().ActiveItem())
@@ -1070,7 +1064,7 @@ void CWeaponMagazined::switch2_Fire()
 	m_bFireSingleShot = true;
 	m_iShotNum = 0;
 
-	if ((OnClient() || Level().IsDemoPlay()) && !IsWorking())
+	if (OnClient() && !IsWorking())
 		FireStart();
 }
 

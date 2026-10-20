@@ -31,9 +31,6 @@ class CLevelDebug;
 class CLevelSoundManager;
 class CGameTaskManager;
 class CZoneList;
-class message_filter;
-class demoplay_control;
-class demo_info;
 class CDebugRenderer;
 class DBG_ScriptObject;
 class script_attachment;
@@ -67,7 +64,6 @@ class CLevel :
 	public IGame_Level,
 	public IPureClient
 {
-#include "Level_network_Demo.h"
 	void ClearAllObjects();
 private:
 #ifdef DEBUG
@@ -239,8 +235,6 @@ public:
 	xr_map<shared_str, DBG_ScriptObject*>* getScriptRenderQueue() { return &m_debug_render_queue; }
 	void ScriptDebugRender();
 
-	virtual shared_str OpenDemoFile(const char* demo_file_name);
-	virtual void net_StartPlayDemo();
 	void cl_Process_Event(u16 dest, u16 type, NET_Packet& P);
 	void cl_Process_Spawn(NET_Packet& P);
 

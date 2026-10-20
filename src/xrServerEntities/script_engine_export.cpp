@@ -60,8 +60,6 @@ void export_classes	(lua_State *L)
 	console_registrator::script_register(L);
 	shader_bus_registrator::script_register(L);
 	CCoverPoint::script_register(L);
-	demo_player_info::script_register(L);
-	demo_info::script_register(L);
 	CEF_Storage::script_register(L);
 	fs_registrator::script_register(L);
 	CGameTask::script_register(L);
@@ -185,7 +183,6 @@ void export_classes	(lua_State *L)
 	CSE_ALifeObjectBreakable::script_register(L);
 	CSE_ALifeObjectClimable::script_register(L);
 	CSE_ALifeMountedWeapon::script_register(L);
-	CSE_ALifeTeamBaseZone::script_register(L);
 	CSE_ALifeInventoryBox::script_register(L);
 	CSE_ALifeInventoryItem::script_register(L);
 	CSE_ALifeItem::script_register(L);

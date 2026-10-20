@@ -830,9 +830,6 @@ void game_sv_GameState::OnEvent(NET_Packet& tNetPacket, u16 type, u32 time, Clie
 			if (psNET_direct_connect) //IsGameTypeSingle())
 				break;
 
-			if (Level().IsDemoPlay())
-				break;
-
 			if (g_dedicated_server && (CL == m_server->GetServerClient()))
 				break;
 
