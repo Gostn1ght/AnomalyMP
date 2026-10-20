@@ -88,6 +88,18 @@ Branch `engine-restructure` (dispatch builds):
   into 13 section modules (checks read them through `scripts/netcoop_source.py`).
 - Mods' XML callbacks (DXML) cached per setup: archives, loose scripts, MCM
   `axr_options.ltx`, `user.ltx`, build (`-no_xml_cache` turns it off).
+- Dead code: `_EDITOR`/`INGAME_EDITOR` branches (147 files), OpenAutomate
+  (SASH), `-batch_benchmark`, `-launcher`; the GSC logo intro is off online.
+- Skinning threads: the own spinning `ttapi` helper threads replaced by
+  `tbb::parallel_for` on the pool the engine already uses.
+- Legacy MP modes DM/TDM/AH/CTA removed: 262 files, ~47 k lines (game
+  classes, buy menu, votes, admin menus, stats, team panels, rewards,
+  anticheat screenshots, the never-registered MP console commands, modules
+  nobody included). Clsids `art_cta`, `mp_players_bag`, `team_base_zone`
+  and the actor MP pair stay registered for configs and scripts;
+  `get_rank` (stalker weapon choice) moved into `ai_stalker_alife.cpp`.
+  Bug fixed on the way: `M_SV_DIGEST` from any client crashed the server
+  (null `game_sv_mp`).
 
 Measured (main loop -> menu 23 s):
 
@@ -100,7 +112,7 @@ Measured (main loop -> menu 23 s):
 
 Cold shader cache: 47–60 s to the menu here (warm 34–35 s). One cold run
 hung for over 8 minutes after the main loop; six repeated runs did not; the
-hunt script `J:\LostZone_Work\_workiewtest\hunt_hang.ps1` dumps all
+hunt script `J:\LostZone_Work\_work\viewtest\hunt_hang.ps1` dumps all
 thread stacks (`stacks.py`) when the menu does not come within 150 s.
 Focus: the menu loads while unfocused (123 s) and minimized; the owner plays
 windowed; level loading after login is still to measure.
