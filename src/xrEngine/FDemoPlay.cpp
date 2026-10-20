@@ -10,7 +10,6 @@
 #include "Render.h"
 #include "CameraManager.h"
 
-#include "xrSash.h"
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction

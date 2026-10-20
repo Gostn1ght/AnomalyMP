@@ -30,7 +30,6 @@
 #include <discord\discord.h>
 #include "../xrCore/profiler.h"
 
-#include "xrSash.h"
 #include "MonitorList.h"
 
 extern "C" void XR_EARLY_INIT();

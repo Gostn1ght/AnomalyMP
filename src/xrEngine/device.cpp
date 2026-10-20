@@ -26,7 +26,6 @@
 #include "../xrCore/FS_impl.h"
 
 
-#include "xrSash.h"
 #include "igame_persistent.h"
 #include "shader_bus.h"
 
