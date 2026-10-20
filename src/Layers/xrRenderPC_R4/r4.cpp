@@ -2087,6 +2087,7 @@ HRESULT CRender::shader_compile(
 		static u32 compiled = 0;
 		static u64 compile_ticks = 0;
 		const u64 compile_start = CPU::QPC();
+		if (compiled >= 100 && compiled % 10 == 0) { Msg("[startup] compiling shader %s %s", name, pTarget); FlushLogAppend(); }
 		includer Includer;
 		LPD3DBLOB pShaderBuf = NULL;
 		LPD3DBLOB pErrorBuf = NULL;
@@ -2102,6 +2103,12 @@ HRESULT CRender::shader_compile(
 				&pErrorBuf
 			);
 		compile_ticks += CPU::QPC() - compile_start;
+		const double one_s = double(CPU::QPC() - compile_start) / double(CPU::qpc_freq);
+		if (one_s > 2.0)
+		{
+			Msg("[startup] slow shader %s %s (%s) %.1f s", name, pTarget, sh_name, one_s);
+			FlushLogAppend();
+		}
 		if (++compiled % 25 == 0)
 			Msg("[startup] shaders compiled: %u in %.1f s", compiled, double(compile_ticks) / double(CPU::qpc_freq));
 
