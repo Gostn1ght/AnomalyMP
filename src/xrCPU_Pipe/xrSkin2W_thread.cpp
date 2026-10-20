@@ -1,67 +1,26 @@
 #include "stdafx.h"
 #pragma hdrstop
 
+#include <tbb/parallel_for.h>
+#include <tbb/blocked_range.h>
+
 extern xrSkin4W* skin4W_func;
 
-struct SKIN_PARAMS
-{
-	LPVOID Dest;
-	LPVOID Src;
-	u32 Count;
-	LPVOID Data;
-};
-
-void Skin4W_Stream(LPVOID lpvParams)
-{
-#ifdef _GPA_ENABLED
-		TAL_SCOPED_TASK_NAMED( "xrSkin4W_Stream()" );
-#endif // _GPA_ENABLED
-
-	SKIN_PARAMS* sp = (SKIN_PARAMS*)lpvParams;
-
-	vertRender* D = (vertRender*)sp->Dest;
-	vertBoned4W* S = (vertBoned4W*)sp->Src;
-	u32 vCount = sp->Count;
-	CBoneInstance* Bones = (CBoneInstance*)sp->Data;
-
-	skin4W_func(D, S, vCount, Bones);
-}
-
+// Lost Zone (doc 151): 4-bone skinning split over the TBB worker pool the
+// engine already uses for textures and sounds. The old ttapi kept its own
+// helper threads spinning between frames.
 void __stdcall xrSkin4W_thread(vertRender* D,
                                vertBoned4W* S,
                                u32 vCount,
                                CBoneInstance* Bones)
 {
-#ifdef _GPA_ENABLED
-		TAL_SCOPED_TASK_NAMED( "xrSkin4W()" );
-#endif // _GPA_ENABLED
-
-	u32 nWorkers = ttapi_GetWorkersCount();
-
-	if (vCount < (nWorkers * 64))
+	const u32 grain = 512;
+	if (vCount < grain * 2)
 	{
 		skin4W_func(D, S, vCount, Bones);
 		return;
 	}
-
-	SKIN_PARAMS* sknParams = (SKIN_PARAMS*)_alloca(sizeof(SKIN_PARAMS) * nWorkers);
-
-	// Give ~1% more for the last worker
-	// to minimize wait in final spin
-	u32 nSlice = vCount / 128;
-
-	u32 nStep = ((vCount - nSlice) / nWorkers);
-	u32 nLast = vCount - nStep * (nWorkers - 1);
-
-	for (u32 i = 0; i < nWorkers; ++i)
-	{
-		sknParams[i].Dest = (LPVOID)(D + i * nStep);
-		sknParams[i].Src = (LPVOID)(S + i * nStep);
-		sknParams[i].Count = (i == (nWorkers - 1)) ? nLast : nStep;
-		sknParams[i].Data = (LPVOID)Bones;
-
-		ttapi_AddWorker(Skin4W_Stream, (LPVOID)&sknParams[i]);
-	}
-
-	ttapi_RunAllWorkers();
+	tbb::parallel_for(tbb::blocked_range<u32>(0, vCount, grain), [&](const tbb::blocked_range<u32>& r) {
+		skin4W_func(D + r.begin(), S + r.begin(), u32(r.size()), Bones);
+	});
 }

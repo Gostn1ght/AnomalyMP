@@ -49,13 +49,8 @@ void __cdecl xrBind_PSGP(xrDispatchTable* T, _processor_info* ID)
 		}
 #endif
 
-	// Init helper threads
-	ttapi_Init(ID);
-
-	if (ttapi_GetWorkersCount() > 1)
-	{
-		// We can use threading
+	// Several cores: skinning runs on the TBB pool (doc 151).
+	if (std::thread::hardware_concurrency() > 1)
 		T->skin4W = xrSkin4W_thread;
-	}
 }
 };

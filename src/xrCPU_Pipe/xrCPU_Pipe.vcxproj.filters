@@ -36,9 +36,6 @@
     <ClCompile Include="xrSkin2W_thread.cpp">
       <Filter>Skinning</Filter>
     </ClCompile>
-    <ClCompile Include="ttapi.cpp">
-      <Filter>TTAPI</Filter>
-    </ClCompile>
     <ClCompile Include="PLC.cpp">
       <Filter>PLC</Filter>
     </ClCompile>
@@ -52,9 +49,6 @@
     </ClInclude>
     <ClInclude Include="resource.h">
       <Filter>Resources</Filter>
-    </ClInclude>
-    <ClInclude Include="ttapi.h">
-      <Filter>TTAPI</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
