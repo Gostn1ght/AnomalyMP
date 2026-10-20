@@ -8,7 +8,7 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
-#include "../../script_game_object.h"
+#include "script_game_object.h"
 #include "ExplosiveItem.h"
 #include "netcoop.h"
 #include "netcoop_prop_mass.h"

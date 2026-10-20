@@ -9,7 +9,6 @@
 #include "../xrRender/fbasicvisual.h"
 #include "../../xrEngine/CustomHUD.h"
 
-#include "../../xrCPU_Pipe/ttapi.h"
 
 const float S_distance = 256;
 const float S_distance2 = S_distance * S_distance;

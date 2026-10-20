@@ -148,7 +148,6 @@ bool IGame_Level::Load(u32 dwNum)
 	return true;
 }
 
-#include "../xrCPU_Pipe/ttapi.h"
 
 int psNET_DedicatedSleep = 5;
 
