@@ -1,9 +1,7 @@
 #include "stdafx.h"
 #pragma hdrstop
 
-#ifndef _EDITOR
 #include "render.h"
-#endif
 
 #include "Environment.h"
 #include "xr_efflensflare.h"
@@ -18,9 +16,7 @@
 
 //#include "resourcemanager.h"
 
-#ifndef _EDITOR
 #include "IGame_Level.h"
-#endif
 
 //#include "D3DUtils.h"
 #include "../xrcore/xrCore.h"
@@ -61,14 +57,8 @@ CEnvironment::CEnvironment() :
 	eff_LensFlare = 0;
 	eff_Thunderbolt = 0;
 	OnDeviceCreate();
-#ifdef _EDITOR
-    ed_from_time = 0.f;
-    ed_to_time = DAY_LENGTH;
-#endif
 
-#ifndef _EDITOR
 	m_paused = false;
-#endif
 
 	fGameTime = 0.f;
 	fTimeFactor = 12.f;
@@ -283,13 +273,11 @@ void CEnvironment::ChangeGameTime(float game_time)
 
 void CEnvironment::SetGameTime(float game_time, float time_factor)
 {
-#ifndef _EDITOR
 	if (m_paused)
 	{
 		g_pGameLevel->SetEnvironmentGameTimeFactor(iFloor(fGameTime * 1000.f), fTimeFactor);
 		return;
 	}
-#endif
 	if (bWFX)
 		wfx_time -= TimeDiff(fGameTime, game_time);
 	fGameTime = game_time;
@@ -331,9 +319,7 @@ void CEnvironment::SetWeather(shared_str name, bool forced)
 	}
 	else
 	{
-#ifndef _EDITOR
 		Msg("! Empty weather name");
-#endif
 	}
 }
 
@@ -400,9 +386,7 @@ bool CEnvironment::SetWeatherFX(shared_str name)
 	}
 	else
 	{
-#ifndef _EDITOR
 		FATAL("! Empty weather effect name");
-#endif
 	}
 	return true;
 }
@@ -575,29 +559,7 @@ void CEnvironment::set_lerp(float current_weight)
 
 void CEnvironment::OnFrame()
 {
-#ifdef _EDITOR
-    SetGameTime(fGameTime + Device.fTimeDelta*fTimeFactor, fTimeFactor);
-    if (fsimilar(ed_to_time, DAY_LENGTH) && fsimilar(ed_from_time, 0.f))
-    {
-        if (fGameTime > DAY_LENGTH) fGameTime -= DAY_LENGTH;
-    }
-    else
-    {
-        if (fGameTime > ed_to_time)
-        {
-            fGameTime = fGameTime - ed_to_time + ed_from_time;
-            Current[0] = Current[1] = 0;
-        }
-        if (fGameTime < ed_from_time)
-        {
-            fGameTime = ed_from_time;
-            Current[0] = Current[1] = 0;
-        }
-    }
-    if (!psDeviceFlags.is(rsEnvironment)) return;
-#else
 	if (!g_pGameLevel) return;
-#endif
 	// The level can still exist while its environment is already unloaded.
 	if (!CurrentWeather || !eff_Rain || !eff_LensFlare || !eff_Thunderbolt)
 		return;

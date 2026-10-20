@@ -4,9 +4,7 @@
 #else
 	#define XRNETSERVER_API 
 
-	#ifndef _EDITOR
 		#pragma comment(lib,	"xrNetServer"	)
-    #endif
 #endif
 
 #include "../xrCore/net_utils.h"

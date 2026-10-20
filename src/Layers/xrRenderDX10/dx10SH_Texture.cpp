@@ -3,10 +3,8 @@
 
 #include "../xrRender/ResourceManager.h"
 
-#ifndef _EDITOR
 #include "../../xrEngine/render.h"
 #include "../../xrEngine/IGame_Persistent.h" // g_dedicated_server
-#endif
 
 #include "../../xrEngine/tntQAVI.h"
 #include "../../xrEngine/xrTheora_Surface.h"

@@ -224,9 +224,6 @@ DiagOutputVB(LPCSTR szMsg);
 // occurs on the expansion of the macro.
 #pragma warning ( disable : 4127 )
 
-#ifdef _EDITOR
-#   define PORTABLE_BUGSLAYERUTIL
-#endif // _EDITOR
 
 #ifdef PORTABLE_BUGSLAYERUTIL
 #define ASSERTMACRO(a,x)                                            \

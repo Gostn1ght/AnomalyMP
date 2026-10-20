@@ -35,8 +35,5 @@
 #include "../xrCore/xr_resource.h"
 #include "../xrCore/profiler.h"
 
-#ifdef _EDITOR
-# 	include "ETools.h"
-#endif
 
 #endif

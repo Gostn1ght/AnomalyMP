@@ -190,18 +190,12 @@ void set_weather_weight(float weight)
 
 void set_weather(LPCSTR weather_name, bool forced)
 {
-#ifdef INGAME_EDITOR
-	if (!Device.editor())
-#endif // #ifdef INGAME_EDITOR
 	g_pGamePersistent->Environment().SetWeather(weather_name, forced);
 }
 
 // demonized: Sets weather and force updates next environment so the interpolation will happen between current environment and next weather's environment
 void set_weather_smooth(LPCSTR weather_name)
 {
-#ifdef INGAME_EDITOR
-    if (!Device.editor())
-#endif // #ifdef INGAME_EDITOR
     g_pGamePersistent->Environment().SetWeather(weather_name, false);
     if (g_pGamePersistent->Environment().Current[1] && g_pGamePersistent->Environment().CurrentWeather)
     {
@@ -215,26 +209,14 @@ void set_weather_smooth(LPCSTR weather_name)
 
 bool set_weather_fx(LPCSTR weather_name)
 {
-#ifdef INGAME_EDITOR
-	if (!Device.editor())
-#endif // #ifdef INGAME_EDITOR
 	return (g_pGamePersistent->Environment().SetWeatherFX(weather_name));
 
-#ifdef INGAME_EDITOR
-	return			(false);
-#endif // #ifdef INGAME_EDITOR
 }
 
 bool start_weather_fx_from_time(LPCSTR weather_name, float time)
 {
-#ifdef INGAME_EDITOR
-	if (!Device.editor())
-#endif // #ifdef INGAME_EDITOR
 	return (g_pGamePersistent->Environment().StartWeatherFXFromTime(weather_name, time));
 
-#ifdef INGAME_EDITOR
-	return			(false);
-#endif // #ifdef INGAME_EDITOR
 }
 
 bool is_wfx_playing()
@@ -278,10 +260,6 @@ void set_time_factor(float time_factor)
 	if (!OnServer())
 		return;
 
-#ifdef INGAME_EDITOR
-	if (Device.editor())
-		return;
-#endif // #ifdef INGAME_EDITOR
 
 	Level().Server->game->SetGameTimeFactor(time_factor);
 }

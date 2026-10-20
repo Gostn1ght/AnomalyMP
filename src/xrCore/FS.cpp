@@ -90,22 +90,6 @@ void VerifyPath(LPCSTR path)
 	}
 }
 
-#ifdef _EDITOR
-bool file_handle_internal(LPCSTR file_name, u32& size, int& hFile)
-{
-    hFile = _open(file_name, O_RDONLY | O_BINARY | O_SEQUENTIAL);
-    if (hFile <= 0)
-    {
-        Sleep(1);
-        hFile = _open(file_name, O_RDONLY | O_BINARY | O_SEQUENTIAL);
-        if (hFile <= 0)
-            return (false);
-    }
-
-    size = filelength(hFile);
-    return (true);
-}
-#else // EDITOR
 static errno_t open_internal(LPCSTR fn, int& handle)
 {
 	return (
@@ -131,7 +115,6 @@ bool file_handle_internal(LPCSTR file_name, u32& size, int& file_handle)
 	size = _filelength(file_handle);
 	return (true);
 }
-#endif // EDITOR
 
 void* FileDownload(LPCSTR file_name, const int& file_handle, u32& file_size)
 {
@@ -333,11 +316,7 @@ void IWriter::w_printf(const char* format, ...)
 	char buf[1024];
 
 	va_start(mark, format);
-#ifndef _EDITOR
 	vsprintf_s(buf, format, mark);
-#else
-    vsprintf(buf, format, mark);
-#endif
 	va_end(mark);
 
 	w(buf, xr_strlen(buf));
@@ -467,11 +446,7 @@ void IReader::r_string(char* dest, u32 tgt_sz)
 	R_ASSERT2(sz < (tgt_sz - 1), "Dest string less than needed.");
 	R_ASSERT(!IsBadReadPtr((void*)src, sz));
 
-#ifdef _EDITOR
-    CopyMemory(dest, src, sz);
-#else
 	strncpy_s(dest, tgt_sz, src, sz);
-#endif
 	dest[sz] = 0;
 }
 

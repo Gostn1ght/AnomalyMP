@@ -7,14 +7,10 @@
 
 #include "../../xrEngine/perlin.h"
 
-#ifdef _EDITOR
-#include "ui_toolscustom.h"
-#else
 #include "render.h"
 #include "igame_level.h"
 #include "../xrcdb/xr_area.h"
 #include "xr_object.h"
-#endif
 
 // Warning: duplicated in dxRainRender
 static const int max_desired_items = 2500;
@@ -146,14 +142,10 @@ void CEffect_Rain::Born(Item& dest, float radius, float speed)
 BOOL CEffect_Rain::RayPick(const Fvector& s, const Fvector& d, float& range, collide::rq_target tgt)
 {
 	BOOL bRes = TRUE;
-#ifdef _EDITOR
-    Tools->RayPick (s,d,range);
-#else
 	collide::rq_result RQ;
 	CObject* E = g_pGameLevel->CurrentViewEntity();
 	bRes = g_pGameLevel->ObjectSpace.RayPick(s, d, range, tgt, RQ, E);
 	if (bRes) range = RQ.range;
-#endif
 	return bRes;
 }
 
@@ -176,9 +168,7 @@ void CEffect_Rain::RenewItem(Item& dest, float height, BOOL bHit)
 
 void CEffect_Rain::OnFrame()
 {
-#ifndef _EDITOR
 	if (!g_pGameLevel) return;
-#endif
 
 #ifdef DEDICATED_SERVER
     return;
@@ -194,7 +184,6 @@ void CEffect_Rain::OnFrame()
 	// 50% of the volume is by rain_density and 50% wind_velocity;
 	float factor = rain_density * 0.5f + wind_velocity * 0.5f;
 	static float hemi_factor = 0.f;
-#ifndef _EDITOR
 	CObject* E = g_pGameLevel->CurrentViewEntity();
 	if (E && E->renderable_ROS())
 	{
@@ -212,7 +201,6 @@ void CEffect_Rain::OnFrame()
 		hemi_factor = hemi_factor * (1.0f - t) + f * t;
 		rain_hemi = hemi_val;
 	}
-#endif
 
 	switch (state)
 	{
@@ -256,9 +244,7 @@ void CEffect_Rain::OnFrame()
 //#include "xr_input.h"
 void CEffect_Rain::Render()
 {
-#ifndef _EDITOR
 	if (!g_pGameLevel) return;
-#endif
 
 	m_pRender->Render(*this);
 

@@ -3,9 +3,7 @@
 
 #include "../../xrParticles/psystem.h"
 
-#ifndef _EDITOR
 #include "../../xrServerEntities/smart_cast.h"
-#endif
 
 #include "ParticleGroup.h"
 #include "PSLibrary.h"
@@ -32,18 +30,6 @@ void CPGDef::SetName(LPCSTR name)
 	m_Name = name;
 }
 
-#ifdef _EDITOR
-void CPGDef::Clone	(CPGDef* source)
-{
-	m_Name			= "<invalid_name>";
-    m_Flags			= source->m_Flags;
-    m_fTimeLimit	= source->m_fTimeLimit;
-
-    m_Effects.resize(source->m_Effects.size(),0);		
-    for (EffectIt d_it=m_Effects.begin(),s_it=source->m_Effects.begin(); s_it!=source->m_Effects.end(); s_it++,d_it++)
-    	*d_it		= xr_new<SEffect>(**s_it);
-}
-#endif
 
 //------------------------------------------------------------------------------
 // I/O part
@@ -266,11 +252,7 @@ void CParticleGroup::SItem::StartFreeChild(CParticleEffect* emitter, LPCSTR nm, 
 	}
 	else
 	{
-#ifdef _EDITOR
-        Msg			("!Can't use looped effect '%s' as 'On Birth' child for group.",nm);
-#else
 		Debug.fatal(DEBUG_INFO, "Can't use looped effect '%s' as 'On Birth' child for group.", nm);
-#endif
 	}
 }
 

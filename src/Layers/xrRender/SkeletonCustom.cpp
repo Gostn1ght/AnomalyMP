@@ -5,9 +5,7 @@
 #include 	"SkeletonCustom.h"
 #include	"SkeletonX.h"
 #include	"../../xrEngine/fmesh.h"
-#ifndef _EDITOR
 #include	"../../xrEngine/Render.h"
-#endif
 int psSkeletonUpdate = 32;
 xrCriticalSection UCalc_Mutex
 #ifdef PROFILE_CRITICAL_SECTIONS
@@ -15,11 +13,7 @@ xrCriticalSection UCalc_Mutex
 #endif // PROFILE_CRITICAL_SECTIONS
 ;
 
-#ifndef _EDITOR
 #include "../../xrServerEntities/smart_cast.h"
-#else
-#include "../../Include/xrAPI/xrAPI.h"
-#endif
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -228,12 +222,10 @@ void CKinematics::Load(const char* N, IReader* data, u32 dwFlags)
 		LD->close();
 	}
 
-#ifndef _EDITOR
 	// User data
 	IReader* UD = data->open_chunk(OGF_S_USERDATA);
 	pUserData = UD ? xr_new<CInifile>(UD, FS.get_path("$game_config$")->m_Path) : 0;
 	if (UD) UD->close();
-#endif
 
 	// Globals
 	bone_map_N = xr_new<accel>();

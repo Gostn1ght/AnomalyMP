@@ -17,9 +17,7 @@
 #include "../../xrCore/ShaderSourceCRC.h"
 //#include "../../xrServerEntities/smart_cast.h"
 
-#ifndef _EDITOR
 #include "../../xrCPU_Pipe/ttapi.h"
-#endif
 
 
 using namespace R_dsgraph;

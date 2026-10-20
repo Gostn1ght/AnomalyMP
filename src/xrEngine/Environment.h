@@ -25,11 +25,7 @@ class CLensFlareDescriptor;
 
 #include "../build_config_defines.h"
 
-#ifdef INGAME_EDITOR
-# define INGAME_EDITOR_VIRTUAL virtual
-#else // #ifdef INGAME_EDITOR
 # define INGAME_EDITOR_VIRTUAL
-#endif // #ifdef INGAME_EDITOR
 
 // t-defs
 class ENGINE_API CEnvModifier
@@ -377,17 +373,6 @@ public:
 	void OnDeviceDestroy();
 
 	// editor-related
-#ifdef _EDITOR
-public:
-    float ed_from_time;
-    float ed_to_time;
-public:
-    void ED_Reload();
-    float GetGameTime() { return fGameTime; }
-#else // #ifdef _EDITOR
-# ifdef INGAME_EDITOR
-    float GetGameTime() { return fGameTime; }
-# endif // #ifdef INGAME_EDITOR
 
 	bool m_paused;
 
@@ -406,7 +391,6 @@ public:
 
 	Fvector2 sun_hp[24];
 
-#endif // #ifdef _EDITOR
 
 	CInifile* m_ambients_config;
 	CInifile* m_sound_channels_config;

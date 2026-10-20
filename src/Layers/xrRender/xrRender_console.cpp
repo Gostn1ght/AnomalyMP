@@ -517,7 +517,6 @@ float ps_r2_gloss_min = 0.0f;
 int opt_static = 2;
 int opt_dynamic = 2;
 
-#ifndef _EDITOR
 #include	"../../xrEngine/xr_ioconsole.h"
 #include	"../../xrEngine/xr_ioc_cmd.h"
 #include	"../../xrEngine/shader_bus.h"
@@ -1732,4 +1731,3 @@ void xrRender_initconsole()
 
 	//	CMD3(CCC_Mask,		"r2_sun_ignore_portals",		&ps_r2_ls_flags,			R2FLAG_SUN_IGNORE_PORTALS);
 }
-#endif
