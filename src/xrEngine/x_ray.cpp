@@ -155,7 +155,6 @@ struct _SoundProcessor : public pureFrame
 //////////////////////////////////////////////////////////////////////////
 // global variables
 ENGINE_API CApplication* pApp = NULL;
-static HWND logoWindow = NULL;
 
 int doLauncher();
 void doBenchmark(LPCSTR name);
@@ -558,9 +557,6 @@ void Startup()
 	g_SpatialSpace = xr_new<ISpatial_DB>();
 	g_SpatialSpacePhysic = xr_new<ISpatial_DB>();
 
-	// Destroy LOGO
-	DestroyWindow(logoWindow);
-	logoWindow = NULL;
 
 	//Discord Rich Presence - Rezy
 	Init_Discord();
@@ -617,25 +613,6 @@ void Startup()
 #endif
 
 	destroyEngine();
-}
-
-static INT_PTR CALLBACK logDlgProc(HWND hw, UINT msg, WPARAM wp, LPARAM lp)
-{
-	switch (msg)
-	{
-	case WM_DESTROY:
-		break;
-	case WM_CLOSE:
-		DestroyWindow(hw);
-		break;
-	case WM_COMMAND:
-		if (LOWORD(wp) == IDCANCEL)
-			DestroyWindow(hw);
-		break;
-	default:
-		return FALSE;
-	}
-	return TRUE;
 }
 
 // Always request high performance GPU
@@ -970,44 +947,8 @@ int APIENTRY WinMain_impl(HINSTANCE hInstance,
 		g_dedicated_server = true;
 	}
 
-	// Title window
-    logoWindow = CreateDialog(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_STARTUP), 0, logDlgProc);
-   
-	HWND logoPicture = GetDlgItem(logoWindow, IDC_STATIC_LOGO);
-	RECT logoRect;
-	GetWindowRect(logoPicture, &logoRect);
-	int splashW = logoRect.right - logoRect.left;
-	int splashH = logoRect.bottom - logoRect.top;
-
-	u32 screenW, screenH;
-	int monX, monY;
-	GetMonitorResolution(screenW, screenH);
-	GetMonitorPosition(monX, monY);
-	int x = monX + (screenW - splashW) / 2;
-	int y = monY + (screenH - splashH) / 2;
-
-    // verdatim: set the size of the splash window to be zero when the flag "-nosplashwindow" is given
-    if (strstr(xr_strdup(GetCommandLine()), "-nosplashwindow")) {
-        splashW = int(0);
-        splashH = int(0);
-    }
-
-
-	SetWindowPos(
-		logoWindow,
-#ifndef DEBUG
-        HWND_TOP,
-#else
-        HWND_NOTOPMOST,
-#endif // NDEBUG
-		x,
-		y,
-		splashW,
-		splashH,
-		SWP_SHOWWINDOW
-	);
-	
-	UpdateWindow(logoWindow);
+	// Lost Zone (owner 2026-10-20, doc 151): no splash rectangle before the game;
+	// the game window itself shows the start.
 
 	// AVI
 	g_bIntroFinished = TRUE;
