@@ -59,9 +59,17 @@ void XMLLuaCallback(CXml &m_xml, LPCSTR xml_string) {
 	::luabind::functor<LPCSTR> funct;
 	if (ai().script_engine().functor("_G.COnXmlRead", funct))
 	{
+		// Lost Zone (doc 151): the mods' XML callbacks took two thirds of the
+		// menu load; the slow files are named in the start log, and an
+		// unchanged text is not parsed a second time.
+		const u64 began = CPU::QPC();
 		LPCSTR res = funct(m_xml.m_xml_file_name, xml_string);
-		//Msg("XMLLuaCallback, xml %s, contents %s", m_xml.m_xml_file_name, res);
-		m_xml.LoadFromString(res);
+		const double ms = double(CPU::QPC() - began) * 1000.0 / double(CPU::qpc_freq);
+		static double total_ms = 0; static u32 files = 0;
+		total_ms += ms; ++files;
+		if (ms > 50.0) Msg("[startup] xml %s: mods %.0f ms (all %u files %.1f s)", m_xml.m_xml_file_name, ms, files, total_ms / 1000.0);
+		if (res && res != xml_string && xr_strcmp(res, xml_string))
+			m_xml.LoadFromString(res);
 	}
 }
 
