@@ -37,6 +37,7 @@ struct Api
     long long (*last_insert_rowid)(sqlite3*);
     int (*busy_timeout)(sqlite3*, int);
     int (*get_autocommit)(sqlite3*);
+    int (*initialize)();
 } api;
 bool loaded = false;
 #define SQLITE_TRANSIENT_FN ((void (*)(void*)) - 1)
@@ -72,9 +73,17 @@ bool Db::load_library(std::string& error)
     bind(api.exec, "sqlite3_exec"); bind(api.free, "sqlite3_free"); bind(api.errmsg, "sqlite3_errmsg");
     bind(api.changes, "sqlite3_changes"); bind(api.last_insert_rowid, "sqlite3_last_insert_rowid");
     bind(api.busy_timeout, "sqlite3_busy_timeout"); bind(api.get_autocommit, "sqlite3_get_autocommit");
+    bind(api.initialize, "sqlite3_initialize");
     if (!ok)
     {
         error = "sqlite3.dll is too old";
+        return false;
+    }
+    // Python's sqlite3.dll is built with SQLITE_OMIT_AUTOINIT: open() without
+    // this crashes on its uninitialised mutex methods (CI 2026-10-19).
+    if (api.initialize() != SQLITE_OK)
+    {
+        error = "sqlite3_initialize failed";
         return false;
     }
     loaded = true;
