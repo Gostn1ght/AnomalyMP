@@ -38,7 +38,7 @@ struct CGameTask{CMapLocation spot;CMapLocation* linked=&spot;ETaskState state=e
  void RemoveMapLocations(bool notify){if(linked&&!notify){++removed;level_manager->MapLocationRelcase(linked);}linked=nullptr;}};
 void SGameTaskKey::destroy(){delete game_task;game_task=nullptr;}
 ''' + method('src/xrGame/GametaskManager.cpp','CGameTask* CGameTaskManager::HasGameTask(const CMapLocation* ml') + '\n' + method(
-    'src/xrGame/netcoop.cpp','static void clear_tasks(') + r'''
+    'src/xrGame/netcoop_tasks.inc','static void clear_tasks(') + r'''
 int main(){
  for(unsigned count:{0u,1u,2u,5u}){
   CGameTaskManager manager;level_manager=&manager;removed=0;

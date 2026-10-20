@@ -4,6 +4,8 @@ from tempfile import TemporaryDirectory
 import os
 import re
 import subprocess
+import sys as _sys; _sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))
+from netcoop_source import netcoop_cpp
 if os.environ.get("GITHUB_ACTIONS") != "true":
     raise SystemExit("Native checks must run in GitHub Actions")
 root = Path(__file__).resolve().parents[1]
@@ -15,7 +17,7 @@ status_start = cluster.index('static LPCSTR cluster_target_problem(u32 port)\n{'
 status_end = cluster.index('\nstatic bool cluster_secret()',status_start)
 status_body = cluster[status_start:status_end]
 status_ttl = re.search(r'static const u32 cluster_status_ttl_s\s*=\s*(\d+)\s*;',cluster).group(1)
-engine = (root/"src/xrGame/netcoop.cpp").read_text(encoding="utf-8")
+engine = netcoop_cpp(root, encoding="utf-8")
 start = engine.index('static void store_money(xrClientData* CL)\n{')
 end = engine.index('\nvoid server_on_client_disconnect(', start)
 money = engine[start:end].replace('static void store_money(', 'static void captured_store_money(')

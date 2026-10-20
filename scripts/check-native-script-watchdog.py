@@ -2,11 +2,13 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import os,subprocess
+import sys as _sys; _sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))
+from netcoop_source import netcoop_cpp
 
 if os.environ.get('GITHUB_ACTIONS')!='true':
     raise SystemExit('Native checks must run in GitHub Actions')
 root=Path(__file__).resolve().parents[1]
-text=(root/'src/xrGame/netcoop.cpp').read_text(encoding='latin-1')
+text=netcoop_cpp(root, encoding='latin-1')
 start=text.index('volatile LONG wd_armed = 0;')
 method=text[start:text.index('// Hitch sampling:',start)]
 assert 'g_loading_events.empty()' in method and 'Device.dwPrecacheFrame' in method

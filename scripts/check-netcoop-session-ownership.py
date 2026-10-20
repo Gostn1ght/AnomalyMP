@@ -3,12 +3,14 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import os
 import subprocess
+import sys as _sys; _sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))
+from netcoop_source import netcoop_cpp
 
 if os.environ.get("GITHUB_ACTIONS") != "true" or os.name != "nt":
     raise SystemExit("Windows native checks must run in GitHub Actions")
 root = Path(__file__).resolve().parents[1]
 cluster = (root/"src/xrGame/netcoop_cluster.inc").read_text(encoding="utf-8")
-engine = (root/"src/xrGame/netcoop.cpp").read_text(encoding="utf-8")
+engine = netcoop_cpp(root, encoding="utf-8")
 a = cluster.index('static void cluster_file(')
 b = cluster.index('static bool cluster_config_path(',a)
 files = cluster[a:b]

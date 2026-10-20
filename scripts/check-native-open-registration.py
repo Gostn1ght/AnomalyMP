@@ -3,9 +3,11 @@ import os
 from pathlib import Path
 import subprocess
 from tempfile import TemporaryDirectory
+import sys as _sys; _sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))
+from netcoop_source import netcoop_cpp
 
 root=Path(__file__).resolve().parents[1]
-text=(root/'src/xrGame/netcoop.cpp').read_text(encoding='utf-8-sig')
+text=netcoop_cpp(root, encoding='utf-8-sig')
 start=text.index('static bool finish_auth(')
 end=text.index('    // Slot zero authenticates',start)
 admission=text[start:end]+'    return false;\n}\n' # the world master phase follows the prefix (doc 135)

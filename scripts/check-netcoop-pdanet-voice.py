@@ -11,6 +11,8 @@ limit ends a dictaphone recording and keeps it. Engine wiring as text."""
 from pathlib import Path
 import base64, os, re, tempfile
 from lupa.lua51 import LuaRuntime
+import sys as _sys; _sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))
+from netcoop_source import netcoop_cpp
 
 root = Path(__file__).resolve().parent / "netcoop-overlay"
 src_dir = Path(__file__).resolve().parents[1] / "src"
@@ -194,7 +196,7 @@ inc = (src_dir / "xrGame/netcoop_voice_record.inc").read_text(encoding="utf-8")
 voice_inc = (src_dir / "xrGame/netcoop_voice.inc").read_text(encoding="utf-8")
 assert "voice_record_heard(speaker, mode" in voice_inc and "voice_record_update();" in voice_inc
 assert "SetRecord(&s_rec)" in inc and "SetSoundTap(&s_rec)" in inc
-assert '#include "netcoop_voice_record.inc"' in (src_dir / "xrGame/netcoop.cpp").read_text(encoding="utf-8", errors="replace")
+assert '#include "netcoop_voice_record.inc"' in netcoop_cpp(src_dir.parent, encoding="utf-8", errors="replace")
 script = (src_dir / "xrGame/level_script.cpp").read_text(encoding="utf-8", errors="replace")
 for name in ("record_start", "record_active", "record_seconds", "record_stop", "play_start", "play_seek",
              "play_pause", "play_stop", "play_pos", "play_paused", "keyboard_layout"):

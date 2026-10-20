@@ -15,6 +15,8 @@ Chats/Contacts tab captions carry unread counts. Engine wiring as text."""
 from pathlib import Path
 import base64, os, re, tempfile
 from lupa.lua51 import LuaRuntime
+import sys as _sys; _sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))
+from netcoop_source import netcoop_cpp
 
 root = Path(__file__).resolve().parent / "netcoop-overlay"
 repo = Path(__file__).resolve().parents[1]
@@ -430,7 +432,7 @@ assert "virtual bool NetcoopPhotoRequest" in (src_dir / "xrEngine/Render.h").rea
 script = (src_dir / "xrGame/level_script.cpp").read_text(encoding="utf-8", errors="replace")
 for name in ("take", "exists", "size", "read", "write", "delete", "zoom"):
     assert f'def("netcoop_photo_{name}", &netcoop::script_photo_{name})' in script, name
-assert '#include "netcoop_photo.inc"' in (src_dir / "xrGame/netcoop.cpp").read_text(encoding="utf-8", errors="replace")
+assert '#include "netcoop_photo.inc"' in netcoop_cpp(src_dir.parent, encoding="utf-8", errors="replace")
 assert "g_netcoop_photo_zoom > 1.f" in (src_dir / "xrGame/Actor.cpp").read_text(encoding="utf-8", errors="replace")
 inc = (src_dir / "xrGame/netcoop_photo.inc").read_text(encoding="utf-8")
 assert "photo_dds_ok" in inc and "photo_name_ok" in inc and "$game_saves$" in inc

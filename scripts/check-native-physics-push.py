@@ -3,11 +3,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import os
 import subprocess
+import sys as _sys; _sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))
+from netcoop_source import netcoop_cpp
 
 if os.environ.get('GITHUB_ACTIONS') != 'true':
     raise SystemExit('Native checks must run in GitHub Actions')
 root=Path(__file__).resolve().parents[1]
-text=(root/'src/xrGame/netcoop.cpp').read_text(encoding='utf-8')
+text=netcoop_cpp(root, encoding='utf-8')
 loop=text[text.index('struct PhysicsSent {'):text.index('} // namespace netcoop',text.index('struct PhysicsSent {'))]
 # Vehicles (doc 100) live in their own include; this loop only selects and replicates cars.
 for part in ('netcoop_vehicles.inc','netcoop_vehicle_server.inc','netcoop_vehicle_client.inc','netcoop_vehicle_seat.inc'):

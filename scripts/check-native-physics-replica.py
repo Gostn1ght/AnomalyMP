@@ -2,6 +2,8 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import os,subprocess
+import sys as _sys; _sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))
+from netcoop_source import netcoop_cpp
 if os.environ.get('GITHUB_ACTIONS')!='true':
     raise SystemExit('Native checks must run on GitHub Actions')
 root=Path(__file__).resolve().parents[1]
@@ -10,7 +12,7 @@ method=text[text.index('void CPhysicsShellHolder::netcoop_physics_update()'):tex
 assert 'if (!netcoop::pure_client() || m_netcoop_physics.empty()) return;' in method
 start=method.index('state.previous_position = state.position;')
 prepare=method[start:method.index('PHGetSyncItem(i)->set_State(state);',start)]
-server=(root/'src/xrGame/netcoop.cpp').read_text(encoding='utf-8-sig')
+server=netcoop_cpp(root, encoding='utf-8-sig')
 begin=server.index('const bool item_or_corpse =',server.index('void server_physics_update('))
 select=server[begin:server.index('if (!item_or_corpse && !prop && !vehicle) continue;',begin)]
 effects=(root/'src/xrGame/physics_game.cpp').read_text(encoding='latin-1')

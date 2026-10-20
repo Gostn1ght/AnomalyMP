@@ -2,10 +2,12 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import os,subprocess
+import sys as _sys; _sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))
+from netcoop_source import netcoop_cpp
 if os.environ.get('GITHUB_ACTIONS')!='true':
     raise SystemExit('Native checks must run in GitHub Actions')
 root=Path(__file__).resolve().parents[1]
-native=(root/'src/xrGame/netcoop.cpp').read_text(encoding='latin-1')
+native=netcoop_cpp(root, encoding='latin-1')
 owner=native[native.index('struct FindActorOwner\n'):native.index('void server_forward_news(',native.index('struct FindActorOwner\n'))]
 start=native.index('static xr_set<u16> s_admin_god_actors;')
 end=native.index('bool script_respawn(',start)

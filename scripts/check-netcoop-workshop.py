@@ -16,6 +16,8 @@ unlocks the recipes the server sends."""
 from pathlib import Path
 import re
 from lupa.lua51 import LuaRuntime
+import sys as _sys; _sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))
+from netcoop_source import netcoop_cpp
 
 here = Path(__file__).resolve().parent
 root = here / "netcoop-overlay"
@@ -410,7 +412,7 @@ for lang in ("rus", "eng"):
 src = here.parent / "src"
 msgs = (src / "xrServerEntities/xrMessages.h").read_text(encoding="utf-8", errors="replace")
 assert msgs.index("M_NETCOOP_VOICE,") < msgs.index("M_NETCOOP_ITEM_UPGRADE,") < msgs.index("MSG_FORCEDWORD")
-nc = (src / "xrGame/netcoop.cpp").read_text(encoding="utf-8", errors="replace")
+nc = netcoop_cpp(src.parent, encoding="utf-8", errors="replace")
 assert re.search(r"case GE_INSTALL_UPGRADE:\s*return false;", nc)
 assert "netcoop::server_item_upgraded(this, receiver->ID" in (src / "xrGame/xrServer_process_event.cpp").read_text(encoding="utf-8", errors="replace")
 items = (src / "xrGame/netcoop_items.inc").read_text(encoding="utf-8", errors="replace")

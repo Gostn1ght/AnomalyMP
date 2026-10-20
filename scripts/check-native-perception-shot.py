@@ -3,13 +3,15 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import os
 import subprocess
+import sys as _sys; _sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))
+from netcoop_source import netcoop_cpp
 
 if os.environ.get('GITHUB_ACTIONS') != 'true':
     raise SystemExit('Native checks must run in GitHub Actions')
 root=Path(__file__).resolve().parents[1]
 cpp=(root/'src/xrGame/script_game_object3.cpp').read_text(encoding='latin-1')
 getter=cpp[cpp.index('float CScriptGameObject::GetLuminocity()'):cpp.index('void CScriptGameObject::ForceSetPosition(')]
-engine=(root/'src/xrGame/netcoop.cpp').read_text(encoding='utf-8')
+engine=netcoop_cpp(root, encoding='utf-8')
 light=engine[engine.index('float server_luminocity('):engine.index('// Memory of a location server')]
 weapon=(root/'src/xrGame/Weapon.cpp').read_text(encoding='latin-1')
 branch=weapon[weapon.index('\tcase GE_NETCOOP_WPN_AIM:'):weapon.index('\tcase GE_ADDON_CHANGE:')]

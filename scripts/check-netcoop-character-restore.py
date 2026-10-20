@@ -4,11 +4,13 @@ from tempfile import TemporaryDirectory
 import os
 import re
 import subprocess
+import sys as _sys; _sys.path.insert(0, str(__import__('pathlib').Path(__file__).resolve().parent))
+from netcoop_source import netcoop_cpp
 
 if os.environ.get("GITHUB_ACTIONS") != "true":
     raise SystemExit("Native checks must run in GitHub Actions")
 root = Path(__file__).resolve().parents[1]
-engine = (root / "src/xrGame/netcoop.cpp").read_text(encoding="utf-8")
+engine = netcoop_cpp(root, encoding="utf-8")
 characters = (root / "src/xrGame/netcoop_characters.inc").read_text(encoding="utf-8")
 items = (root / "src/xrGame/netcoop_items.inc").read_text(encoding="utf-8")
 start = items.index("static bool item_state_ready_for_save(u16 id)\n{")
