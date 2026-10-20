@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "xrserver.h"
+#include "Level.h"
 #include "game_sv_single.h"
 #include "xrMessages.h"
 #include "game_cl_single.h"
