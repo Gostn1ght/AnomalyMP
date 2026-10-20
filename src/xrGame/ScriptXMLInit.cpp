@@ -1,5 +1,6 @@
 #include "pch_script.h"
 #include "ScriptXmlInit.h"
+#include <shlobj.h>
 #include "ui\UIXmlInit.h"
 #include "ui\UITextureMaster.h"
 #include "ui\UICheckButton.h"
@@ -50,26 +51,175 @@ LPCSTR clearBOM(LPCSTR s) {
 	return s;
 }
 
+// Lost Zone (owner 2026-10-20, doc 151): the mods' XML callbacks (DXML,
+// _G.COnXmlRead) took 13 of the 23 s of the menu load: 1250 files, map_spots
+// alone 4 s. Their result depends only on the XML text and on what the mods
+// are (scripts and archives) and how they are set (MCM axr_options.ltx,
+// user.ltx). It is kept per file under $app_data_root$\xml_cache\<setup> and
+// used while nothing of that changed; any change starts a new setup folder.
+namespace
+{
+struct XmlHash
+{
+	u32 a = 0x2545f491, b = 0x9e3779b9;
+	void mix(const void* data, u32 size)
+	{
+		a = crc32(data, size, a);
+		b = crc32(data, size, b ^ 0x5bd1e995);
+	}
+	u64 value() const { return (u64(a) << 32) | b; }
+};
+
+void hash_folder(XmlHash& h, LPCSTR alias, LPCSTR mask)
+{
+	string_path dir;
+	if (!FS.path_exist(alias)) return;
+	FS.update_path(dir, alias, "");
+	string_path pattern;
+	strconcat(sizeof(pattern), pattern, dir, mask);
+	WIN32_FIND_DATA fd;
+	HANDLE find = FindFirstFile(pattern, &fd);
+	if (find == INVALID_HANDLE_VALUE) return;
+	do
+	{
+		h.mix(fd.cFileName, xr_strlen(fd.cFileName));
+		h.mix(&fd.nFileSizeLow, sizeof(fd.nFileSizeLow));
+		h.mix(&fd.nFileSizeHigh, sizeof(fd.nFileSizeHigh));
+		h.mix(&fd.ftLastWriteTime, sizeof(fd.ftLastWriteTime));
+	} while (FindNextFile(find, &fd));
+	FindClose(find);
+}
+
+void hash_file(XmlHash& h, LPCSTR alias, LPCSTR name)
+{
+	if (!FS.path_exist(alias)) return;
+	string_path path;
+	FS.update_path(path, alias, name);
+	IReader* file = FS.r_open(path);
+	if (!file) return;
+	h.mix(file->pointer(), file->length());
+	FS.r_close(file);
+}
+
+// The setup the cached results belong to; computed once per run.
+LPCSTR xml_cache_folder()
+{
+	static string_path folder = "";
+	static bool ready = false;
+	if (ready) return folder[0] ? folder : nullptr;
+	ready = true;
+	if (strstr(Core.Params, "-no_xml_cache") || !FS.path_exist("$app_data_root$")) return nullptr;
+	XmlHash h;
+	const char build[] = __DATE__ " " __TIME__;
+	h.mix(build, sizeof(build));
+	hash_folder(h, "$arch_dir$", "*.db*");
+	hash_folder(h, "$game_scripts$", "*.script");
+	hash_file(h, "$game_config$", "axr_options.ltx");
+	hash_file(h, "$app_data_root$", "user.ltx");
+	string_path root;
+	FS.update_path(root, "$app_data_root$", "xml_cache\\");
+	xr_sprintf(folder, "%s%016llx\\", root, (unsigned long long)h.value());
+	// Results of an older setup are never used again.
+	WIN32_FIND_DATA fd;
+	string_path pattern;
+	strconcat(sizeof(pattern), pattern, root, "*");
+	HANDLE find = FindFirstFile(pattern, &fd);
+	if (find != INVALID_HANDLE_VALUE)
+	{
+		string_path mine;
+		xr_sprintf(mine, "%016llx", (unsigned long long)h.value());
+		do
+		{
+			if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && fd.cFileName[0] != '.' && xr_strcmp(fd.cFileName, mine))
+			{
+				string_path old, files;
+				strconcat(sizeof(old), old, root, fd.cFileName, "\\");
+				strconcat(sizeof(files), files, old, "*.xml");
+				WIN32_FIND_DATA f;
+				HANDLE inner = FindFirstFile(files, &f);
+				if (inner != INVALID_HANDLE_VALUE)
+				{
+					do
+					{
+						string_path victim;
+						strconcat(sizeof(victim), victim, old, f.cFileName);
+						DeleteFile(victim);
+					} while (FindNextFile(inner, &f));
+					FindClose(inner);
+				}
+				RemoveDirectory(old);
+			}
+		} while (FindNextFile(find, &fd));
+		FindClose(find);
+	}
+	SHCreateDirectoryExA(nullptr, folder, nullptr);
+	Msg("[startup] mods' XML results cached in %s", folder);
+	return folder;
+}
+
+const char XML_UNCHANGED[] = "\x01lz-xml-unchanged";
+} // namespace
+
 // demonized
 // Send XML file contents to Lua for edit
 void XMLLuaCallback(CXml &m_xml, LPCSTR xml_string) {
-    if (!xml_string) return;
-    if (xr_strlen(xml_string) == 0) return;
+	if (!xml_string) return;
+	if (xr_strlen(xml_string) == 0) return;
 	xml_string = clearBOM(xml_string);
 	::luabind::functor<LPCSTR> funct;
-	if (ai().script_engine().functor("_G.COnXmlRead", funct))
+	if (!ai().script_engine().functor("_G.COnXmlRead", funct))
+		return;
+	const u32 length = xr_strlen(xml_string);
+	LPCSTR folder = xml_cache_folder();
+	string_path cached = "";
+	if (folder)
 	{
-		// Lost Zone (doc 151): the mods' XML callbacks took two thirds of the
-		// menu load; the slow files are named in the start log, and an
-		// unchanged text is not parsed a second time.
-		const u64 began = CPU::QPC();
-		LPCSTR res = funct(m_xml.m_xml_file_name, xml_string);
-		const double ms = double(CPU::QPC() - began) * 1000.0 / double(CPU::qpc_freq);
-		static double total_ms = 0; static u32 files = 0;
-		total_ms += ms; ++files;
-		if (ms > 50.0) Msg("[startup] xml %s: mods %.0f ms (all %u files %.1f s)", m_xml.m_xml_file_name, ms, files, total_ms / 1000.0);
-		if (res && res != xml_string && xr_strcmp(res, xml_string))
-			m_xml.LoadFromString(res);
+		XmlHash key;
+		key.mix(m_xml.m_xml_file_name, xr_strlen(m_xml.m_xml_file_name));
+		key.mix(xml_string, length);
+		xr_sprintf(cached, "%s%016llx_%u.xml", folder, (unsigned long long)key.value(), length);
+		if (FILE* f = fopen(cached, "rb"))
+		{
+			fseek(f, 0, SEEK_END);
+			const long size = ftell(f);
+			fseek(f, 0, SEEK_SET);
+			xr_string text;
+			text.resize(size > 0 ? size_t(size) : 0);
+			const bool read = size > 0 && fread(&text[0], 1, size_t(size), f) == size_t(size);
+			fclose(f);
+			if (read)
+			{
+				if (text != XML_UNCHANGED)
+					m_xml.LoadFromString(text.c_str());
+				return;
+			}
+		}
+	}
+	const u64 began = CPU::QPC();
+	LPCSTR res = funct(m_xml.m_xml_file_name, xml_string);
+	const double ms = double(CPU::QPC() - began) * 1000.0 / double(CPU::qpc_freq);
+	static double total_ms = 0;
+	static u32 files = 0;
+	total_ms += ms;
+	++files;
+	if (ms > 50.0)
+		Msg("[startup] xml %s: mods %.0f ms (all %u files %.1f s)", m_xml.m_xml_file_name, ms, files, total_ms / 1000.0);
+	const bool unchanged = !res || res == xml_string || !xr_strcmp(res, xml_string);
+	if (!unchanged)
+		m_xml.LoadFromString(res);
+	if (cached[0] && (res || unchanged))
+	{
+		string_path temporary;
+		xr_sprintf(temporary, "%s.%u.tmp", cached, GetCurrentThreadId());
+		if (FILE* f = fopen(temporary, "wb"))
+		{
+			const char* data = unchanged ? XML_UNCHANGED : res;
+			const size_t size = xr_strlen(data);
+			const bool written = fwrite(data, 1, size, f) == size;
+			fclose(f);
+			if (!written || !MoveFileEx(temporary, cached, MOVEFILE_REPLACE_EXISTING))
+				DeleteFile(temporary);
+		}
 	}
 }
 
