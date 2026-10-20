@@ -91,6 +91,8 @@ void hash_folder(XmlHash& h, LPCSTR alias, LPCSTR mask)
 	FindClose(find);
 }
 
+// MCM rewrites session_id/session_start on every start: those lines are not
+// part of the setup.
 void hash_file(XmlHash& h, LPCSTR alias, LPCSTR name)
 {
 	if (!FS.path_exist(alias)) return;
@@ -98,7 +100,18 @@ void hash_file(XmlHash& h, LPCSTR alias, LPCSTR name)
 	FS.update_path(path, alias, name);
 	IReader* file = FS.r_open(path);
 	if (!file) return;
-	h.mix(file->pointer(), file->length());
+	const char* data = (const char*)file->pointer();
+	const char* end = data + file->length();
+	while (data < end)
+	{
+		const char* eol = (const char*)memchr(data, '
+', size_t(end - data));
+		const char* next = eol ? eol + 1 : end;
+		const xr_string line(data, next);
+		if (line.find("session_id") == xr_string::npos && line.find("session_start") == xr_string::npos)
+			h.mix(line.data(), u32(line.size()));
+		data = next;
+	}
 	FS.r_close(file);
 }
 
