@@ -52,8 +52,14 @@ static u32 cluster_port()
 
 static void cluster_dir(string_path& path)
 {
-	FS.update_path(path, "$app_data_root$", "netcoop_cluster\\");
-	CreateDirectoryA(path, nullptr);
+	// Resolved and created once: callers ask for it every frame (doc 151 profile).
+	static string_path cached = "";
+	if (!cached[0])
+	{
+		FS.update_path(cached, "$app_data_root$", "netcoop_cluster\\");
+		CreateDirectoryA(cached, nullptr);
+	}
+	xr_strcpy(path, cached);
 }
 
 static void cluster_file(LPCSTR prefix, LPCSTR login, int slot, string_path& path)
