@@ -72,3 +72,35 @@ every shader; slower disk/CPU).
 5. **DX8 (R1) optimisation**: batching, state caching, visibility, LOD.
 6. **Bug sweep**: MSVC `/analyze` in CI, crash classes from dumps (doc 150:
    single-player `Actor()` on the server), fix by class, not one by one.
+
+## Progress 2026-10-20
+
+Branch `engine-restructure` (dispatch builds):
+
+- Start marks `[startup] N s: phase` in the log (phases, frames over 1 s,
+  loading steps over 0.3 s, shader compilations, mods' XML files over 50 ms).
+- No full listing of the 108 k archive files at start; no per-material log
+  lines (1 400 per start).
+- R2 (DX9) and R3 (DX10) removed; DX8 (R1) built in CI next to DX11; both
+  clients reach the menu (DX11 46 s, DX8 33 s on the viewtest stand).
+- Splash dialog removed.
+- `CarHelicopter.cpp`; vehicle includes split by side; `netcoop.cpp` split
+  into 13 section modules (checks read them through `scripts/netcoop_source.py`).
+- Mods' XML callbacks (DXML) cached per setup: archives, loose scripts, MCM
+  `axr_options.ltx`, `user.ltx`, build (`-no_xml_cache` turns it off).
+
+Measured (main loop -> menu 23 s):
+
+| What | Time |
+| --- | --- |
+| mods' XML callbacks, 1 250 files | 13.3 s |
+| of which `ui\map_spots.xml` | 4.2 s |
+| `ui\game_tutorials.xml` | 2.5 s |
+| string tables in two languages (`use_english_text_for_missing_translations`) | ~6 s |
+
+Cold shader cache: 47–60 s to the menu here (warm 34–35 s). One cold run
+hung for over 8 minutes after the main loop; six repeated runs did not; the
+hunt script `J:\LostZone_Work\_workiewtest\hunt_hang.ps1` dumps all
+thread stacks (`stacks.py`) when the menu does not come within 150 s.
+Focus: the menu loads while unfocused (123 s) and minimized; the owner plays
+windowed; level loading after login is still to measure.
