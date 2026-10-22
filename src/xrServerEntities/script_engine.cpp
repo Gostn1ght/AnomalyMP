@@ -504,6 +504,16 @@ void CScriptEngine::load_common_scripts()
 
 void CScriptEngine::process_file_if_exists(LPCSTR file_name, bool warn_if_not_exist)
 {
+	// A script that names "_g" auto-loaded _g.script a second time as its own
+	// namespace (~0.5 s, a second copy of the globals): "_g" is the global
+	// table itself (doc 151).
+	if (!xr_strcmp(file_name, "_g"))
+	{
+		lua_getglobal(lua(), "_G");
+		lua_setglobal(lua(), "_g");
+		return;
+	}
+
 	u32 string_length = xr_strlen(file_name);
 	if (!warn_if_not_exist && no_file_exists(file_name, string_length))
 		return;
