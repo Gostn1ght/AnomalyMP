@@ -1521,6 +1521,21 @@ BOOL CSE_ALifeCreatureActor::Net_Relevant()
 	return TRUE; // this is a big question ;)
 }
 
+// The actor's optional weapon-slot tail (CActor::netcoop_export_weapon_slots),
+// written after the actor stream; clients apply it, the server keeps the slots
+// itself. Its own client sent it back with the anchor's updates, which were
+// logged as unread trailing bytes on every start.
+static void skip_netcoop_weapon_slots(NET_Packet& P)
+{
+	if (P.r_elapsed() != 8)
+		return;
+	const u32 start = P.r_tell();
+	if (P.r_u16() == 0x5342 && P.r_u8() == 1 && P.r_u8() == 2)
+		P.r_advance(4);
+	else
+		P.r_seek(start);
+}
+
 void CSE_ALifeCreatureActor::UPDATE_Read(NET_Packet& tNetPacket)
 {
 	inherited1::UPDATE_Read(tNetPacket);
@@ -1545,7 +1560,11 @@ void CSE_ALifeCreatureActor::UPDATE_Read(NET_Packet& tNetPacket)
 	////////////////////////////////////////////////////
 	tNetPacket.r_u16(m_u16NumItems);
 
-	if (!m_u16NumItems) return;
+	if (!m_u16NumItems)
+	{
+		skip_netcoop_weapon_slots(tNetPacket);
+		return;
+	}
 
 	if (m_u16NumItems == 1)
 	{
@@ -1564,6 +1583,7 @@ void CSE_ALifeCreatureActor::UPDATE_Read(NET_Packet& tNetPacket)
 		tNetPacket.r_float(m_AliveState.quaternion.z);
 		tNetPacket.r_float(m_AliveState.quaternion.w);
 
+		skip_netcoop_weapon_slots(tNetPacket);
 		return;
 	};
 	////////////// Import dead body ////////////////////
