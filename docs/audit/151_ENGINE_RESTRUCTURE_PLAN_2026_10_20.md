@@ -153,6 +153,26 @@ constructor (string tables, script XML, Lua pattern matching).
 `optick` is not a duplicate: `optick/` is the project file, `optick-git`
 the profiler's sources (a submodule); the profiler is off by default.
 
+Later on 2026-10-22:
+
+- `xrMemory::mem_usage` reads the OS counter (private bytes) instead of a
+  `_heapwalk` over every allocation (~5 s of a server start: load stages,
+  the menu and `stat_memory` call it for log lines).
+- The Modded Exes unlocalizer compiles its four `std::regex` once instead of
+  for every line of every unlocalized script (~1 s of a server start).
+- `[startup] script NAME loaded in N ms` (over 200 ms) and
+  `[startup] section_for_each ... from SCRIPT:LINE` (over 100 ms) find the
+  rest of the GAMMA script time.
+- The server's actor entity skips the clients' optional weapon-slot tail:
+  no more `update of actor [0] left 8 trailing byte(s) unread`.
+- Code analysis on demand: `gh workflow run lostzone-dx11.yml -f analyze=true`
+  runs MSVC PREfast over xrGame and its projects and uploads a report
+  (`scripts/report-code-analysis.py`), Lost Zone's own files first.
+- Client level loading cannot be measured on the viewtest stand (the client
+  signs in with Google only; without `-netcoop` the Lost Zone menu ignores
+  `-start`). Loading steps over 0.3 s are logged (`[startup] loading step`),
+  so players' logs from the next release give the client profile.
+
 Known, not from these cuts: `! update of actor [0] left 8 trailing byte(s)
 unread` on the dedicated server (the ALife anchor actor), also in older builds.
 
