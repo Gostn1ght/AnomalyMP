@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include <malloc.h>
 #include <errno.h>
+#include <psapi.h>
 
 XRCORE_API void vminfo(size_t* _free, size_t* reserved, size_t* committed)
 {
@@ -39,29 +40,12 @@ XRCORE_API void log_vminfo()
 
 size_t xrMemory::mem_usage()
 {
-	_HEAPINFO hinfo = {};
-	int status;
-	size_t bytesUsed = 0;
-	while ((status = _heapwalk(&hinfo)) == _HEAPOK)
-	{
-		if (hinfo._useflag == _USEDENTRY)
-			bytesUsed += hinfo._size;
-	}
-	switch (status)
-	{
-	case _HEAPEMPTY:
-		break;
-	case _HEAPEND:
-		break;
-	case _HEAPBADPTR:
-		FATAL("bad pointer to heap");
-		break;
-	case _HEAPBADBEGIN:
-		FATAL("bad start of heap");
-		break;
-	case _HEAPBADNODE:
-		FATAL("bad node in heap");
-		break;
-	}
-	return bytesUsed;
+	// The process's private committed bytes from the OS. A _heapwalk over every
+	// allocation took seconds per call, and loading stages, the main menu and
+	// stat_memory call it for their log lines (doc 151 server start profile).
+	PROCESS_MEMORY_COUNTERS_EX counters = {};
+	counters.cb = sizeof(counters);
+	if (!K32GetProcessMemoryInfo(GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&counters, sizeof(counters)))
+		return 0;
+	return counters.PrivateUsage;
 }
