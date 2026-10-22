@@ -353,7 +353,9 @@ bool CLevel::Connect2Server(const char* options)
 	m_bConnectResultReceived = false;
 	m_bConnectResult = true;
 
-	if (!psNET_direct_connect)
+	// The data checksum (a CRC of every game file, ~3.5 s) is only for the old
+	// MP version check; a netcoop server never compares it (doc 151).
+	if (!psNET_direct_connect && !netcoop::enabled())
 	{
 		xr_auth_strings_t tmp_ignore;
 		xr_auth_strings_t tmp_check;
