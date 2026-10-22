@@ -221,3 +221,23 @@ windowed; level loading after login is still to measure.
 - `M_GAMEMESSAGE` from a client is dropped: the server passed it to every
   client as it came, and no client sends one (game messages go from the
   server), so only a forged chat line or notice could arrive that way.
+- MP chat window/log (created only for non-single game types) and the
+  remote admin console (`radmins.ltx`, unlimited password tries) cut; the
+  server logs high-ping warnings instead of sending a message nothing read.
+- Code analysis, second pass: the item stack counter (`helper_count`
+  precedence), the anomaly feel radius on the HUD (always 5 m by a `?:`
+  precedence bug), five script API methods that logged a wrong object type
+  and then used the null object, grenades/items on a parent that is no
+  inventory owner.
+- Saved packets (spawn registry, saved objects, level spawn files) load
+  with their size checked (`NET_Packet::load_block`); an entity whose
+  reader runs past its data is named in the log. The bot stand showed one
+  `all.spawn` entity per level whose update reader is longer than its data
+  (it read the spawn bytes left in the buffer before; zeros now).
+- Files include what they use (45 relied on `script_engine.h` arriving
+  through `player_account.h`); the GameSpy DSA/delegate helpers and the
+  unused `3rd party/crypto` library are gone.
+- CI: the DX8 package carries `LostZoneClientDX8.pdb`.
+- Bot stand (master, Cordon, Garbage, 4 bots, 5 min) on the packet-bounds
+  build: all bots played and changed level, no crash, no packet overrun on
+  the network (only the spawn entity above).
