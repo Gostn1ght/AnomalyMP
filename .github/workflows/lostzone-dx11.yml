@@ -418,7 +418,9 @@ jobs:
       - name: Analyze the game (PREfast)
         shell: pwsh
         run: |
-          msbuild src/engine-vs2022.sln /t:xrGame /m:2 /p:Configuration=DX11 /p:Platform=x64 /p:EnablePREfast=true /p:MultiProcessorCompilation=false /fl /flp:logfile=analyze.log /v:minimal
+          # Projects set their own compile options; cl.exe appends _CL_ to every call.
+          $env:_CL_ = '/analyze'
+          msbuild src/engine-vs2022.sln /t:xrGame /m:2 /p:Configuration=DX11 /p:Platform=x64 /p:MultiProcessorCompilation=false /fl "/flp:logfile=analyze.log;verbosity=normal" /v:minimal
           "msbuild exit $LASTEXITCODE"
       - name: Report
         if: always()
