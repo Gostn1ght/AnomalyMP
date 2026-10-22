@@ -8,16 +8,22 @@ on:
       - 'docs/**'
       - '.github/workflows/lostzone-world-backend.yml'
   workflow_dispatch:
+    inputs:
+      analyze:
+        description: 'MSVC code analysis (PREfast) of the game instead of the build'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: lostzone-dx11-${{ github.ref }}
+  group: lostzone-dx11-${{ github.ref }}-${{ inputs.analyze }}
   cancel-in-progress: true
 
 jobs:
   checks:
+    if: ${{ !inputs.analyze }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -378,3 +384,51 @@ jobs:
           name: LostZone-DX8-build-log
           path: lostzone-dx8.log
           if-no-files-found: ignore
+
+  analyze:
+    if: ${{ inputs.analyze }}
+    runs-on: windows-2022
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: microsoft/setup-msbuild@v2
+        with:
+          msbuild-architecture: x64
+      - name: Build voice codecs (Opus, SpeexDSP)
+        shell: pwsh
+        run: |
+          $out = "src/3rd party/_voice_lib"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          cmake -S "src/3rd party/opus" -B "_voice/opus" -A x64 -DOPUS_BUILD_PROGRAMS=OFF -DBUILD_TESTING=OFF -DOPUS_STACK_PROTECTOR=OFF -DOPUS_X86_MAY_HAVE_SSE=OFF -DOPUS_X86_MAY_HAVE_SSE2=OFF -DOPUS_X86_MAY_HAVE_SSE4_1=OFF -DOPUS_X86_MAY_HAVE_AVX=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL
+          if ($LASTEXITCODE -ne 0) { throw "opus configure failed" }
+          cmake --build "_voice/opus" --config Release --target opus
+          if ($LASTEXITCODE -ne 0) { throw "opus build failed" }
+          cmake -S "src/3rd party/speexdsp" -B "_voice/speexdsp" -A x64 -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          if ($LASTEXITCODE -ne 0) { throw "speexdsp configure failed" }
+          cmake --build "_voice/speexdsp" --config Release
+          if ($LASTEXITCODE -ne 0) { throw "speexdsp build failed" }
+          Copy-Item "_voice/opus/Release/opus.lib", "_voice/speexdsp/Release/speexdsp.lib" $out
+      - name: Inject archive key for protected game data
+        shell: pwsh
+        env:
+          LZPACK_KEY_HEX: ${{ secrets.LZPACK_KEY_V1 }}
+        run: python tools/lzpack/build_key_header.py
+      - name: Analyze the game (PREfast)
+        shell: pwsh
+        run: |
+          $sln = (Resolve-Path src).Path + "\"
+          msbuild src/xrGame/xrGame.vcxproj /m:2 /p:Configuration=DX11 /p:Platform=x64 /p:SolutionDir=$sln /p:EnablePREfast=true /p:MultiProcessorCompilation=false /fl /flp:logfile=analyze.log /v:minimal
+          "msbuild exit $LASTEXITCODE"
+      - name: Report
+        if: always()
+        shell: pwsh
+        run: python scripts/report-code-analysis.py analyze.log analyze-report.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: LostZone-code-analysis
+          path: |
+            analyze-report.txt
+            analyze.log
