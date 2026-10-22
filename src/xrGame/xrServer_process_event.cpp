@@ -413,13 +413,10 @@ void xrServer::Process_event(NET_Packet& P, ClientID sender)
 		// clients show it (sound, flash).
 		SendBroadcast(sender, P, MODE);
 		break;
-	case GE_REQUEST_PLAYERS_INFO:
-		{
-			SendPlayersInfo(sender);
-		}
-		break;
 	default:
-		R_ASSERT2(0, "Game Event not implemented!!!");
+		// Event ids this build does not handle come only from another
+		// version or a forged packet: drop them instead of stopping the server.
+		Msg("! event %u for %u from client 0x%08x is not handled: dropped", type, destination, sender.value());
 		break;
 	}
 }
