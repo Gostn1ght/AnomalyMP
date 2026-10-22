@@ -116,6 +116,27 @@ the main thread sleeps in the frame limiter ~70 % of the time; stalker
 load, so stalker vision stays synchronous (its result is read by memory in
 the same update: an asynchronous vision would make NPCs react later).
 
+Start to the 3D menu, warm, viewtest stand (i5-2500K, 4 cores), 2026-10-22:
+
+| Phase | Before | After |
+| --- | --- | --- |
+| to the 3D menu | 26.8 s | 9.9 s |
+| file system (135 archives, 110 k files) | 2.6 s | 0.9 s |
+| render device (particles from Lost Zone archives) | 4.7 s | 1.9 s |
+| specific characters (profiles) | 6.6 s | 0.3 s |
+| weather | 1.2 s | 0.3 s |
+| main menu object (string tables) | 2.5 s | 1.2 s |
+
+What did it: Lost Zone archive reader (AES provider once, key per thread and
+volume, last-block cache); folder chain stops at a registered folder; XML
+id loader with a hash index and node pointers; XML includes expanded once
+per batch (5 943 includes of 114 files); string tables walk nodes in order;
+thunderbolt models shared by name; LTX item file names computed per file.
+Found with `viewtest\sampler.py` (main-thread sampling from process start,
+~65 samples/s) and `phases.py` (samples split by `[startup]` marks).
+Dedicated server on the same build: ready in 85 s (was 106-139 s), same
+online objects (24 stalkers, 14 mutants).
+
 Known, not from these cuts: `! update of actor [0] left 8 trailing byte(s)
 unread` on the dedicated server (the ALife anchor actor), also in older builds.
 
