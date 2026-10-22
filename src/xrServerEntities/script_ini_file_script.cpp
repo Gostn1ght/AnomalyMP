@@ -12,6 +12,7 @@
 #include "string_table.h"
 #include "script_engine.h"
 #include "ai_space.h"
+#include "../xrEngine/x_ray.h"
 
 using namespace luabind;
 
@@ -55,10 +56,12 @@ void section_for_each(CScriptIniFile* self, ::luabind::functor<bool> functor)
 	{
 		lua_State* L = ai().script_engine().lua();
 		lua_Debug caller;
+		string512 phase;
 		if (L && lua_getstack(L, 1, &caller) && lua_getinfo(L, "Sl", &caller))
-			Msg("[startup] section_for_each %u sections %.0f ms from %s:%d", visited, ms, caller.short_src, caller.currentline);
+			xr_sprintf(phase, "section_for_each %u sections %.0f ms from %s:%d", visited, ms, caller.short_src, caller.currentline);
 		else
-			Msg("[startup] section_for_each %u sections %.0f ms", visited, ms);
+			xr_sprintf(phase, "section_for_each %u sections %.0f ms", visited, ms);
+		startup_mark(phase);
 	}
 }
 #endif

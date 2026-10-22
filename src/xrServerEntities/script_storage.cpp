@@ -10,6 +10,7 @@
 #include "script_storage.h"
 #include "script_thread.h"
 #include "../xrCore/mezz_stringbuffer.h"
+#include "../xrEngine/x_ray.h"
 #include <stdarg.h>
 #include <unordered_map>
 #include <set>
@@ -1122,7 +1123,11 @@ bool CScriptStorage::load_file_into_namespace(LPCSTR caScriptName, LPCSTR caName
 	--depth;
 	const float ms = timer.GetElapsed_sec() * 1000.f;
 	if (ms > 200.f)
-		Msg("[startup] script %s loaded in %.0f ms (nesting %d)", caNamespaceName, ms, depth);
+	{
+		string256 phase;
+		xr_sprintf(phase, "script %s loaded in %.0f ms (nesting %d)", caNamespaceName, ms, depth);
+		startup_mark(phase);
+	}
 	if (!loaded)
 	{
 		Msg("! [ERROR] --- Failed to load script %s", caNamespaceName);
