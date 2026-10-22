@@ -449,6 +449,11 @@ void CInifile::LTXLoad (
 	static shared_str DLTX_DELETE = "DLTX_DELETE";
 	Sect* CurrentBase = 0;
 	Sect* CurrentOverride = 0;
+	// Short name of currentFileName for each item, recomputed only when the
+	// name changes (it was split, trimmed and lowered for every line, doc 151).
+	string_path short_name_of = "";
+	shared_str short_name;
+	bool short_name_set = false;
 	MezzStringBuffer str;
 	MezzStringBuffer str2;
 
@@ -844,8 +849,13 @@ void CInifile::LTXLoad (
 			}
 			I.second = bIsDelete ? DLTX_DELETE.c_str() : (str2[0] ? str2.GetBuffer() : NULL);
 
-			auto fname = toLowerCaseCopy(trimCopy(getFilename(std::string(currentFileName))));
-			I.filename = fname.c_str();
+			if (!short_name_set || xr_strcmp(short_name_of, currentFileName))
+			{
+				short_name_set = true;
+				xr_strcpy(short_name_of, currentFileName);
+				short_name = toLowerCaseCopy(trimCopy(getFilename(std::string(currentFileName)))).c_str();
+			}
+			I.filename = short_name;
 			I.depth = depth;
 
 			if (*I.first || *I.second)
