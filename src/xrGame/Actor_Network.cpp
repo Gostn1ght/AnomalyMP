@@ -1034,7 +1034,11 @@ BOOL CActor::net_Spawn(CSE_Abstract* DC)
 	}
 
 	if (TRUE == E->s_flags.test(M_SPAWN_OBJECT_LOCAL) && TRUE == E->s_flags.is(M_SPAWN_OBJECT_ASPLAYER))
+	{
 		g_actor = this;
+		if (netcoop::enabled() && g_dedicated_server)
+			Msg("[Lost Zone] global actor: %u (%s)", ID(), cName().c_str());
+	}
 
 	VERIFY(m_pActorEffector == NULL);
 
@@ -1287,7 +1291,18 @@ void CActor::net_Destroy()
 			partner->StopTalk();
 		StopTalk();
 	}
-	if (g_actor == this) g_actor = NULL;
+	if (g_actor == this)
+	{
+		g_actor = NULL;
+		// A dedicated server goes back to the ALife anchor (id 0), the global actor
+		// before any player spawned: monster and script code asking for "the"
+		// actor crashed on null after that player left or died (doc 150).
+		if (netcoop::enabled() && g_dedicated_server && ID() != 0 && g_pGameLevel)
+		{
+			g_actor = smart_cast<CActor*>(Level().Objects.net_Find(0));
+			Msg("[Lost Zone] global actor %u left; now %s", ID(), g_actor ? "the ALife anchor" : "none");
+		}
+	}
 
 	Engine.Sheduler.Unregister(this);
 
