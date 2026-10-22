@@ -250,9 +250,6 @@ void xrDebug::do_exit(const std::string& message)
 void xrDebug::backend(const char* expression, const char* description, const char* argument0, const char* argument1,
                       const char* file, int line, const char* function, bool& ignore_always)
 {
-    // we save first
-    crash_saving::save();
-    
 	static xrCriticalSection CS
 #ifdef PROFILE_CRITICAL_SECTIONS
         (MUTEX_PROFILE_ID(xrDebug::backend))
@@ -275,6 +272,10 @@ void xrDebug::backend(const char* expression, const char* description, const cha
 		handler();
 
 	FlushLog();
+
+	// The error reaches the log first, then the game is saved: a save that
+	// failed in a broken process left no trace of the error (doc 151).
+	crash_saving::save();
 
     if (IsDebuggerPresent())
         DebugBreak();
@@ -797,6 +798,16 @@ void format_message(LPSTR buffer, const u32& buffer_size)
 //AVO: simplify function
 LONG WINAPI UnhandledFilter(_EXCEPTION_POINTERS* pExceptionInfo)
 {
+	// What is logged reaches the disk first, with the exception itself: the
+	// console dump and the stack walk below run in a broken process and can
+	// fail, and then the log ended long before the crash (doc 151).
+	if (shared_str_initialized)
+	{
+		const EXCEPTION_RECORD* record = pExceptionInfo->ExceptionRecord;
+		Msg("! unhandled exception 0x%08X at %p, thread %u", record->ExceptionCode, record->ExceptionAddress, GetCurrentThreadId());
+		FlushLogAppend();
+	}
+
 	string256 error_message;
 	format_message(error_message, sizeof(error_message));
 
