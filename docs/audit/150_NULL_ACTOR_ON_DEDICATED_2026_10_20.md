@@ -35,3 +35,21 @@ managers, `CMonsterSquad`, sound managers) before closing this.
 
 Rule (memory "no dumbing AI"): a fix must aim at real players, never just
 silence the behaviour.
+
+## Root cause of the null (2026-10-22)
+
+`g_actor` (what `Actor()` returns) is set by every local `ASPLAYER` actor
+spawn; on the server `CActor::net_Spawn` forces `LOCAL`. When the actor that
+set it is destroyed (a player leaves or dies), `net_Destroy` set it to null
+while the ALife anchor (id 0) and other players remained. c99f4778d: on a
+dedicated server it goes back to the anchor, as before any player spawned,
+and the log names every change (`[Lost Zone] global actor ...`).
+
+A player's local server (release 2fb19d4b5) went silent in a fight with a
+mutant on 2026-10-21; the client left after 15 s without data. The server
+log is still to get; this null is the likely cause.
+
+Still open: the special attacks above test `enemy == Actor()`, so against
+real players they never fire (vampire, burer telekinesis/stamina, controller
+psy, poltergeist). Each needs the enemy actor for the gameplay part and an
+event to the player's client for the camera/postprocess part.
