@@ -34,6 +34,4 @@ protected:
 	int m_iNetConSpectator;
 	float m_fNetWeatherRate;
 
-	void ReadPlayerNameFromRegistry();
-	void WritePlayerNameToRegistry();
 };

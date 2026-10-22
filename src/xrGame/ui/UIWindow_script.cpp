@@ -5,7 +5,6 @@
 #include "../GamePersistent.h"
 #include "../ScriptXMLInit.h"
 #include "../UICursor.h"
-#include "ServerList.h"
 #include "UI3tButton.h"
 #include "UIActorMenu.h"
 #include "UIAnimatedStatic.h"
@@ -266,7 +265,6 @@ void CUIWindow::script_register(lua_State* L)
 		.def("cast_PropertiesBox", UI_WINDOW_CAST(CUIPropertiesBox))
 		.def("cast_ScriptWnd", UI_WINDOW_CAST(CUIDialogWndEx))
 		.def("cast_ScrollView", UI_WINDOW_CAST(CUIScrollView))
-		.def("cast_ServerList", UI_WINDOW_CAST(CServerList))
 		.def("cast_SleepStatic", UI_WINDOW_CAST(CUISleepStatic))
 		.def("cast_SpinFlt", UI_WINDOW_CAST(CUISpinFlt))
 		.def("cast_SpinNum", UI_WINDOW_CAST(CUISpinNum))

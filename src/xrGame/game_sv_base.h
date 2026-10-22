@@ -237,5 +237,4 @@ public:
 	{
 	};
 
-	bool CheckNewPlayer(xrClientData* CL);
 };

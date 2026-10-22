@@ -3,7 +3,6 @@
 #include "game_base_space.h"
 #include "alife_space.h"
 #include "gametype_chooser.h"
-#include "player_account.h"
 
 #pragma pack(push,1)
 
@@ -95,13 +94,12 @@ struct game_PlayerState
 	MONEY_BONUS m_aBonusMoney;
 	bool m_bPayForSpawn;
 	u32 m_online_time;
-	player_account m_account;
+	shared_str m_name;
 
 	shared_str m_player_ip;
 	shared_str m_player_digest;
 
-	//if account_info == NULL then constructor call load_account method.
-	//so it MUST be use ONLY for local_player !
+	// With account_info the state is read from it (the player's connect data).
 	explicit game_PlayerState(NET_Packet* account_info);
 	~game_PlayerState();
 
@@ -109,8 +107,8 @@ struct game_PlayerState
 	bool testFlag(u16 f) const;
 	void setFlag(u16 f);
 	void resetFlag(u16 f);
-	LPCSTR getName() const { return m_account.name().c_str(); }
-	//void	setName					(LPCSTR s){xr_strcpy(name,s);}
+	LPCSTR getName() const { return m_name.c_str(); }
+	void setName(LPCSTR name) { m_name = name; }
 	void SetGameID(u16 NewID);
 	bool HasOldID(u16 ID);
 	bool IsSkip() const { return testFlag(GAME_PLAYER_FLAG_SKIP); }

@@ -333,11 +333,6 @@ void CLevel::ClientReceive()
 				ClientSave();
 			}
 			break;
-		case M_GAMESPY_CDKEY_VALIDATION_CHALLENGE:
-			{
-				OnGameSpyChallenge(P);
-			}
-			break;
 		case M_AUTH_CHALLENGE:
 			{
 				ClientSendProfileData();
@@ -442,11 +437,6 @@ void CLevel::ClientReceive()
 		case M_SV_MAP_NAME:
 			{
 				map_data.ReceiveServerMapSync(*P);
-			}
-			break;
-		case M_SV_DIGEST:
-			{
-				SendClientDigestToServer();
 			}
 			break;
 		case M_CHANGE_LEVEL_GAME:

@@ -216,34 +216,14 @@ void xrServer::SendConnectResult(IClient* CL, u8 res, u8 res1, char* ResultStr)
 
 };
 
-void xrServer::SendProfileCreationError(IClient* CL, char const* reason)
-{
-	VERIFY(CL);
-
-	NET_Packet P;
-	P.w_begin(M_CLIENT_CONNECT_RESULT);
-	P.w_u8(0);
-	P.w_u8(ecr_profile_error);
-	P.w_stringZ(reason);
-	P.w_clientID(CL->ID);
-	SendTo(CL->ID, P);
-	if (CL != GetServerClient())
-	{
-		Flush_Clients_Buffers();
-		DisconnectClient(CL, reason);
-	}
-}
-
-//this method response for client validation on connect state (CLevel::net_start_client2)
-//the first validation is CDKEY, then gamedata checksum (NeedToCheckClient_BuildVersion), then 
-//banned or not...
-//WARNING ! if you will change this method see M_AUTH_CHALLENGE event handler
-void xrServer::Check_GameSpy_CDKey_Success(IClient* CL)
+// Client validation on connect (CLevel::net_start_client2): the build
+// version, then the access check of Check_BuildVersion_Success.
+// WARNING: the M_AUTH_CHALLENGE handler continues this sequence.
+void xrServer::Check_ClientVersion(IClient* CL)
 {
 	if (NeedToCheckClient_BuildVersion(CL))
 		return;
-	//-------------------------------------------------------------
-	RequestClientDigest(CL);
+	Check_BuildVersion_Success(CL);
 };
 
 BOOL g_SV_Disable_Auth_Check = FALSE;
@@ -307,8 +287,7 @@ void xrServer::OnBuildVersionRespond(IClient* CL, NET_Packet& P)
 
 		if (CL->flags.bLocal || bAccessUser)
 		{
-			//Check_BuildVersion_Success( CL );
-			RequestClientDigest(CL);
+			Check_BuildVersion_Success(CL);
 		}
 		else
 		{

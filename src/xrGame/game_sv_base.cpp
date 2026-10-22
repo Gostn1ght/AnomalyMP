@@ -14,7 +14,6 @@
 #include "string_table.h"
 
 #include "debug_renderer.h"
-#include "xrGameSpyServer.h"
 
 extern ENGINE_API bool g_dedicated_server;
 
@@ -833,8 +832,7 @@ void game_sv_GameState::OnEvent(NET_Packet& tNetPacket, u16 type, u32 time, Clie
 			if (g_dedicated_server && (CL == m_server->GetServerClient()))
 				break;
 
-			if (!CheckNewPlayer(CL))
-				break;
+			CheckPlayerName(CL);
 			if (CL->net_ConnectionDataRequested && !CL->net_Accepted)
 				m_server->OnCL_Connected(CL);
 		}
@@ -845,50 +843,6 @@ void game_sv_GameState::OnEvent(NET_Packet& tNetPacket, u16 type, u32 time, Clie
 			R_ASSERT3(0, "Game Event not implemented!!!", itoa(type, tmp, 10));
 		};
 	};
-}
-
-bool game_sv_GameState::CheckNewPlayer(xrClientData* CL)
-{
-	xrGameSpyServer* gs_server = smart_cast<xrGameSpyServer*>(m_server);
-	if (!gs_server) return true; //netcoop: single gametype over real network
-
-	char const* error_msg = NULL;
-	ClientID tmp_client_id(CL->ID);
-
-	if (gs_server->IsPublicServer())
-	{
-		if (!CL->ps->m_account.is_online())
-		{
-			error_msg = "mp_please_login";
-		}
-		else
-		{
-			if (FindPlayerName(CL->ps->getName(), CL))
-			{
-				error_msg = "mp_already_logged_in";
-			}
-		}
-	}
-	else
-	{
-		if (CL->ps->m_account.is_online())
-		{
-			error_msg = "mp_use_offline_mode";
-		}
-		else
-		{
-			CheckPlayerName(CL);
-		}
-	}
-
-	if (error_msg)
-	{
-		m_server->SendProfileCreationError(CL, error_msg);
-		if (CL != m_server->GetServerClient()) //CL can be NULL
-			CleanDelayedEventFor(tmp_client_id);
-		return false;
-	}
-	return true;
 }
 
 void game_sv_GameState::OnSwitchPhase(u32 old_phase, u32 new_phase)
@@ -1345,17 +1299,12 @@ void game_sv_GameState::GenerateNewName(char const* old_name, char* dest, u32 co
 void game_sv_GameState::CheckPlayerName(xrClientData* CL)
 {
 	R_ASSERT(CL && CL->ps);
-	R_ASSERT(!CL->ps->m_account.is_online());
 
-	char const* current_name = NULL;
-	if (CL->ps->m_account.name().size()) //in case of logging from gamespy login page
-	{
-		current_name = CL->ps->getName();
-	}
-	else
+	char const* current_name = CL->ps->getName();
+	if (!xr_strlen(current_name))
 	{
 		current_name = CL->name.c_str();
-		CL->ps->m_account.set_player_name(current_name);
+		CL->ps->setName(current_name);
 	}
 	u32 current_name_length = xr_strlen(current_name);
 
@@ -1367,7 +1316,7 @@ void game_sv_GameState::CheckPlayerName(xrClientData* CL)
 	while (FindPlayerName(current_name, CL))
 	{
 		GenerateNewName(current_name, new_name_dest, new_name_dest_size);
-		CL->ps->m_account.set_player_name(new_name_dest);
+		CL->ps->setName(new_name_dest);
 		current_name = new_name_dest;
 	}
 }

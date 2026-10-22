@@ -5,7 +5,6 @@
 #include "xrserver.h"
 #include "game_cl_base.h"
 #include "xrmessages.h"
-#include "xrGameSpyServer.h"
 #include "../xrEngine/x_ray.h"
 #include "../xrEngine/device.h"
 #include "../xrEngine/IGame_Persistent.h"
@@ -13,7 +12,6 @@
 #include "MainMenu.h"
 #include "string_table.h"
 #include "UIGameCustom.h"
-#include "ui/UICDkey.h"
 
 extern XRCORE_API bool g_allow_heap_min;
 
@@ -25,12 +23,7 @@ bool CLevel::net_Start(const char* op_server, const char* op_client)
 	pApp->LoadBegin();
 
 	string64 player_name;
-	GetPlayerName_FromRegistry(player_name, sizeof(player_name));
-
-	if (xr_strlen(player_name) == 0)
-	{
-		xr_strcpy(player_name, xr_strlen(Core.UserName) ? Core.UserName : Core.CompName);
-	}
+	xr_strcpy(player_name, xr_strlen(Core.UserName) ? Core.UserName : Core.CompName);
 	VERIFY(xr_strlen(player_name));
 
 	//make Client Name if options doesn't have it
@@ -89,16 +82,7 @@ bool CLevel::net_start1()
 
 		typedef IGame_Persistent::params params;
 		params& p = g_pGamePersistent->m_game_params;
-		// Connect
-		if (!xr_strcmp(p.m_game_type, "single"))
-		{
-			Server = xr_new<xrServer>();
-		}
-		else
-		{
-			g_allow_heap_min = false;
-			Server = xr_new<xrGameSpyServer>();
-		}
+		Server = xr_new<xrServer>();
 
 		if (xr_strcmp(p.m_alife, "alife"))
 		{

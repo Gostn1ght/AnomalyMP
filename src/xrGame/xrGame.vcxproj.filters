@@ -1969,12 +1969,6 @@
     <Filter Include="Core\Server\Games\PlayerAccounts">
       <UniqueIdentifier>{eb1a0837-c735-4283-8391-d700cfeeefa3}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Core\Server\GameSpy">
-      <UniqueIdentifier>{0e29aa42-d79c-425a-994b-c18169f076de}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Server\GameSpy\CdkeyDecode">
-      <UniqueIdentifier>{1e260ced-c32e-4b46-a3cc-a5fd5d7c6109}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Core\Server\ID_Generator">
       <UniqueIdentifier>{896c2566-b777-4505-acd6-792e19f54026}</UniqueIdentifier>
     </Filter>
@@ -2004,9 +1998,6 @@
     </Filter>
     <Filter Include="Core\Server\ServerProcess">
       <UniqueIdentifier>{b7dbcdc1-4f07-4c2b-b204-220fe12afc17}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Core\Server\xrGameSpyServer">
-      <UniqueIdentifier>{963eebca-4495-44e2-8fb5-bee1a28330af}</UniqueIdentifier>
     </Filter>
     <Filter Include="Core\Server\filetransfer">
       <UniqueIdentifier>{bf990cd5-6464-445f-88f1-c3f61d940651}</UniqueIdentifier>
@@ -5991,9 +5982,6 @@
     <ClInclude Include="..\xrServerEntities\associative_vector_compare_predicate_inline.h">
       <Filter>Core\Common\associative_vector\compare</Filter>
     </ClInclude>
-    <ClInclude Include="RegistryFuncs.h">
-      <Filter>Core\Common\Registry</Filter>
-    </ClInclude>
     <ClInclude Include="debug_make_final.hpp">
       <Filter>Core\Common\debug\make_final</Filter>
     </ClInclude>
@@ -6063,28 +6051,7 @@
     <ClInclude Include="game_sv_single.h">
       <Filter>Core\Server\Games\server\single</Filter>
     </ClInclude>
-    <ClInclude Include="account_manager.h">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClInclude>
-    <ClInclude Include="account_manager_console.h">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClInclude>
-    <ClInclude Include="atlas_stalkercoppc_v1.h">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClInclude>
-    <ClInclude Include="atlas_submit_queue.h">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClInclude>
-    <ClInclude Include="awards_store.h">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClInclude>
-    <ClInclude Include="best_scores_store.h">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClInclude>
     <ClInclude Include="gsc_dsigned_ltx.h">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClInclude>
-    <ClInclude Include="login_manager.h">
       <Filter>Core\Server\Games\PlayerAccounts</Filter>
     </ClInclude>
     <ClInclude Include="mixed_delegate.h">
@@ -6093,26 +6060,8 @@
     <ClInclude Include="mixed_delegate_unique_tags.h">
       <Filter>Core\Server\Games\PlayerAccounts</Filter>
     </ClInclude>
-    <ClInclude Include="player_account.h">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClInclude>
-    <ClInclude Include="profile_data_types.h">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClInclude>
-    <ClInclude Include="profile_store.h">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClInclude>
     <ClInclude Include="queued_async_method.h">
       <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClInclude>
-    <ClInclude Include="stats_submitter.h">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClInclude>
-    <ClInclude Include="gamespy\CdkeyDecode\base32.h">
-      <Filter>Core\Server\GameSpy\CdkeyDecode</Filter>
-    </ClInclude>
-    <ClInclude Include="gamespy\CdkeyDecode\cdkeydecode.h">
-      <Filter>Core\Server\GameSpy\CdkeyDecode</Filter>
     </ClInclude>
     <ClInclude Include="id_generator.h">
       <Filter>Core\Server\ID_Generator</Filter>
@@ -6161,9 +6110,6 @@
     </ClInclude>
     <ClInclude Include="xrServer_svclient_validation.h">
       <Filter>Core\Server\ServerProcess</Filter>
-    </ClInclude>
-    <ClInclude Include="xrGameSpyServer.h">
-      <Filter>Core\Server\xrGameSpyServer</Filter>
     </ClInclude>
     <ClInclude Include="file_transfer.h">
       <Filter>Core\Server\filetransfer</Filter>
@@ -6519,14 +6465,8 @@
     <ClInclude Include="player_name_modifyer.h">
       <Filter>UI\Multiplayer\MM_MP\CDkey</Filter>
     </ClInclude>
-    <ClInclude Include="ui\UICDkey.h">
-      <Filter>UI\Multiplayer\MM_MP\CDkey</Filter>
-    </ClInclude>
     <ClInclude Include="ui\UIMapList.h">
       <Filter>UI\Multiplayer\MM_MP\MapList</Filter>
-    </ClInclude>
-    <ClInclude Include="ui\ServerList.h">
-      <Filter>UI\Multiplayer\MM_MP\ServerList</Filter>
     </ClInclude>
     <ClInclude Include="ui\UIListItemServer.h">
       <Filter>UI\Multiplayer\MM_MP\ServerList</Filter>
@@ -8297,9 +8237,6 @@
     <ClCompile Include="Level.cpp">
       <Filter>Core\Client\Level</Filter>
     </ClCompile>
-    <ClCompile Include="Level_GameSpy_Funcs.cpp">
-      <Filter>Core\Client\Level</Filter>
-    </ClCompile>
     <ClCompile Include="Level_input.cpp">
       <Filter>Core\Client\Level</Filter>
     </ClCompile>
@@ -8386,9 +8323,6 @@
     </ClCompile>
     <ClCompile Include="Level_network_map_sync.cpp">
       <Filter>Core\Client\Level\LevelMapSync</Filter>
-    </ClCompile>
-    <ClCompile Include="Level_network_digest_computer.cpp">
-      <Filter>Core\Client\Level\ClientDigestComputer</Filter>
     </ClCompile>
     <ClCompile Include="xr_level_controller.cpp">
       <Filter>Core\Client\Level Controller</Filter>
@@ -9137,9 +9071,6 @@
     <ClCompile Include="string_table.cpp">
       <Filter>Core\Common\StringTable</Filter>
     </ClCompile>
-    <ClCompile Include="RegistryFuncs.cpp">
-      <Filter>Core\Common\Registry</Filter>
-    </ClCompile>
     <ClCompile Include="debug_make_final_test.cpp">
       <Filter>Core\Common\debug\make_final</Filter>
     </ClCompile>
@@ -9206,62 +9137,8 @@
     <ClCompile Include="netcoop_bots.cpp">
       <Filter>Core\Server\Games\server\single</Filter>
     </ClCompile>
-    <ClCompile Include="account_manager.cpp">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClCompile>
-    <ClCompile Include="account_manager_console.cpp">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClCompile>
-    <ClCompile Include="account_manager_script.cpp">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClCompile>
-    <ClCompile Include="atlas_stalkercoppc_v1.c">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClCompile>
-    <ClCompile Include="atlas_submit_queue.cpp">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClCompile>
-    <ClCompile Include="awards_store.cpp">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClCompile>
-    <ClCompile Include="best_scores_store.cpp">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClCompile>
     <ClCompile Include="gsc_dsigned_ltx.cpp">
       <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClCompile>
-    <ClCompile Include="login_manager.cpp">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClCompile>
-    <ClCompile Include="login_manager_script.cpp">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClCompile>
-    <ClCompile Include="player_account.cpp">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClCompile>
-    <ClCompile Include="profile_data_types.cpp">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClCompile>
-    <ClCompile Include="profile_data_types_script.cpp">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClCompile>
-    <ClCompile Include="profile_store.cpp">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClCompile>
-    <ClCompile Include="profile_store_script.cpp">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClCompile>
-    <ClCompile Include="stats_submitter.cpp">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClCompile>
-    <ClCompile Include="stats_submitter_dsa_params.cpp">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClCompile>
-    <ClCompile Include="gamespy\CdkeyDecode\base32.c">
-      <Filter>Core\Server\GameSpy\CdkeyDecode</Filter>
-    </ClCompile>
-    <ClCompile Include="gamespy\CdkeyDecode\cdkeydecode.c">
-      <Filter>Core\Server\GameSpy\CdkeyDecode</Filter>
     </ClCompile>
     <ClCompile Include="..\xrServerEntities\gametype_chooser.cpp">
       <Filter>Core\Server\ServerEntities</Filter>
@@ -9379,12 +9256,6 @@
     </ClCompile>
     <ClCompile Include="xrServer_svclient_validation.cpp">
       <Filter>Core\Server\ServerProcess</Filter>
-    </ClCompile>
-    <ClCompile Include="xrGameSpy_GameSpyFuncs.cpp">
-      <Filter>Core\Server\xrGameSpyServer</Filter>
-    </ClCompile>
-    <ClCompile Include="xrGameSpyServer.cpp">
-      <Filter>Core\Server\xrGameSpyServer</Filter>
     </ClCompile>
     <ClCompile Include="file_transfer.cpp">
       <Filter>Core\Server\filetransfer</Filter>
@@ -9794,17 +9665,8 @@
     <ClCompile Include="player_name_modifyer.cpp">
       <Filter>UI\Multiplayer\MM_MP\CDkey</Filter>
     </ClCompile>
-    <ClCompile Include="ui\UICDkey.cpp">
-      <Filter>UI\Multiplayer\MM_MP\CDkey</Filter>
-    </ClCompile>
     <ClCompile Include="ui\UIMapList.cpp">
       <Filter>UI\Multiplayer\MM_MP\MapList</Filter>
-    </ClCompile>
-    <ClCompile Include="ui\ServerList.cpp">
-      <Filter>UI\Multiplayer\MM_MP\ServerList</Filter>
-    </ClCompile>
-    <ClCompile Include="ui\ServerList_GameSpy_func.cpp">
-      <Filter>UI\Multiplayer\MM_MP\ServerList</Filter>
     </ClCompile>
     <ClCompile Include="ui\UIListItemServer.cpp">
       <Filter>UI\Multiplayer\MM_MP\ServerList</Filter>

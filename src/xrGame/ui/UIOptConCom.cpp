@@ -5,9 +5,7 @@
 #include "../../xrcore/xrCore.h"
 //#include "game_base_space.h"
 #include "gametype_chooser.h"
-#include "../RegistryFuncs.h"
 
-#include "ui/UICDkey.h"
 
 xr_token g_GameModes [] = {
 	{"st_deathmatch", eGameIDDeathmatch},
@@ -27,20 +25,6 @@ class CCC_UserName : public CCC_String
 public:
 	CCC_UserName(LPCSTR N, LPSTR V, int _size) : CCC_String(N, V, _size) { bEmptyArgsHandled = false; };
 
-	virtual void Execute(LPCSTR arguments)
-	{
-		string512 str;
-		xr_strcpy(str, arguments);
-
-		u32 const max_name_length = GP_UNIQUENICK_LEN - 1;
-		if (xr_strlen(str) > max_name_length)
-			str[max_name_length] = 0;
-
-		CCC_String::Execute(str);
-
-		WritePlayerName_ToRegistry(value);
-	}
-
 	virtual void Save(IWriter* F)
 	{
 	};
@@ -49,8 +33,8 @@ public:
 
 void CUIOptConCom::Init()
 {
-	ReadPlayerNameFromRegistry();
-	CMD3(CCC_UserName, "mm_net_player_name", m_playerName, 64);
+	m_playerName[0] = 0;
+	CMD3(CCC_UserName, "mm_net_player_name", m_playerName, sizeof(m_playerName));
 
 	m_iMaxPlayers = 32;
 	m_curGameMode = eGameIDDeathmatch;
@@ -81,12 +65,3 @@ void CUIOptConCom::Init()
 	CMD3(CCC_Mask, "mm_net_filter_listen", &m_uNetFilter, fl_listen);
 };
 
-void CUIOptConCom::ReadPlayerNameFromRegistry()
-{
-	GetPlayerName_FromRegistry(m_playerName, sizeof(m_playerName));
-};
-
-void CUIOptConCom::WritePlayerNameToRegistry()
-{
-	WritePlayerName_ToRegistry(m_playerName);
-};

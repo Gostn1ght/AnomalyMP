@@ -1906,29 +1906,3 @@ void xrServer::KickCheaters()
 	m_cheaters.clear();
 }
 
-struct PlayerInfoWriter
-{
-	NET_Packet* dest;
-
-	void operator()(IClient* C)
-	{
-		xrClientData* tmp_client = smart_cast<xrClientData*>(C);
-		if (!tmp_client)
-			return;
-
-		dest->w_clientID(tmp_client->ID);
-		dest->w_stringZ(tmp_client->m_cAddress.to_string().c_str());
-		dest->w_stringZ(tmp_client->m_cdkey_digest);
-	}
-}; //struct PlayerInfoWriter
-
-void xrServer::SendPlayersInfo(ClientID const& to_client)
-{
-	PlayerInfoWriter tmp_functor;
-	NET_Packet tmp_packet;
-	tmp_packet.w_begin(M_GAMEMESSAGE);
-	tmp_packet.w_u32(GAME_EVENT_PLAYERS_INFO_REPLY);
-	tmp_functor.dest = &tmp_packet;
-	ForEachClientDo(tmp_functor);
-	SendTo(to_client, tmp_packet, net_flags(TRUE, TRUE));
-}

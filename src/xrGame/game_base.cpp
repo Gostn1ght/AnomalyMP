@@ -35,20 +35,9 @@ game_PlayerState::game_PlayerState(NET_Packet* account_info)
 	clear();
 
 	if (account_info)
-	{
 		net_Import(*account_info);
-	}
-	else
-	{
-		if (g_dedicated_server)
-		{
-			setFlag(GAME_PLAYER_FLAG_SKIP);
-		}
-		else
-		{
-			m_account.load_account();
-		}
-	}
+	else if (g_dedicated_server)
+		setFlag(GAME_PLAYER_FLAG_SKIP);
 }
 
 void game_PlayerState::clear()
@@ -120,9 +109,7 @@ void game_PlayerState::net_Export(NET_Packet& P, BOOL Full)
 
 	P.w_u32(Device.dwTimeGlobal - DeathTime);
 	if (Full)
-	{
-		m_account.net_Export(P);
-	}
+		P.w_stringZ(m_name);
 };
 
 void game_PlayerState::net_Import(NET_Packet& P)
@@ -148,9 +135,7 @@ void game_PlayerState::net_Import(NET_Packet& P)
 
 	DeathTime = P.r_u32();
 	if (bFullUpdate)
-	{
-		m_account.net_Import(P);
-	}
+		P.r_stringZ(m_name);
 };
 
 void game_PlayerState::skip_Import(NET_Packet& P)
@@ -176,9 +161,7 @@ void game_PlayerState::skip_Import(NET_Packet& P)
 
 	P.r_u32(); //DeathTime
 	if (bFullUpdate)
-	{
-		player_account::skip_Import(P);
-	}
+		P.skip_stringZ();
 }
 
 void game_PlayerState::SetGameID(u16 NewID)

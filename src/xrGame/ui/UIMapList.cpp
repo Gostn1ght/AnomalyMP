@@ -15,7 +15,6 @@
 #include "object_broker.h"
 #include "game_base.h"
 
-#include "ui/UICDkey.h"
 
 extern ENGINE_API string512 g_sLaunchOnExit_app;
 extern ENGINE_API string512 g_sLaunchOnExit_params;
@@ -226,12 +225,7 @@ const char* CUIMapList::GetCommandLine(LPCSTR player_name)
 	if (player_name == NULL || 0 == xr_strlen(player_name))
 	{
 		string64 player_name2;
-		GetPlayerName_FromRegistry(player_name2, sizeof(player_name2));
-
-		if (xr_strlen(player_name2) == 0)
-		{
-			xr_strcpy(player_name2, xr_strlen(Core.UserName) ? Core.UserName : Core.CompName);
-		}
+		xr_strcpy(player_name2, xr_strlen(Core.UserName) ? Core.UserName : Core.CompName);
 		VERIFY(xr_strlen(player_name2));
 
 		m_command += player_name2;

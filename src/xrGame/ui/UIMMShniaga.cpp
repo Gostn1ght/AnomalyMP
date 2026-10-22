@@ -12,7 +12,6 @@
 #include <math.h>
 #include "../Actor.h"
 #include "../saved_game_wrapper.h"
-#include "../login_manager.h"
 #include "../netcoop.h"
 #include "MainMenu.h"
 

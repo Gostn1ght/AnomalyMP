@@ -72,7 +72,6 @@ public:
 		u32 m_dwLoginTime;
 	} m_admin_rights;
 
-	shared_str m_cdkey_digest;
 	secure_messaging::key_t m_secret_key;
 	s32 m_last_key_sync_request_seed;
 
@@ -244,7 +243,6 @@ public:
 	xrClientData* SelectBestClientToMigrateTo(CSE_Abstract* E, BOOL bForceAnother = FALSE);
 	void SendConnectResult(IClient* CL, u8 res, u8 res1, char* ResultStr);
 	void __stdcall SendConfigFinished(ClientID const& clientId);
-	void SendProfileCreationError(IClient* CL, char const* reason);
 	void AttachNewClient(IClient* CL);
 	virtual void OnBuildVersionRespond(IClient* CL, NET_Packet& P);
 protected:
@@ -254,9 +252,7 @@ protected:
 
 	virtual bool Check_ServerAccess(IClient* CL, string512& reason) { return true; }
 
-	virtual bool NeedToCheckClient_GameSpy_CDKey(IClient* CL) { return false; }
-	virtual void Check_GameSpy_CDKey_Success(IClient* CL);
-	void RequestClientDigest(IClient* CL);
+	void Check_ClientVersion(IClient* CL);
 	void KickCheaters();
 
 	virtual bool NeedToCheckClient_BuildVersion(IClient* CL);
@@ -331,7 +327,6 @@ public:
 	void AddCheater(shared_str const& reason, ClientID const& cheaterID);
 
 	virtual void GetServerInfo(CServerInfo* si);
-	void SendPlayersInfo(ClientID const& to_client);
 public:
 	xr_string ent_name_safe(u16 eid);
 #ifdef DEBUG

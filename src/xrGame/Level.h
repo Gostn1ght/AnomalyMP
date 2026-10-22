@@ -141,11 +141,6 @@ private:
 	void UpdateDeltaUpd(u32 LastTime);
 	void BlockCheatLoad();
 	bool Connect2Server(const char* options);
-	void SendClientDigestToServer();
-	shared_str m_client_digest; // for screenshots
-
-public:
-	shared_str const get_cdkey_digest() const { return m_client_digest; }
 
 private:
 	bool m_bConnectResultReceived;
@@ -153,7 +148,6 @@ private:
 	xr_string m_sConnectResult;
 
 public:
-	void OnGameSpyChallenge(NET_Packet* P);
 	void OnBuildVersionChallenge();
 	void OnConnectResult(NET_Packet* P);
 	// Static particles

@@ -509,16 +509,6 @@ void CLevel::OnConnectResult(NET_Packet* P)
 					MainMenu()->SetErrorDialog(CMainMenu::ErrDifferentVersion);
 			}
 			break;
-		case ecr_cdkey_validation_failed: //GameSpy CDKey
-			{
-				if (!xr_strcmp(ResultStr, "Invalid CD Key"))
-					MainMenu()->SetErrorDialog(CMainMenu::ErrCDKeyInvalid); //, ResultStr);
-				if (!xr_strcmp(ResultStr, "CD Key in use"))
-					MainMenu()->SetErrorDialog(CMainMenu::ErrCDKeyInUse); //, ResultStr);
-				if (!xr_strcmp(ResultStr, "Your CD Key is disabled. Contact customer service."))
-					MainMenu()->SetErrorDialog(CMainMenu::ErrCDKeyDisabled); //, ResultStr);
-			}
-			break;
 		case ecr_password_verification_failed: //login+password
 			{
 				MainMenu()->SetErrorDialog(CMainMenu::ErrInvalidPassword);
@@ -540,21 +530,6 @@ void CLevel::OnConnectResult(NET_Packet* P)
 				}
 			}
 			break;
-		case ecr_profile_error:
-			{
-				if (!xr_strlen(ResultStr))
-				{
-					MainMenu()->OnSessionTerminate(
-						CStringTable().translate("st_profile_error").c_str()
-					);
-				}
-				else
-				{
-					MainMenu()->OnSessionTerminate(
-						CStringTable().translate(ResultStr).c_str()
-					);
-				}
-			}
 		}
 	};
 	m_sConnectResult = ResultStr;
