@@ -37,12 +37,28 @@ void section_for_each(CScriptIniFile* self, ::luabind::functor<bool> functor)
 	typedef CInifile::Root sections_type;
 	sections_type& sections = self->sections();
 
+	// A walk over every section calls Lua once per section (66 k in GAMMA's
+	// system.ltx); a slow one is logged with its script line (doc 151).
+	CTimer timer;
+	timer.Start();
+	u32 visited = 0;
 	sections_type::const_iterator i = sections.begin();
 	sections_type::const_iterator e = sections.end();
 	for (; i != e; ++i)
 	{
+		++visited;
 		if (functor((LPCSTR)(*i).Name.c_str()) == true)
-			return;
+			break;
+	}
+	const float ms = timer.GetElapsed_sec() * 1000.f;
+	if (ms > 100.f)
+	{
+		lua_State* L = ai().script_engine().lua();
+		lua_Debug caller;
+		if (L && lua_getstack(L, 1, &caller) && lua_getinfo(L, "Sl", &caller))
+			Msg("[startup] section_for_each %u sections %.0f ms from %s:%d", visited, ms, caller.short_src, caller.currentline);
+		else
+			Msg("[startup] section_for_each %u sections %.0f ms", visited, ms);
 	}
 }
 #endif

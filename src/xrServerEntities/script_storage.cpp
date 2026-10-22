@@ -983,11 +983,15 @@ bool CScriptStorage::do_file(LPCSTR caScriptName, LPCSTR caNameSpaceName)
 				continue;
 			}
 
-			std::regex pattern;
+			// Compiled once: they were built again for every line of every
+			// unlocalized script (~1 s of a server start, doc 151).
+			static const std::regex local_function(R"((^local)([\t ]+)(function)([\t ]+)([_a-zA-Z].*)([\t ]*)(\(.*$))");
+			static const std::regex local_variable(R"((^local)([\t ]+)(.*))");
+			static const std::regex comment_tail(R"((.*)--.*)");
+			static const std::regex code_and_comment(R"((.*)(--.*))");
 
 			//local function x(a,b,c)
-			pattern = std::regex(R"((^local)([\t ]+)(function)([\t ]+)([_a-zA-Z].*)([\t ]*)(\(.*$))");
-			if (unlocalRegex(unlocals, s, pattern, 5, "$3$4$5$6$7")) {
+			if (unlocalRegex(unlocals, s, local_function, 5, "$3$4$5$6$7")) {
 				unlocalPerformed = true;
 				continue;
 			}
@@ -996,18 +1000,16 @@ bool CScriptStorage::do_file(LPCSTR caScriptName, LPCSTR caNameSpaceName)
 			//local a
 			//local a,b,c = ... (if one of a,b,c is in unlocalizers list - all of them will be unlocalized)
 			//local x; local y; - unsupported yet
-			pattern = std::regex(R"((^local)([\t ]+)(.*))");
-			if (std::regex_match(s, pattern)) {
+			if (std::regex_match(s, local_variable)) {
 				std::smatch match;
-				std::regex_search(s, match, pattern);
+				std::regex_search(s, match, local_variable);
 				std::string m = match[3];
 
 				// strip comments
-				std::regex r = std::regex(R"((.*)--.*)");
-				if (std::regex_match(m, r)) {
+				if (std::regex_match(m, comment_tail)) {
 					//Msg("found comments\n");
 					std::smatch noncomments;
-					std::regex_search(m, noncomments, r);
+					std::regex_search(m, noncomments, comment_tail);
 					m = noncomments[1];
 				}
 
@@ -1020,15 +1022,14 @@ bool CScriptStorage::do_file(LPCSTR caScriptName, LPCSTR caNameSpaceName)
 					if (unlocals.find(v) != unlocals.end()) {
 						unlocalPerformed = true;
 						Msg("found variable %s to unlocal", v.c_str());
-						s = std::regex_replace(s, pattern, "$3");
+						s = std::regex_replace(s, local_variable, "$3");
 						if (!hasValue) {
 
 							// strip comments
-							std::regex r = std::regex(R"((.*)(--.*))");
-							if (std::regex_match(s, r)) {
+							if (std::regex_match(s, code_and_comment)) {
 								//Msg("found comments\n");
 								std::smatch noncomments;
-								std::regex_search(s, noncomments, r);
+								std::regex_search(s, noncomments, code_and_comment);
 								s = std::string(noncomments[1]) + "= nil " + std::string(noncomments[2]);
 							} else {
 								s += " = nil";
@@ -1111,7 +1112,18 @@ bool CScriptStorage::do_file(LPCSTR caScriptName, LPCSTR caNameSpaceName)
 bool CScriptStorage::load_file_into_namespace(LPCSTR caScriptName, LPCSTR caNamespaceName)
 {
 	int start = lua_gettop(lua());
-	if (!do_file(caScriptName, caNamespaceName))
+	// A script that takes long to load (with the scripts it loads) is logged
+	// as a start phase (doc 151).
+	static int depth = 0;
+	CTimer timer;
+	timer.Start();
+	++depth;
+	const bool loaded = do_file(caScriptName, caNamespaceName);
+	--depth;
+	const float ms = timer.GetElapsed_sec() * 1000.f;
+	if (ms > 200.f)
+		Msg("[startup] script %s loaded in %.0f ms (nesting %d)", caNamespaceName, ms, depth);
+	if (!loaded)
 	{
 		Msg("! [ERROR] --- Failed to load script %s", caNamespaceName);
 		lua_settop(lua(), start);
