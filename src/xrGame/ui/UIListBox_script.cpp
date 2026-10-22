@@ -2,9 +2,7 @@
 #include "UIListBox.h"
 #include "UIListBoxItem.h"
 #include "UIListBoxItemMsgChain.h"
-#include "UIMapList.h"
 #include "UISpinText.h"
-#include "UIMapInfo.h"
 #include "UIComboBox.h"
 
 using namespace luabind;
@@ -60,21 +58,6 @@ void CUIListBox::script_register(lua_State* L)
 		.def(constructor<float>()),
 
 
-		class_<CUIMapList, CUIWindow>("CUIMapList")
-		.def(constructor<>())
-		.def("SetWeatherSelector", &CUIMapList::SetWeatherSelector)
-		.def("SetModeSelector", &CUIMapList::SetModeSelector)
-		.def("OnModeChange", &CUIMapList::OnModeChange)
-		.def("LoadMapList", &CUIMapList::LoadMapList)
-		.def("SaveMapList", &CUIMapList::SaveMapList)
-		.def("GetCommandLine", &CUIMapList::GetCommandLine)
-		.def("SetServerParams", &CUIMapList::SetServerParams)
-		.def("GetCurGameType", &CUIMapList::GetCurGameType)
-		.def("StartDedicatedServer", &CUIMapList::StartDedicatedServer)
-		.def("SetMapPic", &CUIMapList::SetMapPic)
-		.def("SetMapInfo", &CUIMapList::SetMapInfo)
-		.def("ClearList", &CUIMapList::ClearList)
-		.def("IsEmpty", &CUIMapList::IsEmpty),
 
 		class_<enum_exporter<EGameIDs>>("GAME_TYPE")
 		.enum_("gametype")

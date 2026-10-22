@@ -23,8 +23,6 @@
 #include "UIListBoxItem.h"
 #include "UIListBoxItemMsgChain.h"
 #include "UIMainIngameWnd.h"
-#include "UIMapInfo.h"
-#include "UIMapList.h"
 #include "UIMessageBox.h"
 #include "UIMessageBoxEx.h"
 #include "UIMessagesWindow.h"
@@ -254,8 +252,6 @@ void CUIWindow::script_register(lua_State* L)
 		.def("cast_ListBoxItemMsgChain", UI_WINDOW_CAST(CUIListBoxItemMsgChain))
 		.def("cast_MMShniaga", UI_WINDOW_CAST(CUIMMShniaga))
 		.def("cast_MainIngameWnd", UI_WINDOW_CAST(CUIMainIngameWnd))
-		.def("cast_MapInfo", UI_WINDOW_CAST(CUIMapInfo))
-		.def("cast_MapList", UI_WINDOW_CAST(CUIMapList))
 		.def("cast_MessageBox", UI_WINDOW_CAST(CUIMessageBox))
 		.def("cast_MessageBoxEx", UI_WINDOW_CAST(CUIMessageBoxEx))
 		.def("cast_MessagesWindow", UI_WINDOW_CAST(CUIMessagesWindow))

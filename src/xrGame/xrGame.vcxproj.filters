@@ -6243,9 +6243,6 @@
     <ClInclude Include="ui\UIOptionsManagerScript.h">
       <Filter>UI\Common\OptionsItem</Filter>
     </ClInclude>
-    <ClInclude Include="ui\UIOptConCom.h">
-      <Filter>UI\Common\OptionsConsoleCommands</Filter>
-    </ClInclude>
     <ClInclude Include="MainMenu.h">
       <Filter>UI\Common\MainMenu</Filter>
     </ClInclude>
@@ -6462,18 +6459,6 @@
     <ClInclude Include="UIGameSP.h">
       <Filter>UI\GameTypes\Single</Filter>
     </ClInclude>
-    <ClInclude Include="player_name_modifyer.h">
-      <Filter>UI\Multiplayer\MM_MP\CDkey</Filter>
-    </ClInclude>
-    <ClInclude Include="ui\UIMapList.h">
-      <Filter>UI\Multiplayer\MM_MP\MapList</Filter>
-    </ClInclude>
-    <ClInclude Include="ui\UIListItemServer.h">
-      <Filter>UI\Multiplayer\MM_MP\ServerList</Filter>
-    </ClInclude>
-    <ClInclude Include="ui\TeamInfo.h">
-      <Filter>UI\Multiplayer\MM_MP\TeamInfo</Filter>
-    </ClInclude>
     <ClInclude Include="ui\UIChatWnd.h">
       <Filter>UI\Multiplayer\HUD\Chat</Filter>
     </ClInclude>
@@ -6485,12 +6470,6 @@
     </ClInclude>
     <ClInclude Include="ui\UIPdaKillMessage.h">
       <Filter>UI\Multiplayer\HUD\common</Filter>
-    </ClInclude>
-    <ClInclude Include="ui\UITabButtonMP.h">
-      <Filter>UI\Multiplayer\BuyWeaponWnd\TAB</Filter>
-    </ClInclude>
-    <ClInclude Include="ui\UIMapInfo.h">
-      <Filter>UI\Multiplayer\team_skin_info\MapDesc\MapInfo</Filter>
     </ClInclude>
     <ClInclude Include="HUDCrosshair.h">
       <Filter>UI\Cursor</Filter>
@@ -9398,9 +9377,6 @@
     <ClCompile Include="ui\UIOptionsManagerScript.cpp">
       <Filter>UI\Common\OptionsItem</Filter>
     </ClCompile>
-    <ClCompile Include="ui\UIOptConCom.cpp">
-      <Filter>UI\Common\OptionsConsoleCommands</Filter>
-    </ClCompile>
     <ClCompile Include="MainMenu.cpp">
       <Filter>UI\Common\MainMenu</Filter>
     </ClCompile>
@@ -9662,18 +9638,6 @@
     <ClCompile Include="UIGameSP.cpp">
       <Filter>UI\GameTypes\Single</Filter>
     </ClCompile>
-    <ClCompile Include="player_name_modifyer.cpp">
-      <Filter>UI\Multiplayer\MM_MP\CDkey</Filter>
-    </ClCompile>
-    <ClCompile Include="ui\UIMapList.cpp">
-      <Filter>UI\Multiplayer\MM_MP\MapList</Filter>
-    </ClCompile>
-    <ClCompile Include="ui\UIListItemServer.cpp">
-      <Filter>UI\Multiplayer\MM_MP\ServerList</Filter>
-    </ClCompile>
-    <ClCompile Include="ui\TeamInfo.cpp">
-      <Filter>UI\Multiplayer\MM_MP\TeamInfo</Filter>
-    </ClCompile>
     <ClCompile Include="ui\UIChatWnd.cpp">
       <Filter>UI\Multiplayer\HUD\Chat</Filter>
     </ClCompile>
@@ -9682,15 +9646,6 @@
     </ClCompile>
     <ClCompile Include="ui\UIPdaKillMessage.cpp">
       <Filter>UI\Multiplayer\HUD\common</Filter>
-    </ClCompile>
-    <ClCompile Include="ui\UITabButtonMP.cpp">
-      <Filter>UI\Multiplayer\BuyWeaponWnd\TAB</Filter>
-    </ClCompile>
-    <ClCompile Include="ui\UIMapInfo.cpp">
-      <Filter>UI\Multiplayer\team_skin_info\MapDesc\MapInfo</Filter>
-    </ClCompile>
-    <ClCompile Include="ui\UIMapInfo_script.cpp">
-      <Filter>UI\Multiplayer\team_skin_info\MapDesc\MapInfo</Filter>
     </ClCompile>
     <ClCompile Include="HUDCrosshair.cpp">
       <Filter>UI\Cursor</Filter>

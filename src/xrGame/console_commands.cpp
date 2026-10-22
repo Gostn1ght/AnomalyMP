@@ -32,7 +32,6 @@
 #include "ai/monsters/BaseMonster/base_monster.h"
 #include "date_time.h"
 #include "mt_config.h"
-#include "ui/UIOptConCom.h"
 #include "UIGameSP.h"
 #include "ui/UIActorMenu.h"
 #include "ui/UIStatic.h"
@@ -339,7 +338,6 @@ enum E_COMMON_FLAGS
 	flAiUseTorchDynamicLights = 1
 };
 
-CUIOptConCom g_OptConCom;
 
 #ifndef PURE_ALLOC
 //#	ifndef USE_MEMORY_MONITOR
@@ -2724,7 +2722,6 @@ void CCC_RegisterCommands()
 	CMD1(CCC_NetcoopBans, "sv_bans");
 	CMD1(CCC_NetcoopLeader, "sv_leader");
 	//Not needed for a singleplayer-only mod
-	//g_OptConCom.Init();
 
 	CMD1(CCC_MemStats, "stat_memory");
 #ifdef DEBUG

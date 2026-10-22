@@ -11,12 +11,10 @@
 #include "ui\UITabControl.h"
 #include "ui\UIFrameWindow.h"
 //#include "ui\UILabel.h"
-#include "ui\UIMapList.h"
 #include "ui\UIKeyBinding.h"
 #include "ui\UIEditBox.h"
 #include "ui\UIAnimatedStatic.h"
 #include "ui\UITrackBar.h"
-#include "ui\UIMapInfo.h"
 #include "ui\UIMMShniaga.h"
 #include "ui\UIScrollView.h"
 #include "ui\UIProgressBar.h"
@@ -451,14 +449,6 @@ CUITabControl* CScriptXmlInit::InitTab(LPCSTR path, CUIWindow* parent)
 }
 
 
-CUIMapList* CScriptXmlInit::InitMapList(LPCSTR path, CUIWindow* parent)
-{
-	CUIMapList* pWnd = xr_new<CUIMapList>();
-	pWnd->InitFromXml(m_xml, path);
-	_attach_child(pWnd, parent);
-	return pWnd;
-}
-
 CUIMMShniaga* CScriptXmlInit::InitMMShniaga(LPCSTR path, CUIWindow* parent)
 {
 	// Keep the Lua string owned while construction allocates UI/render objects.
@@ -466,15 +456,6 @@ CUIMMShniaga* CScriptXmlInit::InitMMShniaga(LPCSTR path, CUIWindow* parent)
 	CUIMMShniaga* pWnd = xr_new<CUIMMShniaga>();
 	m_xml.SetLocalRoot(m_xml.GetRoot());
 	pWnd->InitShniaga(m_xml, stable_path.c_str());
-	_attach_child(pWnd, parent);
-	return pWnd;
-}
-
-CUIMapInfo* CScriptXmlInit::InitMapInfo(LPCSTR path, CUIWindow* parent)
-{
-	CUIMapInfo* pWnd = xr_new<CUIMapInfo>();
-	CUIXmlInit::InitWindow(m_xml, path, 0, pWnd);
-	pWnd->InitMapInfo(pWnd->GetWndPos(), pWnd->GetWndSize());
 	_attach_child(pWnd, parent);
 	return pWnd;
 }
@@ -538,8 +519,6 @@ void CScriptXmlInit::script_register(lua_State* L)
 		.def("InitSpinText", &CScriptXmlInit::InitSpinText)
 		.def("InitComboBox", &CScriptXmlInit::InitComboBox)
 		.def("InitTab", &CScriptXmlInit::InitTab)
-		.def("InitMapList", &CScriptXmlInit::InitMapList)
-		.def("InitMapInfo", &CScriptXmlInit::InitMapInfo)
 		.def("InitTrackBar", &CScriptXmlInit::InitTrackBar)
 		.def("InitKeyBinding", &CScriptXmlInit::InitKeyBinding)
 		.def("InitMMShniaga", &CScriptXmlInit::InitMMShniaga)
