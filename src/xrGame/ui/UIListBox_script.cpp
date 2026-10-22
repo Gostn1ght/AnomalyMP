@@ -4,6 +4,7 @@
 #include "UIListBoxItemMsgChain.h"
 #include "UISpinText.h"
 #include "UIComboBox.h"
+#include "gametype_chooser.h"
 
 using namespace luabind;
 
