@@ -256,6 +256,7 @@ void CLocatorAPI::Register(LPCSTR name, u32 vfs, u32 crc, u32 ptr, u32 size_real
 	m_files.insert(desc);
 
 	// Try to register folder(s)
+	LPCSTR const registered = desc.name;
 	string_path temp;
 	xr_strcpy(temp, sizeof(temp), desc.name);
 	string_path path;
@@ -265,7 +266,15 @@ void CLocatorAPI::Register(LPCSTR name, u32 vfs, u32 crc, u32 ptr, u32 size_real
 	{
 		_splitpath(temp, path, folder, 0, 0);
 		xr_strcat(path, folder);
-		if (!exist(path))
+		if (exist(path))
+		{
+			// A registered folder has all its parents registered (this loop adds the
+			// whole chain), so the walk ends there; only a folder entry itself goes on
+			// to its parents. 110 k archive files at start (doc 151).
+			if (xr_strcmp(path, registered))
+				break;
+		}
+		else
 		{
 			desc.name = xr_strdup(path);
 			desc.vfs = vfs_id;
@@ -366,8 +375,12 @@ static IReader* open_archive_chunk(CLocatorAPI::archive& archive, u32 id)
 	return nullptr;
 }
 
+static double s_archive_read_sec = 0, s_archive_register_sec = 0;
+
 void CLocatorAPI::LoadArchive(archive& A, LPCSTR entrypoint)
 {
+	CTimer read_timer;
+	read_timer.Start();
 	// Create base path
 	string_path fs_entry_point;
 	fs_entry_point[0] = 0;
@@ -429,7 +442,9 @@ void CLocatorAPI::LoadArchive(archive& A, LPCSTR entrypoint)
 	A.open();
 	IReader* hdr = open_archive_chunk(A, 1);
 	R_ASSERT(hdr);
-	RStringVec fv;
+	s_archive_read_sec += read_timer.GetElapsed_sec();
+	CTimer register_timer;
+	register_timer.Start();
 	while (!hdr->eof())
 	{
 		string_path name, full;
@@ -462,6 +477,7 @@ void CLocatorAPI::LoadArchive(archive& A, LPCSTR entrypoint)
 		Register(full, A.vfs_idx, crc, ptr, size_real, size_compr, 0);
 	}
 	hdr->close();
+	s_archive_register_sec += register_timer.GetElapsed_sec();
 
 	// if(g_temporary_stuff_subst)
 	// g_temporary_stuff = g_temporary_stuff_subst;
@@ -882,7 +898,7 @@ void CLocatorAPI::_initialize(u32 flags, LPCSTR target_folder, LPCSTR fs_name)
 
 	m_Flags.set(flReady, TRUE);
 
-	Msg("Init FileSystem %f sec", t.GetElapsed_sec());
+	Msg("Init FileSystem %f sec (archive tables %.2f s, registering %.2f s)", t.GetElapsed_sec(), s_archive_read_sec, s_archive_register_sec);
 	//-----------------------------------------------------------
 	if (strstr(Core.Params, "-overlaypath"))
 	{
@@ -1752,6 +1768,7 @@ void CLocatorAPI::rescan_path(LPCSTR full_path, BOOL bRecurse)
 		if (0 != strncmp(entry.name, full_path, base_len)) break; // end of list
 		if (entry.vfs != 0xFFFFFFFF) continue;
 		const char* entry_begin = entry.name + base_len;
+		if (!*entry_begin) continue; // the rescanned folder itself
 		if (!bRecurse && strstr(entry_begin, "\\")) continue;
 		// erase item
 		char* str = LPSTR(cur_item->name);
