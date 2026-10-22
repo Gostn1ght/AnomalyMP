@@ -372,6 +372,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "DX8 MSBuild failed: $LASTEXITCODE" }
           New-Item -ItemType Directory -Force dx8-package/bin | Out-Null
           Copy-Item _build/_game/bin_dbg/LostZoneDX8.exe dx8-package/bin/LostZoneClientDX8.exe
+          # Symbols for DX8 players' crash dumps and profiles.
+          if (Test-Path _build/_game/bin_dbg/LostZoneDX8.pdb) { Copy-Item -LiteralPath _build/_game/bin_dbg/LostZoneDX8.pdb -Destination dx8-package/bin/LostZoneClientDX8.pdb }
+          else { Write-Warning "LostZoneDX8.pdb was not produced" }
           Get-FileHash dx8-package/bin/LostZoneClientDX8.exe | Format-List | Out-File dx8-package/sha256.txt
       - uses: actions/upload-artifact@v4
         if: steps.dx8.outcome == 'success'
