@@ -624,11 +624,6 @@ CSE_Abstract* game_sv_GameState::spawn_end(CSE_Abstract* E, ClientID id)
 	return N;
 }
 
-void game_sv_GameState::GenerateGameMessage(NET_Packet& P)
-{
-	P.w_begin(M_GAMEMESSAGE);
-};
-
 void game_sv_GameState::u_EventGen(NET_Packet& P, u16 type, u16 dest)
 {
 	P.w_begin(M_EVENT);

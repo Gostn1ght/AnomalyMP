@@ -1053,12 +1053,9 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
 		break;
 		//-------------------------------------------------------------------
 	case M_GAMEMESSAGE:
-		{
-			SendBroadcast(BroadcastCID, P, net_flags(TRUE,TRUE));
-#ifdef DEBUG
-			VERIFY(verify_entities());
-#endif
-		}
+		// Game messages (chat lines, kill and server notices) go from the
+		// server to clients; no client sends one, so it is not passed on.
+		Msg("! game message from client 0x%08x dropped", sender.value());
 		break;
 	case M_CLIENTREADY:
 		{

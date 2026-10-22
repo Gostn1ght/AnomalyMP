@@ -218,6 +218,6 @@ windowed; level loading after login is still to measure.
   UI nothing creates (-1.5 k lines): map list/info, server list item, team
   info, MP tab button, `mm_net_*` options, the player name modifier.
 
-Not changed on purpose: `M_GAMEMESSAGE` from a client is still broadcast to
-everyone as it came (chat and other game messages depend on it; a filter
-needs an in-game check of what netcoop sends through it).
+- `M_GAMEMESSAGE` from a client is dropped: the server passed it to every
+  client as it came, and no client sends one (game messages go from the
+  server), so only a forged chat line or notice could arrive that way.

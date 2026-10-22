@@ -100,7 +100,6 @@ public:
 	virtual void OnPlayer_Sell_Item(ClientID id_who, NET_Packet& P)
 	{
 	};
-	void GenerateGameMessage(NET_Packet& P);
 
 
 	virtual void OnRoundStart(); // старт раунда
