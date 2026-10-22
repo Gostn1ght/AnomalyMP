@@ -418,8 +418,7 @@ jobs:
       - name: Analyze the game (PREfast)
         shell: pwsh
         run: |
-          $sln = (Resolve-Path src).Path + "\"
-          msbuild src/xrGame/xrGame.vcxproj /m:2 /p:Configuration=DX11 /p:Platform=x64 /p:SolutionDir=$sln /p:EnablePREfast=true /p:MultiProcessorCompilation=false /fl /flp:logfile=analyze.log /v:minimal
+          msbuild src/engine-vs2022.sln /t:xrGame /m:2 /p:Configuration=DX11 /p:Platform=x64 /p:EnablePREfast=true /p:MultiProcessorCompilation=false /fl /flp:logfile=analyze.log /v:minimal
           "msbuild exit $LASTEXITCODE"
       - name: Report
         if: always()
