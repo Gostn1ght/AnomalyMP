@@ -53,3 +53,25 @@ Still open: the special attacks above test `enemy == Actor()`, so against
 real players they never fire (vampire, burer telekinesis/stamina, controller
 psy, poltergeist). Each needs the enemy actor for the gameplay part and an
 event to the player's client for the camera/postprocess part.
+
+## Plan for the special attacks against players
+
+Damage is the server's (netcoop_events.inc: a client never sends GE_HIT
+except its own fall), so each attack splits in two:
+
+1. Gameplay on the server, against the attacking monster's enemy when it is
+   a player's server copy (`netcoop::server_player_copy`), not `Actor()`:
+   - burer: stamina hit and weapon drop (burer.cpp 247-283, 544);
+   - controller: stamina hit (controller.cpp 752-755), psy aim (836);
+   - bloodsucker vampire: hold, damage, release (vampire_execute_inline.h);
+   - poltergeist telekinesis: object search and throw at the player
+     (poltergeist_telekinesis.cpp);
+   - psy dog / aura strength by the player's distance (monster_aura.cpp).
+2. The player's screen on that player's client: a new netcoop event
+   (monster id, effect kind, parameters) to the target's client, which runs
+   the camera/postprocess effector on its local actor (the code that now
+   calls `Actor()->Cameras()` on the server).
+
+Stamina is the owner's (sprint is simulated on the client), so the stamina
+hit goes in the same event; health damage stays the server's GE_HIT.
+Needs a two-player test for each monster.
