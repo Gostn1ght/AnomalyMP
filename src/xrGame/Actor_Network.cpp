@@ -1037,7 +1037,7 @@ BOOL CActor::net_Spawn(CSE_Abstract* DC)
 	{
 		g_actor = this;
 		if (netcoop::enabled() && g_dedicated_server)
-			Msg("[Lost Zone] global actor: %u (%s)", ID(), cName().c_str());
+			Msg("[Lost Zone] global actor: %u (%s)", E->ID, E->name_replace());
 	}
 
 	VERIFY(m_pActorEffector == NULL);
