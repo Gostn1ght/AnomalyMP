@@ -8,6 +8,9 @@
 
 #pragma once
 
+#include "ai_space.h"
+#include "script_engine.h"
+
 #include "script_space_forward.h"
 #include "script_bind_macroses.h"
 #include "script_export_space.h"

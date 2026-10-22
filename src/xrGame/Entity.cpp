@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "script_callback_ex.h"
 #include "Entity.h"
 #include "actor.h"
 #include "xrserver_objects_alife_monsters.h"

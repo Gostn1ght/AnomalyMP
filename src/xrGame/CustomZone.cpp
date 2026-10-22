@@ -1,4 +1,6 @@
 #include "stdafx.h"
+#include "ai_space.h"
+#include "script_engine.h"
 #include "../xrEngine/xr_ioconsole.h"
 #include "customzone.h"
 #include "hit.h"

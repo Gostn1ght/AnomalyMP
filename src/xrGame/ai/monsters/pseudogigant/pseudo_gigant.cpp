@@ -1,4 +1,6 @@
 #include "stdafx.h"
+#include "../../../ai_space.h"
+#include "../../../../xrServerEntities/script_engine.h"
 #include "pseudo_gigant.h"
 #include "pseudo_gigant_step_effector.h"
 #include "../../../actor.h"

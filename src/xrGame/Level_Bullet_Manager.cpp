@@ -3,6 +3,8 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "ai_space.h"
+#include "script_engine.h"
 #include "Level.h"
 #include "Level_Bullet_Manager.h"
 #include "game_cl_base.h"

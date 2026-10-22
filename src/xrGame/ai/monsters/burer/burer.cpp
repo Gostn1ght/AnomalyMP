@@ -1,4 +1,6 @@
 #include "stdafx.h"
+#include "../../../ai_space.h"
+#include "../../../../xrServerEntities/script_engine.h"
 #include "burer.h"
 #include "../../../../xrphysics/PhysicsShell.h"
 #include "../../../characterphysicssupport.h"

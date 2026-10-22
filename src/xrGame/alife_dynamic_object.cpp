@@ -7,6 +7,8 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "ai_space.h"
+#include "script_engine.h"
 #include "xrServer_Objects_ALife.h"
 #include "alife_simulator.h"
 #include "game_sv_single.h"

@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "script_callback_ex.h"
 #include "netcoop.h"
 #include <dinput.h>
 #include "../xrEngine/xr_ioconsole.h"

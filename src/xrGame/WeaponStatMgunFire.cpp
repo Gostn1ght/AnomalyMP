@@ -1,4 +1,6 @@
 #include "stdafx.h"
+#include "ai_space.h"
+#include "script_engine.h"
 #include "WeaponStatMgun.h"
 #include "level.h"
 #include "entity_alive.h"

@@ -5877,12 +5877,6 @@
     <ClInclude Include="secure_messaging.h">
       <Filter>Core\Common\NET Shared\SecureMessages</Filter>
     </ClInclude>
-    <ClInclude Include="xr_dsa_signer.h">
-      <Filter>Core\Common\NET Shared\SecureMessages</Filter>
-    </ClInclude>
-    <ClInclude Include="xr_dsa_verifyer.h">
-      <Filter>Core\Common\NET Shared\SecureMessages</Filter>
-    </ClInclude>
     <ClInclude Include="..\xrServerEntities\object_broker.h">
       <Filter>Core\Common\ObjectBroker</Filter>
     </ClInclude>
@@ -6050,18 +6044,6 @@
     </ClInclude>
     <ClInclude Include="game_sv_single.h">
       <Filter>Core\Server\Games\server\single</Filter>
-    </ClInclude>
-    <ClInclude Include="gsc_dsigned_ltx.h">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClInclude>
-    <ClInclude Include="mixed_delegate.h">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClInclude>
-    <ClInclude Include="mixed_delegate_unique_tags.h">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
-    </ClInclude>
-    <ClInclude Include="queued_async_method.h">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
     </ClInclude>
     <ClInclude Include="id_generator.h">
       <Filter>Core\Server\ID_Generator</Filter>
@@ -9011,12 +8993,6 @@
     <ClCompile Include="secure_messaging.cpp">
       <Filter>Core\Common\NET Shared\SecureMessages</Filter>
     </ClCompile>
-    <ClCompile Include="xr_dsa_signer.cpp">
-      <Filter>Core\Common\NET Shared\SecureMessages</Filter>
-    </ClCompile>
-    <ClCompile Include="xr_dsa_verifyer.cpp">
-      <Filter>Core\Common\NET Shared\SecureMessages</Filter>
-    </ClCompile>
     <ClCompile Include="..\xrServerEntities\object_factory.cpp">
       <Filter>Core\Common\ObjectFactory</Filter>
     </ClCompile>
@@ -9106,9 +9082,6 @@
     </ClCompile>
     <ClCompile Include="netcoop_bots.cpp">
       <Filter>Core\Server\Games\server\single</Filter>
-    </ClCompile>
-    <ClCompile Include="gsc_dsigned_ltx.cpp">
-      <Filter>Core\Server\Games\PlayerAccounts</Filter>
     </ClCompile>
     <ClCompile Include="..\xrServerEntities\gametype_chooser.cpp">
       <Filter>Core\Server\ServerEntities</Filter>

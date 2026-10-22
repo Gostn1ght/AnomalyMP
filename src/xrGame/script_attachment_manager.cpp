@@ -1,5 +1,7 @@
 #pragma once
 #include "stdafx.h"
+#include "ai_space.h"
+#include "script_engine.h"
 #include "script_attachment_manager.h"
 #include "player_hud.h"
 #include "actor.h"

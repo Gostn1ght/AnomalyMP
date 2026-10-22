@@ -1,4 +1,6 @@
 #include "stdafx.h"
+#include "ai_space.h"
+#include "script_engine.h"
 #include "searchlight.h"
 #include "../xrEngine/LightAnimLibrary.h"
 #include "script_entity_action.h"

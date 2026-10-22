@@ -4,6 +4,8 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "ai_space.h"
+#include "script_engine.h"
 #include "Weapon.h"
 #include "ParticlesObject.h"
 #include "entity_alive.h"

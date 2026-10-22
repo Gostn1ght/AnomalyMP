@@ -4,6 +4,8 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "ai_space.h"
+#include "script_engine.h"
 #include "Level_Bullet_Manager.h"
 #include "entity.h"
 #include "../xrEngine/gamemtllib.h"

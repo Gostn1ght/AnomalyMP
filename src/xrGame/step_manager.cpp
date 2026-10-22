@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "ai_space.h"
 #include "step_manager.h"
 #include "entity_alive.h"
 #include "../Include/xrRender/Kinematics.h"

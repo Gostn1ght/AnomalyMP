@@ -1,4 +1,6 @@
 #include "stdafx.h"
+#include "ai_space.h"
+#include "script_engine.h"
 #include "grenade.h"
 #include "../xrphysics/PhysicsShell.h"
 //.#include "WeaponHUD.h"

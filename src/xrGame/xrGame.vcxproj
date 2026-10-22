@@ -1136,7 +1136,6 @@
     <ClInclude Include="GrenadeLauncher.h" />
     <ClInclude Include="group_hierarchy_holder.h" />
     <ClInclude Include="group_hierarchy_holder_inline.h" />
-    <ClInclude Include="gsc_dsigned_ltx.h" />
     <ClInclude Include="HairsZone.h" />
     <ClInclude Include="HangingLamp.h" />
     <ClInclude Include="helicopter.h" />
@@ -1255,8 +1254,6 @@
     <ClInclude Include="MilitaryOutfit.h" />
     <ClInclude Include="Mincer.h" />
     <ClInclude Include="Missile.h" />
-    <ClInclude Include="mixed_delegate.h" />
-    <ClInclude Include="mixed_delegate_unique_tags.h" />
     <ClInclude Include="monster_community.h" />
     <ClInclude Include="MosquitoBald.h" />
     <ClInclude Include="movement_manager.h" />
@@ -1388,7 +1385,6 @@
     <ClInclude Include="purchase_list_inline.h" />
     <ClInclude Include="quadtree.h" />
     <ClInclude Include="quadtree_inline.h" />
-    <ClInclude Include="queued_async_method.h" />
     <ClInclude Include="RadioactiveZone.h" />
     <ClInclude Include="random32.h" />
     <ClInclude Include="rat_states.h" />
@@ -1828,8 +1824,6 @@
     <ClInclude Include="xrServer_info.h" />
     <ClInclude Include="xrServer_svclient_validation.h" />
     <ClInclude Include="xrServer_updates_compressor.h" />
-    <ClInclude Include="xr_dsa_signer.h" />
-    <ClInclude Include="xr_dsa_verifyer.h" />
     <ClInclude Include="xr_level_controller.h" />
     <ClInclude Include="xr_time.h" />
     <ClInclude Include="ZoneCampfire.h" />
@@ -2698,7 +2692,6 @@
     <ClCompile Include="Grenade.cpp" />
     <ClCompile Include="GrenadeLauncher.cpp" />
     <ClCompile Include="group_hierarchy_holder.cpp" />
-    <ClCompile Include="gsc_dsigned_ltx.cpp" />
     <ClCompile Include="HairsZone.cpp">
       <PrecompiledHeaderFile>pch_script.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(ProjectName)_script.pch</PrecompiledHeaderOutputFile>
@@ -3994,8 +3987,6 @@
     <ClCompile Include="xrServer_sls_clear.cpp" />
     <ClCompile Include="xrServer_svclient_validation.cpp" />
     <ClCompile Include="xrServer_updates_compressor.cpp" />
-    <ClCompile Include="xr_dsa_signer.cpp" />
-    <ClCompile Include="xr_dsa_verifyer.cpp" />
     <ClCompile Include="xr_level_controller.cpp" />
     <ClCompile Include="xr_time.cpp" />
     <ClCompile Include="ZoneCampfire.cpp" />

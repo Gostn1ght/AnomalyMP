@@ -1,6 +1,8 @@
 #ifndef MONSTER_STATE_ATTACK_ON_RUN_INLINE_H
 #define MONSTER_STATE_ATTACK_ON_RUN_INLINE_H
 
+#include "../../../ai_space.h"
+
 #include "../monster_velocity_space.h"
 
 #include "../../../../xrCore/_vector3d_ext.h"

@@ -7,6 +7,8 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "ai_space.h"
+#include "script_engine.h"
 #include "movement_manager.h"
 #include "alife_simulator.h"
 #include "alife_graph_registry.h"

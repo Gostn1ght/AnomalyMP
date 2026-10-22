@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "script_callback_ex.h"
 #include "WeaponAutomaticShotgun.h"
 #include "entity.h"
 #include "ParticlesObject.h"

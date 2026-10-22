@@ -7,6 +7,8 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "../../ai_space.h"
+#include "../../../xrServerEntities/script_engine.h"
 #include "ai_stalker.h"
 #include "../../netcoop.h"
 #include "../../pda.h"

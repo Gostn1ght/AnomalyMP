@@ -1,4 +1,6 @@
 #include "stdafx.h"
+#include "../ai_space.h"
+#include "../../xrServerEntities/script_engine.h"
 #include "UIActorMenu.h"
 #include "../inventory.h"
 #include "../inventoryOwner.h"
