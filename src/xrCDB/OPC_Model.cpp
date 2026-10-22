@@ -185,6 +185,22 @@ OPCODE_Model::~OPCODE_Model()
  *	\return		true if success
  */
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+bool OPCODE_Model::Load(const void* nodes, udword nb_nodes, udword nb_primitives)
+{
+	AABBNoLeafTree* tree = CNEW(AABBNoLeafTree)();
+	if (!tree->Import(nodes, nb_nodes, nb_primitives))
+	{
+		CDELETE(tree);
+		return false;
+	}
+	CDELETE(mTree);
+	CDELETE(mSource);
+	mTree = tree;
+	mNoLeaf = true;
+	mQuantized = false;
+	return true;
+}
+
 bool OPCODE_Model::Build(const OPCODECREATE& create)
 {
 	// 1) Checkings

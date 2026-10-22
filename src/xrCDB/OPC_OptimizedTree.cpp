@@ -271,6 +271,78 @@ AABBNoLeafTree::~AABBNoLeafTree()
 	CFREE(mNodes);
 }
 
+
+void AABBNoLeafTree::Export(void* dst) const
+{
+	udword* out = (udword*)dst;
+	for (udword i = 0; i < mNbNodes; i++)
+	{
+		const AABBNoLeafNode& node = mNodes[i];
+		const float box[6] = {node.mAABB.mCenter.x, node.mAABB.mCenter.y, node.mAABB.mCenter.z,
+			node.mAABB.mExtents.x, node.mAABB.mExtents.y, node.mAABB.mExtents.z};
+		memcpy(out, box, sizeof(box));
+		out += 6;
+		const uintptr_t links[2] = {node.mData, node.mData2};
+		for (udword k = 0; k < 2; k++)
+		{
+			if (links[k] & 1)
+				*out++ = udword(links[k]);
+			else
+				*out++ = udword(((const AABBNoLeafNode*)links[k] - mNodes) << 1);
+		}
+	}
+}
+
+bool AABBNoLeafTree::Import(const void* src, udword nb_nodes, udword nb_primitives)
+{
+	if (!nb_nodes || nb_nodes >= 0x7fffffff)
+		return false;
+	AABBNoLeafNode* nodes = CALLOC(AABBNoLeafNode, nb_nodes);
+	if (!nodes)
+		return false;
+	ZeroMemory(nodes, nb_nodes * sizeof(AABBNoLeafNode));
+	const udword* in = (const udword*)src;
+	for (udword i = 0; i < nb_nodes; i++)
+	{
+		AABBNoLeafNode& node = nodes[i];
+		float box[6];
+		memcpy(box, in, sizeof(box));
+		in += 6;
+		node.mAABB.mCenter.x = box[0]; node.mAABB.mCenter.y = box[1]; node.mAABB.mCenter.z = box[2];
+		node.mAABB.mExtents.x = box[3]; node.mAABB.mExtents.y = box[4]; node.mAABB.mExtents.z = box[5];
+		uintptr_t* links[2] = {&node.mData, &node.mData2};
+		for (udword k = 0; k < 2; k++)
+		{
+			const udword link = *in++;
+			const udword index = link >> 1;
+			if (link & 1)
+			{
+				if (index >= nb_primitives)
+				{
+					CFREE(nodes);
+					return false;
+				}
+				*links[k] = uintptr_t(link);
+			}
+			else
+			{
+				// Built depth first: a child always comes after its parent.
+				if (index <= i || index >= nb_nodes)
+				{
+					CFREE(nodes);
+					return false;
+				}
+				*links[k] = uintptr_t(&nodes[index]);
+			}
+		}
+	}
+	if (mNodes)
+		CFREE(mNodes);
+	mNodes = nodes;
+	mNbNodes = nb_nodes;
+	return true;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
  *	Builds the collision tree from a generic AABB tree.

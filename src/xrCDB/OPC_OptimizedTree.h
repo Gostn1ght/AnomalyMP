@@ -154,6 +154,16 @@ IMPLEMENT_COLLISION_TREE(AABBCollisionTree, AABBCollisionNode)
 class OPCODE_API AABBNoLeafTree : public AABBOptimizedTree
 {
 IMPLEMENT_COLLISION_TREE(AABBNoLeafTree, AABBNoLeafNode)
+
+public:
+	// Serialized nodes for the collision cache: 6 floats of the box and two
+	// 32-bit links per node; a link to a child is its node index << 1, a leaf
+	// keeps (primitive << 1) | 1 as in memory.
+	static const udword SerializedNodeSize = 32;
+	void Export(void* dst) const;
+	// False (and nothing kept) unless every child follows its parent and every
+	// primitive is below nb_primitives.
+	bool Import(const void* src, udword nb_nodes, udword nb_primitives);
 };
 
 class OPCODE_API AABBQuantizedTree : public AABBOptimizedTree

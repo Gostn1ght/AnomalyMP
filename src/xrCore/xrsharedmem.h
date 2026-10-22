@@ -45,7 +45,10 @@ IC bool smem_equal(const smem_value* A, u32 dwCRC, u32 dwLength, u8* ptr)
 class XRCORE_API smem_container
 {
 private:
-	typedef xr_vector<smem_value*> cdb;
+	// Blocks by (crc << 32 | length); equal keys are told apart by their bytes.
+	// A sorted vector inserted in the middle for every new block: quadratic in
+	// the motion keys loaded at start (most of a server's model loading, doc 151).
+	typedef xr_unordered_map<u64, xr_vector<smem_value*>> cdb;
 	xrCriticalSection cs;
 	cdb container;
 public:
