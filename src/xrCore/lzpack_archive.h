@@ -8,6 +8,8 @@
 class LZPackArchive
 {
     HANDLE mapping;
+    const unsigned char* view = nullptr; // the whole volume, mapped once
+    std::uint64_t id;                    // unique per opened volume (thread caches key by it)
     std::array<unsigned char, lzpack::header_size> header{};
     std::array<unsigned char, 32> key{};
     std::uint32_t size;

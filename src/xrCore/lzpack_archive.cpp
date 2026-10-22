@@ -7,6 +7,8 @@
 #include "lzpack_archive.h"
 #include <bcrypt.h>
 #include <algorithm>
+#include <atomic>
+#include <unordered_map>
 #include <vector>
 #include <stdexcept>
 #ifdef LZPACK_STANDALONE
@@ -29,44 +31,89 @@ struct Algorithm
     BCRYPT_ALG_HANDLE handle = nullptr;
     explicit Algorithm(LPCWSTR name) { checked(BCryptOpenAlgorithmProvider(&handle, name, nullptr, 0)); }
     ~Algorithm() { if (handle) BCryptCloseAlgorithmProvider(handle, 0); }
-};
-struct CipherKey
-{
-    BCRYPT_KEY_HANDLE handle = nullptr;
-    ~CipherKey() { if (handle) BCryptDestroyKey(handle); }
+    Algorithm(const Algorithm&) = delete;
+    Algorithm& operator=(const Algorithm&) = delete;
 };
 struct Hash
 {
     BCRYPT_HASH_HANDLE handle = nullptr;
     ~Hash() { if (handle) BCryptDestroyHash(handle); }
 };
-struct View
+
+// AES-256-GCM provider, opened once for the process (the old reader opened a
+// provider and built a key for every file it read: most of the start time
+// spent in the archives, doc 151).
+struct AesGcm : Algorithm
 {
-    unsigned char* ptr;
-    View(HANDLE mapping, std::uint64_t offset, std::uint32_t count)
+    AesGcm() : Algorithm(BCRYPT_AES_ALGORITHM)
     {
-        ptr = static_cast<unsigned char*>(MapViewOfFile(mapping, FILE_MAP_READ,
-            static_cast<DWORD>(offset >> 32), static_cast<DWORD>(offset), count));
-        if (!ptr) throw std::runtime_error("Cannot read Lost Zone archive");
+        checked(BCryptSetProperty(handle, BCRYPT_CHAINING_MODE,
+            reinterpret_cast<PUCHAR>(const_cast<wchar_t*>(BCRYPT_CHAIN_MODE_GCM)), sizeof(BCRYPT_CHAIN_MODE_GCM), 0));
     }
-    ~View() { UnmapViewOfFile(ptr); }
 };
+const Algorithm& aes_gcm()
+{
+    static const AesGcm aes;
+    return aes;
+}
+
+// Per thread: one key object per volume (key handles are not shared between
+// threads) and the last authenticated block, so small files that share a
+// 64 KiB block decrypt it once. Only one block of plaintext is kept, never a
+// whole-volume cache.
+thread_local bool t_cipher_alive = false; // trivially destructible: readable until the thread ends
+
+struct ThreadCipher
+{
+    std::unordered_map<std::uint64_t, BCRYPT_KEY_HANDLE> keys;
+    std::uint64_t block_volume = 0;
+    std::uint32_t block_index = 0;
+    std::vector<unsigned char> block;
+    ThreadCipher() { t_cipher_alive = true; }
+    ~ThreadCipher()
+    {
+        t_cipher_alive = false;
+        SecureZeroMemory(block.data(), block.size());
+        for (auto& key : keys) BCryptDestroyKey(key.second);
+    }
+    void forget_block()
+    {
+        SecureZeroMemory(block.data(), block.size());
+        block.clear();
+        block_volume = 0;
+    }
+};
+thread_local ThreadCipher t_cipher;
+std::atomic<std::uint64_t> g_next_volume{1};
 }
 
 std::shared_ptr<LZPackArchive> LZPackArchive::open(HANDLE handle, std::uint32_t physical)
 {
     if (physical < 8) return nullptr;
-    View prefix(handle, 0, (std::min)(physical, lzpack::header_size));
-    if (!lzpack::magic(prefix.ptr)) return nullptr;
-    if (physical < lzpack::header_size) throw std::runtime_error("Truncated Lost Zone archive header");
-    auto archive = std::shared_ptr<LZPackArchive>(new LZPackArchive(handle, prefix.ptr, physical));
+    const auto* prefix = static_cast<const unsigned char*>(MapViewOfFile(handle, FILE_MAP_READ, 0, 0,
+        (std::min)(physical, lzpack::header_size)));
+    if (!prefix) throw std::runtime_error("Cannot read Lost Zone archive");
+    if (!lzpack::magic(prefix))
+    {
+        UnmapViewOfFile(prefix);
+        return nullptr;
+    }
+    if (physical < lzpack::header_size)
+    {
+        UnmapViewOfFile(prefix);
+        throw std::runtime_error("Truncated Lost Zone archive header");
+    }
+    std::shared_ptr<LZPackArchive> archive;
+    try { archive = std::shared_ptr<LZPackArchive>(new LZPackArchive(handle, prefix, physical)); }
+    catch (...) { UnmapViewOfFile(prefix); throw; }
+    UnmapViewOfFile(prefix);
     unsigned char first;
     archive->read(0, &first, 1); // validate the header and key before registering anything
     return archive;
 }
 
 LZPackArchive::LZPackArchive(HANDLE handle, const unsigned char* bytes, std::uint32_t physical) :
-    mapping(handle), size(lzpack::logical_size(bytes, physical))
+    mapping(handle), id(g_next_volume++), size(lzpack::logical_size(bytes, physical))
 {
     std::copy_n(bytes, header.size(), header.begin());
 #ifdef LZPACK_HAS_KEY
@@ -85,53 +132,80 @@ LZPackArchive::LZPackArchive(HANDLE handle, const unsigned char* bytes, std::uin
 #else
     throw std::runtime_error("This engine build has no Lost Zone archive key");
 #endif
+    // The whole volume stays mapped (a 64-bit process has the address space);
+    // pages load on access. The view outlives the mapping handle's close.
+    view = static_cast<const unsigned char*>(MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0));
+    if (!view) throw std::runtime_error("Cannot read Lost Zone archive");
 }
 
-LZPackArchive::~LZPackArchive() { SecureZeroMemory(key.data(), key.size()); }
+LZPackArchive::~LZPackArchive()
+{
+    SecureZeroMemory(key.data(), key.size());
+    // Other threads keep their key for this id until they end (ids are never reused).
+    if (t_cipher_alive)
+    {
+        if (t_cipher.block_volume == id) t_cipher.forget_block();
+        const auto own = t_cipher.keys.find(id);
+        if (own != t_cipher.keys.end())
+        {
+            BCryptDestroyKey(own->second);
+            t_cipher.keys.erase(own);
+        }
+    }
+    if (view) UnmapViewOfFile(view);
+}
 
 void LZPackArchive::read(std::uint32_t offset, void* buffer, std::uint32_t count) const
 {
     lzpack::range(size, offset, count);
     if (!count) return;
-    Algorithm aes(BCRYPT_AES_ALGORITHM);
-    checked(BCryptSetProperty(aes.handle, BCRYPT_CHAINING_MODE,
-        reinterpret_cast<PUCHAR>(const_cast<wchar_t*>(BCRYPT_CHAIN_MODE_GCM)), sizeof(BCRYPT_CHAIN_MODE_GCM), 0));
-    CipherKey cipher;
-    checked(BCryptGenerateSymmetricKey(aes.handle, &cipher.handle, nullptr, 0,
-        const_cast<PUCHAR>(key.data()), static_cast<ULONG>(key.size()), 0));
-    SYSTEM_INFO system{}; GetSystemInfo(&system);
+    ThreadCipher& cipher = t_cipher;
+    BCRYPT_KEY_HANDLE key_handle;
+    const auto found = cipher.keys.find(id);
+    if (found != cipher.keys.end())
+        key_handle = found->second;
+    else
+    {
+        key_handle = nullptr;
+        checked(BCryptGenerateSymmetricKey(aes_gcm().handle, &key_handle, nullptr, 0,
+            const_cast<PUCHAR>(key.data()), static_cast<ULONG>(key.size()), 0));
+        cipher.keys.emplace(id, key_handle);
+    }
     auto* target = static_cast<unsigned char*>(buffer);
     while (count)
     {
         const std::uint32_t index = offset / lzpack::block_size;
         const std::uint32_t start = index * lzpack::block_size;
         const std::uint32_t bytes = (std::min)(lzpack::block_size, size - start);
-        const std::uint64_t physical = lzpack::header_size + std::uint64_t(index) * (lzpack::block_size + lzpack::tag_size);
-        const std::uint64_t mapped = physical / system.dwAllocationGranularity * system.dwAllocationGranularity;
-        const std::uint32_t delta = static_cast<std::uint32_t>(physical - mapped);
-        View view(mapping, mapped, delta + bytes + lzpack::tag_size);
-        std::array<unsigned char, 12> nonce{};
-        std::copy_n(header.data() + 40, 8, nonce.begin()); lzpack::write32(nonce.data() + 8, index);
-        std::array<unsigned char, lzpack::header_size + 4> aad{};
-        std::copy(header.begin(), header.end(), aad.begin()); lzpack::write32(aad.data() + header.size(), index);
-        BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO auth;
-        BCRYPT_INIT_AUTH_MODE_INFO(auth);
-        auth.pbNonce = nonce.data(); auth.cbNonce = static_cast<ULONG>(nonce.size());
-        auth.pbAuthData = aad.data(); auth.cbAuthData = static_cast<ULONG>(aad.size());
-        auth.pbTag = view.ptr + delta + bytes; auth.cbTag = lzpack::tag_size;
-        std::vector<unsigned char> plain(bytes);
-        ULONG produced = 0;
-        const NTSTATUS status = BCryptDecrypt(cipher.handle, view.ptr + delta, bytes, &auth, nullptr, 0,
-            plain.data(), bytes, &produced, 0);
-        if (status < 0 || produced != bytes)
+        if (cipher.block_volume != id || cipher.block_index != index || cipher.block.size() != bytes)
         {
-            SecureZeroMemory(plain.data(), plain.size());
-            throw std::runtime_error("Lost Zone archive authentication failed");
+            const std::uint64_t physical = lzpack::header_size + std::uint64_t(index) * (lzpack::block_size + lzpack::tag_size);
+            const unsigned char* sealed = view + physical;
+            std::array<unsigned char, 12> nonce{};
+            std::copy_n(header.data() + 40, 8, nonce.begin()); lzpack::write32(nonce.data() + 8, index);
+            std::array<unsigned char, lzpack::header_size + 4> aad{};
+            std::copy(header.begin(), header.end(), aad.begin()); lzpack::write32(aad.data() + header.size(), index);
+            BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO auth;
+            BCRYPT_INIT_AUTH_MODE_INFO(auth);
+            auth.pbNonce = nonce.data(); auth.cbNonce = static_cast<ULONG>(nonce.size());
+            auth.pbAuthData = aad.data(); auth.cbAuthData = static_cast<ULONG>(aad.size());
+            auth.pbTag = const_cast<PUCHAR>(sealed + bytes); auth.cbTag = lzpack::tag_size;
+            cipher.forget_block();
+            cipher.block.resize(bytes);
+            ULONG produced = 0;
+            const NTSTATUS status = BCryptDecrypt(key_handle, const_cast<PUCHAR>(sealed), bytes, &auth, nullptr, 0,
+                cipher.block.data(), bytes, &produced, 0);
+            if (status < 0 || produced != bytes)
+            {
+                cipher.forget_block();
+                throw std::runtime_error("Lost Zone archive authentication failed");
+            }
+            cipher.block_volume = id;
+            cipher.block_index = index;
         }
         const auto within = offset - start;
         const auto take = (std::min)(count, bytes - within);
-        std::copy_n(plain.data() + within, take, target);
-        SecureZeroMemory(plain.data(), plain.size());
+        std::copy_n(cipher.block.data() + within, take, target);
         target += take; offset += take; count -= take;
     }
 }
