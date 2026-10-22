@@ -4,6 +4,41 @@
 
 
 // ---NET_Packet
+void NET_Packet::construct(const void* data, unsigned size)
+{
+	if (size > sizeof(B.data))
+	{
+		Msg("! net packet of %u bytes is larger than %u: dropped", size, u32(sizeof(B.data)));
+		size = 0;
+	}
+	if (size)
+		memcpy(B.data, data, size);
+	B.count = size;
+	r_pos = 0;
+}
+
+void NET_Packet::r_overrun(void* p, u32 count)
+{
+	ZeroMemory(p, count);
+	const u32 type = B.count >= sizeof(u16) ? *(const u16*)B.data : u32(-1);
+	r_pos = B.count;
+	static u32 last_report = 0;
+	const u32 now = GetTickCount();
+	if (now - last_report >= 1000)
+	{
+		last_report = now;
+		Msg("! net packet (type %u, %u bytes) read past its end", type, B.count);
+	}
+}
+
+u32 NET_Packet::r_string_length() const
+{
+	if (r_pos >= B.count)
+		return u32(-1);
+	const void* end = memchr(B.data + r_pos, 0, B.count - r_pos);
+	return end ? u32((const BYTE*)end - (B.data + r_pos)) : u32(-1);
+}
+
 // reading
 void NET_Packet::read_start()
 {
@@ -35,7 +70,7 @@ void NET_Packet::r_seek(u32 pos)
 	//AVO: changed changed condition to <= as all net packet script utils are using r_seek(0) to read the entire packet.
 	VERIFY(pos <= B.count);
 	//VERIFY(pos < B.count);
-	r_pos = pos;
+	r_pos = _min(pos, B.count);
 }
 
 u32 NET_Packet::r_tell()
@@ -59,8 +94,7 @@ u32 NET_Packet::r_elapsed()
 void NET_Packet::r_advance(u32 size)
 {
 	INI_ASSERT(r_advance)
-	r_pos += size;
-	VERIFY(r_pos <= B.count);
+	r_pos = (r_pos > B.count || size > B.count - r_pos) ? B.count : r_pos + size;
 }
 
 // reading - utilities
@@ -287,26 +321,19 @@ void NET_Packet::r_sdir(Fvector& A)
 	A.mul(s);
 }
 
-void NET_Packet::r_stringZ(LPSTR S)
-{
-	if (!inistream)
-	{
-		LPCSTR data = LPCSTR(&B.data[r_pos]);
-		size_t len = xr_strlen(data);
-		r(S, (u32)len + 1);
-	}
-	else
-	{
-		inistream->r_string(S, 4096); //???
-	}
-}
-
 void NET_Packet::r_stringZ(xr_string& dest)
 {
 	if (!inistream)
 	{
-		dest = LPCSTR(&B.data[r_pos]);
-		r_advance(u32(dest.size() + 1));
+		const u32 length = r_string_length();
+		if (length == u32(-1))
+		{
+			dest.clear();
+			r_advance(B.count);
+			return;
+		}
+		dest.assign(LPCSTR(B.data + r_pos), length);
+		r_advance(length + 1);
 	}
 	else
 	{
@@ -320,8 +347,15 @@ void NET_Packet::r_stringZ(shared_str& dest)
 {
 	if (!inistream)
 	{
-		dest = LPCSTR(&B.data[r_pos]);
-		r_advance(dest.size() + 1);
+		const u32 length = r_string_length();
+		if (length == u32(-1))
+		{
+			dest = "";
+			r_advance(B.count);
+			return;
+		}
+		dest = LPCSTR(B.data + r_pos);
+		r_advance(length + 1);
 	}
 	else
 	{
@@ -335,9 +369,8 @@ void NET_Packet::skip_stringZ()
 {
 	if (!inistream)
 	{
-		LPCSTR data = LPCSTR(&B.data[r_pos]);
-		u32 len = xr_strlen(data);
-		r_advance(len + 1);
+		const u32 length = r_string_length();
+		r_advance(length == u32(-1) ? B.count : length + 1);
 	}
 	else
 	{
@@ -372,8 +405,18 @@ void NET_Packet::r_stringZ_s(LPSTR string, u32 const size)
 		return;
 	}
 
-	LPCSTR data = LPCSTR(B.data + r_pos);
-	u32 length = xr_strlen(data);
-	R_ASSERT2((length + 1) <= size, "buffer overrun");
-	r(string, length + 1);
+	// A string longer than the buffer is cut; one without a terminator in
+	// the packet reads as empty.
+	VERIFY(size);
+	const u32 length = r_string_length();
+	if (length == u32(-1))
+	{
+		string[0] = 0;
+		r_advance(B.count);
+		return;
+	}
+	const u32 copied = _min(length, size - 1);
+	CopyMemory(string, B.data + r_pos, copied);
+	string[copied] = 0;
+	r_advance(length + 1);
 }

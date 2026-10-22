@@ -67,11 +67,9 @@ class XRCORE_API NET_Packet
 public:
 	IIniFileStream* inistream;
 
-	void construct(const void* data, unsigned size)
-	{
-		memcpy(B.data, data, size);
-		B.count = size;
-	}
+	// A received message larger than the buffer is dropped (empty packet):
+	// reads from an empty packet return zeros.
+	void construct(const void* data, unsigned size);
 
 	NET_Buffer B;
 	u32 r_pos;
@@ -288,16 +286,27 @@ public:
 	void r_seek(u32 pos);
 	u32 r_tell();
 
+	// Reads never leave the received bytes: a short or malformed packet
+	// (from another version or a hostile client) reads zeros past its end.
 	IC void r(void* p, u32 count)
 	{
 		R_ASSERT(inistream == NULL);
 		VERIFY(p && count);
+		if (r_pos > B.count || count > B.count - r_pos)
+		{
+			r_overrun(p, count);
+			return;
+		}
 		CopyMemory(p, &B.data[r_pos], count);
 		r_pos += count;
-		VERIFY(r_pos <= B.count);
 	}
 
 	BOOL r_eof();
+private:
+	void r_overrun(void* p, u32 count);
+	// Length of the string at r_pos, or u32(-1) without a terminator in the packet.
+	u32 r_string_length() const;
+public:
 	u32 r_elapsed();
 	void r_advance(u32 size);
 
@@ -336,7 +345,13 @@ public:
 	void r_dir(Fvector& A);
 
 	void r_sdir(Fvector& A);
-	void r_stringZ(LPSTR S);
+	// Character arrays only: the size bounds the copy.
+	template <u32 size>
+	inline void r_stringZ(char (&S)[size])
+	{
+		r_stringZ_s(S, size);
+	}
+
 	void r_stringZ(xr_string& dest);
 	void r_stringZ(shared_str& dest);
 
