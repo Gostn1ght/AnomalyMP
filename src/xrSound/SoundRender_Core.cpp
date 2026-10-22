@@ -89,8 +89,11 @@ void CSoundRender_Core::_initialize(int stage)
 extern xr_vector<u8> g_target_temp_data;
 extern xr_vector<u8> g_target_temp_data_16;
 
+void sound_info_cache_save(); // SoundRender_Source_loader.cpp
+
 void CSoundRender_Core::_clear()
 {
+	sound_info_cache_save();
 	bReady = FALSE;
 	cache.destroy();
 	env_unload();
