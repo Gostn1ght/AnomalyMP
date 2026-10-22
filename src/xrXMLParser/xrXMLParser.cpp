@@ -21,6 +21,75 @@ void CXml::ClearInternal()
 	m_Doc.Clear();
 }
 
+namespace
+{
+// Expanded text of included files while an IncludeCacheScope lives. GAMMA's
+// gameplay profiles include the same 114 files 5 943 times; each was opened,
+// read and expanded again (6.5 s of the start, doc 151).
+using include_cache_t = xr_unordered_map<shared_str, xr_vector<u8>, std::hash<shared_str>>;
+thread_local int t_include_cache_depth = 0;
+thread_local include_cache_t* t_include_cache = nullptr;
+}
+
+CXml::IncludeCacheScope::IncludeCacheScope()
+{
+	if (t_include_cache_depth++ == 0)
+		t_include_cache = xr_new<include_cache_t>();
+}
+
+CXml::IncludeCacheScope::~IncludeCacheScope()
+{
+	if (--t_include_cache_depth == 0)
+		xr_delete(t_include_cache);
+}
+
+void ParseFile(LPCSTR path, CMemoryWriter& W, IReader* F, CXml* xml);
+
+// One include: `name`, or `fallback` when `name` does not exist.
+static void ParseInclude(LPCSTR path, LPCSTR name, LPCSTR fallback, LPCSTR inc_name, CMemoryWriter& W, CXml* xml)
+{
+	shared_str key;
+	if (t_include_cache)
+	{
+		string_path full;
+		xr_sprintf(full, "%s|%s", path, name);
+		key = full;
+		const auto cached = t_include_cache->find(key);
+		if (cached != t_include_cache->end())
+		{
+			if (!cached->second.empty())
+				W.w(cached->second.data(), u32(cached->second.size()));
+			return;
+		}
+	}
+
+	IReader* I = FS.r_open(path, name);
+	if (!I && fallback)
+		I = FS.r_open(path, fallback);
+	if (!I)
+	{
+		string1024 str;
+		xr_sprintf(str, "XML file[%s] parsing failed. Can't find include file:[%s]", path, inc_name);
+		R_ASSERT2(false, str);
+	}
+
+	if (!t_include_cache)
+	{
+		ParseFile(path, W, I, xml);
+		FS.r_close(I);
+		return;
+	}
+	CMemoryWriter part;
+	ParseFile(path, part, I, xml);
+	FS.r_close(I);
+	if (part.size())
+		W.w(part.pointer(), part.size());
+	xr_vector<u8> bytes;
+	if (part.size())
+		bytes.assign(part.pointer(), part.pointer() + part.size());
+	t_include_cache->emplace(key, std::move(bytes));
+}
+
 void ParseFile(LPCSTR path, CMemoryWriter& W, IReader* F, CXml* xml)
 {
 	string4096 str;
@@ -34,8 +103,6 @@ void ParseFile(LPCSTR path, CMemoryWriter& W, IReader* F, CXml* xml)
 			string256 inc_name;
 			if (_GetItem(str, 1, inc_name, '"'))
 			{
-				IReader* I = NULL;
-
 				if (strstr(inc_name, "*.xml"))
 				{
 					FS_FileSet fset;
@@ -50,33 +117,10 @@ void ParseFile(LPCSTR path, CMemoryWriter& W, IReader* F, CXml* xml)
 							shared_str fn = xml->correct_file_name("ui", strchr(file_name, '\\') + 1);
 							string_path buff;
 							strconcat(sizeof(buff), buff, "ui\\", fn.c_str());
-
-							I = FS.r_open(path, buff);
-
-							if (!I)
-							{
-								string1024 str;
-								xr_sprintf(str, "XML file[%s] parsing failed. Can't find include file:[%s]", path, inc_name);
-								R_ASSERT2(false, str);
-							}
-
-							ParseFile(path, W, I, xml);
-							FS.r_close(I);
+							ParseInclude(path, buff, nullptr, inc_name, W, xml);
 						}
 						else
-						{
-							I = FS.r_open(path, it->name.c_str());
-
-							if (!I)
-							{
-								string1024 str;
-								xr_sprintf(str, "XML file[%s] parsing failed. Can't find include file:[%s]", path, inc_name);
-								R_ASSERT2(false, str);
-							}
-
-							ParseFile(path, W, I, xml);
-							FS.r_close(I);
-						}
+							ParseInclude(path, file_name, nullptr, inc_name, W, xml);
 					}
 				}
 				else if (inc_name == strstr(inc_name, "ui\\"))
@@ -84,23 +128,10 @@ void ParseFile(LPCSTR path, CMemoryWriter& W, IReader* F, CXml* xml)
 					shared_str fn = xml->correct_file_name("ui", strchr(inc_name, '\\') + 1);
 					string_path buff;
 					strconcat(sizeof(buff), buff, "ui\\", fn.c_str());
-					I = FS.r_open(path, buff);
+					ParseInclude(path, buff, inc_name, inc_name, W, xml);
 				}
-
-				if (!strstr(inc_name, "*.xml"))
-				{
-					if (!I)
-						I = FS.r_open(path, inc_name);
-
-					if (!I)
-					{
-						string1024 str;
-						xr_sprintf(str, "XML file[%s] parsing failed. Can't find include file:[%s]", path, inc_name);
-						R_ASSERT2(false, str);
-					}
-					ParseFile(path, W, I, xml);
-					FS.r_close(I);
-				}
+				else
+					ParseInclude(path, inc_name, nullptr, inc_name, W, xml);
 			}
 		}
 		else

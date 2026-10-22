@@ -150,6 +150,7 @@ typename void CSXML_IdToIndex::InitInternal()
 	string_path xml_file;
 	int count = _GetItemCount(file_str);
 	int index = 0;
+	CXml::IncludeCacheScope include_cache;
 	for (int it = 0; it < count; ++it)
 	{
 		_GetItem(file_str, it, xml_file);

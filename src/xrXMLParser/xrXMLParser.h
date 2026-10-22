@@ -28,6 +28,16 @@ public:
 	string_path m_xml_file_name;
 	CXml();
 	virtual ~CXml();
+
+	// While one exists on a thread, included files are expanded once and reused
+	// by every XML that includes them (batch loads at start, doc 151).
+	struct XRXMLPARSER_API IncludeCacheScope
+	{
+		IncludeCacheScope();
+		~IncludeCacheScope();
+		IncludeCacheScope(const IncludeCacheScope&) = delete;
+		IncludeCacheScope& operator=(const IncludeCacheScope&) = delete;
+	};
 	void ClearInternal();
 
 	void Load(LPCSTR path_alias, LPCSTR path, LPCSTR xml_filename);

@@ -39,6 +39,7 @@ extern void refresh_npc_names();
 BOOL use_english_text_for_missing_translations = TRUE;
 void CStringTable::Init()
 {
+	CXml::IncludeCacheScope include_cache;
 	if (NULL != pData) return;
 
 	pData = xr_new<STRING_TABLE_DATA>();
