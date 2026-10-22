@@ -15,7 +15,9 @@ public:
 	virtual void DestroyModel();
 	//private:
 public:
-	IRender_DetailModel* l_model;
+	// Shared by every description that names the same model file (doc 151).
+	IRender_DetailModel* l_model = nullptr;
+	shared_str m_model_name;
 };
 
 #endif	//	dxThunderboltDescRender_included

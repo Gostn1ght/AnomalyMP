@@ -163,7 +163,7 @@ typename void CSXML_IdToIndex::InitInternal()
 		// Children with the tag in document order (as NavigateToNode(tag, i) counts them).
 		XML_NODE* root = uiXml->GetRoot();
 		int items_num = 0;
-		for (XML_NODE* node = root->FirstChild(tag_name); node; node = root->IterateChildren(tag_name, node), ++items_num)
+		for (XML_NODE* node = root ? root->FirstChild(tag_name) : nullptr; node; node = root->IterateChildren(tag_name, node), ++items_num)
 		{
 			LPCSTR item_name = uiXml->ReadAttrib(node, "id", NULL);
 

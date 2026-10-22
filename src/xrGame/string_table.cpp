@@ -112,16 +112,19 @@ void CStringTable::Load(LPCSTR xml_file_full, LPCSTR lang_in)
 	uiXml.Load(CONFIG_PATH, _s, xml_file_full);
 
 	//общий список всех записей таблицы в файле
-	int string_num = uiXml.GetNodesNum(uiXml.GetRoot(), "string");
-
-	for (int i = 0; i < string_num; ++i)
+	// <string> children in document order; ReadAttrib/Read by index walked from
+	// the first child for every entry (quadratic in the file size, doc 151).
+	XML_NODE* root = uiXml.GetRoot();
+	if (!root)
+		return;
+	for (XML_NODE* node = root->FirstChild("string"); node; node = root->IterateChildren("string", node))
 	{
-		LPCSTR string_name = uiXml.ReadAttrib(uiXml.GetRoot(), "string", i, "id", NULL);
+		LPCSTR string_name = uiXml.ReadAttrib(node, "id", NULL);
 
 		VERIFY3(pData->m_StringTable.find(string_name) == pData->m_StringTable.end(), "duplicate string table id",
 		        string_name);
 
-		LPCSTR string_text = uiXml.Read(uiXml.GetRoot(), "string:text", i, NULL);
+		LPCSTR string_text = uiXml.Read(node, "text", 0, NULL);
 
 		if (m_bWriteErrorsToLog && string_text)
 			Msg("[string table] '%s' no translation in '%s'", string_name, lang);
