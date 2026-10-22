@@ -276,18 +276,6 @@ void CLevel::ClientReceive()
 				NODEFAULT;
 			}
 			break;
-		case M_CHAT:
-			{
-				/*if (!game_configured)
-				{
-					Msg("! WARNING: ignoring game event [%d] - game not configured...", m_type);
-					break;
-				}*/
-				char buffer[256];
-				P->r_stringZ(buffer);
-				Msg("- %s", buffer);
-			}
-			break;
 		case M_GAMEMESSAGE:
 			{
 				/*if (!game_configured)
@@ -409,29 +397,6 @@ void CLevel::ClientReceive()
 		case M_NETCOOP_SCRIPT:
 			{
 				netcoop::client_on_script(*P);
-			}
-			break;
-		case M_CHAT_MESSAGE:
-			{
-				/*if (!game_configured)
-				{
-					Msg("! WARNING: ignoring game event [%d] - game not configured...", m_type);
-					break;
-				}*/
-				if (!game) break;
-				Game().OnChatMessage(P);
-			}
-			break;
-		case M_CLIENT_WARN:
-			{
-				if (!game) break;
-				Game().OnWarnMessage(P);
-			}
-			break;
-		case M_REMOTE_CONTROL_AUTH:
-		case M_REMOTE_CONTROL_CMD:
-			{
-				Game().OnRadminMessage(m_type, P);
 			}
 			break;
 		case M_SV_MAP_NAME:

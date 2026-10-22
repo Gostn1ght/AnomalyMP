@@ -73,7 +73,6 @@ void xrClientData::Clear()
 	net_PassUpdates = TRUE;
 	m_ping_warn.m_maxPingWarnings = 0;
 	m_ping_warn.m_dwLastMaxPingWarningTime = 0;
-	m_admin_rights.m_has_admin_rights = FALSE;
 };
 
 void xrClientData::ClearInputState()
@@ -793,13 +792,6 @@ void xrServer::SendUpdatesToAll()
 	}
 }
 
-xr_vector<shared_str> _tmp_log;
-
-void console_log_cb(LPCSTR text)
-{
-	_tmp_log.push_back(text);
-}
-
 u32 xrServer::OnDelayedMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadcasting with "flags" as returned
 {
 	if (P.B.count < sizeof(u16) || !ID_to_client(sender)) return 0;
@@ -825,39 +817,6 @@ u32 xrServer::OnDelayedMessage(NET_Packet& P, ClientID sender) // Non-Zero means
 			if (joining_client->ps && !joining_client->net_Accepted)
 				OnCL_Connected(joining_client);
 			//OnCL_Connected				(CL);
-		}
-		break;
-	case M_REMOTE_CONTROL_CMD:
-		{
-			if (CL->m_admin_rights.m_has_admin_rights)
-			{
-				string1024 buff;
-				P.r_stringZ(buff);
-				Msg("* Radmin [%s] is running command: %s", CL->ps->getName(), buff);
-				SetLogCB(console_log_cb);
-				_tmp_log.clear();
-				LPSTR result_command;
-				string64 tmp_number_str;
-				xr_sprintf(tmp_number_str, " raid:%u", CL->ID.value());
-				STRCONCAT(result_command, buff, tmp_number_str);
-				Console->Execute(result_command);
-				SetLogCB(NULL);
-
-				NET_Packet P_answ;
-				for (u32 i = 0; i < _tmp_log.size(); ++i)
-				{
-					P_answ.w_begin(M_REMOTE_CONTROL_CMD);
-					P_answ.w_stringZ(_tmp_log[i]);
-					SendTo(sender, P_answ, net_flags(TRUE,TRUE));
-				}
-			}
-			else
-			{
-				NET_Packet P_answ;
-				P_answ.w_begin(M_REMOTE_CONTROL_CMD);
-				P_answ.w_stringZ("you dont have admin rights");
-				SendTo(sender, P_answ, net_flags(TRUE,TRUE));
-			}
 		}
 		break;
 	case M_FILE_TRANSFER:
@@ -1123,12 +1082,6 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
 			AddDelayedPacket(P, sender);
 		}
 		break;
-	case M_CHAT_MESSAGE:
-		{
-			xrClientData* l_pC = ID_to_client(sender);
-			OnChatMessage(&P, l_pC);
-		}
-		break;
 	case M_NETCOOP_AUTH:
 		{
 			netcoop::server_on_auth(this, CL, P);
@@ -1265,55 +1218,6 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
 				game->OnPlayerFire(sender, P);
 		}
 		break;
-	case M_REMOTE_CONTROL_AUTH:
-		{
-			string512 reason;
-			shared_str user;
-			shared_str pass;
-			P.r_stringZ(user);
-			if (0 == stricmp(user.c_str(), "logoff"))
-			{
-				CL->m_admin_rights.m_has_admin_rights = FALSE;
-				if (CL->ps)
-				{
-					CL->ps->resetFlag(GAME_PLAYER_HAS_ADMIN_RIGHTS);
-				}
-				xr_strcpy(reason, "logged off");
-				Msg("# Remote administrator logged off.");
-			}
-			else
-			{
-				P.r_stringZ(pass);
-				bool res = CheckAdminRights(user, pass, reason);
-				if (res)
-				{
-					CL->m_admin_rights.m_has_admin_rights = TRUE;
-					CL->m_admin_rights.m_dwLoginTime = Device.dwTimeGlobal;
-					if (CL->ps)
-					{
-						CL->ps->setFlag(GAME_PLAYER_HAS_ADMIN_RIGHTS);
-					}
-					Msg("# User [%s] logged as remote administrator.", user.c_str());
-				}
-				else
-					Msg("# User [%s] tried to login as remote administrator. Access denied.", user.c_str());
-			}
-			NET_Packet P_answ;
-			P_answ.w_begin(M_REMOTE_CONTROL_AUTH);
-			P_answ.w_stringZ(reason);
-			SendTo(CL->ID, P_answ, net_flags(TRUE,TRUE));
-		}
-		break;
-
-	case M_REMOTE_CONTROL_CMD:
-		{
-			AddDelayedPacket(P, sender);
-		}
-		break;
-	case M_BATTLEYE:
-		{
-		}
-		break;
 	case M_FILE_TRANSFER:
 		{
 			AddDelayedPacket(P, sender);
@@ -1334,35 +1238,6 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
 	VERIFY(verify_entities());
 #endif
 	return IPureServer::OnMessage(P, sender);
-}
-
-bool xrServer::CheckAdminRights(const shared_str& user, const shared_str& pass, string512& reason)
-{
-	bool res = false;
-	string_path fn;
-	FS.update_path(fn, "$app_data_root$", "radmins.ltx");
-	if (FS.exist(fn))
-	{
-		CInifile ini(fn);
-		if (ini.line_exist("radmins", user.c_str()))
-		{
-			if (ini.r_string("radmins", user.c_str()) == pass)
-			{
-				xr_strcpy(reason, sizeof(reason), "Access permitted.");
-				res = true;
-			}
-			else
-			{
-				xr_strcpy(reason, sizeof(reason), "Access denied. Wrong password.");
-			}
-		}
-		else
-			xr_strcpy(reason, sizeof(reason), "Access denied. No such user.");
-	}
-	else
-		xr_strcpy(reason, sizeof(reason), "Access denied.");
-
-	return res;
 }
 
 void xrServer::SendTo_LL(ClientID ID, void* data, u32 size, u32 dwFlags, u32 dwTimeout)
@@ -1506,48 +1381,6 @@ CSE_Abstract* xrServer::GetEntity(u32 Num)
 	return NULL;
 };
 
-
-void xrServer::OnChatMessage(NET_Packet* P, xrClientData* CL)
-{
-	if (!CL->net_Ready)
-		return;
-
-	struct MessageSenderController
-	{
-		xrServer* m_owner;
-		s16 m_team;
-		game_PlayerState* m_sender_ps;
-		NET_Packet* m_packet;
-
-		MessageSenderController(xrServer* owner) :
-			m_owner(owner)
-		{
-		}
-
-		void operator()(IClient* client)
-		{
-			xrClientData* xr_client = static_cast<xrClientData*>(client);
-			game_PlayerState* ps = xr_client->ps;
-			if (!ps)
-				return;
-			if (!xr_client->net_Ready)
-				return;
-			if (m_team != -1 && ps->team != m_team)
-				return;
-			if (m_sender_ps->testFlag(GAME_PLAYER_FLAG_VERY_VERY_DEAD) &&
-				!ps->testFlag(GAME_PLAYER_FLAG_VERY_VERY_DEAD))
-			{
-				return;
-			}
-			m_owner->SendTo(client->ID, *m_packet);
-		}
-	};
-	MessageSenderController mesenger(this);
-	mesenger.m_team = P->r_s16();
-	mesenger.m_sender_ps = CL->ps;
-	mesenger.m_packet = P;
-	ForEachClientDoSender(mesenger);
-};
 
 #ifdef DEBUG
 
@@ -1737,14 +1570,8 @@ void xrServer::PerformCheckClientsForMaxPing()
 				}
 				else
 				{
-					//send warning
-					NET_Packet P;
-					P.w_begin(M_CLIENT_WARN);
-					P.w_u8(1); // 1 means max-ping-warning
-					P.w_u16(ps->ping);
-					P.w_u8(Client->m_ping_warn.m_maxPingWarnings);
-					P.w_u8(g_sv_maxPingWarningsCount);
-					m_owner->SendTo(Client->ID, P, net_flags(FALSE,TRUE));
+					Msg("! client 0x%08x ping %u ms over %u: warning %u of %u", Client->ID.value(), ps->ping,
+						g_sv_dwMaxClientPing, Client->m_ping_warn.m_maxPingWarnings, g_sv_maxPingWarningsCount);
 				}
 			}
 		}

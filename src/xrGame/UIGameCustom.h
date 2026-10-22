@@ -18,7 +18,6 @@ class CUIWindow;
 class CUIXml;
 class CUIActorMenu;
 class CUIPdaWnd;
-struct KillMessageStruct;
 class CUIMainIngameWnd;
 class CUIMessagesWindow;
 
@@ -135,10 +134,6 @@ public:
 	}
 
 	virtual void DisplayMoneyChange(const char* deltaMoney)
-	{
-	}
-
-	virtual void DisplayMoneyBonus(KillMessageStruct* bonus)
 	{
 	}
 

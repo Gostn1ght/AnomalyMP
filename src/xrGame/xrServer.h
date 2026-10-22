@@ -66,12 +66,6 @@ public:
 		u32 m_dwLastMaxPingWarningTime;
 	} m_ping_warn;
 
-	struct
-	{
-		BOOL m_has_admin_rights;
-		u32 m_dwLoginTime;
-	} m_admin_rights;
-
 	secure_messaging::key_t m_secret_key;
 	s32 m_last_key_sync_request_seed;
 
@@ -247,7 +241,6 @@ public:
 	virtual void OnBuildVersionRespond(IClient* CL, NET_Packet& P);
 protected:
 	xrClientsPool m_disconnected_clients;
-	bool CheckAdminRights(const shared_str& user, const shared_str& pass, string512& reason);
 	virtual IClient* new_client(SClientConnectData* cl_data);
 
 	virtual bool Check_ServerAccess(IClient* CL, string512& reason) { return true; }
@@ -259,7 +252,6 @@ protected:
 	virtual void Check_BuildVersion_Success(IClient* CL);
 
 	void SendConnectionData(IClient* CL);
-	void OnChatMessage(NET_Packet* P, xrClientData* CL);
 	void OnProcessClientMapData(NET_Packet& P, ClientID const& clientID);
 
 private:

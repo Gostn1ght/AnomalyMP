@@ -3,18 +3,16 @@
 //	Created by Vitaly 'Mad Max' Maximov, mad-max@gsc-game.kiev.ua
 //	Copyright 2005. GSC Game World
 //	---------------------------------------------------------------------------
-//  Multiplayer game log window
+//  Game log window
 //=============================================================================
 #include "stdafx.h"
 #include "UIGameLog.h"
 #include "UIXmlInit.h"
 #include "UIPdaMsgListItem.h"
-#include "UIPdaKillMessage.h"
 #include "UILines.h"
 
 CUIGameLog::CUIGameLog()
 {
-	kill_msg_height = 20;
 	txt_color = 0xff000000;
 	m_pFont = NULL;
 }
@@ -38,35 +36,6 @@ CUIPdaMsgListItem* CUIGameLog::AddPdaMessage()
 	AddWindow(pItem, true);
 
 	return pItem;
-}
-
-CUIPdaKillMessage* CUIGameLog::AddLogMessage(KillMessageStruct& msg)
-{
-	CUIPdaKillMessage* pItem = xr_new<CUIPdaKillMessage>();
-	pItem->SetWidth(GetDesiredChildWidth());
-	pItem->SetHeight(kill_msg_height);
-	pItem->Init(msg, m_pFont);
-	AddWindow(pItem, true);
-	return pItem;
-}
-
-void CUIGameLog::AddChatMessage(LPCSTR msg, LPCSTR author)
-{
-	LPSTR fullLine;
-	STRCONCAT(fullLine, author, " ", msg);
-
-	_TrimRight(fullLine);
-
-	CUITextWnd* pItem = xr_new<CUITextWnd>();
-	pItem->SetTextComplexMode(true);
-	pItem->SetText(fullLine);
-	pItem->SetCutWordsMode(true);
-	pItem->SetFont(m_pFont);
-	pItem->SetTextColor(txt_color);
-	pItem->SetColorAnimation("ui_main_msgs_short", LA_ONLYALPHA | LA_TEXTCOLOR, 5000.0f);
-	pItem->SetWidth(this->GetDesiredChildWidth());
-	pItem->AdjustHeightToText();
-	AddWindow(pItem, true);
 }
 
 void CUIGameLog::SetTextAtrib(CGameFont* pFont, u32 color)

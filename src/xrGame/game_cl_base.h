@@ -103,22 +103,6 @@ public:
 	void u_EventGen(NET_Packet& P, u16 type, u16 dest);
 	void u_EventSend(NET_Packet& P);
 
-	virtual void ChatSay(LPCSTR phrase, bool bAll)
-	{
-	};
-
-	virtual void OnChatMessage(NET_Packet* P)
-	{
-	};
-
-	virtual void OnWarnMessage(NET_Packet* P)
-	{
-	};
-
-	virtual void OnRadminMessage(u16 type, NET_Packet* P)
-	{
-	};
-
 
 	virtual bool IsVotingEnabled() { return m_u16VotingEnabled != 0; };
 	virtual bool IsVotingEnabled(u16 flag) { return (m_u16VotingEnabled & flag) != 0; };

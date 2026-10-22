@@ -1669,7 +1669,6 @@
     <ClInclude Include="UIStaticItem.h" />
     <ClInclude Include="UIZoneMap.h" />
     <ClInclude Include="ui\ArtefactDetectorUI.h" />
-    <ClInclude Include="ui\KillMessageStruct.h" />
     <ClInclude Include="ui\map_hint.h" />
     <ClInclude Include="ui\MMSound.h" />
     <ClInclude Include="ui\UI3tButton.h" />
@@ -1687,7 +1686,6 @@
     <ClInclude Include="ui\UICellItem.h" />
     <ClInclude Include="ui\UICellItemFactory.h" />
     <ClInclude Include="ui\UICharacterInfo.h" />
-    <ClInclude Include="ui\UIChatWnd.h" />
     <ClInclude Include="ui\UICheckButton.h" />
     <ClInclude Include="ui\UIComboBox.h" />
     <ClInclude Include="ui\UICustomEdit.h" />
@@ -1740,7 +1738,6 @@
     <ClInclude Include="ui\UIOptionsManager.h" />
     <ClInclude Include="ui\UIOptionsManagerScript.h" />
     <ClInclude Include="ui\UIOutfitInfo.h" />
-    <ClInclude Include="ui\UIPdaKillMessage.h" />
     <ClInclude Include="ui\UIPdaMsgListItem.h" />
     <ClInclude Include="ui\UIPdaWnd.h" />
     <ClInclude Include="ui\UIProgressBar.h" />
@@ -3640,7 +3637,6 @@
     <ClCompile Include="ui\UICellItem.cpp" />
     <ClCompile Include="ui\UICellItemFactory.cpp" />
     <ClCompile Include="ui\UICharacterInfo.cpp" />
-    <ClCompile Include="ui\UIChatWnd.cpp" />
     <ClCompile Include="ui\UICheckButton.cpp" />
     <ClCompile Include="ui\UIComboBox.cpp" />
     <ClCompile Include="ui\UIComboBox_script.cpp">
@@ -3748,7 +3744,6 @@
       <PrecompiledHeaderOutputFile>$(IntDir)$(ProjectName)_script.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
     <ClCompile Include="ui\UIOutfitInfo.cpp" />
-    <ClCompile Include="ui\UIPdaKillMessage.cpp" />
     <ClCompile Include="ui\UIPdaMsgListItem.cpp" />
     <ClCompile Include="ui\UIPdaWnd.cpp" />
     <ClCompile Include="ui\UIProgressBar.cpp" />

@@ -6459,17 +6459,8 @@
     <ClInclude Include="UIGameSP.h">
       <Filter>UI\GameTypes\Single</Filter>
     </ClInclude>
-    <ClInclude Include="ui\UIChatWnd.h">
-      <Filter>UI\Multiplayer\HUD\Chat</Filter>
-    </ClInclude>
     <ClInclude Include="ui\UIGameLog.h">
       <Filter>UI\Multiplayer\HUD\GameLog</Filter>
-    </ClInclude>
-    <ClInclude Include="ui\KillMessageStruct.h">
-      <Filter>UI\Multiplayer\HUD\common</Filter>
-    </ClInclude>
-    <ClInclude Include="ui\UIPdaKillMessage.h">
-      <Filter>UI\Multiplayer\HUD\common</Filter>
     </ClInclude>
     <ClInclude Include="HUDCrosshair.h">
       <Filter>UI\Cursor</Filter>
@@ -9638,14 +9629,8 @@
     <ClCompile Include="UIGameSP.cpp">
       <Filter>UI\GameTypes\Single</Filter>
     </ClCompile>
-    <ClCompile Include="ui\UIChatWnd.cpp">
-      <Filter>UI\Multiplayer\HUD\Chat</Filter>
-    </ClCompile>
     <ClCompile Include="ui\UIGameLog.cpp">
       <Filter>UI\Multiplayer\HUD\GameLog</Filter>
-    </ClCompile>
-    <ClCompile Include="ui\UIPdaKillMessage.cpp">
-      <Filter>UI\Multiplayer\HUD\common</Filter>
     </ClCompile>
     <ClCompile Include="HUDCrosshair.cpp">
       <Filter>UI\Cursor</Filter>
