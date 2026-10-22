@@ -462,9 +462,10 @@ void CLevel::ClientReceive()
 					const char* m_SO = m_caServerOptions.c_str();
 					//					const char* m_CO = m_caClientOptions.c_str();
 
+					// Options after the second '/': "level/game/options".
 					m_SO = strchr(m_SO, '/');
-					if (m_SO) m_SO++;
-					m_SO = strchr(m_SO, '/');
+					if (m_SO)
+						m_SO = strchr(m_SO + 1, '/');
 
 					shared_str LevelName;
 					shared_str LevelVersion;

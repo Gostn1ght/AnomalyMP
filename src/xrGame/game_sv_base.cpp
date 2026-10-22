@@ -233,7 +233,7 @@ string64& game_sv_GameState::get_option_s(LPCSTR lst, LPCSTR name, LPCSTR def)
 	if (start)
 	{
 		LPCSTR begin = start + xr_strlen(op);
-		sscanf(begin, "%[^/]", ret);
+		sscanf(begin, "%63[^/]", ret);
 	}
 	else
 	{
@@ -477,7 +477,7 @@ void game_sv_GameState::Create(shared_str& options)
 	{
 		string_path svcfg_name = "";
 		int sz = xr_strlen(svcfg_ltx_name);
-		sscanf(strstr(Core.Params, svcfg_ltx_name) + sz, "%[^ ] ", svcfg_name);
+		sscanf(strstr(Core.Params, svcfg_ltx_name) + sz, "%519[^ ] ", svcfg_name);
 		//		if (FS.exist(svcfg_name))
 		{
 			Console->ExecuteScript(svcfg_name);

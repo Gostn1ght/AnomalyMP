@@ -47,7 +47,7 @@ bool CLevel::net_Start(const char* op_server, const char* op_client)
 	{
 		string1024 ret = "";
 		LPCSTR begin = NameStart + xr_strlen("/name=");
-		sscanf(begin, "%[^/]", ret);
+		sscanf(begin, "%1023[^/]", ret);
 		if (!xr_strlen(ret))
 		{
 			string1024 tmpstr;
@@ -167,26 +167,15 @@ bool CLevel::net_start3()
 		{
 			string64 PasswordStr = "";
 			const char* PSW = strstr(m_caServerOptions.c_str(), "psw=") + 4;
-			if (strchr(PSW, '/'))
-				strncpy_s(PasswordStr, PSW, strchr(PSW, '/') - PSW);
-			else
-				xr_strcpy(PasswordStr, PSW);
+			const char* end = strchr(PSW, '/');
+			const size_t length = end ? size_t(end - PSW) : xr_strlen(PSW);
+			strncpy_s(PasswordStr, PSW, _min(length, sizeof(PasswordStr) - 1));
 
 			string4096 tmp;
 			xr_sprintf(tmp, "%s/psw=%s", m_caClientOptions.c_str(), PasswordStr);
 			m_caClientOptions = tmp;
 		};
 	};
-	//setting players GameSpy CDKey if it comes from command line
-	if (strstr(m_caClientOptions.c_str(), "/cdkey="))
-	{
-		string64 CDKey;
-		const char* start = strstr(m_caClientOptions.c_str(), "/cdkey=") + xr_strlen("/cdkey=");
-		sscanf(start, "%[^/]", CDKey);
-		string128 cmd;
-		xr_sprintf(cmd, "cdkey %s", _strupr(CDKey));
-		Console->Execute(cmd);
-	}
 	return true;
 }
 
@@ -235,8 +224,8 @@ bool CLevel::net_start6()
 	{
 		if (strstr(Core.Params, "-$"))
 		{
-			string256 buf, cmd, param;
-			sscanf(strstr(Core.Params, "-$") + 2, "%[^ ] %[^ ] ", cmd, param);
+			string256 buf, cmd = "", param = "";
+			sscanf(strstr(Core.Params, "-$") + 2, "%255[^ ] %255[^ ] ", cmd, param);
 			strconcat(sizeof(buf), buf, cmd, " ", param);
 			Console->Execute(buf);
 		}

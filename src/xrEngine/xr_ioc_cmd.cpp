@@ -173,7 +173,7 @@ public:
 		char Event[128], Param[128];
 		Event[0] = 0;
 		Param[0] = 0;
-		sscanf(args, "%[^,],%s", Event, Param);
+		sscanf(args, "%127[^,],%127s", Event, Param);
 		Engine.Event.Signal(Event, (u64)Param);
 	}
 };

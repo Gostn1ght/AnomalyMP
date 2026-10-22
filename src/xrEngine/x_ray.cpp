@@ -237,7 +237,7 @@ PROTECT_API void InitConsole()
 	if (strstr(Core.Params, "-ltx "))
 	{
 		string64 c_name;
-		sscanf(strstr(Core.Params, "-ltx ") + 5, "%[^ ] ", c_name);
+		sscanf(strstr(Core.Params, "-ltx ") + 5, "%63[^ ] ", c_name);
 		xr_strcpy(Console->ConfigFile, c_name);
 	}
 
@@ -927,7 +927,7 @@ int APIENTRY WinMain_impl(HINSTANCE hInstance,
 	if (strstr(lpCmdLine, fsgame_ltx_name))
 	{
 		int sz = xr_strlen(fsgame_ltx_name);
-		sscanf(strstr(lpCmdLine, fsgame_ltx_name) + sz, "%[^ ] ", fsgame);
+		sscanf(strstr(lpCmdLine, fsgame_ltx_name) + sz, "%519[^ ] ", fsgame);
 		//MessageBox(0, fsgame, "using fsltx", MB_OK);
 	}
 
@@ -944,7 +944,7 @@ int APIENTRY WinMain_impl(HINSTANCE hInstance,
 		if (na_log)
 		{
 			string64 na_suffix = {};
-			if (1 == sscanf(na_log + 9, "%[^ ^\t]", na_suffix) && na_suffix[0])
+			if (1 == sscanf(na_log + 9, "%63[^ ^\t]", na_suffix) && na_suffix[0])
 			{
 				xr_strcpy(na_app_name, "xray_");
 				xr_strcat(na_app_name, na_suffix);

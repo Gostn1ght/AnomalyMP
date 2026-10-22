@@ -373,7 +373,7 @@ bool CUIActorMenu::OnItemFocusLost(CUICellItem* itm)
 	clear_highlight_lists();
 
 	::luabind::functor<bool> funct1;
-	if (ai().script_engine().functor("actor_menu_inventory.CUIActorMenu_OnItemFocusLost", funct1))
+	if (itm && ai().script_engine().functor("actor_menu_inventory.CUIActorMenu_OnItemFocusLost", funct1))
 	{
 		PIItem _iitem = (PIItem)itm->m_pData;
 
@@ -387,13 +387,12 @@ bool CUIActorMenu::OnItemFocusLost(CUICellItem* itm)
 
 bool CUIActorMenu::OnItemFocusedUpdate(CUICellItem* itm)
 {
-	if (itm)
+	if (!itm)
+		return true;
+	itm->m_selected = true;
+	if (m_highlight_clear)
 	{
-		itm->m_selected = true;
-		if (m_highlight_clear)
-		{
-			set_highlight_item(itm);
-		}
+		set_highlight_item(itm);
 	}
 	VERIFY(m_ItemInfo);
 	if (Device.dwTimeGlobal < itm->FocusReceiveTime() + m_ItemInfo->delay)
