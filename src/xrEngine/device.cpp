@@ -425,6 +425,19 @@ void CRenderDevice::on_idle()
 {
 	FreezeTimer.Start();
 
+	// The log reaches the disk once a second in every state (menu, each loading
+	// step, game): a crash the handler does not catch keeps its last second.
+	// A player's crash near a mutant left a log that ended at the menu (doc 151).
+	{
+		static DWORD log_flush_at = 0;
+		const DWORD now = GetTickCount();
+		if (now - log_flush_at >= 1000)
+		{
+			log_flush_at = now;
+			FlushLogAppend();
+		}
+	}
+
 	if (!b_is_Ready)
 	{
 		Sleep(100);

@@ -115,11 +115,16 @@ void CGroupHierarchyHolder::unregister_in_squad(CEntity* member)
 	if (leader() && (leader()->ID() == member->ID()))
 	{
 		update_leader();
-		if (squad().leader()->ID() == member->ID())
+		// The squad can be without a leader already (its groups' leaders left or
+		// died): players leaving a session crashed here reading a null leader.
+		CEntity* squad_leader = squad().leader();
+		if (!squad_leader || squad_leader->ID() == member->ID())
+		{
 			if (leader())
 				squad().leader(leader());
 			else
 				squad().update_leader();
+		}
 	}
 #endif // SQUAD_HIERARCHY_HOLDER_USE_LEADER
 }

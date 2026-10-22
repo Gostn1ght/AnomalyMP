@@ -631,8 +631,10 @@ void CGamePersistent::game_loaded()
 			}
 
             // demonized
-            // Enable crash saving here
-            crash_saving::save_impl = &crash_saving::_save_impl;
+            // Enable crash saving here. Not online: a client has no ALife to save
+            // and the server keeps the world itself (doc 151).
+            if (!strstr(Core.Params, "-netcoop"))
+                crash_saving::save_impl = &crash_saving::_save_impl;
 
             // Callback for when player dismisses loading screen after "Press Any Key to Continue" pressed
             if (ai().script_engine().functor("_G.OnLoadingScreenDismissed", funct))
