@@ -137,6 +137,22 @@ Found with `viewtest\sampler.py` (main-thread sampling from process start,
 Dedicated server on the same build: ready in 85 s (was 106-139 s), same
 online objects (24 stalkers, 14 mutants).
 
+Dedicated server (Marsh world, 24 stalkers, 14 mutants), ready to the first
+`[world] online`, 2026-10-22: 85-95 s before; 62 s on the first start of the
+new build (it builds the collision cache); 35 s after. What did it:
+
+- `smem_container` (shared motion keys and mesh data) in hash buckets
+  instead of a sorted vector with middle inserts (quadratic);
+- the level's OPCODE collision tree (3 077 609 triangles, ~8 s) cached in
+  `appdata\cform_cache` (98 MB for this world; checked on read, 12 files at
+  most, `-no_cform_cache` turns it off);
+- no game-file CRC on connect online (~3.5 s, never compared by netcoop).
+
+Still in the server start: ~30 s of GAMMA Lua scripts in the ALife
+constructor (string tables, script XML, Lua pattern matching).
+`optick` is not a duplicate: `optick/` is the project file, `optick-git`
+the profiler's sources (a submodule); the profiler is off by default.
+
 Known, not from these cuts: `! update of actor [0] left 8 trailing byte(s)
 unread` on the dedicated server (the ALife anchor actor), also in older builds.
 
