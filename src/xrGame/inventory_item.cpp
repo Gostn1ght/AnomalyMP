@@ -1438,7 +1438,7 @@ void CInventoryItem::UpdateXForm()
 	if (E->cast_base_monster()) return;
 
 	const CInventoryOwner* parent = smart_cast<const CInventoryOwner*>(E);
-	if (parent && parent->use_simplified_visual())
+	if (!parent || parent->use_simplified_visual())
 		return;
 
 	if (parent->attached(this))
