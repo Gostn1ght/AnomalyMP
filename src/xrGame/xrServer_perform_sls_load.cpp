@@ -11,8 +11,7 @@ void xrServer::SLS_Load(IReader& fs)
 	for (IReader* F = fs.open_chunk_iterator(C); F; F = fs.open_chunk_iterator(C, F))
 	{
 		// Spawn
-		P.B.count = F->r_u16();
-		F->r(P.B.data, P.B.count);
+		P.load_block(*F);
 		P.r_begin(u_id);
 		R_ASSERT(M_SPAWN == u_id);
 		ClientID clientID;
@@ -20,8 +19,7 @@ void xrServer::SLS_Load(IReader& fs)
 		Process_spawn(P, clientID);
 
 		// Update
-		P.B.count = F->r_u16();
-		F->r(P.B.data, P.B.count);
+		P.load_block(*F);
 		P.r_begin(u_id);
 		R_ASSERT(M_UPDATE==u_id);
 

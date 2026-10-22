@@ -376,8 +376,7 @@ void item_respawn_manager::respawn_level_items()
 		u32 S_id;
 		for (IReader* S = SP->open_chunk_iterator(S_id); S; S = SP->open_chunk_iterator(S_id, S))
 		{
-			P.B.count = S->length();
-			S->r(P.B.data, P.B.count);
+			P.construct(S->pointer(), S->length());
 
 			u16 ID;
 			P.r_begin(ID);

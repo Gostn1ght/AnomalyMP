@@ -15,11 +15,25 @@ void NET_Packet::construct(const void* data, unsigned size)
 		memcpy(B.data, data, size);
 	B.count = size;
 	r_pos = 0;
+	m_overruns = 0;
+}
+
+void NET_Packet::load_block(IReader& F)
+{
+	const u32 size = F.r_u16();
+	R_ASSERT3(size <= sizeof(B.data), "saved packet is larger than the packet buffer (damaged file)",
+		make_string("%u bytes", size).c_str());
+	if (size)
+		F.r(B.data, size);
+	B.count = size;
+	r_pos = 0;
+	m_overruns = 0;
 }
 
 void NET_Packet::r_overrun(void* p, u32 count)
 {
 	ZeroMemory(p, count);
+	++m_overruns;
 	const u32 type = B.count >= sizeof(u16) ? *(const u16*)B.data : u32(-1);
 	r_pos = B.count;
 	static u32 last_report = 0;

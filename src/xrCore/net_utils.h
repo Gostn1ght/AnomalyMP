@@ -4,6 +4,8 @@
 
 #include "client_id.h"
 
+class IReader;
+
 #pragma pack(push,1)
 
 const u32 NET_PacketSizeLimit = 16 * 1024;
@@ -70,13 +72,15 @@ public:
 	// A received message larger than the buffer is dropped (empty packet):
 	// reads from an empty packet return zeros.
 	void construct(const void* data, unsigned size);
+	// A saved packet: u16 length, then the bytes (spawn, saved games).
+	void load_block(IReader& F);
 
 	NET_Buffer B;
 	u32 r_pos;
 	u32 timeReceive;
 	bool w_allow;
 public:
-	NET_Packet() : inistream(NULL), w_allow(true)
+	NET_Packet() : inistream(NULL), r_pos(0), w_allow(true), m_overruns(0)
 	{
 	}
 
@@ -302,7 +306,10 @@ public:
 	}
 
 	BOOL r_eof();
+	// Reads past the end since construct() (saved and spawn data check it).
+	u32 r_overruns() const { return m_overruns; }
 private:
+	u32 m_overruns;
 	void r_overrun(void* p, u32 count);
 	// Length of the string at r_pos, or u32(-1) without a terminator in the packet.
 	u32 r_string_length() const;

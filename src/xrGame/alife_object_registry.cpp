@@ -98,8 +98,7 @@ CSE_ALifeDynamicObject* CALifeObjectRegistry::get_object(IReader& file_stream)
 	NET_Packet tNetPacket;
 	u16 u_id;
 	// Spawn
-	tNetPacket.B.count = file_stream.r_u16();
-	file_stream.r(tNetPacket.B.data, tNetPacket.B.count);
+	tNetPacket.load_block(file_stream);
 	tNetPacket.r_begin(u_id);
 	R_ASSERT2(M_SPAWN==u_id, "Invalid packet ID (!= M_SPAWN)");
 
@@ -122,13 +121,16 @@ CSE_ALifeDynamicObject* CALifeObjectRegistry::get_object(IReader& file_stream)
 	CSE_ALifeDynamicObject* tpALifeDynamicObject = smart_cast<CSE_ALifeDynamicObject*>(tpSE_Abstract);
 	R_ASSERT2(tpALifeDynamicObject, "Non-ALife object in the saved game!");
 	tpALifeDynamicObject->Spawn_Read(tNetPacket);
+	if (tNetPacket.r_overruns())
+		Msg("! saved object '%s' (%s): spawn data shorter than its reader", tpALifeDynamicObject->name_replace(), s_name);
 
 	// Update
-	tNetPacket.B.count = file_stream.r_u16();
-	file_stream.r(tNetPacket.B.data, tNetPacket.B.count);
+	tNetPacket.load_block(file_stream);
 	tNetPacket.r_begin(u_id);
 	R_ASSERT2(M_UPDATE==u_id, "Invalid packet ID (!= M_UPDATE)");
 	tpALifeDynamicObject->UPDATE_Read(tNetPacket);
+	if (tNetPacket.r_overruns())
+		Msg("! saved object '%s' (%s): update data shorter than its reader", tpALifeDynamicObject->name_replace(), s_name);
 
 	return (tpALifeDynamicObject);
 }
