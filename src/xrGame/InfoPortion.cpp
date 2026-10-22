@@ -63,7 +63,7 @@ void CInfoPortion::load_shared	(LPCSTR)
 	pXML->SetLocalRoot		(pXML->GetRoot());
 
 	//loading from XML
-	XML_NODE* pNode			= pXML->NavigateToNode(id_to_index::tag_name, item_data->pos_in_file);
+	XML_NODE* pNode			= item_data->node;
 	THROW3					(pNode, "info_portion id=", *item_data->id);
 
 	//список названий диалогов

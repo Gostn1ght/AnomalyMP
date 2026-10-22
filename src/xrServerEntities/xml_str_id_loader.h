@@ -19,7 +19,7 @@ struct ITEM_DATA
 {
 	shared_str id;
 	int index;
-	int pos_in_file;
+	XML_NODE* node; // the item's element in _xml
 	CUIXml* _xml;
 };
 
@@ -37,6 +37,8 @@ public:
 
 private:
 	static T_VECTOR* m_pItemDataVector;
+	// id -> position in m_pItemDataVector (ids are interned, hashing is by pointer)
+	static xr_unordered_flat_map<shared_str, u32, std::hash<shared_str>>* m_pIdIndex;
 
 protected:
 	//имена xml файлов (разделенных запятой) из которых 
@@ -74,6 +76,8 @@ public:
 
 TEMPLATE_SPECIALIZATION
 typename T_VECTOR* CSXML_IdToIndex::m_pItemDataVector = NULL;
+TEMPLATE_SPECIALIZATION
+xr_unordered_flat_map<shared_str, u32, std::hash<shared_str>>* CSXML_IdToIndex::m_pIdIndex = NULL;
 
 TEMPLATE_SPECIALIZATION
 LPCSTR CSXML_IdToIndex::file_str = NULL;
@@ -97,26 +101,17 @@ TEMPLATE_SPECIALIZATION
 const typename ITEM_DATA* CSXML_IdToIndex::GetById(const shared_str& str_id, bool no_assert)
 {
 	T_INIT::InitXmlIdToIndex();
-	T_VECTOR::iterator it = m_pItemDataVector->begin();
+	const auto found = m_pIdIndex->find(str_id);
+	if (found != m_pIdIndex->end())
+		return &(*m_pItemDataVector)[found->second];
 
-	for (; m_pItemDataVector->end() != it; ++it)
-	{
-		if ((*it).id == str_id)
-			break;
-	}
+	Msg("item with id [%s] not found in files:", str_id.c_str());
+	int i = 0;
+	for (T_VECTOR::iterator it = m_pItemDataVector->begin(); m_pItemDataVector->end() != it; ++it, i++)
+		Msg("[%d]=[%s]", i, *(*it).id);
 
-	if (m_pItemDataVector->end() == it)
-	{
-		int i = 0;
-        Msg("item with id [%s] not found in files:", str_id.c_str());
-		for (T_VECTOR::iterator it = m_pItemDataVector->begin(); m_pItemDataVector->end() != it; ++it, i++)
-			Msg("[%d]=[%s]", i, *(*it).id);
-
-		R_ASSERT3(no_assert, "item not found, id", str_id.c_str());
-		return NULL;
-	}
-
-	return &(*it);
+	R_ASSERT3(no_assert, "item not found, id", str_id.c_str());
+	return NULL;
 }
 
 TEMPLATE_SPECIALIZATION
@@ -137,6 +132,7 @@ void CSXML_IdToIndex::DeleteIdToIndexData()
 	_destroy_item_data_vector_cont(m_pItemDataVector);
 
 	xr_delete(m_pItemDataVector);
+	xr_delete(m_pIdIndex);
 }
 
 TEMPLATE_SPECIALIZATION
@@ -146,6 +142,7 @@ typename void CSXML_IdToIndex::InitInternal()
 	T_INIT::InitXmlIdToIndex();
 
 	m_pItemDataVector = xr_new<T_VECTOR>();
+	m_pIdIndex = xr_new<xr_unordered_flat_map<shared_str, u32, std::hash<shared_str>>>();
 
 	VERIFY(file_str);
 	VERIFY(tag_name);
@@ -163,33 +160,25 @@ typename void CSXML_IdToIndex::InitInternal()
 		xml_file_full += ".xml";
 		uiXml->Load(CONFIG_PATH, "gameplay", xml_file_full.c_str());
 
-		//общий список
-		int items_num = uiXml->GetNodesNum(uiXml->GetRoot(), tag_name);
-
-		for (int i = 0; i < items_num; ++i)
+		// Children with the tag in document order (as NavigateToNode(tag, i) counts them).
+		XML_NODE* root = uiXml->GetRoot();
+		int items_num = 0;
+		for (XML_NODE* node = root->FirstChild(tag_name); node; node = root->IterateChildren(tag_name, node), ++items_num)
 		{
-			LPCSTR item_name = uiXml->ReadAttrib(uiXml->GetRoot(), tag_name, i, "id", NULL);
+			LPCSTR item_name = uiXml->ReadAttrib(node, "id", NULL);
 
 			string256 buf;
-			xr_sprintf(buf, "id for item don't set, number %d in %s", i, xml_file);
+			xr_sprintf(buf, "id for item don't set, number %d in %s", items_num, xml_file);
 			R_ASSERT2(item_name, buf);
 
-
-			//проверетить ID на уникальность
-			T_VECTOR::iterator t_it = m_pItemDataVector->begin();
-			for (; m_pItemDataVector->end() != t_it; ++t_it)
-			{
-				if (shared_str((*t_it).id) == shared_str(item_name))
-					break;
-			}
-
-			R_ASSERT3(m_pItemDataVector->end() == t_it, "duplicate item id", item_name);
+			const shared_str id = item_name;
+			R_ASSERT3(m_pIdIndex->find(id) == m_pIdIndex->end(), "duplicate item id", item_name);
+			m_pIdIndex->emplace(id, u32(m_pItemDataVector->size()));
 
 			ITEM_DATA data;
-			data.id = item_name;
+			data.id = id;
 			data.index = index;
-			data.pos_in_file = i;
-			//.				data.file_name		= xml_file;
+			data.node = node;
 			data._xml = uiXml;
 			m_pItemDataVector->push_back(data);
 
