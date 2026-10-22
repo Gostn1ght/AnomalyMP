@@ -191,3 +191,33 @@ hunt script `J:\LostZone_Work\_work\viewtest\hunt_hang.ps1` dumps all
 thread stacks (`stacks.py`) when the menu does not come within 150 s.
 Focus: the menu loads while unfocused (123 s) and minimized; the owner plays
 windowed; level loading after login is still to measure.
+
+## Progress 2026-10-22 (evening)
+
+- Sound descriptions cached by file (`appdata\sound_info.bin`: path, CRC,
+  size, time -> format, length, distances): script, material and level
+  sounds no longer decode every `.ogg` at start. Server ready 34-37 s (was
+  35-47 s); `itms_manager` 8 s -> 1.6 s, `tasks_placeable_waypoints` gone
+  from the slow list. First (cold) start builds the cache.
+- `_g` names the global table: `_g.script` is no longer loaded a third time.
+- Network packets: reads never leave the received bytes (strings found with
+  `memchr` inside the packet, zeros past the end, logged once a second); a
+  message larger than the buffer is dropped; `r_stringZ` into a raw pointer
+  is gone (char arrays go through the bounded `r_stringZ_s`, which cuts).
+- An event id the server does not handle is logged and dropped: any remote
+  client could stop the server with one (`R_ASSERT2` in `Process_event`).
+  `GE_REQUEST_PLAYERS_INFO` (every player's IP address to whoever asked) is
+  gone.
+- Code analysis fixes: bounded command-line and option scans, the second
+  `strchr` of `M_CHANGE_LEVEL_GAME`, a failed client spawn with a null
+  object, actor menu focus with a non-cell window, the hit mark matrix.
+- GameSpy remnants cut (-8.4 k lines): login/account managers, profile and
+  awards stores, ATLAS stats, the server browser, the CD key box and flow,
+  registry helpers, `xrGameSpyServer`, the client digest exchange, patch
+  download dialogs. The player state keeps only the name. Then the MP menu
+  UI nothing creates (-1.5 k lines): map list/info, server list item, team
+  info, MP tab button, `mm_net_*` options, the player name modifier.
+
+Not changed on purpose: `M_GAMEMESSAGE` from a client is still broadcast to
+everyone as it came (chat and other game messages depend on it; a filter
+needs an in-game check of what netcoop sends through it).
