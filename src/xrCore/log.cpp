@@ -341,10 +341,14 @@ void CreateLog(BOOL nl)
 		FS.update_path(logFName, "$logs$", log_file_name);
 	if (!no_log)
 	{
-		//Alun: Backup existing log
-		xr_string backup_logFName = EFS.ChangeFileExt(logFName, ".bkp");
-		FS.file_rename(logFName, backup_logFName.c_str(), true);
-		//-Alun
+		// Keep the last three sessions' logs (.bkp newest, .bkp3 oldest): a crash
+		// log was lost when the game was started again. The OS renames: the logs
+		// folder is not always in the file system index FS.file_rename works on.
+		const xr_string base = EFS.ChangeFileExt(logFName, "");
+		const xr_string bkp1 = base + ".bkp", bkp2 = base + ".bkp2", bkp3 = base + ".bkp3";
+		MoveFileExA(bkp2.c_str(), bkp3.c_str(), MOVEFILE_REPLACE_EXISTING);
+		MoveFileExA(bkp1.c_str(), bkp2.c_str(), MOVEFILE_REPLACE_EXISTING);
+		MoveFileExA(logFName, bkp1.c_str(), MOVEFILE_REPLACE_EXISTING);
 		IWriter* f = FS.w_open(logFName);
 		if (f == NULL)
 		{
