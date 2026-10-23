@@ -53,7 +53,7 @@ end
 local function lock_layer(self)
 	if self.lock then return self.lock end
 	local l = {}
-	l.back = self.xml:InitFrame("panel", self)
+	l.back = self.xml:InitStatic("layer_back", self)
 	l.back:SetWndPos(vector2():set(36, 110)); l.back:SetWndSize(vector2():set(748, 556))
 	l.title = self.xml:InitStatic("msg_name", self)
 	l.title:SetWndPos(vector2():set(260, 300)); l.title:SetWndSize(vector2():set(300, 24))
@@ -281,7 +281,7 @@ local function device_layer(self)
 	if self.dev then return self.dev end
 	local l = { rows = {}, scroll = 0 }
 	self.dev = l
-	l.back = static(self, "panel", 36, 110, 748, 556)
+	l.back = static(self, "layer_back", 36, 110, 748, 556)
 	l.title = static(self, "msg_name", 60, 128, 700, 24)
 	l.info = static(self, "msg_head", 60, 156, 700, 22)
 	l.progress = static(self, "msg_head", 60, 180, 700, 22)

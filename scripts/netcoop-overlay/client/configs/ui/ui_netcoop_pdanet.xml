@@ -6,6 +6,11 @@
   <panel x="0" y="0" width="20" height="20" stretch="1">
     <texture>lz_nw_pda_panel</texture>
   </panel>
+  <!-- A full-tab cover (lock screen, someone else's PDA): one stretched
+       picture; the tiled panel frame drew tens of thousands of quads there. -->
+  <layer_back x="0" y="0" width="20" height="20" stretch="1">
+    <texture>lz_nw_pda_panel</texture>
+  </layer_back>
   <title x="44" y="100" width="420" height="30">
     <text r="218" g="229" b="235" font="letterica18" align="l" vert_align="c" />
   </title>
