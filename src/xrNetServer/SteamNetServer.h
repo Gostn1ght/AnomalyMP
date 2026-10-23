@@ -33,8 +33,20 @@ private:
 	u32														m_max_players = 0;
 	bool													m_bServerClientConnected = false;
 
-	// Using in update thread!
+	// Connections: added by the update thread, removed by both threads
+	// (a kick runs on the main thread) - always under csPlayers.
+	xrCriticalSection             csPlayers;
 	xr_vector<HSteamNetConnection> m_players;
+	struct SendRate
+	{
+		u32 bytes;
+		u32 last_decrease;
+		u32 last_report;
+	};
+	xr_map<HSteamNetConnection, SendRate> m_send_rates;
+	u32 m_last_rate_check = 0;
+	static const u32 send_rate_max = 512 * 1024;
+	static const u32 send_rate_min = 48 * 1024;
 	xr_vector<SClientConnectData> m_pending_clients;
 
 public:
@@ -56,6 +68,7 @@ private:
 	void			        Update();
 	void			        PollConnectionStateChanges();
 	void			        PollIncomingMessages();
+	void			        AdaptSendRates();
 
 	void			        DisconnectAll();
 	void			        CloseConnection(HSteamNetConnection connection, enmDisconnectReason nReason = EUnknownReason, LPCSTR sReason = nullptr);

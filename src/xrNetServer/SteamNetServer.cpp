@@ -58,6 +58,69 @@ void SteamNetServer::_SendTo_LL(ClientID ID, void* data, u32 size, u32 dwFlags, 
 
 // -----------------------------------------------------------------------------
 
+// Loss-driven rate per connection (multiplicative decrease, additive
+// increase). The library keeps every connection at SendRateMin whatever its
+// line carries: a player whose line (or share of the host's upload) carries
+// less lost packet after packet, his reliable stream fell seconds behind and
+// he left after 15 s without data while players on good lines stayed
+// (2026-10-23). Quality is the share of our packets the player received, as
+// he reports it.
+void SteamNetServer::AdaptSendRates()
+{
+	const u32 now = GetTickCount();
+	if (now - m_last_rate_check < 500)
+		return;
+	m_last_rate_check = now;
+	xr_vector<HSteamNetConnection> players;
+	{
+		xrCriticalSectionGuard guard(csPlayers);
+		players = m_players;
+	}
+	// Rates of closed connections (only this thread touches m_send_rates).
+	for (auto it = m_send_rates.begin(); it != m_send_rates.end();)
+		it = std::find(players.begin(), players.end(), it->first) == players.end() ? m_send_rates.erase(it) : std::next(it);
+	for (HSteamNetConnection connection : players)
+	{
+		SteamNetConnectionInfo_t info;
+		SteamNetConnectionRealTimeStatus_t status;
+		if (!m_pInterface->GetConnectionInfo(connection, &info) || info.m_eState != k_ESteamNetworkingConnectionState_Connected)
+			continue;
+		if (info.m_addrRemote.IsLocalHost())
+			continue; // the server's own client
+		if (!m_pInterface->GetConnectionRealTimeStatus(connection, &status, 0, 0))
+			continue;
+		SendRate& rate = m_send_rates[connection];
+		if (!rate.bytes)
+			rate = SendRate{send_rate_max, now, now};
+		const float quality = status.m_flConnectionQualityRemote; // < 0: not reported yet
+		u32 bytes = rate.bytes;
+		if (quality >= 0.f && quality < 0.97f)
+		{
+			if (now - rate.last_decrease >= 1000)
+			{
+				bytes = _max(send_rate_min, u32(bytes * 0.7f));
+				rate.last_decrease = now;
+			}
+		}
+		else if (quality >= 0.99f && now - rate.last_decrease >= 3000 && bytes < send_rate_max)
+			bytes = _min(send_rate_max, bytes + 32 * 1024);
+		if (bytes != rate.bytes)
+		{
+			SteamNetworkingUtils()->SetConnectionConfigValueInt32(connection, k_ESteamNetworkingConfig_SendRateMin, int(bytes));
+			SteamNetworkingUtils()->SetConnectionConfigValueInt32(connection, k_ESteamNetworkingConfig_SendRateMax, int(bytes));
+			if (now - rate.last_report >= 5000 || bytes == send_rate_min || bytes == send_rate_max)
+			{
+				rate.last_report = now;
+				Msg("[SteamNetServer] connection %u: %u -> %u KB/s (delivered %.0f%%, ping %d ms)",
+					connection, rate.bytes / 1024, bytes / 1024, quality * 100.f, status.m_nPing);
+			}
+			rate.bytes = bytes;
+		}
+	}
+}
+
+// -----------------------------------------------------------------------------
+
 #pragma region create / destroy listener
 
 bool SteamNetServer::CreateConnection(GameDescriptionData& game_descr, ServerConnectionOptions& connectOpt)
@@ -95,10 +158,13 @@ bool SteamNetServer::CreateConnection(GameDescriptionData& game_descr, ServerCon
 
 	SteamNetworkingUtils()->SetGlobalConfigValueInt32(k_ESteamNetworkingConfig_SendBufferSize, 8256 * 8256);
 	// NetAnomaly: world snapshots for many players need more than the
-	// library's default rate; the snapshot sender itself skips a client
-	// whose queue is late (HasSendQueueRoom).
-	SteamNetworkingUtils()->SetGlobalConfigValueInt32(k_ESteamNetworkingConfig_SendRateMin, 512 * 1024);
+	// library's default rate. The open-source library does not estimate
+	// bandwidth: a connection sends at SendRateMin. AdaptSendRates lowers a
+	// connection's rate while its player loses packets; the snapshot sender
+	// skips a client whose queue is late (HasSendQueueRoom).
+	SteamNetworkingUtils()->SetGlobalConfigValueInt32(k_ESteamNetworkingConfig_SendRateMin, int(send_rate_max));
 	SteamNetworkingUtils()->SetGlobalConfigValueInt32(k_ESteamNetworkingConfig_SendRateMax, 4 * 1024 * 1024);
+	m_send_rates.clear();
 	// A connected player is dropped after 30 s without traffic instead of the
 	// library's 10 s: load spikes (a crowd joining) cut whole servers off.
 	SteamNetworkingUtils()->SetGlobalConfigValueInt32(k_ESteamNetworkingConfig_TimeoutConnected, 30000);
@@ -184,6 +250,7 @@ void SteamNetServer::Update()
 		}
 		PollIncomingMessages();
 		PollConnectionStateChanges();
+		AdaptSendRates();
 
 		csConnection.Leave();
 		Sleep(1);
@@ -238,20 +305,23 @@ void SteamNetServer::PollIncomingMessages()
 
 void SteamNetServer::ProcessConnection(SteamNetConnectionStatusChangedCallback_t* pInfo)
 {
-	if (std::find(m_players.begin(), m_players.end(), pInfo->m_hConn) != m_players.end())
 	{
-		Msg("[SteamNetServer] Connection already exist");
-		return;
-	}
+		xrCriticalSectionGuard guard(csPlayers);
+		if (std::find(m_players.begin(), m_players.end(), pInfo->m_hConn) != m_players.end())
+		{
+			Msg("[SteamNetServer] Connection already exist");
+			return;
+		}
 
-	// Check to max players
-	if (m_players.size() >= m_max_players)
-	{
-		m_pInterface->CloseConnection(pInfo->m_hConn, ESessionFull, nullptr, false);
-		return;
+		// Check to max players
+		if (m_players.size() >= m_max_players)
+		{
+			m_pInterface->CloseConnection(pInfo->m_hConn, ESessionFull, nullptr, false);
+			return;
+		}
+		// Add to connection list
+		m_players.push_back(pInfo->m_hConn);
 	}
-	// Add to connection list
-	m_players.push_back(pInfo->m_hConn);
 
 	ip_address ip;
 	string64 ip_str;
@@ -439,12 +509,16 @@ void SteamNetServer::OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusC
 
 void SteamNetServer::DisconnectAll()
 {
-	for (auto& connection : m_players)
+	xr_vector<HSteamNetConnection> players;
+	{
+		xrCriticalSectionGuard guard(csPlayers);
+		players.swap(m_players);
+	}
+	for (auto& connection : players)
 	{
 		m_pInterface->CloseConnection(connection, EServerShutdown, nullptr, false);
 		DestroyCleint(connection);
 	}
-	m_players.clear();
 
 	for (auto& cl_data : m_pending_clients)
 	{
@@ -467,12 +541,18 @@ void SteamNetServer::CloseConnection(HSteamNetConnection connection, enmDisconne
 	// Authentication sends its final reliable reply immediately before closing.
 	// Preserve that reply in the transport queue, including the character list.
 	const bool flush_reply = sReason && sReason[0] == '@';
-	auto player_it = std::find(m_players.cbegin(), m_players.cend(), connection);
-	if (player_it != m_players.cend())
+	bool known = false;
 	{
-		m_players.erase(player_it);
-		m_pInterface->CloseConnection(connection, nReason, sReason, flush_reply);
+		xrCriticalSectionGuard guard(csPlayers);
+		auto player_it = std::find(m_players.cbegin(), m_players.cend(), connection);
+		if (player_it != m_players.cend())
+		{
+			m_players.erase(player_it);
+			known = true;
+		}
 	}
+	if (known)
+		m_pInterface->CloseConnection(connection, nReason, sReason, flush_reply);
 
 	if (!m_pending_clients.empty())
 	{
@@ -548,6 +628,23 @@ bool SteamNetServer::GetClientSendQueueTime(ClientID ID, u32& ms)
 	if (!m_pInterface->GetConnectionRealTimeStatus(ID.value(), &status, 0, 0))
 		return false;
 	ms = status.m_usecQueueTime > 0 ? u32(status.m_usecQueueTime / 1000) : 0;
+	// A queue of seconds means the line to that player carries less than
+	// we send: name the numbers once per 10 s per client.
+	if (ms > 1000)
+	{
+		static xrCriticalSection reports_lock;
+		static xr_map<u32, u32> last_report;
+		const u32 now = GetTickCount();
+		xrCriticalSectionGuard guard(reports_lock);
+		u32& last = last_report[ID.value()];
+		if (now - last >= 10000)
+		{
+			last = now;
+			Msg("! [SteamNetServer] client 0x%08x send queue %u ms: rate %d KB/s, ping %d ms, quality local %.2f remote %.2f, reliable pending %d KB unacked %d KB",
+				ID.value(), ms, status.m_nSendRateBytesPerSecond / 1024, status.m_nPing, status.m_flConnectionQualityLocal,
+				status.m_flConnectionQualityRemote, status.m_cbPendingReliable / 1024, status.m_cbSentUnackedReliable / 1024);
+		}
+	}
 	return true;
 }
 

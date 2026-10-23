@@ -6,18 +6,27 @@
 // A bad network for tests (doc 43 D11): -netcoop_fake_loss=<percent> and
 // -netcoop_fake_lag=<ms> on a client process (the load bots) make every
 // connection of that process lose, delay and reorder packets both ways,
-// through the library's own network simulation.
+// through the library's own network simulation; -netcoop_fake_rate=<KB/s>
+// limits what the process receives (a player on a slow line).
 static void steamnet_fake_network()
 {
 	static bool applied = false;
 	if (applied) return;
 	applied = true;
 	float loss = 0.f;
-	int lag = 0;
+	int lag = 0, rate_kb = 0;
 	if (LPCSTR o = strstr(Core.Params, "-netcoop_fake_loss=")) loss = float(atof(o + xr_strlen("-netcoop_fake_loss=")));
 	if (LPCSTR o = strstr(Core.Params, "-netcoop_fake_lag=")) lag = atoi(o + xr_strlen("-netcoop_fake_lag="));
-	if (loss <= 0.f && lag <= 0) return;
+	if (LPCSTR o = strstr(Core.Params, "-netcoop_fake_rate=")) rate_kb = atoi(o + xr_strlen("-netcoop_fake_rate="));
+	if (loss <= 0.f && lag <= 0 && rate_kb <= 0) return;
 	ISteamNetworkingUtils* utils = SteamNetworkingUtils();
+	if (rate_kb > 0)
+	{
+		utils->SetGlobalConfigValueInt32(k_ESteamNetworkingConfig_FakeRateLimit_Recv_Rate, rate_kb * 1024);
+		utils->SetGlobalConfigValueInt32(k_ESteamNetworkingConfig_FakeRateLimit_Recv_Burst, rate_kb * 1024 / 4);
+		Msg("[SteamNetClient] test network: receive limited to %d KB/s", rate_kb);
+	}
+	if (loss <= 0.f && lag <= 0) return;
 	utils->SetGlobalConfigValueFloat(k_ESteamNetworkingConfig_FakePacketLoss_Send, loss);
 	utils->SetGlobalConfigValueFloat(k_ESteamNetworkingConfig_FakePacketLoss_Recv, loss);
 	utils->SetGlobalConfigValueInt32(k_ESteamNetworkingConfig_FakePacketLag_Send, lag / 2);
