@@ -12,17 +12,6 @@
 #include "../xrNetServer/GammaNetPolicy.h"
 #define MAX_PLAYERS_COUNT gamma_net::max_client_states
 
-enum ERoundEnd_Result
-{
-	eRoundEnd_Finish = u32(0),
-	eRoundEnd_GameRestarted,
-	eRoundEnd_GameRestartedFast,
-	eRoundEnd_TimeLimit,
-	eRoundEnd_FragLimit,
-	eRoundEnd_ArtrefactLimit,
-	eRoundEnd_Force = u32(-1)
-};
-
 class CSE_Abstract;
 class xrServer;
 // [OLES] Policy:
@@ -47,19 +36,6 @@ protected:
 	virtual void ConsoleCommands_Create();
 	virtual void ConsoleCommands_Clear();
 
-	struct SMapRot
-	{
-		shared_str map_name;
-		shared_str map_ver;
-	};
-
-	DEF_DEQUE(MAP_ROTATION_LIST, SMapRot);
-	bool m_bMapRotation;
-	bool m_bMapNeedRotation;
-	bool m_bMapSwitched;
-	bool m_bFastRestart;
-	MAP_ROTATION_LIST m_pMapRotation_List;
-
 public:
 #define		TEAM_COUNT 4
 
@@ -69,10 +45,6 @@ public:
 	DEF_VECTOR(RPRef, RPoint*);
 	RPRef rpointsBlocked;
 
-	ERoundEnd_Result round_end_reason;
-
-	virtual void SaveMapList();
-	virtual bool HasMapRotation() { return m_bMapRotation; };
 
 	bool FindPlayerName(char const* name, IClient const* to_exclude);
 	void GenerateNewName(char const* old_name, char* dest, u32 const dest_size);
@@ -103,33 +75,6 @@ public:
 
 
 	virtual void OnRoundStart(); // старт раунда
-	virtual void OnRoundEnd(); //	round_end_reason			// конец раунда
-
-	void MapRotation_AddMap(LPCSTR MapName, LPCSTR MapVer);
-	void MapRotation_ListMaps();
-	virtual bool OnNextMap() { return false; }
-
-	virtual void OnPrevMap()
-	{
-	}
-
-	virtual bool SwitchToNextMap() { return m_bMapNeedRotation; };
-
-	virtual BOOL IsVotingEnabled();
-	virtual BOOL IsVotingEnabled(u16 flag);
-	virtual bool IsVotingActive() { return false; };
-
-	virtual void SetVotingActive(bool Active)
-	{
-	};
-
-	virtual void OnVoteStart(LPCSTR VoteCommand, ClientID sender)
-	{
-	};
-
-	virtual void OnVoteStop()
-	{
-	};
 
 public:
 	game_sv_GameState();

@@ -29,7 +29,6 @@ class game_cl_GameState : public game_GameState, public ISheduled
 	shared_str m_game_type_name;
 protected:
 	CUIGameCustom* m_game_ui_custom;
-	u16 m_u16VotingEnabled;
 	bool m_bServerControlHits;
 	bool m_netcoop_environment_synced = false;
 
@@ -101,34 +100,6 @@ public:
 	void u_EventGen(NET_Packet& P, u16 type, u16 dest);
 	void u_EventSend(NET_Packet& P);
 
-
-	virtual bool IsVotingEnabled() { return m_u16VotingEnabled != 0; };
-	virtual bool IsVotingEnabled(u16 flag) { return (m_u16VotingEnabled & flag) != 0; };
-	virtual bool IsVotingActive() { return false; };
-
-	virtual void SetVotingActive(bool Active)
-	{
-	};
-
-	virtual void SendStartVoteMessage(LPCSTR args)
-	{
-	};
-
-	virtual void SendVoteYesMessage()
-	{
-	};
-
-	virtual void SendVoteNoMessage()
-	{
-	};
-
-	virtual void OnVoteStart(NET_Packet& P)
-	{
-	};
-
-	virtual void OnVoteStop(NET_Packet& P)
-	{
-	};
 
 	virtual void OnRender()
 	{

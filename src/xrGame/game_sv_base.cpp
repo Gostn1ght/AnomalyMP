@@ -17,12 +17,9 @@
 
 extern ENGINE_API bool g_dedicated_server;
 
-#define			MAPROT_LIST_NAME		"maprot_list.ltx"
-string_path MAPROT_LIST = "";
 BOOL net_sv_control_hit = FALSE;
 //-----------------------------------------------------------------
 u32 g_sv_base_dwRPointFreezeTime = 0;
-int g_sv_base_iVotingEnabled = 0x00ff;
 //-----------------------------------------------------------------
 
 xr_token round_end_result_str[] =
@@ -299,7 +296,6 @@ void game_sv_GameState::net_Export_State(NET_Packet& P, ClientID to)
 	P.w_u16(m_phase);
 	P.w_s32(m_round);
 	P.w_u32(m_start_time);
-	P.w_u8(u8(g_sv_base_iVotingEnabled & 0xff));
 	P.w_u8(u8(net_sv_control_hit));
 
 	// Players
@@ -488,20 +484,6 @@ void game_sv_GameState::ReadOptions(shared_str& options)
 {
 	g_sv_base_dwRPointFreezeTime = get_option_i(*options, "rpfrz", g_sv_base_dwRPointFreezeTime / 1000) * 1000;
 
-	//.	xr_strcpy(MAPROT_LIST, MAPROT_LIST_NAME);
-	//.	if (!FS.exist(MAPROT_LIST))
-	FS.update_path(MAPROT_LIST, "$app_data_root$", MAPROT_LIST_NAME);
-	if (FS.exist(MAPROT_LIST))
-		Console->ExecuteScript(MAPROT_LIST);
-
-	g_sv_base_iVotingEnabled = get_option_i(*options, "vote", (g_sv_base_iVotingEnabled));
-	//---------------------------
-	//Convert old vote param
-	if (g_sv_base_iVotingEnabled != 0)
-	{
-		if (g_sv_base_iVotingEnabled == 1)
-			g_sv_base_iVotingEnabled = 0x00ff;
-	}
 };
 //-----------------------------------------------------------
 static bool g_bConsoleCommandsCreated_SV_Base = false;
@@ -676,12 +658,6 @@ game_sv_GameState::game_sv_GameState()
 	m_server = Level().Server;
 	m_event_queue = xr_new<GameEventQueue>();
 
-	m_bMapRotation = false;
-	m_bMapSwitched = false;
-	m_bMapNeedRotation = false;
-	m_bFastRestart = false;
-	m_pMapRotation_List.clear();
-
 	for (int i = 0; i < TEAM_COUNT; i++) rpoints_MinDist[i] = 1000.0f;
 }
 
@@ -691,9 +667,6 @@ game_sv_GameState::~game_sv_GameState()
 		ai().script_engine().remove_script_process(ScriptEngine::eScriptProcessorGame);
 	xr_delete(m_event_queue);
 
-	SaveMapList();
-
-	m_pMapRotation_List.clear();
 	//-------------------------------------------------------
 	ConsoleCommands_Clear();
 }
@@ -1011,44 +984,8 @@ void game_sv_GameState::remove_all_restrictions(NET_Packet& packet, u16 id)
 {
 }
 
-void game_sv_GameState::MapRotation_AddMap(LPCSTR MapName, LPCSTR MapVer)
-{
-	SMapRot R;
-	R.map_name = MapName;
-	R.map_ver = MapVer;
-	m_pMapRotation_List.push_back(R);
-
-	if (m_pMapRotation_List.size() > 1)
-		m_bMapRotation = true;
-	else
-		m_bMapRotation = false;
-};
-
-void game_sv_GameState::MapRotation_ListMaps()
-{
-	if (m_pMapRotation_List.empty())
-	{
-		Msg("- Currently there are no any maps in list.");
-		return;
-	}
-	CStringTable st;
-	Msg("- ----------- Maps ---------------");
-	for (u32 i = 0; i < m_pMapRotation_List.size(); i++)
-	{
-		SMapRot& R = m_pMapRotation_List[i];
-		if (i == 0)
-			Msg("~   %d. %s (%s) (current)", i + 1, st.translate(R.map_name).c_str(), R.map_name.c_str());
-		else
-			Msg("  %d. %s (%s)", i + 1, st.translate(R.map_name).c_str(), R.map_name.c_str());
-	}
-	Msg("- --------------------------------");
-};
-
 void game_sv_GameState::OnRoundStart()
 {
-	m_bMapNeedRotation = false;
-	m_bFastRestart = false;
-
 	for (int t = 0; t < TEAM_COUNT; t++)
 	{
 		for (u32 i = 0; i < rpoints[t].size(); i++)
@@ -1060,38 +997,7 @@ void game_sv_GameState::OnRoundStart()
 	rpointsBlocked.clear();
 } // старт раунда
 
-void game_sv_GameState::OnRoundEnd()
-{
-	if (round_end_reason == eRoundEnd_GameRestarted || round_end_reason == eRoundEnd_GameRestartedFast)
-	{
-		m_bMapNeedRotation = false;
-	}
-	else
-	{
-		m_bMapNeedRotation = true;
-	}
-
-	m_bFastRestart = false;
-	if (round_end_reason == eRoundEnd_GameRestartedFast)
-	{
-		m_bFastRestart = true;
-	}
-} // конец раунда
-
-void game_sv_GameState::SaveMapList()
-{
-	if (0 == MAPROT_LIST[0]) return;
-	if (m_pMapRotation_List.empty()) return;
-	IWriter* fs = FS.w_open(MAPROT_LIST);
-
-	while (m_pMapRotation_List.size())
-	{
-		SMapRot& R = m_pMapRotation_List.front();
-		fs->w_printf("sv_addmap %s/ver=%s\n", R.map_name.c_str(), R.map_ver.c_str());
-		m_pMapRotation_List.pop_front();
-	};
-	FS.w_close(fs);
-};
+// конец раунда
 
 shared_str game_sv_GameState::level_name(const shared_str& server_options) const
 {
@@ -1222,8 +1128,6 @@ void		game_sv_GameState::OnRender				()
 #endif
 //  [7/5/2005]
 
-BOOL game_sv_GameState::IsVotingEnabled() { return g_sv_base_iVotingEnabled != 0; };
-BOOL game_sv_GameState::IsVotingEnabled(u16 flag) { return (g_sv_base_iVotingEnabled & flag) != 0; };
 
 class NameSearcherPredicate
 {
