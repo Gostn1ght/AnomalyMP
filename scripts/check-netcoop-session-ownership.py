@@ -17,8 +17,11 @@ files = cluster[a:b]
 a = cluster.index('// ---- session lease:')
 b = cluster.index('// ---- transfer ticket',a)
 ownership = cluster[a:b]
-storage = engine[engine.index('if (pending->storage.active)'):engine.index('else send_auth_result(server, CL, true, a->role, "Account verified");')]
+storage = engine[engine.index('if (pending->storage.active)'):engine.index('characters_refresh_for_list(a->login.c_str());')]
 assert storage.index('cluster_on_login(') < storage.index('storage_execute(') < storage.index('cluster_lease_release(')
+# The menu's slot list is read from the files, never inside a storage transaction.
+listing = engine[engine.index('static void characters_refresh_for_list('):engine.index('static void auth_worker(')]
+assert 'character_commits_flush_account(account)' in listing and 's_pending_admission' in listing and 's_actor_character' in listing
 selection = engine[engine.index('if (!character_select(CL, pending->slot'):engine.index('if (Character* character = character_load(CL->netcoop_login')]
 assert selection.index('cluster_lease_release(') < selection.index('CL->netcoop_login = NULL')
 
