@@ -34,9 +34,7 @@ BOOL GodMode(const CActor* actor)
 	if (netcoop::enabled() && !netcoop::pure_client())
 		return actor && actor->ID() != 0
 			? netcoop::server_actor_god(actor) : psActorFlags.test(AF_GODMODE);
-	if (GameID() == eGameIDSingle)
-		return psActorFlags.test(AF_GODMODE | AF_GODMODE_RT);
-	return FALSE;
+	return psActorFlags.test(AF_GODMODE | AF_GODMODE_RT);
 }
 
 CActorCondition::CActorCondition(CActor* object) :
@@ -243,13 +241,10 @@ void CActorCondition::UpdateCondition()
 			ConditionStand(cur_weight / base_weight);
 		}
 
-		if (IsGameTypeSingle())
-		{
-			float k_max_power = k_max_power = 1.0f + _min(cur_weight, base_weight) / base_weight
-					+ _max(0.0f, (cur_weight - base_weight) / 10.0f);
-			float power_leak_speed = IsSleeping() ? m_fPowerLeakSpeedSleep : m_fPowerLeakSpeed;
-			SetMaxPower(GetMaxPower() - power_leak_speed * m_fDeltaTime * k_max_power);
-		}
+		float k_max_power = k_max_power = 1.0f + _min(cur_weight, base_weight) / base_weight
+				+ _max(0.0f, (cur_weight - base_weight) / 10.0f);
+		float power_leak_speed = IsSleeping() ? m_fPowerLeakSpeedSleep : m_fPowerLeakSpeed;
+		SetMaxPower(GetMaxPower() - power_leak_speed * m_fDeltaTime * k_max_power);
 	}
 	else
 	{
@@ -490,12 +485,6 @@ void CActorCondition::UpdateSatiety()
 {
 	float v_satiety_power = IsSleeping() ? m_fV_SatietyPowerSleep : m_fV_SatietyPower;
 	
-	if (!IsGameTypeSingle())
-	{
-		m_fDeltaPower += v_satiety_power * m_fDeltaTime;
-		return;
-	}
-
 	m_fSatiety += m_fSatietyChange;
 	clamp(m_fSatiety, 0.0f, 1.0f);
 	m_fSatietyChange = 0.0f;

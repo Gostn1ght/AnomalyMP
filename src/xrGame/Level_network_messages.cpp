@@ -13,7 +13,6 @@
 #include "ai_space.h"
 #include "saved_game_wrapper.h"
 #include "level_graph.h"
-#include "file_transfer.h"
 #include "../xrphysics/iphworld.h"
 
 extern LPCSTR map_ver_string;
@@ -473,11 +472,6 @@ void CLevel::ClientReceive()
 		case M_CHANGE_SELF_NAME:
 			{
 				net_OnChangeSelfName(P);
-			}
-			break;
-		case M_FILE_TRANSFER:
-			{
-				queue_game_event(*P);
 			}
 			break;
 		case M_SECURE_KEY_SYNC:

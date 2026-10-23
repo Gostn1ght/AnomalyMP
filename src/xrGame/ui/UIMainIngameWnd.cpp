@@ -79,7 +79,7 @@ const u32 g_clWhite = 0xffffffff;
 #define				MAININGAME_XML				"maingame.xml"
 
 CUIMainIngameWnd::CUIMainIngameWnd()
-	:/*m_pGrenade(NULL),m_pItem(NULL),*/m_pPickUpItem(NULL), m_pMPChatWnd(NULL), UIArtefactIcon(NULL), m_pMPLogWnd(NULL)
+	:/*m_pGrenade(NULL),m_pItem(NULL),*/m_pPickUpItem(NULL)
 {
 	UIZoneMap = xr_new<CUIZoneMap>();
 }
@@ -95,7 +95,6 @@ CUIMainIngameWnd::~CUIMainIngameWnd()
 	xr_delete(g_MissileForceShape);
 	xr_delete(UIWeaponJammedIcon);
 	xr_delete(UIInvincibleIcon);
-	xr_delete(UIArtefactIcon);
 }
 
 void CUIMainIngameWnd::Init()
@@ -191,13 +190,6 @@ void CUIMainIngameWnd::Init()
 	UIInvincibleIcon = UIHelper::CreateStatic(uiXml, "invincible_static", NULL);
 	UIInvincibleIcon->Show(false);
 
-
-	if ((GameID() == eGameIDArtefactHunt) || (GameID() == eGameIDCaptureTheArtefact))
-	{
-		UIArtefactIcon = UIHelper::CreateStatic(uiXml, "artefact_static", NULL);
-		UIArtefactIcon->Show(false);
-	}
-
 	shared_str warningStrings[7] =
 	{
 		"jammed",
@@ -288,17 +280,6 @@ void CUIMainIngameWnd::Draw()
 	}
 	FS.dwOpenCounter = 0;
 
-    if (!IsGameTypeSingle())
-    {
-        CActor* pActor = smart_cast<CActor*>(Level().CurrentViewEntity());
-        float luminocity = pActor->ROS()->get_luminocity();
-        float power = log(luminocity > .001f ? luminocity : .001f) * (1.f);
-        luminocity = exp(power);
-
-        static float cur_lum = luminocity;
-        cur_lum = luminocity * 0.01f + cur_lum * 0.99f;
-        pActor->SetVisibilityValue((s16)iFloor(cur_lum * 100.0f));
-    }
 	if (!pActor || !pActor->g_Alive()) return;
 
 	UIMotionIcon->SetNoise((s16)(0xffff & iFloor(pActor->m_snd_noise * 100)));
@@ -317,22 +298,10 @@ void CUIMainIngameWnd::Draw()
 	RenderQuickInfos();
 }
 
-void CUIMainIngameWnd::SetMPChatLog(CUIWindow* pChat, CUIWindow* pLog)
-{
-	m_pMPChatWnd = pChat;
-	m_pMPLogWnd = pLog;
-}
-
 void CUIMainIngameWnd::Update()
 {
 	CUIWindow::Update();
 	CActor* pActor = smart_cast<CActor*>(Level().CurrentViewEntity());
-
-	if (m_pMPChatWnd)
-		m_pMPChatWnd->Update();
-
-	if (m_pMPLogWnd)
-		m_pMPLogWnd->Update();
 
 	if (!pActor)
 		return;
@@ -359,22 +328,6 @@ void CUIMainIngameWnd::Update()
 	}
 
 	UpdateMainIndicators();
-	if (IsGameTypeSingle())
-		return;
-
-	// ewiArtefact
-	if (GameID() == eGameIDArtefactHunt)
-	{
-		bool b_Artefact = !!(pActor->inventory().ItemFromSlot(ARTEFACT_SLOT));
-		if (b_Artefact)
-		{
-			SetWarningIconColor(ewiArtefact, 0xffffff00);
-		}
-		else
-		{
-			SetWarningIconColor(ewiArtefact, 0x00ffffff);
-		}
-	}
 } //update
 
 
@@ -469,10 +422,6 @@ void CUIMainIngameWnd::SetWarningIconColor(EWarningIcons icon, const u32 cl)
 		SetWarningIconColorUI(UIInvincibleIcon, cl);
 		if (bMagicFlag) break;
 		break;
-	case ewiArtefact:
-		SetWarningIconColorUI(UIArtefactIcon, cl);
-		break;
-
 	default:
 		R_ASSERT(!"Unknown warning icon type");
 	}
@@ -658,8 +607,7 @@ void CUIMainIngameWnd::UpdateMainIndicators()
 		return;
 
 	UpdateQuickSlots();
-	if (IsGameTypeSingle())
-		CurrentGameUI()->GetPdaMenu().UpdateRankingWnd();
+	CurrentGameUI()->GetPdaMenu().UpdateRankingWnd();
 
 	u8 flags = 0;
 	flags |= LA_CYCLIC;

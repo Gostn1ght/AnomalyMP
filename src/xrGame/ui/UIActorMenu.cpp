@@ -48,17 +48,10 @@ void CUIActorMenu::SetActor(CInventoryOwner* io)
 	m_last_time = Device.dwTimeGlobal;
 	m_pActorInvOwner = io;
 
-	if (IsGameTypeSingle())
-	{
-		if (io)
-			m_ActorCharacterInfo->InitCharacter(m_pActorInvOwner->object_id());
-		else
-			m_ActorCharacterInfo->ClearInfo();
-	}
+	if (io)
+		m_ActorCharacterInfo->InitCharacter(m_pActorInvOwner->object_id());
 	else
-	{
-		UpdateActorMP();
-	}
+		m_ActorCharacterInfo->ClearInfo();
 }
 
 void CUIActorMenu::SetPartner(CInventoryOwner* io)

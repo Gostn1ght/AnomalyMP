@@ -76,11 +76,8 @@ protected:
 	// - усталости
 	CUIStatic* UIWeaponJammedIcon;
 	CUIStatic* UIInvincibleIcon;
-	CUIStatic* UIArtefactIcon;
 
 	CUIScrollView* m_UIIcons;
-	CUIWindow* m_pMPChatWnd;
-	CUIWindow* m_pMPLogWnd;
 
 public:
 	// Енумы соответсвующие предупреждающим иконкам 
@@ -89,10 +86,7 @@ public:
 		ewiAll = 0,
 		ewiWeaponJammed,
 		ewiInvincible,
-		ewiArtefact,
 	};
-
-	void SetMPChatLog(CUIWindow* pChat, CUIWindow* pLog);
 
 	// Задаем цвет соответствующей иконке
 	void SetWarningIconColor(EWarningIcons icon, const u32 cl);

@@ -169,8 +169,7 @@ void CMapManager::RemoveMapLocation(const shared_str& spot_type, u16 id)
 	Locations_it it = std::find_if(Locations().begin(), Locations().end(), key);
 	if (it != Locations().end())
 	{
-		if (IsGameTypeSingle())
-			release_task_location((*it).location);
+		release_task_location((*it).location);
 
 		Destroy((*it).location);
 		Locations().erase(it);
@@ -182,8 +181,7 @@ void CMapManager::RemoveAllMapLocationsById(u16 id)
 {
 	for (Locations_it it = Locations().begin(); it != Locations().end(); ) {
 		if (it->object_id == id) {
-			if (IsGameTypeSingle())
-				release_task_location((*it).location);
+			release_task_location((*it).location);
 			Destroy((*it).location);
 			it = Locations().erase(it);
 		} else {
@@ -198,8 +196,7 @@ void CMapManager::RemoveMapLocationByObjectID(u16 id) //call on destroy object
 	Locations_it it = std::find_if(Locations().begin(), Locations().end(), key);
 	while (it != Locations().end())
 	{
-		if (IsGameTypeSingle())
-			release_task_location((*it).location);
+		release_task_location((*it).location);
 
 		Destroy((*it).location);
 		Locations().erase(it);
@@ -215,8 +212,7 @@ void CMapManager::RemoveMapLocation(CMapLocation* ml)
 	Locations_it it = std::find_if(Locations().begin(), Locations().end(), key);
 	if (it != Locations().end())
 	{
-		if (IsGameTypeSingle())
-			release_task_location((*it).location);
+		release_task_location((*it).location);
 
 		Destroy((*it).location);
 		Locations().erase(it);
@@ -296,8 +292,7 @@ void CMapManager::Update()
 
 	while ((!Locations().empty()) && (!Locations().back().actual))
 	{
-		if (IsGameTypeSingle())
-			release_task_location(Locations().back().location);
+		release_task_location(Locations().back().location);
 
 		Destroy(Locations().back().location);
 		Locations().pop_back();

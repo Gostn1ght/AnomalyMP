@@ -5856,12 +5856,6 @@
     <ClInclude Include="ParticlesObject.h">
       <Filter>Core\Client\Particles</Filter>
     </ClInclude>
-    <ClInclude Include="Spectator.h">
-      <Filter>Core\Client\Spectator</Filter>
-    </ClInclude>
-    <ClInclude Include="spectator_camera_first_eye.h">
-      <Filter>Core\Client\Spectator\Cameras</Filter>
-    </ClInclude>
     <ClInclude Include="date_time.h">
       <Filter>Core\Common\DateTime</Filter>
     </ClInclude>
@@ -5988,9 +5982,6 @@
     <ClInclude Include="xrServer.h">
       <Filter>Core\Server</Filter>
     </ClInclude>
-    <ClInclude Include="xrServer_info.h">
-      <Filter>Core\Server</Filter>
-    </ClInclude>
     <ClInclude Include="..\xrServerEntities\xrServer_Space.h">
       <Filter>Core\Server</Filter>
     </ClInclude>
@@ -6089,18 +6080,6 @@
     </ClInclude>
     <ClInclude Include="xrServer_svclient_validation.h">
       <Filter>Core\Server\ServerProcess</Filter>
-    </ClInclude>
-    <ClInclude Include="file_transfer.h">
-      <Filter>Core\Server\filetransfer</Filter>
-    </ClInclude>
-    <ClInclude Include="filereceiver_node.h">
-      <Filter>Core\Server\filetransfer</Filter>
-    </ClInclude>
-    <ClInclude Include="filetransfer_common.h">
-      <Filter>Core\Server\filetransfer</Filter>
-    </ClInclude>
-    <ClInclude Include="filetransfer_node.h">
-      <Filter>Core\Server\filetransfer</Filter>
     </ClInclude>
     <ClInclude Include="ui_base.h">
       <Filter>UI</Filter>
@@ -8969,12 +8948,6 @@
     <ClCompile Include="ParticlesObject.cpp">
       <Filter>Core\Client\Particles</Filter>
     </ClCompile>
-    <ClCompile Include="Spectator.cpp">
-      <Filter>Core\Client\Spectator</Filter>
-    </ClCompile>
-    <ClCompile Include="spectator_camera_first_eye.cpp">
-      <Filter>Core\Client\Spectator\Cameras</Filter>
-    </ClCompile>
     <ClCompile Include="console_commands.cpp">
       <Filter>Core\Common\Console Commands</Filter>
     </ClCompile>
@@ -9030,9 +9003,6 @@
       <Filter>Core\Server</Filter>
     </ClCompile>
     <ClCompile Include="xrServer_balance.cpp">
-      <Filter>Core\Server</Filter>
-    </ClCompile>
-    <ClCompile Include="xrServer_info.cpp">
       <Filter>Core\Server</Filter>
     </ClCompile>
     <ClCompile Include="xrServer_updates_compressor.cpp">
@@ -9190,15 +9160,6 @@
     </ClCompile>
     <ClCompile Include="xrServer_svclient_validation.cpp">
       <Filter>Core\Server\ServerProcess</Filter>
-    </ClCompile>
-    <ClCompile Include="file_transfer.cpp">
-      <Filter>Core\Server\filetransfer</Filter>
-    </ClCompile>
-    <ClCompile Include="filereceiver_node.cpp">
-      <Filter>Core\Server\filetransfer</Filter>
-    </ClCompile>
-    <ClCompile Include="filetransfer_node.cpp">
-      <Filter>Core\Server\filetransfer</Filter>
     </ClCompile>
     <ClCompile Include="xrServer_CL_connect.cpp">
       <Filter>Core\Server\ServerConnect</Filter>

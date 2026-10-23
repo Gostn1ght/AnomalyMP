@@ -165,8 +165,6 @@ void CActor::StartTalk(CInventoryOwner* talk_partner)
 
 void CActor::NewPdaContact(CInventoryOwner* pInvOwner)
 {
-	if (!IsGameTypeSingle()) return;
-
 	if (!g_dedicated_server)
 	{
 		bool b_alive = !!(smart_cast<CEntityAlive*>(pInvOwner))->g_Alive();

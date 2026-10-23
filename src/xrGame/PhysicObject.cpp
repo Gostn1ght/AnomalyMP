@@ -468,11 +468,6 @@ void CPhysicObject::UpdateCL()
 		m_pPhysicsShell->AnimatorOnFrame();
 	}
 
-	if (!IsGameTypeSingle())
-	{
-		Interpolate();
-	}
-
 	m_anim_script_callback.update(*this);
 	PHObjectPositionUpdate();
 

@@ -186,12 +186,8 @@ public:
 	virtual CInventoryItem* can_kill(CInventory* inventory) const;
 	virtual const CInventoryItem* can_kill(const xr_vector<const CGameObject*>& items) const;
 	virtual bool ready_to_kill() const;
-	virtual bool NeedToDestroyObject() const;
-	virtual ALife::_TIME_ID TimePassedAfterIndependant() const;
 protected:
 	//âðåìÿ óäàëåíèÿ îðóæèÿ
-	ALife::_TIME_ID m_dwWeaponRemoveTime;
-	ALife::_TIME_ID m_dwWeaponIndependencyTime;
 
 	virtual bool IsHudModeNow();
 	virtual bool SOParentIsActor() { return ParentIsActor(); }

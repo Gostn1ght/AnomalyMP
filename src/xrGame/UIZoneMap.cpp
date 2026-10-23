@@ -122,17 +122,14 @@ void CUIZoneMap::Init()
 	rel_pos.mul(m_background.GetWndSize());
 	m_clock_wnd->SetWndPos(rel_pos);
 
-	if (IsGameTypeSingle())
-	{
-		xml_init.InitStatic(uiXml, "minimap:static_counter", 0, &m_Counter);
-		m_background.AttachChild(&m_Counter);
-		xml_init.InitTextWnd(uiXml, "minimap:static_counter:text_static", 0, &m_Counter_text);
-		m_Counter.AttachChild(&m_Counter_text);
+	xml_init.InitStatic(uiXml, "minimap:static_counter", 0, &m_Counter);
+	m_background.AttachChild(&m_Counter);
+	xml_init.InitTextWnd(uiXml, "minimap:static_counter:text_static", 0, &m_Counter_text);
+	m_Counter.AttachChild(&m_Counter_text);
 
-		rel_pos = m_Counter.GetWndPos();
-		rel_pos.mul(m_background.GetWndSize());
-		m_Counter.SetWndPos(rel_pos);
-	}
+	rel_pos = m_Counter.GetWndPos();
+	rel_pos.mul(m_background.GetWndSize());
+	m_Counter.SetWndPos(rel_pos);
 }
 
 void CUIZoneMap::Render()

@@ -40,7 +40,6 @@
 #include "actor.h"
 #include "player_hud.h"
 #include "UI/UIGameTutorial.h"
-#include "file_transfer.h"
 #include "CustomDetector.h"
 #include "xrPhysics/IPHWorld.h"
 #include "xrPhysics/console_vars.h"
@@ -889,13 +888,6 @@ void CLevel::ProcessGameEvents()
 					auto& PRespond = data->PRespond;
 					PRespond.w_begin(M_MOVE_PLAYERS_RESPOND);
 					Send(PRespond, net_flags(TRUE, TRUE));
-					break;
-				}
-			case M_FILE_TRANSFER:
-				{
-					PROF_EVENT("ProcessGameEvents M_FILE_TRANSFER");
-					if (m_file_transfer) // in case of net_Stop
-						m_file_transfer->on_message(&P);
 					break;
 				}
 			case M_GAMEMESSAGE:

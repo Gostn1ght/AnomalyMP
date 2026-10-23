@@ -162,10 +162,7 @@ void CMissile::OnActiveItem()
 void CMissile::OnHiddenItem()
 {
 	//. -Hide
-	if (IsGameTypeSingle())
-		SwitchState(eHiding);
-	else
-		SwitchState(eHidden);
+	SwitchState(eHiding);
 	//-
 
 	inherited::OnHiddenItem();

@@ -89,85 +89,50 @@ void CHUDRecon::Update(const SPickParam& pp)
 			CEntityAlive* pCurEnt = smart_cast<CEntityAlive*>(Level().CurrentEntity());
 			PIItem l_pI = smart_cast<PIItem>(O);
 
-			if (IsGameTypeSingle())
+			CInventoryOwner* our_inv_owner = smart_cast<CInventoryOwner*>(pCurEnt);
+
+			if (EA && EA->g_Alive() && EA->cast_base_monster())
 			{
-				CInventoryOwner* our_inv_owner = smart_cast<CInventoryOwner*>(pCurEnt);
+				color = C_ON_ENEMY;
+			}
+			else if (EA && EA->g_Alive() && !EA->cast_base_monster())
+			{
+				CInventoryOwner* others_inv_owner = smart_cast<CInventoryOwner*>(EA);
 
-				if (EA && EA->g_Alive() && EA->cast_base_monster())
+				if (our_inv_owner && others_inv_owner)
 				{
-					color = C_ON_ENEMY;
-				}
-				else if (EA && EA->g_Alive() && !EA->cast_base_monster())
-				{
-					CInventoryOwner* others_inv_owner = smart_cast<CInventoryOwner*>(EA);
-
-					if (our_inv_owner && others_inv_owner)
+					switch (RELATION_REGISTRY().GetRelationType(others_inv_owner, our_inv_owner))
 					{
-						switch (RELATION_REGISTRY().GetRelationType(others_inv_owner, our_inv_owner))
-						{
-						case ALife::eRelationTypeEnemy:
-							color = C_ON_ENEMY;
-							break;
-						case ALife::eRelationTypeNeutral:
-							color = C_ON_NEUTRAL;
-							break;
-						case ALife::eRelationTypeFriend:
-							color = C_ON_FRIEND;
-							break;
-						}
-
-						if (fuzzyShowInfo > 0.5f)
-						{
-							CStringTable strtbl;
-							line1 = strtbl.translate(others_inv_owner->Name()).c_str();
-							line2 = strtbl.translate(others_inv_owner->CharacterInfo().Community().id()).c_str();
-						}
+					case ALife::eRelationTypeEnemy:
+						color = C_ON_ENEMY;
+						break;
+					case ALife::eRelationTypeNeutral:
+						color = C_ON_NEUTRAL;
+						break;
+					case ALife::eRelationTypeFriend:
+						color = C_ON_FRIEND;
+						break;
 					}
 
-					fuzzyShowInfo += recon_show_speed * Device.fTimeDelta;
-				}
-				else if (l_pI && our_inv_owner && dist < 2.0f * 2.0f)
-				{
-					fuzzyShowInfo += recon_show_speed * Device.fTimeDelta;
-					if (fuzzyShowInfo > 0.5f && l_pI->NameItem())
+					if (fuzzyShowInfo > 0.5f)
 					{
-						line1 = l_pI->NameItem();
+						CStringTable strtbl;
+						line1 = strtbl.translate(others_inv_owner->Name()).c_str();
+						line2 = strtbl.translate(others_inv_owner->CharacterInfo().Community().id()).c_str();
 					}
+				}
+
+				fuzzyShowInfo += recon_show_speed * Device.fTimeDelta;
+			}
+			else if (l_pI && our_inv_owner && dist < 2.0f * 2.0f)
+			{
+				fuzzyShowInfo += recon_show_speed * Device.fTimeDelta;
+				if (fuzzyShowInfo > 0.5f && l_pI->NameItem())
+				{
+					line1 = l_pI->NameItem();
 				}
 			}
-			else
-			{
-				if (EA && (EA->GetfHealth() > 0))
-				{
-					if (pCurEnt && GameID() & eGameIDSingle)
-					{
-						if (GameID() & eGameIDDeathmatch) color = C_ON_ENEMY;
-						else
-						{
-							if (EA->g_Team() != pCurEnt->g_Team()) color = C_ON_ENEMY;
-							else color = C_ON_FRIEND;
-						};
-						if (dist >= recon_mindist && dist <= recon_maxdist)
-						{
-							float ddist = (dist - recon_mindist) / (recon_maxdist - recon_mindist);
-							float dspeed = recon_minspeed + (recon_maxspeed - recon_minspeed) * ddist;
-							fuzzyShowInfo += Device.fTimeDelta / dspeed;
-						}
-						else
-						{
-							if (dist < recon_mindist)
-								fuzzyShowInfo += recon_minspeed * Device.fTimeDelta;
-							else
-								fuzzyShowInfo = 0;
-						};
-
-						if (fuzzyShowInfo > 0.5f)
-						{
-							line1 = pp.result.O->cName().c_str();
-						}
-					}
-				};
-			};
+		;
 		}
 		else
 		{

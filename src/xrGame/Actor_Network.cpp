@@ -1106,11 +1106,6 @@ BOOL CActor::net_Spawn(CSE_Abstract* DC)
 
 	Engine.Sheduler.Register(this,TRUE);
 
-	if (!IsGameTypeSingle())
-	{
-		setEnabled(TRUE);
-	}
-
 	m_hit_slowmo = 0.f;
 
 	OnChangeVisual();
@@ -1121,10 +1116,7 @@ BOOL CActor::net_Spawn(CSE_Abstract* DC)
 	m_bInInterpolation = false;
 	m_bInterpolate = false;
 
-	//	if (GameID() != eGameIDSingle)
-	{
-		processing_activate();
-	}
+	processing_activate();
 
 #ifdef DEBUG
 	LastPosS.clear();
@@ -1190,13 +1182,10 @@ BOOL CActor::net_Spawn(CSE_Abstract* DC)
 	m_bWasHitted = false;
 	m_dwILastUpdateTime = 0;
 
-	if (IsGameTypeSingle())
-	{
-		Level().MapManager().AddMapLocation("actor_location", ID());
-		Level().MapManager().AddMapLocation("actor_location_p", ID());
+	Level().MapManager().AddMapLocation("actor_location", ID());
+	Level().MapManager().AddMapLocation("actor_location_p", ID());
 
-		m_statistic_manager = xr_new<CActorStatisticMgr>();
-	}
+	m_statistic_manager = xr_new<CActorStatisticMgr>();
 
 
 	spatial.type |= STYPE_REACTTOSOUND;
@@ -2650,21 +2639,6 @@ bool CActor::InventoryAllowSprint()
 
 	return true;
 };
-
-BOOL CActor::BonePassBullet(int boneID)
-{
-	if (GameID() == eGameIDSingle) return inherited::BonePassBullet(boneID);
-
-	CCustomOutfit* pOutfit = GetOutfit();
-	if (!pOutfit)
-	{
-		IKinematics* V = smart_cast<IKinematics*>(Visual());
-		VERIFY(V);
-		CBoneInstance& bone_instance = V->LL_GetBoneInstance(u16(boneID));
-		return (bone_instance.get_param(3) > 0.5f);
-	}
-	return pOutfit->BonePassBullet(boneID);
-}
 
 void CActor::On_B_NotCurrentEntity()
 {

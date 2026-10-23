@@ -23,7 +23,6 @@
 #include "../xrphysics/tri-colliderknoopc/dctriangle.h"
 #endif
 
-#define GRENADE_REMOVE_TIME		30000
 const float default_grenade_detonation_threshold_hit = 100;
 
 CGrenade::CGrenade(void)
@@ -43,12 +42,6 @@ void CGrenade::Load(LPCSTR section)
 	inherited::Load(section);
 	CExplosive::Load(section);
 
-	//////////////////////////////////////
-	//время убирания оружия с уровня
-	if (pSettings->line_exist(section, "grenade_remove_time"))
-		m_dwGrenadeRemoveTime = pSettings->r_u32(section, "grenade_remove_time");
-	else
-		m_dwGrenadeRemoveTime = GRENADE_REMOVE_TIME;
 	m_grenade_detonation_threshold_hit = READ_IF_EXISTS(pSettings, r_float, section, "detonation_threshold_hit",
 	                                                    default_grenade_detonation_threshold_hit);
 
@@ -71,7 +64,6 @@ void CGrenade::Hit(SHit* pHDS)
 
 BOOL CGrenade::net_Spawn(CSE_Abstract* DC)
 {
-	m_dwGrenadeIndependencyTime = 0;
 	BOOL ret = inherited::net_Spawn(DC);
 	Fvector box;
 	BoundingBox().getsize(box);
@@ -100,15 +92,8 @@ void CGrenade::OnH_B_Independent(bool just_before_destroy)
 	inherited::OnH_B_Independent(just_before_destroy);
 }
 
-void CGrenade::OnH_A_Independent()
-{
-	m_dwGrenadeIndependencyTime = Level().timeServer();
-	inherited::OnH_A_Independent();
-}
-
 void CGrenade::OnH_A_Chield()
 {
-	m_dwGrenadeIndependencyTime = 0;
 	m_dwDestroyTime = 0xffffffff;
 	inherited::OnH_A_Chield();
 }
@@ -157,13 +142,10 @@ bool CGrenade::DropGrenade()
 
 void CGrenade::DiscardState()
 {
-	if (IsGameTypeSingle())
+	u32 state = GetState();
+	if (state == eReady || state == eThrow)
 	{
-		u32 state = GetState();
-		if (state == eReady || state == eThrow)
-		{
-			OnStateSwitch(eIdle, state);
-		}
+		OnStateSwitch(eIdle, state);
 	}
 }
 
@@ -327,8 +309,6 @@ void CGrenade::UpdateCL()
 	inherited::UpdateCL();
 	CExplosive::UpdateCL();
 
-	if (!IsGameTypeSingle()) make_Interpolation();
-
 #ifdef EXPLOSIVE_CHANGE
 	ContactUpdateCL();
 #endif
@@ -353,26 +333,6 @@ bool CGrenade::Action(u16 cmd, u32 flags)
 		};
 	}
 	return false;
-}
-
-
-bool CGrenade::NeedToDestroyObject() const
-{
-	if (netcoop::enabled()) return false; // dropped grenade TTL, separate from an armed fuse
-	if (IsGameTypeSingle()) return false;
-	if (Remote()) return false;
-	if (TimePassedAfterIndependant() > m_dwGrenadeRemoveTime)
-		return true;
-
-	return false;
-}
-
-ALife::_TIME_ID CGrenade::TimePassedAfterIndependant() const
-{
-	if (!H_Parent() && m_dwGrenadeIndependencyTime != 0)
-		return Level().timeServer() - m_dwGrenadeIndependencyTime;
-	else
-		return 0;
 }
 
 BOOL CGrenade::UsedAI_Locations()

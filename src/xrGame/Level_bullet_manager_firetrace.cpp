@@ -287,7 +287,7 @@ void CBulletManager::DynamicObjectHit(CBulletManager::_event& E)
 	}
 
 	if (g_clear) E.Repeated = false;
-	if (GameID() == eGameIDSingle) E.Repeated = false;
+	E.Repeated = false;
 	bool NeedShootmark = true; //!E.Repeated;
 
 	if (smart_cast<CActor*>(E.R.O))

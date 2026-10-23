@@ -32,8 +32,6 @@
 #	include "debug_renderer.h"
 #endif
 
-#define ITEM_REMOVE_TIME		30000
-
 net_updateInvData* CInventoryItem::NetSync()
 {
 	if (!m_net_updateData)
@@ -213,7 +211,6 @@ void CInventoryItem::OnH_B_Independent(bool just_before_destroy)
 
 void CInventoryItem::OnH_A_Independent()
 {
-	m_dwItemIndependencyTime = Level().timeServer();
 	m_ItemCurrPlace.type = eItemPlaceUndefined;
 	inherited::OnH_A_Independent();
 	netcoop_make_kinematic();
@@ -367,10 +364,6 @@ void CInventoryItem::UpdateCL()
 	}
 
 #endif
-	if (!IsGameTypeSingle())
-	{
-		Interpolate();
-	}
 	netcoop_make_kinematic();
 	netcoop_smooth_update();
 }
@@ -434,18 +427,7 @@ bool CInventoryItem::Detach(const char* item_section_name, bool b_spawn_item)
 		//.		D->s_gameid			=	u8(GameID());
 		D->s_RP = 0xff;
 		D->ID = 0xffff;
-		if (GameID() == eGameIDSingle)
-		{
-			D->ID_Parent = u16(object().H_Parent()->ID());
-		}
-		else // i'm not sure this is right
-		{
-			// but it is simpliest way to avoid exception in MP BuyWnd... [Satan]
-			if (object().H_Parent())
-				D->ID_Parent = u16(object().H_Parent()->ID());
-			else
-				D->ID_Parent = 0xffff;
-		}
+		D->ID_Parent = u16(object().H_Parent()->ID());
 		D->ID_Phantom = 0xffff;
 		D->o_Position = object().Position();
 		D->s_flags.assign(M_SPAWN_OBJECT_LOCAL);
@@ -484,15 +466,7 @@ BOOL CInventoryItem::net_Spawn(CSE_Abstract* DC)
 	//!!!
 	m_fCondition = pSE_InventoryItem->m_fCondition;
 
-	if (IsGameTypeSingle())
-	{
-		net_Spawn_install_upgrades(pSE_InventoryItem->m_upgrades);
-	}
-
-	if (GameID() != eGameIDSingle)
-		object().processing_activate();
-
-	m_dwItemIndependencyTime = 0;
+	net_Spawn_install_upgrades(pSE_InventoryItem->m_upgrades);
 
 	m_just_after_spawn = true;
 	m_activated = false;
@@ -1580,30 +1554,6 @@ void CInventoryItem::modify_holder_params(float& range, float& fov) const
 	fov *= m_holder_fov_modifier;
 }
 
-bool CInventoryItem::NeedToDestroyObject() const
-{
-	if (netcoop::enabled()) return false; // persistent ground items have no age TTL
-	if (GameID() == eGameIDSingle)
-		return false;
-
-	if (GameID() == eGameIDCaptureTheArtefact)
-		return false;
-
-	if (object().Remote()) return false;
-	if (TimePassedAfterIndependant() > ITEM_REMOVE_TIME)
-		return true;
-
-	return false;
-}
-
-ALife::_TIME_ID CInventoryItem::TimePassedAfterIndependant() const
-{
-	if (!object().H_Parent() && m_dwItemIndependencyTime != 0)
-		return Level().timeServer() - m_dwItemIndependencyTime;
-	else
-		return 0;
-}
-
 bool CInventoryItem::CanTrade() const
 {
 	bool res = true;
@@ -1675,21 +1625,7 @@ void CInventoryItem::SetDropManual(BOOL val)
 	m_flags.set(FdropManual, val);
 
 #ifdef DEBUG
-	if (!IsGameTypeSingle())
-	{
-		if (!!m_name)
-		{
-			Msg("! WARNING: trying to set drop manual flag to item [%d][%s] to %d", object_id(), m_name.c_str(), val);
-		}
-	}
 #endif // #ifdef DEBUG
-	if (!IsGameTypeSingle())
-	{
-		if (val == TRUE)
-			DenyTrade();
-		else
-			AllowTrade();
-	}
 }
 
 bool CInventoryItem::has_network_synchronization() const

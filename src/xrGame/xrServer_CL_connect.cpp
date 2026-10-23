@@ -120,8 +120,7 @@ void xrServer::SendConnectionData(IClient* _CL)
 	for (; I != E; ++I) I->second->net_Processed = FALSE;
 	for (I = entities.begin(); I != E; ++I) Perform_connect_spawn(I->second, CL, P);
 
-	// Start to send server logo and rules
-	SendServerInfoToClient(CL->ID);
+	SendConfigFinished(CL->ID);
 
 	/*
 		Msg("--- Our sended SPAWN IDs:");

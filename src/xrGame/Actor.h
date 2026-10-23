@@ -216,10 +216,6 @@ public:
 
 	virtual bool unlimited_ammo();
 
-	virtual bool NeedToDestroyObject() const;
-	virtual ALife::_TIME_ID TimePassedAfterDeath() const;
-
-
 public:
 
 	//свойства артефактов
@@ -827,11 +823,6 @@ protected:
 #ifdef DEBUG
         friend class CLevelGraph;
 #endif
-	Fvector m_AutoPickUp_AABB;
-	Fvector m_AutoPickUp_AABB_Offset;
-
-	void Check_for_AutoPickUp();
-	void SelectBestWeapon(CObject* O);
 public:
 	void SetWeaponHideState(u16 State, bool bSet);
 private: //IPhysicsShellHolder
@@ -909,7 +900,6 @@ public:
 	IC float HitProbability() { return m_hit_probability; }
 	virtual CVisualMemoryManager* visual_memory() const;
 
-	virtual BOOL BonePassBullet(int boneID);
 	virtual void On_B_NotCurrentEntity();
 
 private:

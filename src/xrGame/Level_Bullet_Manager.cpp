@@ -185,10 +185,6 @@ CBulletManager::~CBulletManager()
 void CBulletManager::Load()
 {
 	char const* bullet_manager_sect = "bullet_manager";
-	if (!IsGameTypeSingle())
-	{
-		bullet_manager_sect = "mp_bullet_manager";
-	}
 	m_fTracerWidth = pSettings->r_float(bullet_manager_sect, "tracer_width");
 	m_fTracerLengthMax = pSettings->r_float(bullet_manager_sect, "tracer_length_max");
 	m_fTracerLengthMin = pSettings->r_float(bullet_manager_sect, "tracer_length_min");
@@ -1349,19 +1345,7 @@ void CBulletManager::RegisterEvent(EventType Type, BOOL _dynamic, SBullet* bulle
 				//	bullet->targetID = R.O->ID();
 
 				E.Repeated = (R.O->ID() == E.bullet.targetID);
-				if (GameID() == eGameIDSingle)
-				{
-					bullet->targetID = R.O->ID();
-				}
-				else
-				{
-					if (bullet->targetID != R.O->ID())
-					{
-						CGameObject* pGO = smart_cast<CGameObject*>(R.O);
-						if (!pGO || !pGO->BonePassBullet(R.element))
-							bullet->targetID = R.O->ID();
-					}
-				}
+				bullet->targetID = R.O->ID();
 			};
 		}
 		break;

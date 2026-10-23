@@ -94,22 +94,19 @@ void CUIPdaWnd::Init()
 	CUIXmlInit::InitProgressBar(uiXml, "battery_bar", 0, m_battery_bar);
 	m_battery_bar->Show(true);
 
-	if (IsGameTypeSingle())
-	{
-		pUITaskWnd = xr_new<CUITaskWnd>();
-		pUITaskWnd->hint_wnd = m_hint_wnd;
-		pUITaskWnd->Init();
+	pUITaskWnd = xr_new<CUITaskWnd>();
+	pUITaskWnd->hint_wnd = m_hint_wnd;
+	pUITaskWnd->Init();
 
-		//-		pUIFactionWarWnd				= xr_new<CUIFactionWarWnd>();
-		//-		pUIFactionWarWnd->hint_wnd		= m_hint_wnd;
-		//-		pUIFactionWarWnd->Init			();
+	//-		pUIFactionWarWnd				= xr_new<CUIFactionWarWnd>();
+	//-		pUIFactionWarWnd->hint_wnd		= m_hint_wnd;
+	//-		pUIFactionWarWnd->Init			();
 
-		pUIRankingWnd = xr_new<CUIRankingWnd>();
-		pUIRankingWnd->Init();
+	pUIRankingWnd = xr_new<CUIRankingWnd>();
+	pUIRankingWnd->Init();
 
-		pUILogsWnd = xr_new<CUILogsWnd>();
-		pUILogsWnd->Init();
-	}
+	pUILogsWnd = xr_new<CUILogsWnd>();
+	pUILogsWnd->Init();
 
 	UITabControl = xr_new<CUITabControl>();
 	UITabControl->SetAutoDelete(true);

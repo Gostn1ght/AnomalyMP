@@ -360,8 +360,7 @@ void CActor::Load(LPCSTR section)
 	CInventoryOwner::Load(section);
 	m_location_manager->Load(section);
 
-	if (GameID() == eGameIDSingle)
-		OnDifficultyChanged();
+	OnDifficultyChanged();
 	//////////////////////////////////////////////////////////////////////////
 	ISpatial* self = smart_cast<ISpatial*>(this);
 	if (self)
@@ -513,11 +512,6 @@ void CActor::Load(LPCSTR section)
 
 	invincibility_fire_shield_1st = READ_IF_EXISTS(pSettings, r_string, section, "Invincibility_Shield_1st", 0);
 	invincibility_fire_shield_3rd = READ_IF_EXISTS(pSettings, r_string, section, "Invincibility_Shield_3rd", 0);
-	//-----------------------------------------
-	m_AutoPickUp_AABB = READ_IF_EXISTS(pSettings, r_fvector3, section, "AutoPickUp_AABB",
-	                                   Fvector().set(0.02f, 0.02f, 0.02f));
-	m_AutoPickUp_AABB_Offset = READ_IF_EXISTS(pSettings, r_fvector3, section, "AutoPickUp_AABB_offs",
-	                                          Fvector().set(0, 0, 0));
 
 	CStringTable string_table;
 	m_sCharacterUseAction = "character_use";
@@ -669,93 +663,56 @@ void CActor::Hit(SHit* pHDS)
 			HitMark(HDS.damage(), HDS.dir, HDS.who, HDS.bone(), HDS.p_in_bone_space, HDS.impulse, HDS.hit_type);
 	}
 
-	if (IsGameTypeSingle())
+	if (GodMode(this))
 	{
-		if (GodMode(this))
-		{
-			HDS.power = 0.0f;
-			inherited::Hit(&HDS);
-			return;
-		}
-		else
-		{
-			if (g_Alive())
-			{
-				CScriptHit tLuaHit(&HDS);
-
-				::luabind::functor<bool> funct;
-				if (ai().script_engine().functor("_G.CActor__BeforeHitCallback", funct))
-				{
-					if (!funct(this->lua_game_object(), &tLuaHit, HDS.boneID))
-						return;
-				}
-
-				HDS.ApplyScriptHit(&tLuaHit);
-				HDS.power = HitArtefactsOnBelt(HDS.damage(), HDS.hit_type);
-				HDS.add_wound = true;
-
-				/* AVO: send script callback*/
-				callback(GameObject::eHit)(
-					this->lua_game_object(),
-					HDS.damage(),
-					HDS.direction(),
-					HDS.who ? smart_cast<const CGameObject*>(HDS.who)->lua_game_object() : 0,
-					HDS.boneID
-				);
-			}
-			inherited::Hit(&HDS);
-		}
-
-		/* AVO: rewritten above and added hit callback*/
-		/*float hit_power = HitArtefactsOnBelt(HDS.damage(), HDS.hit_type);
-
-		if (GodMode(this))
-		{
 		HDS.power = 0.0f;
 		inherited::Hit(&HDS);
 		return;
-		}
-		else
-		{
-		HDS.power = hit_power;
-		HDS.add_wound = true;
-		inherited::Hit(&HDS);
-		}*/
 	}
 	else
 	{
-		m_bWasBackStabbed = false;
-		if (HDS.hit_type == ALife::eHitTypeWound_2 && Check_for_BackStab_Bone(HDS.bone()))
+		if (g_Alive())
 		{
-			// convert impulse into local coordinate system
-			Fmatrix mInvXForm;
-			mInvXForm.invert(XFORM());
-			Fvector vLocalDir;
-			mInvXForm.transform_dir(vLocalDir, HDS.dir);
-			vLocalDir.invert();
+			CScriptHit tLuaHit(&HDS);
 
-			Fvector a = {0, 0, 1};
-			float res = a.dotproduct(vLocalDir);
-			if (res < -0.707)
+			::luabind::functor<bool> funct;
+			if (ai().script_engine().functor("_G.CActor__BeforeHitCallback", funct))
 			{
-				game_PlayerState* ps = Game().GetPlayerByGameID(ID());
-
-				if (!ps || !ps->testFlag(GAME_PLAYER_FLAG_INVINCIBLE))
-					m_bWasBackStabbed = true;
+				if (!funct(this->lua_game_object(), &tLuaHit, HDS.boneID))
+					return;
 			}
-		};
 
-		float hit_power = 0.0f;
+			HDS.ApplyScriptHit(&tLuaHit);
+			HDS.power = HitArtefactsOnBelt(HDS.damage(), HDS.hit_type);
+			HDS.add_wound = true;
 
-		if (m_bWasBackStabbed)
-			hit_power = (HDS.damage() == 0) ? 0 : 100000.0f;
-		else
-			hit_power = HitArtefactsOnBelt(HDS.damage(), HDS.hit_type);
-
-		HDS.power = hit_power;
-		HDS.add_wound = true;
+			/* AVO: send script callback*/
+			callback(GameObject::eHit)(
+				this->lua_game_object(),
+				HDS.damage(),
+				HDS.direction(),
+				HDS.who ? smart_cast<const CGameObject*>(HDS.who)->lua_game_object() : 0,
+				HDS.boneID
+			);
+		}
 		inherited::Hit(&HDS);
 	}
+
+	/* AVO: rewritten above and added hit callback*/
+	/*float hit_power = HitArtefactsOnBelt(HDS.damage(), HDS.hit_type);
+
+	if (GodMode(this))
+	{
+	HDS.power = 0.0f;
+	inherited::Hit(&HDS);
+	return;
+	}
+	else
+	{
+	HDS.power = hit_power;
+	HDS.add_wound = true;
+	inherited::Hit(&HDS);
+	}*/
 }
 
 void CActor::HitMark(float P,
@@ -882,23 +839,11 @@ void CActor::Die(CObject* who)
 			{
 				if (item_in_slot)
 				{
-					if (IsGameTypeSingle())
-					{
-						CGrenade* grenade = smart_cast<CGrenade*>(item_in_slot);
-						if (grenade)
-							grenade->DropGrenade();
-						else
-							item_in_slot->SetDropManual(TRUE);
-					}
+					CGrenade* grenade = smart_cast<CGrenade*>(item_in_slot);
+					if (grenade)
+						grenade->DropGrenade();
 					else
-					{
-						//This logic we do on a server site
-						/*
-						if ((*I).m_pIItem->object().CLS_ID != CLSID_OBJECT_W_KNIFE)
-						{
-						(*I).m_pIItem->SetDropManual(TRUE);
-						}*/
-					}
+						item_in_slot->SetDropManual(TRUE);
 				};
 				continue;
 			}
@@ -917,29 +862,7 @@ void CActor::Die(CObject* who)
 		while (!l_blist.empty())
 			inventory().Ruck(l_blist.front());
 
-		if (!IsGameTypeSingle())
-		{
-			//if we are on server and actor has PDA - destroy PDA
-			TIItemContainer& l_rlist = inventory().m_ruck;
-			for (TIItemContainer::iterator l_it = l_rlist.begin(); l_rlist.end() != l_it; ++l_it)
-			{
-				if (GameID() == eGameIDArtefactHunt)
-				{
-					CArtefact* pArtefact = smart_cast<CArtefact*>(*l_it);
-					if (pArtefact)
-					{
-						(*l_it)->SetDropManual(TRUE);
-						continue;
-					};
-				};
-
-				if ((*l_it)->object().CLS_ID == CLSID_OBJECT_PLAYERS_BAG)
-				{
-					(*l_it)->SetDropManual(TRUE);
-					continue;
-				};
-			};
-		};
+		;
 	};
 
 	if (!g_dedicated_server)
@@ -966,7 +889,7 @@ void CActor::Die(CObject* who)
 			netcoop::client_on_own_death();
 		}
 	}
-	else if (IsGameTypeSingle())
+	else
 	{
 		// demonized: First Person Death
 		if (firstPersonDeath) {
@@ -1008,10 +931,6 @@ void CActor::Die(CObject* who)
 		/* avo: end */
 
 		start_tutorial("game_over");
-	}
-	else
-	{
-		cam_Set(eacFixedLookAt);
 	}
 
 	mstate_wishful &= ~mcAnyMove;
@@ -2243,53 +2162,50 @@ void CActor::shedule_Update(u32 DT)
 		m_pVehicleWeLookingAt = smart_cast<CHolderCustom*>(game_object);
 		CEntityAlive* pEntityAlive = smart_cast<CEntityAlive*>(game_object);
 
-		if (GameID() == eGameIDSingle)
+		if (m_pUsableObject && m_pUsableObject->tip_text())
 		{
-			if (m_pUsableObject && m_pUsableObject->tip_text())
+			m_sDefaultObjAction = CStringTable().translate(m_pUsableObject->tip_text());
+		}
+		else
+		{
+			if (m_pPersonWeLookingAt && pEntityAlive && pEntityAlive->g_Alive() && m_pPersonWeLookingAt->IsTalkEnabled())
 			{
-				m_sDefaultObjAction = CStringTable().translate(m_pUsableObject->tip_text());
+				m_sDefaultObjAction = m_sCharacterUseAction;
 			}
-			else
+			else if (pEntityAlive && !pEntityAlive->g_Alive())
 			{
-				if (m_pPersonWeLookingAt && pEntityAlive && pEntityAlive->g_Alive() && m_pPersonWeLookingAt->IsTalkEnabled())
+				if (m_pPersonWeLookingAt && m_pPersonWeLookingAt->deadbody_closed_status())
 				{
-					m_sDefaultObjAction = m_sCharacterUseAction;
-				}
-				else if (pEntityAlive && !pEntityAlive->g_Alive())
-				{
-					if (m_pPersonWeLookingAt && m_pPersonWeLookingAt->deadbody_closed_status())
-					{
-						m_sDefaultObjAction = m_sDeadCharacterDontUseAction;
-					}
-					else
-					{
-						bool b_allow_drag = !!pSettings->line_exist("ph_capture_visuals", pEntityAlive->cNameVisual());
-						if (b_allow_drag)
-						{
-							m_sDefaultObjAction = m_sDeadCharacterUseOrDragAction;
-						}
-						else if (pEntityAlive->cast_inventory_owner())
-						{
-							m_sDefaultObjAction = m_sDeadCharacterUseAction;
-						}
-					} // m_pPersonWeLookingAt
-				}
-				else if (m_pVehicleWeLookingAt)
-				{
-					m_sDefaultObjAction = m_pVehicleWeLookingAt->m_sUseAction == 0
-						                      ? m_sCarCharacterUseAction
-						                      : m_pVehicleWeLookingAt->m_sUseAction;
-				}
-				else if (m_pObjectWeLookingAt &&
-					m_pObjectWeLookingAt->cast_inventory_item() &&
-					m_pObjectWeLookingAt->cast_inventory_item()->CanTake())
-				{
-					m_sDefaultObjAction = m_sInventoryItemUseAction;
+					m_sDefaultObjAction = m_sDeadCharacterDontUseAction;
 				}
 				else
 				{
-					m_sDefaultObjAction = NULL;
-				}
+					bool b_allow_drag = !!pSettings->line_exist("ph_capture_visuals", pEntityAlive->cNameVisual());
+					if (b_allow_drag)
+					{
+						m_sDefaultObjAction = m_sDeadCharacterUseOrDragAction;
+					}
+					else if (pEntityAlive->cast_inventory_owner())
+					{
+						m_sDefaultObjAction = m_sDeadCharacterUseAction;
+					}
+				} // m_pPersonWeLookingAt
+			}
+			else if (m_pVehicleWeLookingAt)
+			{
+				m_sDefaultObjAction = m_pVehicleWeLookingAt->m_sUseAction == 0
+					                      ? m_sCarCharacterUseAction
+					                      : m_pVehicleWeLookingAt->m_sUseAction;
+			}
+			else if (m_pObjectWeLookingAt &&
+				m_pObjectWeLookingAt->cast_inventory_item() &&
+				m_pObjectWeLookingAt->cast_inventory_item()->CanTake())
+			{
+				m_sDefaultObjAction = m_sInventoryItemUseAction;
+			}
+			else
+			{
+				m_sDefaultObjAction = NULL;
 			}
 		}
 	}
@@ -2308,14 +2224,10 @@ void CActor::shedule_Update(u32 DT)
 	//äëÿ ñâîéñò àðòåôàêòîâ, íàõîäÿùèõñÿ íà ïîÿñå
 	UpdateArtefactsOnBeltAndOutfit();
 	m_pPhysics_support->in_shedule_Update(DT);
-	Check_for_AutoPickUp();
 };
 
 void SetActorVisibility(u16 who_id, float value)
 {
-    if (!IsGameTypeSingle())
-        return;
-
     CActor* pActor = smart_cast<CActor*>(Level().CurrentViewEntity());
 
     if (!pActor)
@@ -2326,9 +2238,6 @@ void SetActorVisibility(u16 who_id, float value)
 
 float GetActorVisibility()
 {
-    if (!IsGameTypeSingle())
-        return 0.f;
-
     CActor* pActor = smart_cast<CActor*>(Level().CurrentViewEntity());
 
     if (!pActor)
@@ -2720,8 +2629,6 @@ void CActor::ForceTransform(const Fmatrix& m)
 
 	character_physics_support()->ForceTransform(m);
 	const float block_damage_time_seconds = 2.f;
-	if (!IsGameTypeSingle())
-		character_physics_support()->movement()->BlockDamageSet(u64(block_damage_time_seconds / fixed_step));
 }
 
 float CActor::Radius() const
@@ -2734,38 +2641,8 @@ float CActor::Radius() const
 
 bool CActor::use_bolts() const
 {
-	if (!IsGameTypeSingle()) return false;
 	return CInventoryOwner::use_bolts();
 };
-
-int g_iCorpseRemove = 1;
-
-bool CActor::NeedToDestroyObject() const
-{
-	if (IsGameTypeSingle())
-	{
-		return false;
-	}
-	else
-	{
-		if (g_Alive()) return false;
-		if (g_iCorpseRemove == -1) return false;
-		if (g_iCorpseRemove == 0 && m_bAllowDeathRemove) return true;
-		if (TimePassedAfterDeath() > m_dwBodyRemoveTime && m_bAllowDeathRemove)
-			return true;
-		else
-			return false;
-	}
-}
-
-ALife::_TIME_ID CActor::TimePassedAfterDeath() const
-{
-	if (!g_Alive())
-		return Level().timeServer() - GetLevelDeathTime();
-	else
-		return 0;
-}
-
 
 void CActor::OnItemTake(CInventoryItem* inventory_item)
 {

@@ -9,7 +9,7 @@
 #include "../xrEngine/gamemtllib.h"
 #include "MainMenu.h"
 #include "grenade.h"
-#include "spectator.h"
+#include "actor_flags.h"
 #include "Car.h"
 #include "UIGameCustom.h"
 #include "UICursor.h"
@@ -171,7 +171,7 @@ bool need_render_hud()
 	if (A && (!A->HUDview() || !A->g_Alive()))
 		return false;
 
-	if (smart_cast<CCar*>(O) || smart_cast<CSpectator*>(O))
+	if (smart_cast<CCar*>(O))
 		return false;
 
 	return true;

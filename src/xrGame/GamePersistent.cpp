@@ -19,7 +19,7 @@
 
 #include "ActorEffector.h"
 #include "actor.h"
-#include "spectator.h"
+#include "actor_flags.h"
 
 #include "UI/UItextureMaster.h"
 

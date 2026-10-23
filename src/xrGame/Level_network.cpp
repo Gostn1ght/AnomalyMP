@@ -16,7 +16,6 @@
 #include "seniority_hierarchy_holder.h"
 #include "UIGameCustom.h"
 #include "string_table.h"
-#include "file_transfer.h"
 #include "UI/UIGameTutorial.h"
 #include "ui/UIPdaWnd.h"
 #include "../xrNetServer/NET_AuthCheck.h"
@@ -138,9 +137,6 @@ void CLevel::net_Stop()
 	bReady = false;
 	m_bGameConfigStarted = FALSE;
 
-	if (m_file_transfer)
-		xr_delete(m_file_transfer);
-
 
 	remove_objects();
 
@@ -206,11 +202,6 @@ void CLevel::ClientSend()
 			}
 		}
 	};
-	if (m_file_transfer)
-	{
-		m_file_transfer->update_transfer();
-		m_file_transfer->stop_obsolete_receivers();
-	}
 	if (OnClient())
 	{
 		Flush_Send_Buffer();

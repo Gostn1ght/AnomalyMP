@@ -249,14 +249,7 @@ void CActor::IR_OnKeyboardPress(int cmd)
 					CGameObject* GO = itm->cast_game_object();
 					if (GO && funct(GO->lua_game_object()))
 					{
-						if (IsGameTypeSingle())
-						{
-							inventory().Eat(itm);
-						}
-						else
-						{
-							inventory().ClientEat(itm);
-						}
+						inventory().Eat(itm);
 
 						StaticDrawableWrapper* _s = CurrentGameUI()->AddCustomStatic("item_used", true);
 						string1024 str;
@@ -636,25 +629,22 @@ void CActor::ActorUse()
 
 			VERIFY(pEntityAliveWeLookingAt);
 
-			if (IsGameTypeSingle())
+			if (pEntityAliveWeLookingAt->g_Alive())
 			{
-				if (pEntityAliveWeLookingAt->g_Alive())
+				TryToTalk();
+			}
+			else if (!bCaptured)
+			{
+				//только если находимся в режиме single
+				CUIGameSP* pGameSP = smart_cast<CUIGameSP*>(CurrentGameUI());
+				if (pGameSP)
 				{
-					TryToTalk();
-				}
-				else if (!bCaptured)
-				{
-					//только если находимся в режиме single
-					CUIGameSP* pGameSP = smart_cast<CUIGameSP*>(CurrentGameUI());
-					if (pGameSP)
+					if (!m_pPersonWeLookingAt->deadbody_closed_status())
 					{
-						if (!m_pPersonWeLookingAt->deadbody_closed_status())
-						{
-							if (pEntityAliveWeLookingAt->AlreadyDie() &&
-								pEntityAliveWeLookingAt->GetLevelDeathTime() + 3000 < Device.dwTimeGlobal)
-								// 99.9% dead
-								pGameSP->StartCarBody(this, m_pPersonWeLookingAt);
-						}
+						if (pEntityAliveWeLookingAt->AlreadyDie() &&
+							pEntityAliveWeLookingAt->GetLevelDeathTime() + 3000 < Device.dwTimeGlobal)
+							// 99.9% dead
+							pGameSP->StartCarBody(this, m_pPersonWeLookingAt);
 					}
 				}
 			}

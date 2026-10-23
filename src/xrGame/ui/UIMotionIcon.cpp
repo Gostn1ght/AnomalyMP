@@ -48,9 +48,6 @@ void CUIMotionIcon::Init(Frect const& zonemap_rect)
 
 void CUIMotionIcon::SetNoise(float pos)
 {
-	if (!IsGameTypeSingle())
-		return;
-
 	if (!IsShown())
 		return;
 
@@ -68,12 +65,6 @@ void CUIMotionIcon::Draw()
 
 void CUIMotionIcon::Update()
 {
-	if (!IsGameTypeSingle())
-	{
-		inherited::Update();
-		return;
-	}
-
 	if (!IsShown())
 		return;
 

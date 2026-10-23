@@ -93,13 +93,6 @@ struct CheaterToKick
 
 typedef xr_vector<CheaterToKick> cheaters_t;
 
-namespace file_transfer
-{
-	class server_site;
-}; //namespace file_transfer
-
-class server_info_uploader;
-
 class xrServer : public IPureServer
 {
 private:
@@ -107,8 +100,6 @@ private:
 	xr_multiset<svs_respawn> q_respawn;
 	xr_vector<u16> conn_spawned_ids;
 	cheaters_t m_cheaters;
-
-	file_transfer::server_site* m_file_transfers;
 
 	typedef server_updates_compressor::send_ready_updates_t::const_iterator update_iterator_t;
 	update_iterator_t m_update_begin;
@@ -129,18 +120,6 @@ private:
 	u64 m_replication_index_log = 0;
 	u32 m_last_updates_size;
 	u32 m_last_update_time;
-
-
-	void SendServerInfoToClient(ClientID const& new_client);
-	server_info_uploader& GetServerInfoUploader();
-
-	void LoadServerInfo();
-
-	typedef xr_vector<server_info_uploader*> info_uploaders_t;
-
-	info_uploaders_t m_info_uploaders;
-	IReader* m_server_logo;
-	IReader* m_server_rules;
 
 	struct DelayedPacket
 	{

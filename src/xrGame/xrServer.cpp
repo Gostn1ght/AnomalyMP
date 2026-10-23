@@ -25,8 +25,6 @@
 
 #include "../xrEngine/XR_IOConsole.h"
 #include "ui/UIInventoryUtilities.h"
-#include "file_transfer.h"
-#include "xrServer_info.h"
 #include <functional>
 #include <chrono>
 #include "../xrNetServer/GammaNetPolicy.h"
@@ -94,11 +92,8 @@ xrClientData::~xrClientData()
 
 xrServer::xrServer() : IPureServer(Device.GetTimerGlobal(), g_dedicated_server)
 {
-	m_file_transfers = NULL;
 	m_aDelayedPackets.clear();
 	m_netcoop_main_thread = GetCurrentThreadId();
-	m_server_logo = NULL;
-	m_server_rules = NULL;
 	m_last_updates_size = 0;
 	m_last_update_time = 0;
 }
@@ -122,9 +117,6 @@ xrServer::~xrServer()
 	}
 	m_aDelayedPackets.clear();
 	entities.clear();
-	delete_data(m_info_uploaders);
-	xr_delete(m_server_logo);
-	xr_delete(m_server_rules);
 }
 
 //--------------------------------------------------------------------
@@ -784,11 +776,6 @@ void xrServer::SendUpdatesToAll()
 		else
 			m_last_update_time = Device.dwTimeGlobal;
 	}
-	if (m_file_transfers)
-	{
-		m_file_transfers->update_transfer();
-		m_file_transfers->stop_obsolete_receivers();
-	}
 }
 
 u32 xrServer::OnDelayedMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadcasting with "flags" as returned
@@ -816,11 +803,6 @@ u32 xrServer::OnDelayedMessage(NET_Packet& P, ClientID sender) // Non-Zero means
 			if (joining_client->ps && !joining_client->net_Accepted)
 				OnCL_Connected(joining_client);
 			//OnCL_Connected				(CL);
-		}
-		break;
-	case M_FILE_TRANSFER:
-		{
-			if (m_file_transfers) m_file_transfers->on_message(&P, sender);
 		}
 		break;
 	}
@@ -1199,11 +1181,6 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
 	case M_CREATE_PLAYER_STATE:
 		{
 			game->AddDelayedEvent(P, GAME_EVENT_CREATE_PLAYER_STATE, 0, sender);
-		}
-		break;
-	case M_FILE_TRANSFER:
-		{
-			AddDelayedPacket(P, sender);
 		}
 		break;
 	case M_SECURE_KEY_SYNC:

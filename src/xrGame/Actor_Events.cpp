@@ -109,23 +109,13 @@ void CActor::OnEvent(NET_Packet& P, u16 type)
 #endif // MP_LOGGING
 
 				inventory().Take(_GO, false, true);
-
-				SelectBestWeapon(Obj);
 			}
 			else
 			{
-				if (IsGameTypeSingle())
-				{
-					NET_Packet P;
-					u_EventGen(P, GE_OWNERSHIP_REJECT, ID());
-					P.w_u16(u16(Obj->ID()));
-					u_EventSend(P);
-				}
-				else
-				{
-					Msg("! ERROR: Actor [%d][%s]  tries to drop on take [%d][%s]", ID(), Name(), _GO->ID(),
-					    _GO->cNameSect().c_str());
-				}
+				NET_Packet P;
+				u_EventGen(P, GE_OWNERSHIP_REJECT, ID());
+				P.w_u16(u16(Obj->ID()));
+				u_EventSend(P);
 			}
 		}
 		break;
@@ -196,9 +186,6 @@ void CActor::OnEvent(NET_Packet& P, u16 type)
 					u_EventSend(MovePacket);*/
 				}
 			}
-
-			if (!just_before_destroy)
-				SelectBestWeapon(Obj);
 		}
 		break;
 	case GE_INV_ACTION:

@@ -44,7 +44,6 @@
 #include "ai/stalker/ai_stalker.h"
 #include "../xrEngine/bone.h"
 
-#define WEAPON_REMOVE_TIME		60000
 #define ROTATION_TIME			0.25f
 
 // Scope shader constants and camera effects belong to the viewing player.
@@ -274,9 +273,6 @@ void CWeapon::UpdateXForm()
 
 	if (!E)
 	{
-		if (!IsGameTypeSingle())
-			UpdatePosition(H_Parent()->XFORM());
-
 		return;
 	}
 
@@ -926,10 +922,6 @@ void CWeapon::Load(LPCSTR section)
 	}
 
 	InitAddons();
-	if (pSettings->line_exist(section, "weapon_remove_time"))
-		m_dwWeaponRemoveTime = pSettings->r_u32(section, "weapon_remove_time");
-	else
-		m_dwWeaponRemoveTime = WEAPON_REMOVE_TIME;
 
 	if (pSettings->line_exist(section, "auto_spawn_ammo"))
 		m_bAutoSpawnAmmo = pSettings->r_bool(section, "auto_spawn_ammo");
@@ -1133,8 +1125,6 @@ BOOL CWeapon::net_Spawn(CSE_Abstract* DC)
 
 	UpdateAddonsVisibility();
 	InitAddons();
-
-	m_dwWeaponIndependencyTime = 0;
 
 	VERIFY((u32) iAmmoElapsed == m_magazine.size());
 	m_bAmmoWasSpawned = false;
@@ -1454,7 +1444,6 @@ void CWeapon::OnH_A_Independent()
 	m_fLR_ShootingFactor = 0.f;
 	m_fUD_ShootingFactor = 0.f;
 	m_fBACKW_ShootingFactor = 0.f;
-	m_dwWeaponIndependencyTime = Level().timeServer();
 	inherited::OnH_A_Independent();
 	Light_Destroy();
 	UpdateAddonsVisibility();
@@ -1486,10 +1475,7 @@ void CWeapon::OnHiddenItem()
 {
 	m_BriefInfo_CalcFrame = 0;
 
-	if (IsGameTypeSingle())
-		SwitchState(eHiding);
-	else
-		SwitchState(eHidden);
+	SwitchState(eHiding);
 
 	OnZoomOut();
 	inherited::OnHiddenItem();
@@ -1540,7 +1526,6 @@ bool CWeapon::NeedBlendAnm()
 
 void CWeapon::OnH_B_Chield()
 {
-	m_dwWeaponIndependencyTime = 0;
 	inherited::OnH_B_Chield();
 
 	OnZoomOut();
@@ -1564,9 +1549,6 @@ void CWeapon::UpdateCL()
 	//íàðèñîâàòü ïàðòèêëû
 	UpdateFlameParticles();
 	UpdateFlameParticles2();
-
-	if (!IsGameTypeSingle())
-		make_Interpolation();
 
 	if ((GetNextState() == GetState()) && IsGameTypeSingle() && H_Parent() == Level().CurrentEntity())
 	{
@@ -2569,30 +2551,6 @@ void CWeapon::setup_physic_shell()
 	CPhysicsShellHolder::setup_physic_shell();
 }
 
-int g_iWeaponRemove = 1;
-
-bool CWeapon::NeedToDestroyObject() const
-{
-	if (netcoop::enabled()) return false;
-	if (GameID() == eGameIDSingle) return false;
-	if (Remote()) return false;
-	if (H_Parent()) return false;
-	if (g_iWeaponRemove == -1) return false;
-	if (g_iWeaponRemove == 0) return true;
-	if (TimePassedAfterIndependant() > m_dwWeaponRemoveTime)
-		return true;
-
-	return false;
-}
-
-ALife::_TIME_ID CWeapon::TimePassedAfterIndependant() const
-{
-	if (!H_Parent() && m_dwWeaponIndependencyTime != 0)
-		return Level().timeServer() - m_dwWeaponIndependencyTime;
-	else
-		return 0;
-}
-
 bool CWeapon::can_kill() const
 {
 	if (GetSuitableAmmoTotal(true) || m_ammoTypes.empty())
@@ -3340,18 +3298,8 @@ void CWeapon::render_item_ui()
 
 bool CWeapon::unlimited_ammo()
 {
-	if (IsGameTypeSingle())
-	{
-		if (m_pInventory)
-		{
-			return inventory_owner().unlimited_ammo() && m_DefaultCartridge.m_flags.test(CCartridge::cfCanBeUnlimited);
-		}
-		else
-			return false;
-	}
-
-	return ((GameID() == eGameIDDeathmatch) &&
-		m_DefaultCartridge.m_flags.test(CCartridge::cfCanBeUnlimited));
+	return m_pInventory && inventory_owner().unlimited_ammo() &&
+		m_DefaultCartridge.m_flags.test(CCartridge::cfCanBeUnlimited);
 };
 
 float CWeapon::GetMagazineWeight(const decltype(CWeapon::m_magazine)& mag) const

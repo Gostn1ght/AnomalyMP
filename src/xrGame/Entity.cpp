@@ -23,8 +23,6 @@
 #include "Inventory.h"
 #include "Weapon.h"
 
-#define BODY_REMOVE_TIME		600000
-
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
@@ -79,13 +77,9 @@ void CEntity::Die(CObject* who)
 	set_ready_to_save();
 	SetfHealth(-1.f);
 
-	if (IsGameTypeSingle())
-	{
-		VERIFY(m_registered_member);
-	}
+	VERIFY(m_registered_member);
 	m_registered_member = false;
-	if (IsGameTypeSingle())
-		Level().seniority_holder().team(g_Team()).squad(g_Squad()).group(g_Group()).unregister_member(this);
+	Level().seniority_holder().team(g_Team()).squad(g_Squad()).group(g_Group()).unregister_member(this);
 }
 
 //обновление состояния
@@ -150,7 +144,6 @@ void CEntity::Load(LPCSTR section)
 	m_fMorale = 66.f;
 
 	//время убирания тела с уровня
-	m_dwBodyRemoveTime = READ_IF_EXISTS(pSettings, r_u32, section, "body_remove_time", BODY_REMOVE_TIME);
 	//////////////////////////////////////
 }
 
@@ -252,8 +245,7 @@ void CEntity::net_Destroy()
 	if (m_registered_member)
 	{
 		m_registered_member = false;
-		if (IsGameTypeSingle())
-			Level().seniority_holder().team(g_Team()).squad(g_Squad()).group(g_Group()).unregister_member(this);
+		Level().seniority_holder().team(g_Team()).squad(g_Squad()).group(g_Group()).unregister_member(this);
 	}
 
 	inherited::net_Destroy();
@@ -371,7 +363,7 @@ void CEntity::shedule_Update(u32 dt)
 			NET_Packet P;
 			u_EventGen(P, GE_ASSIGN_KILLER, ID());
 			P.w_u16(u16(-1));
-			if (IsGameTypeSingle()) u_EventSend(P);
+			u_EventSend(P);
 		}
 	}
 }
@@ -390,10 +382,7 @@ void CEntity::ChangeTeam(int team, int squad, int group)
 
 	VERIFY2(g_Alive(), "Try to change team of a dead object");
 
-	if (IsGameTypeSingle())
-	{
-		VERIFY(m_registered_member);
-	}
+	VERIFY(m_registered_member);
 	// remove from current team
 	on_before_change_team();
 	Level().seniority_holder().team(g_Team()).squad(g_Squad()).group(g_Group()).unregister_member(this);

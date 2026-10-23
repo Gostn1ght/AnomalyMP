@@ -290,10 +290,7 @@ BOOL CGameObject::net_Spawn(CSE_Abstract* DC)
 
 	//-Alundaio
 
-
 	setID(E->ID);
-	//	if (GameID() != eGameIDSingle)
-	//		Msg ("CGameObject::net_Spawn -- object %s[%x] setID [%d]", *(E->s_name), this, E->ID);
 
 	// XForm
 	XFORM().setXYZ(E->o_Angle);
@@ -1023,11 +1020,6 @@ CScriptGameObject* CGameObject::lua_game_object() const
 	return (m_lua_game_object);
 }
 
-bool CGameObject::NeedToDestroyObject() const
-{
-	return false;
-}
-
 void CGameObject::DestroyObject()
 {
 	if (m_bObjectRemoved) return;
@@ -1044,15 +1036,6 @@ void CGameObject::DestroyObject()
 
 void CGameObject::shedule_Update(u32 dt)
 {
-	//уничтожить
-	if (NeedToDestroyObject())
-	{
-#ifndef MASTER_GOLD
-		Msg("--NeedToDestroyObject for [%d][%d]", ID(), Device.dwFrame);
-#endif // #ifndef MASTER_GOLD
-		DestroyObject();
-	}
-
 	// Msg							("-SUB-:[%x][%s] CGameObject::shedule_Update",smart_cast<void*>(this),*cName());
 	inherited::shedule_Update(dt);
 

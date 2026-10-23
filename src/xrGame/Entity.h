@@ -25,7 +25,6 @@ private:
 
 protected:
 	//время через которое мертвое тело убирется с уровня
-	ALife::_TIME_ID m_dwBodyRemoveTime;
 protected:
 	virtual CEntityConditionSimple* create_entity_condition(CEntityConditionSimple* ec);
 
