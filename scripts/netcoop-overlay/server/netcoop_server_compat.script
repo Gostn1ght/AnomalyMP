@@ -639,6 +639,96 @@ local function apply_master_weather(wm, master)
 	printf("[Lost Zone][master] weather %s%s", target, now and " (now)" or "")
 end
 
+-- The weather editor's live changes (owner 2026-10-23: what an administrator
+-- changed in the weather editor reached only his own screen). The editor
+-- pauses the sky's blending and sets values of the current sky; the
+-- administrator's client sends each change here ("weather_edit ..."), the
+-- state goes to the cluster's shared store, and every location sends it to
+-- its players (new ones get it too). Unpausing gives everyone the normal sky.
+--   weather_edit/zone  { seq, paused, sun = { h, m }, values = { par = { k = "n"|"v"|"s", ... } } }
+local EDIT_BUCKET, EDIT_KEY, EDIT_VALUES = "weather_edit", "zone", 64
+local edit_text_sent, edit_next, edit_resend = nil, 0, 0
+
+local function edit_read()
+	local text = netcoop_store_read and netcoop_store_read(EDIT_BUCKET, EDIT_KEY) or ""
+	if text == "" then return nil, text end
+	local ok, v = pcall(netcoop_transit.deserialize, text)
+	return ok and type(v) == "table" and v or nil, text
+end
+
+local function edit_change(fn)
+	for _ = 1, 10 do
+		local state, old = edit_read()
+		state = state or { seq = 0, paused = false, values = {} }
+		state.values = state.values or {}
+		local result = fn(state)
+		if result then return result end
+		state.seq = (tonumber(state.seq) or 0) + 1
+		if netcoop_store_swap(EDIT_BUCKET, EDIT_KEY, old, netcoop_transit.serialize(state)) then
+			edit_next = 0
+			return nil
+		end
+	end
+	return "! the weather edit could not be stored, try again"
+end
+
+local function finite(n) return type(n) == "number" and n == n and n ~= math.huge and n ~= -math.huge end
+
+-- Admin: weather_edit pause <0|1> | sun <h> <m> | num <par> <v> | vec <par> <x> <y> <z> [w] | str <par> <value>
+function weather_edit(args)
+	local verb, rest = string.match(args or "", "^(%a+)%s*(.*)$")
+	if not (netcoop_store_read and netcoop_store_swap and netcoop_transit) then return "! no shared store on this server" end
+	local err
+	if verb == "pause" and (rest == "0" or rest == "1") then
+		err = edit_change(function(s)
+			s.paused = rest == "1"
+			if not s.paused then s.values, s.sun = {}, nil end
+		end)
+	elseif verb == "sun" then
+		local h, m = string.match(rest, "^(%d+)%s+(%d+)$")
+		h, m = tonumber(h), tonumber(m)
+		if not (h and m and h < 24 and m < 60) then return "! usage: weather_edit sun <hour> <minute>" end
+		err = edit_change(function(s) s.sun = { h = h, m = m } end)
+	elseif verb == "num" or verb == "vec" or verb == "str" then
+		local par, value = string.match(rest, "^([%w_]+)%s+(.+)$")
+		if not par or #par > 48 then return "! usage: weather_edit " .. verb .. " <parameter> <value>" end
+		local entry
+		if verb == "str" then
+			if #value > 160 or not string.match(value, "^[%w_%.%-\\/]+$") then return "! bad weather value" end
+			entry = { k = "s", value }
+		else
+			local numbers = {}
+			for n in string.gmatch(value, "%S+") do numbers[#numbers + 1] = tonumber(n) end
+			local want = verb == "num" and { [1] = true } or { [3] = true, [4] = true }
+			if not want[#numbers] then return "! bad weather value" end
+			for _, n in ipairs(numbers) do if not finite(n) then return "! bad weather value" end end
+			entry = { k = verb == "num" and "n" or "v", unpack(numbers) }
+		end
+		err = edit_change(function(s)
+			local count = 0
+			for _ in pairs(s.values) do count = count + 1 end
+			if not s.values[par] and count >= EDIT_VALUES then return "! too many weather values; unpause to start again" end
+			s.values[par] = entry
+		end)
+	else
+		return "! usage: weather_edit pause <0|1> | sun <h> <m> | num|vec|str <parameter> <value>"
+	end
+	return err or "* weather edit sent to every location"
+end
+
+-- Every world tick: the shared state to this location's players (at once
+-- when it changed, every 5 s for players who came in since).
+local function weather_edit_tick(now)
+	if not (netcoop_store_read and netcoop_broadcast) or now < edit_next then return end
+	edit_next = now + 2000
+	local state, text = edit_read()
+	if not state then return end
+	if text ~= edit_text_sent or now >= edit_resend then
+		edit_text_sent, edit_resend = text, now + 5000
+		netcoop_broadcast("weather_edit", text)
+	end
+end
+
 local function server_world_tick()
 	local now = time_global()
 	if now < world_next then return end
@@ -678,6 +768,8 @@ local function server_world_tick()
 	local ok, err = pcall(wm.update, wm)
 	if in_cluster() or master then math.randomseed(os.time() + time_global()) end
 	if not ok then printf("[Lost Zone] weather update error: %s", tostring(err)) end
+	local edit_ok, edit_err = pcall(weather_edit_tick, now)
+	if not edit_ok then printf("[Lost Zone] weather edit error: %s", tostring(edit_err)) end
 	local weather = wm.weather_file or (level.get_weather and level.get_weather()) or ""
 	if weather ~= "" and (weather ~= weather_sent or now >= weather_next) then
 		weather_sent, weather_next = weather, now + 5000

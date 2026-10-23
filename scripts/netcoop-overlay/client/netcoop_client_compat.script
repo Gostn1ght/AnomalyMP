@@ -421,6 +421,7 @@ local applied_actual = nil -- level.get_weather() right after applying it
 local applying_server_weather = false
 local engine_set_weather = nil
 local engine_change_time = nil
+local engine_weather = nil -- the engine's weather editor functions (install_weather_follow)
 
 -- The server chooses the weather; this client's weather manager (and the
 -- base-game fixes that extend it) must never pick its own. Installed at game
@@ -452,6 +453,37 @@ local function install_weather_follow()
 			if is_admin() and name and name ~= "" then
 				netcoop_command(string.format("weather %s%s", tostring(name), now and " now" or ""))
 			end
+		end
+	end
+	-- The administrator's weather editor (ui_debug_weather): its pause, sun
+	-- time and sky values go to the server, which gives them to everyone
+	-- (netcoop_server_compat.weather_edit); here they apply at once as well.
+	if weather and not engine_weather then
+		engine_weather = {}
+		for _, name in ipairs({ "pause", "sun_time", "set_value_numric", "set_value_vector", "set_value_string" }) do
+			engine_weather[name] = weather[name]
+		end
+		local function share(text) if is_admin() and not applying_server_weather then netcoop_command("weather_edit " .. text) end end
+		weather.pause = function(on)
+			engine_weather.pause(on)
+			share("pause " .. (on and "1" or "0"))
+		end
+		weather.sun_time = function(h, m)
+			engine_weather.sun_time(h, m)
+			share(string.format("sun %d %d", math.floor(tonumber(h) or 0), math.floor(tonumber(m) or 0)))
+		end
+		weather.set_value_numric = function(par, v)
+			engine_weather.set_value_numric(par, v)
+			share(string.format("num %s %.6g", tostring(par), tonumber(v) or 0))
+		end
+		weather.set_value_vector = function(par, x, y, z, w)
+			engine_weather.set_value_vector(par, x, y, z, w)
+			local text = string.format("vec %s %.6g %.6g %.6g", tostring(par), tonumber(x) or 0, tonumber(y) or 0, tonumber(z) or 0)
+			share(w ~= nil and (text .. string.format(" %.6g", tonumber(w) or 0)) or text)
+		end
+		weather.set_value_string = function(par, v)
+			engine_weather.set_value_string(par, v)
+			share(string.format("str %s %s", tostring(par), tostring(v)))
 		end
 	end
 	-- The administrator's debug "time" goes to the server (and from there to
@@ -492,6 +524,34 @@ local function use_server_weather(data)
 	applying_server_weather = false
 	applied_actual = level.get_weather and level.get_weather() or name
 	printf("[Lost Zone] server weather: %s%s", name, (first or forced == "1") and " (now)" or "")
+end
+
+-- The weather editor's shared state (server: netcoop_server_compat
+-- weather_edit): applied when it changes; unpausing returns the server's sky.
+local edit_seq = nil
+local function use_weather_edit(data)
+	local v = netcoop_pdanet_client and netcoop_pdanet_client.decode(data)
+	if type(v) ~= "table" or v.seq == edit_seq then return end
+	local first = edit_seq == nil
+	edit_seq = v.seq
+	local w = engine_weather
+	if not w then return end
+	applying_server_weather = true
+	if v.paused then
+		pcall(w.pause, true)
+		if type(v.sun) == "table" then pcall(w.sun_time, tonumber(v.sun.h) or 0, tonumber(v.sun.m) or 0) end
+		for par, x in pairs(type(v.values) == "table" and v.values or {}) do
+			if type(x) == "table" then
+				if x.k == "n" then pcall(w.set_value_numric, par, tonumber(x[1]) or 0)
+				elseif x.k == "v" then pcall(w.set_value_vector, par, tonumber(x[1]) or 0, tonumber(x[2]) or 0, tonumber(x[3]) or 0, tonumber(x[4]))
+				elseif x.k == "s" then pcall(w.set_value_string, par, tostring(x[1] or "")) end
+			end
+		end
+	elseif not first then
+		pcall(w.pause, false)
+		if server_weather then pcall(engine_set_weather or level.set_weather, server_weather, true) end
+	end
+	applying_server_weather = false
 end
 
 -- A server dialogue action opened an NPC window for this player.
@@ -678,11 +738,13 @@ function on_script_message(channel, data)
 		use_stash_spot(data, channel == "stash_spot_remove")
 		return
 	end
-	if channel ~= "weather" then
+	if channel ~= "weather" and channel ~= "weather_edit" then
 		printf("[Lost Zone] server message %s: %s", tostring(channel), tostring(data))
 	end
 	if channel == "weather" then
 		use_server_weather(data)
+	elseif channel == "weather_edit" then
+		use_weather_edit(data)
 	elseif channel == "open_ui" then
 		open_ui(data)
 	end

@@ -356,6 +356,8 @@ function on_client_command(cid, name, entity_id, text, role)
 		local sent = master_order(name, "weather", netcoop_server_compat.master_weather_source(), wname, now == "now" and 1 or 600)
 		if sent then return sent end
 		return netcoop_server_compat.set_server_weather(wname, now == "now")
+	elseif cmd == "weather_edit" then
+		return netcoop_server_compat.weather_edit(args)
 	elseif cmd == "time" then
 		-- time <hours> | <hours> <minutes> | <days> <hours> <minutes>: forward.
 		local v = {}
