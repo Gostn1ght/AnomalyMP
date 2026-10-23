@@ -241,3 +241,19 @@ windowed; level loading after login is still to measure.
 - Bot stand (master, Cordon, Garbage, 4 bots, 5 min) on the packet-bounds
   build: all bots played and changed level, no crash, no packet overrun on
   the network (only the spawn entity above).
+
+## Progress 2026-10-23
+
+- Build 39911119533 green (all GameSpy/MP cuts); bot stand: 4 bots played
+  and changed level, no crash. The named short entity is `fake_actor`
+  (all.spawn): with `-netcoop` the actor update reader took Lost Zone's
+  equipment block (hands, outfit, helmet, visual) from the editor's item
+  count and the stale bytes after it, including a garbage visual string.
+  The block is now read only when its 9 bytes are there.
+- MP weapon usage statistics cut: on a dedicated server a PvP grenade kill
+  went to `OnExplosionKill`, which used the already destroyed grenade
+  (`net_Find` without a check). GE_HIT_STATISTIC and the statistic/bullet
+  check messages went with it.
+- MP voting and map rotation cut (the server ran `appdata\maprot_list.ltx`
+  as a console script at every start); empty server hooks and the
+  `M_PLAYER_FIRE` message the host sent to itself on every shot.

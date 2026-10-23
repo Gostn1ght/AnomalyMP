@@ -1545,7 +1545,12 @@ void CSE_ALifeCreatureActor::UPDATE_Read(NET_Packet& tNetPacket)
 	tNetPacket.r_sdir(velocity);
 	tNetPacket.r_float(fRadiation);
 	tNetPacket.r_u8(weapon);
-	if (strstr(Core.Params, "-netcoop"))
+	// The level editor's actor in all.spawn ends here with the item count
+	// alone; Lost Zone's equipment block (three ids, visual, item count) is
+	// at least 9 bytes. Without this check its fields took the item count and
+	// the bytes after the packet.
+	const u32 netcoop_block_min = 3 * sizeof(u16) + 1 + sizeof(u16);
+	if (strstr(Core.Params, "-netcoop") && tNetPacket.r_elapsed() >= netcoop_block_min)
 	{
 		tNetPacket.r_u16(m_netcoop_hands);
 		tNetPacket.r_u16(m_netcoop_outfit);
