@@ -205,7 +205,22 @@ local function summary(me, cid)
 	return s
 end
 
+local held_device, device_view -- Devices, below
+-- The device in the slot; a failure there never takes the network down.
+local function holding(id, char)
+	local ok, d = pcall(held_device, id, char)
+	if ok then return d end
+	printf("! [Lost Zone] pdanet device: %s", tostring(d))
+end
+
 local function state(id, me)
+	local char = char_of(id)
+	local d = holding(id, char)
+	send(id, "device", device_view(id, char, d))
+	if d and not d.own then
+		send(id, "state", { uid = "", name = "", icon = "", contacts = {}, chats = {}, requests = {}, foreign = true })
+		return
+	end
 	local contacts, chats = {}, {}
 	local here = local_players()
 	for uid in pairs(me.contacts) do
@@ -276,6 +291,8 @@ local handlers = {}
 function handlers.hello(id, me, char)
 	ensure_general()
 	state(id, me)
+	local d = holding(id, char)
+	if d and not d.own then return end -- someone else's PDA
 	local g = read("pda_chat", "general")
 	send(id, "general", shown(me, g and g.msgs, math.max(0, (g and g.seq or 0) - 60)))
 end
@@ -619,11 +636,10 @@ function handlers.aget(id, me, char, args) return fetch(id, me, args, "pda_audio
 function handlers.pget(id, me, char, args) return fetch(id, me, args, "pda_photo", "photo", "no such photo") end
 
 ----------------------------------------------------------------------
--- PDA password (owner 2026-10-18; a base for hacking later): the network
--- tabs of a locked PDA open after "unlock <password>". Three wrong tries
--- hold the PDA for 30 s. The level of protection is the PDA's model
--- (device_pda_1..3), kept with the lock for the hacking to come.
---   pda_lock/<char> { salt, hash, level }
+-- PDA password (owner 2026-10-18): the network tabs of a locked PDA open
+-- after "unlock <password>". Three wrong tries hold the PDA for 30 s. A
+-- password makes the owner's PDA slower to hack (Devices below).
+--   pda_lock/<char> { salt, hash }
 ----------------------------------------------------------------------
 local unlocked, tries = {}, {} -- entity id -> true / { n, until_ms }
 local LOCK_TRIES, LOCK_HOLD_MS = 3, 30000
@@ -644,13 +660,6 @@ end
 
 local function lock_of(char) return read("pda_lock", char) end
 
-local function pda_level(id)
-	local ok, n = pcall(function()
-		local pda = level.object_by_id(id):item_in_slot(8)
-		return tonumber(string.match(pda:section(), "^device_pda_(%d)"))
-	end)
-	return math.max(1, math.min(3, ok and n or 1))
-end
 
 function is_locked(id, char)
 	return lock_of(char) ~= nil and not unlocked[id]
@@ -684,12 +693,399 @@ function handlers.lockset(id, me, char, args)
 		netcoop_store_swap("pda_lock", char, netcoop_store_read("pda_lock", char) or "", "")
 	else
 		local salt = string.format("%08x", math.random(0, 2147483646))
-		local text = ser({ salt = salt, hash = lock_hash(salt, new), level = pda_level(id) })
+		local text = ser({ salt = salt, hash = lock_hash(salt, new) })
 		if not netcoop_store_swap("pda_lock", char, netcoop_store_read("pda_lock", char) or "", text) then return "try again" end
 	end
 	unlocked[id] = true
 	state(id, read("pda_prof", char) or me)
 end
+
+----------------------------------------------------------------------
+-- Devices (owner 2026-10-23: "every PDA its own unique ID; after a death
+-- the PDA can be picked up and hacked - another player's, an NPC's").
+-- Every PDA has a serial number of its own. A player's PDA belongs to the
+-- character who first carried it in the PDA slot; in other hands (taken
+-- from a body) it is someone else's device: it shows nothing of the new
+-- holder's network, and it can be hacked. A hacked PDA shows what its
+-- owner's network held until it left him (contacts, chats, notes) and can
+-- be reset to serve its new holder. An NPC's PDA (GAMMA's itm_pda_*) keeps
+-- GAMMA's messages; an encrypted one opens by hacking or, as in GAMMA, at a
+-- technician. Its messages travel with it between the servers.
+--   pda_dev/<item uid>   { serial, owner = char ("" reset / an NPC's), npc = { name, comm },
+--                          level 1-3, lock = the owner had a password, sealed = os time
+--                          it left its owner, hacked = { char = os time } }
+--   pda_serial/<serial>  <item uid>
+--   pda_npc/<item uid>   GAMMA's { state, contact, msg } of an NPC's PDA
+--   pda_stash/<char>     { [stash name] = { l = level, h = hint } } - stashes
+--                        an NPC's PDA showed him, until they are opened
+----------------------------------------------------------------------
+local HACK_SECONDS = { 20, 40, 60 } -- by the device's protection level
+local HACK_LOCK_SECONDS = 30        -- more when the owner had a password
+local DUMP_CHATS, DUMP_MSGS, DUMP_TEXT = 15, 30, 200
+local hacking = {}                  -- entity id -> { uid, item, kind, done_at, total }
+
+local function npc_pda(section)
+	local t = item_device and item_device.device_npc_pda
+	if t and t[section] then return true end
+	return string.find(section, "^itm_pda_") ~= nil
+end
+
+local function item_uid(item)
+	local uid = item and netcoop_item_uid and netcoop_item_uid(item:id()) or ""
+	return uid ~= "" and uid or nil
+end
+
+local function protection(section)
+	if section == "itm_pda_rare" or string.find(section, "milspec", 1, true) then return 3 end
+	if section == "itm_pda_uncommon" then return 2 end
+	local n = tonumber(string.match(section, "^device_pda_(%d)"))
+	return math.max(1, math.min(3, n or 1))
+end
+
+local function new_serial(uid)
+	for _ = 1, 50 do
+		local serial = string.format("%04X-%04X", math.random(0, 65535), math.random(0, 65535))
+		if netcoop_store_swap("pda_serial", serial, "", uid) then return serial end
+	end
+end
+
+-- The device's record, made on first sight: owner = the player carrying it.
+local function device_record(uid, section, owner, npc)
+	local r = read("pda_dev", uid)
+	if r then return r end
+	local serial = new_serial(uid)
+	if not serial then return nil end
+	local fresh = { serial = serial, owner = owner or "", npc = npc, level = protection(section), hacked = {} }
+	if netcoop_store_swap("pda_dev", uid, "", ser(fresh)) then
+		printf("[Lost Zone] pdanet: PDA %s (%s) %s", serial, section, owner and ("belongs to " .. owner) or "of an NPC")
+		return fresh
+	end
+	netcoop_store_swap("pda_serial", serial, uid, "") -- another server made it meanwhile
+	return read("pda_dev", uid)
+end
+
+-- The PDA the player whose Actor is id carries in the PDA slot, bound,
+-- sealed or given back as it changes hands.
+function held_device(id, char)
+	local actor = level.object_by_id(id)
+	local item = actor and actor:item_in_slot(8)
+	if not item or npc_pda(item:section()) then return nil end
+	local uid = item_uid(item)
+	local r = uid and device_record(uid, item:section(), char)
+	if not r then return nil end
+	if r.owner == "" and not r.npc then
+		r = update("pda_dev", uid, function(v)
+			if v and v.owner == "" then v.owner, v.sealed, v.hacked, v.lock = char, nil, {}, nil return v end
+		end)
+	elseif r.owner == char and r.sealed then
+		-- back with its owner: what others did with it no longer counts
+		r = update("pda_dev", uid, function(v)
+			if v and v.owner == char and v.sealed then v.sealed, v.hacked, v.lock = nil, {}, nil return v end
+		end)
+	elseif r.owner ~= char and not r.sealed then
+		local lock = read("pda_lock", r.owner) ~= nil
+		r = update("pda_dev", uid, function(v)
+			if v and v.owner ~= char and not v.sealed then v.sealed, v.lock = now(), lock return v end
+		end)
+	end
+	if not r then return nil end
+	r.hacked = r.hacked or {}
+	return { uid = uid, item = item:id(), rec = r, own = r.owner == char }
+end
+
+local function hack_progress(id, uid, v)
+	local h = hacking[id]
+	if h and h.uid == uid then v.hack_left, v.hack_total = math.max(0, h.done_at - time_global()), h.total end
+	return v
+end
+
+-- What the holder sees of his device: its serial; of someone else's also
+-- the protection, and the owner's name once it is hacked.
+function device_view(id, char, d)
+	if not d then return { none = true } end
+	local r = d.rec
+	local v = { serial = r.serial, own = d.own, level = r.level }
+	if not d.own then
+		v.lock = r.lock == true
+		v.hacked = r.hacked[char] ~= nil
+		if v.hacked then
+			local owner = read("pda_prof", r.owner)
+			v.owner = owner and owner.name or "?"
+		end
+		hack_progress(id, d.uid, v)
+	end
+	return v
+end
+
+-- GAMMA's messages of an NPC's PDA: the record that travels between the
+-- servers, merged with this server's GAMMA storage (a technician's unlock,
+-- a stash already read here). Stash messages get the stash's name and
+-- map, which hold on every server.
+local function npc_info(item_id, uid)
+	local here = se_load_var(item_id, nil, "info")
+	local info = read("pda_npc", uid)
+	if not info then info = here end
+	if type(info) ~= "table" then return nil end
+	if type(here) == "table" and here.state == "default" then info.state = "default" end
+	for i, m in ipairs(info.msg or {}) do
+		local h = type(here) == "table" and here.msg and here.msg[i]
+		if h and h.stash_read then m.stash_read = true end
+		if m.stash and not m.stash_name then
+			local se = alife_object(m.stash)
+			if se then
+				m.stash_name = se:name()
+				m.stash_level = alife():level_name(game_graph():vertex(se.m_game_vertex_id):level_id())
+			end
+		end
+	end
+	return info
+end
+
+local function save_npc_info(item_id, uid, info)
+	se_save_var(item_id, nil, "info", info)
+	update("pda_npc", uid, function() return info end)
+end
+
+-- An NPC's PDA the player whose Actor is id carries.
+local function npc_device(id, item_id)
+	local item = item_id and level.object_by_id(item_id)
+	if not (item and npc_pda(item:section())) then return nil end
+	local parent = item:parent()
+	if not (parent and parent:id() == id) then return nil end
+	local uid = item_uid(item)
+	if not uid then return nil end
+	local info = npc_info(item_id, uid)
+	local contact = info and info.contact or {}
+	local r = device_record(uid, item:section(), nil, { name = contact.name or "", comm = contact.comm or "" })
+	if not r then return nil end
+	r.hacked = r.hacked or {}
+	return { uid = uid, item = item_id, rec = r, own = false, info = info }
+end
+
+local function npc_view(id, d)
+	return hack_progress(id, d.uid, { id = d.item, serial = d.rec.serial, level = d.rec.level, info = d.info or false })
+end
+
+-- device: the holder's device state again
+function handlers.device(id, me, char)
+	send(id, "device", device_view(id, char, held_device(id, char)))
+end
+
+-- hack [<NPC PDA item id>]: the PDA in the slot, or an NPC's PDA carried
+local function start_hack(id, char, d, kind)
+	local h = hacking[id]
+	if h and h.uid == d.uid then return end
+	local total = ((HACK_SECONDS[d.rec.level] or 60) + (d.rec.lock and HACK_LOCK_SECONDS or 0)) * 1000
+	hacking[id] = { uid = d.uid, item = d.item, kind = kind, total = total, done_at = time_global() + total }
+	printf("[Lost Zone] pdanet: %s hacks PDA %s (%d s)", char, d.rec.serial, total / 1000)
+end
+function handlers.hack(id, me, char, args)
+	local item_id = tonumber(args)
+	if item_id then
+		local d = npc_device(id, item_id)
+		if not (d and d.info) then return "no device" end
+		if d.info.state ~= "encrypted" then send(id, "npc", npc_view(id, d)) return end
+		start_hack(id, char, d, "npc")
+		send(id, "npc", npc_view(id, d))
+		return
+	end
+	local d = held_device(id, char)
+	if not d then return "no device" end
+	if d.own then return "own device" end
+	if not d.rec.hacked[char] then start_hack(id, char, d, "player") end
+	send(id, "device", device_view(id, char, d))
+end
+
+function handlers.hack_stop(id, me, char)
+	hacking[id] = nil
+	send(id, "device", device_view(id, char, held_device(id, char)))
+end
+
+local function clip(text, n)
+	text = text or ""
+	return #text > n and (string.sub(text, 1, n) .. "...") or text
+end
+
+-- dump: what a hacked PDA's owner had on it when it left him
+function handlers.dump(id, me, char)
+	local d = held_device(id, char)
+	if not (d and not d.own and d.rec.hacked[char]) then return "not hacked" end
+	local owner = read("pda_prof", d.rec.owner)
+	if not owner then return "no data" end
+	owner.contacts, owner.chats = owner.contacts or {}, owner.chats or {}
+	local sealed = d.rec.sealed or now()
+	local contacts = {}
+	for uid in pairs(owner.contacts) do
+		local c = view(owner, uid)
+		contacts[#contacts + 1] = { uid = c.uid, name = c.name, icon = c.icon }
+	end
+	local chats = {}
+	for cid in pairs(owner.chats) do
+		local c = read("pda_chat", cid)
+		if c and c.kind ~= "general" then
+			local kept = {}
+			for _, m in ipairs(c.msgs or {}) do
+				if (m.t or 0) <= sealed then kept[#kept + 1] = m end
+			end
+			while #kept > DUMP_MSGS do table.remove(kept, 1) end
+			if #kept > 0 then
+				local msgs = shown(owner, kept)
+				for _, m in ipairs(msgs) do m.x, m.d = clip(m.x, DUMP_TEXT), nil end
+				local s = summary(owner, cid) or {}
+				chats[#chats + 1] = { id = cid, kind = c.kind, name = c.name, peer = s.peer, msgs = msgs, t = kept[#kept].t or 0 }
+			end
+		end
+	end
+	table.sort(chats, function(a, b) return a.t > b.t end)
+	while #chats > DUMP_CHATS do table.remove(chats) end
+	local notes = {}
+	for _, n in ipairs(read("pda_memo", d.rec.owner) or {}) do
+		if (n.t or 0) <= sealed and #notes < 20 then
+			notes[#notes + 1] = { title = n.title, text = clip(n.text, 600), t = n.t, g = n.g }
+		end
+	end
+	printf("[Lost Zone] pdanet: %s read PDA %s of %s", char, d.rec.serial, d.rec.owner)
+	send(id, "dump", { serial = d.rec.serial, owner = { name = owner.name, uid = owner.uid, icon = owner.icon },
+		sealed = sealed, contacts = contacts, chats = chats, notes = notes })
+end
+
+-- wipe: a hacked PDA serves its new holder (its owner's network data is
+-- the character's and stays his)
+function handlers.wipe(id, me, char)
+	local d = held_device(id, char)
+	if not (d and not d.own and d.rec.hacked[char]) then return "not hacked" end
+	local previous = d.rec.owner
+	update("pda_dev", d.uid, function(v)
+		if v and v.owner == previous then v.owner, v.sealed, v.hacked, v.lock = char, nil, {}, nil return v end
+	end)
+	printf("[Lost Zone] pdanet: %s reset PDA %s of %s", char, d.rec.serial, previous)
+	state(id, me)
+end
+
+-- npc_open <item id>: GAMMA's messages of an NPC's PDA, from the server
+function handlers.npc_open(id, me, char, args)
+	local d = npc_device(id, tonumber(args))
+	if not d then return "no device" end
+	if d.info then save_npc_info(d.item, d.uid, d.info) end
+	send(id, "npc", npc_view(id, d))
+end
+
+-- Stashes an NPC's PDA showed this player: filled by the server of their
+-- map (GAMMA's own loot) and marked on his map until someone opens them.
+local stash_sent = {} -- entity id -> { [stash name] = true }
+local function stash_spot(id, sid, hint, add)
+	send(id, "spot", { id = sid, h = hint or "", add = add })
+end
+local function stash_here(name)
+	local ok, se = pcall(function() return alife():object(name) end)
+	return ok and se or nil
+end
+local function sync_stashes(id, char)
+	local list = read("pda_stash", char)
+	if not list then return end
+	stash_sent[id] = stash_sent[id] or {}
+	local gone = {}
+	for name, s in pairs(list) do
+		if s.l == level.name() then
+			local se = stash_here(name)
+			local cache = se and treasure_manager and treasure_manager.caches and treasure_manager.caches[se.id]
+			if not se or cache == nil or cache == true then
+				gone[#gone + 1] = name -- opened (or no stash any more)
+				if se and stash_sent[id][name] then stash_spot(id, se.id, "", false) end
+				stash_sent[id][name] = nil
+			else
+				if cache == false then pcall(treasure_manager.set_random_stash, true, s.h, nil, se.id) end
+				if not stash_sent[id][name] then stash_spot(id, se.id, s.h, true); stash_sent[id][name] = true end
+			end
+		end
+	end
+	if #gone > 0 then
+		update("pda_stash", char, function(t)
+			if not t then return nil end
+			for _, name in ipairs(gone) do t[name] = nil end
+			return t
+		end)
+	end
+end
+
+-- npc_stash <item id> <stash id> <hint>: the player read a stash message
+function handlers.npc_stash(id, me, char, args)
+	local item_id, sid, hint = string.match(args or "", "^(%d+) (%d+) ?(.*)$")
+	local d = npc_device(id, tonumber(item_id))
+	if not (d and d.info and d.info.state == "default") then return "no device" end
+	local found
+	for _, m in ipairs(d.info.msg or {}) do
+		if m.stash and tostring(m.stash) == sid then found = m end
+	end
+	if not (found and found.stash_name) then return "no stash" end
+	hint = clip(string.gsub(hint or "", "[%c]", " "), 300)
+	found.stash_read = true
+	save_npc_info(d.item, d.uid, d.info)
+	update("pda_stash", char, function(t)
+		t = t or {}
+		if t[found.stash_name] then return nil end
+		t[found.stash_name] = { l = found.stash_level, h = hint }
+		return t
+	end)
+	printf("[Lost Zone] pdanet: %s learned stash %s (%s) from PDA %s", char, found.stash_name, tostring(found.stash_level), d.rec.serial)
+	sync_stashes(id, char)
+end
+
+-- Every poll: devices changing hands, hacks running, stashes to show.
+local device_key, next_stash, foreign = {}, {}, {}
+local function devices_update(id, char, me)
+	local d = held_device(id, char)
+	local h = hacking[id]
+	if h then
+		local still
+		if h.kind == "npc" then
+			local item = level.object_by_id(h.item)
+			local parent = item and item:parent()
+			still = parent and parent:id() == id
+		else
+			still = d and d.uid == h.uid
+		end
+		local actor = level.object_by_id(id)
+		if not still or not (actor and actor:alive()) then
+			hacking[id] = nil
+			send(id, "err", "hack interrupted")
+		elseif time_global() >= h.done_at then
+			hacking[id] = nil
+			if h.kind == "npc" then
+				local nd = npc_device(id, h.item)
+				if nd and nd.info then
+					nd.info.state = "default"
+					save_npc_info(nd.item, nd.uid, nd.info)
+					update("pda_dev", nd.uid, function(v) if v then v.hacked = v.hacked or {}; v.hacked[char] = now() return v end end)
+					send(id, "npc", npc_view(id, nd))
+				end
+			else
+				update("pda_dev", h.uid, function(v) if v then v.hacked = v.hacked or {}; v.hacked[char] = now() return v end end)
+				if d then d.rec.hacked[char] = now() end
+			end
+			printf("[Lost Zone] pdanet: %s hacked PDA %s", char, h.uid)
+		elseif h.kind == "npc" then
+			local nd = npc_device(id, h.item)
+			if nd then send(id, "npc", npc_view(id, nd)) end
+		else
+			send(id, "device", device_view(id, char, d))
+		end
+	end
+	foreign[id] = d ~= nil and not d.own
+	local key = d and (d.uid .. (d.own and "+" or "-") .. (d.rec.hacked[char] and "h" or "")) or ""
+	if key ~= device_key[id] then
+		device_key[id] = key
+		state(id, me)
+	end
+	if time_global() >= (next_stash[id] or 0) then
+		next_stash[id] = time_global() + 10000
+		sync_stashes(id, char)
+	end
+end
+
+-- Device verbs work whatever the holder's own network is (locked, or
+-- someone else's PDA in the slot).
+local DEVICE_VERBS = { device = true, hack = true, hack_stop = true, dump = true, wipe = true, npc_open = true, npc_stash = true }
 
 -- Flood limit for what other players see (README «лимиты сообщений»): per
 -- player a budget of BURST posts refilled at one per RATE_MS; "aup" parts,
@@ -719,8 +1115,16 @@ function command(entity_id, args)
 	end
 	local me, char = profile(entity_id)
 	if not me then return "" end
+	-- someone else's PDA in the slot: only its own verbs
+	if verb ~= "hello" and not DEVICE_VERBS[verb] then
+		local d = holding(entity_id, char)
+		if d and not d.own then
+			send(entity_id, "err", "foreign device")
+			return ""
+		end
+	end
 	-- a locked PDA answers only its state and the password
-	if verb ~= "hello" and verb ~= "unlock" and verb ~= "lockset" and is_locked(entity_id, char) then
+	if verb ~= "hello" and verb ~= "unlock" and verb ~= "lockset" and not DEVICE_VERBS[verb] and is_locked(entity_id, char) then
 		send(entity_id, "err", "locked")
 		return ""
 	end
@@ -784,7 +1188,7 @@ function update_world()
 			if s > seen[cid] then
 				me = me or read("pda_prof", char)
 				local c = read("pda_chat", cid)
-				if me and c and me.chats[cid] and not is_locked(id, char) then
+				if me and c and me.chats[cid] and not is_locked(id, char) and not foreign[id] then
 					send(id, "new", { id = cid, summary = summary(me, cid), msgs = shown(me, c.msgs, seen[cid]) })
 				end
 				seen[cid] = s
@@ -793,6 +1197,10 @@ function update_world()
 		pay_out(char, id)
 		-- heartbeat for the online status
 		local current = profile(id)
+		if current then
+			local ok, err = pcall(devices_update, id, char, current)
+			if not ok then printf("! [Lost Zone] pdanet devices: %s", tostring(err)) end
+		end
 		local requests = current and requests_key(current)
 		if current and (time_global() >= (next_state[char] or 0) or (shown_requests[char] and requests ~= shown_requests[char])) then
 			state(id, current)
@@ -801,6 +1209,11 @@ function update_world()
 		shown_requests[char] = requests
 	end
 	for char in pairs(pushed) do if not here[char] then pushed[char], next_state[char], shown_requests[char] = nil, nil, nil end end
+	local present = {}
+	for _, id in pairs(here) do present[id] = true end
+	for id in pairs(device_key) do
+		if not present[id] then device_key[id], hacking[id], stash_sent[id], next_stash[id], foreign[id] = nil, nil, nil, nil, nil end
+	end
 	for id, u in pairs(uploads) do
 		if time_global() - u.at > 60000 then uploads[id] = nil end -- abandoned upload
 	end

@@ -40,8 +40,35 @@ level = {object_by_id = function(id)
     if not p then return nil end
     p.money = p.money or 1000
     return {character_name = function() return p.name end, character_icon = function() return "icon_" .. p.char end,
-            money = function() return p.money end, give_money = function(_, n) p.money = p.money + n end}
+            money = function() return p.money end, give_money = function(_, n) p.money = p.money + n end,
+            id = function() return id end, alive = function() return p.alive ~= false end,
+            item_in_slot = function(_, slot) return slot == 8 and p.pda and items[p.pda] and items[p.pda].obj or nil end}
 end}
+-- PDAs (Devices): items[id] = { section, uid, owner = Actor id carrying it }
+items = {}
+function make_item(id, section, uid)
+    local it = {section = section, uid = uid}
+    it.obj = {id = function() return id end, section = function() return section end,
+              parent = function() return it.owner and level.object_by_id(it.owner) or nil end}
+    items[id] = it
+    return it
+end
+local actor_by_id = level.object_by_id
+level.object_by_id = function(id) if items[id] then return items[id].obj end return actor_by_id(id) end
+function netcoop_item_uid(id) return items[id] and items[id].uid or "" end
+se_vars = {}
+function se_load_var(id, name, key) return se_vars[id] and se_vars[id][key] end
+function se_save_var(id, name, key, v) se_vars[id] = se_vars[id] or {}; se_vars[id][key] = v end
+function alife_object(id) return stashes[id] end
+stashes = {}
+function alife() return {level_name = function() return "l01_escape" end,
+    object = function(_, name) for _, s in pairs(stashes) do if s:name() == name then return s end end end} end
+function game_graph() return {vertex = function() return {level_id = function() return 1 end} end} end
+level.name = function() return "l01_escape" end
+treasure_manager = {caches = {}, filled = 0}
+function treasure_manager.set_random_stash(no_spot, hint, bonus, id)
+    assert(no_spot == true); treasure_manager.filled = treasure_manager.filled + 1; treasure_manager.caches[id] = "wpn_pm"
+end
 current_server = 1
 function netcoop_players()
     local t = {}
@@ -341,4 +368,96 @@ assert last(cmd(0, 9, "pdanet lockset wrong|x123"), "err") == "wrong password"
 st = last(cmd(0, 9, "pdanet lockset secret1|"), "state")
 assert not st.has_lock, "removed with the old password"
 assert "secret1" not in (lua.eval("netcoop_store_read('pda_lock', 'a_1')") or ""), "never stored in clear"
+# Devices (owner 2026-10-23): every PDA its own serial; someone else's PDA
+# shows nothing of its holder's network, is hacked in time, shows what its
+# owner had until it left him, and can be reset. An NPC's PDA keeps GAMMA's
+# messages; hacking opens an encrypted one; its stash is filled here and
+# marked for the reader until it is opened.
+def drain(pid):
+    return [tuple(x.values()) for x in take(pid).values()]
+def poll_for(seconds, pids):
+    out = {pid: [] for pid in pids}
+    for _ in range(int(seconds / 2.5) + 1):
+        poll(0)
+        for pid in pids: out[pid] += drain(pid)
+    return out
+lua.execute('make_item(500, "device_pda_2", "u500"); players[9].pda = 500; items[500].owner = 9')
+r = cmd(0, 9, "pdanet hello")
+dev = last(r, "device")
+assert dev.own and len(dev.serial) == 9 and dev.serial[4] == "-", dev.serial
+serial = dev.serial
+assert lua.eval("netcoop_store_read('pda_serial', '%s')" % serial) == "u500"
+assert last(r, "state").uid == ua
+# The PDA is taken from Bashka (his body): Docent carries it.
+g.clock += 100
+lua.execute('players[9].pda = nil; players[3].pda = 500; items[500].owner = 3')
+r = cmd(0, 3, "pdanet hello")
+st, dev = last(r, "state"), last(r, "device")
+assert st.foreign and st.uid == "" and len(st.contacts) == 0, "someone else's PDA shows nothing of the holder"
+assert not dev.own and not dev.hacked and dev.owner is None and dev.serial == serial and dev.level == 2
+assert not any(k == "general" for k, _ in r), "nor the general channel"
+assert last(cmd(0, 3, "pdanet notes"), "err") == "foreign device"
+# Written to Bashka after his PDA left him: not on that device.
+g.clock += 100
+cmd(1, 2, f"pdanet msg {cid} text after the PDA was gone")
+dev = last(cmd(0, 3, "pdanet hack"), "device")
+assert dev.hack_total == 40000 and dev.hack_left == 40000
+assert last(cmd(0, 3, "pdanet dump"), "err") == "not hacked"
+got = poll_for(45, [3])[3]
+assert any(k == "device" and v.hacked and v.owner == "Bashka" for k, v in got), got
+d = last(cmd(0, 3, "pdanet dump"), "dump")
+assert d.serial == serial and d.owner.name == "Bashka" and d.owner.uid == ua
+texts = [m.x for c in d.chats.values() for m in c.msgs.values()]
+assert "Let's go hunting" in texts and "after the PDA was gone" not in texts, texts
+assert any(c.uid == ub for c in d.contacts.values())
+# Reset: the PDA serves Docent; his own network is back.
+r = cmd(0, 3, "pdanet wipe")
+assert last(r, "device").own and last(r, "state").uid == uc
+# Taken away during a hack: the hack stops.
+lua.execute('players[3].pda = nil; players[9].pda = 500; items[500].owner = 9')
+poll(0); drain(9)
+assert last(cmd(0, 9, "pdanet hack"), "device").hack_total == 40000
+lua.execute('players[9].pda = nil')
+got = poll_for(3, [9])[9]
+assert ("err", "hack interrupted") in got, got
+# Bashka's lock (he had a password): a PDA leaving him is slower to hack.
+cmd(0, 9, "pdanet lockset |secret2")
+lua.execute('make_item(501, "device_pda_1", "u501"); players[9].pda = 501; items[501].owner = 9')
+poll(0)
+lua.execute('players[9].pda = nil; players[3].pda = 501; items[501].owner = 3')
+poll(0); drain(3)
+assert last(cmd(0, 3, "pdanet hack"), "device").hack_total == (20 + 30) * 1000
+cmd(0, 3, "pdanet hack_stop"); lua.execute('players[3].pda = nil')
+
+# An NPC's encrypted PDA with a stash message.
+lua.execute(r"""
+stashes[77] = {id = 77, m_game_vertex_id = 1, name = function() return "esc_box_1" end}
+treasure_manager.caches[77] = false
+make_item(600, "itm_pda_rare", "u600"); items[600].owner = 3
+se_vars[600] = {info = {state = "encrypted", contact = {name = "Dead Guy", comm = "stalker"},
+    msg = {{stash = 77, stash_read = false, topic_title = "st_stash"}}}}
+""")
+n = last(cmd(0, 3, "pdanet npc_open 600"), "npc")
+assert n.id == 600 and n.info.state == "encrypted" and n.level == 3
+assert last(cmd(0, 3, "pdanet npc_open 500"), "err") == "no device", "only an NPC's PDA the player carries"
+n = last(cmd(0, 3, "pdanet hack 600"), "npc")
+assert n.hack_total == 60000
+assert last(cmd(0, 3, "pdanet npc_stash 600 77 hint"), "err") == "no device", "encrypted: nothing to read"
+got = poll_for(62, [3])[3]
+assert any(k == "npc" and v.info.state == "default" for k, v in got), "hacked open"
+assert lua.eval("se_vars[600].info.state") == "default", "GAMMA's storage on this server too"
+info = lua.eval("netcoop_transit.deserialize(netcoop_store_read('pda_npc', 'u600'))")
+assert info.state == "default" and info.msg[1].stash_name == "esc_box_1", "travels to other servers"
+r = cmd(0, 3, "pdanet npc_stash 600 77 Stash of Dead Guy")
+spot = last(r, "spot")
+assert spot.id == 77 and spot.add and spot.h == "Stash of Dead Guy"
+assert lua.eval("treasure_manager.filled") == 1 and lua.eval("treasure_manager.caches[77]") == "wpn_pm"
+assert lua.eval("se_vars[600].info.msg[1].stash_read") is True
+cmd(0, 3, "pdanet npc_stash 600 77 again")
+assert lua.eval("treasure_manager.filled") == 1, "filled once"
+lua.execute("treasure_manager.caches[77] = true")  # someone opened it
+got = poll_for(12, [3])[3]
+assert any(k == "spot" and v.id == 77 and not v.add for k, v in got), "the mark goes once it is opened"
+assert lua.eval("netcoop_store_read('pda_stash', 'c_1')") in ("", lua.eval("netcoop_transit.serialize({})"))
+print("netcoop pdanet devices: serial, foreign PDA, hack, owner's data until it left him, reset, interrupted hack, NPC PDA, stash")
 print("netcoop pdanet: OK")
