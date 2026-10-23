@@ -175,6 +175,29 @@ class World:
                 self._anchor_ms, self._anchor_ns, self._scale = now, anchor_ns, current
             return result
 
+    def advance(self, actor, command_id, game_ms):
+        """Move the calendar forward (an administrator skipping time).
+
+        Every location behind the master takes the new time at once, so the
+        whole Zone shows the same hour. Never backwards: schedules keyed to
+        the calendar would replay."""
+        finite(game_ms, 1, 30 * 86_400_000)
+        with self.store.lock:
+            applied = []
+            def apply(tx):
+                now = self.now()
+                target = finite(now + game_ms)
+                tx.execute("UPDATE world SET world_ms=?,sequence=sequence+1 WHERE singleton=1", (target,))
+                event = self.store.event(tx, "world", "TimeAdvanced", {"game_ms": game_ms}, target)
+                applied.append((target, self._last_ns))
+                return {"world_ms": target, "game_ms": game_ms, "event": event}
+            payload = {"type": "advance", "game_ms": game_ms}
+            result = self.store.command(actor, command_id, payload, self.mutation(apply, change=(actor, command_id, payload)))
+            # A retry returns the stored result without moving the clock again.
+            if applied:
+                self._anchor_ms, self._anchor_ns = applied[0]
+            return result
+
     def claim_location(self, actor, command_id, location, capacity=128, ttl_ms=15000):
         identifier(actor)
         identifier(location)

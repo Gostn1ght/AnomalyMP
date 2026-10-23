@@ -88,6 +88,21 @@ class WorldTest(unittest.TestCase):
             with self.assertRaises(Invalid):
                 self.world.set_scale("admin", uid(), bad)
 
+    def test_advance_moves_the_calendar_forward_once_and_survives_restart(self):
+        before = self.world.now()
+        command_id = uuid.uuid4().hex
+        result = self.world.advance("admin", command_id, 7_200_000)
+        self.assertGreaterEqual(result["world_ms"], before + 7_200_000)
+        self.assertGreaterEqual(self.world.now(), before + 7_200_000)
+        again = self.world.advance("admin", command_id, 7_200_000)
+        self.assertEqual(again["world_ms"], result["world_ms"])
+        self.assertLess(self.world.now(), before + 2 * 7_200_000)
+        with self.assertRaises(Invalid):
+            self.world.advance("admin", uuid.uuid4().hex, 0)
+        self.store.close()
+        self.open()
+        self.assertGreaterEqual(self.world.now(), result["world_ms"])
+
     def test_restart_preserves_identity_and_committed_event_clock_floor(self):
         self.clock.advance(1234)
         self.entity()

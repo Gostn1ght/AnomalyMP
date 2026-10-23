@@ -18,7 +18,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from .ownership import Ownership
 from .quests import Quests
-from .store import Conflict, Invalid, Unavailable, canonical, identifier, persistent_id
+from .store import Conflict, Invalid, Unavailable, canonical, finite, identifier, persistent_id
 from .transfers import Transfers
 from .timelines import Timelines
 from .offline import Offline
@@ -128,6 +128,9 @@ class Dispatcher:
         if planning_policy is not None:
             self.planner.enable_automatic(planning_policy)
 
+    def admin_relay(self, actor, command_id, account, order, values):
+        return admin_relay(self, actor, command_id, account, order, values)
+
     @staticmethod
     def allowed(principal, location):
         identifier(location)
@@ -165,6 +168,7 @@ class Dispatcher:
             "trade": self.trade.transact,
             "native_save_begin": self.player_saves.begin, "native_save_append": self.player_saves.append,
             "native_save_finish": self.player_saves.finish, "native_save_cancel": self.player_saves.cancel,
+            "admin_relay": self.admin_relay,
         }
         if operation in administrative:
             if principal.role != "admin":
@@ -172,6 +176,8 @@ class Dispatcher:
             function = administrative[operation]
         elif operation in functions:
             function = functions[operation]
+            if operation == "admin_relay" and principal.role != "location":
+                raise PermissionError("administrator orders are relayed by a location authority")
             if operation.startswith("native_save_"):
                 if principal.role != "location":
                     raise PermissionError("native checkpoints require a location authority")
@@ -202,6 +208,42 @@ class Dispatcher:
         except TypeError as error:
             raise Invalid("arguments do not match the command contract") from error
         return function(principal.actor, request["command_id"], **args)
+
+
+ADMIN_ORDERS = ("weather", "emission", "psi_storm", "scale", "advance")
+
+
+def admin_relay(dispatcher, actor, command_id, account, order, values):
+    """An in-game administrator's world order, relayed by the location that
+    verified his account (owner 2026-10-23: time and weather set from the
+    admin menu or the weather editor reached only one map). It goes to the
+    operations the master console uses, so every location follows it."""
+    if not isinstance(account, str) or not 0 < len(account) <= 64 or not account.isprintable():
+        raise Invalid("invalid administrator account")
+    if order not in ADMIN_ORDERS or not isinstance(values, dict):
+        raise Invalid("unknown administrator order")
+    persistent_id(command_id)
+    if order == "scale":
+        if set(values) != {"value"}:
+            raise Invalid("scale order requires value")
+        result = dispatcher.world.set_scale(actor, command_id, values["value"])
+    elif order == "advance":
+        if set(values) != {"game_s"}:
+            raise Invalid("advance order requires game_s")
+        result = dispatcher.world.advance(actor, command_id, finite(values["game_s"], .001, 30 * 86400) * 1000)
+    else:
+        if order == "weather":
+            if set(values) != {"source", "target", "transition_s"}:
+                raise Invalid("weather order requires source, target and transition_s")
+            durations, parameters = [values["transition_s"]], {"source": values["source"], "target": values["target"]}
+        else:
+            if set(values) != {"durations", "intensity"}:
+                raise Invalid("event order requires durations and intensity")
+            durations, parameters = values["durations"], {"intensity": values["intensity"]}
+        times, parameters = Timelines.plan(dispatcher.world, order, command_id, durations, parameters)
+        result = dispatcher.timelines.schedule(actor, command_id, order, command_id, None, times, parameters)
+    print(f"[master] administrator {account} via {actor}: {order} {canonical(values)}", flush=True)
+    return result
 
 
 def strict_json(data):

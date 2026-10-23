@@ -6,11 +6,10 @@ location adoption is a separate adapter; its observer is not authority.
 from collections import Counter
 import os
 import sys
-import hashlib
 import json
 import uuid
 
-from .store import Invalid, Unavailable, finite, identifier
+from .store import Invalid, Unavailable
 from .timelines import Timelines
 
 
@@ -63,25 +62,11 @@ class Console:
         if len(args) != (3 if name == "weather" else 4):
             raise Invalid("invalid timeline command arguments")
         if name == "weather":
-            parameters = {"source": identifier(args[0]), "target": identifier(args[1])}
-            durations = [finite(float(args[2]), .001, 86400)]
-            phases = ("TRANSITION", "SETTLED")
+            parameters, durations = {"source": args[0], "target": args[1]}, [float(args[2])]
         else:
-            durations = [finite(float(value), .001, 86400) for value in args[:3]]
-            intensity = finite(float(args[3]), 0, 100)
-            if intensity == 0:
-                raise Invalid("emission intensity must be positive")
-            parameters = {"intensity": intensity}
-            phases = ("WARNING", "ACTIVE", "PEAK", "ENDED")
+            parameters, durations = {"intensity": float(args[3])}, [float(value) for value in args[:3]]
         command_id = uuid.uuid4().hex
-        world = self.dispatcher.world
-        parameters["seed"] = int.from_bytes(hashlib.sha256(
-            f"console-timeline:{world.world_id}:{world.seed}:{name}:{command_id}".encode()).digest()[:8], "big")
-        at = world.now()
-        times = {phases[0]: at}
-        for phase, seconds in zip(phases[1:], durations):
-            at = finite(at + seconds * 1000)
-            times[phase] = at
+        times, parameters = Timelines.plan(self.dispatcher.world, name, command_id, durations, parameters)
         result = self.submit("timeline_schedule", {"name": name, "timeline_id": command_id,
                              "version": None, "times": times, "parameters": parameters}, command_id)
         return f"{name}: расписание сохранено; version={result['version']}; ID={result['timeline_id']}."

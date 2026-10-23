@@ -57,6 +57,45 @@ class HttpTest(unittest.TestCase):
         finally:
             connection.close()
 
+    def relay(self, order, values, token="b" * 48, account="lzadmin", command_id=None):
+        headers = {"X-LostZone-Instance": "a" * 32,
+                   "X-LostZone-World": f"{self.world.world_id}:{self.world.seed}:{self.store.epoch}"}
+        body = {"command_id": command_id or uuid.uuid4().hex, "operation": "admin_relay",
+                "arguments": {"account": account, "order": order, "values": values}}
+        return self.call("POST", "/v1/command", body, token=token, headers=headers)
+
+    def test_location_relays_an_administrators_world_orders_to_every_map(self):
+        self.server.ready.set()
+        status, body = self.relay("weather", {"source": "clear", "target": "w_rain2", "transition_s": 60})
+        self.assertEqual(status, 200)
+        state = self.world.engine_bootstrap_snapshot()["states"]["weather"]["state"]
+        self.assertEqual(state["parameters"]["target"], "w_rain2")
+        self.assertAlmostEqual(state["times"]["SETTLED"] - state["times"]["TRANSITION"], 60_000, delta=1)
+        self.assertEqual(self.relay("emission", {"durations": [30, 60, 90], "intensity": 1})[0], 200)
+        self.assertEqual(self.relay("psi_storm", {"durations": [30, 60, 90], "intensity": 1})[0], 200)
+        before = self.world.now()
+        command_id = uuid.uuid4().hex
+        self.assertEqual(self.relay("advance", {"game_s": 3600}, command_id=command_id)[0], 200)
+        after = self.world.now()
+        self.assertGreaterEqual(after - before, 3_600_000)
+        # The same order retried does not move the clock again.
+        self.assertEqual(self.relay("advance", {"game_s": 3600}, command_id=command_id)[0], 200)
+        self.assertLess(self.world.now() - after, 3_600_000)
+        status, body = self.relay("scale", {"value": 20})
+        self.assertEqual((status, body["result"]["scale"]), (200, 20))
+
+    def test_world_orders_need_a_location_and_a_known_order(self):
+        self.server.ready.set()
+        # The administrator credential uses the console; an observer nothing.
+        self.assertEqual(self.relay("advance", {"game_s": 60}, token="a" * 48)[0], 403)
+        self.assertNotEqual(self.relay("advance", {"game_s": 60}, token="d" * 48)[0], 200)
+        self.assertEqual(self.relay("spawn", {"section": "wpn_ak74"})[0], 400)
+        self.assertEqual(self.relay("advance", {"game_s": -5})[0], 400)
+        self.assertEqual(self.relay("advance", {"game_s": 60, "x": 1})[0], 400)
+        self.assertEqual(self.relay("weather", {"source": "clear", "target": "bad target", "transition_s": 1})[0], 400)
+        self.assertEqual(self.relay("emission", {"durations": [1, 2], "intensity": 1})[0], 400)
+        self.assertEqual(self.relay("advance", {"game_s": 60}, account="")[0], 400)
+
     def test_master_window_console_is_for_the_administrator_only(self):
         self.server.ready.set()
         status, body = self.call("POST", "/v1/console", {"line": "clock"}, token="a" * 48)

@@ -62,6 +62,33 @@ class Timelines:
         return self.store.command(actor, command_id, payload, self.world.mutation(apply))
 
     @staticmethod
+    def plan(world, name, timeline_id, durations, parameters):
+        """Phase times from now and a stable seed for an administrator's
+        schedule (the master console, or an in-game administrator through his
+        location): weather durations = [transition seconds]; emission and psi
+        storm durations = [warning->active, active->peak, peak->end] seconds."""
+        if name not in PHASES:
+            raise Invalid("invalid timeline name")
+        phases = PHASES[name]
+        if not isinstance(durations, list) or len(durations) != len(phases) - 1:
+            raise Invalid("invalid timeline durations")
+        if name == "weather":
+            parameters = {"source": identifier(parameters.get("source")), "target": identifier(parameters.get("target"))}
+        else:
+            intensity = finite(parameters.get("intensity"), 0, 100)
+            if intensity == 0:
+                raise Invalid("emission intensity must be positive")
+            parameters = {"intensity": intensity}
+        parameters["seed"] = int.from_bytes(hashlib.sha256(
+            f"console-timeline:{world.world_id}:{world.seed}:{name}:{timeline_id}".encode()).digest()[:8], "big")
+        at = world.now()
+        times = {phases[0]: at}
+        for phase, seconds in zip(phases[1:], durations):
+            at = finite(at + finite(float(seconds), .001, 86400) * 1000)
+            times[phase] = at
+        return times, parameters
+
+    @staticmethod
     def event_id(name, timeline_id, phase):
         return hashlib.sha256(f"timeline:{name}:{timeline_id}:{phase}".encode("utf-8")).hexdigest()[:32]
 
