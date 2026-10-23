@@ -420,6 +420,7 @@ local server_weather = nil
 local applied_actual = nil -- level.get_weather() right after applying it
 local applying_server_weather = false
 local engine_set_weather = nil
+local engine_change_time = nil
 
 -- The server chooses the weather; this client's weather manager (and the
 -- base-game fixes that extend it) must never pick its own. Installed at game
@@ -450,6 +451,18 @@ local function install_weather_follow()
 			end
 			if is_admin() and name and name ~= "" then
 				netcoop_command(string.format("weather %s%s", tostring(name), now and " now" or ""))
+			end
+		end
+	end
+	-- The administrator's debug "time" goes to the server (and from there to
+	-- the world master); the client's own clock follows the server.
+	if not engine_change_time and level and level.change_game_time then
+		engine_change_time = level.change_game_time
+		level.change_game_time = function(days, hours, mins)
+			local trace = debug and debug.traceback and debug.traceback() or ""
+			if is_admin() and string.find(trace, "debug_cmd_list", 1, true) then
+				netcoop_command(string.format("time %d %d %d", math.max(0, math.floor(tonumber(days) or 0)),
+					math.max(0, math.floor(tonumber(hours) or 0)), math.max(0, math.floor(tonumber(mins) or 0))))
 			end
 		end
 	end

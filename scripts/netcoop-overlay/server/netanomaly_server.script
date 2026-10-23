@@ -137,6 +137,25 @@ local function find_sections(mask, limit)
 	return string.format("~ %d section(s):\n", n) .. table.concat(out, "\n")
 end
 
+-- Weather, emissions, psi storms, the calendar and the time scale belong to
+-- the world master when there is one (owner 2026-10-23: an administrator's
+-- change reached one map only). nil: no master here, the map decides itself.
+local function master_order(account, order, source, target, a, b, c, d)
+	if not netcoop_master.governs() then return nil end
+	if netcoop_world_order and netcoop_world_order(account or "", order, source or "", target or "", a or 0, b or 0, c or 0, d or 0) then
+		return "* sent to the world master: every location follows it"
+	end
+	return "! the world master is not reachable from this location; nothing changed"
+end
+
+-- An emission or psi storm for the whole Zone: the master's three phases
+-- span the event's real length at the world's time scale.
+local function master_event(account, order, module)
+	local s = netcoop_master.state()
+	local total = module.real_duration() * ((s and s.scale) or level.get_time_factor())
+	return master_order(account, order, "", "", total / 3, total / 3, total / 3, 1)
+end
+
 function on_client_command(cid, name, entity_id, text, role)
 	local admin = role == "admin"
 	text = string.gsub(text or "", "^%s*(.-)%s*$", "%1")
@@ -322,11 +341,40 @@ function on_client_command(cid, name, entity_id, text, role)
 
 	elseif cmd == "emission" then
 		if args ~= "start" then return "! usage: emission start" end
+		local sent = master_event(name, "emission", netcoop_emission)
+		if sent then return sent end
 		return netcoop_emission.start() and "* emission started for all players" or "! emission already active or unavailable here"
+	elseif cmd == "psi" or cmd == "psi_storm" then
+		if args ~= "start" then return "! usage: psi start" end
+		local sent = master_event(name, "psi_storm", netcoop_psi_storm)
+		if sent then return sent end
+		return netcoop_psi_storm.start() and "* psi storm started for all players" or "! psi storm already active or unavailable here"
 	elseif cmd == "weather" then
 		local wname, now = string.match(args, "^([%w_%.%-]+)%s*(%a*)$")
 		if not wname then return "! usage: weather <name> [now]" end
+		-- A short transition is the "now" of every location (netcoop_server_compat).
+		local sent = master_order(name, "weather", netcoop_server_compat.master_weather_source(), wname, now == "now" and 1 or 600)
+		if sent then return sent end
 		return netcoop_server_compat.set_server_weather(wname, now == "now")
+	elseif cmd == "time" then
+		-- time <hours> | <hours> <minutes> | <days> <hours> <minutes>: forward.
+		local v = {}
+		for n in string.gmatch(args, "%d+") do v[#v + 1] = tonumber(n) end
+		if #v == 1 then v = { 0, v[1], 0 } elseif #v == 2 then v = { 0, v[1], v[2] } end
+		if #v ~= 3 or string.find(args, "[^%d%s]") then return "! usage: time <days> <hours> <minutes> (forward)" end
+		local seconds = v[1] * 86400 + v[2] * 3600 + v[3] * 60
+		if seconds <= 0 or seconds > 30 * 86400 then return "! time moves forward, at most 30 days" end
+		local sent = master_order(name, "advance", "", "", seconds)
+		if sent then return sent end
+		level.change_game_time(v[1], v[2], v[3])
+		return string.format("* time moved forward %dd %dh %dm on this location", v[1], v[2], v[3])
+	elseif cmd == "timescale" then
+		local value = tonumber(string.match(args, "^(%d+%.?%d*)$"))
+		if not value or value <= 0 or value > 1000 then return "! usage: timescale <game seconds per real second>" end
+		local sent = master_order(name, "scale", "", "", value)
+		if sent then return sent end
+		level.set_time_factor(value)
+		return string.format("* time scale %.2f on this location", value)
 
 	elseif cmd == "find" then
 		local mask, limit = string.match(args, "^(%S+)%s*(%d*)$")

@@ -175,14 +175,16 @@ local at = e3.scheduled_start(170, 24)
 now = (at*3600 - 100000)*1000/6 + 1000   -- the local cluster slot is due
 e3.update_world(); assert(factor == 6, "no local emission while the master is required")
 master_line = "1 1000000 10.0000|-|EM1 990000 3210000|-"
-e3.update_world(); assert(factor == 10, "the master's emission starts")
+e3.update_world(); assert(e3.current_elapsed() >= 0, "the master's emission starts")
+-- The calendar is the master's: the map does not speed its own clock up.
+assert(factor == 6, "no local time factor under the master")
 assert(store.netcoop_master_emission == "EM1")
 assert(broadcast:match("^%d+|1|1%.000|222$"), "resumed one real second in: " .. broadcast)
-now = now + 223000; e3.update_world(); assert(factor ~= 10, "finished")
+now = now + 223000; e3.update_world(); assert(e3.current_elapsed() < 0 and factor == 6, "finished")
 assert(store.netcoop_master_emission_done == "EM1")
-e3.update_world(); assert(factor ~= 10, "the same master emission never runs twice here")
+e3.update_world(); assert(e3.current_elapsed() < 0, "the same master emission never runs twice here")
 master_line = "1 4000000 10.0000|-|EM1 990000 3210000|-"
-e3.update_world(); assert(factor ~= 10)
+e3.update_world(); assert(e3.current_elapsed() < 0)
 ''')
 print('PASS: shared clock, shelter IDs, per-owner protection, late join, single respawn, world master and client presentation')
 

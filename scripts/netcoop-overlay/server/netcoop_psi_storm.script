@@ -109,6 +109,15 @@ end
 -- Seconds into the running storm, -1 when none.
 function current_elapsed() return started_at and elapsed() or -1 end
 
+-- Real seconds the event lasts (the master's order spans it).
+function real_duration() return duration end
+
+-- GAMMA speeds time up during the event. With the world master the calendar
+-- is the master's: a faster map ran ahead of the Zone and then crawled at
+-- half speed to fall back in step (owner 2026-10-23).
+local function own_time_factor() return not netcoop_master.governs() end
+local factor_changed = false
+
 function start(elapsed_seconds)
 	install()
 	if started_at or not enabled() then return false end
@@ -121,7 +130,8 @@ function start(elapsed_seconds)
 	local mgr = manager()
 	mgr.started, mgr.finished = true, false
 	mgr.inited_time = game.get_game_time()
-	level.set_time_factor(10)
+	factor_changed = own_time_factor()
+	if factor_changed then level.set_time_factor(10) end
 	SetEvent("psi_storm", "state", true)
 	SendScriptCallback("actor_on_interaction", "anomalies", nil, "psi_storm_start")
 	netcoop_broadcast("psi_storm", payload())
@@ -141,7 +151,8 @@ function finish()
 	if state.netcoop_psi_slot then state.netcoop_psi_done = state.netcoop_psi_slot end
 	if state.netcoop_master_psi then state.netcoop_master_psi_done = state.netcoop_master_psi end
 	state.netcoop_psi_next = nil
-	level.set_time_factor(normal_factor or 6)
+	if factor_changed then level.set_time_factor(normal_factor or 6) end
+	factor_changed = false
 	SetEvent("psi_storm", "state", false)
 	SendScriptCallback("actor_on_interaction", "anomalies", nil, "psi_storms")
 	SendScriptCallback("actor_on_interaction", "anomalies", nil, "psi_storm_end")

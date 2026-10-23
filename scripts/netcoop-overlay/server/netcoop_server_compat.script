@@ -587,6 +587,58 @@ function install_master_weather(wm)
 	end
 end
 
+-- The cycle a weather preset belongs to: an administrator picks a preset in
+-- the debug menu or the weather editor and the master keeps it as the target.
+local function preset_cycle(wm, name)
+	local plain = string.gsub(name, "_large$", "")
+	for cycle, presets in pairs(wm.presets or {}) do
+		if presets[name] or presets[plain] then return cycle, presets[name] and name or plain end
+	end
+end
+
+-- The source of an administrator's weather order: what the Zone shows now.
+function master_weather_source()
+	local wm = level_weathers and level_weathers.get_weather_manager()
+	return netcoop_master.weather_cycle(netcoop_master.state()) or (wm and wm.cycle) or "clear"
+end
+
+-- The master's weather target is a cycle (the director's), a preset of a
+-- cycle or a weather the cycles do not list (the administrator's). Every map
+-- shows it at the same game time; a transition shorter than a game minute
+-- switches at once, as the administrator's "now" did on one map.
+local master_weather_key
+local function apply_master_weather(wm, master)
+	local target = netcoop_master.weather_cycle(master)
+	if not target then return end
+	local w = master.weather
+	local cycle, preset = target, nil
+	if not (wm.presets and wm.presets[target]) then cycle, preset = preset_cycle(wm, target) end
+	local key = tostring(w.id) .. ":" .. target
+	local fresh = key ~= master_weather_key
+	if not fresh then
+		-- GAMMA's hourly reselect must not leave the master's weather.
+		if cycle and wm.cycle == cycle and (not preset or wm.preset == preset) then return end
+		if not cycle and wm.weather_file == target then return end
+	end
+	master_weather_key = key
+	local now = fresh and w.settled and w.transition and w.settled - w.transition < 60000 or false
+	local ok, err = true, nil
+	hour_seed(cluster_hour())
+	if cycle then
+		wm.cycle = cycle
+		wm.preset = preset or random_key_table(wm.presets[cycle])
+		wm.transition_period = not now and not preset
+		ok, err = pcall(wm.select_weather, wm, now)
+	else
+		wm.weather_file = target
+		ok, err = pcall(level.set_weather, target, now)
+	end
+	math.randomseed(os.time() + time_global())
+	weather_sent, weather_next, weather_forced = nil, 0, now
+	if not ok then printf("[Lost Zone] master weather error: %s", tostring(err)) end
+	printf("[Lost Zone][master] weather %s%s", target, now and " (now)" or "")
+end
+
 local function server_world_tick()
 	local now = time_global()
 	if now < world_next then return end
@@ -618,17 +670,7 @@ local function server_world_tick()
 	local master, master_required = netcoop_master.state()
 	if master or master_required then
 		install_master_weather(wm)
-		local cycle = netcoop_master.weather_cycle(master)
-		if cycle and wm.cycle ~= cycle and wm.presets and wm.presets[cycle] then
-			hour_seed(cluster_hour())
-			wm.cycle = cycle
-			wm.preset = random_key_table(wm.presets[cycle])
-			wm.transition_period = true
-			local ok, err = pcall(wm.select_weather, wm, false)
-			math.randomseed(os.time() + time_global())
-			if not ok then printf("[Lost Zone] master weather error: %s", tostring(err)) end
-			printf("[Lost Zone][master] weather cycle %s", cycle)
-		end
+		if master then apply_master_weather(wm, master) end
 	else
 		install_cluster_weather(wm)
 	end
