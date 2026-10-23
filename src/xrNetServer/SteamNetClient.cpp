@@ -465,7 +465,7 @@ bool SteamNetClient::SendPingMessage(MSYS_PING & clPing)
 void SteamNetClient::UpdateStatistic()
 {
 	SteamNetConnectionRealTimeStatus_t  status;
-	if (!m_pInterface->GetConnectionRealTimeStatus(m_hConnection, &status, 0, 0))
+	if (m_pInterface->GetConnectionRealTimeStatus(m_hConnection, &status, 0, 0) != k_EResultOK)
 	{
 		return;
 	}
@@ -484,7 +484,7 @@ bool SteamNetClient::GetPendingMessagesCount(DWORD& dwPending)
 	R_ASSERT(m_hConnection != k_HSteamNetConnection_Invalid);
 
 	SteamNetConnectionRealTimeStatus_t  pStatus;
-	if (m_pInterface->GetConnectionRealTimeStatus(m_hConnection, &pStatus, 0, 0))
+	if (m_pInterface->GetConnectionRealTimeStatus(m_hConnection, &pStatus, 0, 0) == k_EResultOK)
 	{
 		dwPending = pStatus.m_cbPendingReliable + pStatus.m_cbPendingUnreliable;
 		return true;

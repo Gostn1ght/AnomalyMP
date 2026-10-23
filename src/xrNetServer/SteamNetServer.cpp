@@ -87,7 +87,7 @@ void SteamNetServer::AdaptSendRates()
 			continue;
 		if (info.m_addrRemote.IsLocalHost())
 			continue; // the server's own client
-		if (!m_pInterface->GetConnectionRealTimeStatus(connection, &status, 0, 0))
+		if (m_pInterface->GetConnectionRealTimeStatus(connection, &status, 0, 0) != k_EResultOK)
 			continue;
 		SendRate& rate = m_send_rates[connection];
 		if (!rate.bytes)
@@ -625,7 +625,7 @@ bool SteamNetServer::GetClientSendQueueTime(ClientID ID, u32& ms)
 	if (!m_pInterface)
 		return false;
 	SteamNetConnectionRealTimeStatus_t status;
-	if (!m_pInterface->GetConnectionRealTimeStatus(ID.value(), &status, 0, 0))
+	if (m_pInterface->GetConnectionRealTimeStatus(ID.value(), &status, 0, 0) != k_EResultOK)
 		return false;
 	ms = status.m_usecQueueTime > 0 ? u32(status.m_usecQueueTime / 1000) : 0;
 	// A queue of seconds means the line to that player carries less than
@@ -653,7 +653,7 @@ bool SteamNetServer::GetClientPendingMessagesCount(ClientID ID, DWORD& dwPending
 	R_ASSERT(m_pInterface);
 
 	SteamNetConnectionRealTimeStatus_t  status;
-	if (m_pInterface->GetConnectionRealTimeStatus(ID.value(), &status, 0, 0))
+	if (m_pInterface->GetConnectionRealTimeStatus(ID.value(), &status, 0, 0) == k_EResultOK)
 	{
 		dwPending = status.m_cbPendingReliable + status.m_cbPendingUnreliable;
 		return true;
@@ -667,7 +667,7 @@ bool SteamNetServer::GetClientPendingMessagesCount(ClientID ID, DWORD& dwPending
 void SteamNetServer::UpdateClientStatistic(IClient* C)
 {
 	SteamNetConnectionRealTimeStatus_t  status;
-	if (!m_pInterface->GetConnectionRealTimeStatus(C->ID.value(), &status, 0, 0))
+	if (m_pInterface->GetConnectionRealTimeStatus(C->ID.value(), &status, 0, 0) != k_EResultOK)
 	{
 		return;
 	}
