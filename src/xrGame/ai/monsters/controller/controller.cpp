@@ -455,6 +455,10 @@ void CController::UpdateCL()
 			xr_delete(m_sndShockEffector);
 	}
 
+	// The control effect is the victim's screen; a dedicated server has no
+	// game UI to draw it on (see CBaseMonster::HitEntity).
+	if (active_control_fx && !CurrentGameUI())
+		active_control_fx = false;
 	if (active_control_fx)
 	{
 		u32 time_to_show = 150;

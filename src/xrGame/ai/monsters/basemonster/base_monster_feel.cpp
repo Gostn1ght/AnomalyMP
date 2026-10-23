@@ -119,18 +119,24 @@ void CBaseMonster::HitEntity(const CEntity* pEntity, float fDamage, float impuls
 			START_PROFILE("BaseMonster/Animation/HitEntity")
 				;
 
-				StaticDrawableWrapper* s = CurrentGameUI()->AddCustomStatic("monster_claws", false);
+				// The claw marks belong to the victim's screen. A dedicated server
+				// never loads a game UI: a monster striking there took the Cordon
+				// server down (owner's hoster 2026-10-23, two dumps).
+				if (CUIGameCustom* ui = CurrentGameUI())
+				{
+					StaticDrawableWrapper* s = ui->AddCustomStatic("monster_claws", false);
 
-				float h1, p1;
-				Device.vCameraDirection.getHP(h1, p1);
-				Fvector hd = hit_dir;
-				hd.mul(-1);
-				float d = -h1 + hd.getH();
-				s->wnd()->SetHeading(d);
-				Fvector2 wnd_pos = s->wnd()->GetWndPos();
-				wnd_pos.y += 400.0f * _cos(d);
-				wnd_pos.x += 500.0f * _sin(d);
-				s->wnd()->SetWndPos(wnd_pos);
+					float h1, p1;
+					Device.vCameraDirection.getHP(h1, p1);
+					Fvector hd = hit_dir;
+					hd.mul(-1);
+					float d = -h1 + hd.getH();
+					s->wnd()->SetHeading(d);
+					Fvector2 wnd_pos = s->wnd()->GetWndPos();
+					wnd_pos.y += 400.0f * _cos(d);
+					wnd_pos.x += 500.0f * _sin(d);
+					s->wnd()->SetWndPos(wnd_pos);
+				}
 
 			STOP_PROFILE;
 
