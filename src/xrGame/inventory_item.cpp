@@ -754,7 +754,7 @@ void CInventoryItem::net_Export(NET_Packet& P)
 	// the clients as in multiplayer; the single player game sent nothing, so
 	// each client rolled and pushed items on its own (s103: an item kicked
 	// 100 m away still lay at the old place for the other player).
-	if (object().H_Parent() || (IsGameTypeSingle() && !netcoop::enabled()))
+	if (object().H_Parent() || !netcoop::enabled())
 	{
 		P.w_u8(0);
 		return;

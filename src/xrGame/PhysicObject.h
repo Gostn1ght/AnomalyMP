@@ -131,7 +131,6 @@ protected:
 	virtual void InitServerObject(CSE_Abstract* po);
 	virtual void PHObjectPositionUpdate();
 
-	void net_Export_PH_Params(NET_Packet& P, SPHNetState& State, mask_num_items& num_items);
 	void net_Import_PH_Params(NET_Packet& P, net_update_PItem& N, mask_num_items& num_items);
 	net_updatePhData* NetSync();
 	net_updatePhData* m_net_updateData;

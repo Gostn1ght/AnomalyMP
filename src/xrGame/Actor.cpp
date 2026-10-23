@@ -1261,13 +1261,8 @@ void CActor::UpdateCL()
             HUD().SetFirstBulletCrosshairDisp(pWeapon->GetFirstBulletDisp());
 #endif
 
-			BOOL B = !((mstate_real & mcLookout) && !IsGameTypeSingle());
-
-			psHUD_Flags.set(HUD_WEAPON_RT, B);
-
-			B = B && pWeapon->show_crosshair();
-
-			psHUD_Flags.set(HUD_CROSSHAIR_RT2, B);
+			psHUD_Flags.set(HUD_WEAPON_RT, TRUE);
+			psHUD_Flags.set(HUD_CROSSHAIR_RT2, pWeapon->show_crosshair());
 
 			psHUD_Flags.set(HUD_DRAW_RT, pWeapon->show_indicators());
 
@@ -2441,7 +2436,7 @@ void CActor::OnHUDDraw(CCustomHUD*)
 {
 	R_ASSERT(IsFocused());
 	//demonized: disable hud when FPCam is on
-	if (!((mstate_real & mcLookout) && !IsGameTypeSingle()) && (!m_FPCam || m_FPCam->hudEnabled))
+	if (!m_FPCam || m_FPCam->hudEnabled)
 		g_player_hud->render_hud();
 
 

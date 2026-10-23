@@ -767,7 +767,7 @@ bool CInventory::Action(u16 cmd, u32 flags)
 		if (flags & CMD_START)
 		{
 			if (GetActiveSlot() == ARTEFACT_SLOT &&
-				ActiveItem() /*&& IsGameTypeSingle()*/)
+				ActiveItem())
 			{
 				Activate(NO_ACTIVE_SLOT);
 			}

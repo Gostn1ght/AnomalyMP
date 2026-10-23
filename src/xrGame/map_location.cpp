@@ -350,7 +350,7 @@ bool CMapLocation::Update() //returns actual
 	shared_str client_level;
 	const bool client_spot = netcoop::pure_client() &&
 		(pObject || netcoop::client_map_position(m_objectID, client_position, client_level));
-	if (m_owner_se_object || (!IsGameTypeSingle() && pObject) || client_spot)
+	if (m_owner_se_object || client_spot)
 	{
 		m_cached.m_Actuality = true;
 		CalcLevelName();
