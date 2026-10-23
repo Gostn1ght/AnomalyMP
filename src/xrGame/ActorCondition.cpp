@@ -210,7 +210,7 @@ void CActorCondition::UpdateCondition()
 
 		m_fAlcohol += v_alcohol * m_fDeltaTime;
 		clamp(m_fAlcohol, 0.0f, 1.0f);
-		if (IsGameTypeSingle() && local_view_actor)
+		if (local_view_actor)
 		{
 			CEffectorCam* ce = Actor()->Cameras().GetCamEffector((ECamEffectorType)effAlcohol);
 			if (ce)
@@ -254,7 +254,7 @@ void CActorCondition::UpdateCondition()
 	m_fAlcohol += v_alcohol * m_fDeltaTime;
 	clamp(m_fAlcohol, 0.0f, 1.0f);
 
-	if (IsGameTypeSingle() && local_view_actor)
+	if (local_view_actor)
 	{
 		CEffectorCam* ce = Actor()->Cameras().GetCamEffector((ECamEffectorType)effAlcohol);
 		if ((m_fAlcohol > 0.0001f))
@@ -305,10 +305,10 @@ void CActorCondition::UpdateCondition()
 
 	inherited::UpdateCondition();
 
-	if (IsGameTypeSingle() && local_view_actor)
+	if (local_view_actor)
 		UpdateTutorialThresholds();
 
-	if (GetHealth() < 0.05f && m_death_effector == NULL && IsGameTypeSingle() && local_view_actor)
+	if (GetHealth() < 0.05f && m_death_effector == NULL && local_view_actor)
 	{
 		if (pSettings->section_exist("actor_death_effector"))
 			m_death_effector = xr_new<CActorDeathEffector>(this, "actor_death_effector");
@@ -572,7 +572,7 @@ bool CActorCondition::IsCantWalk() const
 
 bool CActorCondition::IsCantWalkWeight()
 {
-	if (IsGameTypeSingle() && !GodMode(m_object))
+	if (!GodMode(m_object))
 	{
 		float max_w = m_object->MaxWalkWeight();
 

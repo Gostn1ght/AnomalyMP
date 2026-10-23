@@ -318,7 +318,7 @@ void CEntityAlive::Hit(SHit* pHDS)
 
 	// Fight and relation bookkeeping needs ALife; a netcoop client only shows
 	// the hit, the server records it.
-	if (g_Alive() && IsGameTypeSingle() && !netcoop::pure_client())
+	if (g_Alive() && !netcoop::pure_client())
 	{
 		CEntityAlive* EA = smart_cast<CEntityAlive*>(HDS.who);
 		if (EA && EA->g_Alive() && EA->ID() != ID())
@@ -337,7 +337,7 @@ void CEntityAlive::OnEvent(NET_Packet& P, u16 type)
 void CEntityAlive::Die(CObject* who)
 {
 	// Kill bookkeeping (rank, reputation) needs ALife; the server records it.
-	if (IsGameTypeSingle() && !netcoop::pure_client())
+	if (!netcoop::pure_client())
 		RELATION_REGISTRY().Action(smart_cast<CEntityAlive*>(who), this, RELATION_REGISTRY::KILL);
 	inherited::Die(who);
 
@@ -345,7 +345,7 @@ void CEntityAlive::Die(CObject* who)
 	callback(GameObject::eDeath)(lua_game_object(), who_object ? who_object->lua_game_object() : 0);
 
 	// The server assigns killers; a netcoop client only shows the death.
-	if (!getDestroy() && (GameID() == eGameIDSingle) && !netcoop::pure_client())
+	if (!getDestroy() && !netcoop::pure_client())
 	{
 		NET_Packet P;
 		u_EventGen(P, GE_ASSIGN_KILLER, ID());

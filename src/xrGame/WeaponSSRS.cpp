@@ -303,7 +303,7 @@ void CWeaponSSRS::state_Fire(float dt)
 			Fvector::generate_orthonormal_basis(launch_matrix.k, launch_matrix.j, launch_matrix.i);
 			launch_matrix.c.set(p1);
 
-			if (IsGameTypeSingle() && IsZoomed() && smart_cast<CActor*>(H_Parent()) && g_launcher_dynamic_range_zoom)
+			if (IsZoomed() && smart_cast<CActor*>(H_Parent()) && g_launcher_dynamic_range_zoom)
 			{
 				H_Parent()->setEnabled(FALSE);
 				setEnabled(FALSE);

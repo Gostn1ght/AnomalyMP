@@ -60,11 +60,6 @@ void CEntity::OnEvent(NET_Packet& P, u16 type)
 			P.r_u16(id);
 			P.r_u32(cl);
 			CObject* who = Level().Objects.net_Find(id);
-			if (who && !IsGameTypeSingle())
-			{
-				if (this != who) /*if(bDebug) */ Msg("%s killed by %s ...", cName().c_str(), who->cName().c_str());
-				else /*if(bDebug) */ Msg("%s dies himself ...", cName().c_str());
-			}
 			Die(who);
 		}
 		break;
@@ -209,7 +204,7 @@ BOOL CEntity::net_Spawn(CSE_Abstract* DC)
 		}
 	}
 
-	if (g_Alive() && IsGameTypeSingle())
+	if (g_Alive())
 	{
 		m_registered_member = true;
 		Level().seniority_holder().team(g_Team()).squad(g_Squad()).group(g_Group()).register_member(this);
@@ -259,7 +254,7 @@ void CEntity::KillEntity(u16 whoID, BOOL bypass_actor_check /*AVO: added for act
 	//IMPORTANT: if you wish to kill actor you need to call db.actor:kill(level:object_by_id(whoID), true) in actor_before_death callback, to ensure all objects are properly destroyed
 	// this will bypass below if block and go to normal KillEntity routine.
 #ifdef ACTOR_BEFORE_DEATH_CALLBACK
-	if (IsGameTypeSingle() && (this->ID() == Actor()->ID()) && (bypass_actor_check != TRUE))
+	if ((this->ID() == Actor()->ID()) && (bypass_actor_check != TRUE))
 	{
 		Actor()->use_HolderEx(NULL, false);
 		Actor()->callback(GameObject::eActorBeforeDeath)(whoID);

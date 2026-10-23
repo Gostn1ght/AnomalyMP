@@ -1550,7 +1550,7 @@ void CWeapon::UpdateCL()
 	UpdateFlameParticles();
 	UpdateFlameParticles2();
 
-	if ((GetNextState() == GetState()) && IsGameTypeSingle() && H_Parent() == Level().CurrentEntity())
+	if ((GetNextState() == GetState()) && H_Parent() == Level().CurrentEntity())
 	{
 		CActor* pActor = smart_cast<CActor*>(H_Parent());
 		if (pActor && !pActor->AnyMove() && this == pActor->inventory().ActiveItem())
@@ -1597,7 +1597,7 @@ void CWeapon::UpdateCL()
 void CWeapon::EnableActorNVisnAfterZoom()
 {
 	CActor* pA = smart_cast<CActor *>(H_Parent());
-	if (IsGameTypeSingle() && !pA)
+	if (!pA)
 		pA = g_actor;
 
 	if (pA)

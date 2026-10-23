@@ -67,8 +67,6 @@ void CActor::IR_OnKeyboardPress(int cmd)
 	{
 	case kWPN_FIRE:
 		{
-			if ((mstate_wishful & mcLookout) && !IsGameTypeSingle()) return;
-
 			// Tronex: export to allow/prevent weapon fire if returned false
 			::luabind::functor<bool> funct;
 			if (ai().script_engine().functor("_G.CActor_Fire", funct))

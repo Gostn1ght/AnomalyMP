@@ -1272,7 +1272,7 @@ void CUIActorMenu::PropertiesBoxForWeapon(CUICellItem* cell_item, PIItem item, b
 		{
 		}
 	}
-	if (smart_cast<CWeaponMagazined*>(pWeapon) && IsGameTypeSingle())
+	if (smart_cast<CWeaponMagazined*>(pWeapon))
 	{
 		bool b = (pWeapon->GetAmmoElapsed() != 0);
 		if (!b)

@@ -91,12 +91,6 @@ void CActor::OnEvent(NET_Packet& P, u16 type)
 			}
 
 			CGameObject* _GO = smart_cast<CGameObject*>(Obj);
-			if (!IsGameTypeSingle() && !g_Alive())
-			{
-				Msg("! WARNING: dead player [%d][%s] can't take items [%d][%s]",
-				    ID(), Name(), _GO->ID(), _GO->cNameSect().c_str());
-				break;
-			}
 
 			if (inventory().CanTakeItem(smart_cast<CInventoryItem*>(_GO)))
 			{
@@ -196,11 +190,6 @@ void CActor::OnEvent(NET_Packet& P, u16 type)
 			P.r_u32(flags);
 			s32 ZoomRndSeed = P.r_s32();
 			s32 ShotRndSeed = P.r_s32();
-			if (!IsGameTypeSingle() && !g_Alive())
-			{
-				//				Msg("! WARNING: dead player tries to rize inventory action");
-				break;
-			}
 
 			// A dedicated server has no game UI. Remote clients forward every key,
 			// but menus, PDA, dialogue and camera belong to the owning client.
@@ -242,13 +231,6 @@ void CActor::OnEvent(NET_Packet& P, u16 type)
 			if (Obj->getDestroy())
 			{
 				//				Msg                                ( "! GEG_PLAYER_ITEM_EAT(use): Object is destroying. object_id = [%d]", id );
-				break;
-			}
-
-			if (!IsGameTypeSingle() && !g_Alive())
-			{
-				Msg("! WARNING: dead player [%d][%s] can't use items [%d][%s]",
-				    ID(), Name(), Obj->ID(), Obj->cNameSect().c_str());
 				break;
 			}
 

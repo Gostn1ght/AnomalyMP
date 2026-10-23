@@ -713,14 +713,6 @@ bool CInventory::Action(u16 cmd, u32 flags)
 
 		case kDROP:
 			{
-				if ((flags & CMD_STOP) && !IsGameTypeSingle())
-				{
-					PIItem tmp_item = ActiveItem();
-					if (tmp_item)
-					{
-						tmp_item->DenyTrade();
-					}
-				}
 				SendActionEvent(cmd, flags);
 				return true;
 			}
@@ -761,7 +753,6 @@ bool CInventory::Action(u16 cmd, u32 flags)
 	case kWPN_6:
 	{
 		b_send_event = true;
-		if (cmd == kWPN_6 && !IsGameTypeSingle()) return false;
 
 		u16 slot = u16(cmd - kWPN_1 + 1);
 		if (flags & CMD_START)

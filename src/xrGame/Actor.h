@@ -752,7 +752,6 @@ protected:
 	DEF_DEQUE(PH_STATES, SPHNetState);
 	PH_STATES m_States;
 	u16 m_u16NumBones;
-	void net_ExportDeadBody(NET_Packet& P);
 	//---------------------------------------------
 	void CalculateInterpolationParams();
 	//---------------------------------------------
@@ -856,11 +855,6 @@ protected:
 	virtual bool Check_for_BackStab_Bone(u16 element);
 public:
 	virtual void SetHitInfo(CObject* who, CObject* weapon, s16 element, Fvector Pos, Fvector Dir);
-
-	virtual void OnHitHealthLoss(float NewHealth);
-	virtual void OnCriticalHitHealthLoss();
-	virtual void OnCriticalWoundHealthLoss();
-	virtual void OnCriticalRadiationHealthLoss();
 
 	virtual bool InventoryAllowSprint();
 	virtual void OnNextWeaponSlot();

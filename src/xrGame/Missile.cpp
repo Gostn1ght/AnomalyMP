@@ -806,11 +806,6 @@ void CMissile::activate_physic_shell()
 	if (!smart_cast<CMissile*>(H_Parent()))
 	{
 		inherited::activate_physic_shell();
-		if (m_pPhysicsShell && m_pPhysicsShell->isActive() && !IsGameTypeSingle())
-		{
-			m_pPhysicsShell->add_ObjectContactCallback(ExitContactCallback);
-			m_pPhysicsShell->set_CallbackData(smart_cast<CPhysicsShellHolder*>(H_Root()));
-		}
 		return;
 	}
 
