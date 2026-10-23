@@ -646,6 +646,15 @@ public:
 };
 
 //-----------------------------------------------------------------------
+// Free camera, its position and demo playback show the level from anywhere:
+// an administrator tool, whatever path (typed, bind, cfg, script) runs it.
+static bool demo_camera_allowed()
+{
+	if (g_pGamePersistent && g_pGamePersistent->CanUsePlayerConsole()) return true;
+	Msg("! [Lost Zone] demo camera: administrators only");
+	return false;
+}
+
 xr_unordered_set<CDemoRecord*> pDemoRecords;
 class CCC_DemoRecord : public IConsole_Command
 {
@@ -657,6 +666,7 @@ public:
 
 	virtual void Execute(LPCSTR args)
 	{
+		if (!demo_camera_allowed()) return;
 #ifndef	DEBUG
 		//if (GameID() != eGameIDSingle)
 		//{
@@ -686,6 +696,7 @@ public:
 
 	virtual void Execute(LPCSTR args)
 	{
+		if (!demo_camera_allowed()) return;
 #ifndef	DEBUG
 		//if (GameID() != eGameIDSingle)
 		//{
@@ -733,6 +744,7 @@ public:
 
 	virtual void Execute(LPCSTR args)
 	{
+		if (!demo_camera_allowed()) return;
 #ifndef	DEBUG
 		//if (GameID() != eGameIDSingle)
 		//{
@@ -763,6 +775,7 @@ public:
 
 	virtual void Execute(LPCSTR args)
 	{
+		if (!demo_camera_allowed()) return;
 		for (auto pDemoRecord : pDemoRecords) {
 			pDemoRecord->StopDemo();
 		}
@@ -782,6 +795,7 @@ public:
 
 	virtual void Execute(LPCSTR args)
 	{
+		if (!demo_camera_allowed()) return;
 #ifndef	DEBUG
 		//if (GameID() != eGameIDSingle)
 		//{
@@ -811,6 +825,7 @@ public:
 
 	virtual void Execute(LPCSTR args)
 	{
+		if (!demo_camera_allowed()) return;
 #ifndef	DEBUG
 		//if (GameID() != eGameIDSingle)
 		//{
@@ -839,6 +854,7 @@ public:
 
 	virtual void Execute(LPCSTR args)
 	{
+		if (!demo_camera_allowed()) return;
 #ifndef	DEBUG
 		//if (GameID() != eGameIDSingle)
 		//{
