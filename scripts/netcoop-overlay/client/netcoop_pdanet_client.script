@@ -56,6 +56,10 @@ end
 me = { uid = "", name = "", icon = "" }
 contacts = {}       -- list of { uid, name, icon, online }
 locked = false      -- the PDA's password is not entered yet (server's word)
+device = nil        -- the PDA in the slot: { serial, own, level, lock, hacked, owner, hack_left, hack_total, at }
+foreign = false     -- someone else's PDA is in the slot: the tabs show the device (netcoop_pdanet_ui)
+dump = nil          -- a hacked PDA's owner's data: { serial, owner, contacts, chats, notes }
+npc = {}            -- an NPC's PDA item id -> { id, serial, level, info, hack_left, hack_total, at }
 has_lock = false    -- the PDA has a password
 requests = {}       -- friend requests: list of { uid, name, icon, t } (players who added me)
 chats = {}          -- list of chat summaries (server order is any; sorted here)
@@ -140,6 +144,8 @@ local function apply(verb, v)
 	if verb == "state" and type(v) == "table" then
 		me = { uid = v.uid or "", name = v.name or "", icon = v.icon or "" }
 		locked, has_lock = v.locked == true, v.has_lock == true
+		if (v.foreign == true) ~= foreign then dump = nil end
+		foreign = v.foreign == true
 		if locked then opened = nil end
 		contacts = list(v.contacts)
 		requests = list(v.requests)
@@ -204,6 +210,22 @@ local function apply(verb, v)
 		if actor_menu and actor_menu.set_msg then
 			actor_menu.set_msg(1, string.format(game.translate_string(n > 0 and "st_pdanet_paid_in" or "st_pdanet_paid_out"), math.abs(n)), 4)
 		end
+	elseif verb == "device" and type(v) == "table" then
+		v.at = time_global()
+		if not (device and device.serial == v.serial) then dump = nil end
+		device = not v.none and v or nil
+	elseif verb == "dump" and type(v) == "table" then
+		dump = v
+	elseif verb == "npc" and type(v) == "table" and tonumber(v.id) then
+		v.at = time_global()
+		npc[v.id] = v
+		npc_arrived(v)
+	elseif verb == "spot" and type(v) == "table" and tonumber(v.id) then
+		if v.add then
+			if level.map_has_object_spot(v.id, "treasure") == 0 then pcall(level.map_add_object_spot_ser, v.id, "treasure", v.h or "") end
+		else
+			pcall(level.map_remove_object_spot, v.id, "treasure")
+		end
 	elseif verb == "err" then
 		last_error = v
 	end
@@ -251,6 +273,17 @@ function deny_request(uid) send("deny " .. tostring(uid)) end
 function unlock(password) send("unlock " .. string.gsub(password or "", "[%c|]", "")) end
 function set_password(old, new) send("lockset " .. string.gsub(old or "", "[%c|]", "") .. "|" .. string.gsub(new or "", "[%c|]", "")) end
 function remove_contact(uid) send("del " .. tostring(uid)) end
+function hack(item_id) send(item_id and ("hack " .. tostring(item_id)) or "hack") end
+function hack_stop() send("hack_stop") end
+function ask_dump() send("dump") end
+function wipe() send("wipe") end
+function npc_open(item_id) send("npc_open " .. tostring(item_id)) end
+function npc_stash(item_id, stash_id, hint) send(string.format("npc_stash %d %d %s", item_id, stash_id, clean(hint))) end
+-- Milliseconds of a hack still to run (nil: none running).
+function hack_left(v)
+	if not (v and v.hack_left) then return nil end
+	return math.max(0, v.hack_left - (time_global() - (v.at or 0)))
+end
 function say(text, anonymous)
 	text = clean(text)
 	if text ~= "" then send("say " .. (anonymous and "1 " or "0 ") .. text) end
@@ -394,11 +427,125 @@ function unread_total()
 	return n
 end
 
+----------------------------------------------------------------------
+-- An NPC's PDA (GAMMA's ui_pda_npc_tab): its messages are the server's.
+-- GAMMA made them on the server when the NPC died; a client had only a set
+-- of its own, and its stash went nowhere. Opening asks the server, an
+-- encrypted PDA gets a hack button, a stash message goes to the server,
+-- which fills the stash and marks it on this player's map.
+----------------------------------------------------------------------
+local viewing, pending_open, npc_window, open_view = nil, nil, nil, nil
+
+local function keep_info(id, info)
+	local m = alife_storage_manager and alife_storage_manager.get_state()
+	if not (m and m.se_object) then return end
+	if not info then
+		if m.se_object[id] then m.se_object[id].info = nil end
+		return
+	end
+	m.se_object[id] = m.se_object[id] or {}
+	m.se_object[id].info = info
+end
+
+local function hack_caption(v)
+	local left = hack_left(v)
+	if left and left > 0 then
+		local total = math.max(1, v.hack_total or 1)
+		return string.format(tr("st_pdanet_hacking"), math.floor(100 * (total - left) / total), math.ceil(left / 1000))
+	end
+	return string.format(tr("st_pdanet_protection"), v.level or 1, "")
+end
+
+-- The hack button on GAMMA's "access denied" screen of an encrypted PDA.
+local function npc_hack_controls(wnd)
+	npc_window = wnd
+	local v = viewing and npc[viewing]
+	local on = wnd.state == "encrypted" and v ~= nil
+	if not wnd.netcoop_hack then
+		if not on then return end
+		local xml = CScriptXmlInit()
+		xml:ParseFile("ui_netcoop_pdanet.xml")
+		local b = xml:Init3tButton("button", wnd)
+		b:SetWndPos(vector2():set(392, 430)); b:SetWndSize(vector2():set(240, 30))
+		b:TextControl():SetText(tr("st_pdanet_hack"))
+		wnd:Register(b, "netcoop_npc_hack")
+		wnd:AddCallback("netcoop_npc_hack", ui_events.BUTTON_CLICKED, function()
+			if viewing then hack(viewing) end
+		end, wnd)
+		local t = xml:InitStatic("msg_head", wnd)
+		t:SetWndPos(vector2():set(392, 468)); t:SetWndSize(vector2():set(320, 22))
+		wnd.netcoop_hack, wnd.netcoop_hack_text = b, t
+	end
+	wnd.netcoop_hack:Show(on and not hack_left(v))
+	wnd.netcoop_hack_text:Show(on)
+	if on then
+		local text = hack_caption(v)
+		if last_error == "hack interrupted" and not hack_left(v) then text = tr("st_pdanet_hack_interrupted") end
+		wnd.netcoop_hack_text:TextControl():SetText(text)
+	end
+end
+
+function npc_arrived(v)
+	keep_info(v.id, v.info or nil)
+	if pending_open == v.id then
+		pending_open = nil
+		if open_view then open_view(v.id) end
+		return
+	end
+	if viewing ~= v.id or not ui_pda_npc_tab then return end
+	-- the hack finished: GAMMA's tab shows the messages now
+	if npc_window and npc_window.state == "encrypted" and v.info and v.info.state ~= "encrypted" then
+		ui_pda_npc_tab.get_ui(v.info)
+	elseif npc_window then
+		npc_hack_controls(npc_window)
+	end
+end
+
+function install_npc_pda()
+	local tab = ui_pda_npc_tab
+	if not tab or tab.__netcoop then return end
+	tab.__netcoop = true
+	local base_view = tab.use_view
+	open_view = function(id)
+		local obj = level.object_by_id(id)
+		if obj then base_view(obj) end
+	end
+	tab.use_view = function(obj)
+		local p = obj and obj:parent()
+		if not (p and p:id() == AC_ID) then return end
+		viewing, pending_open = obj:id(), obj:id()
+		npc_open(obj:id())
+	end
+	local cls = tab.pda_npc_tab
+	if cls then
+		local base_reset = cls.Reset
+		cls.Reset = function(self, info)
+			base_reset(self, info)
+			npc_hack_controls(self)
+		end
+	end
+	-- GAMMA's stash message: the stash is the server's (filled there).
+	local tm = treasure_manager
+	if tm and tm.set_random_stash and not tm.__netcoop_pda then
+		tm.__netcoop_pda = true
+		local base_stash = tm.set_random_stash
+		tm.set_random_stash = function(no_spot, hint, bonus_items, id, ...)
+			local trace = debug and debug.traceback and debug.traceback() or ""
+			if viewing and tonumber(id) and string.find(trace, "ui_pda_npc_tab", 1, true) then
+				npc_stash(viewing, tonumber(id), hint or "")
+				return id
+			end
+			return base_stash(no_spot, hint, bonus_items, id, ...)
+		end
+	end
+end
+
 local function on_first_update() hello(); ask_notes() end
 function on_game_start()
 	if not (netcoop_pure_client and netcoop_pure_client()) then return end
 	if AddUniqueCall then AddUniqueCall(update_map_friends) end
 	RegisterScriptCallback("actor_on_first_update", on_first_update)
+	install_npc_pda()
 	-- keep the task list for "send a task" (netcoop_client_compat logs them)
 	local compat = netcoop_client_compat
 	if compat and compat.on_task then

@@ -1486,4 +1486,55 @@
   <string id="st_lz_admin_faction">
     <text>Lost Zone: join faction</text>
   </string>
+  <string id="st_pdanet_foreign">
+    <text>Someone else's PDA</text>
+  </string>
+  <string id="st_pdanet_serial">
+    <text>Serial No. %s</text>
+  </string>
+  <string id="st_pdanet_foreign_footer">
+    <text>Someone else's PDA %s</text>
+  </string>
+  <string id="st_pdanet_protection">
+    <text>Protection: level %d%s</text>
+  </string>
+  <string id="st_pdanet_protection_lock">
+    <text>, password</text>
+  </string>
+  <string id="st_pdanet_owner">
+    <text>Owner: %s</text>
+  </string>
+  <string id="st_pdanet_owner_hidden">
+    <text>Owner: unknown until hacked</text>
+  </string>
+  <string id="st_pdanet_hack">
+    <text>Hack</text>
+  </string>
+  <string id="st_pdanet_hack_stop">
+    <text>Stop the hack</text>
+  </string>
+  <string id="st_pdanet_hacking">
+    <text>Hacking: %d%% (%d s left)</text>
+  </string>
+  <string id="st_pdanet_hacked">
+    <text>Hacked: the owner's data is open</text>
+  </string>
+  <string id="st_pdanet_hack_interrupted">
+    <text>Hack interrupted: the PDA left your hands</text>
+  </string>
+  <string id="st_pdanet_dump">
+    <text>Owner's data</text>
+  </string>
+  <string id="st_pdanet_wipe">
+    <text>Reset the PDA</text>
+  </string>
+  <string id="st_pdanet_dump_contacts">
+    <text>Contacts (%d)</text>
+  </string>
+  <string id="st_pdanet_dump_note">
+    <text>Note</text>
+  </string>
+  <string id="st_pdanet_dump_hint">
+    <text>What the owner had on this PDA until it left him. Pick a line on the left.\n\nA reset makes the PDA yours; the owner's network stays his.</text>
+  </string>
 </string_table>

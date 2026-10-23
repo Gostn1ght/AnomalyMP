@@ -1486,4 +1486,55 @@
   <string id="st_lz_admin_faction">
     <text>Lost Zone: вступить в группировку</text>
   </string>
+  <string id="st_pdanet_foreign">
+    <text>Чужой КПК</text>
+  </string>
+  <string id="st_pdanet_serial">
+    <text>Серийный № %s</text>
+  </string>
+  <string id="st_pdanet_foreign_footer">
+    <text>Чужой КПК %s</text>
+  </string>
+  <string id="st_pdanet_protection">
+    <text>Защита: уровень %d%s</text>
+  </string>
+  <string id="st_pdanet_protection_lock">
+    <text>, пароль владельца</text>
+  </string>
+  <string id="st_pdanet_owner">
+    <text>Владелец: %s</text>
+  </string>
+  <string id="st_pdanet_owner_hidden">
+    <text>Владелец: неизвестен до взлома</text>
+  </string>
+  <string id="st_pdanet_hack">
+    <text>Взломать</text>
+  </string>
+  <string id="st_pdanet_hack_stop">
+    <text>Прервать взлом</text>
+  </string>
+  <string id="st_pdanet_hacking">
+    <text>Взлом: %d%% (осталось %d с)</text>
+  </string>
+  <string id="st_pdanet_hacked">
+    <text>Взломан: данные владельца открыты</text>
+  </string>
+  <string id="st_pdanet_hack_interrupted">
+    <text>Взлом прерван: КПК ушёл из рук</text>
+  </string>
+  <string id="st_pdanet_dump">
+    <text>Данные владельца</text>
+  </string>
+  <string id="st_pdanet_wipe">
+    <text>Сбросить КПК</text>
+  </string>
+  <string id="st_pdanet_dump_contacts">
+    <text>Контакты (%d)</text>
+  </string>
+  <string id="st_pdanet_dump_note">
+    <text>Заметка</text>
+  </string>
+  <string id="st_pdanet_dump_hint">
+    <text>То, что было на КПК владельца, пока он был у него. Выберите строку слева.\n\nСброс делает КПК вашим; сеть владельца остаётся его.</text>
+  </string>
 </string_table>

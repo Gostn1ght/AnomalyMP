@@ -27,6 +27,8 @@ end
 
 local function my_line()
 	local me = net().me
+	local dev = net().device
+	if net().foreign and dev then return string.format(tr("st_pdanet_foreign_footer"), dev.serial or "?") end
 	if me.uid == "" then return tr("st_pdanet_connecting") end
 	return string.format("%s  -  UID %s", me.name, me.uid)
 end
@@ -81,12 +83,15 @@ local function show_lock(self)
 	end
 end
 
+local show_device -- someone else's PDA in the slot (below)
+
 -- Clock and footer, once a second (CUIScriptWnd:Update of each tab).
 local function tick(self, extra)
 	if time_global() < self.tick_at then return end
 	self.tick_at = time_global() + 1000
 	text(self.clock, net().clock())
 	show_lock(self)
+	show_device(self)
 	if extra then extra() end
 end
 local function footer(self, prefix)
@@ -220,6 +225,111 @@ local function message_body(m)
 	end
 	if m.k == "task" then return tr("st_pdanet_task_msg") .. ": " .. (m.x or "") end
 	return m.x
+end
+
+----------------------------------------------------------------------
+-- Someone else's PDA in the slot (owner 2026-10-23): every tab shows the
+-- device - serial, protection, the hack - and, once it is hacked, what its
+-- owner had on it and the reset that makes it the holder's own.
+----------------------------------------------------------------------
+local DEVICE_ROWS = 9
+
+local function dump_entries()
+	local d, out = net().dump, {}
+	if not d then return out end
+	local owner = d.owner or {}
+	local function who(m)
+		if m.own then return owner.name or "?" end
+		return m.n or ("UID " .. tostring(m.f or "?"))
+	end
+	local lines = {}
+	for _, c in ipairs(d.contacts or {}) do
+		lines[#lines + 1] = string.format("%s  -  UID %s", c.name or "?", tostring(c.uid or "?"))
+	end
+	out[#out + 1] = { caption = string.format(tr("st_pdanet_dump_contacts"), #lines), body = table.concat(lines, "\\n") }
+	for _, c in ipairs(d.chats or {}) do
+		local name = c.kind == "g" and (c.name or "?") or (c.peer and (c.peer.name or ("UID " .. tostring(c.peer.uid)))) or "?"
+		local msgs = {}
+		for _, m in ipairs(c.msgs or {}) do
+			msgs[#msgs + 1] = string.format("%s  %s: %s", net().when_short(m), who(m), message_body(m) or "")
+		end
+		out[#out + 1] = { caption = name, body = table.concat(msgs, "\\n") }
+	end
+	for _, n in ipairs(d.notes or {}) do
+		out[#out + 1] = { caption = tr("st_pdanet_dump_note") .. ": " .. ((n.title or "") ~= "" and n.title or string.sub(n.text or "", 1, 16)),
+			body = (n.text or "") .. "\\n\\n" .. net().when(n) }
+	end
+	return out
+end
+
+local function device_fill(self)
+	local l = self.dev
+	local entries = dump_entries()
+	l.entries = entries
+	local shown = net().foreign == true and net().dump ~= nil
+	for r = 1, DEVICE_ROWS do
+		local e = entries[l.scroll + r]
+		l.rows[r]:Show(shown and e ~= nil)
+		if e then text(l.rows[r], (l.pick == l.scroll + r and "> " or "") .. e.caption) end
+	end
+	l.up:Show(shown); l.down:Show(shown); l.view:Show(shown)
+	local e = l.pick and entries[l.pick]
+	text(l.view, shown and (e and e.body or tr("st_pdanet_dump_hint")) or "")
+end
+
+local function device_layer(self)
+	if self.dev then return self.dev end
+	local l = { rows = {}, scroll = 0 }
+	self.dev = l
+	l.back = static(self, "panel", 36, 110, 748, 556)
+	l.title = static(self, "msg_name", 60, 128, 700, 24)
+	l.info = static(self, "msg_head", 60, 156, 700, 22)
+	l.progress = static(self, "msg_head", 60, 180, 700, 22)
+	l.hack = button(self, tr("st_pdanet_hack"), 60, 208, 170, 30, function()
+		if net().hack_left(net().device) then net().hack_stop() else net().hack() end
+	end)
+	l.data = button(self, tr("st_pdanet_dump"), 240, 208, 170, 30, function() net().ask_dump() end)
+	l.wipe = button(self, tr("st_pdanet_wipe"), 420, 208, 170, 30, function() net().wipe() end)
+	for r = 1, DEVICE_ROWS do
+		l.rows[r] = button(self, "", 60, 252 + (r - 1) * 40, 230, 36, function()
+			l.pick = l.scroll + r; device_fill(self)
+		end, "row")
+	end
+	l.up = button(self, "^", 294, 252, 28, 30, function() l.scroll = math.max(0, l.scroll - 3); device_fill(self) end)
+	l.down = button(self, "v", 294, 582, 28, 30, function()
+		l.scroll = math.min(l.scroll + 3, math.max(0, #(l.entries or {}) - DEVICE_ROWS)); device_fill(self)
+	end)
+	l.view = static(self, "note_view", 332, 252, 430, 360)
+	return l
+end
+
+show_device = function(self)
+	local on = net().foreign == true
+	if not on and not self.dev then return end
+	local l = device_layer(self)
+	for _, w in pairs({ l.back, l.title, l.info, l.progress, l.hack, l.data, l.wipe }) do w:Show(on) end
+	if not on then
+		for _, w in ipairs(l.rows) do w:Show(false) end
+		l.up:Show(false); l.down:Show(false); l.view:Show(false)
+		return
+	end
+	local v = net().device or {}
+	local hacked = v.hacked == true
+	local left = net().hack_left(v)
+	text(l.title, tr("st_pdanet_foreign") .. "   " .. string.format(tr("st_pdanet_serial"), v.serial or "?"))
+	text(l.info, string.format(tr("st_pdanet_protection"), v.level or 1, v.lock and tr("st_pdanet_protection_lock") or "")
+		.. "     " .. (hacked and string.format(tr("st_pdanet_owner"), v.owner or "?") or tr("st_pdanet_owner_hidden")))
+	local progress = ""
+	if hacked then progress = tr("st_pdanet_hacked")
+	elseif left and left > 0 then
+		local total = math.max(1, v.hack_total or 1)
+		progress = string.format(tr("st_pdanet_hacking"), math.floor(100 * (total - left) / total), math.ceil(left / 1000))
+	elseif net().last_error == "hack interrupted" then progress = tr("st_pdanet_hack_interrupted") end
+	text(l.progress, progress)
+	l.hack:Show(not hacked)
+	text(l.hack, tr((left and left > 0) and "st_pdanet_hack_stop" or "st_pdanet_hack"))
+	l.data:Show(hacked); l.wipe:Show(hacked)
+	device_fill(self)
 end
 
 class "pdanet_chats" (CUIScriptWnd)

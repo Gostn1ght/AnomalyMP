@@ -877,7 +877,7 @@ local function start_hack(id, char, d, kind)
 	if h and h.uid == d.uid then return end
 	local total = ((HACK_SECONDS[d.rec.level] or 60) + (d.rec.lock and HACK_LOCK_SECONDS or 0)) * 1000
 	hacking[id] = { uid = d.uid, item = d.item, kind = kind, total = total, done_at = time_global() + total }
-	printf("[Lost Zone] pdanet: %s hacks PDA %s (%d s)", char, d.rec.serial, total / 1000)
+	printf("[Lost Zone] pdanet: %s hacks PDA %s (%s s)", char, d.rec.serial, tostring(total / 1000))
 end
 function handlers.hack(id, me, char, args)
 	local item_id = tonumber(args)
@@ -1032,7 +1032,7 @@ function handlers.npc_stash(id, me, char, args)
 end
 
 -- Every poll: devices changing hands, hacks running, stashes to show.
-local device_key, next_stash, foreign = {}, {}, {}
+local device_key, next_stash, foreign_held = {}, {}, {}
 local function devices_update(id, char, me)
 	local d = held_device(id, char)
 	local h = hacking[id]
@@ -1071,7 +1071,7 @@ local function devices_update(id, char, me)
 			send(id, "device", device_view(id, char, d))
 		end
 	end
-	foreign[id] = d ~= nil and not d.own
+	foreign_held[id] = d ~= nil and not d.own
 	local key = d and (d.uid .. (d.own and "+" or "-") .. (d.rec.hacked[char] and "h" or "")) or ""
 	if key ~= device_key[id] then
 		device_key[id] = key
@@ -1188,7 +1188,7 @@ function update_world()
 			if s > seen[cid] then
 				me = me or read("pda_prof", char)
 				local c = read("pda_chat", cid)
-				if me and c and me.chats[cid] and not is_locked(id, char) and not foreign[id] then
+				if me and c and me.chats[cid] and not is_locked(id, char) and not foreign_held[id] then
 					send(id, "new", { id = cid, summary = summary(me, cid), msgs = shown(me, c.msgs, seen[cid]) })
 				end
 				seen[cid] = s
@@ -1212,7 +1212,7 @@ function update_world()
 	local present = {}
 	for _, id in pairs(here) do present[id] = true end
 	for id in pairs(device_key) do
-		if not present[id] then device_key[id], hacking[id], stash_sent[id], next_stash[id], foreign[id] = nil, nil, nil, nil, nil end
+		if not present[id] then device_key[id], hacking[id], stash_sent[id], next_stash[id], foreign_held[id] = nil, nil, nil, nil, nil end
 	end
 	for id, u in pairs(uploads) do
 		if time_global() - u.at > 60000 then uploads[id] = nil end -- abandoned upload
