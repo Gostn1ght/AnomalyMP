@@ -554,6 +554,30 @@ local function use_weather_edit(data)
 	applying_server_weather = false
 end
 
+-- Places this player has found (server: netcoop_map_known): level changers,
+-- named places and anomaly fields on the PDA map, named on hover in this
+-- client's language. "<id> <x> <y> <z> <spot> <kind>|<name>" per line.
+local MAP_KINDS = { c = true, p = true, a = true }
+local function map_hint(kind, name)
+	local tr = game.translate_string
+	if kind == "c" then return string.format(tr("st_lz_map_changer"), tr(name)) end
+	if kind == "a" then return string.format(tr("st_lz_map_anomaly"), tr("st_lz_anomaly_" .. name)) end
+	return tr(name)
+end
+local function use_map_known(data)
+	local here = level.name()
+	for row in string.gmatch(data or "", "[^\n]+") do
+		local id, x, y, z, spot, kind, name = string.match(row, "^(%d+) (%S+) (%S+) (%S+) ([%w_]+) (%a)|([%w_%.]+)$")
+		id, x, y, z = tonumber(id), tonumber(x), tonumber(y), tonumber(z)
+		if id and x and y and z and MAP_KINDS[kind] and id < 65535 then
+			if netcoop_map_position_set then netcoop_map_position_set(id, x, y, z, here) end
+			if level.map_has_object_spot(id, spot) == 0 then
+				pcall(level.map_add_object_spot_ser, id, spot, map_hint(kind, name))
+			end
+		end
+	end
+end
+
 -- A server dialogue action opened an NPC window for this player.
 local function open_ui(data)
 	local kind, id = string.match(data or "", "^(%S+)%s+(%d+)$")
@@ -738,13 +762,15 @@ function on_script_message(channel, data)
 		use_stash_spot(data, channel == "stash_spot_remove")
 		return
 	end
-	if channel ~= "weather" and channel ~= "weather_edit" then
+	if channel ~= "weather" and channel ~= "weather_edit" and channel ~= "map_known" then
 		printf("[Lost Zone] server message %s: %s", tostring(channel), tostring(data))
 	end
 	if channel == "weather" then
 		use_server_weather(data)
 	elseif channel == "weather_edit" then
 		use_weather_edit(data)
+	elseif channel == "map_known" then
+		use_map_known(data)
 	elseif channel == "open_ui" then
 		open_ui(data)
 	end

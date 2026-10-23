@@ -1537,4 +1537,25 @@
   <string id="st_pdanet_dump_hint">
     <text>То, что было на КПК владельца, пока он был у него. Выберите строку слева.\n\nСброс делает КПК вашим; сеть владельца остаётся его.</text>
   </string>
+  <string id="st_lz_map_changer">
+    <text>Переход: %s</text>
+  </string>
+  <string id="st_lz_map_anomaly">
+    <text>Аномальное поле: %s</text>
+  </string>
+  <string id="st_lz_anomaly_chemical">
+    <text>химическое</text>
+  </string>
+  <string id="st_lz_anomaly_thermal">
+    <text>термическое</text>
+  </string>
+  <string id="st_lz_anomaly_electric">
+    <text>электрическое</text>
+  </string>
+  <string id="st_lz_anomaly_gravitational">
+    <text>гравитационное</text>
+  </string>
+  <string id="st_lz_anomaly_radioactive">
+    <text>радиоактивное</text>
+  </string>
 </string_table>

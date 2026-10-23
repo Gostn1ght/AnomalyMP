@@ -751,6 +751,10 @@ local function server_world_tick()
 		local net_ok, net_err = pcall(netcoop_pdanet.update_world)
 		if not net_ok then printf("[Lost Zone] PDA network error: %s", tostring(net_err)) end
 	end
+	if netcoop_map_known then
+		local map_ok, map_err = pcall(netcoop_map_known.update_world)
+		if not map_ok then printf("[Lost Zone] map places error: %s", tostring(map_err)) end
+	end
 
 	local wm = level_weathers and level_weathers.get_weather_manager()
 	if not wm then return end

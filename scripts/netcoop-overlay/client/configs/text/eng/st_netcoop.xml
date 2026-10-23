@@ -1537,4 +1537,25 @@
   <string id="st_pdanet_dump_hint">
     <text>What the owner had on this PDA until it left him. Pick a line on the left.\n\nA reset makes the PDA yours; the owner's network stays his.</text>
   </string>
+  <string id="st_lz_map_changer">
+    <text>Transition: %s</text>
+  </string>
+  <string id="st_lz_map_anomaly">
+    <text>Anomaly field: %s</text>
+  </string>
+  <string id="st_lz_anomaly_chemical">
+    <text>chemical</text>
+  </string>
+  <string id="st_lz_anomaly_thermal">
+    <text>thermal</text>
+  </string>
+  <string id="st_lz_anomaly_electric">
+    <text>electric</text>
+  </string>
+  <string id="st_lz_anomaly_gravitational">
+    <text>gravitational</text>
+  </string>
+  <string id="st_lz_anomaly_radioactive">
+    <text>radioactive</text>
+  </string>
 </string_table>

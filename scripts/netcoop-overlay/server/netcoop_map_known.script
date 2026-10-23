@@ -1,0 +1,166 @@
+----------------------------------------------------------------------
+-- Places a player has found (owner 2026-10-24): level changers (with the
+-- map they lead to), named places (misc\smart_names.ltx: bases, Yanov and
+-- the like) and anomaly fields show on his PDA map once he has been near
+-- them. They belong to the character (the cluster's shared store), not to
+-- the PDA: another PDA shows them too, after a relog and on every server.
+--   map_known/<char>  { [level] = { [key] = true } }
+--     key: "c:<changer>", "p:<smart>", "a:<field>"
+-- Server -> client, channel "map_known": one line per place of this map,
+--   "<id> <x> <y> <z> <spot> <kind>|<name>"; the client names it in its own
+--   language (kind c: the map it leads to, p: the place's string id,
+--   a: the field's anomaly type).
+----------------------------------------------------------------------
+local RADIUS = { c = 40, p = 60, a = 35 }
+local CHECK_MS, FIELDS_MS = 3000, 15000
+local ARROWS = { "level_changer_right", "level_changer_up_right", "level_changer_up", "level_changer_left_up",
+	"level_changer_left", "level_changer_down_left", "level_changer_down", "level_changer_right_down" }
+
+local fixed      -- changers and named places of this map, built once
+local fields = {} -- anomaly fields online here: key -> place
+local next_check, next_fields = 0, 0
+local sent = {}   -- Actor id -> { [key] = true } sent this session
+
+local function ser(v) return netcoop_transit.serialize(v) end
+local function de(text)
+	if not text or text == "" then return nil end
+	local ok, v = pcall(netcoop_transit.deserialize, text)
+	return ok and v or nil
+end
+local function char_of(id) return netcoop_actor_character and netcoop_actor_character(id) or "" end
+
+local function level_of(se)
+	return se and se.m_game_vertex_id and alife():level_name(game_graph():vertex(se.m_game_vertex_id):level_id())
+end
+
+-- The named places of misc\smart_names.ltx for this map: smart -> string id.
+local function smart_names(here)
+	local out, ini = {}, ini_file("misc\\smart_names.ltx")
+	if not (ini and ini:section_exist(here)) then return out end
+	for i = 0, ini:line_count(here) - 1 do
+		local _, smart, key = ini:r_line(here, i, "", "")
+		if smart and key and key ~= "" then out[smart] = key end
+	end
+	return out
+end
+
+local function build()
+	fixed = {}
+	local here, sim = level.name(), alife()
+	local changers = {}
+	for id = 1, 65534 do
+		local se = sim:object(id)
+		local class = se and se:clsid()
+		if class and (class == clsid.level_changer_s or class == clsid.level_changer) and level_of(se) == here then
+			local data = utils_stpk.get_level_changer_data(se)
+			local dest = data and data.dest_level_name
+			if dest and dest ~= "" and dest ~= here then
+				changers[#changers + 1] = { key = "c:" .. se:name(), id = id, pos = se.position, kind = "c", name = dest }
+			end
+		end
+	end
+	-- the arrow points from the middle of the map's changers towards this one
+	local mid = vector():set(0, 0, 0)
+	for _, c in ipairs(changers) do mid:add(c.pos) end
+	if #changers > 0 then mid:div(#changers) end
+	for _, c in ipairs(changers) do
+		local a = math.atan2(c.pos.z - mid.z, c.pos.x - mid.x)
+		local sector = math.floor((a / (2 * math.pi)) * 8 + 0.5) % 8
+		c.spot = ARROWS[sector + 1]
+		fixed[#fixed + 1] = c
+	end
+	local names = smart_names(here)
+	for _, v in pairs(SIMBOARD and SIMBOARD.smarts or {}) do
+		local smart = v.smrt
+		local key = smart and names[smart:name()]
+		if key and level_of(smart) == here then
+			fixed[#fixed + 1] = { key = "p:" .. smart:name(), id = smart.id, pos = smart.position, kind = "p", name = key, spot = "blue_location" }
+		end
+	end
+end
+
+-- An anomaly field's type from its name (GAMMA names them by type).
+local function field_type(name)
+	name = string.lower(name)
+	if string.find(name, "acid") or string.find(name, "chem") or string.find(name, "buzz") then return "chemical" end
+	if string.find(name, "therm") or string.find(name, "fire") or string.find(name, "zhar") then return "thermal" end
+	if string.find(name, "elec") or string.find(name, "witch") then return "electric" end
+	if string.find(name, "rad") then return "radioactive" end
+	return "gravitational"
+end
+
+local function update_fields()
+	for name, binder in pairs(db.anomaly_by_name or {}) do
+		local obj = binder and binder.object
+		local key = "a:" .. name
+		if obj and not fields[key] then
+			fields[key] = { key = key, id = obj:id(), pos = obj:position(), kind = "a", name = field_type(name), spot = "circle_empty" }
+		end
+	end
+end
+
+local function line(p)
+	return string.format("%d %.1f %.1f %.1f %s %s|%s", p.id, p.pos.x, p.pos.y, p.pos.z, p.spot, p.kind, p.name)
+end
+
+local function send(id, list)
+	if #list == 0 then return end
+	local lines = {}
+	for _, p in ipairs(list) do lines[#lines + 1] = line(p) end
+	-- a few hundred places at most; split to stay under a message's size
+	for i = 1, #lines, 40 do
+		netcoop_send_to_actor(id, "map_known", table.concat(lines, "\n", i, math.min(#lines, i + 39)))
+	end
+end
+
+-- Marks new places known for the character (the shared store, compare-and-swap).
+local function remember(char, here, keys)
+	for _ = 1, 10 do
+		local old = netcoop_store_read("map_known", char) or ""
+		local known = de(old) or {}
+		known[here] = known[here] or {}
+		for _, key in ipairs(keys) do known[here][key] = true end
+		if netcoop_store_swap("map_known", char, old, ser(known)) then return known[here] end
+	end
+end
+
+local function each_place(fn)
+	for _, p in ipairs(fixed) do fn(p) end
+	for _, p in pairs(fields) do fn(p) end
+end
+
+function update_world()
+	local now = time_global()
+	if now < next_check then return end
+	next_check = now + CHECK_MS
+	if not (netcoop_store_read and netcoop_players and alife()) then return end
+	if not fixed then build() end
+	if now >= next_fields then next_fields = now + FIELDS_MS; update_fields() end
+	local here, present = level.name(), {}
+	for sid in string.gmatch(netcoop_players(), "%d+") do
+		local id = tonumber(sid)
+		local actor = level.object_by_id(id)
+		local char = char_of(id)
+		present[id] = true
+		if actor and char ~= "" then
+			local known = (de(netcoop_store_read("map_known", char)) or {})[here] or {}
+			local pos = actor:position()
+			local found = {}
+			each_place(function(p)
+				if not known[p.key] and pos:distance_to(p.pos) <= RADIUS[p.kind] then found[#found + 1] = p.key end
+			end)
+			if #found > 0 then
+				known = remember(char, here, found) or known
+				printf("[Lost Zone][map] %s found %s place(s) on %s", char, #found, here)
+			end
+			-- everything known here and not sent yet in this session
+			local mine, out = sent[id] or {}, {}
+			sent[id] = mine
+			each_place(function(p)
+				if known[p.key] and not mine[p.key] then mine[p.key] = true; out[#out + 1] = p end
+			end)
+			send(id, out)
+		end
+	end
+	for id in pairs(sent) do if not present[id] then sent[id] = nil end end
+end
