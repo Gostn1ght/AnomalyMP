@@ -35,7 +35,6 @@
 #include "level_sounds.h"
 #include "car.h"
 #include "trade_parameters.h"
-#include "game_cl_base_weapon_usage_statistic.h"
 #include "MainMenu.h"
 #include "xrEngine/XR_IOConsole.h"
 #include "actor.h"
@@ -892,13 +891,6 @@ void CLevel::ProcessGameEvents()
 					Send(PRespond, net_flags(TRUE, TRUE));
 					break;
 				}
-			case M_STATISTIC_UPDATE:
-				{
-					PROF_EVENT("ProcessGameEvents M_STATISTIC_UPDATE");
-					if (GameID() != eGameIDSingle)
-						Game().m_WeaponUsageStatistic->OnUpdateRequest(&P);
-					break;
-				}
 			case M_FILE_TRANSFER:
 				{
 					PROF_EVENT("ProcessGameEvents M_FILE_TRANSFER");
@@ -929,9 +921,6 @@ void CLevel::ProcessGameEvents()
 		unpausePrefetchThreadSignal();
 	}
 #endif
-
-	if (OnServer() && GameID() != eGameIDSingle)
-		Game().m_WeaponUsageStatistic->Send_Check_Respond();
 }
 
 #ifdef DEBUG_MEMORY_MANAGER

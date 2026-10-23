@@ -82,7 +82,6 @@ struct SHit
 	//---------------------------------------------------
 	//GE_HIT_STATISTIC
 	u32 BulletID;
-	u32 SenderID;
 #ifdef DEBUG
 	void				_dump				();
 #endif

@@ -134,7 +134,6 @@ bool server_remote_event_allowed(xrServer* server, xrClientData* CL, NET_Packet&
 	// killer (run-cheat-test.ps1).
 	case GE_HIT:
 		return remote_fall_hit_allowed(CL, P, type, destination);
-	case GE_HIT_STATISTIC:
 	case GE_GRENADE_EXPLODE:
 	case GE_LAUNCH_ROCKET:
 	case GE_DIE:

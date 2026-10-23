@@ -31,7 +31,6 @@ SHit::SHit(float powerA, Fvector& dirA, CObject* whoA, u16 elementA, Fvector p_i
 	armor_piercing = armor_piercingA;
 	PACKET_TYPE = 0;
 	BulletID = u32(-1);
-	SenderID = 0;
 	aim_bullet = AimBullet;
 	add_wound = true;
 }
@@ -61,7 +60,6 @@ void SHit::invalidate()
 
 	armor_piercing = 0.0f;
 	BulletID = u32(-1);
-	SenderID = 0;
 	aim_bullet = false;
 	add_wound = false;
 }
@@ -108,10 +106,6 @@ void SHit::Read_Packet_Cont(NET_Packet Packet)
 		Packet.r_float(armor_piercing);
 	}
 	Packet.r_u32(BulletID);
-	if (PACKET_TYPE == GE_HIT_STATISTIC)
-	{
-		Packet.r_u32(SenderID);
-	}
 }
 
 void SHit::Write_Packet_Cont(NET_Packet& Packet)
@@ -131,10 +125,6 @@ void SHit::Write_Packet_Cont(NET_Packet& Packet)
 		Packet.w_float(armor_piercing);
 	}
 	Packet.w_u32(BulletID);
-	if (PACKET_TYPE == GE_HIT_STATISTIC)
-	{
-		Packet.w_u32(SenderID);
-	}
 }
 
 void SHit::Write_Packet(NET_Packet& Packet)

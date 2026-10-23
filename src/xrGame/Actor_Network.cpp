@@ -47,7 +47,6 @@
 #include "actor_memory.h"
 #include "actor_statistic_mgr.h"
 #include "characterphysicssupport.h"
-#include "game_cl_base_weapon_usage_statistic.h"
 #include "../xrengine/xr_collide_form.h"
 #include "../xrphysics/PhysicsShell.h"
 #include "inventory_item.h"
@@ -2568,9 +2567,6 @@ void CActor::OnCriticalHitHealthLoss()
 		        : 0);
 	P.w_u8(u8(SpecialHit));
 	u_EventSend(P);
-	//-------------------------------------------
-	if (GameID() != eGameIDSingle)
-		Game().m_WeaponUsageStatistic->OnBullet_Check_Result(true);
 };
 
 void CActor::OnPlayHeadShotParticle(NET_Packet P)

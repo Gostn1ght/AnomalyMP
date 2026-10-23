@@ -16,7 +16,6 @@
 #include "xrServer_Objects_ALife_All.h"
 #include "level.h"
 #include "game_cl_base.h"
-#include "game_cl_base_weapon_usage_statistic.h"
 #include "ai_space.h"
 #include "script_engine.h"
 #include "../xrEngine/IGame_Persistent.h"
@@ -1200,16 +1199,6 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
 	case M_CREATE_PLAYER_STATE:
 		{
 			game->AddDelayedEvent(P, GAME_EVENT_CREATE_PLAYER_STATE, 0, sender);
-		}
-		break;
-	case M_STATISTIC_UPDATE:
-		{
-			SendBroadcast(BroadcastCID, P, net_flags(TRUE,TRUE));
-		}
-		break;
-	case M_STATISTIC_UPDATE_RESPOND:
-		{
-			//if (SV_Client) SendTo	(SV_Client->ID, P, net_flags(TRUE, TRUE));
 		}
 		break;
 	case M_PLAYER_FIRE:

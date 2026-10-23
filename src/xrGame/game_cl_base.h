@@ -22,7 +22,6 @@ struct SZoneMapEntityData
 	}
 };
 
-struct WeaponUsageStatistic;
 
 class game_cl_GameState : public game_GameState, public ISheduled
 {
@@ -45,7 +44,6 @@ public:
 	game_PlayerState* lookat_player();
 
 
-	WeaponUsageStatistic* m_WeaponUsageStatistic;
 private:
 	void switch_Phase(u32 new_phase) { inherited::switch_Phase(new_phase); };
 protected:

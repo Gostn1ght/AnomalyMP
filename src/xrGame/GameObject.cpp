@@ -25,7 +25,6 @@
 #include "level.h"
 #include "script_callback_ex.h"
 #include "../xrphysics/MathUtils.h"
-#include "game_cl_base_weapon_usage_statistic.h"
 #include "game_level_cross_table.h"
 #include "ai_obstacle.h"
 #include "magic_box3.h"
@@ -170,7 +169,6 @@ void CGameObject::OnEvent(NET_Packet& P, u16 type)
 	switch (type)
 	{
 	case GE_HIT:
-	case GE_HIT_STATISTIC:
 		{
 			/*
 						u16				id,weapon_id;
@@ -209,20 +207,6 @@ void CGameObject::OnEvent(NET_Packet& P, u16 type)
 			if (!HDS.who)
 			{
 				Msg("! ERROR: hitter object [%d] is NULL on client.", HDS.whoID);
-			}
-			//-------------------------------------------------------
-			switch (HDS.PACKET_TYPE)
-			{
-			case GE_HIT_STATISTIC:
-				{
-					if (GameID() != eGameIDSingle)
-						Game().m_WeaponUsageStatistic->OnBullet_Check_Request(&HDS);
-				}
-				break;
-			default:
-				{
-				}
-				break;
 			}
 			SetHitInfo(Hitter, Weapon, HDS.bone(), HDS.p_in_bone_space, HDS.dir);
 			Hit(&HDS);

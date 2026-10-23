@@ -10,7 +10,6 @@
 #include "UI/UIMessagesWindow.h"
 #include "UI/UIDialogWnd.h"
 #include "string_table.h"
-#include "game_cl_base_weapon_usage_statistic.h"
 #include "netcoop.h"
 
 EGameIDs ParseStringToGameType(LPCSTR str);
@@ -19,7 +18,6 @@ LPCSTR GameTypeToString(EGameIDs gt, bool bShort);
 game_cl_GameState::game_cl_GameState()
 {
 	local_player = createPlayerState(NULL); //initializing account info
-	m_WeaponUsageStatistic = NULL;
 
 	m_game_type_name = 0;
 
@@ -30,8 +28,6 @@ game_cl_GameState::game_cl_GameState()
 
 	m_u16VotingEnabled = 0;
 	m_bServerControlHits = true;
-
-	m_WeaponUsageStatistic = xr_new<WeaponUsageStatistic>();
 }
 
 game_cl_GameState::~game_cl_GameState()
@@ -42,7 +38,6 @@ game_cl_GameState::~game_cl_GameState()
 	players.clear();
 
 	shedule_unregister();
-	xr_delete(m_WeaponUsageStatistic);
 	xr_delete(local_player);
 }
 
@@ -132,7 +127,6 @@ void game_cl_GameState::net_import_state(NET_Packet& P)
 	P.r_u32(m_start_time);
 	m_u16VotingEnabled = u16(P.r_u8());
 	m_bServerControlHits = !!P.r_u8();
-	m_WeaponUsageStatistic->SetCollectData(!!P.r_u8());
 
 	// Players
 	u16 p_count;
@@ -359,20 +353,6 @@ void game_cl_GameState::shedule_Update(u32 dt)
 		if (CurrentGameUI())
 			m_game_ui_custom = CurrentGameUI();
 	}
-	//---------------------------------------
-	switch (Phase())
-	{
-	case GAME_PHASE_INPROGRESS:
-		{
-			if (!IsGameTypeSingle())
-				m_WeaponUsageStatistic->Update();
-		}
-		break;
-	default:
-		{
-		}
-		break;
-	};
 };
 
 void game_cl_GameState::sv_GameEventGen(NET_Packet& P)
@@ -431,18 +411,6 @@ void game_cl_GameState::OnSwitchPhase(u32 old_phase, u32 new_phase)
 		break;
 	};
 
-	switch (new_phase)
-	{
-	case GAME_PHASE_INPROGRESS:
-		{
-			m_WeaponUsageStatistic->Clear();
-		}
-		break;
-	default:
-		{
-		}
-		break;
-	}
 }
 
 void game_cl_GameState::SendPickUpEvent(u16 ID_who, u16 ID_what)

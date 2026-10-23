@@ -11,7 +11,6 @@
 #include "Actor.h"
 #include "gamepersistent.h"
 #include "mt_config.h"
-#include "game_cl_base_weapon_usage_statistic.h"
 #include "material_manager.h"
 #include "Weapon.h"
 
@@ -301,12 +300,6 @@ void CBulletManager::AddBullet(const Fvector& position,
 			-1
 		);
 		funct(table);
-	}
-
-	if (!IsGameTypeSingle())
-	{
-		if (SendHit)
-			Game().m_WeaponUsageStatistic->OnBullet_Fire(&bullet, cartridge);
 	}
 }
 
@@ -1314,8 +1307,6 @@ void CBulletManager::CommitEvents() // @ the start of frame
 					funct(table);
 				}
 
-				if (E.bullet.flags.allow_sendhit && GameID() != eGameIDSingle)
-					Game().m_WeaponUsageStatistic->OnBullet_Remove(&E.bullet);
 				m_Bullets[E.tgt_material] = m_Bullets.back();
 				m_Bullets.pop_back();
 			}
