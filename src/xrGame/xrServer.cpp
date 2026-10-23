@@ -1201,12 +1201,6 @@ u32 xrServer::OnMessage(NET_Packet& P, ClientID sender) // Non-Zero means broadc
 			game->AddDelayedEvent(P, GAME_EVENT_CREATE_PLAYER_STATE, 0, sender);
 		}
 		break;
-	case M_PLAYER_FIRE:
-		{
-			if (game)
-				game->OnPlayerFire(sender, P);
-		}
-		break;
 	case M_FILE_TRANSFER:
 		{
 			AddDelayedPacket(P, sender);

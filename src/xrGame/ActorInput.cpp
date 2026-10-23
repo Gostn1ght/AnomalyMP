@@ -78,15 +78,6 @@ void CActor::IR_OnKeyboardPress(int cmd)
 					return;
 				}
 			}
-
-			//-----------------------------
-			if (OnServer())
-			{
-				NET_Packet P;
-				P.w_begin(M_PLAYER_FIRE);
-				P.w_u16(ID());
-				u_EventSend(P);
-			}
 		}
 		break;
 	default:
