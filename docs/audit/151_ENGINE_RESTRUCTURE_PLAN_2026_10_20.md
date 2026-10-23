@@ -257,3 +257,40 @@ windowed; level loading after login is still to measure.
 - MP voting and map rotation cut (the server ran `appdata\maprot_list.ltx`
   as a console script at every start); empty server hooks and the
   `M_PLAYER_FIRE` message the host sent to itself on every shot.
+- Players dropping (areka's log): not the PDA; the client left after 15 s
+  without server data, its snapshot lead had grown to 7-15 s. The server
+  sent everyone at a fixed 512 KB/s, more than a weak line takes. Each
+  connection now follows its line (`AdaptSendRates`: quality under 97 %
+  cuts the rate by 30 %, at most once a second, floor 48 KB/s; 3 s at
+  99 % adds 32 KB/s up to 512 KB/s); `-netcoop_fake_rate=<KB/s>` on a
+  client emulates a weak line for the bot stand.
+- Demo camera commands (`demo_record` and the rest) check the
+  administrator right themselves; the console was already admin-only.
+- World orders (owner: time/weather/emission changes reached one map):
+  the master has `admin_relay` (weather, emission, psi storm, scale,
+  advance) for a location authority, the engine queues it in the
+  admission coordinator (`netcoop_world_order`), `level.change_game_time`
+  on a location with the master moves the master's calendar. The server's
+  admin commands `weather`, `emission`, `psi`, `time`, `timescale` use it,
+  with the old local path only without a master and nothing local when a
+  required master is unreachable. The master's weather target may be a
+  preset (its cycle is found, `_large` too) or an unlisted weather; a
+  transition under a game minute switches at once. Emissions and psi
+  storms no longer speed one map's clock up under the master. The client's
+  debug `time` goes to the server. Still local: the weather editor's
+  parameter edits (`weather.set_value_*`).
+- PDA devices (owner: unique PDA id, pick up and hack after a death, other
+  players' and NPCs'): see `netcoop_pdanet.script` "Devices". Serial per
+  PDA item (by its persistent uid), bound to the first carrier; someone
+  else's PDA shows a device layer (serial, protection, hack 20/40/60 s by
+  model, +30 s with the owner's password), then the owner's contacts,
+  chats and notes up to the moment it left him, and a reset. NPC PDAs
+  (`itm_pda_*`): GAMMA's messages come from the server, travel with the
+  item between servers (`pda_npc/<uid>`), an encrypted one is hacked open,
+  a stash message fills the stash on its map's server and marks it for
+  the reader until someone opens it.
+- Cordon server crash, two hoster dumps (21:58, 22:14): a monster striking
+  the server's actor drew claw marks through `CurrentGameUI()`, which a
+  dedicated server never loads (`AddCustomStatic` on null). The marks and
+  the controller's screen effect need a game UI now. GAMMA's dynamic news
+  no longer runs its checks with no player on the server.
