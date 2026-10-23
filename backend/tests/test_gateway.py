@@ -26,6 +26,7 @@ class FakeStore:
     def __init__(self):
         self.lock = threading.Lock()
         self.leases = {}
+        self.characters = {}  # character id -> map
 
     @property
     def db(self):
@@ -33,12 +34,15 @@ class FakeStore:
 
         class DB:
             def execute(self, query, args):
+                if "FROM entity" in query:
+                    return [(store.characters[args[0]],)] if args[0] in store.characters else []
                 return [(name,) for name, expiry in store.leases.items() if expiry > args[0]]
         return DB()
 
 
 class FakeWorld:
     ms = 1000
+    world_id, seed = 77, 99
 
     def real_ms(self):
         return self.ms
@@ -71,6 +75,21 @@ class GatewayTest(unittest.TestCase):
         self.world.ms = 6000  # both leases expired
         self.assertIsNone(self.gateway.entry())
 
+    def test_a_player_goes_to_his_map_and_a_new_one_to_cordon(self):
+        from lostzone.native_save import identity
+        self.store.leases = {"k00_marsh": 5000, "l01_escape": 5000}
+        # A new character: Cordon, whatever map comes first in the plan.
+        self.assertEqual(self.gateway.entry("Novice", 1)["location"], "l01_escape")
+        self.store.characters[identity(77, 99, "veteran", 1)] = "k00_marsh"
+        self.assertEqual(self.gateway.entry("Veteran", 1)["location"], "k00_marsh", "case does not matter")
+        self.store.characters[identity(77, 99, "walker", 1)] = "l02_garbage"
+        # Its map is not running: the first running map tells the player.
+        self.assertEqual(self.gateway.entry("walker", 1)["location"], "k00_marsh")
+        self.store.leases = {"k00_marsh": 5000}
+        self.assertEqual(self.gateway.entry("Novice", 1)["location"], "k00_marsh", "Cordon down: first running map")
+        for account, slot in (("x", 1), ("bad name!", 1), ("Novice", 0), ("Novice", 11)):
+            self.assertEqual(self.gateway.entry(account, slot)["location"], "k00_marsh")
+
     def test_rate_limit_per_address(self):
         self.assertTrue(all(self.gateway.allowed("198.51.100.1") for _ in range(3)))
         self.assertFalse(self.gateway.allowed("198.51.100.1"))
@@ -92,6 +111,10 @@ class GatewayTest(unittest.TestCase):
                 connection.close()
                 return response.status, body
             self.assertEqual(get("GET", "/v1/entry"), (200, {"schema": 1, "location": "k00_marsh", "host": "", "port": 1267}))
+            self.store.leases["l01_escape"] = 10 ** 12
+            self.assertEqual(get("GET", "/v1/entry?account=Novice&slot=1")[1]["location"], "l01_escape")
+            self.assertEqual(get("GET", "/v1/entry?account=Novice&slot=x")[1]["location"], "k00_marsh")
+            del self.store.leases["l01_escape"]
             self.assertEqual(get("GET", "/v1/command")[0], 404)
             self.assertEqual(get("POST", "/v1/entry")[0], 405)
             self.store.leases = {}

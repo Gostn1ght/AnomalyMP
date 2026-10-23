@@ -141,11 +141,12 @@ local function parse_addr(addr)
 end
 
 -- Owner 2026-10-17: players enter only the world master's address. Its entry
--- names a running location to connect to; the master then sends the character
--- on to the map it lives on. Without a master there (a location address) the
--- address is used as it is. The typed address stays the remembered one.
-local function route_addr(ip, port)
-	local to = netcoop_master_entry and netcoop_master_entry(ip .. ":" .. port) or ""
+-- names the location to connect to: the map the character was on last, Cordon
+-- for a new one (owner 2026-10-24). Without a master there (a location
+-- address) the address is used as it is. The typed address stays the
+-- remembered one.
+local function route_addr(ip, port, login, slot)
+	local to = netcoop_master_entry and netcoop_master_entry(ip .. ":" .. port, login or "", tonumber(slot) or 0) or ""
 	local rip, rport = string.match(to, "^([%w%.%-]+):(%d+)$")
 	if rip then return rip, rport end
 	return ip, port
@@ -397,7 +398,7 @@ function netcoop_login_wnd:Connect(register)
 	write_last(login, ip .. ":" .. port)
 	netcoop_character(0, "", "stalker", 1, "")
 	auth_return = "pending"; auth_message = nil
-	local cip, cport = route_addr(ip, port)
+	local cip, cport = route_addr(ip, port, login, 0)
 	if not netcoop_frontend_auth(string.format("%s/name=%s/port=%s", cip, login, cport)) then
 		auth_return = nil
 		return self:SetMsg(tr("auth_failed"))
@@ -479,7 +480,7 @@ function netcoop_login_wnd:EnterWorld(slot, name, faction, economy, loadout)
 	netcoop_menu_radio.stop()
 	netcoop_preview_clear()
 	exec_console_cmd("main_menu off")
-	local cip, cport = route_addr(ip, port)
+	local cip, cport = route_addr(ip, port, login, slot)
 	exec_console_cmd(string.format("start client(%s/name=%s/port=%s)", cip, login, cport))
 end
 
@@ -1304,7 +1305,7 @@ end
 function netcoop_login_wnd:StartServerProbe()
     netcoop_character(0, "", "stalker", 1, "")
     auth_return = "pending"
-    local cip, cport = route_addr(self.pending_ip, self.pending_port)
+    local cip, cport = route_addr(self.pending_ip, self.pending_port, self.pending_login, 0)
     if not netcoop_frontend_auth(string.format("%s/name=%s/port=%s", cip, self.pending_login, cport)) then
         self.role_probe = nil; auth_return = nil; self:SetMsg(tr("auth_failed")); return
     end

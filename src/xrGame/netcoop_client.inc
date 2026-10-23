@@ -375,11 +375,11 @@ LPCSTR script_account() { return client_login(); }
 
 // Owner 2026-10-17: players enter only the world master's address. Its public
 // entry (backend/lostzone/gateway.py, TCP, by default the same number as the
-// first map's UDP port) names a running location; that location admits the
-// player and the master sends the character on to the map it lives on. ""
-// when no master answers there (a location address, an older host): the
-// address is then used as it is. At most ~1.5 s, on a button press only.
-LPCSTR script_master_entry(LPCSTR address)
+// first map's UDP port) names the location to connect to: for the account and
+// slot (owner 2026-10-24) the map the character was on last, Cordon for a new
+// one. "" when no master answers there (a location address, an older host):
+// the address is then used as it is. At most ~1.5 s, on a button press only.
+LPCSTR script_master_entry(LPCSTR address, LPCSTR account, int slot)
 {
 	static string256 answer;
 	answer[0] = 0;
@@ -406,7 +406,15 @@ LPCSTR script_master_entry(LPCSTR address)
 	if (!session) return answer;
 	WinHttpSetTimeouts(session, 1500, 1500, 1500, 1500);
 	HINTERNET connection = WinHttpConnect(session, wide.c_str(), INTERNET_PORT(port), 0);
-	HINTERNET request = connection ? WinHttpOpenRequest(connection, L"GET", L"/v1/entry", nullptr,
+	// The login is a public name (letters, digits, _ . -): no escaping needed.
+	std::wstring path = L"/v1/entry";
+	if (account && login_valid(account) && slot >= 0 && slot <= 10)
+	{
+		path += L"?account=";
+		for (const char* c = account; *c; ++c) path += wchar_t(*c);
+		path += L"&slot=" + std::to_wstring(slot);
+	}
+	HINTERNET request = connection ? WinHttpOpenRequest(connection, L"GET", path.c_str(), nullptr,
 		WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, 0) : nullptr;
 	std::string body;
 	DWORD status = 0, size = sizeof(status);
