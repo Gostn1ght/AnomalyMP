@@ -56,6 +56,8 @@ std::chrono::duration<float> time_span;
 ENGINE_API float refresh_rate = 0;
 #endif // ECO_RENDER
 
+extern ENGINE_API BOOL g_appLoaded;
+
 BOOL CRenderDevice::Begin()
 {
 	PROF_EVENT();
@@ -67,8 +69,11 @@ BOOL CRenderDevice::Begin()
 		break;
 
 	case IRenderDeviceRender::dsLost:
-		// If the device was lost, do not render until we get it back
-		Sleep(33);
+		// If the device was lost, do not render until we get it back. While
+		// the game loads (alt-tabbed out of full screen) the loading steps
+		// and the connection's frames go on at full speed (doc 151 stage 1).
+		if (g_appLoaded)
+			Sleep(33);
 		return FALSE;
 		break;
 
@@ -649,7 +654,9 @@ void CRenderDevice::on_idle()
     if (FrameTime < DSUpdateDelta)
         Sleep(DSUpdateDelta - FrameTime);
 #endif
-	if (!b_is_Active)
+	// In the background a loaded game gives the CPU back; loading does not
+	// wait for the focus (doc 151 stage 1).
+	if (!b_is_Active && g_appLoaded && !g_loading_events.size())
 		Sleep(1);
 
 	// Lost Zone (doc 151): every frame over a second in the first ten minutes
