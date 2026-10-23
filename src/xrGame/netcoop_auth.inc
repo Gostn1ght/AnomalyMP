@@ -109,7 +109,7 @@ static void characters_refresh_for_list(LPCSTR account)
 {
 	// a login of this account waiting for the master uses its loaded copy
 	for (const PendingAdmission& waiting : s_pending_admission)
-		if (waiting.pending && !xr_stricmp(waiting.pending->login.c_str(), account)) return;
+		if (waiting.pending && !_stricmp(waiting.pending->login.c_str(), account)) return;
 	character_commits_flush_account(account);
 	xr_string prefix = account;
 	to_lower(prefix);
