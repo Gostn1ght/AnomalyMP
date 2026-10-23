@@ -9,7 +9,8 @@ text = (ROOT/'src/xrGame/Actor_Network.cpp').read_text(encoding='utf-8')
 start = text.index('void CActor::netcoop_export_weapon_slots(')
 stop = text.index('void CActor::net_Export(NET_Packet& P)', start)
 export = text[stop:text.index('static void w_vec_q8(', stop)]
-assert export.count('netcoop_export_weapon_slots(P);') == 2
+# The actor sends no physics sync items (single type): one tail after the zero count.
+assert export.count('netcoop_export_weapon_slots(P);') == 1 and 'P.w_u16(0);' in export
 receive = text[text.index('void CActor::net_Import(NET_Packet& P)'):text.index('void CActor::net_Import_Base(', stop)]
 assert receive.count('netcoop_import_weapon_slots(P);') == 2
 objects = (ROOT/'src/xrEngine/xr_object_list.cpp').read_text(encoding='utf-8')
