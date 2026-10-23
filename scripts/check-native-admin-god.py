@@ -127,7 +127,7 @@ int main(){
  for(int enabled=0;enabled<2;++enabled)for(int pure=0;pure<2;++pure)
  for(int kind=0;kind<2;++kind)for(int flags=0;flags<4;++flags){
   enabled_flag=enabled!=0;pure_flag=pure!=0;game_kind=kind;psActorFlags.flags=flags;
-  assert((GodMode(&player)!=FALSE)==((enabled&&!pure)?false:kind==eGameIDSingle&&flags!=0));
+  assert((GodMode(&player)!=FALSE)==((enabled&&!pure)?false:flags!=0)); // the game type no longer matters: Lost Zone is single
   ++cases;
  }
  std::printf("PASS actual admin god: connection/actor/role isolation, actual owner binding/respawn hints, burer guard/controller stamina-drop path, revoke/reconnect/dead/missing guards, idempotent on/off,64000 ordinary checks without client scans, %u SP/client predicate cases\n",cases);

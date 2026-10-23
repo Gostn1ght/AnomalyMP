@@ -87,13 +87,11 @@ int main(){
  assert(near(freeplay.m_fPower,0.229f) && near(freeplay.health,0.802f));
  CActorCondition protected_actor;protected_actor.server=true;protected_actor.m_bCanBeHarmed=false;
  protected_actor.frame();assert(near(protected_actor.m_fPower,0.199f) && near(protected_actor.health,0.8f));
- // Legacy multiplayer restoration remains its original unconditional path.
- single=false;CActorCondition mp;mp.frame();assert(near(mp.m_fPower,0.229f));single=true;
  netcoop::client=true;psActorFlags.rt=true;CActorCondition menu;menu.frame();
  assert(near(menu.m_fPower,0.199f) && near(menu.health,0.8f));psActorFlags.rt=false;
  CActorCondition starving;starving.m_fSatiety=0.1f;starving.server=true;netcoop::client=false;
  starving.frame();assert(starving.health<0.8f && starving.m_fPower>0.2f);
- std::puts("PASS actual stamina recovery: pure owner frames, hunger/sleep, max power, no client health regeneration, observer/menu isolation, protected freeplay and legacy MP");
+ std::puts("PASS actual stamina recovery: pure owner frames, hunger/sleep, max power, no client health regeneration, observer/menu isolation and protected freeplay");
 }
 '''
 with TemporaryDirectory() as tmp:
