@@ -22,18 +22,6 @@ BOOL net_sv_control_hit = FALSE;
 u32 g_sv_base_dwRPointFreezeTime = 0;
 //-----------------------------------------------------------------
 
-xr_token round_end_result_str[] =
-{
-	{"Finish", eRoundEnd_Finish},
-	{"Game restarted", eRoundEnd_GameRestarted},
-	{"Game restarted fast", eRoundEnd_GameRestartedFast},
-	{"Time limit", eRoundEnd_TimeLimit},
-	{"Frag limit", eRoundEnd_FragLimit},
-	{"Artefact limit", eRoundEnd_ArtrefactLimit},
-	{"Unknown", eRoundEnd_Force},
-	{0, 0}
-};
-
 // Main
 /*game_PlayerState*	game_sv_GameState::get_it					(u32 it)
 {
