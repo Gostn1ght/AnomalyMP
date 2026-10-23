@@ -7,7 +7,7 @@
 class dxUIRender : public IUIRender
 {
 public:
-	dxUIRender() : PrimitiveType(ptNone), m_PointType(pttNone) { ; }
+	dxUIRender() : PrimitiveType(ptNone), m_PointType(pttNone), m_bInParts(false) { ; }
 
 	virtual void CreateUIGeom();
 	virtual void DestroyUIGeom();
@@ -49,6 +49,13 @@ private:
 	//	Vertex buffer attributes
 	u32 m_iMaxVerts;
 	u32 vOffset;
+	// A triangle or line list larger than the dynamic vertex buffer is drawn
+	// in parts of m_iMaxVerts vertices.
+	bool m_bInParts;
+
+	void LockVertices();
+	u32 PendingVertices() const;
+	void DrawPending();
 
 	FVF::TL* TL_start_pv;
 	FVF::TL* TL_pv;

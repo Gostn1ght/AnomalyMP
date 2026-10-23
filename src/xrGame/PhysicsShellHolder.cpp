@@ -355,9 +355,16 @@ void CPhysicsShellHolder::correct_spawn_pos()
 	Fvector c;
 	get_box(PPhysicsShell(), XFORM(), size, c);
 
-	R_ASSERT2(_valid( c ), make_string( "object: %s model: %s ", cName().c_str(), cNameVisual().c_str() ));
-	R_ASSERT2(_valid( size ), make_string( "object: %s model: %s ", cName().c_str(), cNameVisual().c_str() ));
-	R_ASSERT2(_valid( XFORM() ), make_string( "object: %s model: %s ", cName().c_str(), cNameVisual().c_str() ));
+	// An object with a broken transform or shell box (owner 2026-10-24: a
+	// player's decor poster, decor_poster246352 / dynamics\decor\poster2)
+	// took the client down here. Pushing it out of the geometry needs a valid
+	// box: without one it stays where it is.
+	if (!_valid(c) || !_valid(size) || !_valid(XFORM()))
+	{
+		Msg("! [physics] %s (%s): invalid transform or shell box, spawn position not corrected",
+			cName().c_str(), cNameVisual().c_str());
+		return;
+	}
 	PPhysicsShell()->DisableCollision();
 
 	Fvector ap = Fvector().set(0, 0, 0);

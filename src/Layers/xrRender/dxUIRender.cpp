@@ -202,18 +202,16 @@ void dxUIRender::PushPoint(float x, float y, float z, u32 C, float u, float v)
 		++TL_pv;
 		break;
 	}
+	// The part is full: draw it and go on in a new one.
+	if (m_bInParts && PendingVertices() == m_iMaxVerts)
+	{
+		DrawPending();
+		LockVertices();
+	}
 }
 
-void dxUIRender::StartPrimitive(u32 iMaxVerts, ePrimitiveType primType, ePointType pointType)
+void dxUIRender::LockVertices()
 {
-	VERIFY(PrimitiveType==ptNone);
-	VERIFY(m_PointType==pttNone);
-	//.	R_ASSERT(pointType==pttLIT);
-
-	m_iMaxVerts = iMaxVerts;
-	PrimitiveType = primType;
-	m_PointType = pointType;
-
 	switch (m_PointType)
 	{
 	case pttLIT:
@@ -227,7 +225,42 @@ void dxUIRender::StartPrimitive(u32 iMaxVerts, ePrimitiveType primType, ePointTy
 	}
 }
 
-void dxUIRender::FlushPrimitive()
+u32 dxUIRender::PendingVertices() const
+{
+	switch (m_PointType)
+	{
+	case pttLIT: return u32(LIT_pv - LIT_start_pv);
+	case pttTL: return u32(TL_pv - TL_start_pv);
+	}
+	return 0;
+}
+
+void dxUIRender::StartPrimitive(u32 iMaxVerts, ePrimitiveType primType, ePointType pointType)
+{
+	VERIFY(PrimitiveType==ptNone);
+	VERIFY(m_PointType==pttNone);
+	//.	R_ASSERT(pointType==pttLIT);
+
+	m_iMaxVerts = iMaxVerts;
+	PrimitiveType = primType;
+	m_PointType = pointType;
+
+	// A tiled frame over a large window asked for more vertices than the
+	// dynamic buffer holds (205 k: a friend's client hacking a PDA, owner
+	// 2026-10-24, "_VertexStream::Lock bytes_need <= mSize"). Lists are drawn
+	// in parts of whole primitives; strips stay small and are drawn whole.
+	const u32 stride = m_PointType == pttLIT ? hGeom_LIT.stride() : hGeom_TL.stride();
+	u32 capacity = RCache.Vertex.GetSize() / stride - 6;
+	capacity -= capacity % 6;
+	m_bInParts = (primType == ptTriList || primType == ptLineList) && m_iMaxVerts > capacity;
+	if (m_bInParts)
+		m_iMaxVerts = capacity;
+	R_ASSERT2(m_iMaxVerts <= capacity + 6, make_string("UI primitive of %u vertices (type %d)", iMaxVerts, int(primType)));
+
+	LockVertices();
+}
+
+void dxUIRender::DrawPending()
 {
 	u32 primCount = 0;
 	_D3DPRIMITIVETYPE d3dPrimType = D3DPT_FORCE_DWORD;
@@ -278,9 +311,14 @@ void dxUIRender::FlushPrimitive()
 
 	if (primCount > 0)
 		RCache.Render(d3dPrimType, vOffset, primCount);
+}
 
+void dxUIRender::FlushPrimitive()
+{
+	DrawPending();
 	PrimitiveType = ptNone;
 	m_PointType = pttNone;
+	m_bInParts = false;
 }
 
 void dxUIRender::CacheSetXformWorld(const Fmatrix& M)
