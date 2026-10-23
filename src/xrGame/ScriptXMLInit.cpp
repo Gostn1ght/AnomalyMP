@@ -1,6 +1,7 @@
 #include "pch_script.h"
 #include "ScriptXmlInit.h"
 #include "ai_space.h"
+#include "script_engine.h"
 #include <shlobj.h>
 #pragma comment(lib, "shell32.lib")
 #include "ui\UIXmlInit.h"
