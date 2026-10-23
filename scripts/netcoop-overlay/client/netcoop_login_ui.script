@@ -874,7 +874,8 @@ function netcoop_login_wnd:ResetCloud()
     self.focus_index = nil
     if not busy and #self.fields > 0 then
         local index
-        for i, f in ipairs(self.fields) do if f == self.focus_field then index = i end end
+        -- UI controls have no __eq (luabind errors on ==): compare identity
+        for i, f in ipairs(self.fields) do if rawequal(f, self.focus_field) then index = i end end
         if not index then for i, f in ipairs(self.fields) do if not index and f:GetText() == "" then index = i end end end
         self:FocusField(index or 1)
     end

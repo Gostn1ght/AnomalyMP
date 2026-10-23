@@ -101,6 +101,26 @@ static xr_vector<PendingAuth*> s_pending_auth;
 struct PendingAdmission { PendingAuth* pending = nullptr; u64 ticket = 0; bool token = false; };
 static xr_vector<PendingAdmission> s_pending_admission;
 
+// The front-end's slot list comes from the character files, not from this
+// process's copies: another location of the cluster saved the account since
+// (owner 2026-10-23: the character list changed with the port). A character
+// playing on this server keeps its live copy.
+static void characters_refresh_for_list(LPCSTR account)
+{
+	// a login of this account waiting for the master uses its loaded copy
+	for (const PendingAdmission& waiting : s_pending_admission)
+		if (waiting.pending && !xr_stricmp(waiting.pending->login.c_str(), account)) return;
+	character_commits_flush_account(account);
+	xr_string prefix = account;
+	to_lower(prefix);
+	prefix += ":";
+	xr_set<xr_string> live;
+	for (const auto& entry : s_actor_character) live.insert(entry.second);
+	for (auto it = s_characters.begin(); it != s_characters.end();)
+		if (!it->first.compare(0, prefix.size(), prefix) && !live.count(it->first)) it = s_characters.erase(it);
+		else ++it;
+}
+
 static void auth_worker(void* data)
 {
 	PendingAuth* pending = static_cast<PendingAuth*>(data);
@@ -414,7 +434,11 @@ static bool finish_auth(xrServer* server, PendingAuth* pending)
             cluster_lease_release(a->login.c_str());
             send_auth_result(server,CL,true,a->role,"Account verified",result.c_str());
         }
-        else send_auth_result(server, CL, true, a->role, "Account verified");
+        else
+        {
+            characters_refresh_for_list(a->login.c_str());
+            send_auth_result(server, CL, true, a->role, "Account verified");
+        }
         server->DisconnectClient(CL, "@Account verified");
         return false;
     }
