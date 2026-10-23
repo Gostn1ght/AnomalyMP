@@ -31,6 +31,18 @@ struct DepartureResult
     char token[2049]{};
     char reason[160]{};
 };
+// An administrator's world order, carried out by the world master for every
+// location (owner 2026-10-23: time and weather changed one map only).
+// Weather: source/target cycle or preset, values[0] transition game seconds.
+// Emission/PsiStorm: values[0..2] phase durations, values[3] intensity.
+// Scale: values[0]. Advance: values[0] game seconds forward.
+enum class WorldOrder : unsigned { Weather, Emission, PsiStorm, Scale, Advance };
+enum class OrderState : unsigned { Pending, Done, Refused };
+struct OrderResult
+{
+    OrderState state=OrderState::Pending;
+    char reason[160]{};
+};
 struct CoordinatorStatus
 {
     bool started=false,ready=false,failed=false;
@@ -68,6 +80,10 @@ public:
     std::uint64_t depart(const char* account,unsigned slot,const char* target) noexcept;
     bool poll_departure(std::uint64_t ticket,DepartureResult& result) noexcept;
     bool admitted(const char* account,unsigned slot) noexcept;
+    // 0: not queued (no coordinator, invalid order).
+    std::uint64_t world_order(const char* account,WorldOrder order,const char* source,const char* target,
+                              const double* values,unsigned count) noexcept;
+    bool poll_order(std::uint64_t ticket,OrderResult& result) noexcept;
     void stop() noexcept;
 };
 }

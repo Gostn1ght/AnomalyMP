@@ -359,6 +359,9 @@ void client_item_forget(u16 id);
 LPCSTR script_item_info(u16 id);
 LPCSTR script_item_uid(u16 id);
 LPCSTR script_master_state(); // world master schedules for the server Lua
+// World orders carried out by the master for every location (false: no master writer here).
+bool script_world_order(LPCSTR account, LPCSTR order, LPCSTR source, LPCSTR target, float a, float b, float c, float d);
+bool world_time_advance(double game_seconds);
 bool master_required();
 bool master_ready();
 // Atomic transfer of one item between the player and a corpse or a box

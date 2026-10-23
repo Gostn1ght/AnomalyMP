@@ -7,6 +7,7 @@ static bool s_admission_started = false, s_admission_ready_logged = false, s_adm
 static u64 s_admission_retry = 0;
 
 static bool admission_active() { return s_admission_started; }
+static void world_orders_update();
 
 static void admission_update()
 {
@@ -34,6 +35,7 @@ static void admission_update()
 		return;
 	}
 	const netcoop_world::CoordinatorStatus status = s_admission.status();
+	world_orders_update();
 	if (status.ready && !s_admission_ready_logged)
 	{
 		s_admission_ready_logged = true;
@@ -188,4 +190,71 @@ static void admission_departures_update(xrServer* server)
 		Msg("[Lost Zone][cluster] %s leaves for %s (%s:%u), handed off by the world master", login.c_str(),
 			leaving.level.c_str(), leaving.host.c_str(), leaving.port);
 	}
+}
+
+// World orders (owner 2026-10-23): an administrator's weather, emission, psi
+// storm, time scale or calendar jump, and the game's own calendar jumps
+// (sleep, travel, campfire waiting), go to the world master, which carries
+// them out for every location; a single map changing its own hour or sky
+// fell out of step with the rest of the Zone.
+static xr_vector<std::pair<u64, xr_string>> s_world_orders; // ticket, what it was
+
+static bool world_order_available()
+{
+	return s_admission_started && s_admission.status().ready;
+}
+
+static bool world_order(LPCSTR account, netcoop_world::WorldOrder order, LPCSTR source, LPCSTR target,
+	const double* values, u32 count, LPCSTR what)
+{
+	if (!world_order_available() || s_world_orders.size() >= 64) return false;
+	const u64 ticket = s_admission.world_order(account, order, source, target, values, count);
+	if (!ticket) return false;
+	s_world_orders.push_back(std::make_pair(ticket, xr_string(what)));
+	Msg("[Lost Zone][master] %s: sent to the world master", what);
+	return true;
+}
+
+static void world_orders_update()
+{
+	for (auto it = s_world_orders.begin(); it != s_world_orders.end();)
+	{
+		netcoop_world::OrderResult result;
+		if (!s_admission.poll_order(it->first, result)) { ++it; continue; }
+		if (result.state == netcoop_world::OrderState::Done)
+			Msg("[Lost Zone][master] %s: carried out by the world master for every location", it->second.c_str());
+		else
+			Msg("! [Lost Zone][master] %s: %s", it->second.c_str(), result.reason);
+		it = s_world_orders.erase(it);
+	}
+}
+
+// level.change_game_time on a location server with the world master.
+bool world_time_advance(double game_seconds)
+{
+	if (!(game_seconds > 0.0) || !world_order_available()) return false;
+	string128 what; xr_sprintf(what, "calendar +%.0f game s", game_seconds);
+	return world_order("game", netcoop_world::WorldOrder::Advance, "", "", &game_seconds, 1, what);
+}
+
+// Server Lua: netcoop_world_order(account, order, source, target, a, b, c, d).
+// order: weather (source, target, a = transition s), emission / psi_storm
+// (a, b, c = phase durations s, d = intensity), scale (a), advance (a = s).
+bool script_world_order(LPCSTR account, LPCSTR order, LPCSTR source, LPCSTR target, float a, float b, float c, float d)
+{
+	if (!order || !Level().Server) return false;
+	const double values[] = {a, b, c, d};
+	string256 what;
+	xr_sprintf(what, "%s order of %s", order, account ? account : "?");
+	if (!xr_strcmp(order, "weather"))
+		return world_order(account, netcoop_world::WorldOrder::Weather, source, target, values, 1, what);
+	if (!xr_strcmp(order, "emission"))
+		return world_order(account, netcoop_world::WorldOrder::Emission, "", "", values, 4, what);
+	if (!xr_strcmp(order, "psi_storm"))
+		return world_order(account, netcoop_world::WorldOrder::PsiStorm, "", "", values, 4, what);
+	if (!xr_strcmp(order, "scale"))
+		return world_order(account, netcoop_world::WorldOrder::Scale, "", "", values, 1, what);
+	if (!xr_strcmp(order, "advance"))
+		return world_order(account, netcoop_world::WorldOrder::Advance, "", "", values, 1, what);
+	return false;
 }

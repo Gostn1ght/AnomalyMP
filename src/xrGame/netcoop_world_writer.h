@@ -71,8 +71,11 @@ inline bool writer_request(const WriterConfig& config, const std::string& instan
             !command["arguments"].is_object()) return false;
         bridge_identifier(command,"command_id",true);
         const auto operation=bridge_identifier(command,"operation");
-        // Administrative planning is never exposed through the location worker.
+        // Administrative planning reaches the master only as an in-game
+        // administrator's typed world order (admin_relay), never as a raw
+        // administrative operation.
         if (operation!="location_claim" && operation!="location_renew" && operation!="location_recover" &&
+            operation!="admin_relay" &&
             operation!="entity_create" && operation!="entity_update" && operation!="entity_death" &&
             operation!="item_create" && operation!="item_move" && operation!="transfer_prepare" &&
             operation!="transfer_claim" && operation!="transfer_commit" && operation!="transfer_abort" &&

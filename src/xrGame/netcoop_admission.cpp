@@ -7,6 +7,7 @@
 #include "netcoop_checkpoint_worker.h"
 #include "netcoop_player_checkpoint.h"
 #include <algorithm>
+#include <cmath>
 #include <condition_variable>
 #include <cstring>
 #include <deque>
@@ -60,18 +61,21 @@ struct AdmissionCoordinator::State
         std::vector<std::uint64_t> outstanding; // submitted, not yet retired
         bool leaving=false;
     };
-    enum class Kind { Admit,Leave,Depart };
+    enum class Kind { Admit,Leave,Depart,Order };
     struct Job
     {
         Kind kind=Kind::Admit;
         std::uint64_t ticket=0,deadline=0;
-        std::string account,local,token,target;
+        std::string account,local,token,target,source;
         unsigned slot=0;
+        WorldOrder order=WorldOrder::Weather;
+        std::vector<double> values;
     };
     struct Outcome
     {
         AdmissionResult admission;
         DepartureResult departure;
+        OrderResult order;
         std::vector<unsigned char> bytes;
         bool final=false;
     };
@@ -192,6 +196,7 @@ struct AdmissionCoordinator::State
     {
         Outcome outcome;
         if(job.kind==Kind::Depart) {outcome.departure.state=DepartureState::Refused;put(outcome.departure.reason,reason);}
+        else if(job.kind==Kind::Order) {outcome.order.state=OrderState::Refused;put(outcome.order.reason,reason);}
         else {outcome.admission.state=state;put(outcome.admission.reason,reason);}
         finish(job.ticket,std::move(outcome));
     }
@@ -404,6 +409,28 @@ struct AdmissionCoordinator::State
         finish(job.ticket,std::move(outcome));
     }
 
+    void carry_out(const Job& job)
+    {
+        BridgeJson values;
+        const auto& v=job.values;
+        switch(job.order)
+        {
+        case WorldOrder::Weather: values={{"source",job.source},{"target",job.target},{"transition_s",v[0]}};break;
+        case WorldOrder::Emission:
+        case WorldOrder::PsiStorm: values={{"durations",BridgeJson::array({v[0],v[1],v[2]})},{"intensity",v[3]}};break;
+        case WorldOrder::Scale: values={{"value",v[0]}};break;
+        case WorldOrder::Advance: values={{"game_s",v[0]}};break;
+        }
+        static const char* const names[]={"weather","emission","psi_storm","scale","advance"};
+        BridgeJson result;
+        const auto step=command("admin_relay",{{"account",job.account},{"order",names[unsigned(job.order)]},{"values",values}},
+            result,job.deadline);
+        if(step==CheckpointStep::Rejected) return refuse(job,"the world master refused the order");
+        if(step!=CheckpointStep::Complete) return refuse(job,"the world master did not answer");
+        Outcome outcome;outcome.order.state=OrderState::Done;
+        finish(job.ticket,std::move(outcome));
+    }
+
     void run() noexcept
     {
         bool opened=false;
@@ -436,6 +463,7 @@ struct AdmissionCoordinator::State
                 if(!opened) refuse(job,"the world master is unavailable",AdmissionState::Unavailable);
                 else if(job.kind==Kind::Admit) admit(job);
                 else if(job.kind==Kind::Leave) leave(job);
+                else if(job.kind==Kind::Order) carry_out(job);
                 else depart(job);
             }
             catch(...){refuse(job,"the world master exchange failed",AdmissionState::Unavailable);}
@@ -580,6 +608,41 @@ bool AdmissionCoordinator::admitted(const char* account,unsigned slot) noexcept
     }
     catch(...){return false;}
 }
+std::uint64_t AdmissionCoordinator::world_order(const char* account,WorldOrder order,const char* source,const char* target,
+    const double* values,unsigned count) noexcept
+{
+    try
+    {
+        if(!state_ || !values) return 0;
+        static const unsigned needed[]={1,4,4,1,1};
+        if(unsigned(order)>unsigned(WorldOrder::Advance) || count!=needed[unsigned(order)]) return 0;
+        State::Job job;job.kind=State::Kind::Order;job.order=order;job.account=text(account,64);
+        job.values.assign(values,values+count);
+        for(double value:job.values) if(!std::isfinite(value)) return 0;
+        if(order==WorldOrder::Weather)
+        {
+            job.source=text(source,64);job.target=text(target,64);
+            if(job.source.empty() || job.target.empty()) return 0;
+        }
+        if(job.account.empty()) return 0;
+        job.deadline=GetTickCount64()+15000;
+        return state_->queue(std::move(job));
+    }
+    catch(...){return 0;}
+}
+bool AdmissionCoordinator::poll_order(std::uint64_t ticket,OrderResult& result) noexcept
+{
+    result={};
+    try
+    {
+        if(!state_) {result.state=OrderState::Refused;return true;}
+        std::lock_guard<std::mutex> guard(state_->lock);
+        auto found=state_->outcomes.find(ticket);
+        if(found==state_->outcomes.end()) return false;
+        result=found->second.order;state_->outcomes.erase(found);return true;
+    }
+    catch(...){result={};result.state=OrderState::Refused;return true;}
+}
 void AdmissionCoordinator::stop() noexcept
 {
     if(!state_) return;
@@ -605,6 +668,8 @@ bool AdmissionCoordinator::leave(const char*,unsigned) noexcept{return false;}
 std::uint64_t AdmissionCoordinator::depart(const char*,unsigned,const char*) noexcept{return 0;}
 bool AdmissionCoordinator::poll_departure(std::uint64_t,DepartureResult& result) noexcept{result={};result.state=DepartureState::Refused;return true;}
 bool AdmissionCoordinator::admitted(const char*,unsigned) noexcept{return false;}
+std::uint64_t AdmissionCoordinator::world_order(const char*,WorldOrder,const char*,const char*,const double*,unsigned) noexcept{return 0;}
+bool AdmissionCoordinator::poll_order(std::uint64_t,OrderResult& result) noexcept{result={};result.state=OrderState::Refused;return true;}
 void AdmissionCoordinator::stop() noexcept{}
 #endif
 }

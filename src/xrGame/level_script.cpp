@@ -311,6 +311,10 @@ void change_game_time(u32 days, u32 hours, u32 mins)
 	// Game time belongs to the server.
 	if (!Level().Server)
 		return;
+	// With the world master the whole Zone moves together: the master moves
+	// its calendar and every location takes the new time at once.
+	if (netcoop::world_time_advance(double(days) * 86400.0 + double(hours) * 3600.0 + double(mins) * 60.0))
+		return;
 	game_sv_Single* tpGame = smart_cast<game_sv_Single *>(Level().Server->game);
 	if (tpGame && ai().get_alife())
 	{
@@ -2784,6 +2788,7 @@ void CLevel::script_register(lua_State* L)
 		def("netcoop_item_info", &netcoop::script_item_info),
 		def("netcoop_item_uid", &netcoop::script_item_uid),
 		def("netcoop_master_state", &netcoop::script_master_state),
+		def("netcoop_world_order", &netcoop::script_world_order),
 		def("netcoop_item_action", &netcoop::script_item_action),
 		def("netcoop_voice_radio_local", &netcoop::script_voice_radio_local),
 		def("netcoop_voice_status", &netcoop::script_voice_status),
