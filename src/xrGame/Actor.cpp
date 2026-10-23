@@ -642,7 +642,14 @@ void CActor::Hit(SHit* pHDS)
 	}
 	else
 	{
-		if (g_Alive())
+		// The server sends every hit to every client. GAMMA's hit scripts
+		// (actor_on_before_hit, the actor's hit callback) are about the
+		// player of this client: run for another player's Actor here, they
+		// took that player's wounds as this player's own (owner 2026-10-24:
+		// "when one player takes damage, everyone does"). Another player's
+		// Actor keeps the sound, blood and impulse; the server owns its health.
+		const bool own_hit = !netcoop::pure_client() || Level().CurrentControlEntity() == this;
+		if (g_Alive() && own_hit)
 		{
 			CScriptHit tLuaHit(&HDS);
 
