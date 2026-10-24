@@ -1477,4 +1477,22 @@
   <string id="st_netcoop_rp_back">
     <text>Back</text>
   </string>
+  <string id="st_netcoop_barter_request">
+    <text>%s offers a barter</text>
+  </string>
+  <string id="st_netcoop_barter_accept_btn">
+    <text>Accept</text>
+  </string>
+  <string id="st_netcoop_barter_decline_btn">
+    <text>Decline</text>
+  </string>
+  <string id="st_netcoop_barter_time_left">
+    <text>%d s left</text>
+  </string>
+  <string id="st_netcoop_barter_their_bag">
+    <text>Partner's backpack</text>
+  </string>
+  <string id="st_netcoop_barter_expired">
+    <text>The barter request has lapsed</text>
+  </string>
 </string_table>

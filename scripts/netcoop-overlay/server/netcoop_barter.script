@@ -1,6 +1,7 @@
 -- Lost Zone: barter between players (owner 2026-10-12). One player looks at
--- another and presses the use key: an invitation. The other looks back and
--- presses it: only then a barter window opens for both. Each puts items from
+-- another and presses the use key: an invitation. The other gets a request
+-- with Accept / Decline (owner 2026-10-24 spec 9; 60 s, then it lapses):
+-- only his Accept opens the barter window for both. Each puts items from
 -- the backpack and money into the offer; the deal happens when both pressed
 -- "Ready" for the same version of both offers - any change clears both
 -- marks. The server checks everything again and moves all items and money
@@ -11,13 +12,16 @@
 --   add <item>   remove <item>   money <amount>   ready <version>
 -- Server -> client, channel "barter":
 --   invited|<from>|<name>     sent|<target>|<name>     declined|<name>
+--   expired|<from>   (the request lapsed: the invited player's window closes)
 --   open|<partner>|<name>     closed|<reason>     done
---   state|<version>|<my money>|<their money>|<my ready>|<their ready>|<mine>|<theirs>
---     items: id,section,condition;...
+--   state|<version>|<my money>|<their money>|<my ready>|<their ready>|<mine>|<theirs>|<their backpack>
+--     items: id,section,condition;...  (the partner's backpack: what he may
+--     offer and has not yet, shown as in a trader's window)
 
 local REACH = 3.0       -- metres to invite or accept
 local KEEP = 4.5        -- an open barter ends beyond this
-local INVITE_MS = 30000 -- an invitation lasts
+local INVITE_MS = 60000 -- an invitation lasts (owner 2026-10-24)
+local MAX_SHOWN = 150   -- the partner's backpack items shown
 local MAX_ITEMS = 40    -- per side
 
 local invites = {}   -- target id -> { from = id, at = time_global() }
@@ -70,11 +74,28 @@ local function item_line(list)
 	return table.concat(out, ";")
 end
 
+-- Forward: offerable() is defined below.
+local offerable
+
+-- The partner's backpack: what he may offer and has not offered yet.
+local function backpack_line(owner, offered)
+	local out = {}
+	if not (owner and owner.iterate_inventory) then return "" end
+	owner:iterate_inventory(function(_, item)
+		if #out < MAX_SHOWN and item and not offered[item:id()] and offerable(owner, item) then
+			out[#out + 1] = string.format("%d,%s,%.2f", item:id(), item:section(), item:condition())
+		end
+	end, owner)
+	table.sort(out)
+	return table.concat(out, ";")
+end
+
 local function push_state(s)
 	for _, id in ipairs({ s.a, s.b }) do
 		local o = other(s, id)
-		send(id, string.format("state|%d|%d|%d|%d|%d|%s|%s", s.version, s.money[id], s.money[o],
-			s.ready[id] and 1 or 0, s.ready[o] and 1 or 0, item_line(s.items[id]), item_line(s.items[o])))
+		send(id, string.format("state|%d|%d|%d|%d|%d|%s|%s|%s", s.version, s.money[id], s.money[o],
+			s.ready[id] and 1 or 0, s.ready[o] and 1 or 0, item_line(s.items[id]), item_line(s.items[o]),
+			backpack_line(actor(o), s.items[o])))
 	end
 end
 
@@ -89,7 +110,7 @@ local function close(s, reason)
 end
 
 -- Items a player may offer: in his own backpack, not quest items, not worn.
-local function offerable(owner, item)
+offerable = function(owner, item)
 	if not (owner and item) then return false end
 	local parent = item:parent()
 	if not (parent and parent:id() == owner:id()) then return false end
@@ -192,7 +213,12 @@ end
 function update()
 	local now = time_global()
 	for target, invite in pairs(invites) do
-		if now - invite.at > INVITE_MS then invites[target] = nil end
+		if now - invite.at > INVITE_MS then
+			invites[target] = nil
+			local who = actor(target)
+			send(invite.from, "declined|" .. (who and name_of(who) or "?"))
+			send(target, "expired|" .. invite.from)
+		end
 	end
 	local open = {}
 	for s in pairs(sessions) do open[#open + 1] = s end

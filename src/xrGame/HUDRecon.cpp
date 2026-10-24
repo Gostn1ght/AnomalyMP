@@ -2,6 +2,7 @@
 // 
 //////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
+#include "netcoop.h"
 #include "HUDRecon.h"
 
 #include "../xrEngine/Environment.h"
@@ -91,7 +92,13 @@ void CHUDRecon::Update(const SPickParam& pp)
 
 			CInventoryOwner* our_inv_owner = smart_cast<CInventoryOwner*>(pCurEnt);
 
-			if (EA && EA->g_Alive() && EA->cast_base_monster())
+			// Another player shows nothing under the crosshair: no name, faction
+			// or hostility colour (owner 2026-10-24, spec 6.6).
+			if (EA && netcoop::enabled() && smart_cast<CActor*>(EA))
+			{
+				fuzzyShowInfo -= recon_hide_speed * Device.fTimeDelta;
+			}
+			else if (EA && EA->g_Alive() && EA->cast_base_monster())
 			{
 				color = C_ON_ENEMY;
 			}

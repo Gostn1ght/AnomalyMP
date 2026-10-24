@@ -1,6 +1,7 @@
 """Barter between players on the server (actual netcoop_barter, Lua 5.1):
 invitation only within reach and only to a player, acceptance only by the
-invited one and only while fresh, offers only of own backpack items (no quest,
+invited one and only while fresh (60 s; a lapsed request tells both sides),
+each side sees the other's backpack as in a trader's window, offers only of own backpack items (no quest,
 belt or worn items) and own money, any change clears both "ready" marks, the
 deal needs both marks on the same version, everything is checked again and
 moves at once or nothing does, parting/leaving ends it."""
@@ -34,6 +35,12 @@ function make_actor(id, x, money, name)
   function a:character_name() return self._name end
   function a:is_on_belt(item) return self.belt[item:id()] == true end
   function a:item_in_slot(slot) return self.slots[slot] end
+  function a:iterate_inventory(f, obj)
+    local ids = {}
+    for oid, o in pairs(objects) do if o._parent == self._id then ids[#ids + 1] = oid end end
+    table.sort(ids)
+    for _, oid in ipairs(ids) do f(self, objects[oid]) end
+  end
   function a:transfer_item(item, to) assert(item._parent == self._id, "moves only own items"); item._parent = to:id() end
   objects[id] = a
   return a
@@ -78,13 +85,14 @@ assert cmd(1, "invite 1") == []
 assert cmd(1, "invite 2") == ["2>invited|1|Alpha", "1>sent|2|Bravo"]
 # Only the invited player accepts, only the inviter's invitation, only while fresh.
 assert cmd(3, "accept 1") == [] and cmd(2, "accept 3") == []
-g.now = 31000
+g.now = 61000
 assert cmd(2, "accept 1") == []
-g.now = 40000
+g.now = 70000
 cmd(1, "invite 2")
 out = cmd(2, "accept 1")
 assert out[:2] == ["1>open|2|Bravo", "2>open|1|Alpha"], out
-assert out[2] == "1>state|1|0|0|0|0||" and out[3] == "2>state|1|0|0|0|0||", out
+BAG_A, BAG_B = "100,wpn_ak74,0.75;101,medkit,0.75", "105,bread,0.75;106,ammo_9x18,0.75"
+assert out[2] == "1>state|1|0|0|0|0|||" + BAG_B and out[3] == "2>state|1|0|0|0|0|||" + BAG_A, out
 # A busy player cannot be invited by someone else.
 C._pos = g.pos(1)
 assert cmd(3, "invite 2") == ["3>declined|Bravo"]
@@ -93,8 +101,8 @@ s = barter.session_of(1)
 for bad in (105, 102, 103, 104, 999):       # theirs, quest, worn, belt, missing
     assert cmd(1, "add %d" % bad) == [], bad
 out = cmd(1, "add 100")
-assert out[0] == "1>state|2|0|0|0|0|100,wpn_ak74,0.75|", out
-assert out[1] == "2>state|2|0|0|0|0||100,wpn_ak74,0.75", out
+assert out[0] == "1>state|2|0|0|0|0|100,wpn_ak74,0.75||" + BAG_B, out
+assert out[1] == "2>state|2|0|0|0|0||100,wpn_ak74,0.75|101,medkit,0.75", out  # an offered item leaves the backpack list
 cmd(2, "add 106")
 cmd(1, "money 300")
 cmd(2, "money 9999")                         # clamped to Bravo's 500
@@ -114,7 +122,7 @@ assert g.objects[100]._parent == 2 and g.objects[106]._parent == 1
 assert A._money == 1000 - 300 + 400 and B._money == 500 - 400 + 300
 assert barter.session_of(1) is None and barter.session_of(2) is None
 # A deal whose item left the owner meanwhile moves nothing.
-g.now = 80000
+g.now = 140000
 cmd(1, "invite 2"); cmd(2, "accept 1")
 cmd(1, "add 101"); cmd(2, "add 105")
 lua.execute("objects[101]._parent = 3")    # given away meanwhile
@@ -139,7 +147,8 @@ assert cmd(2, "cancel") == ["1>closed|cancel", "2>closed|cancel"]
 cmd(1, "invite 2"); msgs()
 assert cmd(2, "decline 1") == ["1>declined|Bravo"]
 cmd(1, "invite 2"); msgs()
-g.now = g.now + 31000
+g.now = g.now + 61000
 barter.update()
+assert msgs() == ["1>declined|Bravo", "2>expired|1"], "a lapsed request tells both"
 assert cmd(2, "accept 1") == []
-print("PASS barter: invite in reach, accept fresh, own backpack offers, ready per version, all-or-nothing deal, parting/leaving/cancel/decline")
+print("PASS barter: invite in reach, accept fresh (60 s, lapse told to both), partner's backpack shown, own backpack offers, ready per version, all-or-nothing deal, parting/leaving/cancel/decline")

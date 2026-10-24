@@ -1,10 +1,11 @@
 """Barter between players on the client (actual netcoop_barter_client, Lua 5.1,
 UI classes stubbed): the prompt appears only for another living player in
-reach and says "offer" or, after an invitation, "accept"; the use key sends
-invite/accept; the window opens only on the server's "open", shows the
-server's state (own offer as real items, the partner's as sections, money,
-ready marks), clicks add/remove, Ready sends the money and the version,
-closing messages close it."""
+reach, says "offer" and no name (spec 6.6); the use key sends the invitation;
+an invitation opens a request with Accept / Decline that lapses after 60 s
+(spec 9); the window opens only on the server's "open", shows the server's
+state (own offer as real items, the partner's offer and backpack as
+sections, money, ready marks), clicks and drag-and-drop add/remove, Ready
+sends the money and the version, closing messages close it."""
 from pathlib import Path
 from lupa.lua51 import LuaRuntime
 
@@ -63,6 +64,8 @@ hud_shown = {}
 function get_hud() return {AddDialogToRender = function(_, w) hud_shown[w] = true end,
                            RemoveDialogToRender = function(_, w) hud_shown[w] = nil end} end
 function CUITextWnd() return widget() end
+function CUIStatic() local w = widget(); function w:InitTexture() end; function w:SetStretchTexture() end; return w end
+ini_sys = {section_exist = function(_, s) return s ~= "ghost" end}
 function Frect() return {set = function(self) return self end} end
 function GetFontLetterica18Russian() end
 function GetARGB() end
@@ -101,7 +104,8 @@ DIK_keys = {DIK_ESCAPE = 1}
 reinit = {}
 utils_ui = {
   UICellContainer = function(id, owner) return {id = id, cell = {}, Reinit = function(self, t) reinit[id] = t end,
-                                                  Update = function() return false end} end,
+                                                  Update = function() return false end,
+                                                  prof = {over = false, IsCursorOverWindow = function(self) return self.over end}} end,
   UIInfoItem = function() return {Update = function() end} end,
 }
 callbacks = {}
@@ -137,37 +141,55 @@ for target in (None, npc, far, g.db.actor):
     g.looking = target
     assert shown_prompt() is None, target
 g.looking = other
-assert shown_prompt() == "[F]  st_netcoop_barter_offer - Bravo"
+assert shown_prompt() == "st_netcoop_barter_offer"    # no name, faction or hostility
 key(33); assert cmds() == ["barter invite 10"]
 key(34); assert cmds() == []                       # another key
 other._alive = False
 assert shown_prompt() is None
 other._alive = True
-# Invited: the prompt says "accept", the key accepts (once).
+# Invited: a request with Accept / Decline; no prompt, no key behind it.
 client.receive("invited|10|Bravo")
-assert g.news_log[1] == "st_netcoop_barter_invited"
-assert shown_prompt() == "[F]  st_netcoop_barter_accept - Bravo"
-key(33); assert cmds() == ["barter accept 10"]
-assert shown_prompt() == "[F]  st_netcoop_barter_offer - Bravo"
-# An invitation expires on the client too.
-client.receive("invited|10|Bravo"); g.now += 31000
-assert shown_prompt() == "[F]  st_netcoop_barter_offer - Bravo"
+req = client.current_request()
+assert req and req.IsShown(req) and shown_prompt() is None
+key(33); assert cmds() == []
+req.OnAccept(req); assert cmds() == ["barter accept 10"] and client.current_request() is None
+# Not answered in 60 s: declined by itself.
+client.receive("invited|10|Bravo"); req = client.current_request()
+g.now += 61000; req.Update(req)
+assert cmds() == ["barter decline 10"] and client.current_request() is None
+client.receive("invited|10|Bravo"); req = client.current_request()
+req.OnDecline(req); assert cmds() == ["barter decline 10"]
+# The server says it lapsed: the request closes.
+client.receive("invited|10|Bravo")
+client.receive("expired|10")
+assert client.current_request() is None and g.news_log[len(g.news_log)] == "st_netcoop_barter_expired"
 # The window opens only on the server's "open", follows its state.
+client.receive("invited|10|Bravo")
 client.receive("open|10|Bravo")
-w = lua.eval("function(m) return m end")(client)
+assert client.current_request() is None             # accepted on the other side: the request goes
 assert shown_prompt() is None                      # no prompt while the window is open
-client.receive("state|3|150|200|1|0|53,medkit,0.80|77,ammo_9x18,1.00;78,bread,0.50")
+client.receive("state|3|150|200|1|0|53,medkit,0.80|77,ammo_9x18,1.00;78,bread,0.50|60,vodka,1.00;61,ghost,1.00")
 bag = [g.reinit.bag[i + 1]._id for i in range(len(g.reinit.bag))]
 assert bag == [52], bag                            # not worn (50), not on belt (51), not offered (53)
 assert [g.reinit.give[i + 1]._id for i in range(len(g.reinit.give))] == [53]
 assert [g.reinit.get[i + 1] for i in range(len(g.reinit.get))] == ["ammo_9x18", "bread"]
+assert [g.reinit.their_bag[i + 1] for i in range(len(g.reinit.their_bag))] == ["vodka"]  # unknown sections skipped
 key(33); assert cmds() == []                       # the use key does nothing behind the window
+# Another invitation while trading is declined at once.
+client.receive("invited|3|Charlie"); assert cmds() == ["barter decline 3"] and client.current_request() is None
 win = client.current_window()
 win.bag.cell[1] = lua.eval("{ID = 52}")
 win.give.cell[1] = lua.eval("{ID = 53}")
 win.On_CC_Mouse1(win, "bag", 1); assert cmds() == ["barter add 52"]
 win.On_CC_Mouse1(win, "give", 1); assert cmds() == ["barter remove 53"]
 win.On_CC_Mouse1(win, "get", 1); assert cmds() == []          # the partner's items are not ours to move
+# Drag and drop: onto the offer adds, back onto the backpack removes; elsewhere nothing.
+win.On_CC_DragDrop(win, "bag", 1); assert cmds() == []
+win.give.prof.over = True
+win.On_CC_DragDrop(win, "bag", 1); assert cmds() == ["barter add 52"]
+win.give.prof.over = False; win.bag.prof.over = True
+win.On_CC_DragDrop(win, "give", 1); assert cmds() == ["barter remove 53"]
+win.On_CC_DragDrop(win, "their_bag", 1); assert cmds() == []
 win.money.text = "250"
 win.OnReady(win); assert cmds() == ["barter money 250", "barter ready 3"]
 win.money.text = "-5"
@@ -178,4 +200,4 @@ client.receive("open|10|Bravo"); client.receive("closed|far")
 assert client.current_window() is None and g.news_log[len(g.news_log)] == "st_netcoop_barter_closed_far"
 client.receive("open|10|Bravo"); win = client.current_window()
 win.OnCancel(win); assert cmds() == ["barter cancel"] and client.current_window() is None
-print("PASS barter client: prompt only for players in reach, offer/accept wording, invite/accept keys, expiry, window from the server's state")
+print("PASS barter client: prompt only for players in reach and without their name, request with accept/decline lapsing in 60 s, drag and drop, partner's backpack, window from the server's state")
