@@ -955,7 +955,9 @@ public:
 	bool DisableHitMarks() { return m_disabled_hitmarks; };
 
 	void set_inventory_disabled(bool is_disabled) { m_inventory_disabled = is_disabled; }
-	bool inventory_disabled() const { return m_inventory_disabled; }
+	// The driver of a car has no inventory and uses no items (owner
+	// 2026-10-24, spec 3.2); passengers keep theirs.
+	bool inventory_disabled() const { return m_inventory_disabled || (netcoop_seated() && m_netcoop_seat_driver); }
 private:
 	void set_state_box(u32 mstate);
 private:

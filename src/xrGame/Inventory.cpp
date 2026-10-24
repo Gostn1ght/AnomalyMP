@@ -1130,6 +1130,9 @@ bool CInventory::Eat(PIItem pIItem)
 	if (!pInventory || pInventory != this) return false;
 	if (pInventory != IO->m_inventory) return false;
 	if (pItemToEat->object().H_Parent()->ID() != entity_alive->ID()) return false;
+	// The driver uses no items (spec 3.2), on his client and on the server.
+	if (CActor* driver = smart_cast<CActor*>(entity_alive))
+		if (netcoop::enabled() && driver->netcoop_seated() && driver->inventory_disabled()) return false;
 
 	// A netcoop client has already run the use scripts (item animations) here;
 	// the server applies the item to its Actor and removes it.

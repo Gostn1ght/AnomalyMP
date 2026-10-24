@@ -262,6 +262,7 @@ struct VehicleRuntime
 	u32 transit_refused = 0;
 	u32 gun_last = 0;
 	float gun_budget = 3.f;
+	u32 run_over_check = 0; // players in the car's way (spec 2.3)
 };
 static xr_map<u16, VehicleRuntime> s_vehicles_sv;
 

@@ -693,6 +693,12 @@ void CCar::OnHUDDraw(CCustomHUD* /**hud*/)
 void CCar::Hit(SHit* pHDS)
 {
 	SHit HDS = *pHDS;
+	// NPCs and mutants do not wreck the players' cars (owner 2026-10-24, spec
+	// 2.2); players, anomalies, explosions without an NPC and falls still do.
+	// configs: [netcoop_vehicles] npc_damage_factor (0 = none).
+	if (netcoop::enabled() && !netcoop::pure_client() && HDS.who && HDS.who != this &&
+		smart_cast<CEntityAlive*>(HDS.who) && !smart_cast<CActor*>(HDS.who))
+		HDS.power *= READ_IF_EXISTS(pSettings, r_float, "netcoop_vehicles", "npc_damage_factor", 0.f);
 	//if(CDelayedActionFuse::isActive()||Initiator()==u16(-1)&&HDS.hit_type==ALife::eHitTypeStrike)
 	//{
 	//	HDS.power=0.f;

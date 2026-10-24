@@ -44,6 +44,7 @@
 #include "PHCollisionDamageReceiver.h"
 #include "PHDestroyable.h"
 #include "hit_immunity.h"
+#include "Hit.h"
 #include "damage_manager.h"
 #include "DestroyablePhysicsObject.h"
 #include "BreakableObject.h"

@@ -438,6 +438,59 @@ static void vehicle_speed_limit(CCar* car)
 	}
 }
 
+// A moving car hits the players in its way (owner 2026-10-24, spec 2.3:
+// "cars drive through players and hurt nobody"). Players' capsules are their
+// clients'; on the server nothing stopped the car or hurt the player. Every
+// 100 ms a car going faster than RUN_OVER_SPEED hits each player whose body is
+// inside its box: a strike that grows with the speed, pushing along the car's
+// way, once per RUN_OVER_REPEAT ms per player.
+static const float RUN_OVER_SPEED = 3.f; // m/s
+static const u32 RUN_OVER_REPEAT = 800;
+static xr_map<u32, u32> s_run_over_last; // car id << 16 | player id -> time
+
+static void vehicle_run_over(CCar* car, VehicleRuntime& v, u32 now)
+{
+	if (now - v.run_over_check < 100) return;
+	v.run_over_check = now;
+	CPhysicsShell* shell = car->PPhysicsShell();
+	if (!shell || !shell->isActive() || !car->Visual()) return;
+	Fvector velocity;
+	shell->get_LinearVel(velocity);
+	const float speed = velocity.magnitude();
+	if (!_valid(speed) || speed < RUN_OVER_SPEED) return;
+	Fbox box = car->Visual()->getVisData().box;
+	box.grow(0.35f);
+	Fmatrix to_car;
+	to_car.invert(car->XFORM());
+	Fvector way = velocity;
+	way.normalize_safe();
+	CActor* driver = !v.seats.empty() && v.seats[0] != vehicle_seat_free ?
+		smart_cast<CActor*>(Level().Objects.net_Find(v.seats[0])) : nullptr;
+	for (u32 n = 0; n < Level().Objects.o_count(); ++n)
+	{
+		CActor* player = smart_cast<CActor*>(Level().Objects.o_get_by_iterator(n));
+		if (!player || player->ID() == 0 || !player->g_Alive() || player->getDestroy() ||
+			player->m_netcoop_seat_car == car->ID()) continue;
+		Fvector local, centre = player->Position();
+		centre.y += 0.9f;
+		to_car.transform_tiny(local, centre);
+		if (!box.contains(local)) continue;
+		u32& last = s_run_over_last[(u32(car->ID()) << 16) | player->ID()];
+		if (last && now - last < RUN_OVER_REPEAT) continue;
+		last = now;
+		const float power = _min(2.f, (speed - RUN_OVER_SPEED) * 0.06f + 0.1f);
+		NET_Packet P;
+		SHit hit(power, way, driver ? static_cast<CObject*>(driver) : car, 0, Fvector().set(0.f, 0.f, 0.f),
+			speed * 60.f, ALife::eHitTypeStrike, 0.f, false);
+		hit.GenHeader(GE_HIT, player->ID());
+		hit.whoID = driver ? driver->ID() : car->ID();
+		hit.weaponID = car->ID();
+		hit.Write_Packet(P);
+		car->u_EventSend(P);
+		Msg("[Lost Zone][vehicle] %s hit %s at %.1f m/s (%.2f)", car->cName().c_str(), player->cName().c_str(), speed, power);
+	}
+}
+
 void vehicle_server_update(xrServer* server)
 {
 	if (!g_pGameLevel || pure_client())
@@ -490,6 +543,7 @@ void vehicle_server_update(xrServer* server)
 					}
 		}
 		vehicle_speed_limit(car);
+		if (occupied) vehicle_run_over(car, v, now);
 		// A driver whose client stopped sending lets go of the pedals.
 		if (v.keys && now - v.keys_time > 2000)
 		{
