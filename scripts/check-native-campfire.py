@@ -1,4 +1,5 @@
-"""Actual campfire authority, fuel deadlines, replication and session reset (CI only)."""
+"""Actual campfire authority, fuel deadlines, replication, the gesture the
+other players see and session reset (CI only)."""
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import os
@@ -44,8 +45,10 @@ struct Object{
 };
 struct Item:Object{Object& object(){return *this;}};using PIItem=Item*;
 struct CEatableItem:Item{u8 uses=2;u8 GetRemainingUses(){return uses;}void SetRemainingUses(u8 v){uses=v;}};
+struct Name{const char* c_str() const{return "actor_name";}};
 struct CActor:Object{bool alive=true;struct{std::vector<PIItem>m_all;}inv;
- bool g_Alive(){return alive;}auto& inventory(){return inv;}};
+ bool g_Alive(){return alive;}auto& inventory(){return inv;}Name cName(){return {};}};
+template<class...T>std::string make_string(const char* f,T...a){char b[512];std::snprintf(b,sizeof(b),f,a...);return b;}
 namespace netcoop{void server_campfire_changed(u16,bool);bool pure_client_mode=false;bool pure_client(){return pure_client_mode;}}
 struct CZoneCampfire:Object{
  bool on=false;unsigned applied=0;
@@ -73,6 +76,8 @@ GameLevel* g_pGameLevel=&level;GameLevel& Level(){return level;}
 struct{u32 dwTimeGlobal=1;}Device;
 struct{int randI(int,int){return 30;}}Random; // NPC fuel: 2 h + 30 game minutes
 unsigned touches=0;void server_item_touch(u16){++touches;}
+std::vector<std::string> broadcasts;
+namespace netcoop{void script_broadcast(LPCSTR channel,LPCSTR data){broadcasts.push_back(std::string(channel)+" "+data);}}
 namespace netcoop{
 '''
 source += (root / "src/xrGame/netcoop_campfire.inc").read_text(encoding="utf-8")
@@ -86,10 +91,14 @@ int main(){using namespace netcoop;
  actor.inv.m_all={&empty,&matches};
  auto request=[&](u8 on){NET_Packet p{{7,0,on}};server_on_campfire(&server,&cl,p);};
  request(2);assert(!fire.on && matches.uses==2);
+ // a refused request shows nobody a gesture
  matches.destroyed=true;request(1);assert(!fire.on);matches.destroyed=false;
  actor.p.x=4;request(1);assert(!fire.on);actor.p.x=0;
  actor.alive=false;request(1);assert(!fire.on);actor.alive=true;
+ assert(broadcasts.empty());
  request(1);assert(fire.on && matches.uses==1 && touches==1 && !empty.destroyed);
+ // the other players see the hands at the fire
+ assert(broadcasts.size()==1 && broadcasts[0]=="netcoop_consumption 1|255|actor_name|anim_campfire_ignition");
  const u64 deadline=s_campfire_fuel_end.at(7);assert(deadline==1000+campfire_fuel_ms);
  request(1);assert(matches.uses==1 && s_campfire_fuel_end.at(7)==deadline);
  // A late join gets the same current burning state, once.
@@ -119,7 +128,7 @@ int main(){using namespace netcoop;
  const u64 npc_deadline=level.game_time+campfire_npc_fuel_ms+30ull*60*1000;assert(s_campfire_fuel_end.at(7)==npc_deadline);
  level.game_time=npc_deadline-1;Device.dwTimeGlobal+=4000;server_campfires_update(&server);assert(fire.on);
  level.game_time=npc_deadline;Device.dwTimeGlobal+=4000;server_campfires_update(&server);assert(!fire.on&&s_campfire_fuel_end.empty());
- std::puts("PASS actual campfires: authority/reach/alive, usable matches once, game-time fuel (players and NPCs), late join, malformed packets, pending spawn and session reset");
+ std::puts("PASS actual campfires: authority/reach/alive, usable matches once, game-time fuel (players and NPCs), the others' gesture, late join, malformed packets, pending spawn and session reset");
 }
 '''
 with TemporaryDirectory() as tmp:

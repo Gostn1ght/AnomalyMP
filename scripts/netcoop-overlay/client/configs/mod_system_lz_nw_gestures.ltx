@@ -1,0 +1,31 @@
+; New Way's door and campfire gestures (owner 2026-10-24; NW's developers
+; authorized taking their work), by scripts/tools/import-nw-gestures.py.
+; First person: game.play_hud_motion (netcoop_client_compat); third person:
+; third_person_motion when the server says a player did it (netcoop_consumption).
+
+[anim_door_open_hud]
+hands_position = 0,0,0
+hands_orientation = 0,0,0
+hands_position_16x9 = 0,0,0
+hands_orientation_16x9 = 0,0,0
+anm_ea_show = nw_door_reach_return
+anm_variants = 1
+anim_speed = 1.0
+anm_blend_in = 0.12
+anm_blend_out = 0.16
+third_person_motion = norm_torso_0_gest_pointing_0
+
+[anim_campfire_ignition_hud]
+item_position = 0,0,-0.005
+item_orientation = 0,0,0
+hands_position = 0,0,0
+hands_orientation = 0,0,0
+hands_position_16x9 = 0,0,0
+hands_orientation_16x9 = 0,0,0
+item_visual = dynamics\hud_matches\matches_hud.ogf
+anm_ea_show = hand_ignit,itm_ignit
+anm_idle = idle,idle
+anm_variants = 1
+hud_fov = 0.6
+cam_anm_ea_show = camera_effects\weapon\hand_ignit.anm
+third_person_motion = norm_torso_0_gest_pickup_0

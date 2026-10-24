@@ -6,12 +6,18 @@
 ; the text itself), group (the wheel's category), icon (cell of
 ; ui\ui_actor_anims_icons, 8x8, 128 px), group_icon (shows the category),
 ; preview = frames, intro frames (once), intro ms, loop ms
-; (ui\anim_preview\anim_<icon>, 32 columns of 64 px).
+; (ui\anim_preview\anim_<icon>, 32 columns of 64 px);
+; walk = true: legs = forward, back, left, right, standing; torso = walking,
+; standing (no chains); slot = a weapon pose: that slot's item in the hands.
 
 [rp_list]
+nw_1
 nw_2
+nw_3
 nw_4
 nw_5
+nw_6
+nw_7
 nw_8
 nw_9
 nw_10
@@ -19,8 +25,10 @@ nw_11
 nw_12
 nw_13
 nw_14
+nw_15
 nw_16
 nw_17
+nw_18
 nw_19
 nw_20
 nw_21
@@ -41,24 +49,38 @@ nw_35
 nw_36
 nw_37
 nw_38
+nw_39
 nw_40
 nw_41
 nw_42
 nw_43
 nw_44
 nw_45
+nw_46
+nw_47
+nw_48
 nw_49
 nw_50
 nw_51
 nw_52
 nw_53
 nw_54
+nw_55
 nw_56
 nw_57
 nw_58
 nw_60
 nw_61
 nw_62
+
+[rp_nw_1]
+title = Поднять руки
+group = Заложники
+icon = 1
+walk = true
+legs = norm_walk_fwd_1, norm_walk_back_0, norm_walk_ls_0, norm_walk_rs_0, norm_idle_1
+torso = hand_up_0, hand_up_0
+preview = 203, 0, 0, 33
 
 [rp_nw_2]
 title = Заложник
@@ -70,6 +92,15 @@ mid = prisoner_0_sit_idle_0
 out = prisoner_0_stand_up_0
 loop = true
 preview = 136, 83, 33, 33
+
+[rp_nw_3]
+title = Заложник идти
+group = Заложники
+icon = 3
+walk = true
+legs = norm_walk_fwd_1, norm_walk_back_0, norm_walk_ls_0, norm_walk_rs_0, norm_idle_1
+torso = prisoner_0_sit_idle_0, prisoner_0_sit_idle_0
+preview = 53, 0, 0, 33
 
 [rp_nw_4]
 title = Тяжелое ранение
@@ -91,6 +122,25 @@ mid = wounded_idle_0, wounded_opasno_0
 out = wounded_to_idle_0
 loop = true
 preview = 215, 32, 32, 33
+
+[rp_nw_6]
+title = Идти в ранении с оружием
+group = Состояния
+icon = 6
+walk = true
+legs = dmg_norm_walk_fwd_1, dmg_norm_walk_back_0, dmg_norm_walk_ls_0, dmg_norm_walk_rs_0, dmg_norm_idle_1
+torso = dmg_norm_torso_8_walk_1, dmg_norm_torso_9_idle_1
+slot = 3
+preview = 43, 0, 0, 33
+
+[rp_nw_7]
+title = Идти в ранении
+group = Состояния
+icon = 7
+walk = true
+legs = dmg_norm_walk_fwd_1, dmg_norm_walk_back_0, dmg_norm_walk_ls_0, dmg_norm_walk_rs_0, dmg_norm_idle_1
+torso = dmg_norm_torso_0_walk_1, dmg_norm_torso_0_idle_1
+preview = 43, 0, 0, 33
 
 [rp_nw_8]
 title = Пси атака
@@ -163,6 +213,17 @@ out = stay_wall_out
 loop = true
 preview = 364, 62, 33, 33
 
+[rp_nw_15]
+title = Оружие на плечо
+group = Выбор позы
+icon = 15
+in = norm_talk_2_in_0
+mid = norm_talk_2_idle_0, norm_talk_2_idle_1, norm_talk_2_idle_2, norm_talk_2_idle_3, norm_talk_2_idle_4
+out = norm_talk_2_out_0
+loop = true
+slot = 3
+preview = 351, 48, 33, 33
+
 [rp_nw_16]
 title = Ожидание(1)
 group = Выбор позы
@@ -182,6 +243,17 @@ mid = idle_0_idle_0, idle_0_idle_1, idle_0_idle_2, idle_0_idle_3, idle_0_idle_4
 out = 
 loop = true
 preview = 103, 0, 0, 33
+
+[rp_nw_18]
+title = Часовой
+group = Выбор позы
+icon = 18
+in = idle_9_idle_4
+mid = idle_2_idle_0, chasovoy_2, idle_9_idle_2, chasovoy_3, idle_9_idle_3, chasovoy_0
+out = idle_9_idle_1
+loop = true
+slot = 3
+preview = 256, 153, 33, 33
 
 [rp_nw_19]
 title = Часовой с пистолетом
@@ -385,6 +457,17 @@ out = animpoint_stay_table_out_1
 loop = true
 preview = 310, 68, 33, 33
 
+[rp_nw_39]
+title = Барная стойка с оружием
+group = Барные стойки
+icon = 39
+in = animpoint_stay_table_weapon_in_1
+mid = animpoint_stay_table_weapon_visual
+out = animpoint_stay_table_weapon_out_1
+loop = true
+slot = 3
+preview = 269, 67, 33, 33
+
 [rp_nw_40]
 title = Играть на гитаре
 group = Музыка
@@ -449,6 +532,38 @@ loop = false
 once = true
 preview = 153, 0, 0, 33
 
+[rp_nw_46]
+title = Осмотреть c оружием
+group = Осмотр
+icon = 46
+in = poisk_2_idle_0
+mid = 
+out = 
+loop = false
+once = true
+slot = 3
+preview = 313, 0, 0, 33
+
+[rp_nw_47]
+title = Осмотреться с оружием
+group = Осмотр
+icon = 47
+in = cr_idle_2_in
+mid = cr_idle_2_0, cr_idle_2_1, cr_idle_2_2
+out = cr_idle_2_out
+loop = true
+slot = 3
+preview = 206, 28, 32, 33
+
+[rp_nw_48]
+title = Указать пальцем
+group = Взаимодействие
+icon = 48
+walk = true
+legs = norm_walk_fwd_1, norm_walk_back_0, norm_walk_ls_0, norm_walk_rs_0, norm_idle_1
+torso = knopka_0, knopka_0
+preview = 53, 0, 0, 33
+
 [rp_nw_49]
 title = Обыскать
 group = Взаимодействие
@@ -512,6 +627,18 @@ out =
 loop = false
 once = true
 preview = 103, 0, 0, 33
+
+[rp_nw_55]
+title = Приветствие с оружием
+group = Приветствия
+icon = 55
+in = hello_2_idle_0
+mid = 
+out = 
+loop = false
+once = true
+slot = 3
+preview = 113, 0, 0, 33
 
 [rp_nw_56]
 title = Воинское приветствие

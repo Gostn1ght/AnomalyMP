@@ -1913,7 +1913,14 @@ void CActor::shedule_Update(u32 DT)
 		// "out" chain plays, then the player moves (owner 2026-10-09: players
 		// could not get out of an RP animation without finding the button).
 		const u32 rp_held = mstate_wishful & (mcAnyMove | mcSprint);
-		const bool rp_playing = m_rp_index >= 0;
+		// A walking pose (New Way's) walks: no run, jump or crouch.
+		const bool rp_walk_pose = rp_walking();
+		const bool rp_playing = m_rp_index >= 0 && !rp_walk_pose;
+		if (rp_walk_pose)
+		{
+			mstate_wishful &= ~(mcJump | mcSprint | mcCrouch);
+			mstate_wishful |= mcAccel;
+		}
 		if (rp_playing)
 		{
 			if ((mstate_wishful & (mcAnyMove | mcJump)) && !m_rp_stopping)

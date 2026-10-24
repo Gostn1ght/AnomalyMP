@@ -356,7 +356,9 @@ void CActor::IR_OnKeyboardRelease(int cmd)
 
 void CActor::IR_OnKeyboardHold(int cmd)
 {
-	if (m_rp_index >= 0) return;
+	// A walking RP pose (New Way's): only the movement keys.
+	if (m_rp_index >= 0 && !(rp_walking() && (cmd == kFWD || cmd == kBACK || cmd == kL_STRAFE || cmd == kR_STRAFE)))
+		return;
 	if (hud_adj_mode && pInput->iGetAsyncKeyState(DIK_LSHIFT)) return;
 
 	if (Remote() || !g_Alive()) return;

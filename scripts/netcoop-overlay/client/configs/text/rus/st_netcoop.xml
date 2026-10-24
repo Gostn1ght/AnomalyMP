@@ -1471,6 +1471,9 @@
   <string id="st_lz_anomaly_radioactive">
     <text>радиоактивное</text>
   </string>
+  <string id="st_netcoop_rp_need_weapon">
+    <text>Для этой анимации нужно оружие</text>
+  </string>
   <string id="st_netcoop_rp_back">
     <text>Назад</text>
   </string>

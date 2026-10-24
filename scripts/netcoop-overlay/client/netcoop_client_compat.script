@@ -605,6 +605,76 @@ local function campfires_near_update()
 	return false
 end
 
+-- New Way's hands (owner 2026-10-24: opening a door and lighting a camp fire
+-- in first and third person; configs/mod_system_lz_nw_gestures.ltx). The
+-- other players see the gesture when the server says this player did it
+-- (netcoop_consumption, the engine plays third_person_motion).
+local function nw_hands_ready(section)
+	return game and game.play_hud_motion and ini_sys:section_exist(section)
+end
+
+-- Lighting or putting out a camp fire: their hands with the matches instead
+-- of GAMMA's matches effect (the weapon goes away first, as GAMMA's did).
+local function nw_ignition()
+	if actor_effects and actor_effects.use_weapon then actor_effects.use_weapon(0) end
+	CreateTimeEvent("netcoop_nw_hands", "ignition", 0.5, function()
+		local ms = tonumber(game.play_hud_motion(2, "anim_campfire_ignition_hud", "anm_ea_show", true, 1)) or 0
+		CreateTimeEvent("netcoop_nw_hands", "ignition_end", math.max(ms, 500) / 1000 + 0.1, function()
+			if actor_effects and actor_effects.use_weapon then actor_effects.use_weapon(1) end
+			return true
+		end)
+		return true
+	end)
+end
+
+local function install_campfire_hands()
+	local bc = bind_campfire
+	if not (bc and actor_effects and actor_effects.play_item_fx) or bc.__netcoop_hands then return end
+	if not nw_hands_ready("anim_campfire_ignition_hud") then return end
+	bc.__netcoop_hands = true
+	local function with_hands(fn)
+		return function(...)
+			local fx = actor_effects.play_item_fx
+			actor_effects.play_item_fx = function(name, ...)
+				if name == "matches_script" then return nw_ignition() end
+				return fx(name, ...)
+			end
+			local ok, result = pcall(fn, ...)
+			actor_effects.play_item_fx = fx
+			if not ok then printf("! [Lost Zone] campfire: %s", tostring(result)) end
+			return result
+		end
+	end
+	bc.campfire_go_on = with_hands(bc.campfire_go_on)
+	bc.campfire_go_off = with_hands(bc.campfire_go_off)
+end
+
+-- Doors: a client runs no binders of world objects, so "use" on a door did
+-- nothing here (players pushed doors open). The server opens or closes it
+-- where its logic runs (netanomaly_server "door"); this player's left hand
+-- reaches for it.
+local DOOR_REACH, DOOR_EVERY = 2.5, 800
+local door_next = 0
+local function is_door(obj)
+	if not (obj and obj:clsid() == clsid.obj_physic and obj.get_visual_name) then return false end
+	local visual = string.lower(obj:get_visual_name() or "")
+	return (string.find(visual, "door", 1, true) or string.find(visual, "vorot", 1, true)
+		or string.find(visual, "gate", 1, true)) ~= nil
+end
+
+local function door_key(dik)
+	if not db.actor or time_global() < door_next or not netcoop_command then return end
+	local ok, use = pcall(bind_to_dik, key_bindings.kUSE)
+	if not ok or dik ~= use or level.get_target_dist() > DOOR_REACH then return end
+	local target = level.get_target_obj()
+	if not is_door(target) then return end
+	door_next = time_global() + DOOR_EVERY
+	netcoop_command("door " .. target:id())
+	if nw_hands_ready("anim_door_open_hud") then
+		game.play_hud_motion(1, "anim_door_open_hud", "anm_ea_show", true, 1)
+	end
+end
+
 -- A server dialogue action opened an NPC window for this player.
 local function open_ui(data)
 	local kind, id = string.match(data or "", "^(%S+)%s+(%d+)$")
@@ -1257,6 +1327,8 @@ function on_game_start()
 	netcoop_pdanet_client.install_notification_sound()
 	install_weather_follow()
 	if AddUniqueCall then AddUniqueCall(campfires_near_update) end
+	install_campfire_hands()
+	RegisterScriptCallback("on_key_press", door_key)
 	-- Keep the faction relations the engine read from the table: base-game's
 	-- reset_all_relations (run when no faction select window marked a new
 	-- game) reads the table in a different column order (see server).

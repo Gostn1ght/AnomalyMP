@@ -199,7 +199,10 @@ function netcoop_rp_wnd:Click()
     local item = index and self.items[index]
     if not item then return end
     if not self.group then self:Open(item) return end
-    if netcoop_rp_play then netcoop_rp_play(item.name) end
+    -- a weapon pose without the weapon does not start
+    if netcoop_rp_play and not netcoop_rp_play(item.name) and actor_menu then
+        actor_menu.set_msg(1, tr("st_netcoop_rp_need_weapon"), 3)
+    end
     self:Close()
 end
 

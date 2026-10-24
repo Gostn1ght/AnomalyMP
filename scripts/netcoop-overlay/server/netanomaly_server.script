@@ -31,6 +31,26 @@ local function server_actor(entity_id)
 	return obj, se
 end
 
+-- A door a player used (netcoop_client_compat): its logic runs here (ph_door
+-- toggles it for any user), every client sees it move and the other players
+-- the hand reaching for it (netcoop_consumption, mod_system_lz_nw_gestures).
+local DOOR_REACH, DOOR_EVERY = 3.5, 600
+local door_next = {}
+local function use_door(entity_id, args)
+	local obj = server_actor(entity_id)
+	local id = tonumber(args)
+	local door = id and id >= 0 and id < 65535 and level.object_by_id(id)
+	if not (obj and obj:alive() and door and db.level_doors and db.level_doors[id]) then return end
+	if obj:position():distance_to(door:position()) > DOOR_REACH then return end
+	local now = time_global()
+	if now < (door_next[entity_id] or 0) then return end
+	door_next[entity_id] = now + DOOR_EVERY
+	door:use(obj)
+	if netcoop_broadcast then
+		netcoop_broadcast("netcoop_consumption", string.format("%d|255|%s|anim_door_open", entity_id, obj:name()))
+	end
+end
+
 -- Drivable cars (doc 100) have a cost too, but stand in the world.
 local VEHICLE_CLASSES = { SCRPTCAR = true, C_NIVA = true }
 local function is_vehicle_section(section)
@@ -218,6 +238,10 @@ function on_client_command(cid, name, entity_id, text, role)
 	-- PDA network: contacts, general channel, chats (netcoop_pdanet).
 	if cmd == "pdanet" then
 		if netcoop_pdanet then netcoop_pdanet.command(entity_id, args) end
+		return ""
+	end
+	if cmd == "door" then
+		use_door(entity_id, args)
 		return ""
 	end
 	-- Barter between players (netcoop_barter): no reply, the module answers.

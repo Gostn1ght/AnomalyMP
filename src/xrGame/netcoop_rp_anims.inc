@@ -53,6 +53,16 @@ const xr_vector<RpAnim>& rp_anims()
 		rp_split(ini.line_exist(section, "out") ? ini.r_string(section, "out") : NULL, a.out);
 		a.loop = ini.line_exist(section, "loop") ? !!ini.r_bool(section, "loop") : true;
 		a.once = ini.line_exist(section, "once") && !!ini.r_bool(section, "once");
+		a.walk = ini.line_exist(section, "walk") && !!ini.r_bool(section, "walk");
+		rp_split(ini.line_exist(section, "legs") ? ini.r_string(section, "legs") : NULL, a.legs);
+		rp_split(ini.line_exist(section, "torso") ? ini.r_string(section, "torso") : NULL, a.torso);
+		const int slot = ini.line_exist(section, "slot") ? ini.r_s32(section, "slot") : 0;
+		a.slot = u8(slot > 0 && slot < 16 ? slot : 0);
+		if (a.walk && (a.legs.size() != 5 || a.torso.size() != 2))
+		{
+			Msg("! [Lost Zone] rp: %s walks but needs 5 legs and 2 torso motions", section);
+			continue;
+		}
 		anims.push_back(a);
 	}
 	Msg("[Lost Zone] rp: %u animations", u32(anims.size()));
@@ -83,8 +93,7 @@ bool script_rp_play(LPCSTR name)
 	{
 		if (!xr_strcmp(anims[i].name, name))
 		{
-			actor->rp_start(int(i), true);
-			return true;
+			return actor->rp_start(int(i), true);
 		}
 	}
 	return false;

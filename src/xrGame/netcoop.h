@@ -501,11 +501,18 @@ struct RpAnim
 	xr_vector<shared_str> in, mid, out;
 	bool loop = true;
 	bool once = false; // a gesture: the chains play once and the animation ends by itself
+	// New Way's walking poses (owner 2026-10-24): the legs follow the movement
+	// (forward, back, left, right, standing), the torso holds its pose
+	// (walking, standing); no chains.
+	bool walk = false;
+	xr_vector<shared_str> legs, torso;
+	u8 slot = 0; // a weapon pose: this slot's item in the hands (it must be there)
 };
 const xr_vector<RpAnim>& rp_anims();
 // Lua: netcoop_rp_list() -> "name=title;...", netcoop_rp_play(name),
 // netcoop_rp_stop(), netcoop_rp_active() -> name or "".
 LPCSTR script_rp_list();
+// false: not started (a weapon pose without the weapon)
 bool script_rp_play(LPCSTR name);
 void script_rp_stop();
 LPCSTR script_rp_active();

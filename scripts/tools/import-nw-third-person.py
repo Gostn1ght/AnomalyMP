@@ -27,22 +27,37 @@ sys.argv = argv
 
 KEYS = ("third_person_attach_bone", "third_person_attach_position", "third_person_attach_rotation",
         "third_person_item_visual")
+# Without an attach bone New Way moves the item by a track (anims\tp_items\*.trk):
+# every bone of it in a hand or hidden, frame by frame (the cigarettes).
+TRACK = ("third_person_track_anm_ea_show", "third_person_track_anm_use")
 
 
 def sections(paths):
-    out = {}
+    """Sections with what they inherit ([child]:parent, parent's keys first)."""
+    out, parents = {}, {}
     for path in paths:
         cur = None
         for line in path.read_text(encoding="cp1251", errors="replace").splitlines():
             line = line.split(";", 1)[0].strip()
-            m = re.match(r"^!*\[([^\]]+)\]", line)
+            m = re.match(r"^!*\[([^\]]+)\]\s*(?::\s*(.+))?$", line)
             if m:
-                cur = out.setdefault(m.group(1).strip(), {})
+                name = m.group(1).strip()
+                cur = out.setdefault(name, {})
+                if m.group(2):
+                    parents[name] = [x.strip() for x in m.group(2).split(",") if x.strip()]
                 continue
             m = re.match(r"^([A-Za-z_0-9]+)\s*=\s*(.*)$", line)
             if m and cur is not None:
                 cur[m.group(1)] = m.group(2).strip()
-    return out
+
+    def resolved(name, seen=()):
+        keys = {}
+        for parent in parents.get(name, []):
+            if parent in out and parent not in seen:
+                keys.update(resolved(parent, seen + (name,)))
+        keys.update(out.get(name, {}))
+        return keys
+    return {name: resolved(name) for name in out}
 
 
 NEEDED_TEXTURES = set()  # New Way textures the copied models use (extracted afterwards)
@@ -130,6 +145,13 @@ def main(nw, gamma_configs, gamma_meshes, client):
     kept, dropped = 0, []
     for name, keys in sorted(theirs.items()):
         motion = keys.get("third_person_anm_ea_show") or keys.get("third_person_anm_use")
+        track = next((keys[k] for k in TRACK if keys.get(k)), None)
+        if motion and keys.get("third_person_item_visual") and not keys.get("third_person_attach_bone") and track:
+            # the track places every bone; the engine needs a body bone all the same
+            keys = dict(keys, third_person_attach_bone="bip01_r_hand", third_person_attach_position="0,0,0",
+                        third_person_attach_rotation="0,0,0")
+        else:
+            track = None
         if not motion or not all(keys.get(k) for k in KEYS):
             continue
         reason = None
@@ -138,6 +160,8 @@ def main(nw, gamma_configs, gamma_meshes, client):
             reason = "no such GAMMA section"
         elif motion not in motions:
             reason = "motion %s missing" % motion
+        elif track and not (nw / "anims" / track.replace("\\", "/")).is_file():
+            reason = "track %s missing" % track
         elif not model_exists(model):
             # New Way's own model: shipped with its textures
             if not take_model(nw, client, model):
@@ -145,7 +169,13 @@ def main(nw, gamma_configs, gamma_meshes, client):
         if reason:
             dropped.append("%s: %s" % (name, reason))
             continue
-        out += ["![%s]" % name, "third_person_motion = " + motion] + ["%s = %s" % (k, keys[k]) for k in KEYS] + [""]
+        out += ["![%s]" % name, "third_person_motion = " + motion] + ["%s = %s" % (k, keys[k]) for k in KEYS]
+        if track:
+            out.append("third_person_track = " + track)
+            target = client / "anims" / track.replace("\\", "/")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes((nw / "anims" / track.replace("\\", "/")).read_bytes())
+        out.append("")
         kept += 1
     (client / "configs/mod_system_zzzz_lz_third_person.ltx").write_text("\n".join(out), encoding="cp1251", newline="\r\n")
     print("third-person items:", kept, "| not taken:", len(dropped))

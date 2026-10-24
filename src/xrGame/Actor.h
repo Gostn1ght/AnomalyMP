@@ -30,6 +30,7 @@ using namespace ACTOR_DEFS;
 
 class CInfoPortion;
 struct GAME_NEWS_DATA;
+namespace netcoop { struct RpAnim; }
 class CActorCondition;
 class CCustomOutfit;
 class CGameTaskRegistryWrapper;
@@ -295,6 +296,13 @@ protected:
 	IRenderVisual* m_netcoop_tp_item = nullptr;
 	u16 m_netcoop_tp_bone = BI_NONE;
 	Fmatrix m_netcoop_tp_offset;
+	// New Way's per-frame track instead of the offset (cigarettes: the pack,
+	// the cigarette and the lighter each in a hand or hidden, frame by frame).
+	struct NetcoopTpTrack;
+	const NetcoopTpTrack* m_netcoop_tp_track = nullptr;
+	xr_vector<u16> m_netcoop_tp_track_bones; // the item's bone of each track bone
+	u16 m_netcoop_tp_hands[2] = {BI_NONE, BI_NONE}; // right, left
+	static const NetcoopTpTrack* netcoop_tp_track_load(LPCSTR file);
 	void netcoop_tp_item_release();
 	void netcoop_tp_item_render();
 	LPCSTR netcoop_tp_motion(LPCSTR item);
@@ -626,9 +634,13 @@ public:
 	u32 m_rp_started = 0;
 	bool m_rp_camera_switched = false;
 	// own: this client's player (sends it and moves its camera)
-	void rp_start(int index, bool own);
+	bool rp_start(int index, bool own);
 	void rp_request_stop(bool own);
-	bool rp_update();
+	bool rp_update(u32 mstate_rl);
+	// a walking pose plays (the movement keys work, the body turns with the view)
+	bool rp_walking() const;
+	MotionID m_rp_walk_legs, m_rp_walk_torso;
+	void rp_walk(const netcoop::RpAnim& a, u32 mstate_rl);
 	void rp_finish();
 	bool rp_play_motion(const shared_str& name);
 	void rp_send(u8 index);

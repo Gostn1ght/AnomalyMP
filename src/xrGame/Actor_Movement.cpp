@@ -500,8 +500,9 @@ bool CActor::g_LadderOrient()
 // ****************************** Update actor orientation according to camera orientation
 void CActor::g_cl_Orientate(u32 mstate_rl, float dt)
 {
-	// During an RP animation the body keeps its facing; the camera looks around.
-	if (m_rp_index >= 0)
+	// During an RP animation the body keeps its facing; the camera looks
+	// around. A walking pose turns with the view like walking does.
+	if (m_rp_index >= 0 && !rp_walking())
 	{
 		r_torso.pitch = 0.f;
 		return;

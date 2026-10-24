@@ -161,6 +161,8 @@ void server_on_campfire(xrServer* server, xrClientData* CL, NET_Packet& P)
 		s_campfire_fuel_end.erase(id);
 	}
 	Msg("[NetAnomaly][campfire] player=%s %s campfire %u", CL->netcoop_login.c_str(), on ? "lit" : "put out", id);
+	// the other players see the hands at the fire (mod_system_lz_nw_gestures.ltx)
+	script_broadcast("netcoop_consumption", make_string("%u|255|%s|anim_campfire_ignition", actor->ID(), actor->cName().c_str()).c_str());
 }
 
 // ---- client ------------------------------------------------------------------

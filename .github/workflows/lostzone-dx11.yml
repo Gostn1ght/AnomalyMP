@@ -76,6 +76,7 @@ jobs:
           python scripts/check-netcoop-weather-edit.py
           python scripts/check-netcoop-map-known.py
           python scripts/check-netcoop-third-person.py
+          python scripts/check-netcoop-rp-anims.py
           python scripts/check-netcoop-taskboard.py
           python scripts/check-netcoop-contracts.py
           python scripts/check-netcoop-ranks.py

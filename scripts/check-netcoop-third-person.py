@@ -38,7 +38,28 @@ for name, values in sections.items():
     assert values["third_person_attach_bone"].startswith("bip01_"), name
     for k in ("third_person_attach_position", "third_person_attach_rotation"):
         assert len([float(x) for x in values[k].split(",")]) == 3, (name, k)
+# New Way's tracks (the cigarettes): the file is there, reads as the engine
+# reads it (netcoop_tp_track_load) and names bones the item model has.
+import struct
+tracks = 0
+for name, values in sections.items():
+    if "third_person_track" not in values:
+        continue
+    data = (CLIENT / "anims" / values["third_person_track"].replace("\\", "/")).read_bytes()
+    assert data[:4] == b"NWT3", name
+    bones, frames, again = struct.unpack_from("<3I", data, 4)
+    assert 0 < bones <= 64 and 0 < frames <= 20000 and again == frames, name
+    at, names = 16, []
+    for _ in range(bones):
+        end = data.index(b"\0", at)
+        names.append(data[at:end])
+        at = end + 1 + frames * 49
+    assert at == len(data), name
+    model = (CLIENT / "meshes" / (values["third_person_item_visual"].replace("\\", "/"))).read_bytes()
+    assert all(n + b"\0" in model for n in names), (name, names)
+    tracks += 1
+assert tracks >= 6, tracks
 engine = (ROOT / "src/xrGame/ActorAnimation.cpp").read_text(encoding="utf-8", errors="replace")
-for k in keys:
+for k in keys + ("third_person_track",):
     assert '"%s"' % k in engine, k
-print("PASS third-person items: %d sections, every motion in the actor OMFs, all keys the engine reads" % len(sections))
+print("PASS third-person items: %d sections (%d with New Way's track), every motion in the actor OMFs, all keys the engine reads" % (len(sections), tracks))

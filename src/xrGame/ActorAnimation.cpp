@@ -27,6 +27,7 @@
 #include "CustomDevice.h"
 #include "Flashlight.h"
 #include "../xrEngine/SkeletonMotions.h"
+#include "../xrEngine/bone.h"
 #include "xrMessages.h"
 
 static const float y_spin0_factor = 0.0f;
@@ -499,14 +500,103 @@ void CActor::netcoop_tp_item_release()
 		::Render->model_Delete(m_netcoop_tp_item);
 	m_netcoop_tp_item = nullptr;
 	m_netcoop_tp_bone = BI_NONE;
+	m_netcoop_tp_track = nullptr;
+	m_netcoop_tp_track_bones.clear();
 }
 
-// The item in the hand, at the bone with New Way's offset.
+struct CActor::NetcoopTpTrack
+{
+	u32 frames = 0;
+	xr_vector<shared_str> bones;
+	xr_vector<u8> flags; // [bone * frames + frame]: bit 1 hidden, bit 0 left hand (else right)
+	xr_vector<Fmatrix> poses; // [bone * frames + frame]: the item's bone in that hand's space
+};
+
+// New Way's track (anims\tp_items\*.trk, "NWT3"): u32 bones, u32 frames twice;
+// per bone a NUL-ended name, then per frame u8 flags and 12 floats (rows i, j,
+// k and the position). Read once per file; nullptr when missing or broken.
+const CActor::NetcoopTpTrack* CActor::netcoop_tp_track_load(LPCSTR file)
+{
+	static xr_map<shared_str, NetcoopTpTrack*> loaded;
+	const shared_str key(file);
+	auto known = loaded.find(key);
+	if (known != loaded.end()) return known->second;
+	NetcoopTpTrack* track = nullptr;
+	string_path path;
+	IReader* F = FS.exist(path, "$game_anims$", file) ? FS.r_open(path) : nullptr;
+	if (F && F->length() >= 16 && !memcmp(F->pointer(), "NWT3", 4))
+	{
+		F->advance(4);
+		const u32 bones = F->r_u32(), frames = F->r_u32(), again = F->r_u32();
+		bool good = bones && bones <= 64 && frames && frames <= 20000 && again == frames;
+		track = good ? xr_new<NetcoopTpTrack>() : nullptr;
+		if (track) track->frames = frames;
+		for (u32 b = 0; good && b < bones; ++b)
+		{
+			xr_string name;
+			while (good && F->elapsed() > 0)
+			{
+				const char c = char(F->r_u8());
+				if (!c) break;
+				name += c;
+				good = name.size() < 64;
+			}
+			good = good && !name.empty() && F->elapsed() >= int(frames * 49);
+			if (!good) break;
+			track->bones.push_back(shared_str(name.c_str()));
+			for (u32 f = 0; f < frames; ++f)
+			{
+				track->flags.push_back(F->r_u8());
+				float v[12];
+				F->r(v, sizeof(v));
+				for (float x : v) good = good && _valid(x) && _abs(x) < 100.f;
+				Fmatrix pose;
+				pose.i.set(v[0], v[1], v[2]); pose._14_ = 0.f;
+				pose.j.set(v[3], v[4], v[5]); pose._24_ = 0.f;
+				pose.k.set(v[6], v[7], v[8]); pose._34_ = 0.f;
+				pose.c.set(v[9], v[10], v[11]); pose._44_ = 1.f;
+				track->poses.push_back(pose);
+			}
+		}
+		if (!good) xr_delete(track);
+	}
+	if (F) FS.r_close(F);
+	if (!track) Msg("! [Lost Zone] third-person track %s missing or broken", file);
+	loaded[key] = track;
+	return track;
+}
+
+// The item in the hand, at the bone with New Way's offset, or each bone of
+// it where New Way's track puts it at this point of the motion.
 void CActor::netcoop_tp_item_render()
 {
 	if (!m_netcoop_tp_item || m_netcoop_tp_bone == BI_NONE || !m_netcoop_consumption_until) return;
 	IKinematics* body = smart_cast<IKinematics*>(Visual());
 	if (!body) return;
+	IKinematics* model = smart_cast<IKinematics*>(m_netcoop_tp_item);
+	if (m_netcoop_tp_track && model)
+	{
+		const NetcoopTpTrack& track = *m_netcoop_tp_track;
+		const CBlend* blend = m_current_torso_blend;
+		const float phase = blend && blend->timeTotal > EPS ? clampr(blend->timeCurrent / blend->timeTotal, 0.f, 1.f) : 0.f;
+		const u32 frame = _min(track.frames - 1, u32(iFloor(phase * float(track.frames - 1) + 0.5f)));
+		model->CalculateBones(TRUE);
+		for (u32 b = 0; b < m_netcoop_tp_track_bones.size(); ++b)
+		{
+			const u16 id = m_netcoop_tp_track_bones[b];
+			if (id == BI_NONE) continue;
+			const u32 at = b * track.frames + frame;
+			const u16 hand = m_netcoop_tp_hands[track.flags[at] & 1];
+			CBoneInstance& bone = model->LL_GetBoneInstance(id);
+			if ((track.flags[at] & 2) || hand == BI_NONE) bone.mTransform.scale(0.f, 0.f, 0.f);
+			else bone.mTransform.mul_43(body->LL_GetTransform(hand), track.poses[at]);
+			bone.mRenderTransform.mul_43(bone.mTransform, model->LL_GetData(id).m2b_transform);
+		}
+		Fmatrix root = XFORM();
+		::Render->set_Transform(&root);
+		::Render->add_Visual(m_netcoop_tp_item);
+		return;
+	}
 	Fmatrix hand, item;
 	hand.mul_43(XFORM(), body->LL_GetTransform(m_netcoop_tp_bone));
 	item.mul_43(hand, m_netcoop_tp_offset);
@@ -524,9 +614,12 @@ static shared_str netcoop_tp_section(LPCSTR item)
 		string_path path;
 		return FS.exist(path, "$game_config$", "items\\items\\anims_list.ltx") ? xr_new<CInifile>(path, TRUE, TRUE, FALSE) : nullptr;
 	}();
-	if (!list || !item || !item[0] || !list->section_exist(item) || !list->line_exist(item, "anm")) return shared_str();
+	if (!item || !item[0] || xr_strlen(item) > 200) return shared_str();
 	string256 ea;
-	xr_sprintf(ea, "%s_hud", list->r_string(item, "anm"));
+	if (list && list->section_exist(item) && list->line_exist(item, "anm"))
+		xr_sprintf(ea, "%s_hud", list->r_string(item, "anm"));
+	else
+		xr_sprintf(ea, "%s_hud", item); // a gesture: anim_door_open -> anim_door_open_hud
 	if (!pSettings->section_exist(ea) || !pSettings->line_exist(ea, "third_person_motion")) return shared_str();
 	return shared_str(ea);
 }
@@ -545,7 +638,9 @@ void CActor::netcoop_tp_item_attach(LPCSTR item)
 	netcoop_tp_item_release();
 	const shared_str tp = netcoop_tp_section(item);
 	if (!tp.size() || !m_netcoop_consumption_until) return;
-	LPCSTR visual = pSettings->r_string(tp, "third_person_item_visual");
+	// a gesture (a door, a campfire) has no item
+	LPCSTR visual = READ_IF_EXISTS(pSettings, r_string, tp, "third_person_item_visual", nullptr);
+	if (!visual || !visual[0]) return;
 	string_path file;
 	xr_strcpy(file, visual);
 	if (!strext(file)) xr_strcat(file, ".ogf");
@@ -559,6 +654,14 @@ void CActor::netcoop_tp_item_attach(LPCSTR item)
 	const Fvector rotation = pSettings->r_fvector3(tp, "third_person_attach_rotation");
 	m_netcoop_tp_offset.setHPB(rotation.x, rotation.y, rotation.z);
 	m_netcoop_tp_offset.translate_over(position);
+	IKinematics* model = smart_cast<IKinematics*>(m_netcoop_tp_item);
+	if (!model || !pSettings->line_exist(tp, "third_person_track")) return;
+	m_netcoop_tp_track = netcoop_tp_track_load(pSettings->r_string(tp, "third_person_track"));
+	if (!m_netcoop_tp_track) return;
+	m_netcoop_tp_hands[0] = body->LL_BoneID("bip01_r_hand");
+	m_netcoop_tp_hands[1] = body->LL_BoneID("bip01_l_hand");
+	for (const shared_str& name : m_netcoop_tp_track->bones)
+		m_netcoop_tp_track_bones.push_back(model->LL_BoneID(name));
 }
 
 void CActor::netcoop_consumption_end(CBlend* blend)
@@ -614,7 +717,7 @@ void CActor::g_SetAnimation(u32 mstate_rl)
 {
 	netcoop_expire_consumption();
 	// A netcoop RP animation drives the whole body while it plays.
-	if (m_rp_index >= 0 && rp_update())
+	if (m_rp_index >= 0 && rp_update(mstate_rl))
 		return;
 	// Sitting in a car (doc 100): the steering or passenger pose.
 	if (netcoop_seated() && g_Alive() && netcoop_seat_animation())
@@ -1125,12 +1228,20 @@ void CActor::rp_send(u8 index)
 	u_EventSend(P, net_flags(TRUE, TRUE));
 }
 
-void CActor::rp_start(int index, bool own)
+bool CActor::rp_start(int index, bool own)
 {
 	if (index < 0 || index >= int(netcoop::rp_anims().size()) || !g_Alive())
-		return;
+		return false;
 	if (m_rp_index == index && !m_rp_stopping)
-		return;
+		return true;
+	const netcoop::RpAnim& a = netcoop::rp_anims()[index];
+	// A weapon pose needs that slot's item; the owner's client decides, the
+	// others show the weapon it took.
+	if (own && a.slot && !inventory().ItemFromSlot(a.slot))
+	{
+		Msg("[Lost Zone] rp: %s needs an item in slot %u", a.name.c_str(), u32(a.slot));
+		return false;
+	}
 	if (m_rp_index >= 0)
 		rp_finish();
 	m_rp_index = index;
@@ -1140,16 +1251,48 @@ void CActor::rp_start(int index, bool own)
 	m_rp_step = 0;
 	m_rp_stopping = false;
 	m_rp_motion_done = true;
+	m_rp_walk_legs.invalidate();
+	m_rp_walk_torso.invalidate();
 	if (own)
 	{
 		// Keep the player in first person; gameplay input is locked until stop.
 		inventory().Action(kWPN_FIRE, CMD_STOP);
 		mstate_wishful &= ~(mcAnyMove | mcJump | mcSprint | mcCrouch | mcLookout);
 		m_jump_input_pending = false;
-		if (netcoop::rp_anims()[index].name != "gop_stop") inventory().Activate(NO_ACTIVE_SLOT);
+		inventory().Activate(a.slot ? u16(a.slot) : NO_ACTIVE_SLOT);
 		cam_Set(eacFirstEye);
 		rp_send(u8(index));
 		m_rp_resend = Device.dwTimeGlobal + 2000;
+	}
+	return true;
+}
+
+bool CActor::rp_walking() const
+{
+	const xr_vector<netcoop::RpAnim>& anims = netcoop::rp_anims();
+	return m_rp_index >= 0 && m_rp_index < int(anims.size()) && anims[m_rp_index].walk && !m_rp_stopping;
+}
+
+// A walking pose (New Way): the legs by the movement, the torso its pose.
+void CActor::rp_walk(const netcoop::RpAnim& a, u32 mstate_rl)
+{
+	IKinematicsAnimated* k = smart_cast<IKinematicsAnimated*>(Visual());
+	if (!k)
+		return;
+	const u32 leg = (mstate_rl & mcFwd) ? 0 : (mstate_rl & mcBack) ? 1 : (mstate_rl & mcLStrafe) ? 2 :
+		(mstate_rl & mcRStrafe) ? 3 : 4;
+	const MotionID legs = k->ID_Cycle_Safe(a.legs[leg].c_str());
+	const MotionID torso = k->ID_Cycle_Safe(a.torso[leg < 4 ? 0 : 1].c_str());
+	const u16 legs_part = k->LL_PartID("legs"), torso_part = k->LL_PartID("torso");
+	if (legs.valid() && legs != m_rp_walk_legs && legs_part != BI_NONE)
+	{
+		k->PlayCycle(legs_part, legs, TRUE);
+		m_rp_walk_legs = legs;
+	}
+	if (torso.valid() && torso != m_rp_walk_torso && torso_part != BI_NONE)
+	{
+		k->PlayCycle(torso_part, torso, TRUE);
+		m_rp_walk_torso = torso;
 	}
 }
 
@@ -1178,6 +1321,8 @@ void CActor::rp_finish()
 	m_rp_index = -1;
 	m_rp_stopping = false;
 	m_rp_motion_done = true;
+	m_rp_walk_legs.invalidate();
+	m_rp_walk_torso.invalidate();
 	m_bAnimTorsoPlayed = FALSE;
 	m_current_torso.invalidate();
 	m_current_legs.invalidate();
@@ -1190,7 +1335,7 @@ void CActor::rp_finish()
 	}
 }
 
-bool CActor::rp_update()
+bool CActor::rp_update(u32 mstate_rl)
 {
 	if (m_rp_index < 0)
 		return false;
@@ -1209,9 +1354,20 @@ bool CActor::rp_update()
 			m_rp_resend = Device.dwTimeGlobal + 2000;
 		}
 	}
+	const netcoop::RpAnim& a = anims[m_rp_index];
+	if (a.walk)
+	{
+		// Leaving a walking pose has no "out" chain.
+		if (m_rp_stopping)
+		{
+			rp_finish();
+			return false;
+		}
+		rp_walk(a, mstate_rl);
+		return true;
+	}
 	if (!m_rp_motion_done && Device.dwTimeGlobal < m_rp_motion_deadline)
 		return true;
-	const netcoop::RpAnim& a = anims[m_rp_index];
 	for (int guard = 0; guard < 64; ++guard)
 	{
 		const xr_vector<shared_str>& chain = m_rp_phase == 0 ? a.in : m_rp_phase == 1 ? a.mid : a.out;
