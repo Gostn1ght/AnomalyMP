@@ -578,6 +578,33 @@ local function use_map_known(data)
 	end
 end
 
+-- Camp fires near this player (owner 2026-10-24: light and put out, the same
+-- for everyone). GAMMA finds a fire through campfires_all, which its campfire
+-- binders fill; a client runs no binders of world objects (the server owns
+-- them), so matches and "use" found no fire here. The fires within 30 m are
+-- listed every 2 s; lighting and putting out go to the server
+-- (netcoop_campfire.inc), which every client follows.
+local CAMPFIRE_RANGE, CAMPFIRE_EVERY = 30, 2000
+local campfire_next = 0
+local function campfires_near_update()
+	local list = bind_campfire and bind_campfire.campfires_all
+	if not (list and db.actor) or time_global() < campfire_next then return false end
+	campfire_next = time_global() + CAMPFIRE_EVERY
+	local pos = db.actor:position()
+	for id, entry in pairs(list) do
+		if entry.netcoop and (not level.object_by_id(id) or entry.object:position():distance_to(pos) > CAMPFIRE_RANGE) then
+			list[id] = nil
+		end
+	end
+	level.iterate_nearest(pos, CAMPFIRE_RANGE, function(obj)
+		local campfire = obj and obj.get_campfire and obj:get_campfire()
+		if campfire and not list[obj:id()] then
+			list[obj:id()] = { object = obj, campfire = campfire, netcoop = true }
+		end
+	end)
+	return false
+end
+
 -- A server dialogue action opened an NPC window for this player.
 local function open_ui(data)
 	local kind, id = string.match(data or "", "^(%S+)%s+(%d+)$")
@@ -1229,6 +1256,7 @@ function on_game_start()
 	install_actor_lifecycle()
 	netcoop_pdanet_client.install_notification_sound()
 	install_weather_follow()
+	if AddUniqueCall then AddUniqueCall(campfires_near_update) end
 	-- Keep the faction relations the engine read from the table: base-game's
 	-- reset_all_relations (run when no faction select window marked a new
 	-- game) reads the table in a different column order (see server).
