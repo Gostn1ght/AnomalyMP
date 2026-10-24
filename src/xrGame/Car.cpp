@@ -965,6 +965,11 @@ void CCar::ParseDefinitions()
 
 	m_max_power = ini->r_float("car_definition", "engine_power");
 	m_max_power *= (0.8f * 1000.f);
+	// Cars sped up far too fast in multiplayer (owner 2026-10-24, spec 3.1):
+	// [netcoop_vehicles] power_factor, or the car's own netcoop_power_factor.
+	if (netcoop::enabled())
+		m_max_power *= READ_IF_EXISTS(pSettings, r_float, cNameSect(), "netcoop_power_factor",
+			READ_IF_EXISTS(pSettings, r_float, "netcoop_vehicles", "power_factor", 1.f));
 
 	m_max_rpm = ini->r_float("car_definition", "max_engine_rpm");
 	m_max_rpm *= (1.f / 60.f * 2.f * M_PI);
