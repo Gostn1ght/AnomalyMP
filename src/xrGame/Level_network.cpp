@@ -152,6 +152,7 @@ void CLevel::net_Stop()
 		xr_delete(Server);
 	}
 	netcoop::campfires_reset();
+	netcoop::zones_reset();
 	netcoop::vehicles_reset();
 	netcoop::map_players_reset();
 

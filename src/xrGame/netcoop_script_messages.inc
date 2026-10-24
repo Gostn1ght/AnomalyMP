@@ -49,6 +49,7 @@ void client_on_script(NET_Packet& P)
 	if (!read_string(P, channel, sizeof(channel)) || !read_string(P, data, sizeof(data)))
 		return;
 	if (!xr_strcmp(channel, "netcoop_transfer")) return client_cluster_transfer(data);
+	if (!xr_strcmp(channel, "netcoop_zones")) return client_on_zones(data);
 	if (!xr_strcmp(channel, "netcoop_consumption"))
 	{
 		unsigned id=0, kind=0;

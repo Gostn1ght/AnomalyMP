@@ -1018,6 +1018,7 @@ void server_frame_update(xrServer* server)
 	world_store_cleanup_loaded();
 	cache_player_positions();
 	server_campfires_update(server);
+	server_zones_update(server);
 	server_physics_update(server);
 	server_pda_update(server);
 	server_marks_update(server);

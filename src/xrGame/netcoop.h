@@ -18,6 +18,7 @@ class CWeapon;
 class CActor;
 class CSE_Abstract;
 class CZoneCampfire;
+class CCustomZone;
 class CCustomDevice;
 struct SConsolePlayer;
 class CCar;
@@ -314,6 +315,10 @@ void script_photo_zoom(float zoom);
 extern float g_netcoop_photo_zoom;
 void script_voice_radio_set(u16 actor, int freq, bool on);
 void client_campfire_spawned(CZoneCampfire* campfire);
+// Anomalies off on the server (netcoop_zones.inc): a client that comes later
+// gets them; an anomaly it spawns later takes that state.
+void zones_reset();
+void client_zone_spawned(CCustomZone* zone);
 // Server: how lit an object is for NPC vision. The renderer lights only what
 // it draws; this takes the current weather's sun, sky and ambient light and
 // a switched-on torch of a player (stage 8). rendered = the ROS value.

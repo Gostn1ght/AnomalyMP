@@ -435,6 +435,7 @@ BOOL CCustomZone::net_Spawn(CSE_Abstract* DC)
 	{
 		m_zone_flags.set(eAlwaysFastmode, spawn_ini()->r_bool("fast_mode", "always_fast"));
 	}
+	if (netcoop::pure_client()) netcoop::client_zone_spawned(this);
 	return (TRUE);
 }
 

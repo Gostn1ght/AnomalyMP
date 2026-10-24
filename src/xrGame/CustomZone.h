@@ -208,6 +208,8 @@ protected:
 	virtual void GoDisabledState();
 public:
 	bool IsEnabled() { return m_eZoneState != eZoneStateDisabled; };
+	// Netcoop client: the server has this anomaly off (netcoop_zones.inc).
+	void netcoop_switch_off() { if (IsEnabled()) OnStateSwitch(eZoneStateDisabled); }
 	void ZoneEnable();
 	void ZoneDisable();
 	void ChangeIdleParticles(LPCSTR name, bool bIdleLight);
