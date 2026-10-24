@@ -1163,6 +1163,12 @@ bool CActor::rp_update()
 					break; // no mid motion resolves on this body
 				continue;
 			}
+			if (a.once)
+			{
+				m_rp_phase = 2;
+				m_rp_step = 0;
+				continue;
+			}
 			if (!a.loop && !m_rp_stopping)
 			{
 				// Hold the terminal pose until the wheel's stop button is used.

@@ -1,12 +1,15 @@
--- Fixed RP wheel. Plain Z is reserved before base-game's actor callbacks.
+-- RP wheel after New Way's (owner 2026-10-24): the categories around a dark
+-- disc, a category's animations on a second ring with the back arrow in the
+-- middle, a gold ring on the slot under the mouse, the name in the middle and
+-- an animated preview of the animation under the mouse. Animations, groups,
+-- icons and preview timing: configs\netcoop\rp_anims.ltx (New Way's, imported
+-- by scripts/tools/import-nw-anims.py). Plain Z is reserved before base-game's
+-- actor callbacks.
 local MENU_KEY = DIK_keys.DIK_Z
-local CX, CY, RADIUS = 512, 384, 350
-local ORDER = {
-    "hands_pockets", "salute", "greet", "refuse", "hands_behind", "look_around", "listen",
-    "hands_up", "guard", "sit_1", "sit_2", "sit_3", "sleep", "pushups",
-    "bar_1", "bar_2", "bar_3", "bar_4", "bar_5", "bar_6", "trance_1",
-    "trance_2", "wounded_1", "wounded_2", "prisoner", "psy", "gop_stop", "loot"
-}
+local CX, CY = 512, 384
+local WHEEL, RING, SLOT, CENTER = 300, 205, 82, 104 -- radii and slot size in 1024x768 units
+local ICONS, ICON_CELL, STOP_ICON, BACK_ICON = "ui\\ui_actor_anims_icons", 128, 0, 63
+local PREVIEW_FRAME, PREVIEW_COLUMNS = 64, 32
 local wnd
 
 local function plain_z(dik)
@@ -16,15 +19,47 @@ local function plain_z(dik)
         and key_state(DIK_keys.DIK_RMENU) == 0
 end
 
-local function anim_list()
-    local titles, out = {}, {}
-    for name, title in string.gmatch(netcoop_rp_list() or "", "([^=;]+)=([^;]*);") do
-        titles[name] = title
+local function tr(text) return game.translate_string(text or "") end
+
+-- The categories in the file's order, each with its animations.
+local function load_groups()
+    local ini = ini_file("netcoop\\rp_anims.ltx")
+    local playable = {}
+    for name in string.gmatch(netcoop_rp_list and netcoop_rp_list() or "", "([^=;]+)=[^;]*;") do playable[name] = true end
+    local groups, by_name = {}, {}
+    if not (ini and ini:section_exist("rp_list")) then return groups end
+    for i = 0, ini:line_count("rp_list") - 1 do
+        local _, name = ini:r_line("rp_list", i, "", "")
+        local section = "rp_" .. tostring(name)
+        if playable[name] and ini:section_exist(section) then
+            local group = ini:r_string_ex(section, "group") or ""
+            local g = by_name[group]
+            if not g then
+                g = { name = group, icon = nil, anims = {} }
+                by_name[group] = g
+                groups[#groups + 1] = g
+            end
+            local a = { name = name, title = ini:r_string_ex(section, "title") or name,
+                icon = math.floor(ini:r_float_ex(section, "icon") or STOP_ICON) }
+            local preview = ini:r_string_ex(section, "preview")
+            if preview then
+                local frames, intro, intro_ms, loop_ms = string.match(preview, "(%d+)%s*,%s*(%d+)%s*,%s*(%d+)%s*,%s*(%d+)")
+                frames = tonumber(frames)
+                if frames and frames > 0 then
+                    a.preview = { frames = frames, intro = tonumber(intro), intro_ms = math.max(1, tonumber(intro_ms)),
+                        loop_ms = math.max(1, tonumber(loop_ms)) }
+                end
+            end
+            if ini:r_bool_ex(section, "group_icon", false) or not g.icon then g.icon = a.icon end
+            g.anims[#g.anims + 1] = a
+        end
     end
-    for i, name in ipairs(ORDER) do
-        out[i] = {name = name, title = titles[name], enabled = titles[name] ~= nil}
-    end
-    return out
+    return groups
+end
+
+local function cell_rect(index)
+    local x, y = (index % 8) * ICON_CELL, math.floor(index / 8) * ICON_CELL
+    return Frect():set(x, y, x + ICON_CELL, y + ICON_CELL)
 end
 
 class "netcoop_rp_wnd" (CUIScriptWnd)
@@ -33,66 +68,103 @@ function netcoop_rp_wnd:__init() super()
     self:SetWndRect(Frect():set(0, 0, 1024, 768))
     self:SetAutoDelete(false)
     self.xscale = (device().height / device().width) / (768 / 1024)
-    self.anims = anim_list()
-    local xml = CScriptXmlInit()
-    xml:ParseFile("ui_netcoop_rp.xml")
-    xml:InitStatic("shade", self)
-    local ring = xml:InitStatic("ring", self)
-    ring:SetWndPos(vector2():set(CX - RADIUS * self.xscale, CY - RADIUS))
-    ring:SetWndSize(vector2():set(2 * RADIUS * self.xscale, 2 * RADIUS))
-    self.title = xml:InitStatic("cap_title", self)
-    self.title:TextControl():SetText(game.translate_string("st_netcoop_rp_title"))
-    self.caption = xml:InitStatic("cap_selected", self)
-    self.status = xml:InitStatic("cap_status", self)
-    local hint = xml:InitStatic("cap_hint", self)
-    hint:TextControl():SetText(string.gsub(game.translate_string("st_netcoop_rp_hint"), "\\n", "\n"))
-    for _, label in ipairs({self.title, self.caption, self.status, hint}) do
-        local pos = label:GetWndPos()
-        label:SetWndPos(vector2():set(CX - 130 * self.xscale, pos.y))
-        label:SetWndSize(vector2():set(260 * self.xscale, label:GetHeight()))
+    self.groups = load_groups()
+    self.xml = CScriptXmlInit()
+    self.xml:ParseFile("ui_netcoop_rp.xml")
+    self.xml:InitStatic("shade", self)
+    self:Place(self.xml:InitStatic("wheel", self), CX, CY, 2 * WHEEL)
+    self.title = self.xml:InitStatic("cap_title", self)
+    self.title:SetWndPos(vector2():set(CX - 200 * self.xscale, CY - WHEEL - 34))
+    self.title:SetWndSize(vector2():set(400 * self.xscale, 28))
+    -- the slots: as many as the largest ring needs
+    local most = #self.groups
+    for _, g in ipairs(self.groups) do most = math.max(most, #g.anims) end
+    self.slots = {}
+    for i = 1, most do
+        local s = { back = self.xml:InitStatic("slot", self), hover = self.xml:InitStatic("slot_hover", self),
+            icon = self.xml:InitStatic("icon", self) }
+        s.icon:InitTexture(ICONS)
+        self.slots[i] = s
     end
-    self.icons, self.marks = {}, {}
-    for i, a in ipairs(self.anims) do
-        local outer = i <= 14
-        local slot = (i - 1) % 14
-        local angle = -math.pi / 2 + slot * 2 * math.pi / 14
-        local radius, size = outer and 296 or 196, outer and 78 or 68
-        local x, y = CX + radius * math.cos(angle) * self.xscale, CY + radius * math.sin(angle)
-        local mark = xml:InitStatic("selection", self)
-        mark:SetWndPos(vector2():set(x - (size + 4) / 2 * self.xscale, y - (size + 4) / 2))
-        mark:SetWndSize(vector2():set((size + 4) * self.xscale, size + 4))
-        mark:Show(false)
-        self.marks[i] = mark
-        local icon = xml:InitStatic("pose_icon", self)
-        icon:InitTexture("ui_netcoop_pose_" .. a.name)
-        icon:SetWndPos(vector2():set(x - size / 2 * self.xscale, y - size / 2))
-        icon:SetWndSize(vector2():set(size * self.xscale, size))
-        if not a.enabled then icon:SetTextureColor(GetARGB(80, 160, 160, 160)) end
-        self.icons[i] = icon
-    end
-    local stop = xml:Init3tButton("btn_stop", self)
-    stop:SetWndPos(vector2():set(CX - 105 * self.xscale, 416))
-    stop:SetWndSize(vector2():set(210 * self.xscale, 34))
-    stop:TextControl():SetText(game.translate_string("st_netcoop_rp_stop"))
-    self:Register(stop, "btn_rp_stop")
-    self:AddCallback("btn_rp_stop", ui_events.BUTTON_CLICKED, function()
-        if netcoop_rp_stop then netcoop_rp_stop() end
-        self:Close()
-    end, self)
+    self.center_icon = self.xml:InitStatic("icon", self)
+    self.center_icon:InitTexture(ICONS)
+    self:Place(self.center_icon, CX, CY - 22, 64)
+    self.preview = self.xml:InitStatic("preview", self)
+    self:Place(self.preview, CX, CY - 22, 120)
+    self.caption = self.xml:InitStatic("cap_selected", self)
+    self.caption:SetWndPos(vector2():set(CX - (CENTER - 8) * self.xscale, CY + 30))
+    self.caption:SetWndSize(vector2():set(2 * (CENTER - 8) * self.xscale, 52))
+    self:Open(nil)
 end
 
-function netcoop_rp_wnd:SetSelected(index)
-    if self.selected == index then return end
-    if self.selected then self.marks[self.selected]:Show(false) end
-    self.selected = index
-    local a = index and self.anims[index]
-    if a then
-        self.marks[index]:Show(true)
-        self.caption:TextControl():SetText(string.format("%02d / 28\n%s", index,
-            game.translate_string(a.title or ("st_netcoop_rp_" .. a.name))))
-    else
-        self.caption:TextControl():SetText(game.translate_string("st_netcoop_rp_select"))
+-- A square static of size (1024x768 units) centred on x, y.
+function netcoop_rp_wnd:Place(w, x, y, size)
+    w:SetWndPos(vector2():set(x - size / 2 * self.xscale, y - size / 2))
+    w:SetWndSize(vector2():set(size * self.xscale, size))
+end
+
+-- nil: the categories; a category: its animations.
+function netcoop_rp_wnd:Open(group)
+    self.group, self.hovered = group, nil
+    self.items = group and group.anims or self.groups
+    local n = #self.items
+    for i, s in ipairs(self.slots) do
+        local item = self.items[i]
+        local shown = item ~= nil
+        if shown then
+            local angle = -math.pi / 2 + (i - 1) * 2 * math.pi / n
+            local x, y = CX + RING * math.cos(angle) * self.xscale, CY + RING * math.sin(angle)
+            self:Place(s.back, x, y, SLOT)
+            self:Place(s.hover, x, y, SLOT + 10)
+            self:Place(s.icon, x, y, SLOT - 12)
+            s.icon:SetTextureRect(cell_rect(item.icon))
+        end
+        s.back:Show(shown); s.icon:Show(shown); s.hover:Show(false)
     end
+    self.center_icon:SetTextureRect(cell_rect(group and BACK_ICON or STOP_ICON))
+    self.title:TextControl():SetText(group and tr(group.name) or tr("st_netcoop_rp_title"))
+    self:Hover(nil)
+end
+
+function netcoop_rp_wnd:Hover(index)
+    if index == self.hovered and self.hover_set then return end
+    self.hover_set = true
+    if self.hovered and self.slots[self.hovered] then self.slots[self.hovered].hover:Show(false) end
+    self.hovered = index
+    local item = index and index > 0 and self.items[index]
+    if item then self.slots[index].hover:Show(true) end
+    -- the middle: the preview of the animation under the mouse, else the button
+    local preview = self.group and item and item.preview
+    self.preview_anim, self.preview_start = preview and item or nil, time_global()
+    if preview then self.preview:InitTexture("ui\\anim_preview\\anim_" .. item.icon) end
+    self.preview:Show(preview ~= nil)
+    self.center_icon:Show(preview == nil)
+    local text
+    if item then text = tr(self.group and item.title or item.name)
+    elseif index == 0 then text = tr(self.group and "st_netcoop_rp_back" or "st_netcoop_rp_stop")
+    elseif self.group then text = string.format("%s (%d)", tr(self.group.name), #self.group.anims)
+    else
+        local active = netcoop_rp_active and netcoop_rp_active() or ""
+        text = active ~= "" and tr("st_netcoop_rp_stop") or tr("st_netcoop_rp_select")
+    end
+    self.caption:TextControl():SetText(text)
+end
+
+-- The preview's frame: the intro once, then the loop.
+function netcoop_rp_wnd:PreviewFrame()
+    local p = self.preview_anim and self.preview_anim.preview
+    if not p then return end
+    local t = time_global() - self.preview_start
+    local intro_time = p.intro * p.intro_ms
+    local frame
+    if t < intro_time then
+        frame = math.floor(t / p.intro_ms)
+    else
+        local loop = math.max(1, p.frames - p.intro)
+        frame = p.intro + math.floor((t - intro_time) / p.loop_ms) % loop
+    end
+    local x, y = (frame % PREVIEW_COLUMNS) * PREVIEW_FRAME, math.floor(frame / PREVIEW_COLUMNS) * PREVIEW_FRAME
+    self.preview:SetTextureRect(Frect():set(x, y, x + PREVIEW_FRAME, y + PREVIEW_FRAME))
 end
 
 function netcoop_rp_wnd:Update()
@@ -101,30 +173,48 @@ function netcoop_rp_wnd:Update()
     local dx, dy = (p.x - CX) / self.xscale, p.y - CY
     local radius = math.sqrt(dx * dx + dy * dy)
     local index
-    if radius >= 144 and radius <= RADIUS then
-        local angle = (math.atan2(dy, dx) + math.pi / 2 + math.pi / 14) % (2 * math.pi)
-        index = math.floor(angle * 14 / (2 * math.pi)) + 1
-        if radius < 244 then index = index + 14 end
+    if radius <= CENTER then
+        index = 0
+    elseif radius <= WHEEL and #self.items > 0 then
+        local n = #self.items
+        local angle = (math.atan2(dy, dx) + math.pi / 2 + math.pi / n) % (2 * math.pi)
+        index = math.floor(angle * n / (2 * math.pi)) + 1
     end
-    self:SetSelected(index)
-    local active = netcoop_rp_active and netcoop_rp_active() or ""
-    self.status:TextControl():SetText(active ~= "" and game.translate_string("st_netcoop_rp_" .. active) or "")
+    self:Hover(index)
+    self:PreviewFrame()
 end
 
 function netcoop_rp_wnd:Close()
     if self:IsShown() then self:HideDialog() end
 end
 
+function netcoop_rp_wnd:Click()
+    local index = self.hovered
+    if index == 0 then
+        if self.group then self:Open(nil) return end
+        if netcoop_rp_stop then netcoop_rp_stop() end
+        self:Close()
+        return
+    end
+    local item = index and self.items[index]
+    if not item then return end
+    if not self.group then self:Open(item) return end
+    if netcoop_rp_play then netcoop_rp_play(item.name) end
+    self:Close()
+end
+
 function netcoop_rp_wnd:OnKeyboard(dik, action)
     if action == ui_events.WINDOW_KEY_PRESSED then
-        if dik == DIK_keys.DIK_ESCAPE or dik == MENU_KEY or dik == DIK_keys.MOUSE_2 then
+        if dik == DIK_keys.DIK_ESCAPE or dik == MENU_KEY then
             self:Close()
             return true
         end
-        if dik == DIK_keys.MOUSE_1 and self.selected then
-            local a = self.anims[self.selected]
-            if a.enabled and netcoop_rp_play then netcoop_rp_play(a.name) end
-            self:Close()
+        if dik == DIK_keys.MOUSE_2 then
+            if self.group then self:Open(nil) else self:Close() end
+            return true
+        end
+        if dik == DIK_keys.MOUSE_1 then
+            self:Click()
             return true
         end
     end
@@ -136,8 +226,7 @@ function toggle()
     if wnd and wnd:IsShown() then wnd:Close(); return end
     if not actor_menu.is_hud_free() then return end
     if not wnd then wnd = netcoop_rp_wnd() end
-    wnd:SetSelected(nil)
-    wnd.caption:TextControl():SetText(game.translate_string("st_netcoop_rp_select"))
+    wnd:Open(nil)
     wnd:ShowDialog(true)
 end
 

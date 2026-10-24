@@ -500,6 +500,7 @@ struct RpAnim
 	shared_str title;
 	xr_vector<shared_str> in, mid, out;
 	bool loop = true;
+	bool once = false; // a gesture: the chains play once and the animation ends by itself
 };
 const xr_vector<RpAnim>& rp_anims();
 // Lua: netcoop_rp_list() -> "name=title;...", netcoop_rp_play(name),

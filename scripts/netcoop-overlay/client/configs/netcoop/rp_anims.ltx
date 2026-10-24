@@ -1,234 +1,576 @@
-; Lost Zone RP animations (player emotes).
-; The motions are stock stalker animations that base-game already ships.
-;
-; [rp_list]    order of the menu; each name has its own [rp_<name>] section.
-; in / mid / out  motion chains: "in" plays once, "mid" repeats while
-;                 loop = true, "out" plays once when the explicit exit button is used or
-;                 picks another animation.
-; title        string id of the menu name (configs\text\*\st_netcoop.xml).
+; Lost Zone RP animations: New Way's (owner 2026-10-24; NW's developers
+; authorized taking their work), imported by scripts/tools/import-nw-anims.py.
+; [rp_list] order; each [rp_<name>]: in / mid / out motion chains (in once,
+; mid repeats while loop = true, out once on leaving; once = true: a gesture
+; that ends by itself), title (a string id or
+; the text itself), group (the wheel's category), icon (cell of
+; ui\ui_actor_anims_icons, 8x8, 128 px), group_icon (shows the category),
+; preview = frames, intro frames (once), intro ms, loop ms
+; (ui\anim_preview\anim_<icon>, 32 columns of 64 px).
 
 [rp_list]
-hands_pockets
-salute
-greet
-refuse
-hands_behind
-look_around
-listen
-hands_up
-guard
-sit_1
-sit_2
-sit_3
-sleep
-pushups
-bar_1
-bar_2
-bar_3
-bar_4
-bar_5
-bar_6
-trance_1
-trance_2
-wounded_1
-wounded_2
-prisoner
-psy
-gop_stop
-loot
+nw_2
+nw_4
+nw_5
+nw_8
+nw_9
+nw_10
+nw_11
+nw_12
+nw_13
+nw_14
+nw_16
+nw_17
+nw_19
+nw_20
+nw_21
+nw_22
+nw_23
+nw_24
+nw_25
+nw_26
+nw_27
+nw_28
+nw_29
+nw_30
+nw_31
+nw_32
+nw_33
+nw_34
+nw_35
+nw_36
+nw_37
+nw_38
+nw_40
+nw_41
+nw_42
+nw_43
+nw_44
+nw_45
+nw_49
+nw_50
+nw_51
+nw_52
+nw_53
+nw_54
+nw_56
+nw_57
+nw_58
+nw_60
+nw_61
+nw_62
 
-[rp_hands_pockets]
-title = st_netcoop_rp_hands_pockets
-in    = lead_1_in_0
-mid   = lead_1_idle_0
-out   = lead_1_out_0
-loop  = true
+[rp_nw_2]
+title = Заложник
+group = Заложники
+icon = 2
+group_icon = true
+in = prisoner_0_sit_down_0
+mid = prisoner_0_sit_idle_0
+out = prisoner_0_stand_up_0
+loop = true
+preview = 136, 83, 33, 33
 
-[rp_salute]
-title = st_netcoop_rp_salute
-in    = otdacha_chesti
-mid   =
-out   =
-loop  = false
+[rp_nw_4]
+title = Тяжелое ранение
+group = Состояния
+icon = 4
+in = idle_to_wounded_1
+mid = waunded_1_idle_0
+out = waunded_1_out, wounded_to_idle_0
+loop = true
+preview = 126, 83, 33, 33
 
-[rp_greet]
-title = st_netcoop_rp_greet
-in    = hello_0_idle_0
-mid   =
-out   =
-loop  = false
+[rp_nw_5]
+title = Легкое ранение
+group = Состояния
+icon = 5
+group_icon = true
+in = idle_to_wounded_0
+mid = wounded_idle_0, wounded_opasno_0
+out = wounded_to_idle_0
+loop = true
+preview = 215, 32, 32, 33
 
-[rp_refuse]
-title = st_netcoop_rp_refuse
-in    = net_0_0
-mid   =
-out   =
-loop  = false
+[rp_nw_8]
+title = Пси атака
+group = Состояния
+icon = 8
+in = idle_0_to_psy_0_idle_0
+mid = psy_0_idle_0, psy_0_idle_1, psy_0_idle_2, psy_0_idle_3
+out = psy_0_idle_0_to_idle_0
+loop = true
+preview = 106, 73, 33, 32
 
-[rp_hands_behind]
-title = st_netcoop_rp_hands_behind
-in    = ohrana_0
-mid   = ohrana_1
-out   = ohrana_2
-loop  = true
+[rp_nw_9]
+title = Войти в транс
+group = Состояния
+icon = 9
+in = idle_0_to_trans_1
+mid = trans_1_idle_0
+out = trans_1_to_idle_0
+loop = true
+preview = 446, 383, 33, 33
 
-[rp_look_around]
-title = st_netcoop_rp_look_around
-in    = poisk_0_idle_0
-mid   = poisk_0_idle_1
-out   = poisk_0_idle_2
-loop  = true
+[rp_nw_10]
+title = Войти в транс (2)
+group = Состояния
+icon = 10
+in = idle_0_to_trans_0
+mid = trans_0_idle_0
+out = norm_all_0_lobbyidle_3_out
+loop = true
+preview = 586, 463, 33, 33
 
-[rp_listen]
-title = st_netcoop_rp_listen
-in    = prisluh_0_in
-mid   = prisluh_0_0
-out   = prisluh_0_out
-loop  = true
+[rp_nw_11]
+title = Руки за спину
+group = Выбор позы
+icon = 11
+in = ohrana_0
+mid = ohrana_1
+out = ohrana_2
+loop = true
+preview = 466, 43, 33, 33
 
-[rp_hands_up]
-title = st_netcoop_rp_hands_up
-in    =
-mid   = hand_up_0
-out   =
-loop  = true
+[rp_nw_12]
+title = Руки на груди
+group = Выбор позы
+icon = 12
+group_icon = true
+in = norm_all_0_lobbyidle_3_in
+mid = norm_all_0_lobbyidle_3
+out = norm_all_0_lobbyidle_3_out
+loop = true
+preview = 556, 23, 32, 33
 
-[rp_guard]
-title = st_netcoop_rp_guard
-in    = chasovoy_0
-mid   = chasovoy_1
-out   = chasovoy_4
-loop  = true
+[rp_nw_13]
+title = Руки в карманах
+group = Выбор позы
+icon = 13
+in = lead_1_in_0
+mid = lead_1_idle, lead_1_idle_1
+out = lead_1_out_0
+loop = true
+preview = 84, 72, 33, 31
 
-[rp_sit_1]
-title = st_netcoop_rp_sit_1
-in    = idle_0_to_sit_0
-mid   = sit_0_idle_0
-out   = sit_0_lazy_idle_0
-loop  = true
+[rp_nw_14]
+title = Облокотиться об стену
+group = Выбор позы
+icon = 14
+in = stay_wall_in
+mid = stay_wall_visual, stay_wall_rnd_1, stay_wall_rnd_2
+out = stay_wall_out
+loop = true
+preview = 364, 62, 33, 33
 
-[rp_sit_2]
-title = st_netcoop_rp_sit_2
-in    = idle_0_to_sit_1
-mid   = sit_1_idle_0
-out   = item_2_sit_0, sit_0_lazy_idle_0
-loop  = true
+[rp_nw_16]
+title = Ожидание(1)
+group = Выбор позы
+icon = 16
+in = 
+mid = komandir_2, komandir_0
+out = 
+loop = true
+preview = 803, 0, 0, 33
 
-[rp_sit_3]
-title = st_netcoop_rp_sit_3
-in    = idle_0_to_sit_2
-mid   = sit_2_idle_0
-out   = sit_2_lazy_idle_0
-loop  = true
+[rp_nw_17]
+title = Ожидание(2)
+group = Выбор позы
+icon = 17
+in = 
+mid = idle_0_idle_0, idle_0_idle_1, idle_0_idle_2, idle_0_idle_3, idle_0_idle_4
+out = 
+loop = true
+preview = 103, 0, 0, 33
 
-[rp_sleep]
-title = st_netcoop_rp_sleep
-in    = idle_0_to_sit_0, sit_0_to_sleep_0
-mid   = sleep_idle_0
-out   = sleep_0_to_sit_0, sit_0_lazy_idle_0
-loop  = true
+[rp_nw_19]
+title = Часовой с пистолетом
+group = Выбор позы
+icon = 19
+in = idle_1_idle_1
+mid = idle_1_idle_2, idle_1_idle_3, idle_1_idle_0, idle_1_idle_3
+out = idle_1_idle_1
+loop = true
+preview = 281, 203, 33, 33
 
-[rp_pushups]
-title = st_netcoop_rp_pushups
-in    = otzimani_2_in
-mid   = otzimani_2_idle
-out   = otzimani_2_out
-loop  = true
+[rp_nw_20]
+title = Смотреть в бинокль
+group = Выбор позы
+icon = 20
+in = binoculars_draw_0, binoculars_draw_1
+mid = binoculars_idle_0, binoculars_zoom_in_0, binoculars_zoom_idle_1, binoculars_zoom_idle_2, binoculars_zoom_idle_3, binoculars_zoom_idle_4, binoculars_zoom_out_0
+out = binoculars_hide_1, binoculars_hide_0
+loop = true
+preview = 156, 53, 33, 33
 
-[rp_bar_1]
-title = st_netcoop_rp_bar_1
-in    = bar_0_idle_in
-mid   = bar_0_idle_0
-out   = bar_0_idle_out
-loop  = true
+[rp_nw_21]
+title = Стойка смирно
+group = Выбор позы
+icon = 21
+in = chest_0_idle_0
+mid = chest_0_idle_1
+out = chest_0_idle_3
+loop = true
+preview = 81, 18, 31, 33
 
-[rp_bar_2]
-title = st_netcoop_rp_bar_2
-in    = bar_2_idle_in
-mid   = bar_2_idle_0
-out   = bar_2_idle_out
-loop  = true
+[rp_nw_22]
+title = Сидеть(1)
+group = Сидеть
+icon = 22
+in = idle_0_to_sit_0
+mid = sit_0_idle_0, sit_0_idle_1, sit_0_idle_2, sit_0_idle_3
+out = sit_0_lazy_idle_0
+loop = true
+preview = 156, 53, 33, 33
 
-[rp_bar_3]
-title = st_netcoop_rp_bar_3
-in    = lead_1_in_0, lead_1_idle_to_bar_0
-mid   = lead_1_bar_idle_0
-out   = lead_1_bar_to_idle_0, lead_1_out_0
-loop  = true
+[rp_nw_23]
+title = Сидеть(2)
+group = Сидеть
+icon = 23
+in = idle_0_to_sit_1
+mid = sit_1_idle_0, sit_1_idle_1, sit_1_idle_2, sit_1_idle_3
+out = sit_1_lazy_idle_0
+loop = true
+preview = 281, 78, 33, 33
 
-[rp_bar_4]
-title = st_netcoop_rp_bar_4
-in    = bar_1_idle_in
-mid   = bar_1_idle_0
-out   = bar_1_idle_out
-loop  = true
+[rp_nw_24]
+title = Сидеть(3)
+group = Сидеть
+icon = 24
+group_icon = true
+in = idle_0_to_sit_2
+mid = sit_2_idle_0, sit_2_idle_1, sit_2_idle_2, sit_2_idle_3
+out = sit_2_lazy_idle_0
+loop = true
+preview = 376, 73, 33, 33
 
-[rp_bar_5]
-title = st_netcoop_rp_bar_5
-in    = bar_3_idle_in
-mid   = bar_3_idle_0
-out   = bar_3_idle_out
-loop  = true
+[rp_nw_25]
+title = Сидеть и спать
+group = Сидеть
+icon = 25
+in = idle_0_to_sit_2, sit_2_to_sleep_2
+mid = sleep_idle_2, sleep_idle_3, sleep_idle_2, sleep_idle_2, sleep_idle_2
+out = sleep_2_to_sit_2, sit_2_lazy_idle_0
+loop = true
+preview = 528, 425, 33, 33
 
-[rp_bar_6]
-title = st_netcoop_rp_bar_6
-in    = bar_4_idle_in
-mid   = bar_4_idle_0
-out   = bar_4_idle_out
-loop  = true
+[rp_nw_26]
+title = Сидеть на стуле
+group = Сидеть
+icon = 26
+in = sit_normal_stul_in
+mid = sit_normal_stul_rnd_1, sit_normal_stul_rnd_2, sit_normal_stul_rnd_3, sit_normal_stul_visual
+out = sit_normal_stul_out
+loop = true
+preview = 313, 62, 33, 33
 
-[rp_trance_1]
-title = st_netcoop_rp_trance_1
-in    = idle_0_to_trans_0
-mid   = trans_0_idle_0
-out   = trans_0_to_idle_0
-loop  = true
+[rp_nw_27]
+title = Запрыгнуть на объект
+group = Сидеть
+icon = 27
+in = sit_high_table_in
+mid = sit_high_table_visual, sit_high_table_rnd_1, sit_high_table_rnd_4
+out = sit_high_table_out
+loop = true
+preview = 364, 62, 33, 33
 
-[rp_trance_2]
-title = st_netcoop_rp_trance_2
-in    = idle_0_to_trans_1
-mid   = trans_1_idle_0
-out   = trans_1_to_idle_0
-loop  = true
+[rp_nw_28]
+title = Сидеть и кушать колбасу
+group = Сидеть
+icon = 28
+in = idle_0_to_sit_2
+mid = item_1_idle_1, item_1_attack_0, item_1_idle_0
+out = sit_2_lazy_idle_0
+loop = true
+preview = 190, 127, 33, 33
 
-[rp_wounded_1]
-title = st_netcoop_rp_wounded_1
-in    = idle_to_wounded_0
-mid   = wounded_idle_0
-out   = wounded_to_idle_0
-loop  = true
+[rp_nw_29]
+title = Сидеть и кушать хлеб
+group = Сидеть
+icon = 29
+in = idle_0_to_sit_2
+mid = item_1_idle_1, item_1_attack_0, item_1_idle_0
+out = sit_2_lazy_idle_0
+loop = true
+preview = 190, 127, 33, 33
 
-[rp_wounded_2]
-title = st_netcoop_rp_wounded_2
-in    = idle_to_wounded_1
-mid   = waunded_1_idle_0
-out   = waunded_1_out, wounded_to_idle_0
-loop  = true
+[rp_nw_30]
+title = Сидеть и пить водку
+group = Сидеть
+icon = 30
+in = idle_0_to_sit_2
+mid = item_4_aim_0, item_4_prepare_0, item_4_attack_0
+out = sit_2_lazy_idle_0
+loop = true
+preview = 278, 175, 33, 33
 
-[rp_prisoner]
-title = st_netcoop_rp_prisoner
-in    = prisoner_0_sit_down_0
-mid   = prisoner_0_sit_idle_0
-out   = prisoner_0_stand_up_0
-loop  = true
+[rp_nw_31]
+title = Сидеть и пить энергетик
+group = Сидеть
+icon = 31
+in = idle_0_to_sit_2
+mid = item_4_aim_0, item_4_prepare_0, item_4_attack_0
+out = sit_2_lazy_idle_0
+loop = true
+preview = 278, 175, 33, 33
 
-[rp_psy]
-title = st_netcoop_rp_psy
-in    = idle_0_to_psy_0_idle_0
-mid   = psy_0_idle_0
-out   = psy_0_idle_0_to_idle_0
-loop  = true
+[rp_nw_32]
+title = Барная стойка(1)
+group = Барные стойки
+icon = 32
+in = bar_0_idle_in
+mid = bar_0_idle_0, bar_0_idle_1, bar_0_idle_2, bar_0_idle_3
+out = bar_0_idle_out
+loop = true
+preview = 556, 53, 33, 33
 
-[rp_gop_stop]
-title = st_netcoop_rp_gop_stop
-in    =
-mid   = gop_stop_1_0
-out   =
-loop  = false
+[rp_nw_33]
+title = Барная стойка(2)
+group = Барные стойки
+icon = 33
+in = bar_2_idle_in
+mid = bar_2_idle_0
+out = bar_2_idle_out
+loop = true
+preview = 106, 53, 33, 33
 
-[rp_loot]
-title = st_netcoop_rp_loot
-in    = waunded_1_in
-mid   =
-out   = waunded_1_out
-loop  = false
+[rp_nw_34]
+title = Барная стойка(3)
+group = Барные стойки
+icon = 34
+in = lead_1_in_0, lead_1_idle_to_bar_0
+mid = lead_1_bar_idle_0
+out = lead_1_bar_to_idle_0, lead_1_out_0
+loop = true
+preview = 425, 123, 33, 33
+
+[rp_nw_35]
+title = Барная стойка(4)
+group = Барные стойки
+icon = 35
+in = bar_1_idle_in
+mid = bar_1_idle_0, bar_1_idle_1, bar_1_idle_2, bar_1_idle_3
+out = bar_1_idle_out
+loop = true
+preview = 556, 53, 33, 33
+
+[rp_nw_36]
+title = Барная стойка(5)
+group = Барные стойки
+icon = 36
+group_icon = true
+in = bar_3_idle_in
+mid = bar_3_idle_0
+out = bar_3_idle_out
+loop = true
+preview = 106, 53, 33, 33
+
+[rp_nw_37]
+title = Барная стойка(6)
+group = Барные стойки
+icon = 37
+in = bar_4_idle_in
+mid = bar_4_idle_0
+out = bar_4_idle_out
+loop = true
+preview = 706, 53, 33, 33
+
+[rp_nw_38]
+title = Барная стойка(7)
+group = Барные стойки
+icon = 38
+in = animpoint_stay_table_in_1
+mid = animpoint_stay_table_visual
+out = animpoint_stay_table_out_1
+loop = true
+preview = 310, 68, 33, 33
+
+[rp_nw_40]
+title = Играть на гитаре
+group = Музыка
+icon = 40
+group_icon = true
+in = idle_0_to_sit_1
+mid = guitar_0
+out = sit_1_to_idle_0
+loop = true
+preview = 577, 414, 33, 33
+
+[rp_nw_41]
+title = Играть на гитаре(без_звука)
+group = Музыка
+icon = 41
+in = idle_0_to_sit_1
+mid = guitar_0
+out = sit_1_to_idle_0
+loop = true
+preview = 577, 414, 33, 33
+
+[rp_nw_42]
+title = Играть на гармошке
+group = Музыка
+icon = 42
+in = idle_0_to_sit_2
+mid = harmonica_0
+out = sit_2_to_idle_0_
+loop = true
+preview = 380, 177, 33, 33
+
+[rp_nw_43]
+title = Играть на гармошке(без_звука)
+group = Музыка
+icon = 43
+in = idle_0_to_sit_2
+mid = harmonica_0
+out = sit_2_to_idle_0_
+loop = true
+preview = 380, 177, 33, 33
+
+[rp_nw_44]
+title = Осмотреть
+group = Осмотр
+icon = 44
+group_icon = true
+in = poisk_0_idle_2
+mid = 
+out = 
+loop = false
+once = true
+preview = 303, 0, 0, 33
+
+[rp_nw_45]
+title = Осмотреть на корточках
+group = Осмотр
+icon = 45
+in = poisk_0_idle_1
+mid = 
+out = 
+loop = false
+once = true
+preview = 153, 0, 0, 33
+
+[rp_nw_49]
+title = Обыскать
+group = Взаимодействие
+icon = 49
+in = dinamit_0
+mid = 
+out = 
+loop = false
+once = true
+preview = 213, 0, 0, 33
+
+[rp_nw_50]
+title = Разговор по рации
+group = Взаимодействие
+icon = 50
+in = raciya_0_draw_0, raciya_0_draw_1
+mid = raciya_0_idle_0, raciya_0_talk_0
+out = raciya_0_hide_0, raciya_0_hide_1
+loop = true
+preview = 138, 85, 33, 33
+
+[rp_nw_51]
+title = Начать замеры
+group = Взаимодействие
+icon = 51
+group_icon = true
+in = metering_anomalys_0_draw_0, metering_anomalys_0_draw_1
+mid = metering_anomalys_0_idle_0, metering_anomalys_0_idle_1, metering_anomalys_0_idle_2, metering_anomalys_0_idle_3, metering_anomalys_0_idle_4, metering_anomalys_0_idle_5
+out = metering_anomalys_0_hide_0, metering_anomalys_0_hide_1
+loop = true
+preview = 138, 85, 33, 33
+
+[rp_nw_52]
+title = Начать замеры сидя
+group = Взаимодействие
+icon = 52
+in = metering_anomalys_1_draw_0, metering_anomalys_1_draw_1
+mid = metering_anomalys_1_idle_0, metering_anomalys_1_idle_1, metering_anomalys_1_idle_2, metering_anomalys_1_idle_3, metering_anomalys_1_idle_4
+out = metering_anomalys_1_hide_0, metering_anomalys_1_hide_1
+loop = true
+preview = 288, 85, 33, 33
+
+[rp_nw_53]
+title = Замер пси-поля
+group = Взаимодействие
+icon = 53
+in = metering_anomalys_0_draw_0, metering_anomalys_0_draw_1
+mid = metering_anomalys_0_idle_0
+out = metering_anomalys_0_hide_0, metering_anomalys_0_hide_1
+loop = true
+preview = 138, 85, 33, 33
+
+[rp_nw_54]
+title = Приветствие
+group = Приветствия
+icon = 54
+group_icon = true
+in = hello_0_idle_0
+mid = 
+out = 
+loop = false
+once = true
+preview = 103, 0, 0, 33
+
+[rp_nw_56]
+title = Воинское приветствие
+group = Приветствия
+icon = 56
+in = chest_0_idle_0
+mid = chest_0_idle_2
+out = chest_0_idle_3
+loop = false
+preview = 61, 18, 31, 33
+
+[rp_nw_57]
+title = Приседать
+group = Физ.упражнения
+icon = 57
+in = 
+mid = prisyad
+out = 
+loop = true
+preview = 51, 0, 0, 33
+
+[rp_nw_58]
+title = Отжиматься
+group = Физ.упражнения
+icon = 58
+group_icon = true
+in = otzimani_2_in
+mid = otzimani_2_idle
+out = otzimani_2_out
+loop = true
+preview = 120, 65, 33, 33
+
+[rp_nw_60]
+title = Спать
+group = Разное
+icon = 60
+group_icon = true
+in = idle_0_to_sit_0, sit_to_sleep_0
+mid = sleep_idle_0, sleep_idle_1
+out = sleep_to_sit_0, sit_0_lazy_idle_0
+loop = true
+preview = 228, 165, 33, 33
+
+[rp_nw_61]
+title = Удар кулаком
+group = Разное
+icon = 61
+in = 
+mid = norm_facer_0_0, norm_facer_0_1
+out = 
+loop = false
+preview = 12, 0, 0, 31
+
+[rp_nw_62]
+title = Застрелиться (нужен пистолет)
+group = Разное
+icon = 62
+in = zat_b22_medic_suicide_in
+mid = zat_b22_medic_suicide_idle
+out = 
+loop = true
+preview = 164, 72, 33, 33

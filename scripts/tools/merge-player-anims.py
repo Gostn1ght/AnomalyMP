@@ -8,10 +8,12 @@ has (devices, binoculars, eating, extras) stay, so nothing GAMMA uses is lost.
 
 usage: merge-player-anims.py <gamma.omf> <source.omf> <out.omf>
        merge-player-anims.py --subset <source.omf> <out.omf> <prefix>
+       merge-player-anims.py --only-new <ours.omf> <source.omf> <out.omf>
 """
 import re
 import struct
 import sys
+from pathlib import Path
 
 OGF_S_MOTIONS, OGF_S_SMPARAMS = 0x0E, 0x0F
 
@@ -145,17 +147,18 @@ def main(gamma_path, source_path, out_path):
     print(f"{replaced} of {len(g['defs'])} motions from {source_path}; the rest GAMMA's -> {out_path}")
 
 
-if __name__ == "__main__" and sys.argv[1] != "--subset":
+if __name__ == "__main__" and sys.argv[1] not in ("--subset", "--only-new"):
     main(*sys.argv[1:4])
 
 
-def subset(source_path, out_path, prefix):
-    """Only the motions whose names start with prefix, re-indexed (for an
-    extra OMF in actors/modded_stalker_animations, loaded after
-    stalker_animation for every stalker model: other names would shadow
+def subset(source_path, out_path, prefix, keep=None):
+    """Only the motions whose names start with prefix (or the given defs),
+    re-indexed (for an extra OMF in actors/modded_stalker_animations, loaded
+    after stalker_animation for every stalker model: other names would shadow
     nothing but are dropped to keep it clean)."""
     s = parse(source_path)
-    keep = [d for d in s["defs"] if d["name"].startswith(prefix)]
+    if keep is None:
+        keep = [d for d in s["defs"] if d["name"].startswith(prefix)]
     data = s["data"]
     defs, subs = [], [chunk(0, struct.pack("<I", len(keep)))]
     for i, d in enumerate(keep):
@@ -178,8 +181,23 @@ def subset(source_path, out_path, prefix):
         else:
             out += chunk(cid, data[start:start + size])
     open(out_path, "wb").write(out)
-    print(f"{len(keep)} of {len(s['defs'])} motions ({prefix}*) -> {out_path}")
+    print(f"{len(keep)} of {len(s['defs'])} motions ({prefix}) -> {out_path}")
+
+
+def only_new(ours_path, source_path, out_path):
+    """The motions of source that ours lacks (owner 2026-10-24: New Way's RP
+    animations next to GAMMA's, none of ours replaced), as an extra OMF for
+    actors/modded_stalker_animations. The skeleton must be the same."""
+    o, s = parse(ours_path), parse(source_path)
+    for (on, ob), (sn, sb) in zip(o["parts"], s["parts"]):
+        assert on == sn and dict(ob) == dict(sb), f"partition {on} differs"
+    have = {d["name"] for d in o["defs"]}
+    keep = [d for d in s["defs"] if d["name"] not in have]
+    assert keep, "nothing new"
+    subset(source_path, out_path, "only motions new to " + Path(ours_path).name, keep)
 
 
 if __name__ == "__main__" and sys.argv[1] == "--subset":
     subset(*sys.argv[2:5])
+if __name__ == "__main__" and sys.argv[1] == "--only-new":
+    only_new(*sys.argv[2:5])

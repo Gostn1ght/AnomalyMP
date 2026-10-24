@@ -52,6 +52,7 @@ const xr_vector<RpAnim>& rp_anims()
 		rp_split(ini.line_exist(section, "mid") ? ini.r_string(section, "mid") : NULL, a.mid);
 		rp_split(ini.line_exist(section, "out") ? ini.r_string(section, "out") : NULL, a.out);
 		a.loop = ini.line_exist(section, "loop") ? !!ini.r_bool(section, "loop") : true;
+		a.once = ini.line_exist(section, "once") && !!ini.r_bool(section, "once");
 		anims.push_back(a);
 	}
 	Msg("[Lost Zone] rp: %u animations", u32(anims.size()));
