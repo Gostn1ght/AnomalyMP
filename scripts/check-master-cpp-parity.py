@@ -40,6 +40,17 @@ TIME_KEYS = {"world_ms", "expires_ms", "sequence", "observed_world_ms", "last_cy
 failures = []
 
 
+def ready_call(client, *args, seconds=20, **kwargs):
+    """A restarted master settles the events that fell due first (the relayed
+    schedules start now): 503 "recovering" until then."""
+    deadline = time.time() + seconds
+    while True:
+        status, body = client.call(*args, **kwargs)
+        if status != 503 or time.time() > deadline:
+            return status, body
+        time.sleep(0.5)
+
+
 def wait_port(port, process, seconds=30):
     deadline = time.time() + seconds
     while time.time() < deadline:
@@ -346,9 +357,9 @@ def main():
     process = subprocess.Popen([str(EXE), "serve", "--config", str(folder / "config.json"), "--port", "38613", "--root", str(work)], cwd=folder)
     try:
         wait_port(38613, process)
-        status, body = Client(38613, config).call("GET", "/v1/clock", actor="observer:engine")
-        clock = json.loads(body)["result"]
-        if status != 200 or clock["authority_epoch"] != 2 or clock["world_ms"] < 63676137600000:
+        status, body = ready_call(Client(38613, config), "GET", "/v1/clock", actor="observer:engine")
+        clock = json.loads(body).get("result") or {"error": json.loads(body)}
+        if status != 200 or clock.get("authority_epoch") != 2 or clock.get("world_ms", 0) < 63676137600000:
             failures.append("restart")
             print("DIFF restart", status, clock)
     finally:
@@ -360,7 +371,7 @@ def main():
                                cwd=ROOT / "backend", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         wait_port(38614, process)
-        status, body = Client(38614, config).call("POST", "/v1/console", {"line": "players"})
+        status, body = ready_call(Client(38614, config), "POST", "/v1/console", {"line": "players"})
         if status != 200 or "l01_escape: Tester" not in json.loads(body)["result"]["text"]:
             failures.append("python reads cpp db")
             print("DIFF python reads cpp db", status, body)
