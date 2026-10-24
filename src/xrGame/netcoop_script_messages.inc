@@ -52,11 +52,11 @@ void client_on_script(NET_Packet& P)
 	if (!xr_strcmp(channel, "netcoop_consumption"))
 	{
 		unsigned id=0, kind=0;
-		LPCSTR name=nullptr;
-		if (!netcoop_consumption::parse(data,id,kind,name)) return;
+		LPCSTR name=nullptr, section=nullptr;
+		if (!netcoop_consumption::parse(data,id,kind,name,section)) return;
 		CActor* actor=smart_cast<CActor*>(Level().Objects.net_Find(u16(id)));
 		// Delayed messages must not animate a different incarnation of this ID.
-		if (actor && !xr_strcmp(actor->cName().c_str(),name)) actor->netcoop_play_consumption(u8(kind));
+		if (actor && !xr_strcmp(actor->cName().c_str(),name)) actor->netcoop_play_consumption(u8(kind),section);
 		return;
 	}
 	if (!xr_strcmp(channel, "netcoop_role"))

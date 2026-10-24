@@ -493,6 +493,74 @@ static MotionID netcoop_device_torso(CActor* actor, CCustomDevice* device, u32 m
 	return motion;
 }
 
+void CActor::netcoop_tp_item_release()
+{
+	if (m_netcoop_tp_item)
+		::Render->model_Delete(m_netcoop_tp_item);
+	m_netcoop_tp_item = nullptr;
+	m_netcoop_tp_bone = BI_NONE;
+}
+
+// The item in the hand, at the bone with New Way's offset.
+void CActor::netcoop_tp_item_render()
+{
+	if (!m_netcoop_tp_item || m_netcoop_tp_bone == BI_NONE || !m_netcoop_consumption_until) return;
+	IKinematics* body = smart_cast<IKinematics*>(Visual());
+	if (!body) return;
+	Fmatrix hand, item;
+	hand.mul_43(XFORM(), body->LL_GetTransform(m_netcoop_tp_bone));
+	item.mul_43(hand, m_netcoop_tp_offset);
+	if (IKinematics* k = smart_cast<IKinematics*>(m_netcoop_tp_item)) k->CalculateBones(TRUE);
+	::Render->set_Transform(&item);
+	::Render->add_Visual(m_netcoop_tp_item);
+}
+
+// New Way's third-person data of an item: its Enhanced Animations section
+// (items\items\anims_list.ltx: anm -> <anm>_hud) with third_person_motion.
+static shared_str netcoop_tp_section(LPCSTR item)
+{
+	static CInifile* list = []() -> CInifile*
+	{
+		string_path path;
+		return FS.exist(path, "$game_config$", "items\\items\\anims_list.ltx") ? xr_new<CInifile>(path, TRUE, TRUE, FALSE) : nullptr;
+	}();
+	if (!list || !item || !item[0] || !list->section_exist(item) || !list->line_exist(item, "anm")) return shared_str();
+	string256 ea;
+	xr_sprintf(ea, "%s_hud", list->r_string(item, "anm"));
+	if (!pSettings->section_exist(ea) || !pSettings->line_exist(ea, "third_person_motion")) return shared_str();
+	return shared_str(ea);
+}
+
+// New Way's motion for an item (nullptr: none).
+LPCSTR CActor::netcoop_tp_motion(LPCSTR item)
+{
+	const shared_str tp = netcoop_tp_section(item);
+	return tp.size() ? pSettings->r_string(tp, "third_person_motion") : nullptr;
+}
+
+// The item in the hand while New Way's motion plays: only a model this
+// client has (a missing one would not load).
+void CActor::netcoop_tp_item_attach(LPCSTR item)
+{
+	netcoop_tp_item_release();
+	const shared_str tp = netcoop_tp_section(item);
+	if (!tp.size() || !m_netcoop_consumption_until) return;
+	LPCSTR visual = pSettings->r_string(tp, "third_person_item_visual");
+	string_path file;
+	xr_strcpy(file, visual);
+	if (!strext(file)) xr_strcat(file, ".ogf");
+	IKinematics* body = smart_cast<IKinematics*>(Visual());
+	const u16 bone = body ? body->LL_BoneID(pSettings->r_string(tp, "third_person_attach_bone")) : BI_NONE;
+	if (bone == BI_NONE || !FS.exist("$game_meshes$", file)) return;
+	m_netcoop_tp_item = ::Render->model_Create(visual);
+	if (!m_netcoop_tp_item) return;
+	m_netcoop_tp_bone = bone;
+	const Fvector position = pSettings->r_fvector3(tp, "third_person_attach_position");
+	const Fvector rotation = pSettings->r_fvector3(tp, "third_person_attach_rotation");
+	m_netcoop_tp_offset.setHPB(rotation.x, rotation.y, rotation.z);
+	m_netcoop_tp_offset.translate_over(position);
+}
+
 void CActor::netcoop_consumption_end(CBlend* blend)
 {
 	CActor* actor = static_cast<CActor*>(blend->CallbackParam);
@@ -501,14 +569,17 @@ void CActor::netcoop_consumption_end(CBlend* blend)
 		actor->m_netcoop_consumption_until = 0;
 		actor->m_bAnimTorsoPlayed = FALSE;
 		actor->m_current_torso.invalidate();
+		actor->netcoop_tp_item_release();
 	}
 }
 
-void CActor::netcoop_play_consumption(u8 kind)
+void CActor::netcoop_play_consumption(u8 kind, LPCSTR section)
 {
 	if (!netcoop::pure_client() || this == Level().CurrentControlEntity() || !g_Alive() ||
 		netcoop_seated() || m_rp_index >= 0) return;
-	LPCSTR name = netcoop_consumption::motion(kind);
+	// New Way's motion for this item when it has one, else the kind's
+	LPCSTR name = netcoop_tp_motion(section);
+	if (!name) name = netcoop_consumption::motion(kind);
 	IKinematicsAnimated* model = smart_cast<IKinematicsAnimated*>(Visual());
 	if (!name || !model) return;
 	const MotionID motion = model->ID_Cycle_Safe(name);
@@ -524,6 +595,7 @@ void CActor::netcoop_play_consumption(u8 kind)
 	m_bAnimTorsoPlayed = TRUE;
 	const float duration = _valid(blend->timeTotal) ? blend->timeTotal / def->Speed() * 1000.f : 1000.f;
 	m_netcoop_consumption_until = (Device.dwTimeGlobal + u32(_max(100.f, _min(10000.f, duration)))) | 1u;
+	netcoop_tp_item_attach(section);
 }
 
 void CActor::netcoop_expire_consumption()
@@ -534,6 +606,7 @@ void CActor::netcoop_expire_consumption()
 		m_netcoop_consumption_until = 0;
 		m_bAnimTorsoPlayed = FALSE;
 		m_current_torso.invalidate();
+		netcoop_tp_item_release();
 	}
 }
 

@@ -43,13 +43,21 @@ inline bool decimal(const char*& cursor, unsigned limit, unsigned& result)
     ++cursor;
     return true;
 }
-inline bool parse(const char* data, unsigned& actor, unsigned& action, const char*& name)
+// "actor|kind|name|section": kind 255 = no generic motion (the item may still
+// have New Way's own); name and section are written back NUL-terminated.
+inline bool parse(char* data, unsigned& actor, unsigned& action, const char*& name, const char*& section)
 {
-    if (!decimal(data,65534,actor) || !decimal(data,5,action)) return false;
-    name=data;
-    const auto size=std::strlen(name);
-    if (!size || size>255) return false;
+    const char* cursor=data;
+    if (!decimal(cursor,65534,actor) || !decimal(cursor,255,action)) return false;
+    char* bar=const_cast<char*>(std::strchr(cursor,'|'));
+    if (!bar) return false;
+    *bar=0;
+    name=cursor; section=bar+1;
+    const auto size=std::strlen(name), length=std::strlen(section);
+    if (!size || size>255 || length>127) return false;
     for (const char* p=name;*p;++p) if (static_cast<unsigned char>(*p)<32) return false;
+    for (const char* p=section;*p;++p)
+        if (!((*p>='a' && *p<='z') || (*p>='A' && *p<='Z') || (*p>='0' && *p<='9') || *p=='_' || *p=='.' || *p=='-')) return false;
     return true;
 }
 }

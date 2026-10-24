@@ -290,6 +290,15 @@ protected:
 protected:
 	BOOL m_bAnimTorsoPlayed;
 	u32 m_netcoop_consumption_until = 0;
+	// New Way's third-person item use (owner 2026-10-24): the item in the hand
+	// while the consumption motion plays (mod_system_zzzz_lz_third_person.ltx).
+	IRenderVisual* m_netcoop_tp_item = nullptr;
+	u16 m_netcoop_tp_bone = BI_NONE;
+	Fmatrix m_netcoop_tp_offset;
+	void netcoop_tp_item_release();
+	void netcoop_tp_item_render();
+	LPCSTR netcoop_tp_motion(LPCSTR item);
+	void netcoop_tp_item_attach(LPCSTR item);
 	static void netcoop_consumption_end(CBlend* blend);
 	static void AnimTorsoPlayCallBack(CBlend* B);
 
@@ -317,7 +326,7 @@ public:
 	MotionID m_current_legs;
 	MotionID m_current_torso;
 	MotionID m_current_head;
-	void netcoop_play_consumption(u8 kind);
+	void netcoop_play_consumption(u8 kind, LPCSTR section);
 	void netcoop_expire_consumption();
 
 	// callback на анимации модели актера

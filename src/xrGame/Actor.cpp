@@ -2400,6 +2400,7 @@ void CActor::renderable_Render()
 	{
 		inherited::renderable_Render();
 		CInventoryOwner::renderable_Render();
+		netcoop_tp_item_render();
 	}
 }
 
