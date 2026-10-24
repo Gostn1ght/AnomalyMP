@@ -60,7 +60,7 @@ struct CActor{
  bool g_Alive(){return alive;}bool netcoop_seated(){return seated;}VisualBase* Visual(){return fixture_visual;}
  // New Way's data (ActorAnimation.cpp outside this region): the fixture's own
  std::string tp_item,attached;unsigned released=0;
- LPCSTR netcoop_tp_motion(LPCSTR item){return item&&tp_item==item?"nw_tp_hud_bread":nullptr;}
+ LPCSTR netcoop_tp_motion(LPCSTR item){return item&&!tp_item.empty()&&tp_item==item?"nw_tp_hud_bread":nullptr;}
  void netcoop_tp_item_attach(LPCSTR item){attached=item?item:"";}void netcoop_tp_item_release(){++released;}
  static void netcoop_consumption_end(CBlend*);void netcoop_play_consumption(u8,LPCSTR);void netcoop_expire_consumption();
 };
