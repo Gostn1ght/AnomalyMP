@@ -5,12 +5,19 @@
 #   powershell -File netcoop_master_control.ps1 -MasterRoot <server folder> -StartMaster
 # The master ships as LostZoneMaster.exe with a portable Python fallback; its private config
 # and world DB live in hoster\master\runtime and never leave this PC.
-param([string]$MasterRoot = '', [switch]$StartMaster, [switch]$StopMaster)
+param([string]$MasterRoot = '', [switch]$StartMaster, [switch]$StopMaster, [switch]$InitMaster)
 
 $masterDir = Join-Path $PSScriptRoot 'master'
 $masterPython = Join-Path $masterDir 'python\python.exe'
 $masterExe = Join-Path $masterDir 'LostZoneMaster.exe'
 $masterConfig = Join-Path $masterDir 'runtime\config.json'
+# The master in the engine (owner 2026-10-19: part of the game engine, in C++):
+# the server executable with -netcoop_master, its own window, SQLite beside it.
+$engineExe = Join-Path (Split-Path $PSScriptRoot -Parent) 'dedicated\LostZoneServerDX11.exe'
+$engineSqlite = Join-Path (Split-Path $PSScriptRoot -Parent) 'dedicated\sqlite3.dll'
+function Master-Engine {
+    return (Test-Path -LiteralPath $engineExe -PathType Leaf) -and (Test-Path -LiteralPath $engineSqlite -PathType Leaf)
+}
 $masterPort = 38477
 # GAMMA's new game: 26.10.2018 08:00 in engine game milliseconds.
 $masterDefaultCalendar = 63676137600000
@@ -18,14 +25,21 @@ $masterDefaultCalendar = 63676137600000
 function Master-Processes {
     # Match exact executable paths, including both onefile bootloader processes.
     # A neighbouring hoster's directory or unrelated Python must never match.
-    @(Get-CimInstance Win32_Process -Filter "Name='python.exe' OR Name='LostZoneMaster.exe'" -ErrorAction SilentlyContinue | Where-Object {
+    @(Get-CimInstance Win32_Process -Filter "Name='python.exe' OR Name='LostZoneMaster.exe' OR Name='LostZoneServerDX11.exe'" -ErrorAction SilentlyContinue | Where-Object {
         $_.ExecutablePath -and (($_.ExecutablePath -ieq $masterExe) -or
+            ($_.ExecutablePath -ieq $engineExe -and $_.CommandLine -like '*-netcoop_master*') -or
             ($_.ExecutablePath -ieq $masterPython -and $_.CommandLine -like '*lostzone*')) })
 }
 function Master-Available {
-    return (Test-Path -LiteralPath $masterExe -PathType Leaf) -or (Test-Path -LiteralPath $masterPython -PathType Leaf)
+    return (Master-Engine) -or (Test-Path -LiteralPath $masterExe -PathType Leaf) -or (Test-Path -LiteralPath $masterPython -PathType Leaf)
 }
 function Master-Invocation([string[]]$Arguments) {
+    if (Master-Engine) {
+        if ($Arguments.Count -ge 2 -and $Arguments[0] -ceq '-m' -and $Arguments[1] -ceq 'lostzone') {
+            $Arguments = @($Arguments | Select-Object -Skip 2)
+        }
+        return @{ File = $engineExe; Arguments = @('-netcoop_master') + $Arguments }
+    }
     if (Test-Path -LiteralPath $masterExe -PathType Leaf) {
         # Existing callers use the module entry point. The packaged entry point
         # takes exactly the same CLI after removing Python's module prefix.
@@ -132,6 +146,13 @@ function Start-Master([string]$RuntimeRoot, [string[]]$Locations) {
     $out = Join-Path $logs "master_$stamp.log"; $err = Join-Path $logs "master_$stamp.err.log"
     Get-ChildItem -LiteralPath $logs -Filter 'master_*.log' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -Skip 10 |
         ForEach-Object { try { Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop } catch {} }
+    if (Master-Engine) {
+        # The master's own window (owner 2026-10-19); its journal is the log the panel shows.
+        $gate = if ($entry -gt 0 -and $entry -lt 65536) { $entry } else { 0 }
+        Start-Process -FilePath $engineExe -WorkingDirectory $masterDir -ArgumentList ('-netcoop_master window --config runtime\config.json --initialized ' +
+            "--cluster `"$plan`" --gateway-port $gate --log-file `"$out`"") -WindowStyle Normal
+        return 'Мастер открыт в своём окне «Lost Zone — мастер мира».'
+    }
     $env:PYTHONIOENCODING = 'utf-8'; $env:PYTHONUNBUFFERED = '1'
     if (Test-Path -LiteralPath $masterExe -PathType Leaf) {
         Start-Process -FilePath $masterExe -WorkingDirectory $masterDir -ArgumentList ('serve --config runtime\config.json' + $extra) -WindowStyle Hidden -RedirectStandardOutput $out -RedirectStandardError $err
@@ -194,6 +215,12 @@ function Plan-Locations([string]$RuntimeRoot) {
     return $maps
 }
 
+if ($InitMaster) {
+    # The engine master's first start from its executable: the same preparation.
+    $ErrorActionPreference = 'Stop'
+    try { $root = [IO.Path]::GetFullPath($MasterRoot); Initialize-Master $root (Plan-Locations $root); exit 0 }
+    catch { Write-Host $_.Exception.Message; exit 1 }
+}
 if ($StartMaster -or $StopMaster) {
     $ErrorActionPreference = 'Stop'
     try {
