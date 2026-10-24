@@ -79,6 +79,7 @@ jobs:
           python scripts/check-netcoop-rp-anims.py
           python scripts/check-netcoop-zones.py
           python scripts/check-netcoop-stash-fill.py
+          python scripts/check-netcoop-dcp.py
           python scripts/check-netcoop-taskboard.py
           python scripts/check-netcoop-contracts.py
           python scripts/check-netcoop-ranks.py

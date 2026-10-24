@@ -154,7 +154,30 @@ local function server_entity_on_unregister(se_obj)
 	if box then alife_release(box) end
 end
 
+-- GAMMA's old cars (owner 2026-10-24: "cut all the old cars", the Definitive
+-- Car Pack's dcp_* instead; the spawner no longer lists them): one left in a
+-- world is removed once the world runs, its trunk with it. The helicopters stay.
+local OLD_CARS = { veh_niva = true, veh_uaz_01 = true, veh_uaz_02 = true, veh_uaz_buhanka = true, veh_zaz = true,
+	veh_zaz_968 = true, veh_moskvich = true, veh_tr13 = true, veh_zil_130 = true, veh_zil_131 = true, veh_kamaz_fura = true,
+	veh_kamaz = true, veh_laz = true, veh_kavz = true, veh_gaz = true, veh_btr = true, veh_hl2baggi = true }
+
+local function cut_old_cars()
+	local sim = alife()
+	if not sim then return false end
+	local removed = 0
+	for id = 1, 65534 do
+		local se = sim:object(id)
+		if se and OLD_CARS[se:section_name()] then
+			alife_release(se)
+			removed = removed + 1
+		end
+	end
+	if removed > 0 then printf("[Lost Zone][vehicle] %s old GAMMA car(s) removed from the world", removed) end
+	return true
+end
+
 function on_game_start()
 	if netcoop_pure_client and netcoop_pure_client() then return end
 	RegisterScriptCallback("server_entity_on_unregister", server_entity_on_unregister)
+	if AddUniqueCall then AddUniqueCall(cut_old_cars) end
 end

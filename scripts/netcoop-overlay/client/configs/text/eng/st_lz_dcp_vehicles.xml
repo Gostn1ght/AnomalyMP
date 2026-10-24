@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="windows-1251"?>
+<string_table>
+	<string id="bmw5_name">
+		<text>BMW 5 E34</text>
+	</string>
+	<string id="bmw7_name">
+		<text>BMW 7 E32</text>
+	</string>
+	<string id="brdm_name">
+		<text>BRDM-2</text>
+	</string>
+	<string id="btr60_name">
+		<text>BTR-60</text>
+	</string>
+	<string id="btr82_name">
+		<text>BTR-82</text>
+	</string>
+	<string id="buggy_name">
+		<text>Buggy</text>
+	</string>
+	<string id="gaz21_name">
+		<text>GAZ-21 "Volga"</text>
+	</string>
+	<string id="gaz24_name">
+		<text>GAZ-24 "Volga"</text>
+	</string>
+	<string id="golf_name">
+		<text>BMW E32</text>
+	</string>
+	<string id="kamaz_army_name">
+		<text>KAMAZ-5350</text>
+	</string>
+	<string id="kamaz_name">
+		<text>KAMAZ</text>
+	</string>
+	<string id="lada_2101_name">
+		<text>VAZ-2101</text>
+	</string>
+	<string id="lada_2107_name">
+		<text>VAZ-2107</text>
+	</string>
+	<string id="lada_2108_name">
+		<text>VAZ-2108</text>
+	</string>
+	<string id="lada_2109_name">
+		<text>VAZ-2109</text>
+	</string>
+	<string id="luaz_name">
+		<text>LuAZ-969M</text>
+	</string>
+	<string id="mercedes_name">
+		<text>Mercedes W124</text>
+	</string>
+	<string id="mercedes_retro_name">
+		<text>Mercedes W123</text>
+	</string>
+	<string id="moskvich_2715_name">
+		<text>Moskvich 2715</text>
+	</string>
+	<string id="moskvich_408_name">
+		<text>Moskvich 408</text>
+	</string>
+	<string id="moskvich_412_name">
+		<text>Moskvich 412</text>
+	</string>
+	<string id="moskvich_retro_name">
+		<text>Moskvich 407</text>
+	</string>
+	<string id="mtz80_name">
+		<text>MTZ-80</text>
+	</string>
+	<string id="niva_name">
+		<text>Niva 2121</text>
+	</string>
+	<string id="oka_name">
+		<text>VAZ-1111 "Oka"</text>
+	</string>
+	<string id="paz3206_name">
+		<text>PAZ-3206</text>
+	</string>
+	<string id="paz_name">
+		<text>PAZ-672</text>
+	</string>
+	<string id="raf2203_name">
+		<text>RAF2203</text>
+	</string>
+	<string id="super_niva_name">
+		<text>Tuned up Lada Niva 2329</text>
+	</string>
+	<string id="toyota_name">
+		<text>Toyota Corolla</text>
+	</string>
+	<string id="uaz_civ_name">
+		<text>UAZ-31514</text>
+	</string>
+	<string id="uaz_jag_name">
+		<text>UAZ-3907 "Jaguar"</text>
+	</string>
+	<string id="uaz_name">
+		<text>UAZ-469</text>
+	</string>
+	<string id="uaz_van_name">
+		<text>UAZ-2206</text>
+	</string>
+	<string id="ural_name">
+		<text>Ural-4320</text>
+	</string>
+	<string id="zaz965_name">
+		<text>ZAZ-965 Zaporozhets</text>
+	</string>
+	<string id="zaz968_name">
+		<text>ZAZ-968M Zaporozhets</text>
+	</string>
+	<string id="zil131_name">
+		<text>ZIL-131</text>
+	</string>
+	<string id="zil_name">
+		<text>ZIL-130</text>
+	</string>
+</string_table>

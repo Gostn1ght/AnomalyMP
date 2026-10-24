@@ -1,0 +1,313 @@
+;-- ;physics\vehicles\zil\veh_zil_u_01.ogf (vehicle_zil)
+;-- ЗИЛ-130 Definitive Car Pack
+;-- Сделал: Videoton
+
+[disable]
+linear_factor			= 0.5
+angular_factor    		= 0.5
+
+;-------------------------------------------------------------------------------
+;-------------------------------------------------------------------------------
+
+[car_definition]
+character_scraper
+time_to_explosion			= 0 ;-- time to explode when damaged (ms)
+camera_pos        			= -0.404, 2.08, 0.87	;смещение камеры в кабине влево-вправо, вверх-вниз, вперед-назад
+	
+camera_pos_firsteye			= -0.404, 2.08, 0.87
+camera_pos_lookat			= 0.0, 2.6, -0.83
+camera_pos_free				= 0.0, 2.7, -1.03		
+								
+driving_wheels    			= back_left_wheel,back_right_wheel					; ведущие колёса
+steering_wheels   			= front_left_wheel,front_right_wheel					; рулевые колёса
+breaking_wheels   			= back_left_wheel,back_right_wheel,front_left_wheel,front_right_wheel	; тормозящие колёса
+doors             			= left_door,right_door							; двери
+steer             			= stearing_wheel							; руль
+driver_place      			= seat_left								; место водителя
+exhausts          			= exhausts								; выхлопная труба
+exhaust_particles 			= vehiclefx\exhausts\exhaust_kamaz
+damage						= damage_bones
+trunk_bone					= kuzov
+nitro						= true
+nitro_power_factor			= 1.2
+nitro_fuel_factor			= 1.4
+nitro_particles_enabled		= false
+
+collision_hit_threshold = 0.2 ; [LA DC] minimum physical collision damage to be applied to car (vanilla is 5.0)
+
+;-------------------------------------------------------------------------------
+;------ Factory parameters of Engine -------------------------------------------
+
+fuel_tank					= 150         	; L
+fuel_consumption			= 0				; L / (100k R); liters per 100 000 rotations
+engine_power				= 39.5        	; horse_power (kW=hp*0.808) max power
+max_power_rpm				= 3300        	; (nominal rpm ) on this rpm value engine power reaches maximum
+max_torque_rpm				= 2250       	; on this rpm engine torque reaches maximum
+
+power_increment_factor		= 0.01
+power_decrement_factor		= 0.1
+rpm_increment_factor		= 0.03
+rpm_decrement_factor		= 0.15
+m_power_neutral_factor		= 0.55
+
+; additional engine parameters
+
+max_engine_rpm			= 4000		; rpm (5000) rpm will never be more
+idling_engine_rpm		= 850       	; rpm (750) min rpm - starts from this rpm value
+
+;-------------------------------------------------------------------------------
+;------ Adjustment a wheel -----------------------------------------------------
+
+reference_radius		= 0.59		; Радиус колеса, используемый при просчёте двигателя
+axle_friction     		= 3       	; Ослабление скорости в неетральной позиции. (N*m)
+steering_speed    		= 0.55         	; Время поворота рулевого колеса, в максимум. rps (1)
+steering_torque   		= 200000    	; Сила гидроусилителя руля. (N*m)
+break_torque			= 0.070		; Сила тормозных колодок. (N*m
+hand_break_torque		= 0.070		; сила торможения пробелом (по умолчанию = break_torque)
+break_time        		= 1.0         	; время нарастания силы торможения до максимума, при подтормаживании (стрелка назад)
+
+;-------------------------------------------------------------------------------
+;------ Gearbox ----------------------------------------------------------------
+
+main_gear_ratio    		= 24.9         ; Передаточное отношение
+auto_transmission  		= on           ; Автоматическая коробка (on/off)
+
+[transmission_gear_ratio]
+; shift down/ shift up. (rpm, необходимое для переключения)
+R	= 3.60, 1700, 3750	
+N1	= 3.60, 1700, 3750
+N2	= 1.87, 1700, 3750
+N3	= 1.11, 1800, 3750
+N4	= 0.72, 1900, 3750
+
+;-------------------------------------------------------------------------------
+;------ Rest Adjustment --------------------------------------------------------
+
+[lights]
+headlights				= f1,f2
+
+[f1]
+bone               		= left_light
+color              		= 1.27,1.2,1.1,1
+range              		= 44
+cone_angle         		= 58
+spot_texture       		= lights\lights_bspot01_cv
+glow_texture       		= glow\glow_Yellow
+glow_radius        		= 1.1
+
+[f2]
+bone               		= right_light
+color              		= 1.27,1.2,1.1,1
+range              		= 44
+cone_angle         		= 58
+spot_texture       		= lights\lights_bspot01_cv
+glow_texture       		= glow\glow_Yellow
+glow_radius        		= 1.1
+
+[car_sound]
+snd_volume         		    = 1.0
+snd_name           		    = car\l_zil_run
+engine_sound_start_dellay	= 0.5
+engine_start			    = car\l_zil_start
+engine_stop				    = car\l_zil_stop
+transmission_switch		    = car\o_truck_gear
+explosion_sound    		    = weapons\heli_explosion
+relative_pos       			= -0.1,0.5,2.5
+
+;-------------------------------------------------------------------------------
+;------ animations params ------------------------------------------------------
+
+[doors]
+open_torque_factor		= 6	;множитель момента сил для открывания двери (default = 2)
+
+[animations]
+
+driver_animation_type		= 3	;тип анимаций актера для данной машины.
+
+;-------------------------------------------------------------------------------
+;------ damage params ----------------------------------------------------------
+
+[damage_particles]
+explosion_particles		= explosions\expl_mushroom_01
+car_damage_particles1		= explosions\expl_car_smoke_small
+car_damage_particles2		= explosions\expl_car_smoke_big
+wheels_damage_particles1	= vehiclefx\exhaust_1
+wheels_damage_particles2	= vehiclefx\exhaust_1
+
+particle_bones1			= kabina
+particle_bones2			= root
+
+;-------------------------------------------------------------------------------
+;------ particle bones ---------------------------------------------------------
+
+[particle_bones]
+root				=  0,-0.2,2.7
+kabina				=  0,0,1.1
+						
+;-------------------------------------------------------------------------------
+;------ damage items -----------------------------------------------------------
+
+[damage_items]
+back_left_wheel       	= 0
+back_right_wheel      	= 0
+front_left_wheel      	= 0
+front_right_wheel     	= 0
+left_door				= 0
+right_door				= 0
+
+;-------------------------------------------------------------------------------
+;------ collisiondamage --------------------------------------------------------
+
+[collision_damage]
+root                  	= 0.00007
+front_bamper			= 0.0001
+kabina                	= 0.0001
+kabina2					= 0.0001
+seat_left				= 0.00008
+bak						= 0.00006
+kuzov					= 0.00003
+kuzov_back				= 0.00003
+kuzov_left				= 0.00003
+kuzov_right				= 0.00003
+front_axle				= 0.00005
+back_axle				= 0.00005
+back_left_wheel       	= 0.00001
+back_right_wheel      	= 0.00001
+front_left_wheel      	= 0.00001
+front_right_wheel     	= 0.00001
+
+
+;-------------------------------------------------------------------------------
+;------ damage bones -----------------------------------------------------------
+
+[damage_bones]										;аналогично секции в актере, но без анимаций
+;bone_name			= <hit_scale>,<-1>,<wound_scale>
+;<hit_scale>			- коэфф. изменения хита (уменьшения здоровья)
+;<wound_scale>			- коэфф. изменения величины открытой раны - незадействован
+
+default				= 1, -1, 0.1
+
+[immunities]
+;-- 0.0 => 100% invulnerable
+;-- 1.0 => 100% vulnerable
+burn_immunity			= 0.08							;коэффициенты иммунитета
+strike_immunity			= 0.0045
+shock_immunity			= 0.04
+wound_immunity			= 0.0
+radiation_immunity		= 0.0
+telepatic_immunity		= 0.0
+chemical_burn_immunity	= 0.04
+explosion_immunity		= 0.09
+fire_wound_immunity		= 0.013
+;-------------------------------------------------------------------------------
+;----------------explosion params-----------------------------------------------
+
+[explosion]
+blast					= 1
+blast_r					= 15
+blast_impulse			= 350
+frags		        	= 15
+frags_r					= 30
+frag_hit				= 0.5
+frag_hit_impulse		= 350
+hit_type_blast			= explosion
+hit_type_frag			= fire_wound
+up_throw_factor			= 0.25
+wm_size             	= 0.1
+explode_particles		= explosions\expl_car
+light_color				= 0.6,0.5,0.3
+light_range				= 15.0
+light_time 				= 0.5
+
+;трассы от осколков
+fragment_speed				= 76
+fragment_tracer_max_length	= 3
+explode_duration    		= 50			;подолжительность взрыва (с)
+
+;звуки
+snd_explode				= weapons\heli_explosion
+;wallmarks
+wallmark_section		= explosion_marks
+
+[explode_effector]
+effect_sect_name= effector_explode_hit
+
+;-------------------------------------------------------------------------------
+;------ Others params ----------------------------------------------------------
+
+[air_resistance]
+linear_factor			= 65000.f		;
+angular_factor			= 1500.f		;
+
+
+[wheels_params]
+suspension_distance = 0.20
+suspension_force_inc = 50
+suspension_spring_factor = 1
+suspension_damping_factor = 5
+suspension_inertia = 0.5
+damping_factor			= 2			;
+spring_factor			= 1			;
+friction_factor			= 1.2		;
+
+[front_left_wheel]
+break_torque			= 0.04		; Сила тормозных колодок. (N*m
+hand_break_torque		= 0.003		; сила торможения пробелом (по умолчанию = break_torque)
+damping_factor			= 2			;
+spring_factor			= 1			;
+friction_factor			= 1.0		;
+
+[front_right_wheel]
+break_torque			= 0.04		; Сила тормозных колодок. (N*m
+hand_break_torque		= 0.003		; сила торможения пробелом (по умолчанию = break_torque)
+damping_factor			= 2			;
+spring_factor			= 1			;
+friction_factor			= 1.0		;
+
+[back_left_wheel]
+break_torque			= 0.04		; Сила тормозных колодок. (N*m
+hand_break_torque		= 0.07		; сила торможения пробелом (по умолчанию = break_torque)
+damping_factor			= 2			;
+spring_factor			= 1			;
+friction_factor			= 1.15		;
+
+[back_right_wheel]
+break_torque			= 0.04		; Сила тормозных колодок. (N*m
+hand_break_torque		= 0.07		; сила торможения пробелом (по умолчанию = break_torque)
+damping_factor			= 2			;
+spring_factor			= 1			;
+friction_factor			= 1.15		;
+
+[collide]
+not_collide_parts		= 1
+
+;-------------------------------------------------------------------------------
+;------ destroyed part ---------------------------------------------------------
+
+[destroyed]
+physics\vehicles\veh_empty
+;;physics\vehicles\Zaz\part\veh_zaz_u_01_part1
+;;physics\vehicles\Zaz\part\veh_zaz_u_01_part2
+;;physics\vehicles\Zaz\part\veh_zaz_u_01_part3
+;;physics\vehicles\Zaz\part\veh_zaz_u_01_part4
+;physics\vehicles\Zaz\part\veh_zaz_u_01_part5
+;physics\vehicles\Zaz\part\veh_zaz_u_01_part6
+
+
+[autoremove_parts]
+time				= 180
+
+;-------------------------------------------------------------------------------
+;--- part impulse_transition ---------------------------------------------------
+
+[impulse_transition_to_parts]
+random_min					= 10.0		; величина случайно направленного импульса пропорционально массе нового объекта
+random_hit_imp				= 1.0		; величина случайно направленного импульса пропорционально разрушающему хиту
+;ref_bone			=		; кость из по которой определяется скорость для частей у который связь не задана, по умолчанию рут
+imp_transition_factor		= 1.0		; фактор с которым прикладывается хит по исходному объекту ко всем частям 
+lv_transition_factor		= 0.5		; коэффициент передачи линейной скорости
+av_transition_factor		= 0.5		; коэффициент передачи угловой скорости
+
+;-------------------------------------------------------------------------------
+;------ End params -------------------------------------------------------------
+
