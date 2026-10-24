@@ -46,7 +46,14 @@ extern u32 hud_adj_mode;
 
 void CActor::IR_OnKeyboardPress(int cmd)
 {
-	if (m_rp_index >= 0) return;
+	// During an RP animation only the view changes (owner 2026-10-24).
+	if (m_rp_index >= 0)
+	{
+		if (cmd == kCAM_1) cam_Set(eacFirstEye);
+		else if (cmd == kCAM_2 && netcoop_outside_view_allowed()) cam_Set(eacLookAt);
+		else if (cmd == kCAM_3 && netcoop_outside_view_allowed()) cam_Set(eacFreeLook);
+		return;
+	}
 	if ((cmd == kACTIVE_JOBS || cmd == kUSE) && netcoop::pure_client())
 		Msg("[Lost Zone] actor key %d: remote=%d talking=%d handler=%d alive=%d holder=%d", cmd, Remote() ? 1 : 0,
 			IsTalking() ? 1 : 0, m_input_external_handler ? 1 : 0, g_Alive() ? 1 : 0, m_holder ? 1 : 0);
@@ -356,8 +363,10 @@ void CActor::IR_OnKeyboardRelease(int cmd)
 
 void CActor::IR_OnKeyboardHold(int cmd)
 {
-	// A walking RP pose (New Way's): only the movement keys.
-	if (m_rp_index >= 0 && !(rp_walking() && (cmd == kFWD || cmd == kBACK || cmd == kL_STRAFE || cmd == kR_STRAFE)))
+	// A walking RP pose (New Way's): the movement keys; every pose: the
+	// outside view's distance.
+	if (m_rp_index >= 0 && cmd != kCAM_ZOOM_IN && cmd != kCAM_ZOOM_OUT &&
+		!(rp_walking() && (cmd == kFWD || cmd == kBACK || cmd == kL_STRAFE || cmd == kR_STRAFE)))
 		return;
 	if (hud_adj_mode && pInput->iGetAsyncKeyState(DIK_LSHIFT)) return;
 

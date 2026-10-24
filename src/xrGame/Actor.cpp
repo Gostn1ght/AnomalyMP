@@ -1916,6 +1916,8 @@ void CActor::shedule_Update(u32 DT)
 		// A walking pose (New Way's) walks: no run, jump or crouch.
 		const bool rp_walk_pose = rp_walking();
 		const bool rp_playing = m_rp_index >= 0 && !rp_walk_pose;
+		// The player's own walk toggle comes back after the pose.
+		const u32 rp_accel = mstate_wishful & mcAccel;
 		if (rp_walk_pose)
 		{
 			mstate_wishful &= ~(mcJump | mcSprint | mcCrouch);
@@ -1930,6 +1932,8 @@ void CActor::shedule_Update(u32 DT)
 		g_cl_CheckControls(mstate_wishful, NET_SavedAccel, NET_Jump, dt);
 		if (rp_playing)
 			mstate_wishful |= rp_held; // keys still held move the player afterwards
+		if (rp_walk_pose)
+			mstate_wishful = (mstate_wishful & ~mcAccel) | rp_accel;
 		{
 			/*
 			if (mstate_real & mcJump)

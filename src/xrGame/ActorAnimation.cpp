@@ -633,22 +633,34 @@ LPCSTR CActor::netcoop_tp_motion(LPCSTR item)
 
 // The item in the hand while New Way's motion plays: only a model this
 // client has (a missing one would not load).
+// Once per item section: what the other players see of its use (owner
+// 2026-10-24: "nothing in the hands" - the log says why).
+static void netcoop_tp_note(LPCSTR item, LPCSTR what)
+{
+	static xr_set<shared_str> noted;
+	if (noted.size() < 512 && noted.insert(shared_str(item ? item : "")).second)
+		Msg("[Lost Zone][3p] %s: %s", item ? item : "?", what);
+}
+
 void CActor::netcoop_tp_item_attach(LPCSTR item)
 {
 	netcoop_tp_item_release();
 	const shared_str tp = netcoop_tp_section(item);
-	if (!tp.size() || !m_netcoop_consumption_until) return;
+	if (!m_netcoop_consumption_until) return;
+	if (!tp.size()) return netcoop_tp_note(item, "no New Way data (generic motion)");
 	// a gesture (a door, a campfire) has no item
 	LPCSTR visual = READ_IF_EXISTS(pSettings, r_string, tp, "third_person_item_visual", nullptr);
-	if (!visual || !visual[0]) return;
+	if (!visual || !visual[0]) return netcoop_tp_note(item, "gesture, no item");
 	string_path file;
 	xr_strcpy(file, visual);
 	if (!strext(file)) xr_strcat(file, ".ogf");
 	IKinematics* body = smart_cast<IKinematics*>(Visual());
 	const u16 bone = body ? body->LL_BoneID(pSettings->r_string(tp, "third_person_attach_bone")) : BI_NONE;
-	if (bone == BI_NONE || !FS.exist("$game_meshes$", file)) return;
+	if (bone == BI_NONE) return netcoop_tp_note(item, "the body has no attach bone");
+	if (!FS.exist("$game_meshes$", file)) return netcoop_tp_note(item, make_string("model %s missing", file).c_str());
 	m_netcoop_tp_item = ::Render->model_Create(visual);
-	if (!m_netcoop_tp_item) return;
+	if (!m_netcoop_tp_item) return netcoop_tp_note(item, "model failed to load");
+	netcoop_tp_note(item, make_string("%s in the hand (%s)", visual, tp.c_str()).c_str());
 	m_netcoop_tp_bone = bone;
 	const Fvector position = pSettings->r_fvector3(tp, "third_person_attach_position");
 	const Fvector rotation = pSettings->r_fvector3(tp, "third_person_attach_rotation");

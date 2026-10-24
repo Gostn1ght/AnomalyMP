@@ -27,7 +27,7 @@ end
 
 local function my_line()
 	local me = net().me
-	local dev = net().device
+	local dev = net().slot_device
 	if net().foreign and dev then return string.format(tr("st_pdanet_foreign_footer"), dev.serial or "?") end
 	if me.uid == "" then return tr("st_pdanet_connecting") end
 	return string.format("%s  -  UID %s", me.name, me.uid)
@@ -286,7 +286,7 @@ local function device_layer(self)
 	l.info = static(self, "msg_head", 60, 156, 700, 22)
 	l.progress = static(self, "msg_head", 60, 180, 700, 22)
 	l.hack = button(self, tr("st_pdanet_hack"), 60, 208, 170, 30, function()
-		if net().hack_left(net().device) then net().hack_stop() else net().hack() end
+		if net().hack_left(net().slot_device) then net().hack_stop() else net().hack() end
 	end)
 	l.data = button(self, tr("st_pdanet_dump"), 240, 208, 170, 30, function() net().ask_dump() end)
 	l.wipe = button(self, tr("st_pdanet_wipe"), 420, 208, 170, 30, function() net().wipe() end)
@@ -313,7 +313,7 @@ show_device = function(self)
 		l.up:Show(false); l.down:Show(false); l.view:Show(false)
 		return
 	end
-	local v = net().device or {}
+	local v = net().slot_device or {}
 	local hacked = v.hacked == true
 	local left = net().hack_left(v)
 	text(l.title, tr("st_pdanet_foreign") .. "   " .. string.format(tr("st_pdanet_serial"), v.serial or "?"))

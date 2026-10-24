@@ -56,7 +56,9 @@ end
 me = { uid = "", name = "", icon = "" }
 contacts = {}       -- list of { uid, name, icon, online }
 locked = false      -- the PDA's password is not entered yet (server's word)
-device = nil        -- the PDA in the slot: { serial, own, level, lock, hacked, owner, hack_left, hack_total, at }
+-- the PDA in the slot: { serial, own, level, lock, hacked, owner, hack_left, hack_total, at }. Not
+-- "device": unset, a module global falls back to the engine's device() function.
+slot_device = nil
 foreign = false     -- someone else's PDA is in the slot: the tabs show the device (netcoop_pdanet_ui)
 dump = nil          -- a hacked PDA's owner's data: { serial, owner, contacts, chats, notes }
 npc = {}            -- an NPC's PDA item id -> { id, serial, level, info, hack_left, hack_total, at }
@@ -212,8 +214,8 @@ local function apply(verb, v)
 		end
 	elseif verb == "device" and type(v) == "table" then
 		v.at = time_global()
-		if not (device and device.serial == v.serial) then dump = nil end
-		device = not v.none and v or nil
+		if not (slot_device and slot_device.serial == v.serial) then dump = nil end
+		slot_device = not v.none and v or nil
 	elseif verb == "dump" and type(v) == "table" then
 		dump = v
 	elseif verb == "npc" and type(v) == "table" and tonumber(v.id) then

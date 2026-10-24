@@ -179,7 +179,9 @@ void CLevel::IR_OnKeyboardPress(int key)
 	if (netcoop::pure_client() && CurrentControlEntity())
 	{
 		CActor* actor = smart_cast<CActor*>(CurrentControlEntity());
-		if (actor && actor->m_rp_index >= 0 && key != DIK_Z &&
+		// The view keys too (owner 2026-10-24: first/third person during RP).
+		const bool view_key = _curr == kCAM_1 || _curr == kCAM_2 || _curr == kCAM_3;
+		if (actor && actor->m_rp_index >= 0 && key != DIK_Z && !view_key &&
 			_curr != kQUIT && _curr != kCONSOLE && _curr != kSCREENSHOT)
 		{
 			// RP locks gameplay, but the wheel's Stop button must receive
