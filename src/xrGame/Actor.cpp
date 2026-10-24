@@ -1158,8 +1158,17 @@ bool CActor::ServerProcessInputs(float server_dt)
 	return true;
 }
 
+bool CActor::netcoop_outside_view_allowed() const
+{
+	if (!netcoop::pure_client() || Level().CurrentControlEntity() != this) return true;
+	return netcoop::client_admin_authorized() || m_rp_index >= 0;
+}
+
 void CActor::UpdateCL()
 {
+	// The outside view ends with the RP animation (and whatever else set it).
+	if (g_Alive() && !m_holder && cam_active != eacFirstEye && !netcoop_outside_view_allowed())
+		cam_Set(eacFirstEye);
 	if (g_Alive() && Level().CurrentViewEntity() == this)
 	{
 		if (CurrentGameUI() && (!CurrentGameUI()->TopInputReceiver() || (CurrentGameUI()->TopInputReceiver() && !CurrentGameUI()->TopInputReceiver()->StopAnyMove())) && !m_holder)

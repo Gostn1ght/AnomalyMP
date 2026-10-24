@@ -168,9 +168,9 @@ void CActor::IR_OnKeyboardPress(int cmd)
 		break;
 	case kCAM_1: cam_Set(eacFirstEye);
 		break;
-	case kCAM_2: cam_Set(eacLookAt);
+	case kCAM_2: if (netcoop_outside_view_allowed()) cam_Set(eacLookAt);
 		break;
-	case kCAM_3: cam_Set(eacFreeLook);
+	case kCAM_3: if (netcoop_outside_view_allowed()) cam_Set(eacFreeLook);
 		break;
 	case kNIGHT_VISION:
 		{

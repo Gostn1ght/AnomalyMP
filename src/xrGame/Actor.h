@@ -605,6 +605,9 @@ public:
 	// Netcoop RP animation (emote): index into netcoop::rp_anims(), -1 none.
 	// Phase 0 plays "in" once, 1 repeats "mid" while looping, 2 plays "out".
 	int m_rp_index = -1;
+	// Owner 2026-10-24: a player looks from the second or third person only
+	// during an RP animation; an administrator always.
+	bool netcoop_outside_view_allowed() const;
 	u8 m_rp_phase = 0;
 	u8 m_rp_step = 0;
 	bool m_rp_stopping = false;
