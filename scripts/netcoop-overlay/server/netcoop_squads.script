@@ -22,7 +22,11 @@ local COMMUNITIES = { "stalker", "bandit", "csky", "dolg", "freedom", "army", "k
 local function store() return netcoop_factions end
 local function now() return os.time() end
 local function char_of(obj) return obj and netcoop_actor_character and netcoop_actor_character(obj:id()) or "" end
-local function faction_of(obj) return ((character_community(obj) or ""):gsub("^actor_", "")) end
+-- the player's own faction, not a disguise (netcoop_factions)
+local function faction_of(obj)
+	if netcoop_factions and netcoop_factions.true_faction then return netcoop_factions.true_faction(obj) end
+	return ((character_community(obj) or ""):gsub("^actor_", ""))
+end
 
 local function squad_id_of(char)
 	return char ~= "" and store().store_get("squad_of", char).id or nil

@@ -848,11 +848,19 @@ function on_script_message(channel, data)
 		elseif kind == "joined" then show_text(string.format(game.translate_string("st_netcoop_squad_joined"), name)) end
 		return
 	elseif channel == "faction" then
-		-- The server changed this character's faction (doc 47).
-		local actor = db.actor
-		if actor and type(data) == "string" and data:match("^[%w_]+$") then
-			actor:set_character_community("actor_" .. data, 0, 0)
-			show_text(game.translate_string("st_netcoop_faction_changed") .. " " .. data)
+		-- The server changed this character's faction (doc 47); the engine
+		-- applied it already (netcoop_actor_faction).
+		if type(data) == "string" and data:match("^[%w_]+$") then
+			show_text(game.translate_string("st_netcoop_faction_changed") .. " " .. game.translate_string(data))
+		end
+		return
+	elseif channel == "disguise" then
+		-- The server shows this player in another faction's outfit, or his own
+		-- again (netcoop_factions, GAMMA's texts).
+		local state, comm = string.match(data or "", "^(%a+)|([%w_]+)$")
+		if state and actor_menu and actor_menu.set_msg then
+			local key = state == "on" and "ui_st_disguse_on" or "ui_st_disguse_back_to_default"
+			actor_menu.set_msg(1, string.format(game.translate_string(key), game.translate_string(comm)), 10)
 		end
 		return
 	elseif channel == "stash_spot" or channel == "stash_spot_remove" then
@@ -1328,6 +1336,9 @@ function on_game_start()
 	install_weather_follow()
 	if AddUniqueCall then AddUniqueCall(campfires_near_update) end
 	install_campfire_hands()
+	-- Disguise is the server's (netcoop_factions, spec 7.2): GAMMA's switch on
+	-- the client cannot change a community here and printed its own messages.
+	if gameplay_disguise then gameplay_disguise.try_to_disguise = function() end end
 	RegisterScriptCallback("on_key_press", door_key)
 	-- Keep the faction relations the engine read from the table: base-game's
 	-- reset_all_relations (run when no faction select window marked a new

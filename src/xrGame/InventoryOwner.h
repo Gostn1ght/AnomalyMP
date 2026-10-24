@@ -191,6 +191,9 @@ public:
 
 	//установка группировки на клиентском и серверном объкте
 	virtual void SetCommunity(CHARACTER_COMMUNITY_INDEX);
+	// Netcoop client: the community the server gives this player (SetCommunity
+	// needs ALife, which a client has not).
+	void netcoop_show_community(CHARACTER_COMMUNITY_INDEX index) { CharacterInfo().SetCommunity(index); }
 	virtual void SetRank(CHARACTER_RANK_VALUE);
 	virtual void ChangeRank(CHARACTER_RANK_VALUE);
 	virtual void SetReputation(CHARACTER_REPUTATION_VALUE);

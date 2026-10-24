@@ -82,12 +82,23 @@ local function faction_title(faction)
 	return game.translate_string(policy(faction, "title", faction))
 end
 
-local function current_faction(obj)
+-- The faction others see now: the player's own, or the one whose outfit he
+-- wears (disguise, owner 2026-10-24 spec 7.2).
+local function visible_faction(obj)
 	local community = character_community(obj) or ""
-	return community:gsub("^actor_", "")
+	return (community:gsub("^actor_", ""))
 end
 
 local function char_of(obj) return netcoop_actor_character and netcoop_actor_character(obj:id()) or "" end
+
+-- The player's own faction (membership, ranks, squads): the character's
+-- record; a character without one has the faction he shows.
+function true_faction(obj)
+	local char = char_of(obj)
+	local record = char ~= "" and (deserialize(netcoop_store_read("char_faction", char)) or {}).faction
+	return record or visible_faction(obj)
+end
+local current_faction = true_faction
 local function login_of(obj) return netcoop_actor_login and netcoop_actor_login(obj:id()) or "" end
 
 local function role_in(faction, char)
@@ -111,6 +122,28 @@ local function set_character_faction(char, faction)
 	end)
 end
 
+-- What others see of a player, on the server and on every client (owner
+-- 2026-10-24 spec 7.1: no death or relog). A client cannot change a
+-- community itself (no ALife there): the engine applies the message
+-- netcoop_actor_faction on each client (netcoop_script_messages.inc).
+local function show_faction(obj, faction)
+	obj:set_character_community("actor_" .. faction, 0, 0)
+	if netcoop_broadcast then netcoop_broadcast("netcoop_actor_faction", obj:id() .. "|actor_" .. faction) end
+end
+
+-- Disguise: the community of the outfit he wears, when it is another
+-- faction's (GAMMA's "community" of the outfit; a torn patch - "unpatched" -
+-- shows nothing). Factions a player cannot join (zombied, monolith in the
+-- story, ...) are not worn as a disguise.
+local function disguise_of(obj, own)
+	local outfit = obj:item_in_slot(7)
+	if not outfit then return own end
+	if se_load_var and se_load_var(outfit:id(), nil, "unpatched") then return own end
+	local comm = ini_sys:r_string_ex(outfit:section(), "community")
+	if not (comm and comm ~= "" and known(comm) and policy(comm, "disguise", "true") ~= "false") then return own end
+	return comm
+end
+
 -- Online characters get their faction now; offline ones at their next login
 -- (faction_update and the engine's character load).
 local function apply_now(char)
@@ -118,11 +151,12 @@ local function apply_now(char)
 	if not wanted then return end
 	for id in string.gmatch(netcoop_players and netcoop_players() or "", "%d+") do
 		local obj = level.object_by_id(tonumber(id))
-		if obj and char_of(obj) == char and current_faction(obj) ~= wanted then
-			obj:set_character_community("actor_" .. wanted, 0, 0)
+		if obj and char_of(obj) == char then
 			if netcoop_set_character_faction then netcoop_set_character_faction(obj:id(), wanted) end
+			local shown = disguise_of(obj, wanted)
+			if visible_faction(obj) ~= shown then show_faction(obj, shown) end
 			if netcoop_send_to_actor then netcoop_send_to_actor(obj:id(), "faction", wanted) end
-			printf("[Lost Zone][factions] %s is now %s", char, wanted)
+			printf("[Lost Zone][factions] %s is now %s%s", char, wanted, shown ~= wanted and (" (in " .. shown .. " outfit)") or "")
 		end
 	end
 end
@@ -463,6 +497,7 @@ end
 
 ---------------------------------------------------------------- keeping online Actors in their faction
 local next_check = 0
+local disguised = {} -- char -> the faction whose outfit he wears
 -- A few players per call, in turn: one store file read each. All online
 -- players at once every 5 s was 128 file reads in one server frame.
 local online_cursor = 0
@@ -475,9 +510,22 @@ function update_online()
 		online_cursor = online_cursor % #ids + 1
 		local obj = level.object_by_id(ids[online_cursor])
 		local char = obj and char_of(obj)
-		if char and char ~= "" then
+		if char and char ~= "" and obj:alive() then
 			local wanted = (deserialize(netcoop_store_read("char_faction", char)) or {}).faction
-			if wanted and current_faction(obj) ~= wanted then apply_now(char) end
+			local own = wanted or visible_faction(obj)
+			local shown = disguise_of(obj, own)
+			if shown ~= visible_faction(obj) then
+				if shown ~= own or disguised[char] then
+					-- the first disguise of a character without a record keeps his own faction
+					if not wanted then set_character_faction(char, own) end
+					disguised[char] = shown ~= own and shown or nil
+					show_faction(obj, shown)
+					if netcoop_send_to_actor then netcoop_send_to_actor(obj:id(), "disguise", shown == own and ("off|" .. own) or ("on|" .. shown)) end
+					printf("[Lost Zone][factions] %s shows %s (own %s)", char, shown, own)
+				else
+					apply_now(char) -- his own faction changed (another server, a leader)
+				end
+			end
 		end
 	end
 end

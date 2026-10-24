@@ -61,6 +61,7 @@ function player(id, char, faction)
     function o:change_character_rank(v) self.rank_ = self.rank_ + v end
     function o:give_money(v) self.money = self.money + v end
     function o:set_character_community(c) self.community = c end
+    function o:item_in_slot() return nil end
     players[id] = o; chars[id] = char
     return o
 end

@@ -50,6 +50,19 @@ void client_on_script(NET_Packet& P)
 		return;
 	if (!xr_strcmp(channel, "netcoop_transfer")) return client_cluster_transfer(data);
 	if (!xr_strcmp(channel, "netcoop_zones")) return client_on_zones(data);
+	if (!xr_strcmp(channel, "netcoop_actor_faction"))
+	{
+		// A player's faction or disguise changed on the server (netcoop_factions,
+		// owner 2026-10-24 spec 7.1-7.2): a client has no ALife, so a script's
+		// set_character_community does nothing here; the server's word does.
+		unsigned id = 0;
+		string128 name = {};
+		if (sscanf(data, "%u|%127s", &id, name) != 2 || id >= 0xffff) return;
+		const COMMUNITY_DATA* known = CHARACTER_COMMUNITY::GetById(shared_str(name), true);
+		CActor* actor = smart_cast<CActor*>(Level().Objects.net_Find(u16(id)));
+		if (known && actor) actor->netcoop_show_community(known->index);
+		return;
+	}
 	if (!xr_strcmp(channel, "netcoop_consumption"))
 	{
 		unsigned id=0, kind=0;

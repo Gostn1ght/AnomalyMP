@@ -1,5 +1,7 @@
 """Faction membership (doc 47): the actual netcoop_factions.script in two Lua
-VMs (two location servers) over one shared store with compare-and-swap."""
+VMs (two location servers) over one shared store with compare-and-swap; every
+client hears a player's new faction, and another faction's outfit disguises
+him (owner 2026-10-24, spec 7.1-7.2)."""
 from pathlib import Path
 from lupa.lua51 import LuaRuntime
 
@@ -52,7 +54,12 @@ clock = 1000
 os = {time = function() return clock end}
 logs = {}
 function printf(fmt, ...) logs[#logs + 1] = fmt end
-function time_global() return 0 end
+now_ms = 0
+function time_global() return now_ms end
+broadcasts = {}
+function netcoop_broadcast(channel, data) broadcasts[#broadcasts + 1] = channel .. " " .. data end
+OUTFITS = {dolg_outfit = "dolg", plain_outfit = "", zombie_outfit = "zombied"}
+ini_sys = {r_string_ex = function(_, s, k) return k == "community" and OUTFITS[s] or nil end}
 game = {translate_string = function(s) return s end}
 function ini_file() return {
     section_exist = function(_, s) return SECTIONS[s] ~= nil end,
@@ -73,6 +80,8 @@ function player(id, char, name, faction, rank)
     function o:character_name() return name end
     function o:character_rank() return self.rank_ end
     function o:set_character_community(c) self.community = c end
+    function o:alive() return true end
+    function o:item_in_slot(slot) return slot == 7 and self.outfit or nil end
     players[id] = o; chars[id] = char
     return o
 end
@@ -151,4 +160,24 @@ assert(console_leader("boss", "1", "off"):sub(1, 1) == "!", "no leadership to ta
 assert(console_leader("boss", "1", "freedom"):sub(1, 1) == "*", "the console gives it back")
 assert(console_leader("boss", "1", "stalker"):sub(1, 1) == "!", "loners have no leader, also from the console")
 ''')
-print("Factions: apply only, contracts gate, leader/deputy/admin decide per faction policy, cross-server membership, expel, furniture grant, loners/renegades rules, console roster/leader, admin renegade pardon PASS")
+# Spec 7.1-7.2: every client hears the change; an outfit disguises.
+b.execute(r'''
+local spy = player(11, "spy_1", "Spy", "stalker", 0)
+assert(force_join("freedom", "spy_1", "Spy"))
+assert(spy.community == "actor_freedom")
+local heard = false
+for _, line in ipairs(broadcasts) do if line == "netcoop_actor_faction 11|actor_freedom" then heard = true end end
+assert(heard, "every client hears the new faction: " .. table.concat(broadcasts, "; "))
+local function tick() for _ = 1, 4 do now_ms = now_ms + 1000; update_online() end end
+local function outfit(section) return {section = function() return section end, id = function() return 77 end} end
+spy.outfit = outfit("dolg_outfit"); tick()
+assert(spy.community == "actor_dolg", "a Duty outfit shows him as Duty: " .. spy.community)
+assert(true_faction(spy) == "freedom", "his own faction stays")
+assert(console_roster():find("11|freedom|member", 1, true), "membership by his own faction")
+spy.outfit = outfit("zombie_outfit"); tick()
+assert(spy.community == "actor_freedom", "a faction nobody joins is no disguise")
+spy.outfit = outfit("dolg_outfit"); tick(); assert(spy.community == "actor_dolg")
+spy.outfit = nil; tick()
+assert(spy.community == "actor_freedom", "taking the outfit off shows his own faction")
+''')
+print("Factions: apply only, contracts gate, leader/deputy/admin decide per faction policy, cross-server membership, expel, furniture grant, loners/renegades rules, console roster/leader, admin renegade pardon, faction heard by every client, outfit disguise PASS")
