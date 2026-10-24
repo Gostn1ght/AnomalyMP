@@ -20,6 +20,9 @@ public:
     json bootstrap_snapshot(bool engine);
     json set_state(const std::string& actor, const std::string& command_id, const json& name, const json& version, const json& state);
     json set_scale(const std::string& actor, const std::string& command_id, const json& value);
+    // An administrator moves the calendar forward: every location takes the
+    // new time at once; never backwards (calendar schedules would replay).
+    json advance(const std::string& actor, const std::string& command_id, const json& game_ms);
     json claim_location(const std::string& actor, const std::string& command_id, const json& location, const json& capacity, const json& ttl_ms);
     json renew_location(const std::string& actor, const std::string& command_id, const json& location, const json& fence, const json& ttl_ms);
     json require_location(Db& tx, const std::string& actor, const std::string& location, int64_t fence);

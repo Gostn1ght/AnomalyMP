@@ -116,6 +116,38 @@ const std::vector<std::string>& Timelines::phases(const std::string& name)
     return none;
 }
 
+std::pair<json, json> Timelines::plan(World& world, const std::string& name, const std::string& timeline_id,
+                                      const json& durations, const json& parameters)
+{
+    const auto& names = phases(name);
+    if (names.empty()) throw Invalid("invalid timeline name");
+    if (!durations.is_array() || durations.size() != names.size() - 1) throw Invalid("invalid timeline durations");
+    if (!parameters.is_object()) throw Invalid("invalid timeline parameters");
+    json out;
+    if (name == "weather")
+        out = { { "source", identifier(parameters.contains("source") ? parameters["source"] : json()) },
+                { "target", identifier(parameters.contains("target") ? parameters["target"] : json()) } };
+    else
+    {
+        const json intensity = parameters.contains("intensity") ? parameters["intensity"] : json();
+        if (finite(intensity, 0, 100) == 0) throw Invalid("emission intensity must be positive");
+        out = { { "intensity", intensity } };  // as given: Python keeps an int an int
+    }
+    std::string digest = sha256_raw("console-timeline:" + std::to_string(world.world_id) + ":" + std::to_string(world.seed) + ":" +
+                                    name + ":" + timeline_id);
+    uint64_t seed = 0;
+    for (int i = 0; i < 8; ++i) seed = (seed << 8) | uint8_t(digest[size_t(i)]);
+    out["seed"] = seed;
+    double at = world.now();
+    json times = { { names[0], at } };
+    for (size_t i = 1; i < names.size(); ++i)
+    {
+        at = finite(at + finite(durations[i - 1], .001, 86400) * 1000);
+        times[names[i]] = at;
+    }
+    return { times, out };
+}
+
 std::string Timelines::event_id(const std::string& name, const std::string& timeline_id, const std::string& phase)
 {
     return sha256_hex("timeline:" + name + ":" + timeline_id + ":" + phase).substr(0, 32);

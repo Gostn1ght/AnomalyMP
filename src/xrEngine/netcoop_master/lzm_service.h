@@ -82,6 +82,8 @@ private:
     HttpResponse handle(HttpRequest& request, const std::function<bool(size_t)>& read_body);
     HttpResponse handle_entry(HttpRequest& request);
     std::string timeline_command(const std::string& name, const std::vector<std::string>& args);
+    json admin_relay(const std::string& actor, const std::string& command_id, const json& args);
+    std::optional<std::string> home(const std::string& account, int64_t slot);
 };
 
 // gateway.read_cluster: [locations] name = host:port in file order.

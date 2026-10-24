@@ -48,36 +48,20 @@ std::string Service::timeline_command(const std::string& name, const std::vector
         return prefix + name + ": " + state["phase"].get<std::string>() + "; " + details + ".";
     }
     if (args.size() != (name == "weather" ? 3u : 4u)) throw Invalid("invalid timeline command arguments");
-    json parameters;
-    std::vector<double> durations;
-    std::vector<std::string> phases;
+    json parameters, durations = json::array();
     if (name == "weather")
     {
-        parameters = { { "source", identifier(args[0]) }, { "target", identifier(args[1]) } };
-        durations = { finite(py_float(args[2]), .001, 86400) };
-        phases = { "TRANSITION", "SETTLED" };
+        parameters = { { "source", args[0] }, { "target", args[1] } };
+        durations.push_back(py_float(args[2]));
     }
     else
     {
-        for (int i = 0; i < 3; ++i) durations.push_back(finite(py_float(args[size_t(i)]), .001, 86400));
-        double intensity = finite(py_float(args[3]), 0, 100);
-        if (intensity == 0) throw Invalid("emission intensity must be positive");
-        parameters = { { "intensity", intensity } };
-        phases = { "WARNING", "ACTIVE", "PEAK", "ENDED" };
+        parameters = { { "intensity", py_float(args[3]) } };
+        for (int i = 0; i < 3; ++i) durations.push_back(py_float(args[size_t(i)]));
     }
     std::string command_id = uuid4_hex();
-    std::string digest = sha256_raw("console-timeline:" + std::to_string(world_->world_id) + ":" + std::to_string(world_->seed) + ":" +
-                                    name + ":" + command_id);
-    uint64_t seed = 0;
-    for (int i = 0; i < 8; ++i) seed = (seed << 8) | uint8_t(digest[size_t(i)]);
-    parameters["seed"] = seed;
-    double at = world_->now();
-    json times = { { phases[0], at } };
-    for (size_t i = 1; i < phases.size(); ++i)
-    {
-        at = finite(at + durations[i - 1] * 1000);
-        times[phases[i]] = at;
-    }
+    auto [times, planned] = Timelines::plan(*world_, name, command_id, durations, parameters);
+    parameters = planned;
     if (!ready_) throw Unavailable("world recovery has not completed");
     Principal admin;
     for (auto& entry : credentials_->entries)

@@ -403,6 +403,7 @@ json Service::execute(const Principal& principal, const json& request)
         { "native_save_append", { { "character_id", "fence", "session_fence", "upload_id", "offset", "data" }, {} } },
         { "native_save_finish", { { "character_id", "fence", "session_fence", "upload_id" }, {} } },
         { "native_save_cancel", { { "character_id", "fence", "session_fence", "upload_id" }, {} } },
+        { "admin_relay", { { "account", "order", "values" }, {} } },
     };
     json bound;
     if (administrative.count(operation))
@@ -412,6 +413,8 @@ json Service::execute(const Principal& principal, const json& request)
     }
     else if (functions.count(operation))
     {
+        if (operation == "admin_relay" && principal.role != "location")
+            throw Forbidden("administrator orders are relayed by a location authority");
         if (operation.rfind("native_save_", 0) == 0)
         {
             if (principal.role != "location") throw Forbidden("native checkpoints require a location authority");
@@ -463,7 +466,71 @@ json Service::execute(const Principal& principal, const json& request)
     if (operation == "native_save_begin") return saves_->begin(actor, command_id, bound);
     if (operation == "native_save_append") return saves_->append(actor, command_id, bound);
     if (operation == "native_save_finish") return saves_->finish(actor, command_id, bound);
+    if (operation == "admin_relay") return admin_relay(actor, command_id, bound);
     return saves_->cancel(actor, command_id, bound);
+}
+
+// http.py admin_relay: an in-game administrator's world order, relayed by the
+// location that verified his account (owner 2026-10-23: time and weather set
+// from the admin menu or the weather editor reached one map only). It goes to
+// the operations the master console uses, so every location follows it.
+json Service::admin_relay(const std::string& actor, const std::string& command_id, const json& args)
+{
+    const json& account = args["account"];
+    const json& order_value = args["order"];
+    const json& values = args["values"];
+    if (!account.is_string() || account.get<std::string>().empty() || account.get<std::string>().size() > 64)
+        throw Invalid("invalid administrator account");
+    for (unsigned char c : account.get<std::string>())
+        if (c < 32 || c == 127) throw Invalid("invalid administrator account");
+    static const std::vector<std::string> orders = { "weather", "emission", "psi_storm", "scale", "advance" };
+    if (!order_value.is_string() || std::find(orders.begin(), orders.end(), order_value.get<std::string>()) == orders.end() || !values.is_object())
+        throw Invalid("unknown administrator order");
+    persistent_id(command_id);
+    const std::string order = order_value.get<std::string>();
+    auto keys_are = [&](std::initializer_list<const char*> keys) {
+        if (values.size() != keys.size()) return false;
+        for (const char* key : keys)
+            if (!values.contains(key)) return false;
+        return true;
+    };
+    json result;
+    if (order == "scale")
+    {
+        if (!keys_are({ "value" })) throw Invalid("scale order requires value");
+        result = world_->set_scale(actor, command_id, values["value"]);
+    }
+    else if (order == "advance")
+    {
+        if (!keys_are({ "game_s" })) throw Invalid("advance order requires game_s");
+        const json& game_s = values["game_s"];
+        finite(game_s, .001, 30 * 86400);
+        // Python: game_s * 1000 keeps an int an int (the journal hashes compare)
+        const json game_ms = game_s.is_number_integer() ? json(game_s.get<int64_t>() * 1000) : json(game_s.get<double>() * 1000);
+        result = world_->advance(actor, command_id, game_ms);
+    }
+    else
+    {
+        json durations, parameters;
+        if (order == "weather")
+        {
+            if (!keys_are({ "source", "target", "transition_s" })) throw Invalid("weather order requires source, target and transition_s");
+            durations = json::array({ values["transition_s"] });
+            parameters = { { "source", values["source"] }, { "target", values["target"] } };
+        }
+        else
+        {
+            if (!keys_are({ "durations", "intensity" })) throw Invalid("event order requires durations and intensity");
+            durations = values["durations"];
+            parameters = { { "intensity", values["intensity"] } };
+        }
+        auto [times, planned] = Timelines::plan(*world_, order, command_id, durations, parameters);
+        result = timelines_->schedule(actor, command_id, order, command_id, nullptr, times, planned);
+    }
+    std::printf("[master] administrator %s via %s: %s %s\n", account.get<std::string>().c_str(), actor.c_str(), order.c_str(),
+                canonical(values).c_str());
+    std::fflush(stdout);
+    return result;
 }
 
 static bool all_digits(const std::string& v, size_t max_len, bool allow_zero)
@@ -637,6 +704,25 @@ HttpResponse Service::handle(HttpRequest& request, const std::function<bool(size
     catch (const std::exception&) { return reply(503, { { "error", "world transaction could not be completed" } }); }
 }
 
+// gateway.ACCOUNT
+static bool valid_account(const std::string& account)
+{
+    if (account.size() < 3 || account.size() > 20) return false;
+    return std::all_of(account.begin(), account.end(), [](char c) {
+        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_' || c == '.' || c == '-';
+    });
+}
+
+// gateway.home: the map a character lives on, nothing for a new one.
+std::optional<std::string> Service::home(const std::string& account, int64_t slot)
+{
+    std::string id = native_identity(world_->world_id, world_->seed, account, slot);
+    std::lock_guard<std::recursive_mutex> guard(store_->lock);
+    json row = store_->db.one("SELECT location FROM entity WHERE id=? AND kind='CHARACTER'", { id });
+    if (row.is_null()) return std::nullopt;
+    return row["location"].get<std::string>();
+}
+
 HttpResponse Service::handle_entry(HttpRequest& request)
 {
     auto respond = [](int status, const json& body) { return HttpResponse{ status, python_dumps(body), "application/json" }; };
@@ -652,18 +738,41 @@ HttpResponse Service::handle_entry(HttpRequest& request)
             for (auto it = entry_hits_.begin(); it != entry_hits_.end();)
                 it = (it->second.empty() || now - it->second.back() >= 10000000000LL) ? entry_hits_.erase(it) : std::next(it);
     }
-    if (request.target != "/v1/entry") return respond(404, { { "error", "unknown endpoint" } });
+    if (request.path != "/v1/entry") return respond(404, { { "error", "unknown endpoint" } });
     try
     {
+        // The client names its account and slot (owner 2026-10-24: "the master
+        // connects you, from its database, to the map you were on last, or to
+        // Cordon when you are new"): the character's map when it runs, Cordon
+        // for a new character, otherwise the first running map.
+        auto query = parse_qs(request.query, false, 4);
+        std::optional<std::string> account;
+        int64_t slot = 1;
+        if (query.count("account") && !query["account"].empty()) account = query["account"][0];
+        if (query.count("slot") && !query["slot"].empty())
+        {
+            const std::string& text = query["slot"][0];
+            bool digits = !text.empty() && text.size() <= 2 && std::all_of(text.begin(), text.end(), [](char c) { return c >= '0' && c <= '9'; });
+            slot = digits ? std::max<int64_t>(1, std::stoll(text)) : 0;
+        }
         auto plan = read_cluster(cluster_);
         std::lock_guard<std::recursive_mutex> guard(store_->lock);
         int64_t now = world_->real_ms();
         std::vector<std::string> alive;
         for (auto& row : store_->db.all("SELECT location FROM location_lease WHERE expires_ms>?", { now })) alive.push_back(row["location"].get<std::string>());
+        auto running = [&](const std::string& name) { return std::find(alive.begin(), alive.end(), name) != alive.end(); };
+        // The client keeps the address it reached the master with (Radmin VPN players).
+        auto answer = [&](const PlanLocation& location) {
+            return respond(200, { { "schema", 1 }, { "location", location.name }, { "host", "" }, { "port", location.port } });
+        };
+        if (account && valid_account(*account) && slot >= 1 && slot <= 10)
+        {
+            std::string wanted = home(*account, slot).value_or("l01_escape");
+            for (auto& location : plan)
+                if (location.name == wanted && running(location.name)) return answer(location);
+        }
         for (auto& location : plan)
-            if (std::find(alive.begin(), alive.end(), location.name) != alive.end())
-                // The client keeps the address it reached the master with (Radmin VPN players).
-                return respond(200, { { "schema", 1 }, { "location", location.name }, { "host", "" }, { "port", location.port } });
+            if (running(location.name)) return answer(location);
     }
     catch (...) {}
     return respond(503, { { "error", "no location is running" } });

@@ -252,6 +252,16 @@ def scenario(client):
     command("npc dies twice", "entity_death", {"entity_id": npc, "fence": fa, "version": 2, "cause": "bullet"}, marsh, instance=INSTANCE_A)
     command("corpse cleanup", "corpse_cleanup", {"entity_id": npc, "fence": fa, "version": 2}, marsh, instance=INSTANCE_A)
     command("recover", "location_recover", {"location": "k00_marsh", "fence": fa}, marsh, instance=INSTANCE_A)
+    # In-game administrators' orders relayed by their location (owner 2026-10-23).
+    relay = lambda order, values, actor=marsh: {"account": "Admin", "order": order, "values": values}
+    command("relay scale", "admin_relay", relay("scale", {"value": 12}), marsh, instance=INSTANCE_A)
+    command("relay advance", "admin_relay", relay("advance", {"game_s": 3600}), marsh, instance=INSTANCE_A)
+    command("relay advance replay", "admin_relay", relay("advance", {"game_s": 3600}), marsh, uuid.uuid5(uuid.NAMESPACE_URL, "relay advance").hex, INSTANCE_A)
+    command("relay advance backwards", "admin_relay", relay("advance", {"game_s": -5}), marsh, instance=INSTANCE_A)
+    command("relay unknown order", "admin_relay", relay("teleport", {}), marsh, instance=INSTANCE_A)
+    command("relay weather missing", "admin_relay", relay("weather", {"source": "clear", "target": "rain"}), marsh, instance=INSTANCE_A)
+    command("relay bad account", "admin_relay", {"account": "", "order": "scale", "values": {"value": 10}}, marsh, instance=INSTANCE_A)
+    command("relay by admin", "admin_relay", relay("scale", {"value": 10}), "admin")
     # help differs on purpose: the engine master adds psi and drops quit.
     for line in ("status", "clock", "locations", "players", "characters", "npcs", "transfers", "events", "weather", "emission",
                  "psi_storm", "scale", "nonsense", "status now"):
@@ -263,6 +273,14 @@ def scenario(client):
               for e in json.loads(events)["result"]["events"]]
     steps.append(("journal hashes", status, hashes))
     step("snapshot", client.call("POST", "/v1/snapshot", {}))
+    # Relayed schedules start now: their times differ between the two runs,
+    # so they come after the journal and the snapshot (results compared).
+    command("relay weather", "admin_relay", {"account": "Admin", "order": "weather",
+            "values": {"source": "clear", "target": "rain", "transition_s": 30}}, marsh, instance=INSTANCE_A)
+    command("relay emission", "admin_relay", {"account": "Admin", "order": "emission",
+            "values": {"durations": [10, 20, 30], "intensity": 80}}, marsh, instance=INSTANCE_A)
+    command("relay psi bad durations", "admin_relay", {"account": "Admin", "order": "psi_storm",
+            "values": {"durations": [10, 20], "intensity": 80}}, marsh, instance=INSTANCE_A)
     return steps
 
 
@@ -300,12 +318,20 @@ def main():
             if (status_a, body_a) != (status_b, body_b):
                 failures.append(name)
                 print(f"DIFF {name}:\n  python {status_a} {json.dumps(body_a, ensure_ascii=False)[:1500]}\n  cpp    {status_b} {json.dumps(body_b, ensure_ascii=False)[:1500]}")
-        for client in clients:
-            with urllib.request.urlopen(f"http://127.0.0.1:{client.entry}/v1/entry", timeout=5) as response:
-                client.entry_answer = json.loads(response.read())
-        if clients[0].entry_answer != clients[1].entry_answer:
-            failures.append("entry")
-            print("DIFF entry", clients[0].entry_answer, clients[1].entry_answer)
+        # The entry: the first running map; by account and slot the character's
+        # map (Tester lives on Cordon after the transfer), Cordon for a newcomer
+        # (owner 2026-10-24); a malformed account falls back to the first map.
+        for query in ("", "?account=Tester&slot=1", "?account=Newbie&slot=2", "?account=x&slot=1", "?account=Tester&slot=99"):
+            answers = []
+            for client in clients:
+                with urllib.request.urlopen(f"http://127.0.0.1:{client.entry}/v1/entry{query}", timeout=5) as response:
+                    answers.append(json.loads(response.read()))
+            if answers[0] != answers[1]:
+                failures.append("entry " + query)
+                print("DIFF entry", query, answers[0], answers[1])
+            elif query == "?account=Tester&slot=1" and answers[0]["location"] != "l01_escape":
+                failures.append("entry home")
+                print("entry home is not the character's map", answers[0])
         print(f"compared {len(results[0])} steps, {len(failures)} differ")
         if EXE is None:
             for name, status, body in results[0]:

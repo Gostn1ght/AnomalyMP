@@ -167,6 +167,28 @@ json World::set_scale(const std::string& actor, const std::string& command_id, c
     return result;
 }
 
+json World::advance(const std::string& actor, const std::string& command_id, const json& game_ms_json)
+{
+    const double game_ms = finite(game_ms_json, 1, 30 * 86400000.0);
+    std::lock_guard<std::recursive_mutex> guard(store.lock);
+    std::optional<std::pair<double, int64_t>> applied;
+    json payload = { { "type", "advance" }, { "game_ms", game_ms_json } };
+    json result = store.command(actor, command_id, payload, mutation([&](Db& tx) -> json {
+        double target = finite(now() + game_ms);
+        tx.exec("UPDATE world SET world_ms=?,sequence=sequence+1 WHERE singleton=1", { target });
+        int64_t event = store.event(tx, "world", "TimeAdvanced", { { "game_ms", game_ms_json } }, target);
+        applied = std::make_pair(target, last_ns_);
+        return { { "world_ms", target }, { "game_ms", game_ms_json }, { "event", event } };
+    }));
+    // A retry returns the stored result without moving the clock again.
+    if (applied)
+    {
+        anchor_ms_ = applied->first;
+        anchor_ns_ = applied->second;
+    }
+    return result;
+}
+
 json World::claim_location(const std::string& actor, const std::string& command_id, const json& location_value,
                            const json& capacity_value, const json& ttl_value)
 {

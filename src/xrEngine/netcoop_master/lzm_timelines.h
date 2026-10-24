@@ -30,6 +30,12 @@ public:
     json schedule(const std::string& actor, const std::string& command_id, const json& name, const json& timeline_id,
                   const json& version, const json& times, const json& parameters);
     static const std::vector<std::string>& phases(const std::string& name);
+    // Phase times from now and a stable seed for an administrator's schedule
+    // (the master console, or an in-game administrator through his location):
+    // weather durations = [transition s]; emission / psi storm = [warning->active,
+    // active->peak, peak->end] s. Returns {times, parameters}.
+    static std::pair<json, json> plan(World& world, const std::string& name, const std::string& timeline_id,
+                                      const json& durations, const json& parameters);
     static std::string event_id(const std::string& name, const std::string& timeline_id, const std::string& phase);
     static json public_state(const std::string& name, const json& envelope);
     static json evaluate(const std::string& name, const json& state, double world_ms);
