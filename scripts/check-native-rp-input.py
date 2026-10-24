@@ -1,4 +1,5 @@
-"""Exercise the actual level input prefix; RP UI input cannot escape into gameplay."""
+"""Exercise the actual level input prefix; RP UI input cannot escape into gameplay;
+the view keys reach the player during RP (owner 2026-10-24)."""
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import os, subprocess
@@ -14,8 +15,8 @@ button=button_text[button_text.index('bool CUIButton::OnMouseAction('):button_te
 source = r'''
 #include <cassert>
 #include <cstdio>
-enum EGameActions { kOTHER, kQUIT, kCONSOLE, kSCREENSHOT };
-constexpr int DIK_Z=1, MOUSE_1=2, MOUSE_2=3, MOVE=4, USE=5, QUIT=6, CONSOLE=7, SCREENSHOT=8;
+enum EGameActions { kOTHER, kQUIT, kCONSOLE, kSCREENSHOT, kCAM_1, kCAM_2, kCAM_3 };
+constexpr int DIK_Z=1, MOUSE_1=2, MOUSE_2=3, MOVE=4, USE=5, QUIT=6, CONSOLE=7, SCREENSHOT=8, CAM1=9, CAM2=10, CAM3=11;
 bool pure=false,g_bDisableAllInput=false,ui_present=false,top=false,consumed=false,has_actor=false;
 unsigned ui_calls=0,fallthrough=0;
 unsigned stop_clicks=0;
@@ -40,7 +41,8 @@ namespace luabind {template<class T> struct functor{bool operator()(int){return 
 struct Engine {bool functor(const char*,luabind::functor<bool>&){return false;}} engine;
 struct AI {Engine& script_engine(){return engine;}} ai_object;
 AI& ai(){return ai_object;}
-EGameActions get_binded_action(int key){return key==QUIT?kQUIT:key==CONSOLE?kCONSOLE:key==SCREENSHOT?kSCREENSHOT:kOTHER;}
+EGameActions get_binded_action(int key){return key==QUIT?kQUIT:key==CONSOLE?kCONSOLE:key==SCREENSHOT?kSCREENSHOT:
+ key==CAM1?kCAM_1:key==CAM2?kCAM_2:key==CAM3?kCAM_3:kOTHER;}
 struct CLevel {CActor* CurrentControlEntity(){return has_actor?&test_actor:nullptr;}void IR_OnKeyboardPress(int key);};
 ''' + prefix + r'''
  ++fallthrough;
@@ -49,10 +51,11 @@ int main(){
  unsigned cases=0;CLevel level;
  for(bool p:{false,true})for(bool a:{false,true})for(bool active:{false,true})
  for(bool shown:{false,true})for(bool receiver:{false,true})for(bool disabled:{false,true})
- for(bool handled:{false,true})for(int key:{DIK_Z,MOUSE_1,MOUSE_2,MOVE,USE,QUIT,CONSOLE,SCREENSHOT}){
+ for(bool handled:{false,true})for(int key:{DIK_Z,MOUSE_1,MOUSE_2,MOVE,USE,QUIT,CONSOLE,SCREENSHOT,CAM1,CAM2,CAM3}){
   pure=p;has_actor=a;test_actor.m_rp_index=active?0:-1;ui_present=shown;top=receiver;g_bDisableAllInput=disabled;consumed=handled;
   ui_calls=fallthrough=0;level.IR_OnKeyboardPress(key);
-  const bool locked=p&&a&&active&&key!=DIK_Z&&key!=QUIT&&key!=CONSOLE&&key!=SCREENSHOT;
+  const bool view=key==CAM1||key==CAM2||key==CAM3;
+  const bool locked=p&&a&&active&&key!=DIK_Z&&key!=QUIT&&key!=CONSOLE&&key!=SCREENSHOT&&!view;
   assert(ui_calls==unsigned(locked&&shown&&receiver&&!disabled));
   assert(fallthrough==unsigned(!locked));
   ++cases;
@@ -63,7 +66,7 @@ int main(){
  ui_calls=fallthrough=stop_clicks=0;button.SetButtonState(BUTTON_NORMAL);
  level.IR_OnKeyboardPress(MOUSE_1);assert(ui_calls==1 && fallthrough==0 && button.m_eButtonState==BUTTON_PUSHED);
  button.OnMouseAction(0,0,WINDOW_LBUTTON_UP);assert(stop_clicks==1 && button.m_eButtonState==BUTTON_NORMAL);
- std::printf("PASS actual RP input prefix %u cases and actual UIButton press/release: focused UI click delivered; gameplay remains locked even when UI declines; disabled/no UI/SP/system paths preserved\n",cases);
+ std::printf("PASS actual RP input prefix %u cases and actual UIButton press/release: focused UI click delivered; gameplay remains locked even when UI declines; disabled/no UI/SP/system paths preserved; view keys pass\n",cases);
 }
 '''
 # initializer_list is required by the matrix loops on both toolchains.
