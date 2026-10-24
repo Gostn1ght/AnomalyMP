@@ -13,7 +13,11 @@
 --     many in 12 hours (3 game days), or the own faction's attitude at or
 --     below -1500, make the player a renegade, wanted for 7 days with a
 --     reward that grows with what they did; another player who kills them
---     collects it.
+--     collects it. A renegade whose bounty was collected or ran out (and
+--     who did nothing new) is back in the faction he had (owner 2026-10-24,
+--     spec 8.1). Killing anyone hostile to the player - by the factions'
+--     table or personally (his own attitude of them, the victim's of him) -
+--     and zombified stalkers is no bad kill (spec 8.2).
 
 local MONSTER_RANK = 50 / 16  -- GAMMA: killed_monsters rank 50, divided twice by 4
 local RENEGADE_KILLS, RENEGADE_GOODWILL = 5, -1500
@@ -50,6 +54,8 @@ end
 local function make_renegade(obj, char, kills)
 	if faction_of(obj) == "renegade" then return end
 	local name = obj:character_name()
+	local before = faction_of(obj)
+	store().store_update("ratings", char, function(data) data.before_renegade = before return true end)
 	store().force_join("renegade", char, name)
 	local reward = 5000 + 2500 * kills + math.floor(obj:character_rank() / 10)
 	store().store_update("bounties", char, function(data)
@@ -71,12 +77,36 @@ local function enemies(a, b)
 	return xr_conditions and xr_conditions.is_factions_enemies and xr_conditions.is_factions_enemies(nil, nil, { a, b }) or false
 end
 
--- A killing of the player's own faction or of neutrals (NPC or player).
-local function bad_kill(killer, victim_faction)
+local ALWAYS_HOSTILE = { zombied = true }
+local ENEMY = -1000 -- goodwill at or below: hostile (GAMMA's threshold)
+
+-- A killing of the player's own faction or of neutrals (NPC or player); no
+-- bad kill when the victim was hostile to the player, by the factions'
+-- table or personally.
+local function bad_kill(killer, victim_faction, victim)
 	local killer_faction = faction_of(killer)
-	if killer_faction == "renegade" or victim_faction == "renegade" then return false end
+	if killer_faction == "renegade" or victim_faction == "renegade" or ALWAYS_HOSTILE[victim_faction] then return false end
+	if relation_registry and relation_registry.community_goodwill then
+		-- the player's attitude of the victim's faction (his own, kept per character)
+		if (relation_registry.community_goodwill(victim_faction, killer:id()) or 0) <= ENEMY then return false end
+	end
+	if victim and victim.relation and game_object and game_object.enemy then
+		local ok, rel = pcall(victim.relation, victim, killer)
+		if ok and rel == game_object.enemy then return false end
+	end
 	if victim_faction == killer_faction then return true end
 	return not enemies(killer_faction, victim_faction)
+end
+
+-- A renegade is back in his faction when his bounty is gone and he did
+-- nothing new (spec 8.1).
+local function forgive(obj, char)
+	local data = store().store_get("ratings", char)
+	local back = data.before_renegade
+	if not back or back == "renegade" then back = "stalker" end
+	store().store_update("ratings", char, function(d) d.before_renegade = nil d.kills = {} return true end)
+	store().force_join(back, char, obj:character_name())
+	printf("[Lost Zone][ranks] %s is no longer a renegade: back to %s", char, back)
 end
 
 local function record(killer)
@@ -102,7 +132,7 @@ end
 
 function on_npc_death(victim, killer)
 	local player = killer and player_of(killer:id())
-	if player and victim and bad_kill(player, faction_of(victim)) then record(player) end
+	if player and victim and bad_kill(player, faction_of(victim), victim) then record(player) end
 end
 
 -- Engine (CActor::Die on the server): a player died, maybe by a player.
@@ -122,10 +152,12 @@ function on_player_death(victim_id, killer_id)
 			killer:give_money(bounty.reward)
 			printf("[Lost Zone][ranks] %s collected the bounty on %s: %s RU", char_of(killer), victim_char, tostring(bounty.reward))
 			announce(string.format("%s|0|%s", bounty.name or victim_char, killer:character_name()))
+			-- paid for: the renegade is back in his faction
+			if faction_of(victim) == "renegade" then forgive(victim, victim_char) end
 		end
 		return
 	end
-	if bad_kill(killer, faction_of(victim)) then record(killer) end
+	if bad_kill(killer, faction_of(victim), victim) then record(killer) end
 end
 
 ---------------------------------------------------------------- per player state
@@ -172,6 +204,8 @@ function update()
 				captured[char] = t
 				capture(obj, char)
 			end
+			-- a renegade without a bounty (ran out, or none) is forgiven
+			if faction_of(obj) == "renegade" and not bounty_of(char) then forgive(obj, char) end
 			if netcoop_send_to_actor then
 				netcoop_send_to_actor(obj:id(), "player_rank", string.format("%s|%s", tostring(obj:character_rank()), tostring(obj:character_reputation())))
 			end

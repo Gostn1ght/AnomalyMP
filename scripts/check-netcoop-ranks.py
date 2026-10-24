@@ -1,5 +1,7 @@
 """Ranks, renegades and bounties (doc 47 §3-5): the actual netcoop_ranks and
-netcoop_factions scripts over a shared store."""
+netcoop_factions scripts over a shared store. Owner 2026-10-24: no bad kill
+for zombified stalkers or anyone hostile to the player personally (spec 8.2);
+a renegade is back in his faction once the bounty is paid or runs out (8.1)."""
 from pathlib import Path
 from lupa.lua51 import LuaRuntime
 
@@ -96,6 +98,7 @@ assert(hunter.money == b.reward, "bounty paid")
 r.on_player_death(5, 6)
 assert(hunter.money == b.reward, "paid only once")
 assert(r.bounty_of("bad_1") == nil)
+assert(killer.community == "actor_stalker", "paid for: back in his faction")
 -- Old kills leave the window.
 local fresh = player(8, "fresh_1", "stalker")
 for i = 1, 4 do r.on_npc_death(npc(300 + i, "stalker"), fresh) end
@@ -113,5 +116,19 @@ assert(relation_registry.community_goodwill("dolg", 9) == 200, "attitudes restor
 local synced = false
 for _, s in ipairs(sent) do if s:find("^player_rank:") then synced = true end end
 assert(synced, "rank sent to the client")
+-- Zombified stalkers and personal enemies are no bad kills.
+local clean = player(10, "clean_1", "stalker")
+for i = 1, 6 do r.on_npc_death(npc(500 + i, "zombied"), clean) end
+goodwill[10] = {ecolog = -1200}
+for i = 1, 6 do r.on_npc_death(npc(600 + i, "ecolog"), clean) end
+local foe = npc(700, "csky"); function foe:relation(who) return game_object.enemy end
+game_object = {enemy = 2}
+for i = 1, 6 do r.on_npc_death(foe, clean) end
+assert(clean.community == "actor_stalker", "hostile victims are fair game")
+-- A bounty that runs out forgives the renegade at the next update.
+for i = 1, 5 do r.on_npc_death(npc(800 + i, "stalker"), clean) end
+assert(clean.community == "actor_renegade")
+clock = clock + 8 * 24 * 3600; tick = 200000; r.update()
+assert(clean.community == "actor_stalker", "bounty ran out: back in his faction")
 ''')
-print("Ranks: mutant rank credit, renegade after 5 bad kills in 12 h (NPCs and players), bounty paid once, attitudes kept across logins, rank synced PASS")
+print("Ranks: mutant rank credit, renegade after 5 bad kills in 12 h (NPCs and players), bounty paid once, renegades forgiven when paid or expired, hostile victims and zombies no bad kills, attitudes kept across logins, rank synced PASS")
